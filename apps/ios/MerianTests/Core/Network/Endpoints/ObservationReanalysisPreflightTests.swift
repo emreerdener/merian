@@ -156,6 +156,33 @@ struct ObservationReanalysisPreflightTests {
         if ["recovery", "owner", "stale-before"].contains(reason) { #expect(!state.withLock { $0 }) }
     }
 
+    @Test(arguments: [false, true])
+    func explicitAdmissionSynchronizesConsentBeforeRecipientRead(denied: Bool) async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        let owner = try #require(fixture.client.overridingAuthUserID), input = try request()
+        let synced = OSAllocatedUnfairLock(initialState: false), sends = OSAllocatedUnfairLock(initialState: 0)
+        let reply = try #require(String(data: JSONSerialization.data(withJSONObject: response(input)), encoding: .utf8))
+        fixture.client.overridingInferenceConsentCheck = {
+            if denied { throw MerianError.aiConsentRequired }
+            synced.withLock { $0 = true }
+        }
+        fixture.transport.register(path: "/get_owned_observation_reanalysis_preflight") { wire in
+            #expect(synced.withLock { $0 }); sends.withLock { $0 += 1 }
+            return try NetworkEndpointTestSupport.response(to: wire, json: reply)
+        }
+        if denied {
+            await #expect(throws: MerianError.aiConsentRequired) {
+                try await fixture.client.prepareObservationReanalysisAdmissionAuthorization(input: input,
+                    expectedAuthUserID: owner, validateAttempt: {})
+            }
+        } else {
+            let permission = try await fixture.client.prepareObservationReanalysisAdmissionAuthorization(input: input,
+                expectedAuthUserID: owner, validateAttempt: {})
+            #expect(permission.recipient == .gemini)
+        }
+        #expect(sends.withLock { $0 } == (denied ? 0 : 1))
+    }
+
     @Test func boundAuthorizationRechecksClaimAtLaterDispatch() async throws {
         let fixture = NetworkEndpointFixture(); defer { fixture.close() }
         fixture.client.overridingInferenceConsentCheck = {}

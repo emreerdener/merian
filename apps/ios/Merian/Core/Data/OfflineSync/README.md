@@ -704,12 +704,24 @@ read/deletion APIs retain access. The ordinary runnable count also excludes
 those rows. Late offline completion requires a surviving ordinary row after
 taking the finalization lock.
 
-A prepared atomic staging helper now creates held qualified work with its exact
-request and child-owned photo paths. No ordinary UI producer or dedicated
-execution owner is connected yet. Scheduler deadlines exclude qualified or
-damaged rows and ingestion jobs without an ordinary row, preventing wake-only
-loops. Separate recovery/delivery and observation progress remain prerequisites;
-server admission owns funding. See the
+Atomic staging creates held qualified work with its exact request and
+child-owned photo paths. Explicit submission uses current owner-bound preflight
+and atomically binds a processor plus pristine `pending` execution admission.
+Drafts and attempted remediation holds never auto-activate.
+`ObservationReanalysisExecutionOwner` retains a single pass and awaits
+cancellation through actual lease release;
+`ObservationReanalysisExecutionService` processes at most eight due children.
+Foreground recovery precedes inference consent checks so stored results can
+still recover. Fresh execution separately checks saved-processor consent.
+
+Scheduler dates come from strict owner-qualified snapshots, with due pending,
+waiting and interrupted running states. The generic raw-job exclusion remains;
+invalid, held and orphan work cannot create wake-only loops. Local read/commit
+uncertainty uses a five-second fallback floor, suppressed while a pass is
+active. Offline/constrained paths cancel; Auth awaits the retained task before
+account lease drain. Completion wakes permanent-receipt erasure without
+selection changes. Ordinary UI submission remains disconnected; server admission
+owns funding and all activation gates remain disabled. See the
 [V58 contract](../../../../../../docs/backend-and-data/04-database-schema.md#v58-qualified-queued-reanalysis-storage)
 for migration invariants and test ownership.
 

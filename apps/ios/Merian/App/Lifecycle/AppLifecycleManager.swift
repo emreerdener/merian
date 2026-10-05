@@ -34,6 +34,7 @@ final class AppLifecycleManager {
     func handleActivePhase() {
         container.appUpdateCoordinator.refresh()
         container.offlineQueueManager.requestReanalysisErasureRecovery()
+        container.offlineQueueManager.requestReanalysisExecutionRecovery()
         guard container.appSettings.hasCompletedOnboarding else { return }
 
         // Consent synchronization must also run while the required gate is

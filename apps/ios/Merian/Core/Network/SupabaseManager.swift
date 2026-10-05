@@ -643,7 +643,7 @@ import SwiftData
             return false
         }
         await OfflineQueueManager.shared
-            .awaitCollectionSyncQuiescenceForAuthTransition()
+            .awaitRetainedSyncQuiescenceForAuthTransition()
         await authRuntimeState.awaitAccountWorkDrain()
         if let transition = activeAuthTransition,
            transition.sourceSession != nil,

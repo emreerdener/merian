@@ -12,7 +12,9 @@ struct ObservationReanalysisExecutionTests {
 
     func claim(_ container: ModelContainer) throws -> Store.Claim {
         _ = try fixture.stage(container)
-        let snapshot = try Store.read(fixture.intent().identity, container: container, isCurrent: { true })
+        let intent = try fixture.intent()
+        let snapshot = try Store.bindAndAdmit(.init(identity: intent.identity, evidence: intent.request.evidence),
+            processor: intent.request.processor, now: now, container: container, isCurrent: { true })
         return try Store.claim(snapshot, admission: .initial, now: now, container: container, isCurrent: { true })
     }
 
@@ -161,7 +163,8 @@ struct ObservationReanalysisExecutionTests {
             observationID: original.request.observationID, analysisID: child, sourceAnalysisID: original.request.sourceAnalysisID,
             processor: original.request.processor, evidence: original.request.evidence))
         _ = try ObservationReanalysisPersistence.stage(intent, container: container, isCurrent: { true })
-        let snapshot = try Store.read(intent.identity, container: container, isCurrent: { true })
+        let snapshot = try Store.bindAndAdmit(.init(identity: intent.identity, evidence: intent.request.evidence),
+            processor: intent.request.processor, now: now, container: container, isCurrent: { true })
         let active = try Store.claim(snapshot, admission: .initial, now: now, container: container, isCurrent: { true })
         let context = ModelContext(container)
         if alias == "receipt" {

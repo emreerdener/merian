@@ -309,6 +309,19 @@ struct OfflineQueueAdmissionArchitectureTests {
             of: ".quiesceBackgroundAccountWorkForAuthTransition("
         ))
         #expect(settlement.lowerBound < background.lowerBound)
+        let retained = try #require(drainSource.range(
+            of: ".awaitRetainedSyncQuiescenceForAuthTransition()"
+        ))
+        let leases = try #require(drainSource.range(
+            of: "authRuntimeState.awaitAccountWorkDrain()"
+        ))
+        #expect(retained.lowerBound < leases.lowerBound)
+        let queueDrain = try contents(of: repository.appendingPathComponent(
+            "apps/ios/Merian/Core/Data/OfflineSync/Services/OfflineQueueManager+ReanalysisExecution.swift"
+        ))
+        #expect(queueDrain.contains("reanalysisExecutionOwner.cancel()"))
+        #expect(queueDrain.contains("await awaitCollectionSyncQuiescenceForAuthTransition()"))
+        #expect(queueDrain.contains("await reanalysisExecutionOwner.cancelAndAwait()"))
     }
 
     private static let serviceDirectories = [

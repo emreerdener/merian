@@ -668,19 +668,19 @@ This prepared read does not itself admit, upload, fund or dispatch analysis.
 
 ### Durable execution claims and local completion
 
-`ObservationReanalysisExecutionStore` prepares local execution without enabling
-network scheduling. An initial bound request, a due retry, or recovery of an
-interrupted running request receives a persisted, monotonically increasing
-attempt fence. Every read and transition validates the exact immutable intent,
-qualified row/job linkage and mirrored execution fields in a fresh context.
-Post-claim timestamps must match; initial independent creation timestamps remain
-valid. Uppercase identity aliases, colliding scans and child deletion markers
-fail closed. A canonical result already admitted by owner history sync is
-allowed only when its complete immutable content matches. Claims compare the
-complete saved execution snapshot, so a stale worker cannot settle or append
-after a replacement claim. Interrupted recovery requires the execution owner to
-drain its old tasks first; a local claim does not itself authorize consent,
-upload, provider dispatch or a provider successor.
+`ObservationReanalysisExecutionStore` owns durable claims separately from the
+network execution coordinator. An explicitly admitted bound request, a due
+retry, or recovery of an interrupted running request receives a persisted,
+monotonically increasing attempt fence. Every read and transition validates the
+exact immutable intent, qualified row/job linkage and mirrored execution fields
+in a fresh context. Post-claim timestamps must match; initial independent
+creation timestamps remain valid. Uppercase identity aliases, colliding scans
+and child deletion markers fail closed. A canonical result already admitted by
+owner history sync is allowed only when its complete immutable content matches.
+Claims compare the complete saved execution snapshot, so a stale worker cannot
+settle or append after a replacement claim. Interrupted recovery requires the
+execution owner to drain its old tasks first; a local claim does not itself
+authorize consent, upload, provider dispatch or a provider successor.
 
 Retryable uncertainty retains the original request and a durable wake time.
 Evidence, consent, terminal-provider and reconciliation holds retain the same
@@ -701,8 +701,8 @@ retained result. Successful completion never uses preparation discard.
 
 `ObservationReanalysisExecutionTests` exercises retry/restart fences, immutable
 request conflicts, remediation holds, deletion/account checks, completion
-rollback and replay after cleanup. The transport executor and ordinary UI remain
-separate pending integrations; every activation gate stays disabled.
+rollback and replay after cleanup. Ordinary UI activation remains pending; every
+activation gate stays disabled.
 
 Completed-child recovery uses the separately closed
 `MerianNetworkClient.recoverObservationAnalysis` endpoint before current
@@ -719,7 +719,7 @@ saved-processor consent, locked file verification, exact private upload and the
 original analyze request. Upload checks are repeated immediately before wire
 dispatch without adding inference headers to binary evidence. A complete receipt
 triggers a second target read; it never manufactures a result. Atomic completion
-returns the permanent erasure receipt for the future coordinator to wake
+returns the permanent erasure receipt so the execution coordinator can wake
 cleanup.
 
 Uncertain transport responses schedule the same request with bounded maintenance
@@ -729,7 +729,33 @@ provenance conflict and terminal provider failure instead require explicit
 remediation. Generic `analysis_history_unavailable` does not prove evidence
 expiry. Cancellation, lost owner/generation or superseded claim cannot settle
 another worker's state. Local completion/save failures remain outside transport
-classification. Single-flight scheduling, account teardown/drain, durable
-wakeups and unbound-draft recipient binding are still separate pending
-integration; the executor has no production caller and all activation gates
-remain false.
+classification. Dedicated single-flight scheduling, account teardown/drain and
+strict durable wakeups are connected for explicitly admitted bound children.
+Ordinary UI submission remains disconnected and all activation gates remain
+false.
+
+### Explicit reanalysis execution admission
+
+`ObservationReanalysisAdmission` synchronizes current consent before the
+existing owner-bound recipient preflight. It validates the exact ready draft and
+owner lease before and after network work. `bindAndAdmit` atomically freezes
+that processor and sets the existing job to `pending`: attempt zero, finite due
+date, no diagnostics/server/last-attempt state, and identical row/job
+timestamps. Only this pending state permits an initial execution claim. Saving
+or binding a draft alone leaves it held. A saved bound request uses its original
+processor consent path; admission replay reports existing
+pending/running/waiting/held state and never revives an attempted hold.
+Recovery-only cannot bind an unbound draft. Failure to save rolls back both
+processor binding and admission.
+
+The dedicated queue owner retains one bounded pass until its task actually
+exits. Offline/constrained networking cancels and immediately invalidates its
+generation; Auth waits for task completion before draining account leases.
+Foreground recovery runs before the inference consent gate, allowing completed
+results to recover after withdrawal. The executor still requires current consent
+when a target result is absent. Candidate discovery accepts only strict
+owner-qualified pending, waiting or interrupted-running snapshots; it ignores
+held/draft/malformed/deleted work. The generic raw-job exclusion stays in place.
+Local persistence uncertainty gets a five-second fallback floor, and active
+passes suppress wake loops. Each pass processes at most eight due children and
+wakes receipt-bound local erasure only after committed completion.

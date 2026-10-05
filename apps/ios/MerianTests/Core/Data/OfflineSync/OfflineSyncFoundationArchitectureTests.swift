@@ -318,6 +318,12 @@ struct OfflineSyncFoundationArchitectureTests {
             "Services/ObservationPublicationDeliveryService.swift",
         "final class ObservationPublicationDeliveryOwner":
             "Services/ObservationPublicationDeliveryOwner.swift",
+        "struct ObservationReanalysisExecutionService":
+            "Services/ObservationReanalysisExecutionService.swift",
+        "final class ObservationReanalysisExecutionOwner":
+            "Services/ObservationReanalysisExecutionOwner.swift",
+        "func requestReanalysisExecutionRecovery":
+            "Services/OfflineQueueManager+ReanalysisExecution.swift",
         "func syncObservationPublications":
             "Services/OfflineQueueManager+ObservationPublication.swift"
     ]
@@ -331,6 +337,7 @@ struct OfflineSyncFoundationArchitectureTests {
     ]
 
     private static let extractedOwnerPaths: Set<String> = [
+        "Services/ObservationReanalysisExecutionService.swift",
         "Persistence/LibraryMutationInventory.swift",
         "Services/LibraryDetailsSyncService.swift",
         "Coordinators/GenerationTaskRegistry.swift",
@@ -359,6 +366,8 @@ struct OfflineSyncFoundationArchitectureTests {
         "Services/OfflineQueueManager+IdentificationReview.swift",
         "Services/ObservationPublicationDeliveryService.swift",
         "Services/ObservationPublicationDeliveryOwner.swift",
+        "Services/ObservationReanalysisExecutionOwner.swift",
+        "Services/OfflineQueueManager+ReanalysisExecution.swift",
         "Services/OfflineQueueManager+ObservationPublication.swift"
     ]
 
@@ -381,12 +390,15 @@ struct OfflineSyncFoundationArchitectureTests {
     ]
 
     private static let expectedImportsByPath: [String: Set<String>] = [
+        "Services/ObservationReanalysisExecutionService.swift": ["import Foundation", "import SwiftData"],
         "Persistence/LibraryMutationInventory.swift": ["import Foundation", "import SwiftData"],
         "Services/LibraryDetailsSyncService.swift": ["import Foundation", "import SwiftData"],
         "Services/IdentificationReviewSyncService.swift": ["import Foundation", "import Supabase", "import SwiftData"],
         "Services/OfflineQueueManager+IdentificationReview.swift": ["import Foundation", "import SwiftData"],
         "Services/ObservationPublicationDeliveryService.swift": ["import Foundation", "import SwiftData"],
         "Services/ObservationPublicationDeliveryOwner.swift": ["import Foundation"],
+        "Services/ObservationReanalysisExecutionOwner.swift": ["import Foundation"],
+        "Services/OfflineQueueManager+ReanalysisExecution.swift": ["import Foundation", "import SwiftData"],
         "Services/OfflineQueueManager+ObservationPublication.swift": ["import Foundation", "import SwiftData"],
         "Coordinators/GenerationTaskRegistry.swift": ["import Foundation"],
         "Models/CollectionSyncSnapshot.swift": ["import Foundation"],

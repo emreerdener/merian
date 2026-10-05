@@ -39,6 +39,74 @@ enum ObservationReanalysisExecutionStore {
         }
     }
 
+    struct Candidate {
+        let snapshot: Snapshot
+        let admission: Admission
+        let due: Date
+    }
+
+    /// Strict owner-qualified discovery. Damaged/held/draft work cannot become a timer or legacy job.
+    static func candidates(ownerID: UUID, container: ModelContainer, isCurrent: () -> Bool) throws -> [Candidate] {
+        let owner = ownerID.uuidString.lowercased(), kind = "reanalysis"
+        let context = ModelContext(container)
+        let rows = try context.fetch(FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate {
+            $0.workKindRaw == kind && $0.reanalysisOwnerAccountID == owner
+        }))
+        var candidates: [Candidate] = []
+        for row in rows {
+            try Task.checkCancellation()
+            guard isCurrent() else { throw Persistence.IntegrityError.accountChanged }
+            guard case let .reanalysis(identity) = row.work, identity.ownerID == ownerID,
+                  let job = try context.fetchOfflineJob(id: OfflineQueueManager.scanIngestionJobId(scanId: row.id)),
+                  let metadata = job.metadataJSON,
+                  let intent = try? ObservationReanalysisIntent.decode(Data(metadata.utf8)), intent.identity == identity else { continue }
+            do {
+                let saved = try read(identity, container: container, isCurrent: isCurrent)
+                switch saved.status {
+                case .pending: candidates.append(.init(snapshot: saved, admission: .initial, due: saved.nextRun!))
+                case .waiting: candidates.append(.init(snapshot: saved, admission: .dueRetry, due: saved.nextRun!))
+                case .running: candidates.append(.init(snapshot: saved, admission: .interrupted, due: saved.lastAttempt!))
+                default: break
+                }
+            } catch let error as Persistence.IntegrityError {
+                if case .accountChanged = error { throw error }
+                // Immutable malformed or deleted work requires explicit repair, not a one-second wake loop.
+            } catch is ObservationHistoryError {
+                continue
+            } catch is MerianError {
+                continue
+            }
+        }
+        return candidates.sorted {
+            $0.due == $1.due ? $0.snapshot.intent.request.analysisID.uuidString < $1.snapshot.intent.request.analysisID.uuidString : $0.due < $1.due
+        }
+    }
+
+    /// Explicit submit admission, atomic with one-time processor binding. A saved draft alone is held.
+    /// Replays preserve every already-admitted or attempted state, including remediation holds.
+    static func bindAndAdmit(_ draft: ObservationReanalysisDraft, processor: IdentificationRecipientExpectation,
+                             now: Date, container: ModelContainer, isCurrent: () -> Bool,
+                             save: (ModelContext) throws -> Void = { try $0.save() }) throws -> Snapshot {
+        guard now.timeIntervalSince1970.isFinite else { throw Persistence.IntegrityError.conflict }
+        let candidate = try draft.binding(processor: processor)
+        return try Persistence.transaction(draft.identity, container: container, isCurrent: isCurrent, save: save) { context in
+            try validateNamespace(draft.identity, context: context)
+            guard let (row, job) = try Persistence.pair(draft.identity, context: context) else { throw Persistence.IntegrityError.unavailable }
+            switch try Persistence.restoreDraft(draft, row: row, job: job) {
+            case let .bound(stored):
+                guard stored.intent == candidate else { throw Persistence.IntegrityError.conflict }
+            case .draft:
+                guard let metadata = String(bytes: try candidate.storedData(), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
+                job.metadataJSON = metadata
+            }
+            let current = try snapshot(row, job)
+            guard current.status == .needsAttention, current.attempt == 0 else { return current }
+            job.status = .pending; job.nextRunAt = now; job.updatedAt = now
+            mirror(job, into: row)
+            return try snapshot(row, job)
+        }
+    }
+
     /// `interrupted` is for a replacement execution owner after draining its old tasks.
     /// Every new claim advances the persisted attempt fence, including exact-request recovery.
     static func claim(_ expected: Snapshot, admission: Admission, now: Date, container: ModelContainer,
@@ -48,7 +116,7 @@ enum ObservationReanalysisExecutionStore {
             let (row, job) = try matching(expected, context: context)
             switch admission {
             case .initial:
-                guard expected.status == .needsAttention, expected.attempt == 0, expected.hold == nil else { throw Persistence.IntegrityError.conflict }
+                guard expected.status == .pending, expected.attempt == 0, let due = expected.nextRun, due <= now else { throw Persistence.IntegrityError.conflict }
             case .dueRetry:
                 guard expected.status == .waiting, let due = expected.nextRun, due <= now else { throw Persistence.IntegrityError.conflict }
             case .interrupted:
@@ -147,7 +215,7 @@ enum ObservationReanalysisExecutionStore {
               row.queueNextRetryAt == job.nextRunAt, row.queueLastErrorCode == job.lastErrorCode,
               row.queueLastServerStatus == job.serverStatus, row.queueNeedsAttention == (stored.status == .needsAttention),
               job.updatedAt.timeIntervalSince1970.isFinite, row.queueUpdatedAt.timeIntervalSince1970.isFinite,
-              job.attemptCount == 0 || row.queueUpdatedAt == job.updatedAt,
+              (job.attemptCount == 0 && stored.status == .needsAttention) || row.queueUpdatedAt == job.updatedAt,
               row.queueLastErrorMessage == nil, row.queueLastHTTPStatus == nil, row.queueLastServerStage == nil,
               row.queueLastServerRetryAfter == nil, job.lastErrorMessage == nil, job.lastHTTPStatus == nil,
               job.serverStage == nil, job.serverRetryAfter == nil,
@@ -161,6 +229,9 @@ enum ObservationReanalysisExecutionStore {
                   job.attemptCount == 0 ? (job.lastAttemptAt == nil && hold == nil && server == nil) : (job.lastAttemptAt != nil && hold != nil) else {
                 throw Persistence.IntegrityError.conflict
             }
+        case .pending:
+            guard job.attemptCount == 0, job.lastAttemptAt == nil, job.nextRunAt != nil,
+                  hold == nil, server == nil else { throw Persistence.IntegrityError.conflict }
         case .running, .waiting:
             guard job.attemptCount > 0, job.lastAttemptAt != nil, hold == nil, server != .failedTerminal,
                   (stored.status == .running) == (job.nextRunAt == nil) else { throw Persistence.IntegrityError.conflict }

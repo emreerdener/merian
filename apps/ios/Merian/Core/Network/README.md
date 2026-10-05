@@ -3933,8 +3933,9 @@ absence; HTTP status alone, another database error, malformed diagnostics or
 unknown fields cannot authorize continuation. Absence can also conceal a
 server-deleted observation, so the execution owner must retain local deletion
 fences and use the same server-fenced immutable request. This read does not
-itself grant upload or inference authority. The dedicated executor remains
-unconnected and all activation gates remain false.
+itself grant upload or inference authority. The dedicated executor consumes this
+read under its retained queue owner; ordinary UI admission and all activation
+gates remain disabled.
 
 Private evidence upload requires the durable caller's attempt validator before
 and after frame preparation, immediately before wire dispatch after Auth work,
@@ -3944,4 +3945,13 @@ validator; binary upload carries neither identification-recipient nor
 identification-protocol headers. Expected-owner leases, the 130-second transport
 bound, and disabled automatic ambiguous/401 replay remain unchanged. The
 prepared `ObservationReanalysisExecutor` composes these transports with exact
-target recovery and atomic local completion; scheduling remains disconnected.
+target recovery and atomic local completion; dedicated scheduling accepts only
+explicitly admitted bound work.
+
+`prepareObservationReanalysisAdmissionAuthorization` synchronizes current cloud
+consent before the advisory owner/source/child recipient read. The local
+admission owner validates its account lease and exact saved draft again before
+atomically binding and admitting execution. Saved bound requests bypass
+recipient discovery; recovery-only never supplies a provider for an unbound
+draft. This helper does not upload evidence, charge funding or dispatch
+inference.

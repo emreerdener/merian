@@ -1839,11 +1839,13 @@ the parent selection, verifies enrolled owner/source membership and shares the
 parent deletion transaction lock. Missing row/job pairs cannot be reconstructed
 by retry, and terminal jobs never reopen. Child media uses an isolated local
 namespace; the preparation and execution owners must verify the original bytes.
-These rows remain held until dedicated delivery is connected. The prepared
+These rows remain held until explicit durable execution admission. The
 completion validator rechecks the full V2 result, exact source and saved request
-digest, and the complete ordered manifest before any future append; it does not
+digest, and the complete ordered manifest before atomic append; it does not
 apply selection or review state. Ordinary scheduler deadlines ignore qualified,
-invalid and orphan ingestion work. See the
+invalid and orphan ingestion work; a separate strict owner-qualified reader now
+restores explicitly admitted reanalysis pending/waiting/running deadlines. See
+the
 [local persistence contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-immutable-reanalysis-staging).
 
 Offline preparation now has a strict local draft phase containing the permanent
@@ -1851,9 +1853,18 @@ child/parent/source/owner linkage and original ordered evidence before recipient
 preflight. No provider is guessed to persist it. Binding compares the saved
 draft and replaces only its metadata with one immutable request; later changes
 conflict and terminal work never revives. A recovery-only preflight cannot bind
-an unbound draft. Draft and bound work remain held until the dedicated file and
-execution owners are connected. This adds no SwiftData model field or schema
-version.
+an unbound draft. Drafts remain held until explicit admission; pristine bound
+work requires that same durable admission before execution. This adds no
+SwiftData model field or schema version.
+
+Dedicated delivery now processes only explicitly admitted bound children. Atomic
+processor binding plus pristine `pending` status closes the restart gap before
+first dispatch. The retained single-flight owner cancels on offline/constrained
+paths and is awaited before Auth lease drain. Foreground target recovery
+precedes inference consent; absent targets still require current saved-processor
+consent. Strict candidate reads keep drafts, remediation holds and damaged
+records out of automatic wakes. Local persistence uncertainty uses a bounded
+fallback floor. Ordinary UI submission and all activation gates remain disabled.
 
 ### 1. Transactional Destruction (`ScanRepository.eradicateScan`)
 

@@ -10,6 +10,7 @@ final class OfflineJobScheduler {
     /// tests can exercise their ordering without starting live queue work.
     struct DrainOperations {
         var syncLibraryDetails: @MainActor (OfflineQueueManager) async -> Void = { _ in }
+        var syncReanalyses: @MainActor (OfflineQueueManager) -> Void = { _ in }
         var syncPublications: @MainActor (OfflineQueueManager) async -> Void = { _ in }
         var syncIdentificationReviews: @MainActor (OfflineQueueManager) async -> Void = { _ in }
         let reconcileFunding: @MainActor (OfflineQueueManager) async -> Void
@@ -25,6 +26,7 @@ final class OfflineJobScheduler {
                     await LibraryDetailsSyncService.drain(context: context, manager: .shared)
                 }
             },
+            syncReanalyses: { $0.requestReanalysisExecutionRecovery() },
             syncPublications: { await $0.syncObservationPublications() },
             syncIdentificationReviews: { await $0.syncPendingIdentificationReviews() },
             reconcileFunding: { await $0.reconcileDeferredFundingReservations() },
@@ -50,6 +52,9 @@ final class OfflineJobScheduler {
     private weak var publicationRetryManager: OfflineQueueManager?
     private var publicationRetryDate: Date?
     private var publicationRetryOwner: UUID?
+    private weak var reanalysisRetryManager: OfflineQueueManager?
+    private var reanalysisRetryDate: Date?
+    private var reanalysisRetryOwner: UUID?
 
     /// Actual in-process wake time. Kept internal so regression tests can prove
     /// a persisted future retry was restored instead of merely displayed.
@@ -77,6 +82,7 @@ final class OfflineJobScheduler {
         // deletion backlog, for example, must not delay a scan retry that
         // becomes eligible while that drain is still in flight.
         scheduleNextPersistedWake(using: manager)
+        drainOperations.syncReanalyses(manager)
         await drainOperations.syncLibraryDetails(manager)
         await drainOperations.reconcileFunding(manager)
         drainOperations.syncPendingScans(manager)
@@ -124,6 +130,17 @@ final class OfflineJobScheduler {
         publicationRetryOwner = nil
     }
 
+    func scheduleReanalysisRetry(using manager: OfflineQueueManager, now: Date = Date()) {
+        reanalysisRetryManager = manager; reanalysisRetryOwner = deletionAccountID()
+        reanalysisRetryDate = now.addingTimeInterval(Self.databaseReadRetryDelay)
+        scheduleNextPersistedWake(using: manager, now: now)
+    }
+
+    func reanalysisDrainDidStart(using manager: OfflineQueueManager) {
+        guard reanalysisRetryManager === manager, reanalysisRetryOwner == deletionAccountID() else { return }
+        reanalysisRetryManager = nil; reanalysisRetryDate = nil; reanalysisRetryOwner = nil
+    }
+
     /// Recreates the process-local timer from durable SwiftData dates.
     ///
     /// A retry timestamp is an eligibility boundary, not a timer. This bridge
@@ -142,7 +159,9 @@ final class OfflineJobScheduler {
         let publicationDeadline = publicationRetryManager === manager && publicationRetryOwner != nil &&
             publicationRetryOwner == deletionAccountID() &&
             !manager.publicationDeliveryOwner.isRunning ? publicationRetryDate : nil
-        guard let sourceDate = [nextPersistedWakeDate(using: manager), libraryDeadline, publicationDeadline].compactMap({ $0 }).min() else {
+        let reanalysisDeadline = reanalysisRetryManager === manager && reanalysisRetryOwner != nil &&
+            reanalysisRetryOwner == deletionAccountID() && !manager.reanalysisExecutionOwner.isRunning ? reanalysisRetryDate : nil
+        guard let sourceDate = [nextPersistedWakeDate(using: manager), libraryDeadline, publicationDeadline, reanalysisDeadline].compactMap({ $0 }).min() else {
             cancelScheduledWake(using: manager)
             return
         }
@@ -266,6 +285,15 @@ final class OfflineJobScheduler {
                 let retryFloor = publicationRetryManager === manager && publicationRetryOwner == owner ? publicationRetryDate : nil
                 candidates.append(contentsOf: try ObservationPublicationPersistence.candidates(container: context.container, ownerID: owner).map { candidate in
                     retryFloor.map { max($0, candidate.1) } ?? candidate.1
+                })
+            } catch { candidates.append(Date().addingTimeInterval(Self.databaseReadRetryDelay)) }
+        }
+        if let owner = deletionOwner, !manager.reanalysisExecutionOwner.isRunning {
+            do {
+                let floor = reanalysisRetryManager === manager && reanalysisRetryOwner == owner ? reanalysisRetryDate : nil
+                candidates.append(contentsOf: try ObservationReanalysisExecutionStore.candidates(ownerID: owner,
+                    container: context.container, isCurrent: { deletionAccountID() == owner }).map { candidate in
+                    floor.map { max($0, candidate.due) } ?? candidate.due
                 })
             } catch { candidates.append(Date().addingTimeInterval(Self.databaseReadRetryDelay)) }
         }

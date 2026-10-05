@@ -38,6 +38,22 @@ extension MerianNetworkClient {
         validateAttempt: @escaping @MainActor @Sendable () throws -> Void
     ) async throws -> IdentificationDispatchAuthorization {
         guard processor != .recoveryOnly else { throw MerianError.invalidResponse }
+        try await synchronizeReanalysisConsent(expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
+        return try await identificationDispatchAuthorization(recipient: processor,
+            expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
+    }
+
+    /// Explicit durable submission synchronizes current consent before advisory recipient discovery.
+    func prepareObservationReanalysisAdmissionAuthorization(
+        input: ObservationReanalysisPreflightRequest, expectedAuthUserID: UUID,
+        validateAttempt: @escaping @MainActor @Sendable () throws -> Void
+    ) async throws -> IdentificationDispatchAuthorization {
+        try await synchronizeReanalysisConsent(expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
+        return try await prepareIdentificationAuthorization(input: input, expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
+    }
+
+    private func synchronizeReanalysisConsent(expectedAuthUserID: UUID,
+                                              validateAttempt: @escaping @MainActor @Sendable () throws -> Void) async throws {
         try Task.checkCancellation()
         guard try await authenticatedUserIDForInferenceRequest() == expectedAuthUserID else {
             throw SupabaseAuthTransitionError.signOutSessionChanged
@@ -56,8 +72,7 @@ extension MerianNetworkClient {
         guard try await authenticatedUserIDForInferenceRequest() == expectedAuthUserID else {
             throw SupabaseAuthTransitionError.signOutSessionChanged
         }
-        return try await identificationDispatchAuthorization(recipient: processor,
-            expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
+        try await validateAttempt()
     }
 
     private func prepareIdentificationAuthorization(

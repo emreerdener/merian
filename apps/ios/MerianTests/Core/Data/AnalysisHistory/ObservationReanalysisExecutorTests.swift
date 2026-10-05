@@ -44,7 +44,9 @@ struct ObservationReanalysisExecutorTests {
     }
     func stage(_ container: ModelContainer) throws -> Store.Snapshot {
         _ = try fixture.fixture.stage(container)
-        return try Store.read(fixture.fixture.intent().identity, container: container, isCurrent: { true })
+        let intent = try fixture.fixture.intent()
+        return try Store.bindAndAdmit(.init(identity: intent.identity, evidence: intent.request.evidence),
+            processor: intent.request.processor, now: fixture.now, container: container, isCurrent: { true })
     }
     func snapshot(_ container: ModelContainer) throws -> Store.Snapshot {
         try Store.read(fixture.fixture.intent().identity, container: container, isCurrent: { true })
