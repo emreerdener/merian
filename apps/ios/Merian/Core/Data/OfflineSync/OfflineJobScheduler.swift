@@ -10,6 +10,7 @@ final class OfflineJobScheduler {
     /// tests can exercise their ordering without starting live queue work.
     struct DrainOperations {
         var syncLibraryDetails: @MainActor (OfflineQueueManager) async -> Void = { _ in }
+        var syncReanalysisAdmissions: @MainActor (OfflineQueueManager) -> Void = { _ in }
         var syncReanalyses: @MainActor (OfflineQueueManager) -> Void = { _ in }
         var syncPublications: @MainActor (OfflineQueueManager) async -> Void = { _ in }
         var syncIdentificationReviews: @MainActor (OfflineQueueManager) async -> Void = { _ in }
@@ -26,6 +27,7 @@ final class OfflineJobScheduler {
                     await LibraryDetailsSyncService.drain(context: context, manager: .shared)
                 }
             },
+            syncReanalysisAdmissions: { $0.requestReanalysisAdmissionRecovery() },
             syncReanalyses: { $0.requestReanalysisExecutionRecovery() },
             syncPublications: { await $0.syncObservationPublications() },
             syncIdentificationReviews: { await $0.syncPendingIdentificationReviews() },
@@ -72,6 +74,7 @@ final class OfflineJobScheduler {
     }
 
     func drainRunnableJobs(using manager: OfflineQueueManager) async {
+        drainOperations.syncReanalysisAdmissions(manager)
         guard manager.isOnline,
               !manager.isCurrentNetworkConstrained else {
             cancelScheduledWake(using: manager)

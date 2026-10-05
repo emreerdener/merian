@@ -115,6 +115,7 @@ import SwiftData
     var identificationReviewSyncTask: Task<Void, Never>?
     @ObservationIgnored let reanalysisErasureOwner = ObservationReanalysisErasureOwner()
     @ObservationIgnored let reanalysisPreparationOwner = ObservationReanalysisPreparationOwner()
+    @ObservationIgnored lazy var reanalysisAdmissionRuntime = makeReanalysisAdmissionRuntime()
     @ObservationIgnored let reanalysisExecutionOwner = ObservationReanalysisExecutionOwner()
     @ObservationIgnored let publicationDeliveryOwner = ObservationPublicationDeliveryOwner()
 
@@ -485,6 +486,8 @@ import SwiftData
                 MerianLog.data.debug(
                     "Network: \(newStatus ? "Online" : "Offline", privacy: .public) constrained=\(newIsConstrained, privacy: .public) expensive=\(newIsExpensive, privacy: .public)"
                 )
+
+                self.requestReanalysisAdmissionRecovery(.networkChanged)
 
                 if newStatus {
                     // Cancel any pending debounce before rescheduling to prevent stacked sync

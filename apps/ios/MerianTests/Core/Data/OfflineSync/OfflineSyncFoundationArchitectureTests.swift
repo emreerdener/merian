@@ -318,6 +318,14 @@ struct OfflineSyncFoundationArchitectureTests {
             "Services/ObservationPublicationDeliveryService.swift",
         "final class ObservationPublicationDeliveryOwner":
             "Services/ObservationPublicationDeliveryOwner.swift",
+        "final class ObservationReanalysisAdmissionRuntime":
+            "Services/ObservationReanalysisAdmissionRuntime.swift",
+        "struct ObservationReanalysisAdmissionBackoff":
+            "Services/ObservationReanalysisAdmissionRuntime.swift",
+        "func requestReanalysisAdmissionRecovery":
+            "Services/OfflineQueueManager+ReanalysisAdmission.swift",
+        "func requestReanalysisStartupRecovery":
+            "Services/OfflineQueueManager+ReanalysisAdmission.swift",
         "struct ObservationReanalysisExecutionService":
             "Services/ObservationReanalysisExecutionService.swift",
         "final class ObservationReanalysisExecutionOwner":
@@ -337,6 +345,8 @@ struct OfflineSyncFoundationArchitectureTests {
     ]
 
     private static let extractedOwnerPaths: Set<String> = [
+        "Services/ObservationReanalysisAdmissionRuntime.swift",
+        "Services/OfflineQueueManager+ReanalysisAdmission.swift",
         "Services/ObservationReanalysisExecutionService.swift",
         "Persistence/LibraryMutationInventory.swift",
         "Services/LibraryDetailsSyncService.swift",
@@ -390,6 +400,8 @@ struct OfflineSyncFoundationArchitectureTests {
     ]
 
     private static let expectedImportsByPath: [String: Set<String>] = [
+        "Services/ObservationReanalysisAdmissionRuntime.swift": ["import Foundation", "import SwiftData"],
+        "Services/OfflineQueueManager+ReanalysisAdmission.swift": ["import Foundation"],
         "Services/ObservationReanalysisExecutionService.swift": ["import Foundation", "import SwiftData"],
         "Persistence/LibraryMutationInventory.swift": ["import Foundation", "import SwiftData"],
         "Services/LibraryDetailsSyncService.swift": ["import Foundation", "import SwiftData"],

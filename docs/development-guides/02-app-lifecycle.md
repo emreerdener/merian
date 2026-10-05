@@ -26,14 +26,20 @@ lock, and durably acknowledges successful erasure. Failed receipts remain
 pending for another local recovery opportunity. Repository configuration and
 committed parent deletion also invoke this coalesced owner. Full-account cleanup
 suspends and drains this worker, then awaits namespace erasure before retiring
-its recovery barrier. Targeted complete-cohort preparation recovery is
-available, but automatic restart delivery still awaits execution integration;
-see the
+its recovery barrier. Owner-bound reanalysis result recovery and local
+complete-cohort preparation recovery also run before the UI consent route. The
+dedicated advisory runtime verifies files offline but requires current consent
+and an eligible network for recipient admission; see the
 [private reanalysis contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#verified-file-production).
 
 After the onboarding routing gate, the active handler always schedules
 `ConsentManager.synchronizeWithCurrentSession()` so a closed required gate can
-hydrate account evidence or retry an offline withdrawal. The separate
+hydrate account evidence or retry an offline withdrawal. After that await, the
+original account, onboarding and current consent are rechecked before an
+explicit advisory grant wake rearms consent-held submissions. The dedicated
+runtime suppresses ready-work deadlines while consent is closed; a generic
+scheduler wake cannot revive a hold. Onboarding completion sends the same grant
+wake through its injected dependencies after durable consent. The separate
 purchase-identity-readiness retry also runs after onboarding even while required
 consent is closed. All ordinary hardware, notification, usage, and queued
 provider work remains guarded by current adult, Terms, and Gemini consent. The

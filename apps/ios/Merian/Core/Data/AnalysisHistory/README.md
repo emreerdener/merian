@@ -613,19 +613,19 @@ locks likewise cannot mint a successor or discard evidence.
 `ObservationReanalysisRecoveryTests` covers complete adoption without changing
 the child or file inode, selection preservation, terminal replay, missing and
 extra files, interrupted temporary files, wrong digests, symlinks, FIFOs,
-source/account changes, late deletion and failed database save. The recovery
-boundary is prepared for the future execution owner; automatic restart delivery
-is not connected. Full-account purge is now awaited by the existing account
-cleanup boundary: it drains the local receipt owner, commits row deletion, then
-erases the complete namespace, including orphans, before preferences, runtime
-state or recovery markers may retire. Failures retain the account barrier.
-`ObservationReanalysisFileStoreTests` covers more than 256 orphan directories,
-symlink and FIFO removal without following links, preservation of unrelated
-files and exclusive-root lock contention. Never wait for a file lock inside the
-shared database transaction. Execution may not activate before its recovery
-paths are integrated and tested. The prepared producer still has no live
-capture-entry caller or execution wake; new durable children stay held and every
-activation gate remains closed.
+source/account changes, late deletion and failed database save. Targeted
+recovery remains available for explicit callers; submitted files now also have
+the dedicated automatic advisory recovery owner. Full-account purge is now
+awaited by the existing account cleanup boundary: it drains the local receipt
+owner, commits row deletion, then erases the complete namespace, including
+orphans, before preferences, runtime state or recovery markers may retire.
+Failures retain the account barrier. `ObservationReanalysisFileStoreTests`
+covers more than 256 orphan directories, symlink and FIFO removal without
+following links, preservation of unrelated files and exclusive-root lock
+contention. Never wait for a file lock inside the shared database transaction.
+Execution may not activate before its recovery paths are integrated and tested.
+The prepared producer still has no live capture-entry caller or execution wake;
+new durable children stay held and every activation gate remains closed.
 
 ### Explicit local preparation discard
 
@@ -791,11 +791,11 @@ and ready phases remain explicitly discardable through the same permanent
 receipt. Once bound pending admission commits, preparation discard is denied.
 
 The producer/session seam is prepared; the ordinary editor still requests held
-preparation. Dedicated bounded admission recovery and the final Reanalyze UI
-action are not connected yet. `ObservationReanalysisSubmissionTests` covers disk
-restart across file preparation, legacy compatibility, closed envelopes,
-source-proof admission, account/consent loss and discard races. No SwiftData
-schema shape or frozen snapshot changes are required.
+preparation. Dedicated bounded admission recovery is connected; the final
+Reanalyze UI action is not connected yet. `ObservationReanalysisSubmissionTests`
+covers disk restart across file preparation, legacy compatibility, closed
+envelopes, source-proof admission, account/consent loss and discard races. No
+SwiftData schema shape or frozen snapshot changes are required.
 
 ### Durable advisory admission claims
 
@@ -814,9 +814,9 @@ in-process task has drained.
 File failure never promotes the phase. Promotion is reserved for the complete
 cohort verifier's locked commit callback with the original source proof. Ready
 admission has no candidate deadline while current consent is unavailable; held
-work has none under any consent state. The future runtime owner must likewise
-suppress fallback timers for consent-blocked ready work and explicitly wake it
-after consent restoration. Generic filesystem conflict is not proof of damaged
+work has none under any consent state. The runtime also suppresses fallback
+timers for consent-blocked ready work and requires an explicit grant event to
+rearm a consent hold. Generic filesystem conflict is not proof of damaged
 evidence and cannot authorize an evidence-unavailable hold.
 
 Claim-bound recipient preflight revalidates the full wrapper around suspended
@@ -826,12 +826,12 @@ wrapper. Local preparation discard rejects a running advisory claim; nonrunning
 unbound work remains discardable with a permanent erasure receipt. Parent
 deletion and account fences still win over every claim.
 
-These storage and admission seams are not yet connected to automatic recovery.
-The single-phase executor shares preparation ownership with Capture and claims
-files-pending metadata only inside the locked verifier callback. The scheduler
-must skip active children and bound failures that occur before a claim, so it
-cannot invalidate a producer or repeatedly rediscover due work. The final
-Capture action and all activation gates remain disabled.
+These storage and admission seams now feed the dedicated automatic recovery
+runtime. The single-phase executor shares preparation ownership with Capture and
+claims files-pending metadata only inside the locked verifier callback. The
+scheduler must skip active children and bound failures that occur before a
+claim, so it cannot invalidate a producer or repeatedly rediscover due work. The
+final Capture action and all activation gates remain disabled.
 `ObservationReanalysisAdmissionWorkTests` covers strict decoding, consent
 filtering, stale claims, retry/hold transitions, failed-save rollback, locked
 promotion, account loss, binding and discard fences.
@@ -861,13 +861,12 @@ prepared Capture access factory requires its assembler to inject this same
 queue-owned instance. Ordinary access remains disabled.
 
 This coordination is installed for the existing producer and targeted local
-recovery. The automatic advisory admission pass still needs to reserve through
-this owner, skip active children, and take its durable recovery claim only from
-the file verifier's locked callback. It must also implement bounded retry,
-consent-aware deadlines and explicit grant wakes before the Reanalyze action is
-connected. `ObservationReanalysisOwnershipTests` covers the saved-preparation
-race, separate file-store instances, late cancellation, duplicate work and the
-queue Auth barrier.
+recovery. The automatic advisory admission runtime also uses this owner, skips
+active children, and takes its durable recovery claim only from the file
+verifier's locked callback. The final Reanalyze action remains disconnected.
+`ObservationReanalysisOwnershipTests` covers the saved-preparation race,
+separate file-store instances, late cancellation, duplicate work and the queue
+Auth barrier.
 
 ### Advisory phase execution
 
@@ -894,8 +893,40 @@ No phase executes upload, inference, funding, replacement or selection changes.
 CAS for an admission-phase consent hold after a grant event. It retains the
 original proof and attempt count and rejects stale snapshots and other hold
 reasons. A generic scheduler wake cannot perform this transition implicitly. The
-executor and rearm seam are prepared but are not yet wired to automatic
-admission or the final Capture action. `ObservationReanalysisAdvisoryTests`
-covers local promotion without consent, unchanged pre-lock failure, claimed file
-uncertainty, exact admission, consent versus connectivity, stale claims,
-account/deletion fences and explicit rearm.
+executor and rearm seam now feed automatic advisory admission. The final Capture
+action remains disconnected. `ObservationReanalysisAdvisoryTests` covers local
+promotion without consent, unchanged pre-lock failure, claimed file uncertainty,
+exact admission, consent versus connectivity, stale claims, account/deletion
+fences and explicit rearm.
+
+### Automatic advisory admission
+
+`ObservationReanalysisAdmissionRuntime` owns a separate timer and retained pass
+because the general network scheduler is unavailable offline. Each pass admits
+at most eight due children, refetches exact persisted candidates and skips the
+shared preparation owner's active children. Its account lease, runtime token,
+owner and model-container fence remain current across every suspension. Auth
+quiescence cancels and awaits the pass and every outstanding timer before the
+final lease drain. Network changes cancel ready admission, while local file
+verification can finish under its existing fences.
+
+Pre-claim failures receive two delayed process-local retries, then no timer
+until an external opportunity. Foreground, real network changes or an explicit
+submitted-child wake can reset that budget; timer ticks and pass completion
+cannot. Lease/discovery failures have the same finite budget. A matching
+explicit consent grant or submitted-child event reopens discovery without
+clearing other children's failure budgets. This bookkeeping never rewrites
+unclaimed preparation and never authorizes missing-evidence remediation.
+Unknown-phase discovery failure cannot create a ready-admission fallback while
+consent or network permission is closed.
+
+Repository configuration, foreground activation and general queue drains request
+recovery. A completed foreground consent synchronization rechecks the original
+account and current evidence before sending a grant event; onboarding sends the
+same owner-qualified event only after durable consent and its lifecycle gate.
+Only that event discovers and rearms consent holds. Other remediation holds are
+inert. Ready deadlines disappear while permission is closed, including fallback
+wakes. Durable binding wakes the existing execution owner, with no selection,
+funding or provider fallback changes. `ReanalysisAdmissionRuntimeTests` covers
+finite unchanged-file retries, offline promotion, consent-held rearm, busy
+preparation, lease failures and awaited cancellation.

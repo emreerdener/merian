@@ -1862,28 +1862,29 @@ files-pending metadata records the user's requested action before private
 writes, and verified completion/recovery preserves its original source
 fingerprint in version-5 admission-pending metadata. Legacy held preparations
 remain held. Submitted unbound work is not an execution candidate; source-proof
-validation and current consent precede atomic binding. The editor and bounded
-admission recovery are still awaiting connection, so saving an ordinary draft
-remains inert.
+validation and current consent precede atomic binding. Bounded admission
+recovery is connected for explicitly submitted work; saving an ordinary held
+draft remains inert and the final editor action is not yet connected.
 
 The prepared admission store adds a closed version-6 recovery wrapper retaining
 that exact submitted preparation. Its private phase, claim generation, retry and
 hold fields do not modify execution queue fields. Only locked successful cohort
 verification promotes files-pending to admission-pending; recipient binding
 consumes the current ready claim and source proof atomically. Consent-off ready
-work and all held work contribute no admission deadline. Automatic admission
-scheduling is not connected yet; these storage seams do not schedule recovery
-themselves. Producer and targeted local recovery now require the shared
-queue-owned preparation coordinator. It reserves the child before metadata
-access, retains cancelled tasks until exit, and is cancelled/awaited before the
-final Auth lease drain. Automatic admission must use that same reservation and
-claim only after file locking. The prepared single-phase advisory executor now
-implements that locked claim and source-proof boundary. It verifies local files
-without inference consent and distinguishes pre-claim uncertainty from durable
-retry. Ready admission requires current consent and connectivity; only an
-explicit grant CAS rearms a consent hold. Recovery-only responses hold for
-reconciliation. Automatic scanning, bounded pre-lock cooldowns, grant events and
-final Capture submission remain unconnected.
+work and all held work contribute no admission deadline. A dedicated advisory
+runtime now schedules recovery separately from the general network scheduler,
+including local file recovery offline. Producer and targeted local recovery now
+require the shared queue-owned preparation coordinator. It reserves the child
+before metadata access, retains cancelled tasks until exit, and is
+cancelled/awaited before the final Auth lease drain. Automatic admission uses
+that same reservation and claims only after file locking. The prepared
+single-phase advisory executor now implements that locked claim and source-proof
+boundary. It verifies local files without inference consent and distinguishes
+pre-claim uncertainty from durable retry. Ready admission requires current
+consent and connectivity; only an explicit grant CAS rearms a consent hold.
+Recovery-only responses hold for reconciliation. Automatic scanning, bounded
+pre-lock cooldowns, grant events and final Capture submission remain
+unconnected.
 
 Dedicated delivery now processes only explicitly admitted bound children. Atomic
 processor binding plus pristine `pending` status closes the restart gap before

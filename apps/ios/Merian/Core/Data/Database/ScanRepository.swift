@@ -48,7 +48,7 @@ final class ScanRepository {
             self.seedFavoritesIfNeeded(modelContext: modelContext)
         }
         scheduleLocalMediaRecoveryRegistration(for: modelContext)
-        offlineQueue.requestReanalysisErasureRecovery()
+        offlineQueue.requestReanalysisStartupRecovery()
     }
 
     private func scheduleLocalMediaRecoveryRegistration(

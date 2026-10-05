@@ -37,35 +37,44 @@ enum ObservationReanalysisAdmissionStore {
 
     static func candidates(ownerID: UUID, canPreflight: Bool, now: Date, container: ModelContainer,
                            isCurrent: () -> Bool) throws -> [Candidate] {
+        try snapshots(ownerID: ownerID, container: container, isCurrent: isCurrent).compactMap { saved -> Candidate? in
+            guard let due = saved.work.due(now: now, canPreflight: canPreflight) else { return nil }
+            let admission: Admission
+            switch saved.work.state {
+            case .pending: admission = .initial
+            case .waiting: admission = .dueRetry
+            case .running: admission = .interrupted
+            case .held: return nil
+            }
+            return Candidate(snapshot: saved, admission: admission, due: due)
+        }.sorted {
+            $0.due == $1.due ? $0.snapshot.identity.analysisID.uuidString < $1.snapshot.identity.analysisID.uuidString : $0.due < $1.due
+        }
+    }
+
+    static func consentHolds(ownerID: UUID, container: ModelContainer, isCurrent: () -> Bool) throws -> [Snapshot] {
+        try snapshots(ownerID: ownerID, container: container, isCurrent: isCurrent).filter {
+            $0.work.phase == .admissionPending && $0.work.state == .held && $0.work.hold == .consentRequired
+        }
+    }
+
+    private static func snapshots(ownerID: UUID, container: ModelContainer, isCurrent: () -> Bool) throws -> [Snapshot] {
         let owner = ownerID.uuidString.lowercased(), kind = "reanalysis", context = ModelContext(container)
         let rows = try context.fetch(FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate {
             $0.workKindRaw == kind && $0.reanalysisOwnerAccountID == owner
         }))
-        var result: [Candidate] = []
+        var result: [Snapshot] = []
         for row in rows {
             try Task.checkCancellation()
             guard isCurrent() else { throw Persistence.IntegrityError.accountChanged }
             guard case let .reanalysis(identity) = row.work, identity.ownerID == ownerID,
                   let job = try context.fetchOfflineJob(id: OfflineQueueManager.scanIngestionJobId(scanId: row.id)),
                   let metadata = job.metadataJSON, (try? Work.decode(Data(metadata.utf8))) != nil else { continue }
-            do {
-                let saved = try read(identity, container: container, isCurrent: isCurrent)
-                guard let due = saved.work.due(now: now, canPreflight: canPreflight) else { continue }
-                let admission: Admission
-                switch saved.work.state {
-                case .pending: admission = .initial
-                case .waiting: admission = .dueRetry
-                case .running: admission = .interrupted
-                case .held: continue
-                }
-                result.append(.init(snapshot: saved, admission: admission, due: due))
-            } catch let error as Persistence.IntegrityError {
+            do { result.append(try read(identity, container: container, isCurrent: isCurrent)) } catch let error as Persistence.IntegrityError {
                 if case .accountChanged = error { throw error }
             } catch is MerianError { continue } catch is ObservationHistoryError { continue }
         }
-        return result.sorted {
-            $0.due == $1.due ? $0.snapshot.identity.analysisID.uuidString < $1.snapshot.identity.analysisID.uuidString : $0.due < $1.due
-        }
+        return result
     }
 
     static func claim(_ expected: Snapshot, admission: Admission, now: Date, container: ModelContainer,

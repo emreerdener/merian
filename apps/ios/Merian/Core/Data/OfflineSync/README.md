@@ -715,19 +715,25 @@ The manager also owns `ObservationReanalysisPreparationOwner`, shared explicitly
 with the prepared Capture producer and targeted local file recovery. It reserves
 the child before metadata access and retains cancelled work until task exit.
 Queue Auth quiescence cancels and awaits this owner before the final account
-lease drain. Automatic advisory admission still needs its separate bounded pass,
-consent-aware deadlines and grant wakes. Foreground recovery precedes inference
-consent checks so stored results can still recover. Fresh execution separately
-checks saved-processor consent.
+lease drain. `ObservationReanalysisAdmissionRuntime` now owns its separate
+eight-child advisory pass and timer, allowing local file recovery offline while
+ready admission requires current consent and network eligibility. Pre-claim
+failures get two delayed retries before waiting for an external opportunity;
+timer callbacks do not reset that budget. Explicit owner-qualified grant events
+rearm only consent holds. Auth also cancels and awaits this runtime and all its
+timers. Foreground recovery precedes inference consent checks so stored results
+can still recover. Fresh execution separately checks saved-processor consent.
 
 Scheduler dates come from strict owner-qualified snapshots, with due pending,
 waiting and interrupted running states. The generic raw-job exclusion remains;
 invalid, held and orphan work cannot create wake-only loops. Local read/commit
 uncertainty uses a five-second fallback floor, suppressed while a pass is
-active. Offline/constrained paths cancel; Auth awaits the retained task before
-account lease drain. Completion wakes permanent-receipt erasure without
-selection changes. Ordinary UI submission remains disconnected; server admission
-owns funding and all activation gates remain disabled. See the
+active. Offline/constrained paths cancel bound execution and ready advisory
+admission; local files-pending verification can continue under its own account
+and file fences. Auth awaits retained tasks before account lease drain.
+Completion wakes permanent-receipt erasure without selection changes. Ordinary
+UI submission remains disconnected; server admission owns funding and all
+activation gates remain disabled. See the
 [V58 contract](../../../../../../docs/backend-and-data/04-database-schema.md#v58-qualified-queued-reanalysis-storage)
 for migration invariants and test ownership.
 
@@ -759,10 +765,10 @@ deletion. Parent cloud erasure remains observation-scoped. Private queue file
 cleanup is receipt-bound to the entire `ReanalysisQueue/<canonical-child-ID>`
 namespace, including interrupted preparation files. Generic observation-media
 cleanup no longer receives child paths. No qualified UI producer is enabled yet;
-targeted complete-cohort recovery is prepared, while automatic restart delivery
-still awaits execution integration. Full-account cleanup now drains the local
-eraser and awaits exclusive-lock namespace purge before preferences/runtime
-reset or recovery-marker retirement.
+complete-cohort recovery and admitted execution have dedicated automatic owners.
+The ordinary UI submission action remains disabled. Full-account cleanup now
+drains the local eraser and awaits exclusive-lock namespace purge before
+preferences/runtime reset or recovery-marker retirement.
 
 The ordinary permission-resume affordance and automatic failed-queue purge also
 require ordinary classification. Held children cannot borrow legacy funding
