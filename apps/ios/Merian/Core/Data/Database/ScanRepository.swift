@@ -533,8 +533,7 @@ final class ScanRepository {
                 errorCode: "local_scan_deleted",
                 needsAttention: false
             )
-
-            // 2. Queue cloud deletion task + remove SwiftData record atomically.
+            // Queue cloud deletion and remove the scan and private operation receipts atomically.
             var childCleanup = ObservationReanalysisErasure.Cleanup()
             do {
                 if origin == .explicitUserDeletion {
@@ -544,6 +543,7 @@ final class ScanRepository {
                     requestingAccountID: CloudDeletionAccountWork.captureRequestAccount(using: historicalCloudClient), origin: origin)
                 childCleanup = try ObservationReanalysisErasure.removeChildren(of: scanID, context: modelContext)
                 try ObservationPublicationPersistence.removeForDeletion(scanID, context: modelContext)
+                try ObservationAnalysisReviewPersistence.removeForDeletion(scanID, context: modelContext)
                 modelContext.delete(record)
                 try modelContext.save()
             } catch {

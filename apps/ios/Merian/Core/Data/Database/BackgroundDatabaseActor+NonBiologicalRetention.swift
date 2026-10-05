@@ -92,6 +92,7 @@ extension BackgroundDatabaseActor {
                 let children = try ObservationReanalysisErasure.removeChildren(of: scanId, context: context)
                 childIDs += children.childIDs
                 try ObservationPublicationPersistence.removeForDeletion(scanId, context: context)
+                try ObservationAnalysisReviewPersistence.removeForDeletion(scanId, context: context)
                 if let record {
                     context.delete(record)
                     deletedRecordCount += 1

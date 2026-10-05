@@ -3972,8 +3972,10 @@ KiB requests and 4 KiB receipts match the executable backend parsers. Named
 confirmation uses UTF-16 length and ECMAScript trim without Unicode
 normalization. Applied receipts must advance both revisions exactly once;
 negative/conflict receipts cannot carry authority fields. A historical receipt
-never changes selection or supplies current display/credit authority. Durable
-operation admission, account leases, current-state reconciliation and UI are
-separate work; no ordinary caller or activation is enabled. The canonical
+never changes selection or supplies current display/credit authority. The
+separate AnalysisHistory persistence owner now saves exact decisions, claims and
+restart-safe receipts. Account-leased delivery, paired current-state
+reconciliation and UI remain separate work; no ordinary caller or activation is
+enabled. The canonical
 [API contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-native-analysis-bound-review-wire)
 owns these bounds and remaining integration requirements.

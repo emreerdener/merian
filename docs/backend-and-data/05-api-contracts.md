@@ -12921,13 +12921,18 @@ and confirmation Edge route, selected by the typed decision. It composes the
 existing private authenticated dispatcher and disables transient transport
 replay and classified-401 recovery. The read-only admission RPC capability is
 unchanged. Transport never mints an operation ID, changes selection, projects
-review status, or falls back to legacy review. The subsequent durable owner must
-retain an account lease, exact immutable request and receipt, and reconcile
+review status, or falls back to legacy review. Prepared native persistence now
+retains the exact request, local fingerprint and terminal receipt across
+restart, with claim/account/deletion fences and a saved applied Reject
+association for Undo. Only one unfinished review is admitted per observation,
+through projection reconciliation. Storage does not treat receipt acceptance as
+current authority. The delivery owner must retain an account lease and reconcile
 current protocol-9 state separately. A nonselected target response cannot
-advance the parent revision while leaving a stale selected projection. Durable
-admission, restart-safe receipt-bound Undo, paired-state reconciliation and
-ordinary review UI remain separate implementation work. All activation gates
-remain false.
+advance the parent revision while leaving a stale selected projection.
+Paired-state reconciliation, delivery scheduling and ordinary review UI remain
+separate implementation work. See the
+[native persistence contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-analysis-bound-review-persistence).
+All activation gates remain false.
 
 ### Private analysis-bound community authority preparation
 

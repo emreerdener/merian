@@ -1015,3 +1015,52 @@ may change owner/selection/revision metadata, but `retainsIdentification` checks
 that the original review and display still agree before opening the returned
 source. The final route action separately fences the acknowledged revision and
 immutable source; none of these reads changes selection or authorizes inference.
+
+## Prepared analysis-bound review persistence
+
+`ObservationAnalysisReviewIntent` retains the exact immutable review request,
+its versioned local SHA-256 fingerprint, owner and terminal server receipt. The
+fingerprint uses the request's sorted-key JSON encoding without Unicode
+normalization; it is a local drift check, not server authorization. An applied
+Reject remains associated with its original operation for restart-safe Undo.
+Other outcomes, other targets and inferred rejection state cannot authorize
+Undo. A new Undo also needs a current target cache at exactly the acknowledged
+Reject review revision; the observation revision may have advanced for another
+analysis.
+
+`ObservationAnalysisReviewPersistence` stages this envelope before I/O under the
+shared review transaction lock. New decisions require matching parent and target
+cache revisions plus a mandatory caller validation of the presented baseline.
+Only one unfinished review is admitted per observation, through receipt
+reconciliation; later new decisions wait. Exact restaging returns the stored
+operation before that new-action validation; it never rebinds an operation or
+replaces a receipt after authority changes. The client prohibits operation UUID
+reuse across local observations, a stricter invariant than the server's
+observation-qualified receipt key.
+
+Claims bind the full envelope, attempt, start and expiry. An unchanged late
+claim can persist its receipt; a newer claim defeats stale writers. Dispatch
+requires an unexpired claim with no receipt. All receipt outcomes are terminal
+for the mutation, but leave local reconciliation unfinished. The receipt is
+saved before any authority projection, with no automatic selection or
+parent-revision change. Future delivery must recover the receipt, fetch target
+and selected states at the same server revision and atomically reconcile both
+before completing the job. That reconciliation API and executor are not
+installed yet. No method in this boundary marks an unreconciled receipt
+complete.
+
+The separate `observationAnalysisReviewSync` raw kind adds no stored schema
+field. Generic scheduling excludes it until its dedicated executor is connected;
+acknowledgement has no wake deadline. Attention holds cannot rearm through
+restaging or claiming. Direct and bulk deletion remove the observation-qualified
+namespace even if kind, subject or envelope metadata is damaged. Cloud-confirmed
+cleanup additionally requires the decoded owner and exact primary key. Account
+purge removes the jobs with the rest of the store. Late responses cannot
+recreate deleted work.
+
+`ObservationAnalysisReviewPersistenceTests` covers disk reopening, immutable
+replay, strict receipt binding, byte-exact names, saved Reject association,
+revision checks, claim replacement, account loss, save rollback and deletion.
+Scheduler regression coverage keeps this prepared kind inert while preserving
+known library-details work. Ordinary access and all activation gates remain
+disabled.

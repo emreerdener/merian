@@ -11,6 +11,19 @@ struct ObservationAnalysisReviewReceipt: Equatable, Sendable {
     private init(request: ObservationAnalysisReviewRequest, outcome: Outcome) {
         self.request = request; self.outcome = outcome
     }
+    /// Canonical owner-private receipt storage; decoding still verifies the full request binding.
+    func encoded() throws -> Data {
+        var row = try ObservationAnalysisReviewWire.object(request.encoded(), limit: 2048)
+        switch outcome {
+        case let .applied(observation, review):
+            row["outcome"] = "applied"; row["observation_revision"] = observation; row["review_revision"] = review
+        case .revisionConflict: row["outcome"] = "revision_conflict"
+        case .notVerified: row["outcome"] = "not_verified"
+        }
+        let data = try JSONSerialization.data(withJSONObject: row, options: [.sortedKeys])
+        guard data.count <= 4096 else { throw MerianError.invalidResponse }
+        return data
+    }
     static func decode(_ data: Data, request: ObservationAnalysisReviewRequest) throws -> Self {
         let row = try ObservationAnalysisReviewWire.object(data, limit: 4096)
         guard let raw = row["outcome"] as? String,

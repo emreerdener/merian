@@ -2502,3 +2502,27 @@ observations after post-acceptance work before source retirement.
 The interactive review/Community guard also requires exactly one current local
 record; missing context, deletion, duplicate rows and lookup failure deny the
 operation. History activation remains disabled.
+
+## Prepared analysis-bound review outbox
+
+The separate native review outbox saves exact owner, observation, analysis,
+operation, decision and expected revisions before dispatch. An operation UUID
+cannot rebind locally; an exact replay recovers its original request or receipt
+before checking whether a new foreground decision is still current. Undo needs
+the saved applied Reject association for the same owner and target. A current
+rejected flag alone is insufficient.
+
+Server receipt and local projection completion are separate durable phases.
+After receipt storage, request dispatch is forbidden. The forthcoming delivery
+owner must reconcile target and selected states at one server revision in an
+atomic cache/projection transaction. Reading a nonselected target cannot advance
+the parent revision by itself. The current persistence slice adds no delivery,
+reconciliation completion or ordinary UI caller; its raw job kind stays outside
+generic wake discovery. It adds no SwiftData stored fields or schema version.
+
+Owner, deletion and claim fences apply to every commit. Direct/bulk deletion
+uses the immutable observation-qualified job namespace even after metadata
+corruption; cloud-confirmed cleanup requires decoded ownership. The
+[native review owner](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-analysis-bound-review-persistence)
+defines the receipt, claim and recovery boundary. History activation remains
+disabled.
