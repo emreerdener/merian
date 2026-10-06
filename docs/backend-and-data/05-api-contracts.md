@@ -14551,3 +14551,34 @@ metered provider attempt, so they are not safe dispatch authority for uncertain
 immutable turns. The fence must survive ordinary quota-row pruning and preserve
 account merge/deletion semantics. HTTP wiring remains blocked on this execution
 contract; existing legacy funding behavior is unchanged.
+
+### Prepared protected Insight quota and context admission
+
+The default-off, service-only
+`reserve_protected_insight_chat_quota(uuid,uuid,uuid,text,jsonb,integer,text)`
+accepts owner, observation, client-message UUID, normalized question, displayed
+ticket, context version 1 and the original IP hash. It rechecks ownership,
+deletion, immutable context and current AI consent before first quota admission.
+Entitlement and provider quota remain owned by the existing quota core; this
+operation consumes no complimentary scan credit. First success returns
+`{status: "reserved", quota: <original quota receipt>}`. Every exact retained
+replay returns only `{status: "held"}` and cannot authorize dispatch.
+`field_chat_execution_unavailable` (55000) is the closed fresh gate;
+`field_chat_execution_held` (55000) preserves retired/unknown work and
+`field_chat_idempotency_conflict` (23505) rejects altered content or same-owner
+request reuse across observations. No public HTTP or native caller is connected.
+
+`reserve_protected_insight_chat_send_with_context` accepts the seven arguments
+of `reserve_insight_chat_send_with_context` followed by original reservation
+UUID and lease token. It returns the same five-column immutable admission row.
+Fresh admission and first message binding commit together under owner/scan locks
+and quota-before-fence row locking. Exact receipt recovery precedes gate and
+lease checks; erased bindings never reopen. Recovery through the existing
+read-only context resolver remains separate and does not expose execution
+authority.
+
+The unconnected `contextAdmission.ts` still calls the earlier context-only RPC.
+The future protected HTTP owner must use these new funding-bound boundaries and
+a dedicated dispatch owner; it must not treat generic idempotent quota commit or
+a recovered context as permission to call the provider again. Lost replies
+retain their original identity and hold. No automatic successor/refund is added.

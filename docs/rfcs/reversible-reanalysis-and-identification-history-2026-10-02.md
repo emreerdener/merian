@@ -3391,3 +3391,31 @@ decodes fresh and replay results, preserving original context after the gate
 closes and mutable scan content changes. Ten focused tests cover strict linkage,
 no transparent retry, ambiguous recovery and cancellation. Independent review is
 clear. No SQL schema or Swift source changed in this slice.
+
+### Protected chat quota lifecycle preparation — October 6, 2026
+
+A forward migration prepares first-attempt-only quota admission before immutable
+message admission. A scan-owned fingerprint and original quota reference survive
+expiry, refunds, terminal pruning and message erasure. Exact replay yields held
+state without a token; final context admission binds the original message
+atomically. Different accounts retain separate UUID scopes, while same-owner
+cross-observation reuse conflicts. Account merge preserves nonduplicate context
+and retires colliding quota records without restoring committed charges.
+
+This resolves the generic quota-reopening gap at admission/storage. The new
+execution gate stays false. Dedicated dispatch admission, protected HTTP wiring,
+native durable send tickets and runtime qualification remain; generic idempotent
+finalization is not a provider-dispatch capability. See the canonical
+[schema](../backend-and-data/04-database-schema.md#prepared-protected-field-chat-execution-fence)
+and
+[API contract](../backend-and-data/05-api-contracts.md#prepared-protected-insight-quota-and-context-admission).
+
+Final local validation passed 2,819 backend tests with 425 steps, 108 SQL
+catalogs with 1,662 assertions, three real concurrency cases, 416 migration
+contracts, full Supabase tooling, DTO21, documentation26, recursive lint/format
+and Markdown checks. Independent review is clear. The final fresh-reset rerun
+includes the corrected SQL volatility declaration; schema lint is clean and all
+319 privileged routines pass the allowlist audit. Advisor error gates pass with
+no new fence findings (the existing 103 security and 79 performance warnings
+remain). Earlier synthetic fixture errors were corrected before the complete
+run. No Swift or deployed endpoint runtime changed in this slice.

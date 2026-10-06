@@ -7340,3 +7340,40 @@ consumers omit scores when the marker is absent. The prepared pure semantic
 adapter consumes this immutable marker without later recomputation, without
 borrowing mutable scan fields or exposing operational IDs in prompts. Gates,
 service-only grants, replay order and message-keyed retention stay unchanged.
+
+### Prepared protected Field Chat execution fence
+
+Migration `20261006111319_prepare_protected_chat_quota_fence.sql` adds the
+private `internal.insight_chat_execution_fences` ledger and a separate
+`chat_execution_enabled = false` gate. Its key is observation plus
+client-message UUID; current ownership is derived from the observation. A
+request fingerprint binds normalized question text, immutable ticket and context
+version without retaining the text itself. The original quota UUID/token are
+audit references, not foreign keys to the independently pruned quota table.
+
+First admission atomically creates the fence and reserves the original
+`insight_chat_reply` attempt. Exact replay returns only `status: held`, even
+after refund, failure, expiry, quota pruning or a closed fresh-admission gate.
+Changed content or another retained observation with the same owner/request UUID
+conflicts. Different accounts may independently use the same UUID. Quota insert
+and update guards prohibit a replacement quota UUID, attempt number or token;
+ordinary counter settlement and terminal quota pruning remain intact.
+
+Protected context admission checks the original request and live reservation,
+then saves the question/context and first message binding together. Its replay
+returns the original receipt before fresh gate/lease checks. Message deletion
+sets the reference null while retaining the immutable bound flag, so no later
+message can replace it. Scan deletion cascades the fence; scientific account
+detachment or tombstoning explicitly erases it. A permanent scan-deletion
+request also blocks the first quota commit before physical erasure. This does
+not yet provide the future provider-dispatch owner's atomic permission and
+cancellation contract.
+
+Account merge requires no duplicated user-key reparenting for this ledger.
+Duplicate chat-message removal retires its original binding; nonduplicate
+contexts follow their existing message. If quota UUIDs collide across the two
+accounts and either quota is protected, a merge helper retires both operational
+quota rows before reparenting. Only still-reserved counters are released;
+committed/failed charges remain consumed. All surviving observation fences
+remain held, with no chosen winner or new lease. Immutable request evidence
+cannot be rewritten by internal updates.

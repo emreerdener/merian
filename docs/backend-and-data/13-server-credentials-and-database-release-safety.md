@@ -872,3 +872,19 @@ returns storage capabilities. Cohort metadata preserves immutable consent after
 expiry while the opaque erasure ledger survives account/observation deletion.
 This source wiring does not provision credentials/buckets or activate uploads;
 the private-bucket and independent erasure qualifications above remain required.
+
+### Protected Field Chat execution preparation
+
+The prepared chat execution fence is private with RLS and no direct API-role
+grants. Only `service_role` can invoke the exact allowlisted protected quota and
+context-admission signatures. Private fingerprint, locking, immutability and
+merge helpers have no API execute grant. `chat_execution_enabled` defaults false
+independently of immutable-context preparation.
+
+The fence survives ordinary quota pruning and message erasure. Scan deletion and
+account detachment erase private ownership; merging accounts preserves the
+scan-owned fence and conservatively retires colliding quota rows without
+restoring committed charges. The future HTTP/provider owner still requires
+explicit one-time dispatch admission, current consent, deletion fencing and
+bounded recovery before this gate may be considered for activation. No current
+migration, local test, or prepared RPC authorizes activation or deployment.

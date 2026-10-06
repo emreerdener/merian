@@ -427,3 +427,22 @@ provider execution. The new branch must preserve durable attempt evidence and
 hold such work without a successor, including after ordinary quota-row
 retention. The prepared admission/recovery owners do not yet supply that
 dispatch guarantee.
+
+### Prepared durable quota fence
+
+The forward protected-quota migration now provides a scan-owned, immutable
+request fence that survives terminal quota pruning. Exact replay is held, never
+a new lease. Context admission can atomically bind the original reservation to
+the saved message. Erasing that message retires its binding; scan deletion or
+account detachment erases the private fence. Account merge preserves independent
+requests and retires colliding operational quota records while retaining charges
+for dispatched attempts. The
+[schema contract](../../../../docs/backend-and-data/04-database-schema.md#prepared-protected-field-chat-execution-fence)
+owns the storage and lifecycle rules.
+
+Both protected RPCs remain behind `chat_execution_enabled = false` and are not
+called by the handler or the prepared TypeScript admission adapter yet. Next
+integration must introduce a dedicated one-time dispatch owner: the legacy
+finalizer's idempotent success is not permission to dispatch twice. It must also
+retain current owner/deletion/consent checks, recovery-first ordering and the
+original context. Generic stale-chat recovery must never reopen protected work.
