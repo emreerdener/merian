@@ -7434,3 +7434,21 @@ metadata; incomplete or provider turns cannot be filled as refusals. Fresh work
 checks the execution gate and rejects same-owner request reuse across scans, any
 retained execution fence and any original quota row. Both helpers remain private
 and API routines are service-only. No activation is part of this migration.
+
+### Original-grant provider chat completion
+
+`20261006131107_persist_protected_insight_chat_reply.sql` adds service-only
+`complete_protected_insight_chat_reply` and read-only
+`get_protected_insight_chat_reply`. Both check the current owner/deletion fence
+before validating the closed reply. Original request/context/message,
+reservation, lease and consumed dispatch marker must agree. Existing receipts
+compare answer, model, refusal, all five nullable token counts, closed modality
+counts and generated request metadata. Recovery exposes only the existing
+ten-field public message, including after quota pruning; a missing original
+committed quota cannot authorize a new answer. New writes require the original
+first attempt and approved model, then atomically insert the deterministic
+assistant, usage ledger and conversation touch. A failure rolls all completion
+writes back without refunding dispatch. Late dispatched replies can finish after
+lease expiry or gate/consent changes; this does not authorize fresh inference.
+No answer is overwritten, and no provider execution, quota admission or
+activation occurs here.

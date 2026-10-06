@@ -917,3 +917,13 @@ answers and ten-field receipts exclude caller-chosen response payloads and
 private metadata. An assistant write failure rolls back the daily slot and
 context. No provider quota is admitted or settled here. Fresh refusal remains
 behind the false execution gate; HTTP/native execution is still unconnected.
+
+Original-grant reply write and full-payload recovery are separately service-only
+allowlisted. Their private validator/receipt helpers have no API execute grants.
+Subject ownership and deletion precede reply validation; writes preserve
+subject→quota→fence→message lock ordering. Receipt recovery can survive quota
+pruning, but a new answer requires the original committed first-attempt quota
+and consumed dispatch marker. Read recovery compares private accounting without
+returning it. Completion never refunds, redispatches or extends execution
+authority. The migration leaves every activation gate unchanged and does not
+authorize hosted application or deployment.

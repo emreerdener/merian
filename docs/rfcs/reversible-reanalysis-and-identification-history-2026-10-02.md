@@ -3490,3 +3490,16 @@ findings. Independent review is clear. Initial CASE parsing and catalog-fixture
 expression/deleted-scan setup errors were corrected before the final full run.
 No native source or deployed runtime imports changed; native and unchanged-fleet
 compilation were not repeated.
+
+### Original-grant reply persistence — October 6, 2026
+
+Prepared SQL and TypeScript now bind provider completion to the original
+immutable context, exact message tuple, reservation/lease, first committed quota
+attempt and permanent consumed dispatch marker. The deterministic answer and
+usage ledger commit with the conversation touch; duplicate payloads recover,
+changed payloads conflict and deletion wins. Exact full-payload read recovery
+survives quota pruning without disclosing private usage; pruned quota cannot
+authorize a missing answer. Unknown write responses allow a read only, never
+another provider attempt, refund or automatic successor. HTTP orchestration,
+native persisted send tickets and integrated operational qualification remain
+open. All activation gates remain false.

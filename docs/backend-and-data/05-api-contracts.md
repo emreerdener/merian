@@ -14668,3 +14668,25 @@ unknown and are never automatically retried or refunded. Recovery orchestration
 will read original context and its exact completion; neither absence nor
 incompleteness may authorize a replacement. These adapters remain prepared;
 protected HTTP still holds before mutable reads.
+
+### Prepared original-grant chat reply persistence
+
+Service-only `complete_protected_insight_chat_reply` and
+`get_protected_insight_chat_reply` take the original eight exact-completion
+arguments plus `p_reservation_id`, `p_lease_token` and `p_reply`. The reply is a
+closed object: `answer` (1–4,000 characters), fixed `gemini-2.5-flash` model,
+`is_refusal`, nullable bounded `refusal_reason`, and nullable `usage`.
+Non-refusal reasons must be null. Usage contains exactly five nullable
+nonnegative int32 counts (`prompt_tokens`, `candidate_tokens`,
+`thinking_tokens`, `total_tokens`, `cached_tokens`) and `modality_breakdown`.
+Its four maps (`prompt`, `cached`, `candidates`, `tool`) contain only
+text/image/audio/video/document/unspecified nonnegative int32 counts. Arbitrary
+provider metadata is rejected.
+
+The fixed public completion receipt excludes accounting and private metadata,
+but SQL verifies their full equality on recovery. The prepared
+`protectedReply.ts` adapter freezes all original arguments, disables retries and
+uses a five-second call bound within the parent signal. An unknown write permits
+one exact full-payload read only; absent, changed or uncertain recovery stays
+unknown. It never writes again, dispatches, refunds or creates a successor. The
+module is not yet connected to protected HTTP execution.

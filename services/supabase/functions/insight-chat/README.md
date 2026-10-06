@@ -487,3 +487,19 @@ Transport uncertainty preserves the original request with no retry/refund. Tests
 cover static-copy parity, rollback, concurrent replay/deletion and actual
 account merge. Recovery orchestration, protected HTTP execution and native
 persisted send tickets remain to be connected; all gates stay closed.
+
+### Prepared original-grant provider completion
+
+`protectedReply.ts` freezes the original context/message and reservation/lease
+with a closed normalized provider reply. Its service-only write atomically saves
+the deterministic assistant, usage ledger and conversation touch once. Existing
+replies recover before fresh quota validity, but new writes require the original
+committed attempt and consumed dispatch marker. Known provider attribution is
+retained when usage is unavailable; token counts are never invented.
+
+An unknown write permits one dedicated full-payload read, comparing usage and
+generated metadata in SQL while returning only the public receipt. Missing or
+conflicting recovery holds; it never triggers another write/provider call or
+refund. Each transport has a five-second bound within the parent deadline. The
+protected HTTP execution owner and native persisted send tickets remain
+unconnected, with all activation gates false.
