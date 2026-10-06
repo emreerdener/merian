@@ -184,4 +184,62 @@ struct ProtectedInsightChatPersistenceTests {
                 pendingOperation: nil, undoOperation: nil), observationID: ticket.observationID)
         }
     }
+    @Test func proofWireAndVersionedStorageRejectConfusionWhilePreservingV1() async throws {
+        let (_, ticket) = try await seed(), request = try request(ticket, id: UUID(uuidString: "00000000-0000-4000-8000-000000000003")!)
+        let original = try ProtectedInsightChatIntent(request: request, ownerID: ticket.ownerID)
+        var impossible = try ProtectedInsightChatWire.object(original.storedData(), limit: 49_152)
+        impossible["version"] = 2; impossible["receipt_kind"] = NSNull()
+        #expect(throws: (any Error).self) { try ProtectedInsightChatIntent.decode(JSONSerialization.data(withJSONObject: impossible)) }
+        let helper = ProtectedInsightChatClaimsTests(), data = try helper.proof(original)
+        let completed = try original.accepting(data, at: Date(timeIntervalSince1970: 1000))
+        #expect(completed.receiptKind == .notAdmitted)
+        let stored = try completed.storedData(), decoded = try ProtectedInsightChatIntent.decode(stored)
+        #expect(try decoded.storedData() == stored)
+        let envelope = try #require(JSONSerialization.jsonObject(with: stored) as? [String: Any])
+        #expect(envelope["version"] as? Int == 2 && envelope["receipt_kind"] as? String == "not_admitted")
+        for (key, value) in [("receipt_kind", "assistant_completion" as Any), ("receipt_kind", NSNull()), ("version", 1)] {
+            var damaged = envelope; damaged[key] = value
+            #expect(throws: (any Error).self) { try ProtectedInsightChatIntent.decode(JSONSerialization.data(withJSONObject: damaged)) }
+        }
+        var disguised = envelope; disguised["version"] = 1; disguised.removeValue(forKey: "receipt_kind")
+        #expect(throws: (any Error).self) { try ProtectedInsightChatIntent.decode(JSONSerialization.data(withJSONObject: disguised)) }
+        let answer = try original.accepting(helper.receipt(original), at: Date(timeIntervalSince1970: 1000))
+        var legacy = try ProtectedInsightChatWire.object(answer.storedData(), limit: 49_152)
+        #expect(legacy["version"] as? Int == 2 && legacy["receipt_kind"] as? String == "assistant_completion")
+        legacy["version"] = 1; legacy.removeValue(forKey: "receipt_kind")
+        let old = try JSONSerialization.data(withJSONObject: legacy, options: [.sortedKeys, .withoutEscapingSlashes])
+        #expect(try ProtectedInsightChatIntent.decode(old).storedData() == old)
+        #expect(try ProtectedInsightChatWire.object(old, limit: 49_152)["version"] as? Int == 1)
+        let raw = try ProtectedInsightChatWire.object(data, limit: 32_768)
+        let proof = try #require(raw["data"] as? [String: Any])
+        for (key, value) in [("conversation_id", UUID().uuidString.lowercased() as Any), ("scan_id", UUID().uuidString.lowercased()),
+                             ("client_message_id", UUID().uuidString.lowercased()), ("context_version", true),
+                             ("reason", "unknown"), ("completed", true), ("message", [:] as [String: Any])] {
+            var changed = proof; changed[key] = value
+            #expect(throws: (any Error).self) {
+                try ProtectedInsightChatReply(data: JSONSerialization.data(withJSONObject: ["data": changed]), request: request)
+            }
+        }
+    }
+
+    @Test func persistedProofBlocksSameTicketAcrossPagingUntilRealAuthoritySync() async throws {
+        let (container, ticket) = try await seed(), request = try request(ticket)
+        let original = try Store.stage(request, ticket: ticket, container: container, isCurrent: { true })
+        let helper = ProtectedInsightChatClaimsTests(), claim = try helper.claim(original, in: container)
+        let saved = try Store.acknowledge(helper.proof(original), claim: claim, at: helper.start, container: container, isCurrent: { true })
+        let page = try Store.status(ownerID: ticket.ownerID, observationID: ticket.observationID,
+            afterMessageID: UUID(uuidString: "ffffffff-ffff-ffff-ffff-ffffffffffff"), displayedSelection: ticket.selection, container: container, isCurrent: { true })
+        #expect(page.completed.isEmpty && page.unfinished == nil && page.requiresIdentificationRefresh)
+        #expect(try Store.stage(request, ticket: ticket, container: container, isCurrent: { true }).storedData() == saved.storedData())
+        #expect(throws: Store.IntegrityError.identificationRefreshRequired) {
+            try Store.stage(self.request(ticket), ticket: ticket, container: container, isCurrent: { true })
+        }
+        _ = try await source.service(data: source.fixture(revision: 11)).syncSelected(observationID: source.support.observation, container: container)
+        let context = ModelContext(container), parent = try ObservationHistorySyncService.enrolledScan(source.support.observation, context: context)
+        let entry = try ObservationHistoryListingService.entry(ticket.selection.analysisID, scan: parent, context: context)
+        let fresh = try ProtectedInsightChatTicket(entry: entry, context: .init(owner: ticket.ownerID, selected: ticket.selection.analysisID,
+            revision: 11, pendingOperation: nil, undoOperation: nil), observationID: ticket.observationID)
+        #expect(try Store.stage(self.request(fresh), ticket: fresh, container: container, isCurrent: { true }).request.selection.stateRevision == 11)
+    }
+
 }

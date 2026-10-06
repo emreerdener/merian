@@ -32,7 +32,8 @@ struct ProtectedInsightChatTransportTests {
         var attempts = 0, responses = 0
         let reply = try await fixture.client.sendProtectedInsightChat(request, ownerID: fixture.client.overridingAuthUserID!,
             claimExpiresAt: Date().addingTimeInterval(180), validateAttempt: { attempts += 1 }, validateResponse: { responses += 1 })
-        #expect(reply.receipt.message.text == "Synthetic answer")
+        guard case .assistantCompletion(let receipt) = reply.outcome else { Issue.record("Expected assistant receipt"); return }
+        #expect(receipt.message.text == "Synthetic answer")
         #expect(reply.data == data)
         #expect(try ProtectedInsightChatIntent(request: request, ownerID: fixture.client.overridingAuthUserID!)
             .accepting(reply.data, at: Date()).isComplete)

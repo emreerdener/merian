@@ -381,11 +381,14 @@ running work has explicit exact-claim recovery; unexpired running work cannot
 enter replay. Terminal replies never send again. Queue task-exit generation
 refreshes local status without polling or an idle lease. Receipt pages are
 bounded and replace one another, and new questions still require transactional
-admission. Server-proven no-admission remediation and runtime qualification
-remain outstanding. `ProtectedInsightChatUITests` uses
-`-seedProtectedInsightChat` and the real enrolled V2 seed/persistence to check
-empty-send disabling, exact saved question and identity across reopening. Only
-the delivery boundary is synthetic; it checks the durable owner, target,
-revisions and request before withholding network execution. The launch seed is
-Debug-only and included in the Release archive marker check. All ordinary access
-and activation gates remain disabled.
+admission. Exact server no-admission proofs now appear as “Question not sent,”
+with no fabricated answer. Full-scope status disables new sends for the proved
+stale ticket even when local selected-cache equality still passes. This bar
+survives reopening and cannot be hidden by receipt paging. Dedicated remote
+identification refresh and runtime qualification remain outstanding.
+`ProtectedInsightChatUITests` uses `-seedProtectedInsightChat` and the real
+enrolled V2 seed/persistence to check empty-send disabling, exact saved question
+and identity across reopening. Only the delivery boundary is synthetic; it
+checks the durable owner, target, revisions and request before withholding
+network execution. The launch seed is Debug-only and included in the Release
+archive marker check. All ordinary access and activation gates remain disabled.

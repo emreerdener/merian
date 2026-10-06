@@ -18,13 +18,15 @@ struct ProtectedInsightChatDeliveryTests {
     }
     func complete(_ outcome: Service.Outcome) -> Bool { if case .completed = outcome { return true }; return false }
 
-    @Test func exactSendSettlesAndLocalReceiptNeverDispatchesAgain() async throws {
+    @Test(arguments: [false, true])
+    func exactSendSettlesAndLocalReceiptNeverDispatchesAgain(proof: Bool) async throws {
         let (container, intent) = try await fixture.seed()
         var calls = 0, finishes = 0
         let service = Service(cloud: cloud(finish: { finishes += 1 }), submit: { request, owner, expiry, dispatch, response in
             calls += 1; #expect(request == intent.request && owner == intent.ownerID)
             #expect(expiry == fixture.start.addingTimeInterval(180))
-            try dispatch(); try response(); return try reply(intent)
+            try dispatch(); try response()
+            return proof ? try .init(data: fixture.proof(intent), request: intent.request) : try reply(intent)
         }, now: { fixture.start })
         #expect(try await complete(service.deliver(intent, admission: .initial, container: container, isCurrent: { true }, permitsDispatch: { true })))
         #expect(try await complete(service.deliver(intent, admission: .initial, container: container, isCurrent: { true }, permitsDispatch: { false })))

@@ -74,13 +74,50 @@ enum ProtectedInsightChatWire {
     }
 }
 
-/// Validated receipt plus original bytes for atomic storage without lossy Codable re-encoding.
-struct ProtectedInsightChatReply {
-    let data: Data
-    let receipt: InsightChatProtectedCompletion
+/// A terminal denial proves only that this exact request was never admitted.
+struct ProtectedInsightChatNoAdmissionProof: Equatable, Sendable {
+    let observationID: UUID
+    let conversationID: UUID
+    let clientMessageID: UUID
+
     init(data: Data, request: ProtectedInsightChatRequest) throws {
-        receipt = try FieldChatResponseDecoder.decodeProtectedCompletion(data,
-            expectedSubjectId: request.observationID, expectedClientMessageId: request.clientMessageID)
+        let envelope = try ProtectedInsightChatWire.object(data, limit: 32_768)
+        guard Set(envelope.keys) == ["data"], let row = envelope["data"] as? [String: Any],
+              Set(row.keys) == ["context_version", "outcome", "scan_id", "conversation_id", "client_message_id", "reason"],
+              try ProtectedInsightChatWire.integer(row["context_version"]) == 1,
+              row["outcome"] as? String == "not_admitted",
+              row["reason"] as? String == "displayed_identification_changed" else { throw MerianError.invalidResponse }
+        observationID = try ProtectedInsightChatWire.uuid(row["scan_id"])
+        conversationID = try ProtectedInsightChatWire.uuid(row["conversation_id"])
+        clientMessageID = try ProtectedInsightChatWire.uuid(row["client_message_id"])
+        guard observationID == request.observationID, conversationID == request.conversationID,
+              clientMessageID == request.clientMessageID else { throw MerianError.invalidResponse }
+    }
+}
+
+/// Validated terminal outcome plus original bytes for lossless atomic persistence.
+struct ProtectedInsightChatReply {
+    enum Kind: String, Sendable { case assistantCompletion = "assistant_completion", notAdmitted = "not_admitted" }
+    enum Outcome {
+        case assistantCompletion(InsightChatProtectedCompletion)
+        case notAdmitted(ProtectedInsightChatNoAdmissionProof)
+        var kind: Kind {
+            switch self {
+            case .assistantCompletion: .assistantCompletion
+            case .notAdmitted: .notAdmitted
+            }
+        }
+    }
+    let data: Data
+    let outcome: Outcome
+    init(data: Data, request: ProtectedInsightChatRequest) throws {
+        let envelope = try ProtectedInsightChatWire.object(data, limit: 32_768)
+        if let row = envelope["data"] as? [String: Any], row["outcome"] != nil {
+            outcome = .notAdmitted(try ProtectedInsightChatNoAdmissionProof(data: data, request: request))
+        } else {
+            outcome = .assistantCompletion(try FieldChatResponseDecoder.decodeProtectedCompletion(data,
+                expectedSubjectId: request.observationID, expectedClientMessageId: request.clientMessageID))
+        }
         self.data = data
     }
 }

@@ -33,7 +33,7 @@ struct ProtectedInsightChatAccess {
                 try scope.check()
                 return Session(ticket: frozen, status: { after in
                     try ProtectedInsightChatPersistence.status(ownerID: frozen.ownerID, observationID: frozen.observationID,
-                        afterMessageID: after, container: container, isCurrent: scope.isCurrent)
+                        afterMessageID: after, displayedSelection: frozen.selection, container: container, isCurrent: scope.isCurrent)
                 }, isCurrent: scope.isCurrent, matchesDisplayedTicket: {
                     guard scope.isCurrent() else { return false }
                     return (try? ticket(baseline, cloud: cloud, container: container)) == frozen

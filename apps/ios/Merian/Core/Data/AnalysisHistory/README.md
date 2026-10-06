@@ -1309,3 +1309,32 @@ newer selected result. The chat revision ceiling fails closed even when the
 broader display baseline still accepts the integer. Closing releases the
 presentation scope; it cannot mutate or cancel durable delivery. Dedicated send
 UI uses this access; ordinary access remains nil.
+
+### Exact native no-admission receipts
+
+A protected chat reply is either the existing assistant completion or a closed
+`not_admitted` proof bound to the original observation, client-message UUID and
+proposed conversation. Only the fixed `displayed_identification_changed` reason
+is accepted. Proofs never create an assistant, thread, provider successor or
+refund. The existing running-claim CAS persists the exact terminal receipt and
+marks the job complete in one save; rollback keeps the request occupied. Late
+known proof may settle after expiry, but held/replaced claims, owner loss and
+deletion still deny settlement.
+
+Version-one intent reads preserve their serialized identity and accept only
+assistant receipts. Every new terminal write uses version two with an explicit
+`receipt_kind` for either an assistant completion or no-admission proof; mixed
+or missing discriminator/receipt/time shapes are rejected. Version two is
+terminal-only; a null receipt cannot become executable work. The original
+request and SHA remain unchanged. No SwiftData schema or frozen snapshot changes
+are involved.
+
+New staging scans all scoped terminal intents and rejects a new UUID using the
+same selection tuple already proved stale. Exact same-ID terminal replay still
+precedes this gate. Status checks that bar across all pages, including off-page
+receipts. The final tap rechecks status before minting IDs. Only a typed
+pre-save stale-ticket denial releases an unsaved candidate; ambiguous saves
+retain it. A local status refresh cannot clear the stale-ticket bar. A
+different, actually synchronized authority tuple is needed before a new explicit
+send; the dedicated remote-refresh presentation action remains to be connected.
+All gates remain false.

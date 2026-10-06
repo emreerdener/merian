@@ -28,6 +28,11 @@ final class ProtectedInsightChatContinuation {
         }
         self.candidate = nil
     }
+    /// Only a typed pre-save denial proves this exact candidate was never persisted.
+    func abandonUnpersisted(_ request: ProtectedInsightChatRequest, ticket: ProtectedInsightChatTicket) {
+        guard candidate?.request == request, candidate?.ticket == ticket else { return }
+        candidate = nil
+    }
     func clear() { candidate = nil; owner = nil; observation = nil; container = nil }
 }
 
@@ -46,6 +51,7 @@ final class ProtectedInsightChatModel {
     private(set) var hasStatus = false
     private(set) var deliveryRequested = false
     private(set) var canRecover = false
+    private(set) var requiresIdentificationRefresh = false
     private let session: ProtectedInsightChatAccess.Session
     private let continuation: ProtectedInsightChatContinuation
     private let presentationIsCurrent: () -> Bool
@@ -53,7 +59,7 @@ final class ProtectedInsightChatModel {
     var deliveryGeneration: UInt64 { session.generation() }
     var isCurrent: Bool { !closed && session.isCurrent() && presentationIsCurrent() }
     var canSend: Bool {
-        isCurrent && hasStatus && unfinished == nil && continuation.candidate == nil
+        isCurrent && hasStatus && !requiresIdentificationRefresh && unfinished == nil && continuation.candidate == nil
             && session.matchesDisplayedTicket() && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     var canRetrySave: Bool { isCurrent && continuation.candidate != nil }
@@ -76,7 +82,9 @@ final class ProtectedInsightChatModel {
                 guard pending.state == .running else { return false }
                 return try session.recoveryAllowed(pending.intent)
             } ?? false
-            hasStatus = true; message = nil
+            requiresIdentificationRefresh = page.requiresIdentificationRefresh
+            hasStatus = true
+            message = requiresIdentificationRefresh ? "The identification changed. Refresh the identification before asking a new question." : nil
             if let candidate = continuation.candidate {
                 if let saved = page.unfinished?.intent, saved.request == candidate.request { try continuation.acknowledge(saved) } else if let saved = page.completed.first(where: { $0.request == candidate.request }) { try continuation.acknowledge(saved) }
             }
@@ -88,6 +96,7 @@ final class ProtectedInsightChatModel {
 
     /// Synchronous final tap: retain identity and persist before handing work to the queue.
     func send() {
+        refresh(after: pageAfter)
         guard canSend else { return }
         do {
             let request = try session.ticket.request(conversationID: makeID(), clientMessageID: makeID(),
@@ -104,6 +113,11 @@ final class ProtectedInsightChatModel {
             try continuation.acknowledge(saved)
             text = ""; refresh()
             if deliverAfterSave, !saved.isComplete { requestDelivery(saved, replay: false) }
+        } catch ProtectedInsightChatPersistence.IntegrityError.identificationRefreshRequired {
+            continuation.abandonUnpersisted(candidate.request, ticket: candidate.ticket)
+            refresh(after: pageAfter)
+            requiresIdentificationRefresh = true
+            message = "The identification changed. Refresh the identification before asking a new question."
         } catch { message = "Your question could not be saved. Retry saving the same question." }
     }
     func sendSaved() {

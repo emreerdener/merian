@@ -3603,3 +3603,14 @@ HTTP owner returns a distinct no-admission outcome after exact recovery or one
 independently verified stale-ticket seal. Unknown and held outcomes never become
 proof. Native durable proof settlement is next; existing completion-only clients
 hold the new outcome safely. All activation gates remain false.
+
+### October 6: native terminal proof and persistent stale-ticket rejection
+
+Native protected chat now distinguishes exact no-admission proof from assistant
+completion and atomically persists it under the original running claim. A
+versioned metadata envelope preserves old assistant receipts without rewriting
+on read. New request IDs cannot reuse the same server-proved stale selection,
+including after restart or when the proof is off the visible receipt page. The
+UI shows “Question not sent” and withholds new-send controls until authority is
+actually refreshed. The dedicated remote-refresh action and operational
+qualification remain; all activation gates stay false.

@@ -19,6 +19,7 @@ struct ProtectedInsightChatModelTests {
         var deliveries: [(ProtectedInsightChatIntent, Bool)] = []
         var generation: UInt64 = 0
         var minted = 0
+        var beforeStage: (() throws -> Void)?
 
         init() async throws {
             (container, ticket) = try await support.seed()
@@ -52,6 +53,8 @@ struct ProtectedInsightChatModelTests {
             session.stage = { request, ticket in
                 self.events.append("stage")
                 if self.failBeforeSave { throw ObservationHistoryError.unavailable }
+                let hook = self.beforeStage; self.beforeStage = nil
+                try hook?()
                 let saved = try stage(request, ticket)
                 if self.failAfterSave { throw ObservationHistoryError.unavailable }
                 return saved
@@ -187,6 +190,41 @@ struct ProtectedInsightChatModelTests {
         #expect(one.id != InsightShellPresentation.protectedChat(token: UUID(), scanId: scan, generation: 1).id)
         #expect(one.id != InsightShellPresentation.protectedChat(token: token, scanId: scan, generation: 2).id)
         #expect(one.id != InsightShellPresentation.chat(scanId: scan, generation: 1).id)
+    }
+
+    @Test func proofBlocksFreshSendAfterReopeningEvenWhenLocalTicketStillMatches() async throws {
+        let fixture = try await Fixture(), model = try fixture.model()
+        model.text = "Question"; model.send()
+        let intent = try #require(model.unfinished?.intent), helper = ProtectedInsightChatClaimsTests()
+        let claim = try helper.claim(intent, in: fixture.container)
+        _ = try ProtectedInsightChatPersistence.acknowledge(helper.proof(intent), claim: claim,
+            at: helper.start, container: fixture.container, isCurrent: { true })
+        model.deliveryFinished(); model.text = "Replacement"
+        #expect(model.requiresIdentificationRefresh && !model.canSend && model.unfinished == nil)
+        #expect(model.completed.first?.receiptKind == .notAdmitted)
+        model.send(); model.close()
+        let reopened = try fixture.model(); reopened.text = "Replacement"; reopened.send()
+        #expect(reopened.requiresIdentificationRefresh && !reopened.canSend && fixture.minted == 2)
+        #expect(fixture.deliveries.count == 1)
+    }
+
+    @Test(arguments: [false, true])
+    func finalTapRechecksProofAndOnlyDiscardsProvenUnpersistedCandidate(race: Bool) async throws {
+        let fixture = try await Fixture(), model = try fixture.model()
+        let installProof = {
+            let request = try fixture.support.request(fixture.ticket)
+            let saved = try ProtectedInsightChatPersistence.stage(request, ticket: fixture.ticket,
+                container: fixture.container, isCurrent: { true })
+            let helper = ProtectedInsightChatClaimsTests(), claim = try helper.claim(saved, in: fixture.container)
+            _ = try ProtectedInsightChatPersistence.acknowledge(helper.proof(saved), claim: claim,
+                at: helper.start, container: fixture.container, isCurrent: { true })
+        }
+        if race { fixture.beforeStage = installProof } else { try installProof() }
+        model.text = "New question"; model.send()
+        #expect(model.requiresIdentificationRefresh && !model.canSend && !model.canRetrySave)
+        #expect(fixture.continuation.candidate == nil && fixture.deliveries.isEmpty)
+        #expect(fixture.minted == (race ? 2 : 0))
+        #expect(try ModelContext(fixture.container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
     }
 
 }

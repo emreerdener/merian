@@ -553,6 +553,8 @@ permits preflight; it is not dispatch authority. Only typed stale-ticket denial
 calls the sealing writer, once. An exact proof returns a distinct HTTP 200
 `data.outcome:"not_admitted"` receipt without an assistant or thread. Unknown
 reads/writes remain held; generic errors and absence never release occupancy.
-Native durable proof settlement is still pending, so the existing
-completion-only native decoder safely holds this new outcome. All activation
-gates remain false; no refund or provider successor is granted.
+Native decoding and versioned durable proof settlement now consume this exact
+outcome separately from assistant replies. New UUIDs cannot reuse a proved-stale
+selection tuple; a dedicated explicit remote-refresh presentation remains to be
+connected. All activation gates remain false; no refund or provider successor is
+granted.

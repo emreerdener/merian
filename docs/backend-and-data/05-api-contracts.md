@@ -14782,7 +14782,8 @@ retry deadline, and ordinary scheduler recovery never starts them. Save
 uncertainty checks for a committed exact local receipt before holding the
 original claim. No mutable conversation or observation selection is projected. A
 failed HTTP status never proves no admission or authorizes replacement intent;
-server-proven terminal remediation remains a separate unfinished contract.
+only the exact stale-ticket no-admission receipt described below can retire that
+request. Other uncertain outcomes remain held.
 
 Native restart discovery is local and read-only. It validates all scoped saved
 requests in bounded fetch batches and returns at most 20 immutable completion
@@ -14803,7 +14804,7 @@ frozen displayed ticket can only read an already saved exact request. Closing
 presentation does not cancel durable delivery. Local pages contain original
 questions and immutable receipts, never a reconstructed mutable thread. These UI
 connections remain behind the disabled complete History installation gate;
-server-proven terminal remediation and UI/runtime qualification remain open.
+explicit refreshed-authority presentation and runtime qualification remain open.
 
 ### Prepared exact chat no-admission proof
 
@@ -14843,6 +14844,12 @@ The distinct terminal HTTP 200 shape is:
 ```
 
 The existing completed-assistant receipt is unchanged. No assistant, thread,
-quota or refund is synthesized. Native remains completion-only until its exact
-durable proof variant is connected, and safely holds this new response. All
-activation gates remain closed.
+quota or refund is synthesized. Native now strictly decodes this outcome
+separately and persists it in a version-two intent with an explicit terminal
+kind. Version-one assistant intents remain readable without rewriting. Exact
+same-running-claim acknowledgement atomically saves proof and completes the
+operation; unknown errors remain held. Every nonterminal HTTP call still needs a
+claim. Fresh admission rejects a new UUID with a selection tuple already proved
+stale, across restart and all status pages. Only actual updated authority and a
+new explicit tap can permit a new question; the dedicated refresh action remains
+to be connected. All activation gates remain closed.

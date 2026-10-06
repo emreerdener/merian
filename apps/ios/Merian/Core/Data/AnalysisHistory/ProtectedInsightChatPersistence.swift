@@ -4,7 +4,7 @@ import SwiftData
 /// Immutable chat outbox. Dedicated claims are prepared; generic scheduling excludes this kind.
 enum ProtectedInsightChatPersistence {
     static let prefix = "observation-insight-chat:"
-    enum IntegrityError: Error { case conflict, unavailable, accountChanged }
+    enum IntegrityError: Error, Equatable { case conflict, unavailable, accountChanged, identificationRefreshRequired }
     static func observationPrefix(_ id: UUID) -> String { prefix + id.uuidString.lowercased() + ":" }
     static func jobID(_ request: ProtectedInsightChatRequest) -> String {
         observationPrefix(request.observationID) + request.clientMessageID.uuidString.lowercased()
@@ -56,6 +56,9 @@ enum ProtectedInsightChatPersistence {
             let saved = try restore(job)
             guard saved.ownerID == ticket.ownerID, saved.request.observationID == ticket.observationID, saved.isComplete else {
                 throw IntegrityError.conflict
+            }
+            if saved.receiptKind == .notAdmitted, saved.request.selection == candidate.request.selection {
+                throw IntegrityError.identificationRefreshRequired
             }
         }
         let reviewScope = ObservationAnalysisReviewPersistence.observationPrefix(ticket.observationID)
@@ -110,13 +113,14 @@ enum ProtectedInsightChatPersistence {
         let unfinished: PendingStatus?
         let completed: [ProtectedInsightChatIntent]
         let nextAfterMessageID: UUID?
+        var requiresIdentificationRefresh: Bool = false
     }
 
     /// Bounded local discovery, never an admission/absence proof. Completed pages are
     /// lexical message-ID pages; they are not a mutable conversation or a latest result.
     @MainActor
     static func status(ownerID: UUID, observationID: UUID, afterMessageID: UUID? = nil,
-                       limit: Int = 20, container: ModelContainer, isCurrent: () -> Bool) throws -> StatusPage {
+                       limit: Int = 20, displayedSelection: ProtectedInsightChatRequest.Selection? = nil, container: ModelContainer, isCurrent: () -> Bool) throws -> StatusPage {
         guard (1...20).contains(limit) else { throw IntegrityError.conflict }
         return try ConfirmedSpeciesReviewPersistence.transaction {
             guard isCurrent() else { throw IntegrityError.accountChanged }
@@ -128,6 +132,7 @@ enum ProtectedInsightChatPersistence {
             let kind = OfflineJobKind.protectedInsightChatSync.rawValue
             var unfinished: PendingStatus?
             var completed: [ProtectedInsightChatIntent] = []
+            var requiresRefresh = false
             var cursor: String?
             repeat {
                 let after = cursor ?? "", started = cursor != nil
@@ -142,6 +147,7 @@ enum ProtectedInsightChatPersistence {
                     guard saved.ownerID == ownerID, saved.request.observationID == observationID else { throw IntegrityError.conflict }
                     _ = try requireScope(saved, context: context)
                     if saved.isComplete {
+                        if saved.receiptKind == .notAdmitted, saved.request.selection == displayedSelection { requiresRefresh = true }
                         if afterMessageID.map({ saved.request.clientMessageID.uuidString.lowercased() > $0.uuidString.lowercased() }) ?? true {
                             completed.append(saved)
                             completed.sort { $0.request.clientMessageID.uuidString.lowercased() < $1.request.clientMessageID.uuidString.lowercased() }
@@ -163,7 +169,8 @@ enum ProtectedInsightChatPersistence {
                 cursor = batch.count == 64 ? batch.last?.id : nil
             } while cursor != nil
             return StatusPage(unfinished: unfinished, completed: Array(completed.prefix(limit)),
-                nextAfterMessageID: completed.count > limit ? completed[limit - 1].request.clientMessageID : nil)
+                nextAfterMessageID: completed.count > limit ? completed[limit - 1].request.clientMessageID : nil,
+                requiresIdentificationRefresh: requiresRefresh)
         }
     }
 

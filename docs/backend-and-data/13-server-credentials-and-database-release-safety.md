@@ -934,8 +934,8 @@ omission into legacy permission. The isolated raw provider adapter has a fixed
 origin/model, one invocation, real parent cancellation and bounded response
 body; unknown outcomes remain charged with no successor. The source-derived
 Field Chat fingerprint includes this runtime. Native immutable send tickets,
-receipt decoding and durable delivery are prepared; exact no-admission proof
-settlement and operational qualification still precede any separately authorized
+receipt decoding and durable delivery are prepared; explicit identification
+refresh and operational qualification still precede any separately authorized
 deployment or activation. All gates remain false.
 
 The prepared no-admission seal is an exact allowlisted service-only RPC, not an
@@ -947,9 +947,10 @@ errors remain failures or holds. Historical replay still checks current owner
 and deletion first. The new exact read-only proof RPC is separately allowlisted
 and uses the same canonical subject/request locks without fresh gates or
 admission. Prepared HTTP recovery reads original completion before proof; only
-exact typed stale-ticket denial can call the seal writer. Native proof
-settlement remains pending. These source changes do not authorize deployment or
-change any rollout gate.
+exact typed stale-ticket denial can call the seal writer. Native versioned proof
+settlement uses the existing exact running-claim CAS; fresh requests cannot
+reuse a proved-stale ticket. Explicit remote refresh remains pending. These
+source changes do not authorize deployment or change any rollout gate.
 
 A terminal seal colliding with another account's attempted UUID blocks account
 merge with `55000/field_chat_execution_merge_conflict`. The whole merge rolls

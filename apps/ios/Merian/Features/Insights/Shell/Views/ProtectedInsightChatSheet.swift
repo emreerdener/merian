@@ -30,7 +30,7 @@ struct ProtectedInsightChatSheet: View {
                         }
                     }.disabled(model.deliveryRequested || !model.isCurrent)
                 }
-                if model.unfinished == nil && !model.canRetrySave {
+                if model.unfinished == nil && !model.canRetrySave && !model.requiresIdentificationRefresh {
                     Section("Ask about this identification") {
                         TextField("Your question", text: $model.text, axis: .vertical)
                             .lineLimit(3...6).accessibilityIdentifier("ProtectedChatQuestion")
@@ -39,9 +39,12 @@ struct ProtectedInsightChatSheet: View {
                     }
                 }
                 ForEach(model.completed, id: \.request.clientMessageID) { saved in
-                    Section("Saved reply") {
+                    Section(saved.receiptKind == .notAdmitted ? "Question not sent" : "Saved reply") {
                         Text(saved.request.messageText).font(.headline)
-                        if let data = saved.receiptData,
+                        if saved.receiptKind == .notAdmitted {
+                            Text("The identification changed before this question could be sent.").foregroundStyle(.secondary)
+                                .accessibilityIdentifier("ProtectedChatNotAdmitted")
+                        } else if let data = saved.receiptData,
                            let reply = try? FieldChatResponseDecoder.decodeProtectedCompletion(data,
                                expectedSubjectId: saved.request.observationID, expectedClientMessageId: saved.request.clientMessageID) {
                             Text(reply.message.text).textSelection(.enabled)

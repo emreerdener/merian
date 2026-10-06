@@ -27,6 +27,13 @@ struct ProtectedInsightChatClaimsTests {
             "model": "gemini-2.5-flash", "is_refusal": false, "refusal_reason": NSNull(), "created_at": "2026-10-06T12:00:00Z"]
         return try JSONSerialization.data(withJSONObject: ["data": ["context_version": 1, "completed": true, "message": message]])
     }
+    func proof(_ intent: ProtectedInsightChatIntent) throws -> Data {
+        let request = intent.request
+        return try JSONSerialization.data(withJSONObject: ["data": ["context_version": 1, "outcome": "not_admitted",
+            "scan_id": request.observationID.uuidString.lowercased(), "conversation_id": request.conversationID.uuidString.lowercased(),
+            "client_message_id": request.clientMessageID.uuidString.lowercased(), "reason": "displayed_identification_changed"]])
+    }
+
     func job(_ intent: ProtectedInsightChatIntent, in context: ModelContext) throws -> OfflineJobRecord {
         let value = try context.fetchOfflineJob(id: Store.jobID(intent.request))
         return try #require(value)
@@ -150,7 +157,8 @@ struct ProtectedInsightChatClaimsTests {
         #expect(try Store.claimInitial(intent, at: first.expiresAt, container: container, isCurrent: { true }) == nil)
     }
 
-    @Test func diskRestartRestoresHeldGenerationWithoutDispatchPermission() async throws {
+    @Test(arguments: [false, true])
+    func diskRestartRestoresHeldGenerationOrExactProofWithoutDispatchPermission(terminal: Bool) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -169,13 +177,33 @@ struct ProtectedInsightChatClaimsTests {
             let ticket = try ProtectedInsightChatTicket(entry: entry, context: .init(owner: support.source.support.owner,
                 selected: entry.result.analysisID, revision: 10, pendingOperation: nil, undoOperation: nil), observationID: UUID(uuidString: scan.id)!)
             let intent = try Store.stage(support.request(ticket), ticket: ticket, container: container, isCurrent: { true })
-            try Store.hold(claim(intent, in: container), at: start, container: container, isCurrent: { true })
+            let attempt = try claim(intent, in: container)
+            if terminal {
+                _ = try Store.acknowledge(proof(intent), claim: attempt, at: start, container: container, isCurrent: { true })
+            } else { try Store.hold(attempt, at: start, container: container, isCurrent: { true }) }
         }
         let container = try open(), context = ModelContext(container)
         let row = try #require(context.fetch(FetchDescriptor<OfflineJobRecord>()).first)
         let intent = try Store.restore(row)
         let page = try Store.status(ownerID: intent.ownerID, observationID: intent.request.observationID,
             container: container, isCurrent: { true })
+        if terminal {
+            #expect(page.unfinished == nil && page.completed.first?.receiptKind == .notAdmitted)
+            #expect(try page.completed.first?.storedData() == intent.storedData())
+            let parent = try ObservationHistorySyncService.enrolledScan(intent.request.observationID.uuidString, context: context)
+            let entry = try ObservationHistoryListingService.entry(intent.request.selection.analysisID, scan: parent, context: context)
+            let ticket = try ProtectedInsightChatTicket(entry: entry, context: .init(owner: intent.ownerID,
+                selected: intent.request.selection.analysisID, revision: 10, pendingOperation: nil, undoOperation: nil),
+                observationID: intent.request.observationID)
+            #expect(try Store.stage(intent.request, ticket: ticket, container: container, isCurrent: { true }).storedData() == intent.storedData())
+            #expect(throws: Store.IntegrityError.identificationRefreshRequired) {
+                try Store.stage(support.request(ticket), ticket: ticket, container: container, isCurrent: { true })
+            }
+            #expect(try Store.status(ownerID: intent.ownerID, observationID: intent.request.observationID,
+                displayedSelection: ticket.selection, container: container, isCurrent: { true }).requiresIdentificationRefresh)
+            #expect(try Store.currentAttempt(intent, container: container, isCurrent: { true }) == nil)
+            return
+        }
         #expect(page.unfinished?.state == .held && page.completed.isEmpty)
         #expect(try page.unfinished?.intent.storedData() == intent.storedData())
         let recovered = try Store.currentAttempt(intent, container: container, isCurrent: { true })
@@ -185,4 +213,36 @@ struct ProtectedInsightChatClaimsTests {
         let replay = try Store.claimExplicitReplay(previous, at: start.addingTimeInterval(1), container: container, isCurrent: { true })
         #expect(replay?.attempt == 2 && replay?.intent.request == intent.request)
     }
+    @Test func terminalProofSettlesLateAtomicallyAndRetiresOnlyItsOwnClaim() async throws {
+        let (container, intent) = try await seed(), claim = try claim(intent, in: container)
+        let proof = try proof(intent), late = claim.expiresAt.addingTimeInterval(5)
+        #expect(throws: (any Error).self) {
+            try Store.acknowledge(proof, claim: claim, at: late, container: container, isCurrent: { true }, save: { _ in throw Store.IntegrityError.unavailable })
+        }
+        #expect(try job(intent, in: ModelContext(container)).status == .running)
+        let completed = try Store.acknowledge(proof, claim: claim, at: late, container: container, isCurrent: { true })
+        #expect(completed.receiptKind == .notAdmitted && completed.observedAt == late)
+        #expect(try Store.acknowledge(proof, claim: claim, at: late.addingTimeInterval(1), container: container, isCurrent: { true }).storedData() == completed.storedData())
+        #expect(try Store.claimInitial(intent, at: late, container: container, isCurrent: { true }) == nil)
+        #expect(throws: (any Error).self) { try Store.acknowledge(receipt(intent), claim: claim, at: late, container: container, isCurrent: { true }) }
+        let parent = try ObservationHistorySyncService.enrolledScan(intent.request.observationID.uuidString, context: ModelContext(container))
+        #expect(parent.observationStateRevision == 10)
+    }
+
+    @Test(arguments: ["held", "replaced", "account", "deletion"])
+    func proofCannotReleaseChangedClaimOrScope(change: String) async throws {
+        let (container, intent) = try await seed(), first = try claim(intent, in: container)
+        if change == "held" || change == "replaced" {
+            try Store.hold(first, at: start, container: container, isCurrent: { true })
+            if change == "replaced" { _ = try Store.claimExplicitReplay(first, at: start.addingTimeInterval(1), container: container, isCurrent: { true }) }
+        } else if change == "deletion" {
+            try support.source.update(container) { scan, context in
+                _ = try context.ensurePendingCloudDeletionTask(scanId: scan.id, requestingAccountID: intent.ownerID)
+            }
+        }
+        #expect(throws: (any Error).self) {
+            try Store.acknowledge(proof(intent), claim: first, at: start.addingTimeInterval(2), container: container, isCurrent: { change != "account" })
+        }
+    }
+
 }
