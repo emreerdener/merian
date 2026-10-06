@@ -908,3 +908,12 @@ HTTP sends remain explicitly unavailable until bounded recovery/execution and
 atomic local-refusal completion are connected and qualified. These source
 changes do not authorize applying migrations, activating either chat gate or
 deploying the Function.
+
+The exact completion and atomic local-refusal routines are separately
+service-only allowlisted. Their private receipt/copy helpers have no API execute
+grants. Completion reads original owner-bound context before assistant evidence;
+refusal takes exclusive subject locks before any replay/admission. Fixed SQL
+answers and ten-field receipts exclude caller-chosen response payloads and
+private metadata. An assistant write failure rolls back the daily slot and
+context. No provider quota is admitted or settled here. Fresh refusal remains
+behind the false execution gate; HTTP/native execution is still unconnected.

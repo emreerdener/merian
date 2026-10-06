@@ -7413,3 +7413,24 @@ request lacks its exact deterministic assistant receipt. This protects the
 window where an old worker already committed quota before enrollment began. Once
 the receipt exists, enrollment may proceed without retroactively inventing
 context for the old turn.
+
+### Exact immutable chat completion and local refusal
+
+`20261006124159_prepare_insight_chat_exact_completion.sql` adds service-only
+`get_insight_chat_turn_completion`. It reuses exact original-context recovery
+locks and validates the expected user-message/conversation tuple before reading
+the deterministic assistant UUID. Current owner and deletion win; current
+selection and rollout do not rewrite a completed turn. Missing assistant returns
+an explicit incomplete marker only after valid original context. Missing
+context, wrong identity, malformed snapshot structure or a reparented
+incompatible answer holds. The bounded projection excludes private metadata,
+context and quota.
+
+`admit_insight_chat_local_refusal` saves the question, immutable context, closed
+static refusal and conversation touch in one transaction. Failure rolls back
+normal daily admission too. It creates no provider quota. Replay requires the
+exact original static answer/reason, null model/usage and original request
+metadata; incomplete or provider turns cannot be filled as refusals. Fresh work
+checks the execution gate and rejects same-owner request reuse across scans, any
+retained execution fence and any original quota row. Both helpers remain private
+and API routines are service-only. No activation is part of this migration.

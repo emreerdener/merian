@@ -14631,7 +14631,40 @@ original request and reservation/lease pair, parses the existing closed
 five-column response, and labels replay separately from fresh admission. Unknown
 writes allow at most one exact context read: recovered or absent context grants
 no dispatch permission, new write or refund. Caller cancellation bounds each
-five-second request, with automatic retry disabled. The earlier unfunded adapter
-remains separate for a future atomic deterministic refusal path; it cannot admit
-a provider-backed turn. An unknown or partially saved refusal must never become
-a provider call.
+five-second request, with automatic retry disabled. Unfunded context admission
+is a building block for the atomic deterministic refusal routine below; invoking
+it alone neither completes a refusal nor authorizes provider execution. An
+unknown or partially saved refusal must never become a provider call.
+
+### Prepared exact chat completion and deterministic refusal
+
+`get_insight_chat_turn_completion` takes the original recovery arguments plus
+expected user-message UUID and conversation UUID. Its fixed result is
+`{context_version:1,completed:false}` or
+`{context_version:1,completed:true,message}`. The ten message fields match the
+existing public projection: `id`, `conversation_id`, `scan_id`, `role`, `text`,
+`client_message_id`, `model`, `is_refusal`, `refusal_reason`, `created_at`. Role
+is assistant; the exposed client-message ID is the original request ID, not a
+new operation. Response is bounded to 32 KiB, text to 4,000 characters, model to
+200 and reason to 100. No safety metadata, stored prompt or quota receipt
+escapes. Incomplete grants no permission. Missing or incompatible original
+evidence holds.
+
+`admit_insight_chat_local_refusal` accepts the seven unfunded context-admission
+arguments plus one closed reason: `foraging_or_ingestion`,
+`medical_or_veterinary`, `dangerous_handling`, or `legal_or_collection`. SQL
+owns the fixed answer, null model/usage and exact refusal/request metadata. It
+returns the same completed receipt, never partial success. Normal chat capacity
+is consumed once; provider quota is untouched. Existing incomplete/provider
+turns remain held, and changed text/ticket conflicts. Exact static replay
+precedes fresh gates. Cross-scan request reuse or an existing provider attempt
+cannot become a fresh refusal.
+
+`exactCompletion.ts` uses fixed five-second RPCs, caller cancellation and
+`retry(false)`. It strictly checks deterministic UUID and receipt linkage; the
+refusal decoder also verifies the closed answer/reason/model. A known rejection
+describes only that transaction. Lost, malformed or canceled write replies stay
+unknown and are never automatically retried or refunded. Recovery orchestration
+will read original context and its exact completion; neither absence nor
+incompleteness may authorize a replacement. These adapters remain prepared;
+protected HTTP still holds before mutable reads.

@@ -441,8 +441,8 @@ for dispatched attempts. The
 owns the storage and lifecycle rules.
 
 Protected admission RPCs remain behind `chat_execution_enabled = false` and are
-not called by the handler or the prepared TypeScript admission adapter yet. The
-prepared `protectedExecution.ts` adapter now reserves through the narrow
+not called by the handler. The funded context adapter is prepared separately.
+The prepared `protectedExecution.ts` adapter now reserves through the narrow
 five-field receipt and invokes a separate one-time dispatch RPC. The latter
 records a permanent marker and commits quota atomically; only its fresh decoded
 reply permits provider execution. Replays return held, and unknown replies never
@@ -467,5 +467,23 @@ any already-committed legacy attempt. See the
 the original quota pair, marks returned replay explicitly, and allows only one
 read after unknown admission. Read recovery never authorizes dispatch or refund.
 This prepared adapter is not yet the HTTP execution owner. Deterministic safety
-refusals will consume a chat slot without provider quota and require atomic
-question/context/reply persistence before that protected route is enabled.
+refusals use the prepared atomic question/context/reply routine below, consuming
+a chat slot without provider quota. The protected HTTP route remains disabled.
+
+### Prepared exact completion and atomic local refusal
+
+`exactCompletion.ts` reads the exact original user/conversation-bound assistant
+through `get_insight_chat_turn_completion`, with a bounded closed public-message
+projection and deterministic UUID validation. Missing context holds; a valid
+incomplete turn grants no execution permission. Current owner/deletion checks
+precede historical receipt recovery.
+
+The same module calls `admit_insight_chat_local_refusal` once for a closed
+safety reason. SQL atomically saves admission/context/static answer without
+provider quota, or rolls the entire write back. It never fills a previously
+incomplete provider turn. Exact static replay survives gate/authority changes;
+changed request/reason, cross-scan reuse and prior provider attempts hold.
+Transport uncertainty preserves the original request with no retry/refund. Tests
+cover static-copy parity, rollback, concurrent replay/deletion and actual
+account merge. Recovery orchestration, protected HTTP execution and native
+persisted send tickets remain to be connected; all gates stay closed.

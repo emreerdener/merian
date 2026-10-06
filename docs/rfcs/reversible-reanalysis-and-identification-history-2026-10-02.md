@@ -3467,3 +3467,26 @@ error gates pass with no new chat findings. Independent review is clear. One
 catalog's old deletion error expectation was corrected for the earlier subject
 fence before the final fresh-reset complete run. No Swift changed; native tests
 were not repeated.
+
+### Exact chat reply and atomic local refusal — October 6, 2026
+
+Service-only completion now binds original owner, observation, request, saved
+question and conversation before returning the deterministic assistant receipt.
+Current authority cannot rebase it; missing or incompatible context stays held.
+Local safety refusal now persists the daily admission, question, immutable
+context and fixed answer atomically without provider quota. Replay cannot fill
+an incomplete/provider turn or reuse an operation on another scan. Strict
+prepared TypeScript transports never retry uncertain writes. Recovery
+orchestration and bounded protected HTTP/native sends remain open; activation
+gates stay false.
+
+Final runtime validation passed 2,868 backend tests / 425 steps, 111 SQL
+catalogs / 1,737 assertions, three new replay/deletion concurrency cases and 425
+migration contracts. Twelve focused transport/contracts passed. The prepared
+module and Insight entry point pass their own deployment configuration;
+lint/format, DTO21 and docs26 pass. Schema lint is clean, the 323-routine
+privilege audit has zero violations, and advisor error gates report no new
+findings. Independent review is clear. Initial CASE parsing and catalog-fixture
+expression/deleted-scan setup errors were corrected before the final full run.
+No native source or deployed runtime imports changed; native and unchanged-fleet
+compilation were not repeated.
