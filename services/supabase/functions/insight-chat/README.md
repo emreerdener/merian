@@ -345,3 +345,34 @@ with an explicit restart-durability design before claiming restart recovery.
 `insightChatStoredContext.test.ts` cover no-slot probes, original-context
 recovery, merge/deletion, concurrent admission/deletion, strict decoding and
 transport cancellation. All activation gates remain closed.
+
+### Prepared fresh-context preflight
+
+`prepare_insight_chat_send_context` is a service-only, default-off read that
+returns version, source kind, exact displayed ticket and sanitized
+scan/dictionary context. It accepts only owner, observation, ticket and version:
+no conversation, message UUID or question. It does not read a conversation
+prefix, reserve a send, check entitlement, reserve provider quota or grant later
+execution permission. The private `prepare_current_insight_chat_context` helper
+performs the same locked authority derivation for preflight and final atomic
+admission.
+
+Final admission preserves exact replay first, then reruns that helper. Only it
+freezes the prior-message prefix. It checks the final 128 KiB bound explicitly
+before inserting context; an overflow rolls back the question and daily slot
+with `field_chat_context_unavailable`. PostgREST SQL-null legacy tickets are now
+normalized consistently in preflight, final admission and recovery.
+
+`preparedContext.ts` validates a closed response against the original ticket,
+keeps missing historical fields unavailable and never fabricates a prefix or an
+admitted message. Its fixed RPC has a five-second deadline, caller cancellation
+and no retries. It maps only exact subject-not-found and context-conflict pairs;
+unknown errors and malformed output remain unavailable. HTTP/native integration
+is still pending. New sends must recover first, then apply pure immutable
+eligibility and existing Pro/quota checks before final admission. Lost admission
+replies cannot trigger an unconditional refund or a new provider identity.
+
+The SQL catalog `insight_chat_context_preflight.sql` and the
+`insightChatPreflight*`/`insightChatPreparedContext` tests verify no-slot
+preflight, exact replay, missing historical data, final size rollback and real
+preflight/authority/admission/deletion races.

@@ -7310,3 +7310,20 @@ conversations. The response carries the original immutable context with current
 message ownership, so an account merge does not require rewriting snapshots.
 Direct private-table access stays revoked. No activation or provider-policy
 changes are part of this migration.
+
+`20261006094103_prepare_insight_chat_context_preflight.sql` centralizes fresh
+context derivation in private `internal.prepare_current_insight_chat_context`.
+The SECURITY INVOKER helper has no API-role execution grants. Service-only
+`prepare_insight_chat_send_context(uuid,uuid,jsonb,integer)` returns a bounded
+fresh context under the existing default-off gate without reading or creating
+messages, conversation prefixes or quota/admission state. Its owner-first locks
+last only through this read transaction.
+
+The forward replacement of `reserve_insight_chat_send_with_context` keeps exact
+replay before the helper, then repeats the same current-ticket derivation inside
+final admission. It alone freezes the conversation prefix and checks the final
+128 KiB size before INSERT. Prefix overflow raises a stable unavailable error
+and rolls back all admission effects. Preflight is advisory: authority or
+deletion changes before final admission can deny the send. SQL NULL legacy
+tickets are normalized to JSON null at both boundaries; stored history tickets
+remain exact.

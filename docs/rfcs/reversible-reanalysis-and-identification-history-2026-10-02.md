@@ -3306,3 +3306,32 @@ new context findings. Independent review is clear. Initial merge/cutover
 fixture, SQL qualification and driver error-code assertions were corrected
 before the final fresh-reset full run. No Swift changed in this slice; the
 previous 5,290 native milestone remains the applicable local evidence.
+
+### October 6: prepared fresh Field Chat preflight
+
+A separate service-only read now derives current immutable ticket, source and
+scan/dictionary context without reading a conversation or consuming a send. Its
+private helper is shared with final atomic admission, so a stale preflight
+cannot bypass an authority change. Final admission alone freezes prior-message
+context; its explicit final size check returns a stable denial and rolls back
+the question and daily slot when the complete snapshot exceeds 128 KiB. Exact
+replay remains first, and SQL-null legacy tickets work consistently across the
+prepared protocol.
+
+A closed TypeScript adapter preserves the original request and missing
+historical fields, rejects unexpected prefix/message fields, and uses one
+bounded request with cancellation and retries disabled. Live handler/native
+integration and semantic prompt/eligibility adaptation remain next. These reads
+are advisory and confer no provider execution or quota rights. All activation
+gates remain false.
+
+Final preflight validation passed 2,794 backend tests (425 steps), 106 SQL
+catalogs (1,606 assertions), four real authority/admission/deletion concurrency
+cases, 412 migration contracts, full Supabase tooling, all 116 endpoint
+configuration checks, DTO contract checks and 26 documentation tests. Database
+lint passed without warnings after removing an unused refactor variable; the
+final fresh-reset full run includes that correction. The 317-routine privilege
+audit had zero violations, and advisor error gates found no new preflight
+issues. Independent review is clear. No Swift changed; the prior native
+milestone remains applicable. Pure immutable prompt/eligibility adaptation, live
+HTTP/native wiring and qualification remain open.

@@ -14478,3 +14478,31 @@ These are prepared internal errors, not a newly activated HTTP endpoint.
 After genuine absence, future handler integration must run read-only immutable
 eligibility and existing Pro/quota checks before atomic context admission; no
 recovery probe may consume a slot. Live HTTP/native DTOs remain unchanged.
+
+### Prepared fresh Insight context preflight
+
+Service-only `prepare_insight_chat_send_context(uuid,uuid,jsonb,integer)` takes
+owner, observation, displayed ticket and context version 1. Its closed result is
+`{context_version:1,source_kind,displayed_ticket,scan_context}`, bounded to 128
+KiB. It has no message/conversation identifier or prefix. Explicit legacy null
+supports PostgREST SQL NULL; an enrolled observation requires its exact selected
+analysis/global/review ticket. Missing imported fields remain missing, and
+damaged history cannot use mutable scan data.
+
+The private derivation helper is shared with final atomic admission, which
+revalidates authority after preflight. Preflight consumes no daily/conversation
+capacity or provider quota and grants no execution, eligibility or entitlement.
+Only final admission reads and stores the prior-message prefix; final snapshot
+overflow produces `55000 field_chat_context_unavailable` and rolls back the
+question and admission count. Exact existing-message replay still precedes fresh
+gate/authority checks.
+
+The prepared TypeScript adapter performs one five-second request with
+cancellation and retries disabled. Exact `P0002 field_chat_subject_not_found`
+maps internally to 404, and `40001 field_chat_context_conflict` to 409. Other
+errors, missing routes and malformed results become unavailable 503. This is not
+an activated HTTP/native contract. Future integration recovers stored turns
+first, then checks fresh immutable eligibility and existing Pro/quota rules
+before admission. Transport-ambiguous admission outcomes retain their original
+identity and unresolved reservation; they do not authorize unconditional refunds
+or successors.
