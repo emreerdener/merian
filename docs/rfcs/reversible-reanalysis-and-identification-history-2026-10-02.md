@@ -3362,3 +3362,32 @@ clear. The initial stale generated Field Chat bundle fingerprint was regenerated
 before the final tooling run. Review also removed replay-time metric
 requalification; the final fresh-reset runtime run uses the saved decision
 alone. No Swift changed, so the preceding native milestone remains applicable.
+
+### October 6: prepared exact chat admission and uncertainty recovery
+
+A narrow adapter now validates the atomic admission response against the
+original owner, observation, text, retry key, displayed ticket and returned
+conversation. Only message identity/text and immutable context survive its
+projection. Its one bounded RPC disables transparent retry. A separate
+coordinator follows an uncertain reply with one read-only recovery, never a
+second write. Missing or failed recovery cannot prove that a timed-out
+transaction did not commit. Rejected transaction status does not authorize
+refunding earlier work; these owners perform no quota or provider transitions.
+HTTP composition and native durable ticket delivery remain open. Gates stay
+false.
+
+Independent execution tracing found that legacy same-ID quota recovery can
+reopen failed, refunded or expired reservations and turn stale committed work
+into a new metered attempt. Protected HTTP composition must first add a durable
+reservation fence that prevents a successor after uncertain execution, including
+after quota-row pruning. The adapter does not change legacy funding and does not
+claim to provide provider-dispatch authority.
+
+Final admission validation passed 2,813 backend tests (425 steps), 107 catalogs
+(1,622 assertions), full Supabase tooling, all 116 endpoint configurations,
+checks of the two prepared modules with their own deployment configuration, DTO
+checks, lint/format and 26 documentation tests. The real database fixture
+decodes fresh and replay results, preserving original context after the gate
+closes and mutable scan content changes. Ten focused tests cover strict linkage,
+no transparent retry, ambiguous recovery and cancellation. Independent review is
+clear. No SQL schema or Swift source changed in this slice.

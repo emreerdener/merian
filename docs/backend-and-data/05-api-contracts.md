@@ -14525,3 +14525,29 @@ saved true marker, with no later qualification-policy recomputation; descriptive
 alternatives remain available when scores are omitted. Stored conversation roles
 and text retain their exact order. Preflight has no prefix and cannot fabricate
 an admitted turn. Live HTTP/native wiring remains pending and default-off.
+
+### Prepared immutable Insight admission adapter
+
+The internal admission adapter sends one fixed RPC with a five-second deadline
+and retries disabled. It validates the original six-field owner/scan/message/
+conversation/ticket request, a bounded single-row result, exact message linkage
+and the saved context. An existing returned conversation may differ from the
+proposed UUID. It retains only message identity/text from the database row;
+provider metadata and future table columns do not become prompt context.
+
+Exact SQL error pairs distinguish a rejected transaction from an unknown
+outcome. A rejection is not a statement about previous attempts or authorization
+to refund quota. Lost replies, malformed success and post-dispatch cancellation
+remain unknown. The recovery coordinator may issue one exact read, returning a
+separate recovered-context result on success. It never repeats admission or
+synthesizes missing daily-count/admission receipt fields. An absent read after
+timeout does not prove non-commit; unknown outcomes retain the original identity
+and hold. These prepared adapters do not change HTTP/native contracts or enable
+provider execution.
+
+Protected execution additionally requires a dedicated quota admission fence:
+legacy same-ID quota reopening and stale-chat recovery can authorize another
+metered provider attempt, so they are not safe dispatch authority for uncertain
+immutable turns. The fence must survive ordinary quota-row pruning and preserve
+account merge/deletion semantics. HTTP wiring remains blocked on this execution
+contract; existing legacy funding behavior is unchanged.

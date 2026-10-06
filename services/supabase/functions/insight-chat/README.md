@@ -396,3 +396,34 @@ uses that immutable decision alone, without requalifying sanitized metadata.
 Older immutable contexts without the marker remain readable but omit scores; no
 existing snapshot is rewritten. Unqualified candidate descriptions remain
 available. This adapter does not yet change HTTP dispatch or native requests.
+
+### Prepared exact admission and lost-reply recovery
+
+`contextAdmission.ts` performs one bounded, retry-disabled call to the existing
+atomic admission RPC. Its closed request retains owner, observation, proposed
+conversation, original message UUID/text and displayed ticket. The single-row
+response must bind the returned conversation to the exact user-message identity
+and strict immutable snapshot. The returned conversation may be the existing one
+rather than the proposed UUID. Only the seven identity/text fields are retained
+from the bounded full database message row; unrelated row metadata is never
+passed through as context.
+
+Exact SQL code/message pairs identify a rejected transaction. This says nothing
+about an earlier attempt or whether a quota reservation may be released.
+Transport failures, timeout, malformed success and cancellation after dispatch
+remain unknown. `contextAdmissionRecovery.ts` responds to unknown admission with
+one exact read-only recovery attempt, never another write. A found snapshot is
+returned with a distinct recovery result; an absent, failed or conflicting read
+keeps the original uncertainty. In particular, absence after a client timeout
+cannot prove that the original database transaction will not commit later.
+Neither adapter owns quota, provider dispatch or refunds. Live HTTP wiring still
+needs to preserve those boundaries before activation.
+
+HTTP execution also needs a separate protected quota fence. The legacy chat
+reservation path can reopen failed/refunded/expired work, and its stale recovery
+can turn an unanswered committed request into another metered attempt. Those
+policies must not be reused for immutable protected turns with uncertain
+provider execution. The new branch must preserve durable attempt evidence and
+hold such work without a successor, including after ordinary quota-row
+retention. The prepared admission/recovery owners do not yet supply that
+dispatch guarantee.
