@@ -27,6 +27,7 @@ struct InsightSheetView: View {
 
     // MARK: - State
     @State var pendingHistoryReanalysis: IdentificationHistoryReanalysisHandoff?
+    @State var selectedReviewHost = SelectedAnalysisReviewHost()
     @State var historyModel: IdentificationHistoryViewModel?
     @State var reanalysisStatusModel: ReanalysisStatusViewModel?
     @State var savedReanalysisHandoff = SavedReanalysisHandoff()
@@ -179,6 +180,7 @@ struct InsightSheetView: View {
         .onChange(of: isPresented) { _, isNowPresented in
             guard isNowPresented else {
                 cancelSavedReanalysis()
+                selectedReviewHost.close()
                 historyModel?.close(); historyModel = nil; pendingHistoryReanalysis = nil
                 reanalysisStatusModel?.close(); reanalysisStatusModel = nil
                 viewModel.endPresentationSession()
@@ -208,6 +210,15 @@ struct InsightSheetView: View {
             reanalysisStatusModel?.close(); reanalysisStatusModel = nil
             cancelOrDismissShellPresentation { if case .reanalysisStatus = $0 { true } else { false } }
             cancelOrDismissShellPresentation { if case .identificationHistory = $0 { true } else { false } }
+        }
+
+        .onChange(of: selectedReviewKey, initial: true) { _, _ in bindSelectedReview() }
+        .onChange(of: selectedReviewHost.deliveryGeneration) { _, _ in refreshSelectedReview() }
+        .onChange(of: selectedReviewHost.scopeIsCurrent) { _, current in
+            if !current, selectedReviewHost.model != nil { selectedReviewHost.invalidateScope() }
+        }
+        .onChange(of: selectedReviewHost.message) { _, message in
+            if let message { viewModel.state.toastMessage = .information(message) }
         }
 
         // Dialogs

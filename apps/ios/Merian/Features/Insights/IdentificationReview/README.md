@@ -206,3 +206,16 @@ Each child-local ticket owner cancels and clears its pending handle on
 disappearance, including removal before a nested dismissal callback. Forwarding
 clears local state first, so disappearance cannot cancel a request already
 passed onward. Parent cancellation also clears its pending chat ticket.
+
+## Protected identification history
+
+Candidate and Confidence review controls consult the fresh enrollment guard.
+Staged or acknowledged history, missing records and failed lookups deny legacy
+confirmation, rejection, Undo, alternative override and reset. Already-open
+sheets and delayed dismissal callbacks recheck the guard before mutation.
+Protected review belongs to the retained selected-result Shell host or
+historical preview; nil protected access never restores legacy permission.
+Confidence's protected reanalysis handoff remains independent. Ordinary
+unenrolled scans retain their existing controls. This wiring is prepared behind
+disabled gates; see the canonical Insight contract for activation and remaining
+qualification.

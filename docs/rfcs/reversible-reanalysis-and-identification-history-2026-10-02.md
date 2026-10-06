@@ -3074,3 +3074,14 @@ selection and authority changes prevent new admission; an unchanged owner scope
 can still read a completed receipt. This is inert preparation; selected
 toolbar/nested action wiring, publication consent UI and operational
 qualification remain open, and all activation gates remain false.
+
+### October 6: retained selected review controls
+
+The prepared selected-result toolbar now retains its review model across
+rerenders and uncertain saves. Exact displayed authority gates a new decision;
+owner scope gates receipt recovery. Applied receipts refresh only the reconciled
+parent once, and negative terminal outcomes require a new presentation. Binding
+tokens invalidate delayed dialogs after reopening. Fresh enrollment guards also
+withhold legacy nested review and reject delayed mutation callbacks. Ordinary
+access and activation remain disabled. Explicit publication consent and runtime,
+CPU, heap, CDN and independent erasure qualification remain open.

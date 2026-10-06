@@ -86,6 +86,10 @@ struct CandidateSwipeModal: View {
         viewModel.isCurrent(subject, in: inferenceEngine)
     }
 
+    private var permitsLegacyReview: Bool {
+        ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanId, container: modelContext.container)
+    }
+
     // MARK: - Body
     
     var body: some View {
@@ -93,7 +97,11 @@ struct CandidateSwipeModal: View {
             ZStack {
                 Color(.systemBackground).ignoresSafeArea()
 
-                if let confirmed = session.confirmedCandidate {
+                if !permitsLegacyReview {
+                    Text("Review this identification from the scan menu.")
+                        .multilineTextAlignment(.center)
+                        .padding()
+                } else if let confirmed = session.confirmedCandidate {
                     confirmedStateContent(candidate: confirmed)
                 } else if session.isExhausted && !isDismissing {
                     GeometryReader { geometry in
@@ -122,7 +130,7 @@ struct CandidateSwipeModal: View {
                     }
                 }
                 
-                if session.remainingCandidates.count > 1 {
+                if permitsLegacyReview && session.remainingCandidates.count > 1 {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             viewModel.feedback.selection()
@@ -135,7 +143,7 @@ struct CandidateSwipeModal: View {
                             Image(systemName: isGridMode ? "square.stack.3d.up.fill" : "rectangle.grid.1x2")
                         }
                     }
-                } else if session.isExhausted && !isDismissing {
+                } else if permitsLegacyReview && session.isExhausted && !isDismissing {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Restart") {
                             viewModel.feedback.lightImpact()
@@ -151,7 +159,7 @@ struct CandidateSwipeModal: View {
         }
         .merianSystemFeedback(toast: $reviewToast, toastAction: $reviewToastAction, showsAchievementToasts: false)
         .onDisappear {
-            if session.isExhausted,
+            if permitsLegacyReview, session.isExhausted,
                !isDismissing,
                isSubjectPresentationCurrent {
                 viewModel.markAlternativesExhausted(
@@ -233,7 +241,7 @@ extension CandidateSwipeModal {
             .padding(.horizontal, 20)
 
             // Skip Button
-            if session.remainingCandidates.count > 1 {
+            if permitsLegacyReview && session.remainingCandidates.count > 1 {
                 Button(action: {
                     viewModel.feedback.lightImpact()
                     skipTopCard()
@@ -269,6 +277,7 @@ extension CandidateSwipeModal {
                     imageDependencies: viewModel.imageDependencies,
                     feedback: viewModel.feedback,
                     onConfirm: {
+                        guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                         viewModel.feedback.successPulse()
                         withAnimation(.spring(response: 0.3)) {
                             session.confirm(candidate)
@@ -382,11 +391,11 @@ extension CandidateSwipeModal {
 
     private func confirmIncorrectIdentification(expectedSubject: IdentificationReviewSubject) {
         Task { @MainActor in
-            guard expectedSubject.matches(subject), isSubjectPresentationCurrent,
+            guard permitsLegacyReview, expectedSubject.matches(subject), isSubjectPresentationCurrent,
                   inferenceEngine.speciesData?.canMarkIdentificationIncorrect == true else { return }
             await inferenceEngine.markIdentificationIncorrect(expectedScanId: expectedSubject.scanId, modelContext: modelContext,
                 onLocalSave: {
-                    guard expectedSubject.matches(subject), isSubjectPresentationCurrent else { return }
+                    guard permitsLegacyReview, expectedSubject.matches(subject), isSubjectPresentationCurrent else { return }
                     reviewToastAction = { undoIncorrect(expectedSubject: expectedSubject) }
                     reviewToast = .information("Marked as incorrect", action: .init(id: .undo, title: "Undo"))
                 })
@@ -395,7 +404,7 @@ extension CandidateSwipeModal {
 
     private func undoIncorrect(expectedSubject: IdentificationReviewSubject) {
         Task { @MainActor in
-            guard expectedSubject.matches(subject), isSubjectPresentationCurrent,
+            guard permitsLegacyReview, expectedSubject.matches(subject), isSubjectPresentationCurrent,
                   inferenceEngine.speciesData?.canUndoIncorrectIdentification == true else { return }
             reviewToast = nil
             reviewToastAction = nil
@@ -486,6 +495,7 @@ extension CandidateSwipeModal {
     
     /// Triggers a programmatic swipe animation off-screen to the given direction.
     private func animateSwipe(_ direction: CandidateSwipeDirection) {
+        guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
         let targetX: CGFloat = direction == .right ? 700 : -700
         viewModel.feedback.mediumPulse()
         withAnimation(.easeInOut(duration: 0.3)) {
@@ -499,7 +509,7 @@ extension CandidateSwipeModal {
     }
 
     private func confirmTopCard() {
-        guard let top = session.topCandidate else { return }
+        guard permitsLegacyReview, isSubjectPresentationCurrent, let top = session.topCandidate else { return }
         let name = top.scientificName
         withAnimation(.spring(response: 0.3)) {
             session.confirm(top)
@@ -532,6 +542,10 @@ extension CandidateSwipeModal {
 
     private func requestDismissal(action: CandidateSwipeDismissalAction) {
         guard !isDismissing, isSubjectPresentationCurrent else { return }
+        switch action {
+        case .applyOverride, .confirmOriginal: guard permitsLegacyReview else { return }
+        case .askCommunity, .refineScan: break
+        }
         isDismissing = true
         onRequestDismissalAction(CandidateSwipeDismissalRequest(
             action: action,

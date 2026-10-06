@@ -196,7 +196,8 @@ extension InsightContentView {
         switch request.action {
         case .applyOverride(let scientificName):
             Task { @MainActor in
-                guard viewModel.isPresentingLocalRecord(
+                guard ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: request.scanId, container: modelContext.container),
+                      viewModel.isPresentingLocalRecord(
                     scanId: request.scanId,
                     generation: pending.localPresentationGeneration
                 ),
@@ -212,7 +213,8 @@ extension InsightContentView {
             }
         case .confirmOriginal:
             Task { @MainActor in
-                guard viewModel.isPresentingLocalRecord(
+                guard ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: request.scanId, container: modelContext.container),
+                      viewModel.isPresentingLocalRecord(
                     scanId: request.scanId,
                     generation: pending.localPresentationGeneration
                 ) else {

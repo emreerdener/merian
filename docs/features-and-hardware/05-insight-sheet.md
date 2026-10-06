@@ -2669,8 +2669,7 @@ reads, without idle polling or an idle account lease. Closing, backing out,
 paging, account changes and acknowledged revision changes invalidate nested
 review controls. Fresh unfinished-review checks block restoration, selection
 Undo and reanalysis. All ordinary access and activation gates remain disabled;
-selected-Insight review and publication consent remain separate integration
-work.
+publication consent remains separate integration work.
 
 ### Prepared selected-result review baseline
 
@@ -2681,5 +2680,26 @@ parent into the presentation. Metadata refreshes and collection edits cannot
 adopt a newer identification while an older result remains visible. Opening the
 capability requires that frozen baseline and its immutable review ticket still
 match fresh local authority, with no pending selection. It neither enrolls nor
-dispatches review and holds no idle Auth lease. Selected toolbar and nested
-review control integration remains pending; ordinary access stays disabled.
+dispatches review and holds no idle Auth lease. Ordinary access stays disabled.
+
+The retained selected-review host binds during presentation lifecycle rather
+than view rendering. Protected toolbar actions use its immutable ticket and
+primary scientific name; the actual tap synchronously persists one request
+before waking delivery. Retry saving review retains the same operation after an
+uncertain local save. Delayed confirmation callbacks carry a binding token, so
+closing and reopening even the same scan cannot authorize an old action.
+
+Queue pass completion refreshes owner-bound receipt status. Applied completion
+refreshes the reconciled parent once; it never projects a child directly. A
+conflict or unsuccessful verification retires the old controls and requires an
+explicit fresh presentation. Scope loss or dismissal clears private presentation
+state without canceling durable delivery. There is no idle polling or Auth
+lease.
+
+Fresh enrollment protection takes precedence even for a staged intent, missing
+protected access, or a failed local lookup. Protected scans withhold older
+candidate, override, reset and Confidence review controls; callbacks already
+queued by those surfaces recheck protection before mutation. Ordinary unenrolled
+scans retain their legacy review flow. Protected reanalysis in the Confidence
+footer keeps its separate exact-source handoff. All activation gates remain
+false; publication consent and integrated operational qualification remain open.

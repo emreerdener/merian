@@ -83,6 +83,7 @@ extension InsightSheetView {
             }
             .onAppear(perform: handleAppearance)
             .onDisappear {
+                selectedReviewHost.close()
                 cancelSavedReanalysis()
                 appSettings.suppressInferenceBanners = false
             }

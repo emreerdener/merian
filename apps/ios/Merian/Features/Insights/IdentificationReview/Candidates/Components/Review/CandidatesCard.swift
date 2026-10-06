@@ -52,6 +52,11 @@ struct CandidatesCard: View {
         )
     }
 
+    private func permitsLegacyReview(_ scanID: String?) -> Bool {
+        guard let scanID else { return false }
+        return ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanID, container: modelContext.container)
+    }
+
     private var isWeakMatch: Bool {
         let score = inferenceEngine.speciesData?.confidenceScore ?? 0.0
         guard let bands = inferenceEngine.speciesData?.identificationConfidenceBands else {
@@ -91,7 +96,7 @@ struct CandidatesCard: View {
     }
 
     private func confirmOriginal(scanId: String, generation: UInt64) async {
-        guard isSubjectPresentationCurrent(
+        guard permitsLegacyReview(scanId), isSubjectPresentationCurrent(
             scanId: scanId,
             generation: generation
         ) else {
@@ -119,7 +124,7 @@ struct CandidatesCard: View {
             generation: presentedGeneration
         )
         Group {
-            if viewModel.shouldHideCard(scanId: presentedScanId) {
+            if !permitsLegacyReview(presentedScanId) || viewModel.shouldHideCard(scanId: presentedScanId) {
                 EmptyView()
             } else if candidates.isEmpty {
                 CandidateVerificationView(
@@ -134,7 +139,7 @@ struct CandidatesCard: View {
                     },
                     onAskCommunity: guardedAskCommunity,
                     onDismiss: {
-                        guard let presentedScanId,
+                        guard let presentedScanId, permitsLegacyReview(presentedScanId),
                               isSubjectPresentationCurrent(
                                   scanId: presentedScanId,
                                   generation: presentedGeneration
@@ -158,7 +163,7 @@ struct CandidatesCard: View {
                     confirmButtonTitle: confirmButtonTitle,
                     isWeakMatch: isWeakMatch,
                     onReviewAlternatives: {
-                        guard let presentedScanId,
+                        guard let presentedScanId, permitsLegacyReview(presentedScanId),
                               isSubjectPresentationCurrent(
                                   scanId: presentedScanId,
                                   generation: presentedGeneration
@@ -180,7 +185,7 @@ struct CandidatesCard: View {
                         )
                     },
                     onDismiss: {
-                        guard let presentedScanId,
+                        guard let presentedScanId, permitsLegacyReview(presentedScanId),
                               isSubjectPresentationCurrent(
                                   scanId: presentedScanId,
                                   generation: presentedGeneration
@@ -293,6 +298,7 @@ struct CandidatesCard: View {
         switch request.action {
         case .applyOverride(let scientificName):
             Task { @MainActor in
+                guard permitsLegacyReview(request.scanId) else { return }
                 await viewModel.applyOverride(
                     scientificName: scientificName,
                     subject: request.subject,

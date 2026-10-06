@@ -113,6 +113,8 @@ struct TopToolbar: ToolbarContent {
     let reanalysisRequiresPro: Bool
     var onReviewAlternatives: (() -> Void)?
     var onConfirmIdentification: (() -> Void)?
+    var confirmationTitle: String
+    var onRetryReviewSave: (() -> Void)?
     var onUndoIncorrect: (() -> Void)?
     var onMarkIncorrect: (() -> Void)?
     var onAskCommunity: (() -> Void)?
@@ -152,6 +154,8 @@ struct TopToolbar: ToolbarContent {
         reanalysisRequiresPro: Bool? = nil,
         onReviewAlternatives: (() -> Void)? = nil,
         onConfirmIdentification: (() -> Void)? = nil,
+        confirmationTitle: String = "Confirm species",
+        onRetryReviewSave: (() -> Void)? = nil,
         onUndoIncorrect: (() -> Void)? = nil,
         onMarkIncorrect: (() -> Void)? = nil,
         onAskCommunity: (() -> Void)? = nil,
@@ -190,6 +194,8 @@ struct TopToolbar: ToolbarContent {
         self.reanalysisRequiresPro = reanalysisRequiresPro ?? !isProActive
         self.onReviewAlternatives = onReviewAlternatives
         self.onConfirmIdentification = onConfirmIdentification
+        self.confirmationTitle = confirmationTitle
+        self.onRetryReviewSave = onRetryReviewSave
         self.onUndoIncorrect = onUndoIncorrect
         self.onMarkIncorrect = onMarkIncorrect
         self.onAskCommunity = onAskCommunity
@@ -418,8 +424,12 @@ struct TopToolbar: ToolbarContent {
             }
             if let onConfirmIdentification = onConfirmIdentification {
                 Button(action: onConfirmIdentification) {
-                    Label("Confirm species", systemImage: "checkmark.circle")
+                    Label(confirmationTitle, systemImage: "checkmark.circle")
                 }
+            }
+            if let onRetryReviewSave {
+                Button("Retry saving review", action: onRetryReviewSave)
+                    .accessibilityIdentifier("SelectedReviewRetrySave")
             }
             if let onReviewAlternatives = onReviewAlternatives {
                 Button(action: onReviewAlternatives) {

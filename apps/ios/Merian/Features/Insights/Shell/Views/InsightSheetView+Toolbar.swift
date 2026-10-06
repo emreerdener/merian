@@ -2,24 +2,6 @@ import SwiftData
 import SwiftUI
 
 extension InsightSheetView {
-    private func undoIncorrect(scanId: String, generation: UInt64, showsConfirmation: Bool = false) {
-        Task { @MainActor in
-            guard viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation),
-                  viewModel.canUndoIncorrect else { return }
-            viewModel.state.toastMessage = nil
-            viewModel.toastAction = nil
-            await inferenceEngine.undoIncorrectIdentification(
-                expectedScanId: scanId,
-                modelContext: modelContext,
-                onLocalSave: {
-                    guard showsConfirmation,
-                          viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation) else { return }
-                    viewModel.state.toastMessage = .success("Incorrect mark undone")
-                }
-            )
-        }
-    }
-
     @ToolbarContentBuilder
     var sheetToolbar: some ToolbarContent {
         // Toolbar callbacks can outlive the render that created them. Capture
@@ -111,57 +93,12 @@ extension InsightSheetView {
                 }
             } : nil,
             reanalysisRequiresPro: dependencies.savedReanalysisAccess == nil && !dependencies.isProActive(),
-            onReviewAlternatives: viewModel.canReviewAlternatives ? {
-                guard let scanId = toolbarLocalScanId else { return }
-                viewModel.presentCandidateSwipe(
-                    expectedScanId: scanId,
-                    expectedGeneration: toolbarGeneration
-                )
-            } : nil,
-            onConfirmIdentification: viewModel.canConfirm ? {
-                guard let scanId = toolbarLocalScanId,
-                      viewModel.isPresentingLocalRecord(
-                          scanId: scanId,
-                          generation: toolbarGeneration
-                      ) else {
-                    return
-                }
-                dependencies.successFeedback()
-                Task { @MainActor in
-                    guard viewModel.isPresentingLocalRecord(
-                        scanId: scanId,
-                        generation: toolbarGeneration
-                    ) else {
-                        return
-                    }
-                    await inferenceEngine.confirmAIIdentification(
-                        expectedScanId: scanId,
-                        modelContext: modelContext
-                    )
-                }
-            } : nil,
-            onUndoIncorrect: viewModel.canUndoIncorrect ? {
-                guard let scanId = toolbarLocalScanId else { return }
-                undoIncorrect(scanId: scanId, generation: toolbarGeneration, showsConfirmation: true)
-            } : nil,
-            onMarkIncorrect: viewModel.canMarkIncorrect ? {
-                guard let scanId = toolbarLocalScanId else { return }
-                Task { @MainActor in
-                    guard viewModel.isPresentingLocalRecord(
-                        scanId: scanId,
-                        generation: toolbarGeneration
-                    ), viewModel.canMarkIncorrect else { return }
-                    await inferenceEngine.markIdentificationIncorrect(
-                        expectedScanId: scanId,
-                        modelContext: modelContext,
-                        onLocalSave: {
-                            guard viewModel.isPresentingLocalRecord(scanId: scanId, generation: toolbarGeneration) else { return }
-                            viewModel.toastAction = { undoIncorrect(scanId: scanId, generation: toolbarGeneration) }
-                            viewModel.state.toastMessage = .information("Marked as incorrect", action: .init(id: .undo, title: "Undo"))
-                        }
-                    )
-                }
-            } : nil,
+            onReviewAlternatives: alternativesReviewAction(scanID: toolbarLocalScanId, generation: toolbarGeneration),
+            onConfirmIdentification: confirmReviewAction(scanID: toolbarLocalScanId, generation: toolbarGeneration),
+            confirmationTitle: selectedReviewConfirmationTitle,
+            onRetryReviewSave: retryReviewAction(),
+            onUndoIncorrect: undoReviewAction(scanID: toolbarLocalScanId, generation: toolbarGeneration),
+            onMarkIncorrect: incorrectReviewAction(scanID: toolbarLocalScanId, generation: toolbarGeneration),
             onAskCommunity: viewModel.canRequestCommunityIdentification ? {
                 guard let scanId = toolbarLocalScanId else { return }
                 viewModel.presentCommunityIdentificationRequest(

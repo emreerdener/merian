@@ -573,7 +573,11 @@ record, capability, media, content, and presentation projections; and `Views/`,
 `Components/`, and `Modifiers/` retain composition, navigation, presentation,
 focus, scrolling, animation, and dismissal timing. `InsightContentPresentation`
 and `InsightShellPresentation` are the two typed modal slots.
-`InsightSheetViewModel+MediaPresentation.swift` and
+`SelectedAnalysisReviewHost` retains the prepared selected-result review ticket,
+exact-save uncertainty and receipt observation; the Shell's review action
+adapter persists synchronous taps through that model. Protected enrollment
+withholds legacy review controls and delayed callbacks. Ordinary access remains
+disabled. `InsightSheetViewModel+MediaPresentation.swift` and
 `+PresentationIdentity.swift` own the former display aggregate's media and
 identity seams; `InsightSheetView+Content.swift` owns root content/toast
 routing, not Field-trip domain policy. Shell views and view models issue no

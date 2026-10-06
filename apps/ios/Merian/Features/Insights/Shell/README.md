@@ -316,8 +316,10 @@ prepared accesses.
 review owner. Opening this capability is a local, owner-fenced read: it neither
 enrolls the observation nor sends a review. The App composition prepares it
 alongside history, status and reanalysis; ordinary installation remains
-disabled. Toolbar and nested review actions still require their separate
-integration.
+disabled. The retained `SelectedAnalysisReviewHost` connects protected toolbar
+confirmation, rejection and receipt-backed Undo to that prepared capability.
+Nested legacy candidate and Confidence review controls are withheld for
+protected observations.
 
 `SelectedAnalysisReviewBaseline` freezes the observation, owner, selected
 analysis and global revision into the toolbar snapshot only after the exact
@@ -337,3 +339,21 @@ remains available. The host must use scope validity for receipt observation and
 exact ticket freshness for a new tap; acknowledged parent refresh is the only
 projection bridge. The capability holds no idle Auth lease and cannot substitute
 the current selection for the displayed target.
+
+The host binds outside view rendering to the displayed baseline, Shell
+generation and model container. A separate binding token rejects delayed alerts
+after even an identical baseline reopens. Exact request uncertainty survives
+rerenders; Retry saving review reuses that request. Actual queue-pass exit
+refreshes the receipt without polling or an idle Auth lease. Applied completion
+refreshes only the reconciled parent, once; negative terminal receipts retire
+the old scope and require a new presentation, even if its revision has not
+changed. Account, container, route and disappearance invalidate the old
+controls.
+
+Fresh enrollment protection, including a staged intent or failed lookup, takes
+precedence over every legacy action. Missing protected access cannot fall back.
+Legacy candidate and Confidence callbacks recheck that protection after delayed
+sheet dismissal and before mutations. Unenrolled scans retain their existing
+review flow. `SelectedAnalysisReviewHostTests` verifies retry identity, delayed
+binding tokens, receipt consumption, conflict lockout and scope loss; the
+existing enrollment and architecture suites cover the underlying boundaries.

@@ -2526,16 +2526,20 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `InsightShellLifecycleTests`, `InsightShellPresentationTests`,
   `InsightShellRecordTests`, `InsightToolbarRecordSnapshotTests`,
   `InsightQueuedHandoffTests`, and `InsightFieldTripContributionTests`.
-  Product-area mirrors contain `InsightContentActionsTests`,
-  `UserTagsViewModelTests`, `QueuedContentViewModelTests`,
-  `QueuedScanningPresentationTests`, `InsightQueuedRetryPresentationTests`, and
-  `InsightContentArchitectureTests` in Content. FieldNotes owns
-  `FieldNotesEditPolicyTests`, `FieldNotesEditorViewModelTests`,
-  `InsightFieldNotesStateTests`, and `FieldNotesArchitectureTests`; Core Data
-  Field Notes owns `FieldNotesRepositoryTests`. Media owns
-  `InsightMediaAvailabilityTests`, `InsightMediaGalleryTests`,
-  `InsightMediaSuppressionTests`, `InsightMediaFocusPresentationTests`,
-  `InsightAudioBoostPolicyTests`, `InsightMediaExportLifecycleTests`, and
+  `SelectedAnalysisReviewTests` covers frozen displayed authority and
+  parent-only reconciliation; `SelectedAnalysisReviewHostTests` covers uncertain
+  exact-save retries, stale alert tokens, one-time applied receipt consumption,
+  negative terminal lockout and account/presentation loss. Product-area mirrors
+  contain `InsightContentActionsTests`, `UserTagsViewModelTests`,
+  `QueuedContentViewModelTests`, `QueuedScanningPresentationTests`,
+  `InsightQueuedRetryPresentationTests`, and `InsightContentArchitectureTests`
+  in Content. FieldNotes owns `FieldNotesEditPolicyTests`,
+  `FieldNotesEditorViewModelTests`, `InsightFieldNotesStateTests`, and
+  `FieldNotesArchitectureTests`; Core Data Field Notes owns
+  `FieldNotesRepositoryTests`. Media owns `InsightMediaAvailabilityTests`,
+  `InsightMediaGalleryTests`, `InsightMediaSuppressionTests`,
+  `InsightMediaFocusPresentationTests`, `InsightAudioBoostPolicyTests`,
+  `InsightMediaExportLifecycleTests`, and
   `InsightMediaCarouselArchitectureTests` in Media. Core Media owns
   `AudioPlaybackPresentationTests`, `AudioBoostRequestStateTests`, and
   `MediaExportServiceTests`; Core UI owns `ModelTierBadgePresentationTests`.

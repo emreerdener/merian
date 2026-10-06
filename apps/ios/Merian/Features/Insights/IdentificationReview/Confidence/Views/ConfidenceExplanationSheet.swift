@@ -84,7 +84,7 @@ struct ConfidenceExplanationSheet: View {
         guard let snapshot = viewModel.refinementSnapshot else { return nil }
 
         return {
-            guard isSubjectPresentationCurrent,
+            guard permitsLegacyReview, isSubjectPresentationCurrent,
                   snapshot.scanId.caseInsensitiveCompare(scanId) == .orderedSame else {
                 return
             }
@@ -145,8 +145,12 @@ struct ConfidenceExplanationSheet: View {
         }
     }
 
+    private var permitsLegacyReview: Bool {
+        ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanId, container: modelContext.container)
+    }
+
     private var undoIncorrectAction: (() -> Void)? {
-        guard isSubjectPresentationCurrent,
+        guard permitsLegacyReview, isSubjectPresentationCurrent,
               inferenceEngine.speciesData?.canUndoIncorrectIdentification == true else { return nil }
         let expectedSubject = subject
         return { undoIncorrect(expectedSubject: expectedSubject) }
@@ -154,7 +158,7 @@ struct ConfidenceExplanationSheet: View {
 
     private func undoIncorrect(expectedSubject: IdentificationReviewSubject) {
         Task { @MainActor in
-            guard expectedSubject.matches(subject), isSubjectPresentationCurrent,
+            guard permitsLegacyReview, expectedSubject.matches(subject), isSubjectPresentationCurrent,
                   inferenceEngine.speciesData?.canUndoIncorrectIdentification == true else { return }
             reviewToast = nil
             reviewToastAction = nil
@@ -163,7 +167,7 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var incorrectAction: (() -> Void)? {
-        guard isSubjectPresentationCurrent,
+        guard permitsLegacyReview, isSubjectPresentationCurrent,
               viewModel.refinementSnapshot != nil,
               inferenceEngine.speciesData?.canMarkIdentificationIncorrect == true else { return nil }
         return {
@@ -176,13 +180,13 @@ struct ConfidenceExplanationSheet: View {
         guard let expectedSubject = pendingIncorrectSubject else { return }
         pendingIncorrectSubject = nil
         Task { @MainActor in
-            guard expectedSubject.matches(subject), isSubjectPresentationCurrent,
+            guard permitsLegacyReview, expectedSubject.matches(subject), isSubjectPresentationCurrent,
                   inferenceEngine.speciesData?.canMarkIdentificationIncorrect == true else { return }
             await inferenceEngine.markIdentificationIncorrect(
                 expectedScanId: scanId,
                 modelContext: modelContext,
                 onLocalSave: {
-                    guard expectedSubject.matches(subject), isSubjectPresentationCurrent else { return }
+                    guard permitsLegacyReview, expectedSubject.matches(subject), isSubjectPresentationCurrent else { return }
                     reviewToastAction = { undoIncorrect(expectedSubject: expectedSubject) }
                     reviewToast = .information("Marked as incorrect", action: .init(id: .undo, title: "Undo"))
                 }
@@ -222,19 +226,22 @@ struct ConfidenceExplanationSheet: View {
                 let storedCandidateCount = storedCandidates.count
                 let isExhausted = inferenceEngine.speciesData?.alternativesExhausted == true
 
-                if isExhausted {
+                if !permitsLegacyReview {
+                    EmptyView()
+                } else if isExhausted {
                     AllCandidatesReviewedView(
                         candidatesCount: storedCandidateCount,
                         onReviewAgain: {
-                            guard isSubjectPresentationCurrent else { return }
+                            guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                             viewModel.candidateReview.presentSwipeModal(
                                 subject: subject
                             )
                         },
                         onReset: {
-                            guard isSubjectPresentationCurrent else { return }
+                            guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                             viewModel.feedback.lightImpact()
                             Task { @MainActor in
+                                guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                                 await viewModel.candidateReview.resetReview(
                                     subject: subject,
                                     inferenceEngine: inferenceEngine,
@@ -256,9 +263,10 @@ struct ConfidenceExplanationSheet: View {
                         overrideName: displayOverride,
                         aiScientificName: aiScientificName ?? "Unknown",
                         onUndo: {
-                            guard isSubjectPresentationCurrent else { return }
+                            guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                             viewModel.feedback.lightImpact()
                             Task { @MainActor in
+                                guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                                 await viewModel.candidateReview.resetReview(
                                     subject: subject,
                                     inferenceEngine: inferenceEngine,
@@ -271,9 +279,10 @@ struct ConfidenceExplanationSheet: View {
                 } else if userConfirmedIdentification && inferenceEngine.speciesData?.aiReview.isUnresolved != true {
                     ConfirmedView(
                         onReset: {
-                            guard isSubjectPresentationCurrent else { return }
+                            guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                             viewModel.feedback.lightImpact()
                             Task { @MainActor in
+                                guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                                 await viewModel.candidateReview.resetReview(
                                     subject: subject,
                                     inferenceEngine: inferenceEngine,
@@ -428,6 +437,7 @@ struct ConfidenceExplanationSheet: View {
         switch request.action {
         case .applyOverride(let scientificName):
             Task { @MainActor in
+                guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                 await viewModel.candidateReview.applyOverride(
                     scientificName: scientificName,
                     subject: subject,
@@ -437,6 +447,7 @@ struct ConfidenceExplanationSheet: View {
             }
         case .confirmOriginal:
             Task { @MainActor in
+                guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                 _ = await viewModel.candidateReview.confirmOriginal(
                     subject: subject,
                     inferenceEngine: inferenceEngine,
