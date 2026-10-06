@@ -14561,9 +14561,9 @@ ticket, context version 1 and the original IP hash. It rechecks ownership,
 deletion, immutable context and current AI consent before first quota admission.
 Entitlement and provider quota remain owned by the existing quota core; this
 operation consumes no complimentary scan credit. First success returns
-`{status: "reserved", quota: <original quota receipt>}`. Every exact retained
-replay returns only `{status: "held"}` and cannot authorize dispatch.
-`field_chat_execution_unavailable` (55000) is the closed fresh gate;
+`{status: "reserved", reservation_id, lease_token, lease_expires_at, model}`.
+Every exact retained replay returns only `{status: "held"}` and cannot authorize
+dispatch. `field_chat_execution_unavailable` (55000) is the closed fresh gate;
 `field_chat_execution_held` (55000) preserves retired/unknown work and
 `field_chat_idempotency_conflict` (23505) rejects altered content or same-owner
 request reuse across observations. No public HTTP or native caller is connected.
@@ -14579,6 +14579,29 @@ authority.
 
 The unconnected `contextAdmission.ts` still calls the earlier context-only RPC.
 The future protected HTTP owner must use these new funding-bound boundaries and
-a dedicated dispatch owner; it must not treat generic idempotent quota commit or
-a recovered context as permission to call the provider again. Lost replies
-retain their original identity and hold. No automatic successor/refund is added.
+the dedicated one-time dispatch boundary; it must not treat generic idempotent
+quota commit or a recovered context as permission to call the provider again.
+Lost replies retain their original identity and hold. No automatic
+successor/refund is added.
+
+### Prepared one-time Insight provider dispatch
+
+`grant_protected_insight_chat_dispatch(uuid,uuid,uuid,uuid,uuid)` is
+service-only and takes exact owner, observation, client-message, reservation and
+lease UUIDs. Fresh permission atomically consumes a permanent marker and commits
+original provider quota, returning exactly
+`{status: "dispatch_granted", model}`. It requires the original bound immutable
+message/context, active execution gate, live original lease and current consent.
+It does not revalidate against a newer selected identification. Owner and
+deletion checks always apply. A consumed marker returns only `{status: "held"}`
+even after quota pruning or gate closure; no stored grant is replayable. Generic
+finalizer success is not dispatch authority.
+
+The prepared `protectedExecution.ts` adapter uses fixed five-second RPCs with
+transparent retries disabled and caller cancellation before/after each await.
+Quota responses expose only the five-field receipt above; raw quota-core rows,
+additive fields, unknown models and malformed dates/UUIDs are rejected. Dispatch
+responses contain no reusable lease capability. Transport, cancellation, server
+error or decoding uncertainty holds the request and never authorizes a provider
+call, successor or refund. The adapter is not connected to the HTTP handler yet;
+all gates stay false and no public/native wire changes in this slice.

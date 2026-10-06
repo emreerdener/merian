@@ -884,7 +884,11 @@ independently of immutable-context preparation.
 The fence survives ordinary quota pruning and message erasure. Scan deletion and
 account detachment erase private ownership; merging accounts preserves the
 scan-owned fence and conservatively retires colliding quota rows without
-restoring committed charges. The future HTTP/provider owner still requires
-explicit one-time dispatch admission, current consent, deletion fencing and
-bounded recovery before this gate may be considered for activation. No current
-migration, local test, or prepared RPC authorizes activation or deployment.
+restoring committed charges. The service-only one-time dispatch routine now
+atomically consumes a permanent marker and commits original provider quota.
+Current owner/deletion/consent and original context/reservation checks apply;
+generic finalization cannot bypass first-dispatch admission. Unknown grant
+replies stay held with no reusable permission. Protected HTTP/native wiring and
+bounded runtime qualification remain necessary before this gate may be
+considered for activation. No current migration, local test, or prepared RPC
+authorizes activation or deployment.

@@ -1,7 +1,16 @@
 import { assert, assertEquals } from "@std/assert";
 import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
 const url = Deno.env.get("SUPABASE_DB_TEST_URL");
-for (const scenario of ["duplicate", "deletion", "refund before binding"]) {
+for (
+  const scenario of [
+    "duplicate",
+    "deletion",
+    "refund before binding",
+    "duplicate dispatch",
+    "refund before dispatch",
+    "deletion before dispatch",
+  ]
+) {
   Deno.test({
     name: `Protected Insight execution fence serializes ${scenario}`,
     ignore: !url,
@@ -61,7 +70,9 @@ for (const scenario of ["duplicate", "deletion", "refund before binding"]) {
         ]);
         await observer.queryArray("SELECT pg_temp.open_fenced_chat()");
         let quota: { reservation_id: string; lease_token: string } | undefined;
-        if (scenario === "refund before binding") {
+        if (
+          scenario === "refund before binding" || scenario.includes("dispatch")
+        ) {
           await reserve(observer);
           quota = (await observer.queryObject<
             { reservation_id: string; lease_token: string }
@@ -70,6 +81,27 @@ for (const scenario of ["duplicate", "deletion", "refund before binding"]) {
             [scan, request],
           )).rows[0];
         }
+        if (scenario.includes("dispatch")) {
+          assert(quota);
+          await observer.queryArray(
+            "SELECT * FROM public.reserve_protected_insight_chat_send_with_context($1,$2,$3,'Question',$4,NULL,1,$5,$6)",
+            [
+              owner,
+              crypto.randomUUID(),
+              scan,
+              request,
+              quota.reservation_id,
+              quota.lease_token,
+            ],
+          );
+        }
+        const dispatch = (db: Client) => {
+          assert(quota);
+          return db.queryObject<{ result: Record<string, unknown> }>(
+            "SELECT public.grant_protected_insight_chat_dispatch($1,$2,$3,$4,$5) result",
+            [owner, scan, request, quota.reservation_id, quota.lease_token],
+          );
+        };
         await first.queryArray("BEGIN");
         await second.queryArray("BEGIN");
         const blocker = (await first.queryObject<{ pid: number }>(
@@ -83,7 +115,12 @@ for (const scenario of ["duplicate", "deletion", "refund before binding"]) {
             (await reserve(first)).rows[0].result.status,
             "reserved",
           );
-        } else if (scenario === "deletion") {
+        } else if (scenario === "duplicate dispatch") {
+          assertEquals(
+            (await dispatch(first)).rows[0].result.status,
+            "dispatch_granted",
+          );
+        } else if (scenario.startsWith("deletion")) {
           await first.queryArray(
             "SELECT id FROM public.users WHERE id=$1 FOR UPDATE",
             [owner],
@@ -98,7 +135,9 @@ for (const scenario of ["duplicate", "deletion", "refund before binding"]) {
             [quota.reservation_id, owner, quota.lease_token],
           );
         }
-        const pending = (scenario === "refund before binding"
+        const pending = (scenario.includes("dispatch")
+          ? dispatch(second)
+          : scenario === "refund before binding"
           ? second.queryObject(
             "SELECT * FROM public.reserve_protected_insight_chat_send_with_context($1,$2,$3,'Question',$4,NULL,1,$5,$6)",
             [
@@ -133,14 +172,14 @@ for (const scenario of ["duplicate", "deletion", "refund before binding"]) {
         assert(blocked, "Expected deterministic row-lock serialization");
         await first.queryArray("COMMIT");
         const result = await pending;
-        if (scenario === "duplicate") {
+        if (scenario.startsWith("duplicate")) {
           assert(result.ok);
           assertEquals(result.result.rows, [{ result: { status: "held" } }]);
         } else {
           assert(!result.ok);
           assertEquals(
             result.code,
-            scenario === "deletion" ? "P0002" : "55000",
+            scenario.startsWith("deletion") ? "P0002" : "55000",
           );
         }
         await second.queryArray(result.ok ? "COMMIT" : "ROLLBACK");
@@ -149,7 +188,7 @@ for (const scenario of ["duplicate", "deletion", "refund before binding"]) {
             "SELECT count(*)::int count FROM internal.insight_chat_execution_fences WHERE scan_id=$1",
             [scan],
           )).rows[0].count,
-          scenario === "deletion" ? 0 : 1,
+          scenario.startsWith("deletion") ? 0 : 1,
         );
       } finally {
         for (const db of [first, second]) {

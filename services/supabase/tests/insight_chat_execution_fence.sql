@@ -47,7 +47,7 @@ $$;
 SELECT extensions.throws_ok('SELECT pg_temp.reserve_fenced(1)','55000','field_chat_execution_unavailable','first admission default off');
 SELECT pg_temp.open_fenced_chat();
 CREATE TEMP TABLE admitted AS SELECT n,pg_temp.reserve_fenced(n) result FROM fixture;
-SELECT extensions.ok((SELECT bool_and(result->>'status'='reserved' AND result#>>'{quota,attempt_count}'='1' AND result#>>'{quota,is_replay}'='false') FROM admitted),'first admission grants exactly one original quota attempt');
+SELECT extensions.ok((SELECT bool_and(result->>'status'='reserved' AND result ?& ARRAY['reservation_id','lease_token','lease_expires_at','model'] AND NOT result ? 'quota') FROM admitted),'first admission grants exactly one original quota attempt');
 SELECT extensions.is((SELECT count(*)::INTEGER FROM internal.insight_chat_execution_fences WHERE scan_id IN(SELECT scan FROM fixture)),8,'one durable fence per submitted identity');
 SELECT extensions.is(pg_temp.reserve_fenced(1),' {"status":"held"}'::JSONB,'exact replay exposes no lease or new grant');
 SELECT extensions.throws_ok($$SELECT public.reserve_protected_insight_chat_quota('00000000-0000-4000-8000-00000000fa01',(SELECT scan FROM fixture WHERE n=1),(SELECT request FROM fixture WHERE n=1),'Changed',NULL,1,repeat('a',64))$$,'23505','field_chat_idempotency_conflict','changed question cannot reuse identity');
@@ -56,7 +56,7 @@ SELECT extensions.throws_ok($$SELECT public.finalize_ai_quota_reservation(f.rese
 SELECT extensions.ok((pg_temp.bind_fenced(1)->>'is_replay')::BOOLEAN=FALSE,'first final admission atomically binds context');
 SELECT extensions.ok((pg_temp.bind_fenced(1)->>'is_replay')::BOOLEAN,'binding exact replay returns original receipt');
 SELECT extensions.ok((SELECT message_bound AND message_id IS NOT NULL FROM internal.insight_chat_execution_fences JOIN fixture ON request=client_message_id WHERE n=1),'message binding durable');
-SELECT public.finalize_ai_quota_reservation(f.reservation_id,'00000000-0000-4000-8000-00000000fa01',f.lease_token,'committed') FROM internal.insight_chat_execution_fences f JOIN fixture ON request=client_message_id WHERE n=1;
+SELECT public.grant_protected_insight_chat_dispatch('00000000-0000-4000-8000-00000000fa01',f.scan_id,f.client_message_id,f.reservation_id,f.lease_token) FROM internal.insight_chat_execution_fences f JOIN fixture ON request=client_message_id WHERE n=1;
 SELECT public.finalize_ai_quota_reservation(f.reservation_id,'00000000-0000-4000-8000-00000000fa01',f.lease_token,'failed') FROM internal.insight_chat_execution_fences f JOIN fixture ON request=client_message_id WHERE n=1;
 SELECT extensions.throws_ok($$SELECT * FROM public.reserve_ai_quota('00000000-0000-4000-8000-00000000fa01','insight_chat_reply',(SELECT request FROM fixture WHERE n=1),repeat('a',64))$$,'55000','field_chat_execution_held','generic caller cannot reopen failed protected quota');
 SELECT public.finalize_ai_quota_reservation(f.reservation_id,'00000000-0000-4000-8000-00000000fa01',f.lease_token,'refunded') FROM internal.insight_chat_execution_fences f JOIN fixture ON request=client_message_id WHERE n=2;
@@ -65,7 +65,7 @@ SELECT internal.refund_expired_ai_quota_reservations();
 SELECT extensions.is((SELECT state FROM internal.ai_quota_reservations WHERE request_id=(SELECT request FROM fixture WHERE n=3)),'refunded','normal expired-reservation cleanup still runs');
 SELECT extensions.throws_ok('SELECT pg_temp.bind_fenced(3)','55000','field_chat_execution_held','expired/refunded grant cannot admit a message');
 SELECT pg_temp.bind_fenced(4);
-SELECT public.finalize_ai_quota_reservation(f.reservation_id,'00000000-0000-4000-8000-00000000fa01',f.lease_token,'committed') FROM internal.insight_chat_execution_fences f JOIN fixture ON request=client_message_id WHERE n=4;
+SELECT public.grant_protected_insight_chat_dispatch('00000000-0000-4000-8000-00000000fa01',f.scan_id,f.client_message_id,f.reservation_id,f.lease_token) FROM internal.insight_chat_execution_fences f JOIN fixture ON request=client_message_id WHERE n=4;
 UPDATE internal.ai_quota_reservations SET updated_at=now()-interval '31 days' WHERE request_id IN(SELECT request FROM fixture WHERE n<=4);
 SELECT internal.prune_ai_quota_state();
 SELECT extensions.is((SELECT count(*)::INTEGER FROM internal.ai_quota_reservations WHERE request_id IN(SELECT request FROM fixture WHERE n<=4)),0,'ordinary terminal pruning is preserved');
@@ -107,8 +107,8 @@ CREATE TEMP TABLE source_quota AS SELECT n,public.reserve_protected_insight_chat
 SELECT public.reserve_ai_quota(target,'insight_chat_reply','00000000-0000-4000-8000-00000000fb31',repeat('b',64)) FROM merge_fixture;
 SELECT extensions.is((SELECT public.reserve_protected_insight_chat_quota(target,'00000000-0000-4000-8000-00000000fb21','00000000-0000-4000-8000-00000000fb33','Question',NULL,1,repeat('b',64))->>'status' FROM merge_fixture),'reserved','same UUID on a different account does not interfere');
 CREATE TEMP TABLE source_context AS SELECT n,to_jsonb(bound_message) context FROM merge_fixture,source_quota,
- LATERAL public.reserve_protected_insight_chat_send_with_context(source,gen_random_uuid(),('00000000-0000-4000-8000-00000000fb1'||n)::UUID,'Question',('00000000-0000-4000-8000-00000000fb3'||n)::UUID,NULL,1,(source_quota.result#>>'{quota,reservation_id}')::UUID,(source_quota.result#>>'{quota,lease_token}')::UUID) bound_message WHERE n IN(2,4);
-SELECT public.finalize_ai_quota_reservation((result#>>'{quota,reservation_id}')::UUID,source,(result#>>'{quota,lease_token}')::UUID,'committed') FROM merge_fixture,source_quota WHERE n=2;
+ LATERAL public.reserve_protected_insight_chat_send_with_context(source,gen_random_uuid(),('00000000-0000-4000-8000-00000000fb1'||n)::UUID,'Question',('00000000-0000-4000-8000-00000000fb3'||n)::UUID,NULL,1,(source_quota.result->>'reservation_id')::UUID,(source_quota.result->>'lease_token')::UUID) bound_message WHERE n IN(2,4);
+SELECT public.grant_protected_insight_chat_dispatch(source,'00000000-0000-4000-8000-00000000fb12','00000000-0000-4000-8000-00000000fb32',(result->>'reservation_id')::UUID,(result->>'lease_token')::UUID) FROM merge_fixture,source_quota WHERE n=2;
 INSERT INTO public.insight_chat_conversations(id,user_id,scan_id)
  SELECT '00000000-0000-4000-8000-00000000fb42',target,'00000000-0000-4000-8000-00000000fb12' FROM merge_fixture;
 INSERT INTO public.insight_chat_messages(conversation_id,user_id,scan_id,role,message_text,client_message_id)
@@ -119,7 +119,7 @@ SELECT extensions.is((SELECT count(*)::INTEGER FROM internal.ai_quota_reservatio
 SELECT extensions.ok((SELECT message_bound AND message_id IS NULL FROM internal.insight_chat_execution_fences WHERE scan_id='00000000-0000-4000-8000-00000000fb12'),'duplicate message deletion retires original binding without aborting merge');
 SELECT extensions.ok((SELECT state='committed' AND user_id=target FROM internal.ai_quota_reservations,merge_fixture WHERE request_id='00000000-0000-4000-8000-00000000fb32'),'committed quota ownership can move after duplicate message deletion');
 SELECT extensions.is((SELECT public.reserve_protected_insight_chat_quota(target,'00000000-0000-4000-8000-00000000fb11','00000000-0000-4000-8000-00000000fb31','Question',NULL,1,repeat('b',64)) FROM merge_fixture),'{"status":"held"}'::JSONB,'merged pre-admission collision remains held');
-SELECT extensions.ok((SELECT result.is_replay AND result.context_snapshot=(SELECT context->'context_snapshot' FROM source_context WHERE n=4) FROM merge_fixture,source_quota,LATERAL public.reserve_protected_insight_chat_send_with_context(target,gen_random_uuid(),'00000000-0000-4000-8000-00000000fb14','Question','00000000-0000-4000-8000-00000000fb34',NULL,1,(source_quota.result#>>'{quota,reservation_id}')::UUID,(source_quota.result#>>'{quota,lease_token}')::UUID) result WHERE n=4),'nonduplicate context and binding survive actual account merge unchanged');
+SELECT extensions.ok((SELECT result.is_replay AND result.context_snapshot=(SELECT context->'context_snapshot' FROM source_context WHERE n=4) FROM merge_fixture,source_quota,LATERAL public.reserve_protected_insight_chat_send_with_context(target,gen_random_uuid(),'00000000-0000-4000-8000-00000000fb14','Question','00000000-0000-4000-8000-00000000fb34',NULL,1,(source_quota.result->>'reservation_id')::UUID,(source_quota.result->>'lease_token')::UUID) result WHERE n=4),'nonduplicate context and binding survive actual account merge unchanged');
 SELECT extensions.throws_ok($$UPDATE internal.insight_chat_execution_fences SET request_sha256=repeat('0',64) WHERE scan_id='00000000-0000-4000-8000-00000000fb14'$$,'55000','field_chat_execution_immutable','request evidence immutable even for internal writers');
 SELECT extensions.lives_ok('SELECT internal.assert_ghost_profile_merge_reference_policy_coverage()','scan-derived ownership adds no unclassified user FK');
 SELECT extensions.ok((SELECT bool_and(public.reserve_protected_insight_chat_quota(target,s.id,'00000000-0000-4000-8000-00000000fb33','Question',NULL,1,repeat('b',64))='{"status":"held"}'::JSONB) FROM merge_fixture,public.scans s WHERE s.id IN('00000000-0000-4000-8000-00000000fb13','00000000-0000-4000-8000-00000000fb21')),'both colliding protected scans stay held after merge');

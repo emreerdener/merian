@@ -7365,9 +7365,18 @@ returns the original receipt before fresh gate/lease checks. Message deletion
 sets the reference null while retaining the immutable bound flag, so no later
 message can replace it. Scan deletion cascades the fence; scientific account
 detachment or tombstoning explicitly erases it. A permanent scan-deletion
-request also blocks the first quota commit before physical erasure. This does
-not yet provide the future provider-dispatch owner's atomic permission and
-cancellation contract.
+request also blocks the first quota commit before physical erasure. Migration
+`20261006114355_prepare_protected_chat_dispatch.sql` adds a permanent, one-way
+dispatch UUID/time pair. A dedicated service RPC locks owner/scan, quota, fence,
+message and saved context in order. It validates the original reservation,
+immutable request fingerprint, live lease and current consent, then records
+permission consumption and commits provider quota in one transaction. It never
+consults current selection to rebase admitted context. Only the fresh successful
+response grants one immediate execution; every marker replay is held. Generic
+quota finalization cannot perform the first commit without the marker. The
+marker survives quota pruning and message erasure; merge preserves it with the
+existing scan-owned ledger. Failed commit rolls back both marker and quota. An
+unknown response cannot be retried into a new permission or refunded.
 
 Account merge requires no duplicated user-key reparenting for this ledger.
 Duplicate chat-message removal retires its original binding; nonduplicate

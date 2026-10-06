@@ -3419,3 +3419,24 @@ includes the corrected SQL volatility declaration; schema lint is clean and all
 no new fence findings (the existing 103 security and 79 performance warnings
 remain). Earlier synthetic fixture errors were corrected before the complete
 run. No Swift or deployed endpoint runtime changed in this slice.
+
+### One-time protected chat dispatch preparation — October 6, 2026
+
+A forward migration adds immutable dispatch consumption to the existing
+scan-owned execution fence. The fresh service call validates original saved
+context, current consent/deletion and quota lease, then records the marker and
+commits quota atomically. Subsequent calls are held, including after quota
+pruning or message erasure. A fixed TypeScript adapter rejects broad quota
+payloads and disables retry; a lost grant reply cannot become permission for
+another provider call. HTTP/native integration and runtime qualification remain
+open, with every activation gate false.
+
+Final validation passed 2,833 backend tests (425 steps), 109 SQL catalogs (1,685
+assertions), six execution-fence concurrency cases, 419 migration contracts,
+full Supabase tooling, the prepared module's own deployment-config check, DTO21,
+docs26, recursive lint/format and Markdown. Independent review is clear. Schema
+lint is clean, all 320 privileged routines pass the allowlist audit, and advisor
+error gates pass with no new findings (existing 103 security and 79 performance
+warnings remain). The initial catalog fixture expected the wrong consent error
+and a test fetch closure needed its redundant async removed; both were corrected
+before the final complete run. No Swift or deployed handler import changed.
