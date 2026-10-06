@@ -11,6 +11,7 @@ struct ObservationAnalysisReviewTicket: Equatable {
     let selectedAnalysisID: UUID
     let observationRevision: Int
     let reviewRevision: Int
+    let primaryScientificName: String?
     let canReject: Bool
     let canConfirmPrimary: Bool
     let canConfirmName: Bool
@@ -40,6 +41,7 @@ struct ObservationAnalysisReviewTicket: Equatable {
             && context.revision < 2_147_483_647 && reviewRevision < 2_147_483_647
         ownerID = context.owner; self.observationID = observationID; analysisID = entry.result.analysisID
         selectedAnalysisID = context.selected; observationRevision = context.revision; self.reviewRevision = reviewRevision
+        primaryScientificName = primary?.scientificName
         canReject = available && authority.state != .userOverridden && (authority.aiReview?.state ?? .clear) == .clear
         canConfirmName = available && primary != nil
         // Reuse the exact explicit-name wire validator, including UTF-16 bounds.

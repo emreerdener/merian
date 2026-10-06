@@ -119,6 +119,11 @@ import SwiftData
     @ObservationIgnored lazy var reanalysisAdmissionRuntime = makeReanalysisAdmissionRuntime()
     @ObservationIgnored let reanalysisExecutionOwner = ObservationReanalysisExecutionOwner()
     @ObservationIgnored let publicationDeliveryOwner = ObservationPublicationDeliveryOwner()
+    private(set) var analysisReviewDeliveryGeneration: UInt64 = 0
+    func analysisReviewDeliveryDidFinish(ownerID: UUID, context: ModelContext, currentOwnerID: UUID?) {
+        guard currentOwnerID == ownerID, modelContext === context else { return }
+        analysisReviewDeliveryGeneration &+= 1
+    }
     @ObservationIgnored let analysisReviewDeliveryOwner = ObservationAnalysisReviewDeliveryOwner()
 
     /// Active collection sync task. Cancelled immediately on connectivity loss.

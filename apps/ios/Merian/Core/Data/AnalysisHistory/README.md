@@ -1119,5 +1119,8 @@ when a different target owns unfinished work. Undo lookup additionally requires
 the current ticket's rejection association and a reconciled, applied same-target
 Reject receipt at the exact review revision. A rejected flag, unreconciled
 receipt or an operation on another target cannot authorize Undo. These local
-boundaries are prepared for the gated UI; the ordinary UI remains unconnected
-and holds no idle account lease.
+boundaries now back the explicitly injected history-preview controls. The ticket
+also carries its immutable primary scientific name for accurate action labels.
+Queue pass exit signals local status refresh only for its originating account
+and active database context; it is not authority or a receipt. Ordinary UI
+remains unconnected and holds no idle account lease.

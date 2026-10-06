@@ -113,3 +113,36 @@ Each child-local ticket owner cancels and clears its pending handle on
 disappearance, including removal before a nested dismissal callback. Forwarding
 clears local state first, so disappearance cannot cancel a request already
 passed onward. Parent cancellation also clears its pending chat ticket.
+
+## Prepared analysis review controls
+
+An explicitly composed preview may offer confirmation, an incorrect mark and
+receipt-backed Undo for that exact historical result. The immutable primary's
+scientific name labels primary confirmation; a mutable row title never labels
+its target. Explicit species-name input uses the same bounded request validator.
+Capabilities come from explicit biological/primary evidence and current
+result-specific authority, including eligible imported results.
+
+`IdentificationHistoryReviewModel` freezes the request and operation UUID and
+stages it synchronously at the button callback, before the injected queue wake.
+It retains the exact request after an uncertain save, including when status is
+nil or unreadable. Retry saving reuses that request. A held operation never
+rearms from this UI. Undo rechecks the completed applied same-target Reject
+receipt and current association at the actual tap.
+
+The App-owned composition injects local admission/status, queue wake and the
+observable actual-pass-exit generation. The generation only prompts an
+owner/parent/child-scoped local refresh; it is not a receipt or authority. No
+idle polling or retained Auth lease is introduced. Returning to the foreground
+also checks local state. Pending work on another result blocks new decisions for
+the observation. Fresh checks fence restore, selection Undo and reanalysis,
+including the historical route's final handoff.
+
+Back, close, paging, revision and account changes invalidate the nested model.
+Terminal negative receipts require a new preview even when the local revision
+has not changed. Completion does not select an identification. Ordinary access
+and the atomic App installation gate remain disabled. Tests cover synchronous
+admission, uncertain-save identity, stale receipt Undo, held work, other-target
+blocking and nested lifecycle teardown in
+`IdentificationHistoryReviewModelTests` and
+`IdentificationHistoryReviewLifecycleTests`.

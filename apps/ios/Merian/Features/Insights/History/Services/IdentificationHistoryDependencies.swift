@@ -43,6 +43,8 @@ struct IdentificationHistoryDependencies {
     var photo: (UUID, UUID) async throws -> UIImage
     var isCurrent: () -> Bool
     var close: () -> Void
+    var review: IdentificationHistoryReviewAccess?
+    var pendingReview: () throws -> ObservationAnalysisReviewStatus? = { nil }
     var now: () -> Date = Date.init
     var reanalysis: ((UUID, ObservationHistoryListingService.Context) throws -> IdentificationHistoryReanalysisAction)?
 }
@@ -60,10 +62,13 @@ final class IdentificationHistorySession {
     private let currentGeneration: @MainActor () -> UInt64
     private let sessionIsCurrent: @MainActor (AuthTransitionSession) -> Bool
     private var closed = false
+    private let reviewWake: (() -> Void)?
+    private let reviewGeneration: () -> UInt64
 
     init(observation: String, container: ModelContainer,
          cloud: ObservationHistoryCloudClient = .live,
          photos: ObservationHistoryPhotoLoader? = nil,
+         reviewWake: (() -> Void)? = nil, reviewGeneration: @escaping () -> UInt64 = { 0 },
          currentGeneration: @escaping @MainActor () -> UInt64 = { SupabaseManager.shared.authSessionGeneration },
          sessionIsCurrent: @escaping @MainActor (AuthTransitionSession) -> Bool = { session in
              let manager = SupabaseManager.shared
@@ -74,6 +79,7 @@ final class IdentificationHistorySession {
                  && manager.client.auth.currentSession?.user.isAnonymous == session.isAnonymous
          }) throws {
         self.observation = observation; self.container = container
+        self.reviewWake = reviewWake; self.reviewGeneration = reviewGeneration
         self.photos = photos ?? ObservationHistoryPhotoLoader(account: cloud, resolve: cloud.resolvePhoto)
         self.cloud = cloud; self.currentGeneration = currentGeneration; self.sessionIsCurrent = sessionIsCurrent
         let state = try ObservationHistoryListingService(cloud: cloud).context(observationID: observation, container: container)
@@ -116,11 +122,14 @@ final class IdentificationHistorySession {
             catch is URLError { cached = true }
             try check()
             let entry = try listing.cached(observationID: observation, analysisID: analysis, container: container)
-            return try IdentificationHistoryPresentation.detail(entry, context: listing.context(observationID: observation, container: container), cached: cached)
+            let context = try listing.context(observationID: observation, container: container)
+            var detail = try IdentificationHistoryPresentation.detail(entry, context: context, cached: cached)
+            detail.reviewTicket = try? ObservationAnalysisReviewTicket(entry: entry, context: context, observationID: ObservationHistoryPage.uuid(observation))
+            return detail
         }, prepare: { [self] target in
-            try check(); try selection.prepare(observationID: observation, analysisID: target, ownerID: session.userID, container: container)
+            try check(); try requireNoPendingReview(); try selection.prepare(observationID: observation, analysisID: target, ownerID: session.userID, container: container)
         }, prepareUndo: { [self] operation in
-            try check(); try selection.prepareUndo(observationID: observation, operationID: operation, ownerID: session.userID, container: container)
+            try check(); try requireNoPendingReview(); try selection.prepareUndo(observationID: observation, operationID: operation, ownerID: session.userID, container: container)
         }, sendPending: { [self] in
             try check(); let result = try await selection.sendPending(observationID: observation, container: container)
             try check(); return result
@@ -132,10 +141,12 @@ final class IdentificationHistorySession {
             guard let image else { throw ObservationHistoryError.unavailable }
             return UIImage(cgImage: image.cgImage)
         }, isCurrent: { [self] in isCurrent() }, close: { [self] in close() },
+           review: reviewWake.map { reviewAccess(wake: $0, generation: reviewGeneration) },
+           pendingReview: { [self] in try pendingReview() },
            reanalysis: { [self] analysis, context in try reanalysisAction(analysis, context: context) })
     }
     func reanalysisAction(_ analysis: UUID, context: ObservationHistoryListingService.Context) throws -> IdentificationHistoryReanalysisAction {
-        try check()
+        try check(); try requireNoPendingReview()
         guard context.pendingOperation == nil, context.owner == session.userID,
               try ObservationHistoryListingService(cloud: cloud).context(observationID: observation, container: container) == context else {
             throw ObservationHistoryPreviewService.AdmissionError.refreshRequired
@@ -149,11 +160,18 @@ final class IdentificationHistorySession {
             guard try ObservationHistoryListingService(cloud: cloud).context(observationID: observation, container: container) == context else {
                 throw ObservationHistoryPreviewService.AdmissionError.refreshRequired
             }
+            guard try ObservationAnalysisReviewStatus.pending(ownerID: session.userID, observationID: source.observationID,
+                container: container, isCurrent: { currentGeneration() == generation && sessionIsCurrent(session) }) == nil else {
+                throw ObservationHistoryError.unavailable
+            }
             try source.validate(container: container)
             return HistoricalReanalysisTarget(observationID: source.observationID, analysisID: source.analysisID, ownerID: source.ownerID)
         }
         _ = try action.resolve()
         return action
+    }
+    private func requireNoPendingReview() throws {
+        guard try pendingReview() == nil else { throw ObservationHistoryError.unavailable }
     }
     nonisolated private static func downsample(_ data: Data) async -> ImageDownsampler.SendableImage? {
         ImageDownsampler.downsampledSendableImage(data: data, maxSize: 1_280)

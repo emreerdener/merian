@@ -18,6 +18,7 @@ struct IdentificationHistoryDetail {
     let photoIDs: [UUID]
     let canRestore: Bool
     let isCached: Bool
+    var reviewTicket: ObservationAnalysisReviewTicket?
 }
 
 struct IdentificationHistoryPage {

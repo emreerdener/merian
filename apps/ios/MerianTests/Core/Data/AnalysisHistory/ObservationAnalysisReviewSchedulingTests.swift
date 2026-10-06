@@ -72,6 +72,22 @@ struct ObservationAnalysisReviewSchedulingTests {
         #expect(order == ["review", "details"])
     }
 
+    @Test func passExitRefreshIgnoresReplacedAccountOrContext() throws {
+        let manager = OfflineQueueManager.shared, previous = manager.modelContext
+        let context = ModelContext(try fixture.container()), replacement = ModelContext(try fixture.container())
+        manager.modelContext = context
+        defer { manager.modelContext = previous }
+        let generation = manager.analysisReviewDeliveryGeneration
+        manager.analysisReviewDeliveryDidFinish(ownerID: fixture.owner, context: context, currentOwnerID: UUID())
+        manager.analysisReviewDeliveryDidFinish(ownerID: fixture.owner, context: context, currentOwnerID: nil)
+        manager.modelContext = replacement
+        manager.analysisReviewDeliveryDidFinish(ownerID: fixture.owner, context: context, currentOwnerID: fixture.owner)
+        #expect(manager.analysisReviewDeliveryGeneration == generation)
+        manager.modelContext = context
+        manager.analysisReviewDeliveryDidFinish(ownerID: fixture.owner, context: context, currentOwnerID: fixture.owner)
+        #expect(manager.analysisReviewDeliveryGeneration == generation &+ 1)
+    }
+
     private func scheduler(owner: @escaping @MainActor () -> UUID?) -> OfflineJobScheduler {
         .init(drainOperations: .init(reconcileFunding: { _ in }, syncPendingScans: { _ in }, replayInference: { _ in },
             replayFieldTripProgress: { _ in }, syncPendingDeletions: { _ in }, syncCollections: { _ in }), deletionAccountID: owner)

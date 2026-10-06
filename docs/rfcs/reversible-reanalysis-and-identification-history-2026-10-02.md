@@ -3050,3 +3050,15 @@ The next connection is the gated history review UI, followed by selected-Insight
 review and immutable publication consent. Runtime, CPU, heap, CDN and
 independent erasure operations/monitoring qualification remain open;
 implementation and local validation authorize no deployment or activation.
+
+### October 6: prepared history review presentation
+
+The gated historical-result preview connects immutable-ticket admission to
+native confirmation, incorrect-mark and receipt-backed Undo controls. Exact
+requests are persisted synchronously before queue wake and retained across
+uncertain saves. Queue pass exit triggers scoped local status refresh; terminal
+conflicts require a new preview even at an unchanged local revision. Parent
+teardown invalidates nested controls and unfinished review blocks selection and
+reanalysis. Confirmation labels come from immutable primary evidence. Ordinary
+installation remains disabled. Selected-Insight review, immutable publication
+consent and integrated operational qualification remain open.

@@ -27,6 +27,7 @@ struct PreparedHistoryReanalysisComposition {
          preparationOwner: ObservationReanalysisPreparationOwner,
          enrollmentOwner: ObservationHistoryEnrollmentOwner, containerIsCurrent: @escaping @MainActor (ModelContainer) -> Bool,
          submitted: @escaping @MainActor (UUID) -> Void, cleanup: @escaping @MainActor () -> Void,
+         reviewWake: (() -> Void)? = nil, reviewGeneration: @escaping () -> UInt64 = { 0 },
          documents: @escaping @MainActor () throws -> URL = {
              try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
          },
@@ -36,7 +37,7 @@ struct PreparedHistoryReanalysisComposition {
         let photos = ObservationHistoryPhotoLoader(account: cloud, resolve: cloud.resolvePhoto, download: downloadPhoto)
         let session: (String, ModelContainer) throws -> IdentificationHistorySession = { id, container in
             try IdentificationHistorySession(observation: id, container: container, cloud: cloud, photos: photos,
-                currentGeneration: generation, sessionIsCurrent: { currentOwner() == $0.userID && sessionIsCurrent($0) })
+                reviewWake: reviewWake, reviewGeneration: reviewGeneration, currentGeneration: generation, sessionIsCurrent: { currentOwner() == $0.userID && sessionIsCurrent($0) && containerIsCurrent(container) })
         }
         var history = IdentificationHistoryAccess.prepared(cloud: cloud, session: session)
         history.requestReanalysis = { routes.request(.historicalReanalysis($0), source: .internalUserAction) }
@@ -64,6 +65,7 @@ struct PreparedHistoryReanalysisComposition {
             }, preparationOwner: queue.reanalysisPreparationOwner,
             enrollmentOwner: queue.historyEnrollmentOwner, containerIsCurrent: { queue.modelContext?.container === $0 },
             submitted: { queue.requestReanalysisAdmissionRecovery(.submitted($0)) },
-            cleanup: { queue.requestReanalysisErasureRecovery() })
+            cleanup: { queue.requestReanalysisErasureRecovery() },
+            reviewWake: { queue.requestAnalysisReviewRecovery() }, reviewGeneration: { queue.analysisReviewDeliveryGeneration })
     }
 }

@@ -61,7 +61,9 @@ struct IdentificationHistorySheet: View {
         .presentationDetents([.large])
         .task { model.start(.newest) }
         .onChange(of: model.isSessionCurrent, initial: true) { _, current in if !current { model.close() } }
-        .onChange(of: scenePhase) { _, phase in if phase == .active { model.validate() } }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { model.refreshReview() } }
+        .onChange(of: model.reviewDeliveryGeneration) { _, _ in model.refreshReview() }
+        .onChange(of: model.review?.terminalMessage) { _, value in if value != nil { model.refreshReview() } }
         .task(id: model.undoOperation) { await model.expireUndo() }
         .task(id: selectedPhoto) { if let selectedPhoto { await model.loadPhoto(selectedPhoto) } }
         .onChange(of: model.detail?.row.id) { _, _ in selectedPhoto = nil }
@@ -93,6 +95,7 @@ struct IdentificationHistorySheet: View {
         } footer: {
             Text("Choosing this entry keeps the entire history. It does not confirm a species, clear an incorrect mark, or update a shared post.")
         }
+        if let review = model.review { IdentificationHistoryReviewSection(model: review).id(ObjectIdentifier(review)) }
         if model.canReanalyze {
             Section {
                 Button("Reanalyze from this identification") { model.start(.reanalyze) }

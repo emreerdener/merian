@@ -20,6 +20,7 @@ extension OfflineQueueManager {
                      requestRetry: { scheduler.scheduleAnalysisReviewRetry(using: self, ownerID: owner, container: context.container) })
         }, didFinish: { [weak self] in
             guard let self else { return }
+            self.analysisReviewDeliveryDidFinish(ownerID: owner, context: context, currentOwnerID: CloudDeletionAccountWork.currentAccountID)
             scheduler.scheduleNextPersistedWake(using: self)
         })
     }

@@ -6,7 +6,11 @@ import UIKit
 final class IdentificationHistoryViewModel {
     enum Command { case newest, older, preview(UUID), restore, undo, retry, reanalyze }
     private(set) var rows: [IdentificationHistoryRow] = []
-    private(set) var detail: IdentificationHistoryDetail?
+    private(set) var detail: IdentificationHistoryDetail? {
+        didSet { review?.close(); review = nil }
+    }
+    private(set) var review: IdentificationHistoryReviewModel?
+    var reviewDeliveryGeneration: UInt64 { dependencies.review?.generation() ?? 0 }
     private(set) var photo: UIImage?
     private(set) var selected: UUID?
     private(set) var pending = false
@@ -61,18 +65,27 @@ final class IdentificationHistoryViewModel {
                     throw ObservationHistoryPreviewService.AdmissionError.refreshRequired
                 }
                 detail = result; photo = nil
+                if let ticket = result.reviewTicket, let access = dependencies.review {
+                    review = IdentificationHistoryReviewModel(ticket: ticket, access: access, isCurrent: { [weak self] in
+                        guard let self else { return false }
+                        return self.generation == expected && self.detail?.reviewTicket == ticket && self.isSessionCurrent
+                    })
+                }
                 reanalysisAction = handoffReanalysis == nil ? nil : try? dependencies.reanalysis?(id, baseline)
             case .reanalyze:
+                guard allowChoice() else { return }
                 guard detail != nil, !pending, let action = reanalysisAction, let handoffReanalysis else { return }
                 _ = try action.resolve()
                 guard accepts(expected), detail != nil else { return }
                 if handoffReanalysis(action) { reanalysisAction = nil }
             case .restore:
+                guard allowChoice() else { return }
                 guard let detail, detail.canRestore, !pending, detail.row.id != selected else { return }
                 try dependencies.prepare(detail.row.id)
                 pending = true; undoOperation = nil
                 try await send(expected)
             case .undo:
+                guard allowChoice() else { return }
                 guard let operation = undoOperation, !pending else { return }
                 try dependencies.prepareUndo(operation)
                 pending = true; undoOperation = nil
@@ -92,7 +105,29 @@ final class IdentificationHistoryViewModel {
             } else { message = "History is unavailable right now. Your saved identifications have not been removed. Try again." }
         }
     }
+    private func allowChoice() -> Bool {
+        do {
+            guard review?.hasUnresolvedRequest != true, try dependencies.pendingReview() == nil else {
+                message = "A review for this scan is unresolved. Resolve it before changing or reanalyzing an identification."
+                return false
+            }
+            return true
+        } catch {
+            message = "Review status is unavailable. Refresh history before making a change."
+            return false
+        }
+    }
+    func refreshReview() {
+        guard validate() else { return }
+        review?.refresh()
+        if let terminal = review?.terminalMessage {
+            detail = nil; photo = nil; reanalysisAction = nil
+            rows = []; nextBeforeOrdinal = nil; showingOlder = false
+            message = terminal
+        }
+    }
     private func loadPage(before: Int?, expected: Int) async throws {
+        detail = nil; photo = nil; reanalysisAction = nil; photoGeneration += 1
         let page = try await dependencies.page(before)
         guard accepts(expected) else { return }
         guard page.context == (try dependencies.context()) else {
@@ -169,6 +204,7 @@ final class IdentificationHistoryViewModel {
     private func apply(_ state: ObservationHistoryListingService.Context) {
         let changed = acknowledgedRevision != nil && (selected != state.selected || acknowledgedRevision != state.revision)
         selected = state.selected; pending = state.pendingOperation != nil
+        if pending { review?.close(); review = nil }
         acknowledgedRevision = state.revision
         if let undoOperation, state.undoOperation != undoOperation { self.undoOperation = nil; undoDeadline = nil }
         if changed {

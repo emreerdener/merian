@@ -2648,3 +2648,26 @@ legacy review job blocked by enrollment keeps its original request in a held
 state without a retry deadline. A late success, failure or conflict-recovery
 response cannot overwrite history authority. Backend generation locks remain the
 final authority for an enrollment race during network execution.
+
+### Prepared historical-result review
+
+The gated history preview now has explicitly injected analysis-bound review
+controls. Confirmation names the immutable primary result or an explicitly
+entered, validated species name. Mark incorrect and Undo apply only to the
+previewed result; neither selects it. Undo requires its completed applied Reject
+receipt and exact current rejection association.
+
+The button callback captures one immutable request and durably stages it before
+any asynchronous delivery. An uncertain local save retains that request for an
+exact retry, even if a status read returns nothing. Pending and held reviews are
+shown distinctly; held work is not automatically restarted. A terminal conflict
+or unverified name requires a fresh preview without silently updating the old
+request's revisions.
+
+A queue pass-exit generation and foreground entry trigger scoped local status
+reads, without idle polling or an idle account lease. Closing, backing out,
+paging, account changes and acknowledged revision changes invalidate nested
+review controls. Fresh unfinished-review checks block restoration, selection
+Undo and reanalysis. All ordinary access and activation gates remain disabled;
+selected-Insight review and publication consent remain separate integration
+work.
