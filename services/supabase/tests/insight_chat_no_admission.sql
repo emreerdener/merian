@@ -54,6 +54,16 @@ $$;
 SELECT extensions.ok(has_function_privilege('service_role','public.seal_unadmitted_insight_chat_request(uuid,uuid,uuid,uuid,text,jsonb,integer)','EXECUTE')
  AND NOT has_function_privilege('authenticated','public.seal_unadmitted_insight_chat_request(uuid,uuid,uuid,uuid,text,jsonb,integer)','EXECUTE')
  AND NOT has_function_privilege('anon','public.seal_unadmitted_insight_chat_request(uuid,uuid,uuid,uuid,text,jsonb,integer)','EXECUTE'),'seal service-only');
+CREATE FUNCTION pg_temp.read_seal(n INTEGER) RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT public.get_insight_chat_no_admission(owner,scan,conversation,request,'Question',
+ CASE WHEN n=1 THEN (SELECT ticket FROM seal_ticket) ELSE 'null'::JSONB END,1) FROM seal_fixture WHERE seal_fixture.n=$1;
+$$;
+SELECT extensions.ok(has_function_privilege('service_role','public.get_insight_chat_no_admission(uuid,uuid,uuid,uuid,text,jsonb,integer)','EXECUTE')
+ AND NOT has_function_privilege('authenticated','public.get_insight_chat_no_admission(uuid,uuid,uuid,uuid,text,jsonb,integer)','EXECUTE')
+ AND NOT has_function_privilege('anon','public.get_insight_chat_no_admission(uuid,uuid,uuid,uuid,text,jsonb,integer)','EXECUTE'),'proof recovery is service-only');
+UPDATE internal.observation_history_rollout SET chat_execution_enabled=FALSE,chat_context_enabled=FALSE;
+SELECT extensions.is(pg_temp.read_seal(1),'{"status":"fresh_candidate"}'::JSONB,'fresh read has no gates or authority derivation');
+UPDATE internal.observation_history_rollout SET chat_execution_enabled=TRUE,chat_context_enabled=TRUE;
 SELECT extensions.is(pg_temp.seal_chat(1),'{"status":"held"}'::JSONB,'current ticket is not denial proof');
 SELECT extensions.is((SELECT count(*)::INTEGER FROM internal.insight_chat_execution_fences WHERE scan_id IN(SELECT scan FROM seal_fixture)),0,'held probe creates no seal');
 UPDATE internal.observation_histories SET state_revision=state_revision+1 WHERE observation_id=(SELECT scan FROM seal_fixture WHERE n=1);
@@ -77,13 +87,27 @@ SELECT extensions.throws_ok($$UPDATE internal.insight_chat_execution_fences SET 
 SELECT extensions.throws_ok($$SELECT public.seal_unadmitted_insight_chat_request(owner,scan,conversation,request,'Changed',(SELECT ticket FROM seal_ticket),1) FROM seal_fixture WHERE n=1$$,'23505','field_chat_idempotency_conflict','changed text conflicts');
 SELECT extensions.throws_ok($$SELECT public.seal_unadmitted_insight_chat_request(owner,scan,gen_random_uuid(),request,'Question',(SELECT ticket FROM seal_ticket),1) FROM seal_fixture WHERE n=1$$,'23505','field_chat_idempotency_conflict','changed proposed conversation conflicts');
 UPDATE internal.observation_history_rollout SET chat_execution_enabled=FALSE,chat_context_enabled=FALSE;
+SELECT extensions.is(pg_temp.read_seal(1),(SELECT receipt FROM sealed),'read-only recovery returns original proof before fresh gates');
+SELECT extensions.throws_ok($$SELECT public.get_insight_chat_no_admission(owner,(SELECT scan FROM seal_fixture WHERE n=2),conversation,request,'Question',(SELECT ticket FROM seal_ticket),1) FROM seal_fixture WHERE n=1$$,'23505','field_chat_idempotency_conflict','read recovery never treats another scan request as fresh');
+SELECT extensions.throws_ok($$SELECT public.get_insight_chat_no_admission(owner,scan,gen_random_uuid(),request,'Question',(SELECT ticket FROM seal_ticket),1) FROM seal_fixture WHERE n=1$$,'23505','field_chat_idempotency_conflict','read proof requires exact proposed conversation');
 SELECT extensions.is(pg_temp.seal_chat(1),(SELECT receipt FROM sealed),'original receipt recovers before fresh gates');
 UPDATE internal.observation_history_rollout SET chat_execution_enabled=TRUE,chat_context_enabled=TRUE;
 SELECT public.reserve_protected_insight_chat_quota(owner,scan,request,'Question',NULL,1,repeat('a',64)) FROM seal_fixture WHERE n=2;
+SELECT extensions.is(pg_temp.read_seal(2),'{"status":"held"}'::JSONB,'nonterminal attempt cannot become fresh or terminal proof');
 SELECT extensions.is(pg_temp.seal_chat(2),'{"status":"held"}'::JSONB,'existing reservation never becomes no-admission proof');
 INSERT INTO internal.observation_histories(observation_id) SELECT scan FROM seal_fixture WHERE n=3;
+SELECT extensions.is(pg_temp.read_seal(3),'{"status":"fresh_candidate"}'::JSONB,'read recovery never derives damaged current authority');
 SELECT extensions.throws_ok('SELECT pg_temp.seal_chat(3)','55000','field_chat_context_unavailable','damaged authority is not stale-ticket proof');
+SELECT public.reserve_ai_quota(owner,'insight_chat_reply',request,repeat('f',64)) FROM seal_fixture WHERE n=3;
+SELECT extensions.is(pg_temp.read_seal(3),'{"status":"held"}'::JSONB,'quota without a fence remains held');
+DELETE FROM internal.ai_quota_reservations WHERE request_id=(SELECT request FROM seal_fixture WHERE n=3);
+INSERT INTO public.insight_chat_conversations(id,user_id,scan_id)
+ SELECT conversation,owner,scan FROM seal_fixture WHERE n=2;
+INSERT INTO public.insight_chat_messages(conversation_id,user_id,scan_id,role,message_text,safety_metadata)
+ SELECT conversation,owner,scan,'assistant','Synthetic recovery evidence',jsonb_build_object('request_id',(SELECT request FROM seal_fixture WHERE n=3)) FROM seal_fixture WHERE n=2;
+SELECT extensions.is(pg_temp.read_seal(3),'{"status":"held"}'::JSONB,'assistant evidence on another owned scan is not a fresh candidate');
 DELETE FROM public.scans WHERE id=(SELECT scan FROM seal_fixture WHERE n=4);
+SELECT extensions.throws_ok('SELECT pg_temp.read_seal(4)','P0002','field_chat_subject_not_found','deleted subject blocks read proof');
 SELECT extensions.throws_ok('SELECT pg_temp.seal_chat(4)','P0002','field_chat_subject_not_found','deleted observation wins');
 SELECT extensions.throws_ok($$SELECT public.seal_unadmitted_insight_chat_request(gen_random_uuid(),scan,conversation,request,'Question',(SELECT ticket FROM seal_ticket),1) FROM seal_fixture WHERE n=1$$,'P0002','field_chat_subject_not_found','unknown owner denied before recovery');
 SELECT pg_temp.seed_fenced_chat('00000000-0000-4000-8000-00000000ad01','00000000-0000-4000-8000-00000000ad11');
@@ -110,6 +134,7 @@ DELETE FROM public.insight_chat_conversations WHERE id='00000000-0000-4000-8000-
 SELECT internal.perform_ghost_profile_merge('00000000-0000-4000-8000-00000000ac01','00000000-0000-4000-8000-00000000ad01');
 SELECT extensions.throws_ok('SELECT pg_temp.seal_chat(1)','P0002','field_chat_subject_not_found','old owner cannot recover merged receipt');
 UPDATE seal_fixture SET owner='00000000-0000-4000-8000-00000000ad01';
+SELECT extensions.is(pg_temp.read_seal(1),(SELECT receipt FROM sealed),'exact read follows current merged owner');
 SELECT extensions.is(pg_temp.seal_chat(1),(SELECT receipt FROM sealed),'seal follows actual account merge without rewriting evidence');
 SELECT extensions.throws_ok($$SELECT public.seal_unadmitted_insight_chat_request(owner,'00000000-0000-4000-8000-00000000ad11',conversation,request,'Question',NULL,1) FROM seal_fixture WHERE n=1$$,'23505','field_chat_idempotency_conflict','merged request cannot move to another scan');
 DELETE FROM public.scans WHERE id=(SELECT scan FROM seal_fixture WHERE n=1);

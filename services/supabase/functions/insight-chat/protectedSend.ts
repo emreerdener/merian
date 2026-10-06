@@ -14,7 +14,11 @@ import {
   buildImmutableChatUserPrompt,
   immutableChatSemantics,
 } from "./immutableContextPrompt.ts";
-import { prepareInsightChatSendContext } from "./preparedContext.ts";
+import { readChatNoAdmission, sealChatNoAdmission } from "./noAdmission.ts";
+import {
+  InsightChatContextPreflightError,
+  prepareInsightChatSendContext,
+} from "./preparedContext.ts";
 import { admitOrRecoverProtectedInsightChatContext } from "./protectedContextAdmission.ts";
 import {
   grantProtectedChatDispatch,
@@ -72,11 +76,23 @@ export async function executeProtectedChatSend(
   }
   const recovered = await resolveStoredInsightChatTurn(client, turn, signal);
   if (recovered.found) return await completion(recovered.message);
+  const sealed = await readChatNoAdmission(client, saved, signal);
+  if (sealed.status === "not_admitted") return sealed;
+  if (sealed.status !== "fresh_candidate") return held();
   const prepared = await prepareInsightChatSendContext(client, {
     ownerId: turn.ownerId,
     scanId: turn.scanId,
     displayedTicket: turn.displayedTicket,
-  }, signal);
+  }, signal).catch(async (error: unknown) => {
+    if (
+      !(error instanceof InsightChatContextPreflightError) ||
+      error.code !== "field_chat_context_conflict" || error.status !== 409
+    ) throw error;
+    const proof = await sealChatNoAdmission(client, saved, signal);
+    if (proof.status !== "not_admitted") return held();
+    return proof;
+  });
+  if ("status" in prepared) return prepared;
   if (!immutableChatSemantics(prepared).eligible) {
     throw publicHttpError(
       400,

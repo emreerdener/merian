@@ -72,3 +72,35 @@ Deno.test("chat no-admission grants only one exact service signature without act
     1,
   );
 });
+
+const recovery = await Deno.readTextFile(
+  new URL(
+    "../../migrations/20261006190021_prepare_chat_no_admission_recovery.sql",
+    import.meta.url,
+  ),
+);
+Deno.test("no-admission recovery locks original owner and request without admission or fresh gates", () => {
+  const routine =
+    recovery.split("CREATE FUNCTION public.get_insight_chat_no_admission")[1]
+      .split("REVOKE ALL")[0];
+  assert(
+    routine.indexOf("lock_insight_chat_execution_subject") <
+      routine.indexOf("insight_chat_execution_fingerprint"),
+  );
+  assert(
+    routine.indexOf("pg_advisory_xact_lock") <
+      routine.indexOf("SELECT f.* INTO STRICT"),
+  );
+  assert(routine.includes("WHEN too_many_rows THEN RETURN"));
+  assert(routine.includes("no_admission_conversation_id<>p_conversation_id"));
+  assert(
+    routine.includes(
+      "safety_metadata->>'request_id'=p_client_message_id::TEXT",
+    ),
+  );
+  assert(!routine.includes("INSERT INTO"));
+  assert(!routine.includes("prepare_current_insight_chat_context"));
+  assert(!routine.includes("chat_execution_enabled"));
+  assert(!routine.includes("chat_context_enabled"));
+  assert(recovery.includes("SET search_path='' SET statement_timeout='5s'"));
+});

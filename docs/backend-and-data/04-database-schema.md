@@ -7479,8 +7479,15 @@ The shared immutable-context writer checks the seal before either replay or
 fresh admission. Funded admission, local refusal and generic quota insertion or
 update cannot bind a sealed request. Deletion cascades the private seal, while
 canonical scan ownership supplies merge behavior. Pre-existing ambiguous
-owner/request evidence remains held. The RPC is service-only, and HTTP/native
-terminal remediation remains unconnected; all activation gates stay false.
+owner/request evidence remains held. The RPC is service-only. Migration
+`20261006190021_prepare_chat_no_admission_recovery.sql` adds the service-only
+read-only `get_insight_chat_no_admission` using the same subject/request locks.
+Exact proof recovers before fresh gates. No matching fence, owner-wide quota or
+user/assistant request evidence yields `fresh_candidate`, permitting only fresh
+preflight; nonterminal or ambiguous evidence yields `held`. Changed
+deterministic identity conflicts, and ownership/deletion still wins. HTTP proof
+delivery is prepared; native terminal settlement remains pending. All activation
+gates stay false.
 
 A terminal seal colliding with another account's attempted UUID blocks account
 merge with `55000/field_chat_execution_merge_conflict`. The whole merge rolls

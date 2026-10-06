@@ -20,7 +20,7 @@ export class StoredInsightChatRecoveryError extends Error {
   }
 }
 
-/** One bounded read. Only a decoded found=false permits fresh-send preflight. */
+/** One bounded read. A decoded found=false still requires exact no-admission recovery before preflight. */
 export async function resolveStoredInsightChatTurn(
   client: SupabaseClient,
   input: StoredInsightChatTurnRequest,

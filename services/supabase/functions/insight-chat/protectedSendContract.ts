@@ -1,3 +1,4 @@
+import type { ChatNoAdmissionProof } from "./noAdmission.ts";
 import { normalizeUserMessage } from "./guards.ts";
 import {
   LOCAL_REFUSAL_REASONS,
@@ -45,7 +46,45 @@ export type ProtectedChatCompletion = Extract<
   { completed: true }
 >;
 /** Receipt only. No mutable thread, current selection or quota claims. */
-export function protectedChatSendPayload(receipt: ProtectedChatCompletion) {
+export function protectedChatSendPayload(
+  receipt: ProtectedChatCompletion,
+): { readonly data: ProtectedChatCompletion & { readonly context_version: 1 } };
+export function protectedChatSendPayload(
+  receipt: ProtectedChatCompletion | ChatNoAdmissionProof,
+):
+  | { readonly data: ProtectedChatCompletion & { readonly context_version: 1 } }
+  | {
+    readonly data: Omit<ChatNoAdmissionProof, "status"> & {
+      readonly outcome: "not_admitted";
+    };
+  };
+export function protectedChatSendPayload(
+  receipt: ProtectedChatCompletion | ChatNoAdmissionProof,
+) {
+  if ("status" in receipt) {
+    const proof = exactStoredObject(receipt, [
+      "status",
+      "context_version",
+      "scan_id",
+      "conversation_id",
+      "client_message_id",
+      "reason",
+    ]);
+    if (
+      proof.status !== "not_admitted" || proof.context_version !== 1 ||
+      proof.reason !== "displayed_identification_changed"
+    ) return invalidStoredContext();
+    return immutableStoredCopy({
+      data: {
+        context_version: 1 as const,
+        outcome: "not_admitted" as const,
+        scan_id: storedUUID(proof.scan_id),
+        conversation_id: storedUUID(proof.conversation_id),
+        client_message_id: storedUUID(proof.client_message_id),
+        reason: "displayed_identification_changed" as const,
+      },
+    });
+  }
   const message = receipt.message;
   if (
     (!message.is_refusal && message.refusal_reason !== null) ||

@@ -547,5 +547,12 @@ locks. It preserves a private request fingerprint and original proposed
 conversation. Existing quota, message or execution evidence stays held. All
 context/quota writers honor the terminal seal, including direct unfunded
 admission and quota updates. The schema and API contracts define its closed
-receipt. HTTP and native recovery do not consume it yet; generic errors or
-absence never release local occupancy, and no refund or successor is granted.
+receipt. The prepared HTTP owner reads stored completion first, then the exact
+seal before fresh eligibility or entitlement. A locked `fresh_candidate` only
+permits preflight; it is not dispatch authority. Only typed stale-ticket denial
+calls the sealing writer, once. An exact proof returns a distinct HTTP 200
+`data.outcome:"not_admitted"` receipt without an assistant or thread. Unknown
+reads/writes remain held; generic errors and absence never release occupancy.
+Native durable proof settlement is still pending, so the existing
+completion-only native decoder safely holds this new outcome. All activation
+gates remain false; no refund or provider successor is granted.

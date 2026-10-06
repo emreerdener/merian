@@ -933,10 +933,10 @@ original-grant completion owners. Source routing cannot turn a client protocol
 omission into legacy permission. The isolated raw provider adapter has a fixed
 origin/model, one invocation, real parent cancellation and bounded response
 body; unknown outcomes remain charged with no successor. The source-derived
-Field Chat fingerprint includes this runtime. Native receipt decoding is
-prepared, but native persisted send tickets and operational qualification still
-precede any separately authorized deployment or activation. All gates remain
-false.
+Field Chat fingerprint includes this runtime. Native immutable send tickets,
+receipt decoding and durable delivery are prepared; exact no-admission proof
+settlement and operational qualification still precede any separately authorized
+deployment or activation. All gates remain false.
 
 The prepared no-admission seal is an exact allowlisted service-only RPC, not an
 authenticated-client table write. Its private immutable columns can never gain
@@ -944,7 +944,11 @@ quota, message or dispatch authority. Both quota INSERT and UPDATE paths and the
 shared context admission owner enforce the seal. Only a locked exact
 stale-ticket denial is sealable; gate, authorization, network and damaged-state
 errors remain failures or holds. Historical replay still checks current owner
-and deletion first. This source addition does not enable HTTP/native recovery or
+and deletion first. The new exact read-only proof RPC is separately allowlisted
+and uses the same canonical subject/request locks without fresh gates or
+admission. Prepared HTTP recovery reads original completion before proof; only
+exact typed stale-ticket denial can call the seal writer. Native proof
+settlement remains pending. These source changes do not authorize deployment or
 change any rollout gate.
 
 A terminal seal colliding with another account's attempted UUID blocks account

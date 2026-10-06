@@ -14814,12 +14814,35 @@ returns either `{status:"held"}` or the closed six-field receipt with
 `client_message_id` and `reason:"displayed_identification_changed"`. The server
 independently proves the stale displayed ticket under admission locks and
 permanently prohibits that request from entering any context or quota writer.
-Existing attempt evidence never becomes this receipt. Lost replies require an
-exact recovery design; a generic error, absent context, timeout or cancellation
-is not proof. Proposed conversation is immutable request correlation only.
+Existing attempt evidence never becomes this receipt. Lost replies use the
+service-only five-second, retry-free `get_insight_chat_no_admission` read with
+the same exact tuple. It returns `not_admitted`, `held`, or `fresh_candidate`;
+the last only permits subsequent fresh preflight, never admission or dispatch. A
+generic error, absent context, timeout or cancellation is not proof. Proposed
+conversation is immutable request correlation only.
 
 The proof neither refunds provider usage nor authorizes another execution. A
 future native consumer may retire only its matching saved request; a new
-question requires a separate explicit tap and current displayed ticket. This RPC
-does not yet change the protected HTTP response or native decoder, and all
+question requires a separate explicit tap and current displayed ticket. The
+prepared protected HTTP owner recovers stored completion first and existing
+seals second, before fresh gates/eligibility/Pro. Only a typed stale-ticket
+preflight denial calls the seal writer; a held or unknown write cannot settle.
+The distinct terminal HTTP 200 shape is:
+
+```json
+{
+  "data": {
+    "context_version": 1,
+    "outcome": "not_admitted",
+    "scan_id": "<original observation UUID>",
+    "conversation_id": "<original proposed UUID>",
+    "client_message_id": "<original message UUID>",
+    "reason": "displayed_identification_changed"
+  }
+}
+```
+
+The existing completed-assistant receipt is unchanged. No assistant, thread,
+quota or refund is synthesized. Native remains completion-only until its exact
+durable proof variant is connected, and safely holds this new response. All
 activation gates remain closed.

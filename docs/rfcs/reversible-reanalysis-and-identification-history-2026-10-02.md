@@ -3592,3 +3592,14 @@ context writer and generic quota INSERT/UPDATE paths prevent a sealed request
 from later executing. Existing attempts remain held, and no provider refund or
 successor is introduced. HTTP/native proof delivery and terminal remediation
 remain a subsequent slice; all activation gates stay false.
+
+### October 6: exact seal recovery and HTTP proof delivery
+
+The service-only read-only proof boundary now checks original owner, subject,
+request fingerprint and proposed conversation under writer locks. Existing
+completion wins before proof; proof wins before fresh gates and entitlement.
+Only locked absence of fence/quota/message evidence permits fresh preflight. The
+HTTP owner returns a distinct no-admission outcome after exact recovery or one
+independently verified stale-ticket seal. Unknown and held outcomes never become
+proof. Native durable proof settlement is next; existing completion-only clients
+hold the new outcome safely. All activation gates remain false.

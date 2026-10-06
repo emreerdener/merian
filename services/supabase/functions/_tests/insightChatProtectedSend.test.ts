@@ -121,7 +121,40 @@ async function scenario(kind: string) {
           data = kind === "recover_incomplete"
             ? { context_version: 1, completed: false }
             : done;
+        } else if (
+          name === "get_insight_chat_no_admission" ||
+          name === "seal_unadmitted_insight_chat_request"
+        ) {
+          if (kind === "seal_read_unknown" || kind === "stale_unknown") {
+            if (kind === "seal_read_unknown" || name.startsWith("seal_")) {
+              return Promise.resolve(
+                Response.json({ message: "unknown" }, { status: 503 }),
+              );
+            }
+          }
+          data =
+            kind === "sealed" || (kind === "stale" && name.startsWith("seal_"))
+              ? {
+                status: "not_admitted",
+                context_version: 1,
+                scan_id: id(2),
+                conversation_id: id(4),
+                client_message_id: id(3),
+                reason: "displayed_identification_changed",
+              }
+              : kind === "seal_read_held" ||
+                  (kind === "stale_held" && name.startsWith("seal_"))
+              ? { status: "held" }
+              : { status: "fresh_candidate" };
         } else if (name === "prepare_insight_chat_send_context") {
+          if (kind.startsWith("stale")) {
+            return Promise.resolve(
+              Response.json({
+                code: "40001",
+                message: "field_chat_context_conflict",
+              }, { status: 409 }),
+            );
+          }
           data = kind === "ineligible"
             ? {
               ...prepared(),
@@ -235,6 +268,7 @@ Deno.test("protected fresh send uses saved prefix, one grant and one completion"
   assertEquals(r.writes, 1);
   assertEquals(r.paths, [
     "get_insight_chat_turn_context",
+    "get_insight_chat_no_admission",
     "prepare_insight_chat_send_context",
     "reserve_protected_insight_chat_quota",
     "reserve_protected_insight_chat_send_with_context",
@@ -372,4 +406,54 @@ Deno.test("protected receipt rejects impossible model and refusal combinations",
   );
   assert(local.completed);
   assertEquals(protectedChatSendPayload(local).data.message.model, null);
+});
+
+Deno.test("sealed and newly proven stale requests return only an exact no-admission receipt", async () => {
+  for (const kind of ["sealed", "stale"]) {
+    const r = await scenario(kind);
+    assertEquals(r.response.status, 200);
+    assertEquals(r.tierCalls, 0);
+    assertEquals(r.provider, 0);
+    assertEquals(r.writes, 0);
+    assertEquals(r.response.headers.get("cache-control"), "no-store");
+    assertEquals(await r.response.json(), {
+      data: {
+        context_version: 1,
+        outcome: "not_admitted",
+        scan_id: id(2),
+        conversation_id: id(4),
+        client_message_id: id(3),
+        reason: "displayed_identification_changed",
+      },
+    });
+    assertEquals(r.paths, [
+      "get_insight_chat_turn_context",
+      "get_insight_chat_no_admission",
+      ...(kind === "stale"
+        ? [
+          "prepare_insight_chat_send_context",
+          "seal_unadmitted_insight_chat_request",
+        ]
+        : []),
+    ]);
+  }
+});
+Deno.test("held and uncertain seal reads or writes never create proof or call a provider", async () => {
+  for (
+    const kind of [
+      "seal_read_held",
+      "seal_read_unknown",
+      "stale_held",
+      "stale_unknown",
+    ]
+  ) {
+    const r = await scenario(kind);
+    assertEquals(r.response.status, 503);
+    assertEquals(r.tierCalls, 0);
+    assertEquals(r.provider, 0);
+    assert(
+      !r.paths.some((p) => p.includes("reserve_") || p.includes("dispatch")),
+    );
+    assert(r.paths.filter((p) => p.startsWith("seal_")).length <= 1);
+  }
 });

@@ -7,6 +7,9 @@ for (
     "seal before context",
     "context before seal",
     "deletion before seal",
+    "seal before read",
+    "context before read",
+    "deletion before read",
   ]
 ) {
   Deno.test({
@@ -85,7 +88,7 @@ for (
             "SELECT * FROM public.reserve_insight_chat_send_with_context($1,$2,$3,'Question',$4,$5,1)",
             [owner, conversation, scan, request, JSON.stringify(ticket)],
           );
-        if (scenario !== "context before seal") {
+        if (!scenario.startsWith("context before")) {
           await observer.queryArray(
             "UPDATE internal.observation_histories SET state_revision=state_revision+1 WHERE observation_id=$1",
             [scan],
@@ -99,13 +102,13 @@ for (
         const waiter = (await second.queryObject<{ pid: number }>(
           "SELECT pg_backend_pid() pid",
         )).rows[0].pid;
-        if (scenario === "context before seal") {
+        if (scenario.startsWith("context before")) {
           await admit(first);
           await first.queryArray(
             "UPDATE internal.observation_histories SET state_revision=state_revision+1 WHERE observation_id=$1",
             [scan],
           );
-        } else if (scenario === "deletion before seal") {
+        } else if (scenario.startsWith("deletion before")) {
           await first.queryArray(
             "SELECT internal.lock_insight_chat_execution_subject($1,$2)",
             [owner, scan],
@@ -117,41 +120,55 @@ for (
             (await seal(first)).rows[0].result.status,
             "not_admitted",
           );}
-        const pending =
-          (scenario === "seal before context" ? admit(second) : seal(second))
-            .then(
-              (result) => ({ ok: true as const, result }),
-              (error: unknown) => ({
-                ok: false as const,
-                code: (error as { fields?: { code?: string } }).fields?.code,
-              }),
-            );
+        const pending = (scenario.endsWith("before read")
+          ? second.queryObject<{ result: Record<string, unknown> }>(
+            "SELECT public.get_insight_chat_no_admission($1,$2,$3,$4,'Question',$5,1) result",
+            [owner, scan, conversation, request, JSON.stringify(ticket)],
+          )
+          : scenario === "seal before context"
+          ? admit(second)
+          : seal(second))
+          .then(
+            (result) => ({ ok: true as const, result }),
+            (error: unknown) => ({
+              ok: false as const,
+              code: (error as { fields?: { code?: string } }).fields?.code,
+            }),
+          );
         let blocked = false;
         for (let index = 0; index < 100; index++) {
           blocked = (await observer.queryObject<{ blocked: boolean }>(
             "SELECT $1::int=ANY(pg_blocking_pids($2::int)) blocked",
             [blocker, waiter],
           )).rows[0].blocked;
-          if (blocked) break;
-          await new Promise((resolve) => setTimeout(resolve, 20));
+          if (blocked) {
+            break;
+          }
+          await new Promise((resolve) =>
+            setTimeout(resolve, 20)
+          );
         }
         assert(blocked, "Expected writer-lock serialization");
         await first.queryArray("COMMIT");
         const result = await pending;
         if (
-          scenario === "duplicate seal" || scenario === "context before seal"
+          scenario === "duplicate seal" ||
+          scenario.startsWith("context before") ||
+          scenario === "seal before read"
         ) {
           assert(result.ok);
           assertEquals(
             (result.result.rows[0] as { result: { status: string } }).result
               .status,
-            scenario === "duplicate seal" ? "not_admitted" : "held",
+            scenario === "duplicate seal" || scenario === "seal before read"
+              ? "not_admitted"
+              : "held",
           );
         } else {
           assert(!result.ok);
           assertEquals(
             result.code,
-            scenario === "deletion before seal" ? "P0002" : "55000",
+            scenario.startsWith("deletion before") ? "P0002" : "55000",
           );
         }
         await second.queryArray(result.ok ? "COMMIT" : "ROLLBACK");
@@ -165,7 +182,7 @@ for (
               scenario.startsWith("seal before")
             ? 1
             : 0,
-          messages: scenario === "context before seal" ? 1 : 0,
+          messages: scenario.startsWith("context before") ? 1 : 0,
         });
       } finally {
         for (const db of [first, second]) {
