@@ -3991,5 +3991,12 @@ version-one immutable-send receipt within 32 KiB. It checks exact envelope keys,
 original observation/request and deterministic conversation-bound assistant
 UUID, without converting the receipt into a full chat thread or adopting
 selection. The existing legacy conversation decoder is unchanged. Native durable
-send-ticket storage and delivery remain separate unfinished owners; ordinary
-access stays behind the disabled History gate.
+send-ticket staging is prepared separately below; delivery remains unfinished.
+Ordinary access stays behind the disabled History gate.
+
+`Models/FieldChat/ProtectedInsightChatRequest.swift` owns the closed enrolled
+native send request. It preserves exact IDs and selected analysis/revisions,
+rejects unnormalized or oversized UTF-16 text, and emits sorted-key JSON without
+Unicode normalization. A legacy null-ticket request is deliberately outside this
+native subset. The existing retryable 45-second Field Chat endpoint is not its
+transport; dedicated bounded delivery remains required before activation.

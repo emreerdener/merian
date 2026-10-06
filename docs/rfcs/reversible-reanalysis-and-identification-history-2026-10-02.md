@@ -3517,3 +3517,15 @@ headroom before dispatch. Unknown outcomes stay held and cannot trigger a
 successor or refund. Native actual-send ticket persistence/delivery and
 integrated operational qualification remain open. Every activation gate stays
 false; source integration does not authorize deployment.
+
+### Native immutable chat request and inert staging — October 6, 2026
+
+The native selected-chat ticket and closed request now preserve exact displayed
+analysis/revisions, conversation proposal, message identity and normalized text.
+An owner-private intent retains its canonical fingerprint and validated terminal
+receipt across storage decoding. Atomic staging recovers exact IDs before fresh
+eligibility and rejects changed authority, unresolved operations and malformed
+work. Observation deletion erases the dedicated namespace. The new raw job kind
+uses the unchanged persisted schema and remains excluded from generic wakeups.
+Claims, delivery, Auth teardown and actual send UI remain separate work; all
+activation gates remain false.

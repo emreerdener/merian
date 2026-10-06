@@ -1210,3 +1210,39 @@ uncertainty never authorizes a successor. Recovery has no save, acknowledgement,
 consent-construction or delivery-wake capability. App injection is inert and all
 activation gates remain false; explicit recovery and consent presentation remain
 to be connected.
+
+## Prepared immutable Field Chat intent
+
+`ProtectedInsightChatTicket` freezes the displayed selected result, owner and
+acknowledged global/review revisions, with local result/authority proof. It
+rejects a nonselected historical preview. `ProtectedInsightChatRequest` is the
+closed enrolled subset of the protected HTTP contract: explicit selected ticket,
+original proposed conversation/client-message UUIDs and already normalized text.
+UTF-16 bounds and ECMAScript trimming match the server; decoding never rewrites
+saved text or normalizes Unicode.
+
+`ProtectedInsightChatIntent` retains the exact request and canonical local
+SHA-256 with a separately validated terminal assistant receipt. The digest is an
+anti-drift check, not server authorization. A terminal receipt never reopens or
+changes its first observation time. Private text remains owner-bound until
+observation/account erasure; it is never logged or projected as a mutable
+thread.
+
+`ProtectedInsightChatPersistence` currently stages inert work only. Under the
+existing transaction lock it validates owner, enrollment, deletion and exact
+child linkage. Exact UUID replay precedes new-action checks. New work requires
+unchanged displayed proof, idle selection, settled review and no unfinished chat
+for that observation. Global message UUIDs cannot rebind across parents;
+malformed kind/namespace records fail closed rather than appear vacant. Direct
+and bulk deletion erase the indexed namespace despite damaged metadata;
+malformed keys also use the explicit kind/subject index, while a canonical other
+observation namespace remains authoritative. Cloud-confirmed deletion requires a
+valid owner envelope. Pristine queue fields must contain no remote state,
+attempt, deadline or altered delivery configuration. The raw job kind changes no
+SwiftData schema shape and contributes no generic scheduler wake.
+
+Claims, durable acknowledgement, delivery, Auth teardown and send UI remain
+separate unfinished owners. No prepared stage dispatches HTTP, enrolls an
+observation, selects an identification or enables the feature. The
+[protected HTTP contract](../../../../../../docs/backend-and-data/05-api-contracts.md#protected-field-chat-send-http-protocol-version-one)
+owns the wire boundary and rollout remains disabled.

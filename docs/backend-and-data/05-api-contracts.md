@@ -14727,3 +14727,20 @@ persistence/recovery headroom plus a two-second margin. A confirmed grant
 invokes once within the remaining provider window, preserving completion time.
 Provider HTTP uses actual cancellation, no retries, no redirects and a 32 KiB
 response limit. All activation gates remain false.
+
+The prepared native enrolled subset requires a nonnull selected ticket. It
+bounds revisions to 2,147,483,646, review revision to the displayed global
+revision, and text to 600 UTF-16 code units with exact ECMAScript trim
+semantics. It preserves Unicode bytes and canonical sorted-key JSON in a
+version-one owner-private intent. The canonical SHA is a local drift check only.
+Terminal receipts are validated against the original observation/client-message
+and retained without substituting their resolved conversation for the original
+proposal in a retry.
+
+Native staging is atomic and inert: exact message-ID replay first, then fresh
+selected-result proof/authority, pending-selection/review and unfinished-chat
+checks. Message IDs cannot move between observations. Namespace erasure is part
+of direct, bulk and owner-qualified cloud deletion. No schema shape changes or
+automatic scheduler eligibility are introduced. Dedicated claim-fenced
+acknowledgement, transport, lifecycle and UI remain required; no gate is
+enabled.

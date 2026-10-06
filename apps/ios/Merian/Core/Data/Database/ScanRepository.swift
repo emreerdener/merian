@@ -122,12 +122,6 @@ final class ScanRepository {
         }
     }
 
-    // MARK: - Local Fetching
-
-    // MARK: - Replaced Manual Fetchers
-    // `fetchLocalCollections` and `fetchLocalScans` have been deleted.
-    // The MainActor UI relies natively on iOS 17 declarative @Query macros over the globally elevated LocalScanRecord structure.
-
     // MARK: - Capture Persistence
 
     /// Enqueues a capture for upload, writing image data to disk and buffering offline if connectivity is absent.
@@ -544,6 +538,7 @@ final class ScanRepository {
                 childCleanup = try ObservationReanalysisErasure.removeChildren(of: scanID, context: modelContext)
                 try ObservationPublicationPersistence.removeForDeletion(scanID, context: modelContext)
                 try ObservationAnalysisReviewPersistence.removeForDeletion(scanID, context: modelContext)
+                try ProtectedInsightChatPersistence.removeForDeletion(scanID, context: modelContext)
                 modelContext.delete(record)
                 try modelContext.save()
             } catch {
