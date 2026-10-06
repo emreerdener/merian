@@ -63,6 +63,7 @@ const EXPECTED_AUTHORIZATION_BOUNDARIES = [
   "backfill-explore-audio-spectrograms/index.ts",
   "community-taxonomy-status/index.ts",
   "copy-publication-photos/index.ts",
+  "erase-observation-evidence/index.ts",
   "erase-publication-photos/index.ts",
   "expire-subscription-passes/index.ts",
   "export-dwca/index.ts",

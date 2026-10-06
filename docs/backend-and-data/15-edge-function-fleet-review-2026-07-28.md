@@ -31,6 +31,14 @@ candidate. A future main push includes configured source in the normal
 deployment plan; runtime-off is not a deployment exclusion. See the
 [worker contract](05-api-contracts.md#prepared-public-photo-erasure-worker).
 
+**2026-10-06 private-evidence cleanup source addendum:**
+`erase-observation-evidence` adds a separately gated service-only
+private-history worker. It performs one atomic expired-cohort retirement and one
+opaque claimed marker write/verification under shared request and original-claim
+deadlines. It returns aggregate no-store counts and accepts no caller keys. No
+hosted schedule, deployment, credential change or activation is implied. See the
+[worker contract](05-api-contracts.md#prepared-private-evidence-cleanup-rpcs).
+
 ## Scope
 
 This review inventories every configured deployable Supabase Edge Function
@@ -225,6 +233,7 @@ confirm-scan-species
 resolve-history-photo
 analyze-observation
 recover-observation-analyses
+erase-observation-evidence
 erase-publication-photos
 review-scan-identification
 create-explore-comment

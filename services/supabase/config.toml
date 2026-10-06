@@ -784,3 +784,7 @@ verify_jwt = false
 # Owner-authenticated observation target recovery; no admission or worker effects.
 [functions.get-observation-publication-target]
 verify_jwt = false
+
+# Independently gated service-only private history marker cleanup.
+[functions.erase-observation-evidence]
+verify_jwt = false

@@ -174,19 +174,37 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
     );
     return signed.url;
   }
-  async erase(objectId: string): Promise<void> {
+  async erase(objectId: string, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
+    const config = this.writeConfig();
     // Never DELETE this key. An unconditional empty PUT atomically replaces any
     // content and blocks every delayed conditional upload, in either ordering.
-    const response = await this.request(this.writeConfig(), objectId, "PUT", {
-      "Content-Type": "application/octet-stream",
-      "Content-Length": "0",
-      "Cache-Control": "private, no-store",
-      "x-amz-meta-erased": "true",
-    }, new Uint8Array());
+    const response = await this.request(
+      config,
+      objectId,
+      "PUT",
+      {
+        "Content-Type": "application/octet-stream",
+        "Content-Length": "0",
+        "Cache-Control": "private, no-store",
+        "x-amz-meta-erased": "true",
+      },
+      new Uint8Array(),
+      signal,
+    );
     await response.body?.cancel();
     if (!response.ok) throw new Error("history_evidence_erasure_failed");
-    const head = await this.request(this.writeConfig(), objectId, "HEAD");
+    signal?.throwIfAborted();
+    const head = await this.request(
+      config,
+      objectId,
+      "HEAD",
+      {},
+      undefined,
+      signal,
+    );
     await head.body?.cancel();
+    signal?.throwIfAborted();
     if (
       !head.ok || head.headers.get("Content-Length") !== "0" ||
       head.headers.get("x-amz-meta-erased") !== "true" ||

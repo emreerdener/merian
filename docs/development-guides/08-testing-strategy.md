@@ -329,9 +329,12 @@ candidate starvation, single legacy-receipt retirement, intent/result retention,
 deletion and lease settlement after gate rollback. The dedicated
 `observationEvidenceErasureConcurrencyDb.test.ts` verifies real lock ordering
 for duplicate retirement, retirement versus replay, deletion, admission, and
-independent claims skipping an already locked obligation. These tests validate
-SQL preparation; they do not prove a connected private-erasure HTTP worker, real
-storage markers, or recurring hosted cleanup.
+independent claims skipping an already locked obligation. The private worker
+handler/repository tests additionally cover strict claims, bounded retirement,
+completion reserve, original lease expiry, failed markers, unknown replies and
+parent cancellation. Shared storage tests verify cancellation before PUT, before
+HEAD and after HEAD. These local tests do not prove real storage markers, CDN
+behavior, or recurring hosted cleanup.
 
 The candidate workflow explicitly includes the focused tests. Its migration
 contract script discovers `*Migration*.test.ts`, including the history file; the

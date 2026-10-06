@@ -7245,9 +7245,10 @@ deletion trigger queues each opaque erasure obligation.
 `claim_observation_evidence_erasure` returns only opaque object ID, claim token
 and the original one-minute claim expiry. `finish_observation_evidence_erasure`
 accepts only the same unexpired token and remains available after gate closure.
-Private tables and primitives remain ungranted. These SQL facades prepare a
-bounded execution owner; no private-erasure Edge worker or schedule is connected
-by this migration. See the
+Private tables and primitives remain ungranted. The separately prepared
+`erase-observation-evidence` worker connects these facades with a bounded shared
+deadline and permanent marker verification; this migration includes no schedule.
+See the
 [API boundary](05-api-contracts.md#prepared-private-evidence-cleanup-rpcs).
 
 ### V58 qualified queued reanalysis storage

@@ -3293,6 +3293,18 @@ survive the staging deadline; actual removal queues permanent erasure, while
 reversible health quarantine keeps recovery possible. See the
 [atomic binding contract](../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-public-photo-binding).
 
+## Prepared private-evidence erasure worker
+
+`erase-observation-evidence` connects one locked expired-cohort retirement and
+one opaque private outbox claim to permanent marker PUT/HEAD and exact-token
+settlement. Its independent gate defaults false. One 90-second request respects
+the original 60-second claim, reserves completion time and propagates storage
+cancellation. It accepts no caller object keys, emits aggregate counts only, and
+never dispatches inference or charges credits. No schedule or activation is
+included; configured source participates in normal future main deployment. See
+the [worker README](functions/erase-observation-evidence/README.md) and
+[canonical contract](../../docs/backend-and-data/05-api-contracts.md#prepared-private-evidence-cleanup-rpcs).
+
 ## Prepared public-photo erasure worker
 
 `erase-publication-photos` performs one service-authenticated registry claim,

@@ -12318,11 +12318,20 @@ never extended.
 `finish_observation_evidence_erasure(p_object,p_claim,p_success)` returns a
 boolean for the original unexpired token. It remains callable after the gate
 closes; successful settlement still requires the trusted caller to PUT and
-HEAD-verify the permanent empty marker. These are service-only SQL preparations,
-not a connected private-erasure HTTP endpoint or hosted schedule. The eventual
-execution owner must process one marker per shared deadline, reserve settlement
-time, and leave uncertain acknowledgement for durable retry. Public-copy cleanup
-cannot drain this separate private outbox.
+HEAD-verify the permanent empty marker. The prepared
+`erase-observation-evidence` service-authenticated POST endpoint now connects
+these RPCs. It consumes no caller body or object key and returns only `retired`
+(0–5), `claimed`, `marked`, and `acknowledged` (0–1 each). All responses are
+no-store. One request retires at most one cohort, then marks at most one
+independently claimed opaque object. A 90-second shared request deadline caps
+twelve-second RPCs and a 25-second PUT/HEAD stage. Storage starts only with at
+least 38 seconds left in the original 60-second claim and request, reserving
+twelve seconds plus scheduling margin for settlement. The claim is never
+renewed. Failed or uncertain marker writes report failure when time allows; lost
+acknowledgements recover through the durable outbox without in-request retries.
+Parent cancellation reaches both storage calls. Configured source participates
+in future main deployment planning; no deployment, schedule or activation is
+implied. Public-copy cleanup cannot drain this separate private outbox.
 
 ## Prepared protected photo analyses
 

@@ -148,9 +148,10 @@ and claims with `private_evidence_erasure_enabled=false`. One locked retirement
 removes a whole exact expired unbound cohort (retaining its immutable
 descriptor) or one noncohort receipt. Claims expose only opaque
 object/token/expiry, and finish accepts the original unexpired token even after
-the gate closes. No private-erasure execution endpoint or schedule is connected
-yet; the existing batch helper does not provide the shared deadlines required
-for that owner. See the
+the gate closes. The prepared `erase-observation-evidence` endpoint connects
+these RPCs and propagates a shared deadline into private marker PUT/HEAD and
+original-token settlement. It does not use the old batch helper, renew a claim,
+provision a schedule or enable its gate. See the
 [cleanup RPC contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-private-evidence-cleanup-rpcs).
 
 ## Prepared protected evidence storage

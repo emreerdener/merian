@@ -666,11 +666,14 @@ before opening any history gate. Local fixtures do not attest hosted policy.
 Private-evidence cleanup admission now has an independent default-false
 `private_evidence_erasure_enabled` SQL gate. Its service-only retirement call
 preserves expired cohort identity while enqueueing exact opaque objects, and
-claim/finish retain the original one-minute lease. This does not connect an
-execution endpoint, provision credentials, or authorize a schedule. Activation
-still requires a bounded private worker with completion reserve, an independent
-recurring cleanup owner and due-backlog/oldest-age monitoring. Public-copy
-erasure does not cover the private outbox. Existing claim settlement must remain
+claim/finish retain the original one-minute lease. The prepared
+`erase-observation-evidence` endpoint now provides bounded marker execution with
+a shared deadline and completion reserve. It uses only dedicated private-history
+write credentials, never the public bucket. Configured source participates in
+future main deployment planning; runtime-off is not a deployment exclusion.
+Activation still requires real storage qualification, independently authorized
+recurring cleanup and due-backlog/oldest-age monitoring. Public-copy erasure
+does not cover the private outbox. Existing claim settlement must remain
 available when new cleanup admission is disabled.
 
 The prepared photo classifier adapter captures `GEMINI_PAID_API_KEY` before
