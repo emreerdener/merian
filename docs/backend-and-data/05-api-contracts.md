@@ -14741,6 +14741,11 @@ Native staging is atomic and inert: exact message-ID replay first, then fresh
 selected-result proof/authority, pending-selection/review and unfinished-chat
 checks. Message IDs cannot move between observations. Namespace erasure is part
 of direct, bulk and owner-qualified cloud deletion. No schema shape changes or
-automatic scheduler eligibility are introduced. Dedicated claim-fenced
-acknowledgement, transport, lifecycle and UI remain required; no gate is
-enabled.
+automatic scheduler eligibility are introduced. Native claims and atomic receipt
+acknowledgement are prepared; transport, lifecycle and UI remain required before
+activation. Initial claims accept pristine work only. Unknown outcomes hold
+without a wake deadline; explicit replay must match the previous local attempt
+while preserving the exact original request. Claim expiry denies new dispatch
+but permits an unchanged late receipt. Replaced attempts cannot acknowledge, and
+terminal receipts never reopen. These local attempts do not authorize provider
+successors. No gate is enabled.

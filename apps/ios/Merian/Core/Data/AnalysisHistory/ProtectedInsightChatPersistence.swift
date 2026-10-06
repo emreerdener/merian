@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// Prepared, inert outbox. No claims or delivery exist yet; generic scheduling excludes this kind.
+/// Immutable chat outbox. Dedicated claims are prepared; generic scheduling excludes this kind.
 enum ProtectedInsightChatPersistence {
     static let prefix = "observation-insight-chat:"
     enum IntegrityError: Error { case conflict, unavailable, accountChanged }
@@ -20,13 +20,7 @@ enum ProtectedInsightChatPersistence {
             guard isCurrent() else { throw IntegrityError.accountChanged }
             let context = ModelContext(container); context.autosaveEnabled = false
             do {
-                let scan = try ObservationHistorySyncService.enrolledScan(request.observationID.uuidString, context: context)
-                guard scan.analysisOwnerAccountID == ticket.ownerID.uuidString.lowercased(),
-                      !(try ObservationHistoryEnrollmentIntent.holds(scan.id, context: context)) else { throw IntegrityError.unavailable }
-                let id = request.selection.analysisID.uuidString.lowercased()
-                let children = try context.fetch(FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate { $0.id == id }))
-                guard children.count == 1, let child = children.first, child.ownerAccountID == scan.analysisOwnerAccountID,
-                      child.observationID == scan.id else { throw IntegrityError.unavailable }
+                let scan = try requireScope(candidate, context: context)
                 let jobs = try context.fetch(FetchDescriptor<OfflineJobRecord>())
                 let chatJobs = jobs.filter { $0.id.hasPrefix(prefix) || $0.kindRaw == OfflineJobKind.protectedInsightChatSync.rawValue }
                 let matches = try chatJobs.filter { try restore($0).request.clientMessageID == request.clientMessageID }
@@ -87,12 +81,23 @@ enum ProtectedInsightChatPersistence {
         guard job.kindRaw == OfflineJobKind.protectedInsightChatSync.rawValue, let metadata = job.metadataJSON else { throw IntegrityError.conflict }
         let intent = try ProtectedInsightChatIntent.decode(Data(metadata.utf8))
         guard job.id == jobID(intent.request), job.subjectId == intent.request.observationID.uuidString.lowercased(),
-              job.statusRaw == (intent.isComplete ? OfflineJobStatus.complete.rawValue : OfflineJobStatus.pending.rawValue),
-              job.attemptCount == 0, job.lastAttemptAt == nil, job.nextRunAt == nil,
-              job.lastErrorCode == nil, job.lastErrorMessage == nil, job.lastHTTPStatus == nil,
+              job.lastErrorMessage == nil, job.lastHTTPStatus == nil,
               job.serverStatus == nil, job.serverStage == nil, job.serverRetryAfter == nil, job.priority == 65,
               job.approximateBytes == 0, !job.requiresUnconstrainedNetwork, job.allowsCellular else { throw IntegrityError.conflict }
+        try validateShape(job, intent: intent)
         return intent
+    }
+
+    @MainActor
+    static func requireScope(_ intent: ProtectedInsightChatIntent, context: ModelContext) throws -> LocalScanRecord {
+        let scan = try ObservationHistorySyncService.enrolledScan(intent.request.observationID.uuidString, context: context)
+        guard scan.analysisOwnerAccountID == intent.ownerID.uuidString.lowercased(),
+              !(try ObservationHistoryEnrollmentIntent.holds(scan.id, context: context)) else { throw IntegrityError.unavailable }
+        let id = intent.request.selection.analysisID.uuidString.lowercased()
+        let children = try context.fetch(FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate { $0.id == id }))
+        guard children.count == 1, let child = children.first, child.ownerAccountID == scan.analysisOwnerAccountID,
+              child.observationID == scan.id else { throw IntegrityError.unavailable }
+        return scan
     }
 
     private static func hasCanonicalNamespace(_ id: String) -> Bool {

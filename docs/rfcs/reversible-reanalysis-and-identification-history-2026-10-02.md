@@ -3527,5 +3527,17 @@ receipt across storage decoding. Atomic staging recovers exact IDs before fresh
 eligibility and rejects changed authority, unresolved operations and malformed
 work. Observation deletion erases the dedicated namespace. The new raw job kind
 uses the unchanged persisted schema and remains excluded from generic wakeups.
-Claims, delivery, Auth teardown and actual send UI remain separate work; all
-activation gates remain false.
+At this staging checkpoint, claims, delivery, Auth teardown and actual send UI
+remained separate work; all activation gates remained false. The later claim
+addendum below records the next completed boundary.
+
+### October 6 — native chat claims and terminal receipts
+
+Prepared local claims now serialize the original send and explicit same-request
+replay. Interrupted work holds without automatic wake or a new request identity.
+Strict owner/deletion/child and attempt checks fence dispatch and receipt saves;
+a matching late receipt can settle after expiry, while a replaced attempt
+cannot. Disk-backed restart restores the prior held generation without granting
+a send. Transport, retained account delivery and UI remain unconnected and all
+activation gates stay disabled. The current native contract is in the
+[AnalysisHistory owner guide](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#native-chat-claims-and-receipts).

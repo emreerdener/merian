@@ -1228,7 +1228,7 @@ changes its first observation time. Private text remains owner-bound until
 observation/account erasure; it is never logged or projected as a mutable
 thread.
 
-`ProtectedInsightChatPersistence` currently stages inert work only. Under the
+`ProtectedInsightChatPersistence` stages immutable work without I/O. Under the
 existing transaction lock it validates owner, enrollment, deletion and exact
 child linkage. Exact UUID replay precedes new-action checks. New work requires
 unchanged displayed proof, idle selection, settled review and no unfinished chat
@@ -1237,12 +1237,38 @@ malformed kind/namespace records fail closed rather than appear vacant. Direct
 and bulk deletion erase the indexed namespace despite damaged metadata;
 malformed keys also use the explicit kind/subject index, while a canonical other
 observation namespace remains authoritative. Cloud-confirmed deletion requires a
-valid owner envelope. Pristine queue fields must contain no remote state,
-attempt, deadline or altered delivery configuration. The raw job kind changes no
-SwiftData schema shape and contributes no generic scheduler wake.
+valid owner envelope. Queue states reject remote state and altered delivery
+configuration. The raw job kind changes no SwiftData schema shape and
+contributes no generic scheduler wake.
 
-Claims, durable acknowledgement, delivery, Auth teardown and send UI remain
-separate unfinished owners. No prepared stage dispatches HTTP, enrolls an
-observation, selects an identification or enables the feature. The
+Delivery, Auth teardown and send UI remain separate unfinished owners. No
+prepared stage dispatches HTTP, enrolls an observation, selects an
+identification or enables the feature. The
 [protected HTTP contract](../../../../../../docs/backend-and-data/05-api-contracts.md#protected-field-chat-send-http-protocol-version-one)
 owns the wire boundary and rollout remains disabled.
+
+### Native chat claims and receipts
+
+`ProtectedInsightChatClaims` owns closed pending, running, held and complete
+states under the same transaction lock. Initial admission claims only pristine
+pending work. The 180-second local claim fences every dispatch check by owner,
+parent, exact child, account/container generation, original request and attempt.
+Expiry denies a new send but does not deny a matching late terminal receipt.
+Receipt persistence is atomic, retains original request and attempt provenance,
+and never projects parent authority, selection or a mutable conversation.
+
+Interruption or unknown outcomes hold the unchanged attempt without a deadline.
+An orphaned running attempt also stays unscheduled. Only an explicit replay API
+can replace a held or expired claim, and it requires the exact previous attempt
+so a stale tap cannot reopen newer work. Local attempt generations change;
+request IDs, text, selected ticket and canonical SHA never do. Old responses
+cannot acknowledge over a replacement attempt. Restart/status reads recover the
+prior claim only and do not grant dispatch permission. Cancellation settlement
+can save a hold while the task is cancelled, but still requires current account
+scope; lost scope leaves durable work untouched.
+
+There is no native read-only remote recovery endpoint. A nonterminal protected
+send can perform the original first execution, so its local claim must precede
+HTTP. The server's permanent execution fence still prevents provider successors.
+Transport and retained delivery remain unconnected; generic scheduling and all
+activation gates remain disabled.
