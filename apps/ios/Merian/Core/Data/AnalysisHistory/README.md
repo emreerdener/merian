@@ -1090,3 +1090,34 @@ disabled.
 separate review authority, stale or mismatched pairs, immutable evidence and
 display provenance, late replies, account/deletion/claim changes and atomic
 rollback.
+
+### Prepared foreground review admission
+
+`ObservationAnalysisReviewTicket` captures the preview's exact owner,
+observation, analysis, selected child, observation revision, review revision and
+immutable result/authority digests. Listing only supplies a review revision
+together with authority at the current acknowledged observation revision.
+Capability checks use explicit immutable biological and primary-identification
+fields, never display labels or biological defaults. Biological imported V3
+results can be rejected; missing primary evidence cannot authorize confirmation.
+Species confirmation requires a valid species-level primary name; named
+confirmation requires an explicit validated user name. Community authority
+prevents both actions.
+
+The synchronous tap creates one request from this ticket and retains its
+operation UUID through uncertain saves. `ObservationAnalysisReviewAdmission`
+checks that exact request, then stages under idle selection, settled legacy
+review and a fresh locked comparison of the complete ticket. Exact saved-request
+replay precedes the fresh comparison and cannot reopen held or completed work.
+No optimistic authority, selection update, network call or implicit queue wake
+occurs here.
+
+`ObservationAnalysisReviewStatus` exposes only operation/target IDs and pending,
+reconciling, attention or historical completion outcomes after owner and
+deletion checks. Observation-wide pending discovery also blocks new decisions
+when a different target owns unfinished work. Undo lookup additionally requires
+the current ticket's rejection association and a reconciled, applied same-target
+Reject receipt at the exact review revision. A rejected flag, unreconciled
+receipt or an operation on another target cannot authorize Undo. These local
+boundaries are prepared for the gated UI; the ordinary UI remains unconnected
+and holds no idle account lease.

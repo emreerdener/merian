@@ -12768,6 +12768,18 @@ this selection boundary.
 
 ### Prepared analysis-bound Reject and Undo
 
+Native foreground review admission is prepared behind the disabled UI boundary.
+An immutable preview ticket freezes the owner, observation, analysis, selected
+child, both revisions and result/authority digests. The synchronous tap creates
+one exact operation request; new staging revalidates the complete ticket, idle
+selection and settled legacy review in one local transaction. Exact
+saved-request replay precedes fresh-action validation. Local status
+distinguishes pending, receipt reconciliation, attention and historical
+completion without asserting current authority. Undo requires a reconciled
+applied same-target Reject receipt and the current ticket's exact rejection
+association/review revision. No idle Auth lease, implicit enrollment, optimistic
+review or selection change is added.
+
 `public.review_owned_observation_analysis(p_request JSONB, p_reader INTEGER)` is
 an authenticated owner RPC with a separate, default-false
 `rejection_api_enabled` hold. Reader and state-reader gates must also be open;

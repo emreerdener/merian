@@ -3023,3 +3023,30 @@ false source qualification gate prevents even constructing the bundle during
 ordinary launches. This connects the future installation boundary without
 authorizing activation. Analysis-bound review, immutable publication consent and
 integrated operational qualification remain open.
+
+### October 5: prepared native review delivery and foreground admission
+
+Native analysis-bound review now has immutable request/receipt persistence,
+phase-specific claims, exact replay, atomic paired target/selected
+reconciliation and a bounded retained queue owner with awaited Auth
+cancellation. These prepared owners preserve selection and never redispatch
+received operations. Ordinary review controls remain unconnected and all
+activation gates stay false.
+
+Foreground admission now uses an immutable displayed ticket containing owner,
+observation, analysis, selection, both revisions and result/authority digests.
+The actual tap must retain one exact request before asynchronous work. New local
+staging verifies the whole ticket, idle selection and settled legacy review;
+existing operation replay retains its original identity. Minimal local status
+checks owner, parent and exact child linkage. Undo requires a completed applied
+same-target Reject receipt and the current rejection association/review
+revision, not merely a rejected label. Confirmation capabilities follow explicit
+immutable primary evidence; a biological imported result is not categorically
+excluded from Reject. The canonical native README and API contracts own these
+current rules; earlier dated addenda retain their historical validation and
+remaining-work facts.
+
+The next connection is the gated history review UI, followed by selected-Insight
+review and immutable publication consent. Runtime, CPU, heap, CDN and
+independent erasure operations/monitoring qualification remain open;
+implementation and local validation authorize no deployment or activation.
