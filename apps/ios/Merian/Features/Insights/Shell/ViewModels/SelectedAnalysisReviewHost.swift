@@ -78,6 +78,18 @@ final class SelectedAnalysisReviewHost {
         do { return try session.access.pending() == nil } catch { return false }
     }
 
+    func prepareNameConfirmation(token: UUID, isCurrent: @escaping () -> Bool) -> SelectedAnalysisNameConfirmation? {
+        guard isCurrent(), accepts(token), let key, let session, let model,
+              session.matchesDisplayedTicket(), model.canSubmit, model.ticket.canConfirmName else { return nil }
+        // This also fails closed on a newly pending review or an unreadable store.
+        guard (try? session.access.pending() == nil) == true else { return nil }
+        return .init(review: model, isCurrent: { [weak self] in
+            guard let self else { return false }
+            return isCurrent() && self.token == token && self.key == key && self.model === model
+                && self.scopeIsCurrent && session.matchesDisplayedTicket()
+        }, submit: { [weak self] name in self?.submit(.confirmName(name), token: token) })
+    }
+
     func submit(_ decision: ObservationAnalysisReviewRequest.Decision, token: UUID) {
         guard accepts(token) else { return }
         model?.submit(decision)

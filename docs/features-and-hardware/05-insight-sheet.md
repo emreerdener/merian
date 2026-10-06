@@ -2690,6 +2690,16 @@ before waking delivery. Retry saving review retains the same operation after an
 uncertain local save. Delayed confirmation callbacks carry a binding token, so
 closing and reopening even the same scan cannot authorize an old action.
 
+When the immutable primary does not permit direct species confirmation but
+allows an explicit name, that same menu action reads **Confirm species name**
+and opens `SelectedAnalysisNameConfirmationSheet`. Opening and typing create no
+review operation. The final tap validates the bounded name and original host,
+owner, displayed authority and both presentation generations, then persists
+synchronously through the retained review model. A busy or dismissing shell
+cannot install a new form. Dismissal clears only the name form; an uncertain
+saved request remains in the parent host for exact retry. A stale dismissal
+cannot clear a newer form. No legacy taxonomy override or fresh ticket is used.
+
 Queue pass completion refreshes owner-bound receipt status. Applied completion
 refreshes the reconciled parent once; it never projects a child directly. A
 conflict or unsuccessful verification retires the old controls and requires an

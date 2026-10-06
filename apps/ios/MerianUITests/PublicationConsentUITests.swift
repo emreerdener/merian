@@ -1,6 +1,44 @@
 import XCTest
 
 @MainActor final class PublicationConsentUITests: XCTestCase {
+    func testSelectedBroaderTaxonNameConfirmationPersistsExactReview() {
+        continueAfterFailure = false
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedPublicationConsentChooser", "-seedSelectedNameConfirmation"])
+        defer { app.terminate() }
+        let scans = app.segmentedControls.buttons["Scans"]
+        if !scans.waitForExistence(timeout: 5) {
+            let entry = app.buttons["MainTabBar_Scans"]
+            XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
+        }
+        XCTAssertTrue(scans.waitForExistence(timeout: 10)); scans.tap()
+        let tile = app.buttons["ScanTile_00000000-0000-4000-8000-000000000001"]
+        XCTAssertTrue(tile.waitForExistence(timeout: 10)); tile.tap()
+        XCTAssertTrue(app.staticTexts["Consent Butterfly"].waitForExistence(timeout: 10))
+        let menu = app.buttons["InsightTopMenu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
+        let action = app.buttons["Confirm species name"]
+        let initialMenu = XCTAttachment(screenshot: app.screenshot())
+        initialMenu.name = "Broader identification review menu"; initialMenu.lifetime = .keepAlways; add(initialMenu)
+        XCTAssertTrue(action.waitForExistence(timeout: 5)); action.tap()
+        let confirm = app.buttons["SelectedReviewConfirmName"], name = app.textFields["SelectedReviewSpeciesName"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5)); XCTAssertFalse(confirm.isEnabled)
+        XCTAssertTrue(name.exists)
+        // Closing an untouched form leaves the retained host available.
+        app.buttons["Done"].tap(); menu.tap()
+        XCTAssertTrue(action.waitForExistence(timeout: 5)); action.tap()
+        XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); name.typeText("Danaus plexippus")
+        XCTAssertTrue(confirm.isEnabled); confirm.tap()
+        let status = app.staticTexts["SelectedReviewNameStatus"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5)); XCTAssertTrue(status.label.contains("Review pending"))
+        XCTAssertFalse(confirm.isEnabled)
+        // The fixture wake verifies the real outbox's exact target, name and revisions.
+        app.buttons["Done"].tap(); menu.tap()
+        XCTAssertFalse(action.exists)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "Selected broader identification retains pending named review"
+        shot.lifetime = .keepAlways; add(shot)
+    }
+
     func testExplicitPhotoOrderPersistsAndReopeningCannotReplaceRequest() {
         continueAfterFailure = false
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedPublicationConsentChooser"])

@@ -27,6 +27,7 @@ struct InsightSheetView: View {
 
     // MARK: - State
     @State var pendingHistoryReanalysis: IdentificationHistoryReanalysisHandoff?
+    @State var selectedNameConfirmation: SelectedAnalysisNameConfirmation?
     @State var selectedReviewHost = SelectedAnalysisReviewHost()
     @State var historyModel: IdentificationHistoryViewModel?
     @State var selectedPublicationModel: IdentificationPublicationModel?
@@ -183,6 +184,7 @@ struct InsightSheetView: View {
             guard isNowPresented else {
                 cancelSavedReanalysis()
                 closeSelectedPublication()
+                closeSelectedNameConfirmation()
                 selectedReviewHost.close()
                 publicationContinuation.clear()
                 historyModel?.close(); historyModel = nil; pendingHistoryReanalysis = nil
@@ -208,10 +210,11 @@ struct InsightSheetView: View {
             pendingShellPresentation = nil
         }
 
-        .onChange(of: ObjectIdentifier(modelContext.container)) { _, _ in closeSelectedPublication(); publicationContinuation.clear() }
-        .onChange(of: dependencies.authenticationSnapshot()) { _, _ in closeSelectedPublication(); publicationContinuation.clear() }
+        .onChange(of: ObjectIdentifier(modelContext.container)) { _, _ in closeSelectedNameConfirmation(); closeSelectedPublication(); publicationContinuation.clear() }
+        .onChange(of: dependencies.authenticationSnapshot()) { _, _ in closeSelectedNameConfirmation(); closeSelectedPublication(); publicationContinuation.clear() }
         .onChange(of: viewModel.scanBoundActionGeneration) { _, _ in
             cancelSavedReanalysis()
+            closeSelectedNameConfirmation()
             closeSelectedPublication()
             historyModel?.close(); historyModel = nil; pendingHistoryReanalysis = nil
             reanalysisStatusModel?.close(); reanalysisStatusModel = nil
@@ -219,10 +222,12 @@ struct InsightSheetView: View {
             cancelOrDismissShellPresentation { if case .identificationHistory = $0 { true } else { false } }
         }
 
+        .onChange(of: inferenceEngine.scanPresentationGeneration) { _, _ in closeSelectedNameConfirmation() }
         .onChange(of: selectedReviewKey, initial: true) { _, _ in bindSelectedReview() }
         .onChange(of: selectedReviewHost.deliveryGeneration) { _, _ in refreshSelectedReview() }
         .onChange(of: selectedReviewHost.scopeIsCurrent) { _, current in
             if !current {
+                closeSelectedNameConfirmation()
                 closeSelectedPublication()
                 if selectedReviewHost.model != nil { selectedReviewHost.invalidateScope() }
             }

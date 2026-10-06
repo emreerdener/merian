@@ -922,6 +922,7 @@ jobs:
             "-seedIdentificationHistory" \
             "-seedSavedReanalysisFailure" \
             "-seedPublicationConsentChooser" \
+            "-seedSelectedNameConfirmation" \
             "-seedWhatsNewLaunch" \
             "ui_test_queued_audio_handoff" \
             "ui_test_queued_retry_attention" \

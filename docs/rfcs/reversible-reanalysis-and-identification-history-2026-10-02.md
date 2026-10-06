@@ -11,6 +11,21 @@ tested, ordinary access and remaining integrations incomplete; no deployment\
 Scope: iOS, SwiftData, inference and funding, Supabase, media, identification
 review, Field Trips, Explore, Field Chat, and deletion
 
+Selected-name UI addendum (6 October 2026): The prepared selected-result menu
+now opens an explicit species-name form when immutable primary evidence permits
+named confirmation but not direct species confirmation. The existing retained
+review owns exact request admission and uncertain-save retry; closing the form
+never discards that request. No operation is created on opening or typing, and
+the final tap retains the original authority and presentation checks. The
+[canonical selected-review contract](../features-and-hardware/05-insight-sheet.md#prepared-selected-result-review-baseline)
+owns the current behavior. Ordinary access and every activation gate remain
+false. The final local milestone passed 5,285 tests (5,276 unit tests and nine
+UI smokes), zero failures or skips, with critical-result validation. Focused
+name-form/host tests, strict lint, source guards, tooling, exact indexed target
+membership and documentation checks also passed. Earlier fixture and test-macro
+failures were corrected before the final full rerun. This does not qualify
+hosted operations or enable rollout.
+
 Confirmation addendum (4 October 2026): Analysis-bound confirmation now has a
 separate default-off endpoint, immutable intent/query admission before
 dictionary verification, and completion guarded by both current revisions.

@@ -18,6 +18,8 @@ extension InsightSheetView {
         _ presentation: InsightShellPresentation
     ) -> some View {
         switch presentation {
+        case .reviewName(let formID, _, _):
+            if let form = selectedNameConfirmation, form.id == formID { SelectedAnalysisNameConfirmationSheet(model: form) }
         case .publicationConsent:
             if let selectedPublicationModel { IdentificationPublicationSheet(model: selectedPublicationModel) }
         case .reanalysisStatus:
@@ -324,6 +326,8 @@ extension InsightSheetView {
             resumePendingInsightChatDismissalAction()
         case .explore:
             handleExploreSheetDismissed()
+        case .reviewName(let formID, _, _):
+            if selectedNameConfirmation?.id == formID { selectedNameConfirmation?.close(); selectedNameConfirmation = nil }
         case .publicationConsent:
             selectedPublicationModel?.close(); selectedPublicationModel = nil
         case .reanalysisStatus:
@@ -350,6 +354,9 @@ extension InsightSheetView {
     @MainActor
     func isShellPresentationValid(_ presentation: InsightShellPresentation) -> Bool {
         switch presentation {
+        case .reviewName(let formID, let scanId, let generation):
+            selectedNameConfirmation?.id == formID && selectedNameConfirmation?.isClosed == false
+                && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
         case .publicationConsent(let scanId, let generation):
             selectedPublicationModel != nil && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
         case .reanalysisStatus(let scanId, let generation):
@@ -399,6 +406,11 @@ extension InsightSheetView {
         releasePayload: Bool
     ) {
         switch presentation {
+        case .reviewName(let formID, _, _):
+            if selectedNameConfirmation?.id == formID {
+                selectedNameConfirmation?.close()
+                if releasePayload { selectedNameConfirmation = nil }
+            }
         case .publicationConsent:
             selectedPublicationModel?.close()
             if releasePayload { selectedPublicationModel = nil }

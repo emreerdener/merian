@@ -216,3 +216,15 @@ History result. The fixture's local wake verifies one durable request with that
 order, no notes and unchanged selection. It never schedules delivery or enables
 ordinary access. The selector is owned by
 `scripts/config/ios-runtime-audit.json`.
+
+### Selected broader-taxon name confirmation
+
+Selected Insight uses the same retained review model for explicit species-name
+confirmation when the immutable primary cannot be confirmed directly. Its shell
+owns the temporary `SelectedAnalysisNameConfirmation` form and
+identity-qualified dismissal. Opening or editing does not create a request;
+final confirmation validates the captured ticket and synchronously stages one
+exact operation. Closing the form preserves the host's uncertain request for
+retry. The dedicated Debug chooser fixture also covers a genus result and
+verifies production review staging, original revisions and unchanged selection
+without delivery.

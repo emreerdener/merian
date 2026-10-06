@@ -10,8 +10,8 @@ struct SelectedAnalysisReviewHostTests {
         let container: ModelContainer
         let host = SelectedAnalysisReviewHost()
         var presentation = true, fresh = true, opens = 0, closes = 0
-        init() throws {
-            review = try .init()
+        init(ticket: ObservationAnalysisReviewTicket? = nil) throws {
+            review = try .init(ticket: ticket)
             container = try InsightSheetTestSupport.createIsolatedContext().container
         }
         func key(_ generation: UInt64 = 1) throws -> SelectedAnalysisReviewHost.Key {

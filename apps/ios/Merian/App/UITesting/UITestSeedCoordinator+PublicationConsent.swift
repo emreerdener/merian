@@ -19,6 +19,7 @@ extension UITestSeedCoordinator {
     static let historical = "00000000-0000-4000-8000-000000000002"
     static let media = ["00000000-0000-4000-8000-000000000005", "00000000-0000-4000-8000-000000000006"]
     let container: ModelContainer
+    let namedReview: Bool
     let bytes: Data
     let digest: String
     let snapshots: [String: Data]
@@ -26,8 +27,9 @@ extension UITestSeedCoordinator {
     let recovery = ObservationPublicationRecoveryOwner()
     private var savedOperation: UUID?
 
-    init(container: ModelContainer) throws {
+    init(container: ModelContainer, namedReview: Bool = ProcessInfo.processInfo.arguments.contains("-seedSelectedNameConfirmation")) throws {
         self.container = container
+        self.namedReview = namedReview
         let bytes = try UITestSeedCoordinator.uiTestPNGData()
         let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
         self.bytes = bytes; self.digest = digest
@@ -35,13 +37,23 @@ extension UITestSeedCoordinator {
             let ids = index == 0 ? ["00000000-0000-4000-8000-000000000008"] : Self.media
             let manifest = ids.map { ["kind": "image", "media_id": $0, "content_type": "image/png",
                                       "byte_count": bytes.count, "sha256": digest] as [String: Any] }
-            let result: [String: Any] = ["scan_id": Self.observation, "scientific_name": "Danaus plexippus",
+            var result: [String: Any] = ["scan_id": Self.observation, "scientific_name": "Danaus plexippus",
                 "common_name": "Consent Butterfly", "confidence_score": 0.87, "is_biological_subject": true,
                 "is_live_capture": true, "ai_reasoning": "Synthetic identification for photo consent verification.",
                 "inference_tier": "flash", "candidates": NSNull(), "pet_identification": NSNull(),
                 "blur_score": 0.2, "colors": [], "estimated_size_cm": 8.5,
                 "extracted_visual_traits": ["orange wings"],
                 "image_quality": ["diagnostic_utility": 9, "framing": 7, "overall_score": 82, "sharpness": 8]]
+            if namedReview {
+                result["scientific_name"] = "Danaus"
+                result["primary_identification"] = ["version": 1, "resolution": "genus", "scientific_name": "Danaus", "common_name": "Consent Butterfly"]
+                result["is_new_to_merian_dictionary"] = false
+                result["identification_provenance"] = ["version": 2, "provider": "openai", "binding": "synthetic_primary_v1",
+                    "model": "gpt-6-sol", "variant": "multimodal", "operation": "scan_identification", "policy_version": 1,
+                    "prompt": "synthetic_primary_v1", "schema": "merian_identify_primary_v1", "confidence": "openai_unqualified_v1",
+                    "diagnostic_trigger": NSNull(), "prompt_diagnostic_trigger": NSNull(), "safety": "openai_photo_moderation_v1",
+                    "timeout_ms": 90_000, "generation": ["max_output_tokens": 8_192, "reasoning_effort": "low", "image_detail": "high"]]
+            }
             return (id, try Self.json(["schema_version": 2, "analysis_id": id, "observation_id": Self.observation,
                 "ordinal": index + 1, "source_analysis_id": index == 0 ? NSNull() : Self.historical as Any,
                 "completed_at_ms": 1_750_000_000_000 + index, "request_digest": String(repeating: "a", count: 64),
@@ -122,10 +134,21 @@ extension UITestSeedCoordinator {
                 assert((try? verifySavedChoice()) == true, "Synthetic consent persistence mismatch")
             }, generation: { 0 })
         return try IdentificationHistorySession(observation: observation, container: candidate, cloud: cloud, photos: photos,
-            reviewWake: {}, publication: config, currentGeneration: { 1 },
+            reviewWake: { [self] in assert((try? verifySavedReview()) == true, "Synthetic review persistence mismatch") }, publication: config, currentGeneration: { 1 },
             sessionIsCurrent: { $0.userID == Self.owner && !$0.isAnonymous })
     }
 
+    private func verifySavedReview() throws -> Bool {
+        guard namedReview else { return false }
+        let context = ModelContext(container)
+        let jobs = try context.fetch(FetchDescriptor<OfflineJobRecord>()).filter { $0.kind == .observationAnalysisReviewSync }
+        guard jobs.count == 1, let text = jobs.first?.metadataJSON else { return false }
+        let intent = try ObservationAnalysisReviewIntent.decode(Data(text.utf8))
+        let request = intent.request
+        guard request.decision == .confirmName("Danaus plexippus"), request.analysisID.uuidString.lowercased() == Self.selected,
+              request.expectedObservationRevision == 1, request.expectedReviewRevision == 0 else { return false }
+        return try ObservationHistorySyncService.enrolledScan(Self.observation, context: context).selectedAnalysisID == Self.selected
+    }
     private func verifySavedChoice() throws -> Bool {
         let context = ModelContext(container)
         let jobs = try context.fetch(FetchDescriptor<OfflineJobRecord>()).filter { $0.kind == .observationPublicationSync }

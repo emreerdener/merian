@@ -23,6 +23,7 @@ enum InsightChatDismissalAction: Equatable {
 
 enum InsightShellPresentation: Identifiable, Equatable {
     case paywall
+    case reviewName(formID: UUID, scanId: String, generation: UInt64)
     case publicationConsent(scanId: String, generation: UInt64)
     case identificationHistory(scanId: String, generation: UInt64)
     case reanalysisStatus(scanId: String, generation: UInt64)
@@ -33,6 +34,8 @@ enum InsightShellPresentation: Identifiable, Equatable {
 
     var id: String {
         switch self {
+        case .reviewName(let formID, let scanId, let generation):
+            "review-name-\(formID)-\(scanId)-\(generation)"
         case .publicationConsent(let scanId, let generation):
             "publication-consent-\(scanId)-\(generation)"
         case .reanalysisStatus(let scanId, let generation):

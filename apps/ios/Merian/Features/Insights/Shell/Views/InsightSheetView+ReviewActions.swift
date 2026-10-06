@@ -4,8 +4,10 @@ extension InsightSheetView {
     func confirmReviewAction(scanID: String?, generation: UInt64) -> (() -> Void)? {
         guard let scanID else { return nil }
         if !permitsLegacyReview(scanID) {
-            guard selectedReviewHost.model?.ticket.canConfirmPrimary == true else { return nil }
-            return protectedReviewAction(.confirmPrimary, scanID: scanID, generation: generation)
+            if selectedReviewHost.model?.ticket.canConfirmPrimary == true {
+                return protectedReviewAction(.confirmPrimary, scanID: scanID, generation: generation)
+            }
+            return namedReviewAction(scanID: scanID, generation: generation)
         }
         guard viewModel.canConfirm else { return nil }
         return {

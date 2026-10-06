@@ -406,6 +406,13 @@
         "PublicationConsentUITests"
       ],
       "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testSelectedBroaderTaxonNameConfirmationPersistsExactReview",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
     }
   ],
   "performance": [
