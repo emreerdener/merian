@@ -96,6 +96,14 @@ struct IdentificationHistorySheet: View {
             Text("Choosing this entry keeps the entire history. It does not confirm a species, clear an incorrect mark, or update a shared post.")
         }
         if let review = model.review { IdentificationHistoryReviewSection(model: review).id(ObjectIdentifier(review)) }
+        if let publication = model.publication {
+            IdentificationPublicationSection(model: publication).id(ObjectIdentifier(publication))
+        } else if model.canAskCommunity {
+            Section {
+                Button("Ask the community") { model.askCommunity() }
+                    .accessibilityIdentifier("HistoryAskCommunity")
+            }
+        }
         if model.canReanalyze {
             Section {
                 Button("Reanalyze from this identification") { model.start(.reanalyze) }

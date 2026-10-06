@@ -11,6 +11,11 @@ extension InsightSheetView {
                   access.hasMultiple(scanId, modelContext.container) else { return }
             do {
                 let service = try access.open(scanId, modelContext.container)
+                if service.publicationConsent != nil {
+                    let context = try service.context()
+                    publicationContinuation.bind(owner: context.owner, observation: try ObservationHistoryPage.uuid(scanId),
+                        container: modelContext.container)
+                }
                 historyModel?.close()
                 historyModel = IdentificationHistoryViewModel(dependencies: service, isPresented: {
                     viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
@@ -25,7 +30,7 @@ extension InsightSheetView {
                     pendingHistoryReanalysis = .init(scanID: scanId, generation: generation, action: action, dispatch: dispatch)
                     dismissActiveShellPresentation()
                     return true
-                } })
+                } }, publicationContinuation: publicationContinuation)
                 if !requestShellPresentation(.identificationHistory(scanId: scanId, generation: generation)) {
                     historyModel?.close(); historyModel = nil
                 }

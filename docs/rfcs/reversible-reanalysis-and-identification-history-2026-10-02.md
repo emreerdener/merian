@@ -3168,3 +3168,22 @@ request is never rebound to a different remote winner, acknowledged, retried or
 replaced. Explicit remote null and failure do not authorize a successor. No
 polling, idle lease, consent construction, delivery wake or activation was
 added. Recovery presentation and explicit ordered photo consent UI remain next.
+
+### October 6: prepared History photo consent UI
+
+The prepared History preview now resolves local and remote observation-wide
+publication occupancy before consent preflight. A vacant, freshly validated
+historical ticket can explicitly select one to six ordered photos from all
+immutable candidates and preview one exact private image at a time. Final
+confirmation retains a single Acceptance before synchronous staging; uncertain
+saving retries the same request.
+
+The parent Insight presentation retains unresolved choices across nested History
+dismissal, reopening and authority refresh. It also retains a minimal
+settled-operation marker after saving succeeds, preventing another already-open
+chooser from minting a second request. Observation/account/container fences
+prevent replacement across scopes. No remote receipt synthesizes local consent,
+no private parent notes/media are substituted and no selection is changed.
+Ordinary access remains disabled. Selected Insight community entry, dedicated
+photo-consent UI automation and integrated operational qualification remain
+separate work.

@@ -23,7 +23,8 @@ operation and historical analysis. Empty, malformed or private responses are
 never absence. Discovery cannot reconstruct consent, acknowledge a local claim,
 replace a held UUID or assert current visibility. The injected retained
 `ObservationPublicationRecoveryOwner` and read-only service now recover this
-status without idle leases or writes. UI presentation remains unconnected.
+status without idle leases or writes. Prepared History consent now consumes this
+boundary; ordinary app access remains disabled.
 
 `ObservationPublicationConsentRequest` and
 `ObservationPublicationConsentSnapshot` add a separate descriptive preflight for

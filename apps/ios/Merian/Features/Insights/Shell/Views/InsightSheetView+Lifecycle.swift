@@ -41,7 +41,7 @@ extension InsightSheetView {
             .background {
                 if presentationStyle.isEmbedded {
                     EmbeddedNavigationSwipeBackEnabler(
-                        onNavigationPop: viewModel.endPresentationSession
+                        onNavigationPop: { publicationContinuation.clear(); viewModel.endPresentationSession() }
                     )
                         .frame(width: 0, height: 0)
                 }
@@ -453,6 +453,7 @@ extension InsightSheetView {
     }
 
     func dismissInsightPresentation() {
+        publicationContinuation.clear()
         cancelSavedReanalysis()
         viewModel.endPresentationSession()
         switch presentationStyle {

@@ -7,9 +7,12 @@ final class IdentificationHistoryViewModel {
     enum Command { case newest, older, preview(UUID), restore, undo, retry, reanalyze }
     private(set) var rows: [IdentificationHistoryRow] = []
     private(set) var detail: IdentificationHistoryDetail? {
-        didSet { review?.close(); review = nil }
+        didSet { review?.close(); review = nil; publication?.close(); publication = nil }
     }
     private(set) var review: IdentificationHistoryReviewModel?
+    private(set) var publication: IdentificationPublicationModel?
+    private let publicationContinuation: PublicationConsentContinuation?
+    var canAskCommunity: Bool { dependencies.publicationConsent != nil && detail?.reviewTicket.map { publicationContinuation?.matches($0) == true } == true && !pending && !isBusy && !isClosed }
     var reviewDeliveryGeneration: UInt64 { dependencies.review?.generation() ?? 0 }
     private(set) var photo: UIImage?
     private(set) var selected: UUID?
@@ -33,7 +36,9 @@ final class IdentificationHistoryViewModel {
     private let didAdmit: () -> Void
 
     init(dependencies: IdentificationHistoryDependencies, isPresented: @escaping () -> Bool = { true }, didAdmit: @escaping () -> Void = {},
-         handoffReanalysis: ((IdentificationHistoryReanalysisAction) -> Bool)? = nil) {
+         handoffReanalysis: ((IdentificationHistoryReanalysisAction) -> Bool)? = nil,
+         publicationContinuation: PublicationConsentContinuation? = nil) {
+        self.publicationContinuation = publicationContinuation
         self.handoffReanalysis = handoffReanalysis
         self.dependencies = dependencies; self.isPresented = isPresented; self.didAdmit = didAdmit
     }
@@ -105,6 +110,20 @@ final class IdentificationHistoryViewModel {
             } else { message = "History is unavailable right now. Your saved identifications have not been removed. Try again." }
         }
     }
+    /// Capture the admitted detail synchronously at the actual user tap.
+    func askCommunity() {
+        guard validate(), canAskCommunity, publication == nil, allowChoice(),
+              let ticket = detail?.reviewTicket, let access = dependencies.publicationConsent,
+              let publicationContinuation, publicationContinuation.matches(ticket) else { return }
+        let expected = generation
+        let model = IdentificationPublicationModel(ticket: ticket, access: access, continuation: publicationContinuation,
+            isCurrent: { [weak self] in
+                guard let self else { return false }
+                return self.generation == expected && self.detail?.reviewTicket == ticket && self.isSessionCurrent
+            }, photo: dependencies.photo)
+        publication = model
+        model.startRecovery()
+    }
     private func allowChoice() -> Bool {
         do {
             guard review?.hasUnresolvedRequest != true, try dependencies.pendingReview() == nil else {
@@ -120,6 +139,7 @@ final class IdentificationHistoryViewModel {
     func refreshReview() {
         guard validate() else { return }
         review?.refresh()
+        publication?.refreshStatus()
         if let terminal = review?.terminalMessage {
             detail = nil; photo = nil; reanalysisAction = nil
             rows = []; nextBeforeOrdinal = nil; showingOlder = false

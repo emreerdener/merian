@@ -14174,8 +14174,8 @@ local target state before and after remote I/O and releases its account lease
 before removing retained work. Auth transitions cancel and await these reads; an
 individual presentation cannot poison another waiter. Prepared History access
 returns local held status and remote historical status separately, without
-saving, acknowledging or waking delivery. UI presentation remains to be
-connected; all activation gates stay false.
+saving, acknowledging or waking delivery. Prepared History consent now uses this
+boundary before preflight; ordinary access and all activation gates stay false.
 
 ## Owner publication operation status
 
@@ -14249,7 +14249,10 @@ initial_taxon_id:null,media:[{media_id,content_type,byte_count,sha256}]}`.
 The taxonomy UUID is the active version; no name matching invents an initial
 version-bound taxon. No operation, post, URL, storage key, description, note or
 visibility claim is returned. General history and operation-status shapes are
-unchanged. The native consent producer and ordinary UI are not connected yet.
+unchanged. The native consent producer is connected to prepared History UI.
+Ordinary app access remains disabled. Final explicit photo acceptance persists
+one exact operation before delivery; existing or uncertain target occupancy
+blocks new consent.
 
 The service-only `prepare_owned_observation_publication_consent` RPC and the
 existing intent resolver share `internal.lock_publication_consent_eligibility`.

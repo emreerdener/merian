@@ -162,5 +162,34 @@ therefore withholds its private result without poisoning another joined sheet.
 Final consent still requires explicit ordered media acceptance, and the caller
 must retain that Acceptance across uncertain saves. Status is a local operation
 receipt, never public visibility. The existing exact private-photo loader
-remains the image boundary. The explicit consent UI is not connected yet; all
-activation gates remain false.
+remains the image boundary. The prepared consent UI below consumes this access;
+ordinary access and all activation gates remain false.
+
+## Prepared photo consent presentation
+
+The injected History preview now offers an explicit community-help flow through
+`IdentificationPublicationModel`. It first checks local and remote observation
+requests. Occupied or uncertain targets cannot prepare a new request; a remote
+null alone is not consent. A fresh vacant target can explicitly prepare its
+frozen ticket and choose one to six photos from the complete candidate list.
+Selection starts empty and preserves the user's selection order. A single
+bounded preview uses the exact historical analysis/media loader; parent media
+and private notes are never borrowed. Final sharing confirmation creates and
+synchronously saves one immutable Acceptance before delivery wakes.
+
+`PublicationConsentContinuation` lives in the parent Insight presentation. It
+retains an unacknowledged Acceptance across History back, dismissal, reopening
+and authority changes. Different historical results cannot replace the held
+observation-wide request. Exact saving retries use the original UUID and ticket;
+status recovery never adopts a remote request or authorizes a replacement.
+Successful staging transfers recovery to the durable operation and retains a
+minimal settled-operation marker so another open chooser cannot mint again.
+Actual parent teardown, account/container change and confirmed deletion clear
+private continuation state; generic view disappearance or revision refresh does
+not.
+
+Saved status refresh uses the injected delivery-exit generation and foreground
+opportunities, without timers or idle account leases. A historical admission is
+not presented as proof of public visibility. This is prepared History UI only;
+ordinary access and every activation gate remain disabled. The selected Insight
+community entry remains separate integration work.

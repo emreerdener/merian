@@ -29,6 +29,7 @@ struct InsightSheetView: View {
     @State var pendingHistoryReanalysis: IdentificationHistoryReanalysisHandoff?
     @State var selectedReviewHost = SelectedAnalysisReviewHost()
     @State var historyModel: IdentificationHistoryViewModel?
+    @State var publicationContinuation = PublicationConsentContinuation()
     @State var reanalysisStatusModel: ReanalysisStatusViewModel?
     @State var savedReanalysisHandoff = SavedReanalysisHandoff()
     @State var pendingChatReanalysis: SavedReanalysisTicket?
@@ -181,6 +182,7 @@ struct InsightSheetView: View {
             guard isNowPresented else {
                 cancelSavedReanalysis()
                 selectedReviewHost.close()
+                publicationContinuation.clear()
                 historyModel?.close(); historyModel = nil; pendingHistoryReanalysis = nil
                 reanalysisStatusModel?.close(); reanalysisStatusModel = nil
                 viewModel.endPresentationSession()
@@ -204,6 +206,8 @@ struct InsightSheetView: View {
             pendingShellPresentation = nil
         }
 
+        .onChange(of: ObjectIdentifier(modelContext.container)) { _, _ in publicationContinuation.clear() }
+        .onChange(of: dependencies.authenticationSnapshot()) { _, _ in publicationContinuation.clear() }
         .onChange(of: viewModel.scanBoundActionGeneration) { _, _ in
             cancelSavedReanalysis()
             historyModel?.close(); historyModel = nil; pendingHistoryReanalysis = nil

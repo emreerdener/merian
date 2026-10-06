@@ -2703,3 +2703,34 @@ queued by those surfaces recheck protection before mutation. Ordinary unenrolled
 scans retain their legacy review flow. Protected reanalysis in the Confidence
 footer keeps its separate exact-source handoff. All activation gates remain
 false; publication consent and integrated operational qualification remain open.
+
+## Prepared community photo consent
+
+With explicit prepared History access, **Ask the community** checks for an
+existing request before showing **Choose photos to share**. An existing local
+request and a remote request are displayed separately; neither can be replaced
+from this screen. Uncertain reads keep new sharing blocked. The descriptive
+preflight must still match the displayed historical identification and its
+review revisions.
+
+The chooser starts with no selection and lists every immutable candidate. Users
+explicitly select one to six photos, in the order they want to share, and can
+preview one downsampled saved photo at a time. Final confirmation submits
+exactly that ordered selection, without private notes. The selected
+identification does not change. Existing AI rejection does not itself prohibit
+community help; backend preflight remains authoritative for eligibility.
+
+A save failure retains the exact choice and operation UUID at the parent Insight
+scope. Closing and reopening History, switching historical entries or refreshing
+authority cannot create a replacement while that choice is held. Retry saves the
+same request. Actual parent teardown or account/container change clears private
+presentation state; persisted operations continue under their existing owner
+fences. A committed save followed by an error is recovered as the original
+durable operation, never interpreted as permission to resubmit with another
+identity.
+
+Status uses local receipt refresh after actual delivery passes and foreground
+opportunities. No idle polling or Auth lease is retained. Server admission is a
+historical receipt, not a guarantee that a post is currently visible. All
+ordinary access and activation gates remain disabled; selected Insight community
+entry and integrated operational qualification are still pending.
