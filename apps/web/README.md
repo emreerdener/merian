@@ -225,15 +225,17 @@ The Next PostCSS 8.5.28 override covers both
 [attacker-controlled source-map file reads](https://github.com/advisories/GHSA-6g55-p6wh-862q)
 and the remaining
 [source-map path traversal](https://github.com/advisories/GHSA-r28c-9q8g-f849).
-The Sharp override tracks 0.35.4, which addresses the
-[libheif vulnerabilities](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c).
-The direct Tiptap packages are pinned together at 3.31.3 to cover both the
+The Sharp override tracks 0.35.5, which includes the patched librsvg release for
+[SVG memory safety](https://github.com/advisories/GHSA-wq5f-xc86-pv6w) and
+retains the earlier
+[libheif fixes](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c). The direct
+Tiptap packages are pinned together at 3.31.3 to cover both the
 [attribute prototype issue](https://github.com/advisories/GHSA-cp6q-959q-f8rh)
 and [Markdown parser ReDoS](https://github.com/advisories/GHSA-j95f-988m-3j2f).
 The lockfile also excludes the affected
 [CSS selector parser releases](https://github.com/advisories/GHSA-w9m9-85wc-3x92).
 `lib/dependencySecurity.test.ts` enforces the reviewed Next.js 16.3.6, PostCSS
-8.5.25, Sharp 0.35.4, Tiptap core 3.30.5, and selector parser 7.1.3 floors,
+8.5.25, Sharp 0.35.5, Tiptap core 3.30.5, and selector parser 7.1.3 floors,
 explicit Next overrides, and the workflow audit step. Dependency update pull
 requests must run the full dependency audit, test, type-check, and
 production-build gate.
@@ -535,3 +537,10 @@ The frozen graph requires `source-map-js` 1.2.2 or newer to exclude the reviewed
 The package security contract checks every resolved copy. Preserve the blocking
 dependency audit and complete frozen-install, test, type-check and production
 build sequence when updating this transitive dependency.
+
+### Sharp native dependency floors
+
+The Sharp security contract also checks every optional `@img/sharp-*` artifact,
+including nested copies: native bindings must be at least 0.35.5 and bundled
+libvips packages at least 1.3.4. A patched JavaScript wrapper alone does not
+satisfy this decoder boundary.

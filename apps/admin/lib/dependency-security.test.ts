@@ -86,9 +86,9 @@ test("the frozen admin graph excludes reviewed vulnerable dependency ranges", ()
     `PostCSS versions below 8.5.25: ${postcssVersions.join(", ")}`,
   );
   assert.equal(
-    sharpVersions.every((version) => versionAtLeast(version, "0.35.4")),
+    sharpVersions.every((version) => versionAtLeast(version, "0.35.5")),
     true,
-    `Sharp versions below 0.35.4: ${sharpVersions.join(", ")}`,
+    `Sharp versions below 0.35.5: ${sharpVersions.join(", ")}`,
   );
 });
 
@@ -97,7 +97,7 @@ test("Next.js transitive security overrides remain explicit", () => {
   assert.equal(packageManifest.devDependencies?.postcss, "8.5.28");
   assert.deepEqual(packageManifest.overrides?.next, {
     postcss: "8.5.28",
-    sharp: "0.35.4",
+    sharp: "0.35.5",
   });
 });
 
@@ -193,5 +193,19 @@ test("all direct Mantine packages share their exact peer version", () => {
     if (!name.startsWith("@mantine/")) continue;
     assert.equal(version, core, `${name} must match Mantine core`);
     assert.deepEqual(packageVersions(name), [core]);
+  }
+});
+
+test("all Sharp native artifacts retain the patched SVG decoder floor", () => {
+  const nativeArtifacts = Object.entries(packageLock.packages ?? {}).filter(
+    ([path]) => /(?:^|\/)node_modules\/@img\/sharp-/.test(path),
+  );
+  assert.ok(nativeArtifacts.length > 0);
+  for (const [path, entry] of nativeArtifacts) {
+    const floor = path.includes("/@img/sharp-libvips-") ? "1.3.4" : "0.35.5";
+    assert.ok(
+      entry.version && versionAtLeast(entry.version, floor),
+      `${path} must resolve at least ${floor}`,
+    );
   }
 });

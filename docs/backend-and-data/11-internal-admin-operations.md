@@ -182,7 +182,7 @@ Promote/direct manual promotion. Record and verify the external deployment
 control during initial setup and after changing GitHub or Vercel integration
 settings.
 
-The checked-in dependency graph, reviewed on 2026-09-30, is:
+The checked-in dependency graph, reviewed on 2026-10-06, is:
 
 - Next.js 16.3.6, including the
   [next/og ImageResponse RCE fix](https://github.com/vercel/next.js/security/advisories/GHSA-vcvr-r3jv-pc5j),
@@ -193,9 +193,10 @@ The checked-in dependency graph, reviewed on 2026-09-30, is:
 - PostCSS 8.5.28, pinned exactly and enforced for Next.js transitively at the
   [path-traversal patched floor](https://github.com/advisories/GHSA-r28c-9q8g-f849);
   and
-- Sharp 0.35.4, enforced through the Next.js override, following the
-  [libheif advisory recommendation](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c)
-  and including its optional native packages.
+- Sharp 0.35.5, enforced through the Next.js override, following the
+  [librsvg advisory recommendation](https://github.com/advisories/GHSA-wq5f-xc86-pv6w),
+  retaining the earlier libheif fixes and including its optional native
+  packages.
 
 On 2026-10-06, the frozen `source-map-js` entry was updated to 1.2.2 for the
 [indexed source-map event-loop denial of service](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
