@@ -878,3 +878,11 @@ hidden client resolution. Only actual task exit advances the owner/context
 qualified refresh generation. UI lifetime never owns this task. Generic
 scheduler exclusion remains, with no automatic chat wake, timer or idle Auth
 lease. Send UI and all ordinary access remain disabled.
+
+`ProtectedInsightChatRefreshOwner` separately retains bounded explicit
+identification reads. It is injected from QueueManager through the inert App
+composition. Auth teardown cancels and awaits those tasks before draining
+account leases. Closing a chat cancels only its waiter; no generic timer or chat
+delivery is scheduled by refresh. Exact terminal proof may free the completed
+request, but its stale ticket remains barred until actual different authority is
+loaded.

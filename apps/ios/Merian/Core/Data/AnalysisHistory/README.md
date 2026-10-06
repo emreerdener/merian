@@ -1336,5 +1336,25 @@ receipts. The final tap rechecks status before minting IDs. Only a typed
 pre-save stale-ticket denial releases an unsaved candidate; ambiguous saves
 retain it. A local status refresh cannot clear the stale-ticket bar. A
 different, actually synchronized authority tuple is needed before a new explicit
-send; the dedicated remote-refresh presentation action remains to be connected.
-All gates remain false.
+send. The explicit refresh action now loads acknowledged authority and closes
+the stale chat; a later tap opens a fresh immutable session. All gates remain
+false.
+
+### Explicit identification refresh ownership
+
+`ProtectedInsightChatRefreshOwner` retains at most four exact
+owner/ticket/session/generation/container refreshes. Joined waiter cancellation
+withholds that presentation without cancelling another caller. The owner
+validates the frozen local ticket before `syncSelected`, rechecks account and
+cancellation around the read, and returns a genuinely changed full ticket after
+exact context/selected-entry/context validation and settled-review checks.
+Unchanged or concurrently modified authority fails closed. The original Session
+stays immutable. QueueManager cancels and awaits actual owner task exit before
+Auth lease drain, including overlapping drains. No idle lease, inference
+consent, provider execution or automatic retry is introduced.
+
+Selected-state refresh checks native review jobs before the fetch and again in
+the commit transaction. Pending or malformed analysis-review work blocks that
+refresh. Completed reconciled reviews permit it. This is separate from the
+legacy-review fence used inside native reconciliation, so a review does not
+block its own paired-state completion.

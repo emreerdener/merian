@@ -18,6 +18,7 @@ struct ObservationHistoryStateSyncService {
             let scan = try ObservationHistorySyncService.enrolledScan(observation.uuidString, context: context)
             try ObservationHistorySelectionIntent.requireIdle(scan.id, context: context)
             try requireSettledReview(scan, context: context)
+            try requireSettledAnalysisReview(scan, context: context)
             return ReviewBaseline(scan, displayAnalysisID: observation)
         }
     }
@@ -29,6 +30,7 @@ struct ObservationHistoryStateSyncService {
             let scan = try ObservationHistorySyncService.enrolledScan(observationID, context: context)
             try ObservationHistorySelectionIntent.requireIdle(scan.id, context: context)
             try Self.requireSettledReview(scan, context: context)
+            try Self.requireSettledAnalysisReview(scan, context: context)
             return ReviewBaseline(scan)
         }
         guard let ownerID = UUID(uuidString: baseline.owner) else { throw ObservationHistoryError.unavailable }
@@ -49,6 +51,7 @@ struct ObservationHistoryStateSyncService {
                 guard scan.analysisOwnerAccountID == baseline.owner else { throw ObservationHistoryError.accountChanged }
                 try ObservationHistorySelectionIntent.requireIdle(scan.id, context: context)
                 try Self.requireSettledReview(scan, context: context)
+                try Self.requireSettledAnalysisReview(scan, context: context)
                 guard ReviewBaseline(scan) == baseline else { throw AdmissionError.conflictingRevision }
                 try Self.apply(state, to: scan, baseline: baseline, context: context)
                 try Task.checkCancellation()
@@ -100,6 +103,19 @@ struct ObservationHistoryStateSyncService {
             scan.userConfirmedIdentification = state.review.confirmed ?? false
             scan.userReviewStateRaw = state.review.state?.rawValue
             scan.observationStateRevision = state.revision
+        }
+    }
+
+    /// Selected-state refresh must not race a native review awaiting reconciliation.
+    /// Keep this separate from the legacy check used by review reconciliation itself.
+    static func requireSettledAnalysisReview(_ scan: LocalScanRecord, context: ModelContext) throws {
+        let observation = try ObservationHistoryPage.uuid(scan.id)
+        let prefix = ObservationAnalysisReviewPersistence.observationPrefix(observation)
+        for job in try context.fetch(FetchDescriptor<OfflineJobRecord>()) where job.id.hasPrefix(prefix)
+            || (job.kind == .observationAnalysisReviewSync && job.subjectId?.lowercased() == scan.id.lowercased()) {
+            let intent = try ObservationAnalysisReviewPersistence.restore(job)
+            guard intent.ownerID.uuidString.lowercased() == scan.analysisOwnerAccountID,
+                  intent.request.observationID == observation, intent.isComplete else { throw AdmissionError.pendingReview }
         }
     }
 

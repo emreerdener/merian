@@ -38,6 +38,39 @@ import XCTest
         shot.lifetime = .keepAlways; add(shot)
     }
 
+    func testStaleQuestionRequiresExplicitRefreshBeforeFreshChat() {
+        continueAfterFailure = false
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedProtectedChatStale"])
+        defer { app.terminate() }
+        let scans = app.segmentedControls.buttons["Scans"]
+        if !scans.waitForExistence(timeout: 5) {
+            let entry = app.buttons["MainTabBar_Scans"]
+            XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
+        }
+        XCTAssertTrue(scans.waitForExistence(timeout: 10)); scans.tap()
+        let tile = app.buttons["ScanTile_00000000-0000-4000-8000-000000000001"]
+        XCTAssertTrue(tile.waitForExistence(timeout: 10)); tile.tap()
+        let chat = app.buttons["FieldChatToolbarButton"]
+        tapChat(chat, in: app)
+        let question = app.textFields["ProtectedChatQuestion"], send = app.buttons["ProtectedChatSend"]
+        XCTAssertTrue(question.waitForExistence(timeout: 10)); question.tap()
+        question.typeText("What does this identification mean?"); send.tap()
+        let proof = app.staticTexts["ProtectedChatNotAdmitted"]
+        XCTAssertTrue(proof.waitForExistence(timeout: 10)); XCTAssertFalse(send.exists)
+        app.buttons["Done"].tap(); tapChat(chat, in: app)
+        XCTAssertTrue(proof.waitForExistence(timeout: 10)); XCTAssertFalse(send.exists)
+        let refresh = app.buttons["ProtectedChatRefreshIdentification"]
+        XCTAssertTrue(refresh.waitForExistence(timeout: 5)); XCTAssertTrue(refresh.isEnabled); refresh.tap()
+        XCTAssertTrue(app.navigationBars["Field chat"].waitForNonExistence(timeout: 10))
+        tapChat(chat, in: app)
+        XCTAssertTrue(question.waitForExistence(timeout: 10)); XCTAssertTrue(send.exists); XCTAssertFalse(send.isEnabled)
+        XCTAssertFalse(refresh.exists); XCTAssertTrue(proof.exists)
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "identifier == %@", "ProtectedChatNotAdmitted")).count, 1)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "Explicit refresh permits a fresh composer without sending or replacing the saved question"
+        shot.lifetime = .keepAlways; add(shot)
+    }
+
     private func tapChat(_ chat: XCUIElement, in app: XCUIApplication) {
         XCTAssertTrue(chat.waitForExistence(timeout: 10)); XCTAssertTrue(chat.isEnabled)
         XCTAssertTrue(app.frame.contains(chat.frame), chat.debugDescription)

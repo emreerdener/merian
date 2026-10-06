@@ -7486,8 +7486,8 @@ Exact proof recovers before fresh gates. No matching fence, owner-wide quota or
 user/assistant request evidence yields `fresh_candidate`, permitting only fresh
 preflight; nonterminal or ambiguous evidence yields `held`. Changed
 deterministic identity conflicts, and ownership/deletion still wins. HTTP proof
-delivery and native versioned terminal settlement are prepared; the explicit
-remote-refresh presentation remains pending. All activation gates stay false.
+delivery, native versioned terminal settlement and explicit account-fenced
+identification refresh are prepared. All activation gates stay false.
 
 A terminal seal colliding with another account's attempted UUID blocks account
 merge with `55000/field_chat_execution_merge_conflict`. The whole merge rolls

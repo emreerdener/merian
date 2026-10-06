@@ -52,6 +52,12 @@ final class ProtectedInsightChatModel {
     private(set) var deliveryRequested = false
     private(set) var canRecover = false
     private(set) var requiresIdentificationRefresh = false
+    private(set) var isRefreshingIdentification = false
+    private var refreshTask: Task<Void, Never>?
+    private let applyRefresh: (UUID, ProtectedInsightChatTicket) -> Bool
+    var canRefreshIdentification: Bool {
+        isCurrent && requiresIdentificationRefresh && !isRefreshingIdentification && session.refreshIdentification != nil
+    }
     private let session: ProtectedInsightChatAccess.Session
     private let continuation: ProtectedInsightChatContinuation
     private let presentationIsCurrent: () -> Bool
@@ -66,9 +72,10 @@ final class ProtectedInsightChatModel {
 
     init(baseline: SelectedAnalysisReviewBaseline, session: ProtectedInsightChatAccess.Session,
          continuation: ProtectedInsightChatContinuation, presentationIsCurrent: @escaping () -> Bool,
-         makeID: @escaping () -> UUID = UUID.init) {
+         makeID: @escaping () -> UUID = UUID.init,
+         applyRefresh: @escaping (UUID, ProtectedInsightChatTicket) -> Bool = { _, _ in false }) {
         self.baseline = baseline; self.session = session; self.continuation = continuation
-        self.presentationIsCurrent = presentationIsCurrent; self.makeID = makeID
+        self.presentationIsCurrent = presentationIsCurrent; self.makeID = makeID; self.applyRefresh = applyRefresh
     }
 
     func refresh(after: UUID? = nil) {
@@ -137,10 +144,32 @@ final class ProtectedInsightChatModel {
             message = deliveryRequested ? "Checking your saved question…" : "Your question is saved. Try again when a connection is available."
         } catch { message = "This question cannot be retried yet. Refresh its saved status." }
     }
+    @discardableResult
+    func refreshIdentification() -> Task<Void, Never>? {
+        refresh(after: pageAfter)
+        guard canRefreshIdentification, let operation = session.refreshIdentification else { return nil }
+        isRefreshingIdentification = true
+        refreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { isRefreshingIdentification = false; refreshTask = nil }
+            do {
+                let fresh = try await operation()
+                try Task.checkCancellation()
+                guard isCurrent else { close(); return }
+                try session.validateRefreshed(fresh)
+                guard applyRefresh(id, fresh) else { throw ObservationHistoryError.resultConflict }
+                close()
+            } catch {
+                guard isCurrent, !Task.isCancelled else { return }
+                message = "The identification could not be refreshed. Your saved question has not been replaced."
+            }
+        }
+        return refreshTask
+    }
     func deliveryFinished() { deliveryRequested = false; refresh(after: pageAfter) }
     func close() {
         guard !closed else { return }
-        closed = true; session.close(); completed = []; unfinished = nil; text = ""
+        closed = true; refreshTask?.cancel(); session.close(); completed = []; unfinished = nil; text = ""
         // The continuation and the queue deliberately outlive this sheet.
     }
 }

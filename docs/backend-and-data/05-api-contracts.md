@@ -14804,7 +14804,8 @@ frozen displayed ticket can only read an already saved exact request. Closing
 presentation does not cancel durable delivery. Local pages contain original
 questions and immutable receipts, never a reconstructed mutable thread. These UI
 connections remain behind the disabled complete History installation gate;
-explicit refreshed-authority presentation and runtime qualification remain open.
+explicit refreshed-authority presentation is prepared; runtime qualification
+remains open.
 
 ### Prepared exact chat no-admission proof
 
@@ -14851,5 +14852,8 @@ same-running-claim acknowledgement atomically saves proof and completes the
 operation; unknown errors remain held. Every nonterminal HTTP call still needs a
 claim. Fresh admission rejects a new UUID with a selection tuple already proved
 stale, across restart and all status pages. Only actual updated authority and a
-new explicit tap can permit a new question; the dedicated refresh action remains
-to be connected. All activation gates remain closed.
+new explicit tap can permit a new question. The dedicated retained refresh owner
+validates the original local ticket before state synchronization and the
+returned full ticket before host projection. It closes the stale session without
+rewriting it or automatically opening/sending another question. All activation
+gates remain closed.

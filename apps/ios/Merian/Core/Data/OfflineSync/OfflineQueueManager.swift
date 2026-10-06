@@ -132,6 +132,7 @@ import SwiftData
         analysisReviewDeliveryGeneration &+= 1
     }
     @ObservationIgnored let analysisReviewDeliveryOwner = ObservationAnalysisReviewDeliveryOwner()
+    @ObservationIgnored let protectedChatRefreshOwner = ProtectedInsightChatRefreshOwner()
     @ObservationIgnored let protectedChatDeliveryOwner = ProtectedInsightChatDeliveryOwner()
     private(set) var protectedChatDeliveryGeneration: UInt64 = 0
     func protectedChatDeliveryDidFinish(ownerID: UUID, context: ModelContext, currentOwnerID: UUID?) {

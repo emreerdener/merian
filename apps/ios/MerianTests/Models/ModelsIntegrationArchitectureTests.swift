@@ -36,10 +36,18 @@ struct ModelsIntegrationArchitectureTests {
                 #expect(code.range(of: #"ObservationHistorySyncService\s*\("#, options: .regularExpression) == nil,
                     "Normal history scheduling remains behind the activation hold: \(source.relativePath)")
             }
-            if !historyAdapter {
+            let chatRefreshOwner = source.relativePath == "Core/Data/AnalysisHistory/ProtectedInsightChatRefreshOwner.swift"
+            if chatRefreshOwner {
+                #expect(code.contains(".syncSelected(observationID:"))
+                #expect(code.contains("cancelAndAwaitAll()"))
+                #expect(code.contains("scoped.isCurrent ="))
+            }
+            if !historyAdapter && !chatRefreshOwner {
                 #expect(code.range(of: #"ObservationHistoryStateSyncService\s*\("#, options: .regularExpression) == nil,
                     "Normal state scheduling remains behind the activation hold: \(source.relativePath)")
-            #expect(code.range(of: #"ObservationHistoryPreviewService\s*\("#, options: .regularExpression) == nil,
+            }
+            if !historyAdapter {
+                #expect(code.range(of: #"ObservationHistoryPreviewService\s*\("#, options: .regularExpression) == nil,
                     "Normal preview presentation remains behind the activation hold: \(source.relativePath)")
             }
             if source.relativePath != "Core/Data/AnalysisHistory/ObservationHistoryEnrollmentOwner.swift" {

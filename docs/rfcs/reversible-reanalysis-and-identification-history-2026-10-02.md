@@ -3614,3 +3614,14 @@ including after restart or when the proof is off the visible receipt page. The
 UI shows “Question not sent” and withholds new-send controls until authority is
 actually refreshed. The dedicated remote-refresh action and operational
 qualification remain; all activation gates stay false.
+
+### October 6: explicit identification refresh after terminal chat proof
+
+Prepared chat now offers an explicit refresh through a bounded, retained
+QueueManager owner. It validates the frozen ticket before reading authoritative
+state, returns a changed full ticket without mutating the Session, and awaits
+lease release during account teardown. The host verifies current presentation
+and loaded authority before closing the stale sheet. Refresh does not send,
+reopen chat, change a saved question or authorize a provider successor. A later
+explicit question uses the newly displayed ticket. All rollout gates remain
+false; operational qualification remains separate.

@@ -591,7 +591,7 @@ here cover only selector ownership and build/tooling contracts.
 | Context grace and bounded retry                                      | `CaptureSubmissionEnvironmentContextGraceTests`, `CaptureSubmissionDeferredContextServiceTests`                                                                                                   |
 | Live dispatch, completion, cancellation and generation fences        | `InferenceLivePipelineCoordinatorTests`, `InferenceLivePipelineDurableVisualTests`, `InferenceLiveResultServiceTests`, `InferenceLiveRecoveryIntegrationTests`                                    |
 | Durable claims, recovery, duplicate records and restart              | `InferenceLifecyclePersistenceTests`, `LiveCaptureLifecycleTests`, `BackgroundInferenceCompletionTests`, `InferenceReplayTests`, `DiskBackedInferenceAcceptanceTests`                             |
-| Insight restoration, media continuity and dismissal                  | `InsightQueuedHandoffTests`, `InsightShellLifecycleTests`, new disk-backed acceptance; five exact UI cases in the manifest                                                                        |
+| Insight restoration, media continuity and dismissal                  | `InsightQueuedHandoffTests`, `InsightShellLifecycleTests`, new disk-backed acceptance; six exact UI cases in the manifest                                                                         |
 | Resource admission and task ownership                                | `MediaStagingBudgetTests`, `AsyncPermitPoolTests`, `InferenceEngineTests` (including backlog cap and Auth hydration/write drains)                                                                 |
 | Startup and V50/V51/V52/V53 compatibility                            | `ModelContainerBootstrapperTests`, `ModelStoreRecoveryCoordinatorTests`, `MigrationPlanTests`                                                                                                     |
 | Secondary product and account transitions                            | `OnboardingViewModelTests`, `OnboardingConsentRecoveryTests`, `ExploreFeedViewModelTests`, `AuthLocalSignOutCoordinatorTests`, `AuthSessionLifecycleCoordinatorTests`, `OfflineJobSchedulerTests` |
@@ -704,7 +704,7 @@ The wrapper retains `.artifacts/local-ios/<uuid>.xcresult` and
 phase's exported summary, test tree and metrics. Build and test failures retain
 their XCResult; a failed preflight has only its explicit failure report. The
 manual CI workflow uploads this directory for 14 days even after failure. The
-existing complete-unit and five critical UI gates remain required for iOS
+existing complete-unit and six critical UI gates remain required for iOS
 release.
 
 Start with `summary.md`, identify the failing phase and open its XCResult in
@@ -755,7 +755,7 @@ or documentation changes after the last iOS input, manually dispatch this
 workflow against the final exact SHA. Confirm the scope reason records a manual
 dispatch and all three macOS jobs run. A successful scope-only result is valid
 changed-file reporting, but it is not compiled iOS release evidence and cannot
-replace the complete unit target, all five critical scan UI smokes, and
+replace the complete unit target, all six critical scan UI smokes, and
 Release-archive gate.
 
 Do not replace that design with workflow-level pull-request path filters. GitHub
@@ -1198,22 +1198,27 @@ HTTP request is dispatched. See the
    pinned Xcode build, generated-project membership, and locked packages in its
    own checkout. Its `build-for-testing` compiles the app and complete UI bundle
    without the unit or performance bundles; `test-without-building` reuses that
-   job's simulator and build output to execute five deterministic runtime UI
+   job's simulator and build output to execute six deterministic runtime UI
    smokes: `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`,
    `testLiveInsightConnectivityFailureTransitionsToDurableQueue`,
    `testQueuedRetryPresentationUsesSafeActionableCopy`,
-   `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff`, and
-   `testExactQuestionPersistsAndReopeningKeepsPendingIdentity` under
-   `merianUITests/merianUITests`. The last test uses the enrolled V2 Debug seed
-   and real immutable request persistence, with only delivery simulated. It
-   checks on-screen button bounds and taps their measured center because iOS 27
-   reports a zero-size native toolbar accessibility ancestor. Real composer,
-   save and reopening assertions remain mandatory. This is narrower than the
-   complete UI suite, whose camera/Photos/hardware cases remain separate. The
-   focused result must report exactly those five passed cases and zero failed or
-   skipped cases. Its structured tree must contain that exact named set under
-   `merianUITests`; missing, wrong, duplicated, malformed, empty, or
-   contradictory evidence fails the job. After compilation, a separate
+   `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff`,
+   `testExactQuestionPersistsAndReopeningKeepsPendingIdentity`, and
+   `testStaleQuestionRequiresExplicitRefreshBeforeFreshChat` under
+   `merianUITests/merianUITests`. The pending-question test uses the enrolled V2
+   Debug seed and real immutable request persistence, with only delivery
+   simulated. It checks on-screen button bounds and taps their measured center
+   because iOS 27 reports a zero-size native toolbar accessibility ancestor.
+   Real composer, save and reopening assertions remain mandatory. The
+   stale-question test uses real queue delivery, proof persistence,
+   selected-state synchronization and host projection with synthetic response
+   bytes. It requires explicit refresh to close the stale chat, followed by an
+   explicit reopening with an empty composer and no automatic send. This is
+   narrower than the complete UI suite, whose camera/Photos/hardware cases
+   remain separate. The focused result must report exactly those six passed
+   cases and zero failed or skipped cases. Its structured tree must contain that
+   exact named set under `merianUITests`; missing, wrong, duplicated, malformed,
+   empty, or contradictory evidence fails the job. After compilation, a separate
    five-minute preflight runs `simctl bootstatus <selected-UDID> -b` and
    requires boot completion before XCTest installs and launches its runner.
    Selecting a simulator or compiling for it does not establish boot readiness.
@@ -1222,8 +1227,8 @@ HTTP request is dispatched. See the
    invocation is skipped. This addresses cold boot sharing the test deadline,
    but does not establish that the Instruments service hub is healthy. The UI
    invocation enables XCTest timeouts with default and maximum per-test
-   allowances of 180 seconds. Its 20-minute outer deadline leaves five minutes
-   beyond the five test allowances for runner startup and result finalization;
+   allowances of 180 seconds. Its 25-minute outer deadline leaves seven minutes
+   beyond the six test allowances for runner startup and result finalization;
    the job has 70 minutes for package resolution, compilation, boot, testing,
    and evidence handling. These are hang-containment limits, not performance
    acceptance thresholds. Failed or timed-out tests are not retried
@@ -1304,7 +1309,7 @@ unrelated change it requires all three to be skipped and reports success.
 Missing or invalid scope output, failed, cancelled, or unexpectedly skipped jobs
 fail the check. The portable workflow contract executes this decision across
 every unit/UI/archive outcome combination and checks that all three jobs depend
-only on scope. Release evidence remains the complete unit target, all five UI
+only on scope. Release evidence remains the complete unit target, all six UI
 cases, and the archive on one exact SHA; no smaller test selection replaces it.
 
 ### Repository Rule Setup
@@ -1404,7 +1409,7 @@ failure:
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Unit compile or execution                                             | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the unit `.xcresult`, package-resolution log, and `xcodebuild` log.                                           |
 | Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.                                        |
-| Critical scan UI smokes or focused-result validation                  | Inspect `ios-critical-scan-ui-evidence-<run>-attempt-<attempt>` and `ios-critical-scan-ui-failure-<run>-attempt-<attempt>`; require the exact five protected cases.        |
+| Critical scan UI smokes or focused-result validation                  | Inspect `ios-critical-scan-ui-evidence-<run>-attempt-<attempt>` and `ios-critical-scan-ui-failure-<run>-attempt-<attempt>`; require the exact six protected cases.         |
 | Privacy manifest source or target membership                          | Run `make validate-ios-privacy-manifest` and `make validate-ios-project`; compare the declaration with the canonical privacy contract rather than weakening the validator. |
 | Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted.     |
 | ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                               |
@@ -8062,7 +8067,7 @@ Simulator execution cannot accept the tactile or live-camera optical checks.
 
 `testQueuedRetryPresentationUsesSafeActionableCopy` keeps its scheduled fixture
 deadline one hour beyond seeding, longer than the critical UI test step's
-20-minute limit. This smoke verifies scheduled retry copy and action
+25-minute limit. This smoke verifies scheduled retry copy and action
 eligibility; it must not race launch or accessibility work against a 30-second
 deadline. The explicit-clock `InsightQueuedRetryPresentationTests` suite owns
 deadline expiry and suppression of elapsed retry actions.
@@ -10005,7 +10010,7 @@ internal Gemini retries retain the original accepted 5. Existing reader tests
 continue to reject unknown versions and capability 4 for explicit rows, preserve
 visibility before compatibility errors, and reject a worker's attempt to upgrade
 original capability. Run these with the full catalog and Edge suites, then the
-complete native unit target and five required scan UI smokes. Current production
+complete native unit target and six required scan UI smokes. Current production
 provider profiles remain unchanged throughout this reader preparation.
 
 ### Identification rejection checks

@@ -89,6 +89,13 @@ announcement’s Continue, Close, and swipe dismissal over the retained Capture
 workspace, saving screenshots before and after each dismissal. Its Debug-only
 seed exercises the production sheet router without writing acknowledgement.
 
+The protected-chat stale-ticket scenario uses real durable admission, proof
+settlement, state synchronization and host projection with synthetic
+authenticated response bytes. It checks reopening, explicit identification
+refresh, sheet handoff and an empty fresh composer without automatic dispatch.
+This proves the prepared native flow, not live provider/network behavior or
+production rollout.
+
 Debug fixtures must remain excluded from Release behavior. Automated tests must
 not call production endpoints, real providers, personal accounts, or static
 real-world coordinates.

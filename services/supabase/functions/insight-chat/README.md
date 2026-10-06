@@ -555,6 +555,7 @@ calls the sealing writer, once. An exact proof returns a distinct HTTP 200
 reads/writes remain held; generic errors and absence never release occupancy.
 Native decoding and versioned durable proof settlement now consume this exact
 outcome separately from assistant replies. New UUIDs cannot reuse a proved-stale
-selection tuple; a dedicated explicit remote-refresh presentation remains to be
-connected. All activation gates remain false; no refund or provider successor is
-granted.
+selection tuple. The retained explicit refresh action synchronizes different
+authority, verifies the displayed host, and closes the stale session without
+automatic sending. All activation gates remain false; no refund or provider
+successor is granted.

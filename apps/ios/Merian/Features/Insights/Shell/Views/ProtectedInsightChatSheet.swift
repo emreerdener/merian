@@ -9,6 +9,12 @@ struct ProtectedInsightChatSheet: View {
         NavigationStack {
             List {
                 if let message = model.message { Text(message).foregroundStyle(.secondary).accessibilityIdentifier("ProtectedChatStatus") }
+                if model.requiresIdentificationRefresh {
+                    Button("Refresh identification") { model.refreshIdentification() }
+                        .disabled(!model.canRefreshIdentification)
+                        .accessibilityIdentifier("ProtectedChatRefreshIdentification")
+                    if model.isRefreshingIdentification { ProgressView("Refreshing identification…") }
+                }
                 if model.canRetrySave {
                     Section("Unsaved question") {
                         Text("Your original question is kept until its save can be verified.")

@@ -384,11 +384,23 @@ bounded and replace one another, and new questions still require transactional
 admission. Exact server no-admission proofs now appear as “Question not sent,”
 with no fabricated answer. Full-scope status disables new sends for the proved
 stale ticket even when local selected-cache equality still passes. This bar
-survives reopening and cannot be hidden by receipt paging. Dedicated remote
-identification refresh and runtime qualification remain outstanding.
+survives reopening and cannot be hidden by receipt paging. Explicit
+identification refresh now uses a retained queue-owned read. The host
+revalidates the exact model, local and engine generations, owner/container and
+returned ticket before loading the acknowledged parent. It closes the stale chat
+without reopening or sending; a later user tap opens against the newly displayed
+identification. Runtime qualification remains outstanding.
 `ProtectedInsightChatUITests` uses `-seedProtectedInsightChat` and the real
 enrolled V2 seed/persistence to check empty-send disabling, exact saved question
 and identity across reopening. Only the delivery boundary is synthetic; it
 checks the durable owner, target, revisions and request before withholding
 network execution. The launch seed is Debug-only and included in the Release
 archive marker check. All ordinary access and activation gates remain disabled.
+
+The Debug-only `-seedProtectedChatStale` scenario uses real request admission,
+queue delivery, proof settlement, state synchronization and host projection;
+only the authenticated response and state bytes are synthetic. Its UI test
+verifies the proof survives reopening, fresh sending stays unavailable until
+explicit refresh, the stale sheet closes, and a later opening has an empty
+composer plus the original saved proof. This does not prove real provider,
+network, device or production rollout behavior.

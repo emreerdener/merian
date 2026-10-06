@@ -8,7 +8,8 @@ extension UITestSeedCoordinator {
         isEnabled && ProcessInfo.processInfo.arguments.contains("-seedPublicationConsentChooser") || protectedChatEnabled
     }
     static var protectedChatEnabled: Bool {
-        isEnabled && ProcessInfo.processInfo.arguments.contains("-seedProtectedInsightChat")
+        isEnabled && (ProcessInfo.processInfo.arguments.contains("-seedProtectedInsightChat")
+            || ProcessInfo.processInfo.arguments.contains("-seedProtectedChatStale"))
     }
     @MainActor static var publicationConsentFixture: PublicationConsentUIFixture?
 }
@@ -29,6 +30,7 @@ extension UITestSeedCoordinator {
     let preparation = ObservationPublicationPreparationOwner()
     let recovery = ObservationPublicationRecoveryOwner()
     private var savedOperation: UUID?
+    private var chatServerRevision = 1
     private var savedChatRequest: ProtectedInsightChatRequest?
 
     init(container: ModelContainer, namedReview: Bool = ProcessInfo.processInfo.arguments.contains("-seedSelectedNameConfirmation")) throws {
@@ -94,7 +96,7 @@ extension UITestSeedCoordinator {
         fetch: { [self] request in
             guard request.observation_id == Self.observation, request.before_ordinal == nil, request.limit == 20 else { throw ObservationHistoryError.invalidPage }
             return try Self.json(["schema_version": 1, "owner_id": Self.owner.uuidString.lowercased(),
-                "observation_id": Self.observation, "state_revision": 1, "next_before_ordinal": NSNull(),
+                "observation_id": Self.observation, "state_revision": chatServerRevision, "next_before_ordinal": NSNull(),
                 "items": try [Self.selected, Self.historical].enumerated().map {
                     ["ordinal": 2 - $0.offset, "snapshot": try snapshotText($0.element)] as [String: Any]
                 }])
@@ -143,11 +145,29 @@ extension UITestSeedCoordinator {
     }
 
     var protectedChat: ProtectedInsightChatAccess {
-        .prepared(cloud: cloud, configuration: .init(deliver: { [self] intent, admission, candidate in
+        let queue = OfflineQueueManager.shared
+        return .prepared(cloud: cloud, configuration: .init(deliver: { [self] intent, admission, candidate in
             assert((try? verifySavedChat(intent, admission: admission, candidate: candidate)) == true,
                    "Synthetic protected chat persistence mismatch")
-            return false // Leave the real durable request pending; no provider or HTTP call.
-        }, generation: { 0 }), session: session)
+            guard ProcessInfo.processInfo.arguments.contains("-seedProtectedChatStale") else {
+                return false // Existing restart fixture retains a pending request without network I/O.
+            }
+            // Test launch disables path monitoring; this synthetic transport is available.
+            queue.isOnline = true
+            let service = ProtectedInsightChatDeliveryService(cloud: cloud, submit: { [self] request, owner, _, dispatch, response in
+                guard request == intent.request, owner == Self.owner else { throw ObservationHistoryError.resultConflict }
+                try dispatch()
+                chatServerRevision = 2
+                let data = try Self.json(["data": ["context_version": 1, "outcome": "not_admitted",
+                    "scan_id": request.observationID.uuidString.lowercased(),
+                    "conversation_id": request.conversationID.uuidString.lowercased(),
+                    "client_message_id": request.clientMessageID.uuidString.lowercased(),
+                    "reason": "displayed_identification_changed"]])
+                try response()
+                return try .init(data: data, request: request)
+            })
+            return queue.requestProtectedChatDelivery(intent, admission: admission, service: service, currentOwnerID: { Self.owner })
+        }, generation: { queue.protectedChatDeliveryGeneration }, refreshOwner: queue.protectedChatRefreshOwner), session: session)
     }
 
     private func verifySavedChat(_ intent: ProtectedInsightChatIntent,
@@ -198,7 +218,7 @@ extension UITestSeedCoordinator {
     }
     private func stateData(_ id: String) throws -> Data {
         try Self.json(["schema_version": 1, "owner_id": Self.owner.uuidString.lowercased(), "observation_id": Self.observation,
-            "state_revision": 1, "selection_initialized": true, "selected_analysis_id": Self.selected,
+            "state_revision": chatServerRevision, "selection_initialized": true, "selected_analysis_id": Self.selected,
             "analysis": ["snapshot": try snapshotText(id), "review_revision": 0,
                 "review_snapshot": ["ai_identification_review": NSNull(), "confirmed_species_identity": NSNull(),
                     "confirmed_species_identity_revision": 0, "confirmed_species_id": NSNull(), "user_identification_override": NSNull(),

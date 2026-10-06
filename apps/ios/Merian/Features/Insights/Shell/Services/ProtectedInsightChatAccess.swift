@@ -9,6 +9,7 @@ struct ProtectedInsightChatAccess {
     struct Configuration {
         let deliver: (ProtectedInsightChatIntent, ProtectedInsightChatDeliveryService.Admission, ModelContainer) -> Bool
         let generation: () -> UInt64
+        var refreshOwner: ProtectedInsightChatRefreshOwner?
     }
 
     struct Session {
@@ -20,6 +21,8 @@ struct ProtectedInsightChatAccess {
         var stage: (ProtectedInsightChatRequest, ProtectedInsightChatTicket) throws -> ProtectedInsightChatIntent = { _, _ in throw ObservationHistoryError.unavailable }
         var deliver: (ProtectedInsightChatIntent, Bool) throws -> Bool = { _, _ in throw ObservationHistoryError.unavailable }
         var generation: () -> UInt64 = { 0 }
+        var refreshIdentification: (() async throws -> ProtectedInsightChatTicket)?
+        var validateRefreshed: (ProtectedInsightChatTicket) throws -> Void = { _ in throw ObservationHistoryError.unavailable }
         var recoveryAllowed: (ProtectedInsightChatIntent) throws -> Bool = { _ in false }
     }
 
@@ -31,7 +34,7 @@ struct ProtectedInsightChatAccess {
                 try scope.check()
                 let frozen = try ticket(baseline, cloud: cloud, container: container)
                 try scope.check()
-                return Session(ticket: frozen, status: { after in
+                var access = Session(ticket: frozen, status: { after in
                     try ProtectedInsightChatPersistence.status(ownerID: frozen.ownerID, observationID: frozen.observationID,
                         afterMessageID: after, displayedSelection: frozen.selection, container: container, isCurrent: scope.isCurrent)
                 }, isCurrent: scope.isCurrent, matchesDisplayedTicket: {
@@ -75,6 +78,27 @@ struct ProtectedInsightChatAccess {
                     guard let claim = try ProtectedInsightChatPersistence.currentAttempt(intent, container: container, isCurrent: scope.isCurrent) else { return false }
                     return Date() >= claim.expiresAt
                 })
+                if let owner = configuration?.refreshOwner {
+                    access.refreshIdentification = {
+                        try scope.check()
+                        guard try ticket(baseline, cloud: cloud, container: container) == frozen else { throw ObservationHistoryError.resultConflict }
+                        let fresh = try await owner.refresh(ticket: frozen, session: scope.session, generation: scope.generation,
+                            container: container, cloud: cloud, isCurrent: scope.commonEnvironmentIsCurrent)
+                        try Task.checkCancellation()
+                        try scope.check()
+                        return fresh
+                    }
+                    access.validateRefreshed = { fresh in
+                        try scope.check()
+                        guard fresh.ownerID == frozen.ownerID, fresh.observationID == frozen.observationID,
+                              fresh.selection != frozen.selection,
+                              try ProtectedInsightChatRefreshOwner.selectedTicket(ownerID: frozen.ownerID,
+                                observationID: frozen.observationID, container: container, cloud: cloud) == fresh else {
+                            throw ObservationHistoryError.resultConflict
+                        }
+                    }
+                }
+                return access
             } catch { scope.close(); throw error }
         })
     }

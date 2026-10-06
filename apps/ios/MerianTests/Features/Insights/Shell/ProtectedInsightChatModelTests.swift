@@ -19,6 +19,10 @@ struct ProtectedInsightChatModelTests {
         var deliveries: [(ProtectedInsightChatIntent, Bool)] = []
         var generation: UInt64 = 0
         var minted = 0
+        let refreshOwner = ProtectedInsightChatRefreshOwner()
+        var refreshPause: (() async -> Void)?
+        var refreshed: [ProtectedInsightChatTicket] = []
+        var allowRefreshApply = true
         var beforeStage: (() throws -> Void)?
 
         init() async throws {
@@ -31,6 +35,10 @@ struct ProtectedInsightChatModelTests {
             let shown = shown ?? baseline
             var cloud = support.source.support.client(fetch: { _ in throw ObservationHistoryError.unavailable }, current: { self.current })
             cloud.begin = { owner in .init(id: UUID(), session: .init(userID: owner, isAnonymous: false)) }
+            cloud.fetchState = { _ in
+                await self.refreshPause?()
+                return try self.support.source.fixture(revision: 11)
+            }
             let config = ProtectedInsightChatAccess.Configuration(deliver: { intent, admission, container in
                 #expect(container === self.container)
                 let saved = try? ProtectedInsightChatPersistence.read(intent, container: container, isCurrent: { true })
@@ -43,7 +51,7 @@ struct ProtectedInsightChatModelTests {
                 }
                 self.deliveries.append((intent, replay))
                 return self.queueAccepts
-            }, generation: { self.generation })
+            }, generation: { self.generation }, refreshOwner: refreshOwner)
             let access = ProtectedInsightChatAccess.prepared(cloud: cloud, configuration: config, session: { id, container in
                 try IdentificationHistorySession(observation: id, container: container, cloud: cloud,
                     currentGeneration: { 1 }, sessionIsCurrent: { _ in self.current })
@@ -63,6 +71,9 @@ struct ProtectedInsightChatModelTests {
                 presentationIsCurrent: { self.current }, makeID: {
                     self.minted += 1
                     return UUID(uuidString: String(format: "00000000-0000-4000-8000-%012d", self.minted))!
+                }, applyRefresh: { _, ticket in
+                    self.refreshed.append(ticket)
+                    return self.allowRefreshApply
                 })
             model.refresh()
             return model
@@ -225,6 +236,47 @@ struct ProtectedInsightChatModelTests {
         #expect(fixture.continuation.candidate == nil && fixture.deliveries.isEmpty)
         #expect(fixture.minted == (race ? 2 : 0))
         #expect(try ModelContext(fixture.container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
+    }
+
+    @Test func explicitRefreshClosesOldSessionAndOnlyLaterFreshTapCanSend() async throws {
+        let fixture = try await Fixture(), model = try fixture.model()
+        model.text = "Original"; model.send()
+        let intent = try #require(model.unfinished?.intent), helper = ProtectedInsightChatClaimsTests()
+        _ = try ProtectedInsightChatPersistence.acknowledge(helper.proof(intent), claim: helper.claim(intent, in: fixture.container),
+            at: helper.start, container: fixture.container, isCurrent: { true })
+        model.deliveryFinished()
+        let task = try #require(model.refreshIdentification())
+        #expect(model.refreshIdentification() == nil)
+        await task.value
+        #expect(model.closed && fixture.minted == 2 && fixture.deliveries.count == 1)
+        let fresh = try #require(fixture.refreshed.first)
+        #expect(fresh.selection.stateRevision == 11 && model.baseline.revision == 10)
+        let shown = try #require(SelectedAnalysisReviewBaseline(scanID: fresh.observationID.uuidString,
+            ownerID: fresh.ownerID.uuidString, analysisID: fresh.selection.analysisID.uuidString, revision: fresh.selection.stateRevision))
+        let reopened = try fixture.model(shown: shown)
+        #expect(!reopened.requiresIdentificationRefresh && fixture.minted == 2)
+        reopened.text = "New question"; reopened.send()
+        #expect(fixture.minted == 4 && fixture.deliveries.count == 2)
+        #expect(reopened.unfinished?.intent.request.selection == fresh.selection)
+    }
+
+    @Test func closedWaiterNeverAppliesAnOtherwiseCompletedRefresh() async throws {
+        let fixture = try await Fixture(), model = try fixture.model()
+        model.text = "Original"; model.send()
+        let intent = try #require(model.unfinished?.intent), helper = ProtectedInsightChatClaimsTests()
+        _ = try ProtectedInsightChatPersistence.acknowledge(helper.proof(intent), claim: helper.claim(intent, in: fixture.container),
+            at: helper.start, container: fixture.container, isCurrent: { true })
+        model.deliveryFinished()
+        let entered = AsyncStream<Void>.makeStream(); defer { entered.continuation.finish() }
+        var resume: CheckedContinuation<Void, Never>?
+        fixture.refreshPause = { await withCheckedContinuation { resume = $0; entered.continuation.yield() } }
+        let task = try #require(model.refreshIdentification())
+        for await _ in entered.stream { break }
+        model.close()
+        #expect(fixture.refreshOwner.activeCount == 1)
+        resume?.resume(); await task.value
+        #expect(fixture.refreshOwner.activeCount == 0 && fixture.refreshed.isEmpty && fixture.minted == 2)
+        #expect(fixture.deliveries.count == 1)
     }
 
 }

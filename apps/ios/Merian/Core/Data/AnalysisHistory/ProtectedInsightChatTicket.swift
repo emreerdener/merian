@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 
 /// The loaded selected identification, never a historical preview or freshly substituted selection.
-struct ProtectedInsightChatTicket: Equatable {
+struct ProtectedInsightChatTicket: Equatable, Sendable {
     let ownerID: UUID
     let observationID: UUID
     let selection: ProtectedInsightChatRequest.Selection

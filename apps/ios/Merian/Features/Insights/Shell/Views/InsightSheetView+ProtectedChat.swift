@@ -21,6 +21,20 @@ extension InsightSheetView {
                 presentationIsCurrent: {
                     vm.isPresentingLocalRecord(scanId: scanID, generation: generation)
                         && engine.scanPresentationGeneration == engineGeneration
+                }, applyRefresh: { token, fresh in
+                    guard case .protectedChat(let activeToken, let activeScan, let activeGeneration) = activeShellPresentation,
+                          activeToken == token, activeScan == scanID, activeGeneration == generation,
+                          protectedChatModel?.id == token, protectedChatModel?.isCurrent == true,
+                          vm.isPresentingLocalRecord(scanId: scanID, generation: generation),
+                          engine.scanPresentationGeneration == engineGeneration,
+                          vm.toolbarRecordSnapshot?.selectedReviewBaseline == baseline,
+                          let expected = SelectedAnalysisReviewBaseline(scanID: fresh.observationID.uuidString,
+                            ownerID: fresh.ownerID.uuidString, analysisID: fresh.selection.analysisID.uuidString,
+                            revision: fresh.selection.stateRevision),
+                          vm.refreshAcknowledgedHistory(scanId: scanID, generation: generation,
+                            container: modelContext.container, inferenceEngine: engine, expected: expected) == expected else { return false }
+                    cancelOrDismissShellPresentation { if case .protectedChat(let candidate, _, _) = $0 { candidate == token } else { false } }
+                    return true
                 })
             protectedChatModel = model
             guard requestShellPresentation(.protectedChat(token: model.id, scanId: scanID, generation: generation)) else {

@@ -85,6 +85,6 @@ struct PreparedHistoryReanalysisComposition {
                 return queue.requestProtectedChatDelivery(intent, admission: admission,
                     service: .live(cloud: .live(manager: manager), client: MerianNetworkClient.shared),
                     currentOwnerID: { manager.currentUser?.id })
-            }, generation: { queue.protectedChatDeliveryGeneration }))
+            }, generation: { queue.protectedChatDeliveryGeneration }, refreshOwner: queue.protectedChatRefreshOwner))
     }
 }
