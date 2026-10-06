@@ -400,6 +400,25 @@ and immutable envelope. Only new dispatch requires unexpired work; a late
 completion may settle an unchanged claim. A successor claim defeats old
 responses even when consent is identical. Generic job upsert/reset is forbidden.
 
+`ObservationPublicationOperationStatus` reads only an exact owner, observation,
+analysis and operation under one fresh locked context. It validates the enrolled
+parent, enrollment hold and child linkage before returning an optional result.
+Only a missing exact job in that valid scope is absence; corrupt or foreign
+state throws and cannot authorize a new operation. The closed phases distinguish
+pending, acknowledged reconciliation, local attention and terminal receipt. They
+expose no consent, media, notes or raw errors and never assert visibility.
+
+Discovery, direct claim and this reader share status-specific structural
+validation. A running row needs its original positive attempt, start and
+180-second expiry; missing deadlines cannot become another dispatch. Pending
+rows must be pristine, while acknowledged waiting rows may legitimately have
+zero attempts when a receipt was saved without dispatch. Waiting requires a
+finite deadline and held/terminal work never schedules. Exhausted attempt counts
+stop discovery and direct claims, and read as local attention; the original last
+in-flight claim can still settle its unchanged receipt. Storage failures in
+candidate scope validation reach the existing bounded retry owner rather than
+being swallowed as absence. No stored schema shape changes.
+
 The account-bound delivery service checks status first. Only an owner-visible
 404 with `analysis_history_not_found` permits replay of the original saved
 request. Acknowledged receipts can only poll; they never reconstruct consent.

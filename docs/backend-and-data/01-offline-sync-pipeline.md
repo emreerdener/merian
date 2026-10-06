@@ -2553,3 +2553,13 @@ each joiner. The generation supports local exact-operation status refresh and is
 not proof of successful admission or current public visibility. No idle polling
 or idle account lease is introduced, and ordinary consent access stays disabled
 pending the remaining presentation and rollout qualifications.
+
+The prepared local operation-status reader requires exact owner, observation,
+analysis and operation identities. A valid parent/child scope with no exact job
+returns absence; deletion, account mismatch or malformed state returns an error.
+It shares structural validation with discovery and direct claims, preventing a
+running row with a missing or changed recovery deadline from redispatching.
+Acknowledged waiting work without a previous dispatch remains valid. Local
+attention and terminal receipts stay out of scheduling; storage failures retain
+the bounded recovery wake. The status is a minimal saved-operation projection,
+not current public visibility, and adds no idle network work.

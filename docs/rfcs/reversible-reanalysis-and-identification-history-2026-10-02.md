@@ -3096,3 +3096,16 @@ blocking until paired reconciliation completes. The lock-local check preserves
 review recovery and exact already-saved publication replay. No HTTP payload or
 activation gate changed; the remaining consent presentation and lifetime owners
 are still separate implementation work.
+
+### October 6: exact local community-help operation status
+
+Prepared native status reads now require the exact owner, observation, analysis
+and saved operation under a fresh locked scope. Only exact job absence inside a
+valid parent/child scope returns nil; corruption and deletion fail closed.
+Pending, acknowledged reconciliation, local attention and terminal receipt
+phases expose no private consent or visibility claim. Shared structural
+validation protects discovery and direct claims too: a damaged running deadline
+cannot authorize another dispatch, while legitimate acknowledgement without a
+dispatch claim remains recoverable. Storage-read failures reach bounded retry.
+This adds no schema, network contract or activation change. Foreground consent
+preparation lifetime and the explicit consent presentation remain unfinished.

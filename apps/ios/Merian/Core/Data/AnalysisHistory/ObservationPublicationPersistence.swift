@@ -51,9 +51,11 @@ enum ObservationPublicationPersistence {
             }
             if let claim { try validate(claim, job: job) } else if job.status == .running { throw IntegrityError.conflict }
             let saved = try restore(job)
+            _ = try validatedStatus(job, intent: saved)
             guard try saved.storedData() == expected.storedData() else { throw IntegrityError.conflict }
             let next = try saved.accepting(receipt, at: date)
             if saved.isTerminal { return next }
+            guard next.isTerminal || validDate(date.addingTimeInterval(30)) else { throw IntegrityError.conflict }
             guard let text = String(bytes: try next.storedData(), encoding: .utf8) else { throw IntegrityError.conflict }
             job.metadataJSON = text
             job.status = next.isTerminal ? .complete : .waiting
