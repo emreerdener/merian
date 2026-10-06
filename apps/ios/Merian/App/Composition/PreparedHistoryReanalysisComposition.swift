@@ -16,10 +16,11 @@ struct PreparedHistoryReanalysisComposition {
     let status: ReanalysisStatusAccess
     let capture: CaptureReanalysisAccess
     let reanalyze: SavedIdentificationReanalysisAccess
+    let protectedChat: ProtectedInsightChatAccess
     let selectedReview: SelectedAnalysisReviewAccess
 
     var insightAccesses: InsightHistoryReanalysisAccesses {
-        .init(history: history, status: status, reanalyze: reanalyze, selectedReview: selectedReview)
+        .init(history: history, status: status, reanalyze: reanalyze, protectedChat: protectedChat, selectedReview: selectedReview)
     }
 
     init(routes: any AppRouteRequesting, cloud: ObservationHistoryCloudClient,
@@ -44,6 +45,7 @@ struct PreparedHistoryReanalysisComposition {
         var history = IdentificationHistoryAccess.prepared(cloud: cloud, session: session)
         history.requestReanalysis = { routes.request(.historicalReanalysis($0), source: .internalUserAction) }
         self.history = history
+        protectedChat = .prepared(cloud: cloud, session: session)
         selectedReview = .prepared(cloud: cloud, session: session)
         status = .prepared(session: session)
         reanalyze = .prepared(cloud: cloud, enrollment: enrollmentOwner, currentOwner: currentOwner,

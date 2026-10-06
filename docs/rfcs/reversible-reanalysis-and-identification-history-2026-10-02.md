@@ -3561,3 +3561,14 @@ QueueManager retains actual execution and both Auth barriers await its exit.
 Unknown attempts remain held without automatic scheduling; explicit replay
 preserves all original request identity. Send UI and server-proven denial
 remediation remain, alongside runtime qualification. All gates stay false.
+
+### October 6 addendum: displayed chat and restart discovery
+
+Prepared native selected-chat access now validates the baseline actually loaded
+into the visible engine, rather than adopting a fresh selected cache. Local
+restart discovery validates owner, parent, child and saved envelopes in bounded
+fetch batches, returns canonical UUID pages of terminal receipts and separately
+reports a unique pending/running/held request. Reading never claims or sends,
+replaces held occupancy or changes selection. The complete App composition
+includes this access only behind the disabled installation gate. Send UI,
+server-proven no-admission remediation and runtime qualification remain open.

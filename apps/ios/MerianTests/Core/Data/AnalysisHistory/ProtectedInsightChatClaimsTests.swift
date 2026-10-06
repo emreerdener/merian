@@ -174,6 +174,10 @@ struct ProtectedInsightChatClaimsTests {
         let container = try open(), context = ModelContext(container)
         let row = try #require(context.fetch(FetchDescriptor<OfflineJobRecord>()).first)
         let intent = try Store.restore(row)
+        let page = try Store.status(ownerID: intent.ownerID, observationID: intent.request.observationID,
+            container: container, isCurrent: { true })
+        #expect(page.unfinished?.state == .held && page.completed.isEmpty)
+        #expect(try page.unfinished?.intent.storedData() == intent.storedData())
         let recovered = try Store.currentAttempt(intent, container: container, isCurrent: { true })
         let previous = try #require(recovered)
         #expect(previous.attempt == 1 && previous.startedAt == start && previous.intent.request == intent.request)

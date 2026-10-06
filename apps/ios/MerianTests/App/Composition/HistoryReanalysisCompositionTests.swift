@@ -18,7 +18,7 @@ struct HistoryReanalysisCompositionTests {
         #expect(installation == nil && builds == 0)
         #expect(EnvironmentValues().insightHistoryReanalysisAccesses == nil)
         let ordinary = InsightShellDependencies()
-        #expect(ordinary.historyAccess == nil && ordinary.reanalysisStatusAccess == nil && ordinary.savedReanalysisAccess == nil && ordinary.selectedReviewAccess == nil)
+        #expect(ordinary.historyAccess == nil && ordinary.reanalysisStatusAccess == nil && ordinary.savedReanalysisAccess == nil && ordinary.selectedReviewAccess == nil && ordinary.protectedChatAccess == nil)
     }
 
     @Test func groupedInstallationPreservesOtherShellDependencies() throws {
@@ -27,8 +27,8 @@ struct HistoryReanalysisCompositionTests {
         var feedback = 0
         let base = InsightShellDependencies(selectionFeedback: { feedback += 1 })
         let installed = bundle.insightAccesses.applying(to: base)
-        #expect(installed.historyAccess != nil && installed.reanalysisStatusAccess != nil && installed.savedReanalysisAccess != nil && installed.selectedReviewAccess != nil)
-        #expect(base.historyAccess == nil && base.reanalysisStatusAccess == nil && base.savedReanalysisAccess == nil && base.selectedReviewAccess == nil)
+        #expect(installed.historyAccess != nil && installed.reanalysisStatusAccess != nil && installed.savedReanalysisAccess != nil && installed.selectedReviewAccess != nil && installed.protectedChatAccess != nil)
+        #expect(base.historyAccess == nil && base.reanalysisStatusAccess == nil && base.savedReanalysisAccess == nil && base.selectedReviewAccess == nil && base.protectedChatAccess == nil)
         installed.selectionFeedback()
         #expect(feedback == 1)
         let target = HistoricalReanalysisTarget(observationID: UUID(), analysisID: UUID(), ownerID: UUID())
@@ -38,7 +38,7 @@ struct HistoryReanalysisCompositionTests {
         #expect(actual == target)
     }
 
-    @Test(arguments: ["history", "status", "reanalysis", "review"])
+    @Test(arguments: ["history", "status", "reanalysis", "review", "chat"])
     func singleFixtureAccessPreventsAnyPartialInstallation(_ slot: String) {
         let bundle = PreparedHistoryReanalysisComposition.prepared(in: .preview)
         var fixture = InsightShellDependencies()
@@ -46,13 +46,15 @@ struct HistoryReanalysisCompositionTests {
         case "history": fixture.historyAccess = bundle.history
         case "status": fixture.reanalysisStatusAccess = bundle.status
         case "reanalysis": fixture.savedReanalysisAccess = bundle.reanalyze
-        default: fixture.selectedReviewAccess = bundle.selectedReview
+        case "review": fixture.selectedReviewAccess = bundle.selectedReview
+        default: fixture.protectedChatAccess = bundle.protectedChat
         }
         let result = bundle.insightAccesses.applying(to: fixture)
         #expect((result.historyAccess != nil) == (slot == "history"))
         #expect((result.reanalysisStatusAccess != nil) == (slot == "status"))
         #expect((result.savedReanalysisAccess != nil) == (slot == "reanalysis"))
         #expect((result.selectedReviewAccess != nil) == (slot == "review"))
+        #expect((result.protectedChatAccess != nil) == (slot == "chat"))
     }
 
     @Test func captureResolvesInstallationBeforeRoutingAndPreservesExplicitDependencies() {

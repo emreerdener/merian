@@ -100,6 +100,73 @@ enum ProtectedInsightChatPersistence {
         return scan
     }
 
+    /// Closed local state only; neither a status nor a receipt grants dispatch permission.
+    enum PendingState { case pending, running, held }
+    struct PendingStatus {
+        let intent: ProtectedInsightChatIntent
+        let state: PendingState
+    }
+    struct StatusPage {
+        let unfinished: PendingStatus?
+        let completed: [ProtectedInsightChatIntent]
+        let nextAfterMessageID: UUID?
+    }
+
+    /// Bounded local discovery, never an admission/absence proof. Completed pages are
+    /// lexical message-ID pages; they are not a mutable conversation or a latest result.
+    @MainActor
+    static func status(ownerID: UUID, observationID: UUID, afterMessageID: UUID? = nil,
+                       limit: Int = 20, container: ModelContainer, isCurrent: () -> Bool) throws -> StatusPage {
+        guard (1...20).contains(limit) else { throw IntegrityError.conflict }
+        return try ConfirmedSpeciesReviewPersistence.transaction {
+            guard isCurrent() else { throw IntegrityError.accountChanged }
+            let context = ModelContext(container); context.autosaveEnabled = false
+            let scan = try ObservationHistorySyncService.enrolledScan(observationID.uuidString, context: context)
+            guard scan.analysisOwnerAccountID == ownerID.uuidString.lowercased(),
+                  !(try ObservationHistoryEnrollmentIntent.holds(scan.id, context: context)) else { throw IntegrityError.unavailable }
+            let scope = observationPrefix(observationID), subject = observationID.uuidString.lowercased()
+            let kind = OfflineJobKind.protectedInsightChatSync.rawValue
+            var unfinished: PendingStatus?
+            var completed: [ProtectedInsightChatIntent] = []
+            var cursor: String?
+            repeat {
+                let after = cursor ?? "", started = cursor != nil
+                var query = FetchDescriptor<OfflineJobRecord>(predicate: #Predicate {
+                    ($0.id.starts(with: scope) || $0.kindRaw == kind) && (!started || $0.id > after)
+                }, sortBy: [SortDescriptor(\OfflineJobRecord.id)])
+                query.fetchLimit = 64
+                let batch = try context.fetch(query)
+                for job in batch where job.id.hasPrefix(scope)
+                    || (!hasCanonicalNamespace(job.id) && job.subjectId?.lowercased() == subject) {
+                    let saved = try restore(job)
+                    guard saved.ownerID == ownerID, saved.request.observationID == observationID else { throw IntegrityError.conflict }
+                    _ = try requireScope(saved, context: context)
+                    if saved.isComplete {
+                        if afterMessageID.map({ saved.request.clientMessageID.uuidString.lowercased() > $0.uuidString.lowercased() }) ?? true {
+                            completed.append(saved)
+                            completed.sort { $0.request.clientMessageID.uuidString.lowercased() < $1.request.clientMessageID.uuidString.lowercased() }
+                            if completed.count > limit + 1 { completed.removeLast() }
+                        }
+                    } else {
+                        guard unfinished == nil else { throw IntegrityError.conflict }
+                        let state: PendingState
+                        switch job.status {
+                        case .pending: state = .pending
+                        case .running: state = .running
+                        case .needsAttention: state = .held
+                        default: throw IntegrityError.conflict
+                        }
+                        unfinished = .init(intent: saved, state: state)
+                    }
+                }
+                guard isCurrent() else { throw IntegrityError.accountChanged }
+                cursor = batch.count == 64 ? batch.last?.id : nil
+            } while cursor != nil
+            return StatusPage(unfinished: unfinished, completed: Array(completed.prefix(limit)),
+                nextAfterMessageID: completed.count > limit ? completed[limit - 1].request.clientMessageID : nil)
+        }
+    }
+
     private static func hasCanonicalNamespace(_ id: String) -> Bool {
         guard id.hasPrefix(prefix) else { return false }
         let parts = id.dropFirst(prefix.count).split(separator: ":", omittingEmptySubsequences: false)

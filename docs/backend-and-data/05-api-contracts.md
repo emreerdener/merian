@@ -14783,3 +14783,14 @@ uncertainty checks for a committed exact local receipt before holding the
 original claim. No mutable conversation or observation selection is projected. A
 failed HTTP status never proves no admission or authorizes replacement intent;
 server-proven terminal remediation remains a separate unfinished contract.
+
+Native restart discovery is local and read-only. It validates all scoped saved
+requests in bounded fetch batches and returns at most 20 immutable completion
+receipts in canonical client-message UUID order, independently of the unique
+unfinished operation. Off-page corruption or multiple unfinished operations
+fails closed; a partial page never grants new-message admission. Historical
+requests keep their original tickets after selection/review changes. Prepared
+selected-chat access validates the actual displayed baseline before constructing
+a new ticket, with a second context check around the exact child read. It is
+installed only in the inert History bundle; ordinary access stays nil and no
+remote read-before-claim path is introduced.

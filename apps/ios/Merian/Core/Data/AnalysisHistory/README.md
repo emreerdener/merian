@@ -1276,3 +1276,35 @@ The dedicated delivery service reads an exact local receipt before acquiring a
 claim. Its `requireResponse` validator requires the same running claim and
 current scope, without expiry or cancellation rejection of a known answer.
 Generic scheduling and all activation gates remain disabled.
+
+### Local chat restart discovery
+
+`ProtectedInsightChatPersistence.status` reads owner/observation-scoped saved
+requests without claiming, sending or changing them. It streams fixed batches of
+64 job rows under the transaction lock, validates every matching envelope and
+exact child linkage, and rejects multiple unfinished operations or damaged
+records even beyond the requested receipt page. Canonical other-observation
+namespaces remain authoritative over a damaged subject index. Completed results
+are returned in canonical client-message UUID order, at most 20 per page, with a
+strictly-after UUID cursor. The reader retains at most one unfinished operation
+and one extra completed result to determine continuation; work is linear in the
+stored job count, without a total-history cap. Main-actor scan time for large
+local histories remains part of runtime qualification; paging never skips
+integrity validation to infer vacancy.
+
+Historical receipts and held requests retain their original selected ticket
+regardless of today's selection or review revision. Pending, running and held
+are explicit local states, not dispatch capabilities. A partial or empty page
+never proves new-send eligibility; the existing full transactional staging
+checks remain authoritative. Reads require current owner/container scope,
+enrollment and no deletion fence, but neither inference consent nor a remote
+recovery request.
+
+`ProtectedInsightChatAccess` lives in the Insights shell and is assembled only
+in the inert complete History bundle. It validates the visible engine's
+`SelectedAnalysisReviewBaseline` against context, exact cached child and a
+second identical context before freezing the chat ticket. It never substitutes a
+newer selected result. The chat revision ceiling fails closed even when the
+broader display baseline still accepts the integer. Closing releases the
+presentation scope; it cannot mutate or cancel durable delivery. Send UI remains
+unconnected and ordinary access remains nil.

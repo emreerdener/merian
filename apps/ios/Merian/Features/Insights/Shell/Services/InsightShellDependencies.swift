@@ -8,6 +8,7 @@ struct InsightAuthenticationSnapshot: Equatable {
 
 @MainActor
 struct InsightShellDependencies {
+    var protectedChatAccess: ProtectedInsightChatAccess?
     var selectedReviewAccess: SelectedAnalysisReviewAccess?
     var historyAccess: IdentificationHistoryAccess? = nil
     var reanalysisStatusAccess: ReanalysisStatusAccess?
