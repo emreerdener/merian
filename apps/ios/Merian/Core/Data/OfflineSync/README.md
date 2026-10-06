@@ -849,3 +849,32 @@ Delivery and scheduling do not stage decisions or authorize inference. Ordinary
 UI access and all activation gates remain disabled. The
 [native persistence contract](../AnalysisHistory/README.md#prepared-analysis-bound-review-persistence)
 owns exact requests, receipt claims and atomic projection completion.
+
+## Prepared protected Field Chat delivery
+
+`ProtectedInsightChatDeliveryService` accepts an exact persisted intent and an
+explicit initial or same-attempt replay admission. Only a terminal local receipt
+can bypass claiming; the HTTP endpoint may dispatch and is never used as a
+read-only probe. The injected cloud boundary retains the expected account lease
+through request and durable acknowledgement. Response validation and saving use
+the original running claim without an expiry or task-cancellation check, while
+new dispatch requires live permission. Account, container, child, deletion and
+claim replacement still deny settlement. The exact validated response bytes
+preserve required nulls through atomic acknowledgement.
+
+Unknown errors and cancellation hold the original claim without a deadline. A
+save error first checks whether the exact local receipt committed; it never
+reopens that receipt or overwrites another attempt. Held and orphaned work can
+only be replayed explicitly with its saved identity. A generic HTTP error does
+not prove no server admission and cannot release the observation's unfinished
+chat occupancy. That remediation requires a separate durable server proof.
+
+QueueManager retains one `ProtectedInsightChatDeliveryOwner` task until actual
+lease release. Connectivity cancellation closes dispatch but preserves the
+same-scope settlement predicate for a known answer. Auth invalidation closes
+both predicates, and both account-transition quiescence paths await actual exit.
+The explicit queue entry injects its service and account identity; there is no
+hidden client resolution. Only actual task exit advances the owner/context
+qualified refresh generation. UI lifetime never owns this task. Generic
+scheduler exclusion remains, with no automatic chat wake, timer or idle Auth
+lease. Send UI and all ordinary access remain disabled.

@@ -3551,3 +3551,13 @@ and has no automatic retry or token-recovery path. The145-second scoped session
 leaves the ordinary 90-second session unchanged, and dispatch checks remaining
 claim time after Auth with explicit receipt-save reserve. Retained delivery and
 send UI remain separate work; all activation gates stay false.
+
+### October 6 addendum: retained native Field Chat delivery
+
+Prepared native delivery now claims the exact saved request before every
+nonterminal HTTP send, retains account work through durable receipt settlement,
+and distinguishes dispatch cancellation from late known-answer persistence.
+QueueManager retains actual execution and both Auth barriers await its exit.
+Unknown attempts remain held without automatic scheduling; explicit replay
+preserves all original request identity. Send UI and server-proven denial
+remediation remain, alongside runtime qualification. All gates stay false.

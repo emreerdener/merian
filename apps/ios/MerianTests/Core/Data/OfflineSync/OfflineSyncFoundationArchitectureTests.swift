@@ -345,6 +345,9 @@ struct OfflineSyncFoundationArchitectureTests {
     ]
 
     private static let extractedOwnerPaths: Set<String> = [
+        "Services/ProtectedInsightChatDeliveryService.swift",
+        "Services/ProtectedInsightChatDeliveryOwner.swift",
+        "Services/OfflineQueueManager+ProtectedChat.swift",
         "Services/OfflineQueueManager+AnalysisReview.swift",
         "Services/ObservationAnalysisReviewDeliveryOwner.swift",
         "Services/ObservationAnalysisReviewDrain.swift",
@@ -406,6 +409,9 @@ struct OfflineSyncFoundationArchitectureTests {
     ]
 
     private static let expectedImportsByPath: [String: Set<String>] = [
+        "Services/ProtectedInsightChatDeliveryService.swift": ["import Foundation", "import SwiftData"],
+        "Services/ProtectedInsightChatDeliveryOwner.swift": ["import Foundation"],
+        "Services/OfflineQueueManager+ProtectedChat.swift": ["import Foundation", "import SwiftData"],
         "Services/OfflineQueueManager+AnalysisReview.swift": ["import Foundation", "import SwiftData"],
         "Services/ObservationAnalysisReviewDeliveryOwner.swift": ["import Foundation"],
         "Services/ObservationAnalysisReviewDrain.swift": ["import Foundation", "import SwiftData"],

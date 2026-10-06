@@ -1241,9 +1241,11 @@ valid owner envelope. Queue states reject remote state and altered delivery
 configuration. The raw job kind changes no SwiftData schema shape and
 contributes no generic scheduler wake.
 
-Delivery, Auth teardown and send UI remain separate unfinished owners. No
-prepared stage dispatches HTTP, enrolls an observation, selects an
-identification or enables the feature. The
+Prepared delivery and Auth teardown are owned by OfflineSync; send UI remains
+unconnected. `ProtectedInsightChatPersistence.stage` performs no I/O; explicitly
+injected delivery may dispatch only an already persisted exact claim. Neither
+staging nor delivery enrolls an observation, selects an identification or
+enables the feature. The
 [protected HTTP contract](../../../../../../docs/backend-and-data/05-api-contracts.md#protected-field-chat-send-http-protocol-version-one)
 owns the wire boundary and rollout remains disabled.
 
@@ -1270,5 +1272,7 @@ scope; lost scope leaves durable work untouched.
 There is no native read-only remote recovery endpoint. A nonterminal protected
 send can perform the original first execution, so its local claim must precede
 HTTP. The server's permanent execution fence still prevents provider successors.
-Transport and retained delivery remain unconnected; generic scheduling and all
-activation gates remain disabled.
+The dedicated delivery service reads an exact local receipt before acquiring a
+claim. Its `requireResponse` validator requires the same running claim and
+current scope, without expiry or cancellation rejection of a known answer.
+Generic scheduling and all activation gates remain disabled.

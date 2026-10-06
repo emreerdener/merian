@@ -14743,13 +14743,13 @@ selected-result proof/authority, pending-selection/review and unfinished-chat
 checks. Message IDs cannot move between observations. Namespace erasure is part
 of direct, bulk and owner-qualified cloud deletion. No schema shape changes or
 automatic scheduler eligibility are introduced. Native claims and atomic receipt
-acknowledgement are prepared; transport, lifecycle and UI remain required before
-activation. Initial claims accept pristine work only. Unknown outcomes hold
-without a wake deadline; explicit replay must match the previous local attempt
-while preserving the exact original request. Claim expiry denies new dispatch
-but permits an unchanged late receipt. Replaced attempts cannot acknowledge, and
-terminal receipts never reopen. These local attempts do not authorize provider
-successors. No gate is enabled.
+acknowledgement are prepared; dedicated transport and lifecycle are connected
+below, while UI remains required before activation. Initial claims accept
+pristine work only. Unknown outcomes hold without a wake deadline; explicit
+replay must match the previous local attempt while preserving the exact original
+request. Claim expiry denies new dispatch but permits an unchanged late receipt.
+Replaced attempts cannot acknowledge, and terminal receipts never reopen. These
+local attempts do not authorize provider successors. No gate is enabled.
 
 The prepared native protected chat transport now sends one exact saved request
 through a closed typed mutation boundary. It bypasses the legacy 45-second
@@ -14761,8 +14761,9 @@ separate response fence validates the unchanged attempt. Dispatch requires the
 full 145-second wire budget, 15-second local receipt reserve and two-second
 margin inside the original claim. Late exact replies can still reach atomic
 acknowledgement; the transport does not extend expiry or mint identities.
-Retained delivery, Auth teardown and actual send UI remain unconnected. All
-activation gates remain false.
+Retained delivery and Auth teardown now use this transport through explicit
+injected admission; actual send UI remains unconnected. All activation gates
+remain false.
 
 Native `ProtectedInsightChatReply` retains the validated completion alongside
 original bounded receipt bytes for atomic persistence, preserving required null
@@ -14770,3 +14771,15 @@ fields. Both session and task authentication challenges share the existing
 certificate-pin validator. Successful JSON MIME validation precedes body
 acceptance, and a final synchronous budget check precedes task start. The scoped
 session has no credential store; ordinary transport policies remain unchanged.
+
+Native `ProtectedInsightChatDeliveryService` reads only terminal local receipts
+before claiming. Initial admission cannot reopen held/running work; explicit
+replay requires the prior exact attempt and unchanged request. The retained
+owner distinguishes cancelled dispatch from valid same-account settlement of a
+known reply. Account/container/claim changes still reject receipt persistence.
+Both Auth quiescence paths await actual lease release. Unknown outcomes have no
+retry deadline, and ordinary scheduler recovery never starts them. Save
+uncertainty checks for a committed exact local receipt before holding the
+original claim. No mutable conversation or observation selection is projected. A
+failed HTTP status never proves no admission or authorizes replacement intent;
+server-proven terminal remediation remains a separate unfinished contract.

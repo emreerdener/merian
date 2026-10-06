@@ -91,6 +91,21 @@ extension ProtectedInsightChatPersistence {
         }
     }
 
+    /// Exact local recovery only. This never grants permission to call the HTTP send endpoint.
+    @MainActor
+    static func read(_ intent: ProtectedInsightChatIntent, container: ModelContainer,
+                     isCurrent: () -> Bool) throws -> ProtectedInsightChatIntent {
+        try mutate(intent, container: container, isCurrent: isCurrent) { _, saved in saved }
+    }
+
+    /// A known answer survives cancellation/expiry, but never a replaced claim or account scope.
+    @MainActor
+    static func requireResponse(_ claim: Claim, container: ModelContainer, isCurrent: () -> Bool) throws {
+        try mutate(claim.intent, container: container, isCurrent: isCurrent) { job, saved in
+            try validate(claim, job: job, saved: saved)
+        }
+    }
+
     /// Holds have no wake deadline. Cancellation settlement still checks owner and exact durable claim.
     @MainActor
     static func hold(_ claim: Claim, at date: Date, container: ModelContainer,

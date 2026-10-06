@@ -132,6 +132,12 @@ import SwiftData
         analysisReviewDeliveryGeneration &+= 1
     }
     @ObservationIgnored let analysisReviewDeliveryOwner = ObservationAnalysisReviewDeliveryOwner()
+    @ObservationIgnored let protectedChatDeliveryOwner = ProtectedInsightChatDeliveryOwner()
+    private(set) var protectedChatDeliveryGeneration: UInt64 = 0
+    func protectedChatDeliveryDidFinish(ownerID: UUID, context: ModelContext, currentOwnerID: UUID?) {
+        guard currentOwnerID == ownerID, modelContext === context else { return }
+        protectedChatDeliveryGeneration &+= 1
+    }
 
     /// Active collection sync task. Cancelled immediately on connectivity loss.
     /// Returns `true` when the attempt succeeded and `false` when the pending bit
@@ -510,6 +516,7 @@ import SwiftData
                     self.reconnectDebounceTask?.cancel()
                     self.reconnectDebounceTask = nil
                     guard !newIsConstrained else {
+                        self.protectedChatDeliveryOwner.cancel()
                         self.analysisReviewDeliveryOwner.cancel()
                         self.reanalysisExecutionOwner.cancel()
                         OfflineJobScheduler.shared.cancelScheduledWake(
@@ -544,6 +551,7 @@ import SwiftData
                     self.identificationReviewSyncGeneration = nil
                     self.identificationReviewSyncTask?.cancel()
                     self.publicationDeliveryOwner.cancel()
+                    self.protectedChatDeliveryOwner.cancel()
                     self.analysisReviewDeliveryOwner.cancel()
                     self.reanalysisExecutionOwner.cancel()
                     self.collectionSyncTask?.cancel()

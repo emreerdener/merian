@@ -108,9 +108,11 @@ extension OfflineQueueManager {
     func quiesceBackgroundAccountWorkForAuthTransition(
         sourceUserID: UUID?
     ) async -> Bool {
+        protectedChatDeliveryOwner.invalidate()
         analysisReviewDeliveryOwner.cancel()
         await publicationDeliveryOwner.cancelAndAwait()
         await analysisReviewDeliveryOwner.cancelAndAwait()
+        await protectedChatDeliveryOwner.invalidateAndAwait()
         syncTask?.cancel()
         retryBackoffTask?.cancel()
         let clock = ContinuousClock()
