@@ -7386,3 +7386,30 @@ quota rows before reparenting. Only still-reserved counters are released;
 committed/failed charges remain consumed. All surviving observation fences
 remain held, with no chosen winner or new lease. Immutable request evidence
 cannot be rewritten by internal updates.
+
+### Legacy Insight admission and enrollment boundary
+
+Migration `20261006121418_fence_legacy_insight_chat_admission.sql` keeps the
+existing public admission, quota-finalization and stale-recovery signatures, but
+moves their original implementations into private cores with no API grants. Only
+SQL owners of immutable context call the private admission core directly; no
+caller flag or session setting bypasses the legacy wrapper.
+
+An observation requires immutable chat when it has history, any retained turn
+context, an execution fence, or the server `chat_execution_enabled` cutover is
+open. Closing rollout cannot downgrade existing context. A service-only route
+read exposes this single boolean under owner/deletion locks; it is not mutation
+or execution permission. Public legacy Insight admission rechecks the condition
+under the same locks, preserving ordinary unenrolled replay but holding enrolled
+legacy turns, including old turns without snapshots.
+
+Quota commit takes subject locks before the quota core, closing the interval
+between legacy admission and enrollment. Immutable-required commits need the
+matching original execution fence, bound context and consumed dispatch marker.
+Generic stale recovery returns false for these observations. Other chat families
+retain their original behavior. Enrollment now takes the matching Field Chat
+advisories before its ingestion lock and holds if an un-fenced, committed legacy
+request lacks its exact deterministic assistant receipt. This protects the
+window where an old worker already committed quota before enrollment began. Once
+the receipt exists, enrollment may proceed without retroactively inventing
+context for the old turn.

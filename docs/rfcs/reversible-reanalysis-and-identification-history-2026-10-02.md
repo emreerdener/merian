@@ -3440,3 +3440,30 @@ error gates pass with no new findings (existing 103 security and 79 performance
 warnings remain). The initial catalog fixture expected the wrong consent error
 and a test fetch closure needed its redundant async removed; both were corrected
 before the final complete run. No Swift or deployed handler import changed.
+
+### Protected chat routing and legacy race closure — October 6, 2026
+
+The funded context adapter now freezes original request/reservation identities,
+distinguishes returned replay, and permits only exact read recovery after an
+unknown write. Server-owned routing precedes mutable send work and holds
+immutable-required sends until bounded execution is connected. SQL fences old
+admission, quota commit and stale rescue independently of handler version.
+Enrollment waits for exact assistant evidence for already-committed legacy
+attempts; it does not invent historical prompt snapshots.
+
+The implementation keeps private generic cores inaccessible to API roles and
+retains public signatures. Unknown route/recovery cannot select legacy
+execution, refund or a successor. All activation gates stay false. Atomic
+deterministic refusal and exact completion recovery, bounded provider execution,
+native durable send tickets and integrated qualification remain open.
+
+Validation passed 2,853 backend tests / 425 steps, 110 SQL catalogs / 1,705
+assertions, 422 migration contracts and three new enrollment/dispatch
+concurrency cases. The final focused rerun also proves SQL/TypeScript
+deterministic assistant UUID parity. Full Supabase tooling, all 116 isolated
+endpoint configurations, DTO21, docs26, lint/format and Markdown passed. Schema
+lint is clean and the 321-routine privilege audit has zero violations. Advisor
+error gates pass with no new chat findings. Independent review is clear. One
+catalog's old deletion error expectation was corrected for the earlier subject
+fence before the final fresh-reset complete run. No Swift changed; native tests
+were not repeated.

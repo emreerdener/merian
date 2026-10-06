@@ -450,3 +450,22 @@ retry, refund or call the provider. Generic finalizer success is not permission.
 The future HTTP owner must retain owner/deletion/consent checks, recovery-first
 ordering, final saved context and a qualified shared deadline. Generic
 stale-chat recovery must never reopen protected work.
+
+### Server routing and legacy boundary
+
+`sendRoute.ts` performs a bounded, retry-disabled owner/scan route read before
+all mutable send work. The server requires immutable context for enrolled or
+previously protected observations and for the execution cutover; client fields
+cannot opt out. Until the bounded execution owner is connected, the handler
+returns `field_chat_context_required` for that route and holds unknown reads.
+SQL independently fences existing generic admission, quota commit and stale
+rescue, including old deployed handlers. Enrollment waits for the exact reply of
+any already-committed legacy attempt. See the
+[storage contract](../../../../docs/backend-and-data/04-database-schema.md#legacy-insight-admission-and-enrollment-boundary).
+
+`protectedContextAdmission.ts` is the separate funding-bound adapter. It retains
+the original quota pair, marks returned replay explicitly, and allows only one
+read after unknown admission. Read recovery never authorizes dispatch or refund.
+This prepared adapter is not yet the HTTP execution owner. Deterministic safety
+refusals will consume a chat slot without provider quota and require atomic
+question/context/reply persistence before that protected route is enabled.

@@ -14605,3 +14605,33 @@ responses contain no reusable lease capability. Transport, cancellation, server
 error or decoding uncertainty holds the request and never authorizes a provider
 call, successor or refund. The adapter is not connected to the HTTP handler yet;
 all gates stay false and no public/native wire changes in this slice.
+
+### Protected Insight routing and funded context binding
+
+`get_insight_chat_send_route(owner, scan)` is service-only and returns exactly
+`{requires_context: boolean}`. The handler reads it for sends before mutable
+scan, entitlement or quota work; client ticket omission cannot select legacy
+behavior. Unknown/malformed routing holds with `field_chat_context_unavailable`.
+Until the bounded immutable execution owner is connected, required-context sends
+return 503 `field_chat_context_required`. No protected provider execution is
+enabled. Ordinary unenrolled legacy sends remain available when execution
+rollout is off.
+
+The existing public `reserve_field_chat_send` also enforces this boundary in
+Postgres, covering old deployed handlers and races after route lookup. Generic
+Insight quota commit is fenced again after admission; stale rescue cannot reopen
+protected work. `enroll_owned_observation_history` can return 55000
+`analysis_history_chat_in_progress` for a committed legacy attempt without its
+exact assistant receipt. Retrying enrollment cannot fabricate that receipt or
+release provider quota. Existing enrollment replay remains historical.
+
+`protectedContextAdmission.ts` calls only the funding-bound nine-argument
+`reserve_protected_insight_chat_send_with_context` RPC. It freezes the full
+original request and reservation/lease pair, parses the existing closed
+five-column response, and labels replay separately from fresh admission. Unknown
+writes allow at most one exact context read: recovered or absent context grants
+no dispatch permission, new write or refund. Caller cancellation bounds each
+five-second request, with automatic retry disabled. The earlier unfunded adapter
+remains separate for a future atomic deterministic refusal path; it cannot admit
+a provider-backed turn. An unknown or partially saved refusal must never become
+a provider call.

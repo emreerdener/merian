@@ -892,3 +892,19 @@ replies stay held with no reusable permission. Protected HTTP/native wiring and
 bounded runtime qualification remain necessary before this gate may be
 considered for activation. No current migration, local test, or prepared RPC
 authorizes activation or deployment.
+
+The legacy Insight boundary now uses private admission/finalizer/stale-recovery
+cores without service-role execute grants. Public wrappers preserve exact
+signatures and acquire subject locks before quota locks. The only new exposed
+routine is the service-only owner/deletion-fenced route read. Existing SQL
+snapshot owners invoke the private admission core directly; no API-supplied mode
+bypasses the fence. The matching enrollment barrier holds unknown committed
+legacy work until its exact assistant receipt exists.
+
+The new Insight handler requires the forward routing migration before rollout; a
+missing or unknown routing RPC fails closed rather than selecting legacy. Its
+source-derived Field Chat bundle identity is regenerated. Immutable-required
+HTTP sends remain explicitly unavailable until bounded recovery/execution and
+atomic local-refusal completion are connected and qualified. These source
+changes do not authorize applying migrations, activating either chat gate or
+deploying the Function.

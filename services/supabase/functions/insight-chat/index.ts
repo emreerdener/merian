@@ -1,4 +1,5 @@
 import { Type } from "@google/genai";
+import { insightChatRequiresContext } from "./sendRoute.ts";
 import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
 import { requireUuid } from "../_shared/explore.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
@@ -231,6 +232,33 @@ Deno.serve((req: Request) =>
 
     const action = normalizeAction(parsedBody.action);
     const scanId = requireUuid(parsedBody.scan_id, "scan_id").toLowerCase();
+    if (action === "send") {
+      // Until the bounded immutable execution owner is connected, protected
+      // sends hold here. Neither missing client fields nor a closed rollout
+      // may select the mutable legacy path.
+      try {
+        if (
+          await insightChatRequiresContext(supabaseAdmin, {
+            ownerId: user.id,
+            scanId,
+          }, req.signal)
+        ) {
+          return publicErrorResponse(
+            req,
+            503,
+            "field_chat_context_required",
+            "Field Chat for this identification is not available yet.",
+          );
+        }
+      } catch {
+        return publicErrorResponse(
+          req,
+          503,
+          "field_chat_context_unavailable",
+          "Field Chat is temporarily unavailable. Please try again later.",
+        );
+      }
+    }
     const sendsToday = await countUserSendsToday(user.id, supabaseAdmin);
 
     const scan = await fetchOwnedScan(user.id, scanId, supabaseAdmin);
