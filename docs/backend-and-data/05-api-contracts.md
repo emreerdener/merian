@@ -12300,6 +12300,30 @@ scientific allowlisting, and a private-bucket/credential audit with real R2 race
 evidence. No public-CDN URL, staging URL, signed URL or caller-nominated key can
 stand in for a durable protected-media receipt.
 
+## Prepared private-evidence cleanup RPCs
+
+The separate `private_evidence_erasure_enabled` gate starts false. Only a
+service caller may execute `retire_expired_observation_evidence()` and
+`claim_observation_evidence_erasure()`. Retirement returns an integer from zero
+to five: one exact expired unbound cohort, or one legacy noncohort receipt.
+Discovery and the locked recheck exclude intent/result-owned evidence; invalid
+or mismatched immutable cohorts are held while later eligible work can progress.
+The original cohort descriptor and expiry survive receipt cleanup, so retrying
+an expired analysis cannot allocate new object keys. Parent/account deletion
+continues to remove private descriptors and enqueue opaque obligations.
+
+Claim returns SQL null when disabled or no obligation is due, otherwise exactly
+`object_id`, `claim_token`, and `claim_expires_at`. Its one-minute lease is
+never extended.
+`finish_observation_evidence_erasure(p_object,p_claim,p_success)` returns a
+boolean for the original unexpired token. It remains callable after the gate
+closes; successful settlement still requires the trusted caller to PUT and
+HEAD-verify the permanent empty marker. These are service-only SQL preparations,
+not a connected private-erasure HTTP endpoint or hosted schedule. The eventual
+execution owner must process one marker per shared deadline, reserve settlement
+time, and leave uncertain acknowledgement for durable retry. Public-copy cleanup
+cannot drain this separate private outbox.
+
 ## Prepared protected photo analyses
 
 `20261003063309_bind_protected_analysis_evidence.sql` connects private ready

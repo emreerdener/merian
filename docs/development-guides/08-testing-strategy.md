@@ -322,6 +322,17 @@ PostgreSQL blocking; R2 operations remain mocked. No hosted storage, scheduled
 worker, admitted intent or native media manifest is covered. Activation requires
 the separate real-R2 evidence in the release hold.
 
+`observation_evidence_erasure_worker.sql` covers the separate default-off
+service cleanup boundary: atomic ready/unready and partial-cohort retirement,
+fixed descriptor retention, same-ID replay denial, malformed/mismatched
+candidate starvation, single legacy-receipt retirement, intent/result retention,
+deletion and lease settlement after gate rollback. The dedicated
+`observationEvidenceErasureConcurrencyDb.test.ts` verifies real lock ordering
+for duplicate retirement, retirement versus replay, deletion, admission, and
+independent claims skipping an already locked obligation. These tests validate
+SQL preparation; they do not prove a connected private-erasure HTTP worker, real
+storage markers, or recurring hosted cleanup.
+
 The candidate workflow explicitly includes the focused tests. Its migration
 contract script discovers `*Migration*.test.ts`, including the history file; the
 disposable catalog runner discovers all SQL test files, including the history

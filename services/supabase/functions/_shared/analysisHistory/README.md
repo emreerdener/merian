@@ -143,6 +143,16 @@ distinguishes sequential transaction assertions from the concurrency and device
 acceptance still required by the
 [activation hold](../../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
 
+The private-evidence SQL cleanup facades now independently gate new retirement
+and claims with `private_evidence_erasure_enabled=false`. One locked retirement
+removes a whole exact expired unbound cohort (retaining its immutable
+descriptor) or one noncohort receipt. Claims expose only opaque
+object/token/expiry, and finish accepts the original unexpired token even after
+the gate closes. No private-erasure execution endpoint or schedule is connected
+yet; the existing batch helper does not provide the shared deadlines required
+for that owner. See the
+[cleanup RPC contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-private-evidence-cleanup-rpcs).
+
 ## Prepared protected evidence storage
 
 `evidence.ts` and `evidenceStorage.ts` prepare a separate private-bucket

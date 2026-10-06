@@ -7230,6 +7230,26 @@ admission compares the ordered image subsequence with the cohort; an intent
 insertion guard prevents cleaned photo identities becoming description-only
 requests.
 
+### Prepared private-evidence cleanup admission
+
+`20261006222120_prepare_private_evidence_erasure_worker.sql` adds the
+independent, default-false `private_evidence_erasure_enabled` gate and three
+allowlisted service-only RPCs. `retire_expired_observation_evidence` discovers
+one expired, unbound cohort or one noncohort receipt before taking canonical
+owner, observation and analysis locks. It rechecks membership and authority,
+deletes all extant cohort receipts atomically, and retains the immutable
+descriptor and original expiry. Empty, malformed, mismatched and
+intent/result-owned cohorts cannot block later eligible cleanup. The existing
+deletion trigger queues each opaque erasure obligation.
+
+`claim_observation_evidence_erasure` returns only opaque object ID, claim token
+and the original one-minute claim expiry. `finish_observation_evidence_erasure`
+accepts only the same unexpired token and remains available after gate closure.
+Private tables and primitives remain ungranted. These SQL facades prepare a
+bounded execution owner; no private-erasure Edge worker or schedule is connected
+by this migration. See the
+[API boundary](05-api-contracts.md#prepared-private-evidence-cleanup-rpcs).
+
 ### V58 qualified queued reanalysis storage
 
 V58 adds `OfflineQueuedScan.workKindRaw` (default `ordinary`) and nullable
