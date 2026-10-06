@@ -3062,3 +3062,15 @@ teardown invalidates nested controls and unfinished review blocks selection and
 reanalysis. Confirmation labels come from immutable primary evidence. Ordinary
 installation remains disabled. Selected-Insight review, immutable publication
 consent and integrated operational qualification remain open.
+
+### October 6: selected-review presentation baseline
+
+Prepared selected-result review now shares the history Session and exact review
+admission owner. The Shell captures a frozen owner, selected analysis and global
+revision only after a successful historical presentation load. Same-ID metadata
+refresh and collection changes preserve the displayed baseline; a fresh matching
+immutable ticket is required before opening the capability. Account, deletion,
+selection and authority changes prevent new admission; an unchanged owner scope
+can still read a completed receipt. This is inert preparation; selected
+toolbar/nested action wiring, publication consent UI and operational
+qualification remain open, and all activation gates remain false.

@@ -2671,3 +2671,15 @@ review controls. Fresh unfinished-review checks block restoration, selection
 Undo and reanalysis. All ordinary access and activation gates remain disabled;
 selected-Insight review and publication consent remain separate integration
 work.
+
+### Prepared selected-result review baseline
+
+The default-off App composition also prepares an owner-bound selected-result
+review capability using the existing history Session. Its toolbar snapshot
+records the exact selected analysis and revision only after loading the saved
+parent into the presentation. Metadata refreshes and collection edits cannot
+adopt a newer identification while an older result remains visible. Opening the
+capability requires that frozen baseline and its immutable review ticket still
+match fresh local authority, with no pending selection. It neither enrolls nor
+dispatches review and holds no idle Auth lease. Selected toolbar and nested
+review control integration remains pending; ordinary access stays disabled.

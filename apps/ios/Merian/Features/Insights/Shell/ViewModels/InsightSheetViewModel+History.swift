@@ -8,7 +8,7 @@ extension InsightSheetViewModel {
         let context = ModelContext(container)
         guard let record = try? ObservationHistorySyncService.enrolledScan(scanId, context: context),
               record.analysisOwnerAccountID?.caseInsensitiveCompare(dependencies.authenticationSnapshot().accountID ?? "") == .orderedSame else { return }
-        inferenceEngine.load(from: record)
-        bindPresentedRecord(record, modelContext: context)
+        let baseline = loadSelectedReviewProjection(record, inferenceEngine: inferenceEngine)
+        bindPresentedRecord(record, modelContext: context, selectedReviewBaseline: baseline)
     }
 }

@@ -309,3 +309,31 @@ wiring constructs no live bundle and enables no UI or background work.
 If any base access is already supplied, including a Debug fixture from `.live`,
 the entire base group remains authoritative. The overlay cannot mix fixture and
 prepared accesses.
+
+## Prepared selected-identification review
+
+`SelectedAnalysisReviewAccess` reuses the history Session and its injected
+review owner. Opening this capability is a local, owner-fenced read: it neither
+enrolls the observation nor sends a review. The App composition prepares it
+alongside history, status and reanalysis; ordinary installation remains
+disabled. Toolbar and nested review actions still require their separate
+integration.
+
+`SelectedAnalysisReviewBaseline` freezes the observation, owner, selected
+analysis and global revision into the toolbar snapshot only after the exact
+record has loaded into the inference presentation. A rejected Auth-fenced load
+cannot create that baseline. A same-scan metadata lookup or collection edit
+preserves the already displayed baseline instead of adopting newer, unseen
+authority. A protected initial presentation without a baseline deliberately
+reloads the exact record; an ordinary unenrolled presentation retains its
+existing hydration. Acknowledged history refresh similarly reloads the
+reconciled parent projection.
+
+Opening selected review requires the frozen selection and revision to match a
+fresh local context, idle selection, and the exact cached immutable result and
+review ticket. Account loss or deletion invalidates the session. Selection or
+authority changes invalidate new admission while owner-bound receipt recovery
+remains available. The host must use scope validity for receipt observation and
+exact ticket freshness for a new tap; acknowledged parent refresh is the only
+projection bridge. The capability holds no idle Auth lease and cannot substitute
+the current selection for the displayed target.

@@ -16,9 +16,12 @@ final class IdentificationHistoryReviewModel {
     private var observedOperation: UUID?
     private let access: IdentificationHistoryReviewAccess
     private let isCurrent: () -> Bool
+    private let canStartReview: () -> Bool
 
-    init(ticket: ObservationAnalysisReviewTicket, access: IdentificationHistoryReviewAccess, isCurrent: @escaping () -> Bool) {
+    init(ticket: ObservationAnalysisReviewTicket, access: IdentificationHistoryReviewAccess, isCurrent: @escaping () -> Bool,
+         canStartReview: (() -> Bool)? = nil) {
         self.ticket = ticket; self.access = access; self.isCurrent = isCurrent
+        self.canStartReview = canStartReview ?? isCurrent
         refresh()
     }
     var canSubmit: Bool { !isClosed && !blocked && request == nil && terminalMessage == nil }
@@ -27,6 +30,11 @@ final class IdentificationHistoryReviewModel {
     /// Freeze and persist synchronously in the button callback, before any wake.
     func submit(_ decision: ObservationAnalysisReviewRequest.Decision) {
         guard current(), canSubmit else { return }
+        guard canStartReview() else {
+            blocked = true
+            message = "This identification changed. Open it again before making a new review."
+            return
+        }
         do {
             guard try access.pending() == nil else { refresh(); return }
             if case let .undo(rejectionID) = decision {
@@ -88,7 +96,12 @@ final class IdentificationHistoryReviewModel {
             } else if pending != nil {
                 message = "Another review for this scan is pending. Resolve it before making another change."
             }
-            if !blocked { undoOperation = try access.undo(ticket) }
+            if !blocked {
+                if canStartReview() { undoOperation = try access.undo(ticket) } else {
+                    blocked = true
+                    message = "This identification changed. Open it again before making a new review."
+                }
+            }
         } catch {
             blocked = true; undoOperation = nil
             if !canRetrySave { message = "Review status is unavailable. Refresh this preview before making a change." }
