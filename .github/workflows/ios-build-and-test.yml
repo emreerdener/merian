@@ -921,6 +921,7 @@ jobs:
             "-seedPrivateScanMapFlow" \
             "-seedIdentificationHistory" \
             "-seedSavedReanalysisFailure" \
+            "-seedPublicationConsentChooser" \
             "-seedWhatsNewLaunch" \
             "ui_test_queued_audio_handoff" \
             "ui_test_queued_retry_attention" \

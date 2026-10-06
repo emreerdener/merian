@@ -2747,3 +2747,11 @@ two entry points cannot replace an uncertain sharing choice. Protected scans
 with unavailable access do not fall back to legacy publication. The shell admits
 a chooser only when its presentation and dismissal slots are idle, so an earlier
 sheet's delayed dismissal cannot close a newer chooser.
+
+The Debug-only photo-consent UI scenario uses real enrolled V2 storage and the
+production prepare/stage path with strict synthetic external boundaries. It
+checks empty-selection admission, explicit photo order, private preview and
+existing-request occupancy after reopening from selected Insight and a different
+History result. Its local wake checks the durable request and unchanged
+selection; it never calls a provider or enables rollout. Execution evidence is
+recorded separately from this fixture contract.

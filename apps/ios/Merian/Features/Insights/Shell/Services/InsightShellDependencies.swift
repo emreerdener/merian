@@ -141,6 +141,11 @@ struct InsightShellDependencies {
         var result = Self(
             appEvents: container.appEventPublisher.publisher,
             authenticationSnapshot: {
+                #if DEBUG
+                if UITestSeedCoordinator.publicationConsentEnabled {
+                    return .init(isAuthenticated: true, accountID: PublicationConsentUIFixture.owner.uuidString)
+                }
+                #endif
                 let manager = SupabaseManager.shared
                 return InsightAuthenticationSnapshot(
                     isAuthenticated: manager.isAuthenticated,
@@ -236,7 +241,12 @@ struct InsightShellDependencies {
             }
         )
         #if DEBUG
-        result.historyAccess = UITestSeedCoordinator.identificationHistoryAccess
+        if UITestSeedCoordinator.publicationConsentEnabled, let fixture = UITestSeedCoordinator.publicationConsentFixture {
+            result.selectedReviewAccess = .prepared(cloud: fixture.cloud, session: fixture.session)
+            result.historyAccess = .prepared(cloud: fixture.cloud, session: fixture.session)
+        } else {
+            result.historyAccess = UITestSeedCoordinator.identificationHistoryAccess
+        }
         result.savedReanalysisAccess = UITestSeedCoordinator.savedReanalysisFailureAccess
         #endif
         return result

@@ -215,7 +215,8 @@ enum UITestSeedCoordinator {
     static func prepareIfNeeded(container: ModelContainer) {
         guard isEnabled else { return }
         let arguments = ProcessInfo.processInfo.arguments
-        guard arguments.contains("-seedAchievementDetailFlow") ||
+        guard publicationConsentEnabled ||
+                arguments.contains("-seedAchievementDetailFlow") ||
                 arguments.contains(achievementDeletionRefreshArgument) ||
                 arguments.contains(queuedAudioHandoffArgument) ||
                 arguments.contains(queuedRetryPresentationArgument) ||
@@ -234,7 +235,15 @@ enum UITestSeedCoordinator {
             try context.delete(model: ActiveOfflineQueuedScanGoalHint.self)
             try context.delete(model: PendingCloudDeletionTask.self)
 
-            if arguments.contains("-seedAchievementDetailFlow") {
+            if publicationConsentEnabled {
+                try context.delete(model: OfflineJobRecord.self)
+                try context.delete(model: LocalAnalysisRecord.self)
+                try context.delete(model: LocalAnalysisStateRecord.self)
+                let fixture = try PublicationConsentUIFixture(container: container)
+                try fixture.seed(context: context)
+                publicationConsentFixture = fixture
+                OfflineQueueManager.shared.unsyncedItemsCount = 0
+            } else if arguments.contains("-seedAchievementDetailFlow") {
                 for record in achievementDetailFlowRecords() {
                     context.insert(record)
                 }
@@ -322,7 +331,7 @@ enum UITestSeedCoordinator {
                     .nonBiologicalScans,
                     source: .debug
                 )
-            } else if arguments.contains(privateScanMapArgument) {
+            } else if arguments.contains(privateScanMapArgument) || publicationConsentEnabled {
                 AppDIContainer.shared.appRouteCoordinator.request(
                     .scansLibrary,
                     source: .debug
@@ -793,7 +802,7 @@ enum UITestSeedCoordinator {
         return imageData
     }
 
-    private static func uiTestPNGData() throws -> Data {
+    static func uiTestPNGData() throws -> Data {
         guard let imageData = Data(base64Encoded:
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
         ) else {

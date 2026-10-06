@@ -3198,3 +3198,16 @@ parent retains ambiguous acceptance across both entry points. No new session,
 selection substitution, operation replacement or legacy fallback is introduced
 for protected scans. Ordinary access and all activation gates remain disabled;
 dedicated consent UI automation and operational qualification remain open.
+
+### October 6: dedicated photo-consent UI regression
+
+A Debug-only fixture now seeds decoded V2 history and selected authority through
+production storage helpers. Its synthetic external boundaries feed the real
+consent preparation, private-photo verification and durable staging paths. The
+focused UI case passed with explicit reverse-order selection, disabled empty
+consent, an exact private preview and one persisted request. Reopening from both
+selected Insight and another historical result displays the original pending
+request without permitting replacement. A retained screenshot confirms the
+historical pending state. The runtime audit lists this selector, and the Release
+binary audit excludes its launch marker. This evidence does not activate the
+feature or replace the remaining operational qualification.

@@ -399,6 +399,13 @@
         "IdentificationHistoryUITests"
       ],
       "owner": "apps/ios/MerianUITests/IdentificationHistoryUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testExplicitPhotoOrderPersistsAndReopeningCannotReplaceRequest",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
     }
   ],
   "performance": [

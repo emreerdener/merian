@@ -203,3 +203,16 @@ never opens a replacement session or substitutes a newer selection. The native
 continuation as History. Protected scans with missing access remain withheld;
 unenrolled scans retain their fenced legacy route. Closing the sheet clears its
 private presentation, while an uncertain Acceptance remains parent-owned.
+
+### Photo-consent UI verification
+
+The Debug-only `-seedPublicationConsentChooser` scenario seeds two decoded V2
+results and their selected authority in SwiftData. Its retained fixture supplies
+strict synthetic account, history, preflight, recovery and private-photo
+boundaries; the visible chooser uses production preparation and durable staging.
+The UI scenario chooses the second photo before the first, previews exact
+private evidence, saves, then reopens from selected Insight and a different
+History result. The fixture's local wake verifies one durable request with that
+order, no notes and unchanged selection. It never schedules delivery or enables
+ordinary access. The selector is owned by
+`scripts/config/ios-runtime-audit.json`.

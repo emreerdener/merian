@@ -12,6 +12,16 @@ struct ModelsIntegrationArchitectureTests {
             let enrollmentOwner = source.relativePath == "Core/Data/AnalysisHistory/ObservationHistoryEnrollmentService.swift"
             let stateModel = source.relativePath == "Models/ActiveSchema/LocalAnalysisStateRecord.swift"
                 || source.relativePath == "Models/Schema/SchemaV57ScanSnapshots.swift"
+            let consentFixture = source.relativePath == "App/UITesting/UITestSeedCoordinator+PublicationConsent.swift"
+            if consentFixture {
+                // The sole synthetic enrollment seed is excluded from Release;
+                // immutable children and authority still use production writers.
+                #expect(source.contents.hasPrefix("#if DEBUG\n"))
+                #expect(source.contents.hasSuffix("#endif\n"))
+                #expect(code.contains("isEnabled && ProcessInfo.processInfo.arguments.contains(\"-seedPublicationConsentChooser\")"))
+                #expect(code.contains("ObservationHistorySyncService.insert("))
+                #expect(code.contains("ObservationHistoryStateSyncService.apply("))
+            }
             let cacheOwner = source.relativePath == "Core/Data/AnalysisHistory/ObservationHistoryStateCache.swift"
             if !cacheOwner {
                 #expect(code.range(of: #"LocalAnalysisStateRecord\s*(?:\(|\.init\b)"#, options: .regularExpression) == nil,
@@ -43,6 +53,8 @@ struct ModelsIntegrationArchitectureTests {
             for field in ["analysisRecords", "selectedAnalysisID", "analysisOwnerAccountID",
                           "observationStateRevision", "analysisSelectionInitialized"] {
                 if admissionOwner && field == "analysisRecords" { continue }
+                if consentFixture && ["selectedAnalysisID", "analysisOwnerAccountID",
+                                      "observationStateRevision", "analysisSelectionInitialized"].contains(field) { continue }
                 if enrollmentOwner && ["selectedAnalysisID", "analysisOwnerAccountID", "observationStateRevision"].contains(field) { continue }
                 if (stateOwner || stateModel) && field == "observationStateRevision" { continue }
                 if stateOwner && field == "selectedAnalysisID" { continue }
@@ -203,7 +215,10 @@ struct ModelsIntegrationArchitectureTests {
         // Optional stored properties default to nil in both spellings.
         #expect(shell.range(of: #"(?m)^    var historyAccess: IdentificationHistoryAccess\?(?: = nil)?$"#,
                             options: .regularExpression) != nil)
-        #expect(shell.contains("#if DEBUG\n        result.historyAccess = UITestSeedCoordinator.identificationHistoryAccess\n        result.savedReanalysisAccess = UITestSeedCoordinator.savedReanalysisFailureAccess\n        #endif"))
+        #expect(shell.contains("#if DEBUG\n        if UITestSeedCoordinator.publicationConsentEnabled, let fixture = UITestSeedCoordinator.publicationConsentFixture {\n            result.selectedReviewAccess = .prepared(cloud: fixture.cloud, session: fixture.session)\n            result.historyAccess = .prepared(cloud: fixture.cloud, session: fixture.session)\n        } else {\n            result.historyAccess = UITestSeedCoordinator.identificationHistoryAccess\n        }\n        result.savedReanalysisAccess = UITestSeedCoordinator.savedReanalysisFailureAccess\n        #endif"))
+        let seed = try source(at: "apps/ios/Merian/App/UITesting/UITestSeedCoordinator.swift")
+        #expect(seed.contains("if publicationConsentEnabled {"))
+        #expect(seed.contains("let fixture = try PublicationConsentUIFixture(container: container)\n                try fixture.seed(context: context)"))
         #expect(shell.range(of: #"(?m)^    var reanalysisStatusAccess: ReanalysisStatusAccess\?(?: = nil)?$"#,
                             options: .regularExpression) != nil)
         #expect(!shell.contains("result.reanalysisStatusAccess ="))
