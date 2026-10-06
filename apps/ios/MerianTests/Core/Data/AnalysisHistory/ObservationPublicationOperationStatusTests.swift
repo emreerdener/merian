@@ -16,6 +16,14 @@ struct ObservationPublicationOperationStatusTests {
                         observationID: fixture.observation, analysisID: analysis ?? fixture.analysis,
                         container: container, isCurrent: current)
     }
+    func target(_ container: ModelContainer, owner: UUID? = nil, current: () -> Bool = { true }) throws -> Status? {
+        try Status.readTarget(ownerID: owner ?? fixture.owner, observationID: fixture.observation,
+                              container: container, isCurrent: current)
+    }
+    func stageAnother(_ container: ModelContainer, analysis: UUID? = nil) throws {
+        _ = try Store.stage(fixture.request(operationID: UUID(), analysisID: analysis), ownerID: fixture.owner,
+                            container: container, isCurrent: { true })
+    }
     func job(_ context: ModelContext) throws -> OfflineJobRecord {
         try #require(try context.fetchOfflineJob(id: Store.jobID(fixture.operation, observationID: fixture.observation)))
     }
@@ -26,8 +34,15 @@ struct ObservationPublicationOperationStatusTests {
     @Test func onlyExactAbsenceInsideValidScopeReturnsNil() throws {
         let container = try fixture.container()
         #expect(try read(container) == nil)
+        #expect(try target(container) == nil)
+        #expect(throws: (any Error).self) { try target(container, owner: UUID()) }
+        #expect(throws: (any Error).self) { try target(container, current: { false }) }
+        var targetChecks = 0
+        #expect(throws: (any Error).self) { try target(container, current: { targetChecks += 1; return targetChecks == 1 }) }
         _ = try fixture.stage(container)
         #expect(try read(container, operation: UUID()) == nil)
+        #expect(try target(container)?.operationID == fixture.operation)
+        #expect(throws: (any Error).self) { try stageAnother(container) }
         #expect(throws: (any Error).self) { try read(container, owner: UUID()) }
         #expect(throws: (any Error).self) { try read(container, analysis: UUID()) }
         #expect(throws: (any Error).self) { try read(container, current: { false }) }
@@ -41,6 +56,9 @@ struct ObservationPublicationOperationStatusTests {
         _ = try Store.acknowledge(fixture.receipt(status), expected: intent, at: fixture.now,
                                  container: container, isCurrent: { true })
         let terminal = status == .admitted || status == .needsAction
+        #expect(throws: (any Error).self) { try stageAnother(container) }
+        #expect(try target(container) == read(container))
+        #expect(try fixture.stage(container).receipt?.status == status)
         #expect(try read(container)?.phase == (terminal ? .complete(status) : .reconciling))
         let jobs = try Store.candidates(container: container, ownerID: fixture.owner)
         #expect(jobs.count == (terminal ? 0 : 1))
@@ -65,6 +83,9 @@ struct ObservationPublicationOperationStatusTests {
         scan.selectedAnalysisID = UUID().uuidString.lowercased(); scan.observationStateRevision = (scan.observationStateRevision ?? 0) + 1
         try context.save()
         #expect(try read(container)?.phase == .needsAttention)
+        #expect(try target(container)?.phase == .needsAttention)
+        #expect(throws: (any Error).self) { try stageAnother(container) }
+        #expect(try fixture.stage(container).identity.operationID == fixture.operation)
         #expect(try Store.candidates(container: container, ownerID: fixture.owner).isEmpty)
         #expect(try Store.claim(intent, at: fixture.now.addingTimeInterval(999), container: container, isCurrent: { true }) == nil)
     }
@@ -96,6 +117,8 @@ struct ObservationPublicationOperationStatusTests {
         }
         try context.save()
         #expect(throws: (any Error).self) { try read(container) }
+        #expect(throws: (any Error).self) { try target(container) }
+        #expect(throws: (any Error).self) { try stageAnother(container) }
         #expect(try Store.candidates(container: container, ownerID: fixture.owner).isEmpty)
         #expect(throws: (any Error).self) {
             try Store.claim(intent, at: fixture.now.addingTimeInterval(999), container: container, isCurrent: { true })
@@ -126,6 +149,8 @@ struct ObservationPublicationOperationStatusTests {
         }
         try context.save()
         #expect(throws: (any Error).self) { try read(container) }
+        #expect(throws: (any Error).self) { try target(container) }
+        #expect(throws: (any Error).self) { try stageAnother(container) }
     }
 
     @Test(arguments: [false, true])
@@ -172,4 +197,42 @@ struct ObservationPublicationOperationStatusTests {
             try Store.claim(intent, at: Date(timeIntervalSince1970: 32_503_680_001), container: container, isCurrent: { true })
         }
     }
+    @Test func historicalTargetRemainsOriginalAfterAnotherChildIsSelected() throws {
+        let container = try fixture.container(); _ = try fixture.stage(container)
+        let context = ModelContext(container), other = UUID()
+        let scan = try #require(try context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        let child = try LocalAnalysisRecord(analysisID: other, observationID: scan.id,
+            ownerAccountID: fixture.owner, completedAt: fixture.now, resultSnapshotData: Data("{}".utf8))
+        context.insert(child); scan.analysisRecords?.append(child)
+        scan.selectedAnalysisID = other.uuidString.lowercased(); try context.save()
+        #expect(try target(container)?.analysisID == fixture.analysis)
+        #expect(throws: (any Error).self) { try stageAnother(container, analysis: other) }
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
+    }
+
+    @Test func legacyDuplicatesRequireExactRecoveryAndCannotAdmitAnother() throws {
+        let container = try fixture.container(), original = try fixture.stage(container)
+        let context = ModelContext(container)
+        let legacy = try ObservationPublicationIntent(request: fixture.request(operationID: UUID()), ownerID: fixture.owner)
+        context.insert(OfflineJobRecord(id: Store.jobID(legacy.identity.operationID, observationID: fixture.observation),
+            kind: .observationPublicationSync, subjectId: fixture.observation.uuidString.lowercased(), priority: 65,
+            metadataJSON: String(decoding: try legacy.storedData(), as: UTF8.self)))
+        try context.save()
+        #expect(throws: (any Error).self) { try target(container) }
+        #expect(throws: (any Error).self) { try stageAnother(container) }
+        #expect(try read(container)?.operationID == fixture.operation)
+        #expect(try fixture.stage(container).storedData() == original.storedData())
+    }
+
+    @Test(arguments: [false, true])
+    func damagedNamespaceWithMatchingSubjectCannotLookVacant(uppercase: Bool) throws {
+        #expect(fixture.observation.uuidString.uppercased() != fixture.observation.uuidString.lowercased())
+        let container = try fixture.container(), context = ModelContext(container)
+        context.insert(OfflineJobRecord(id: "damaged-publication-key", kind: .observationPublicationSync,
+            subjectId: uppercase ? fixture.observation.uuidString.uppercased() : fixture.observation.uuidString.lowercased(), priority: 65, metadataJSON: "{}"))
+        try context.save()
+        #expect(throws: (any Error).self) { try target(container) }
+        #expect(throws: (any Error).self) { try fixture.stage(container) }
+    }
+
 }

@@ -1113,3 +1113,33 @@ Deno.test("owner reanalysis preflight binds child before advisory recipient read
       .test(sql),
   );
 });
+
+Deno.test("publication target guard preserves exact replay and deterministic private recovery", async () => {
+  const sql = await migration(
+    "20261006033539_guard_observation_publication_target",
+  );
+  const guard = sql.indexOf(
+    "IF EXISTS(SELECT 1 FROM internal.observation_publication_operations",
+  );
+  assert(sql.indexOf("RETURN saved.receipt") < guard);
+  assert(guard < sql.indexOf("IF (SELECT publication_operation_enabled"));
+  assertStringIncludes(sql, "WHERE observation_id=observation");
+  assertStringIncludes(sql, "WHERE observation_id=p_observation LIMIT 2");
+  assertStringIncludes(sql, "pg_catalog.cardinality(operations)<>1");
+  assertStringIncludes(
+    sql,
+    "IF operations IS NULL THEN RETURN pg_catalog.jsonb_build_object('schema_version',1,'operation',NULL)",
+  );
+  assertStringIncludes(
+    sql,
+    "public.read_owned_observation_publication_status(p_owner,p_observation,operations[1])",
+  );
+  assertStringIncludes(sql, "internal.privileged_routine_grants");
+  assert(!sql.includes("ORDER BY"));
+  assert(
+    !sql.includes(
+      "CREATE OR REPLACE FUNCTION internal.prepare_observation_publication_intent",
+    ),
+  );
+  assert(!sql.includes("TO authenticated"));
+});

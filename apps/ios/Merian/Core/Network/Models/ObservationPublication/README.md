@@ -16,6 +16,14 @@ states. Private reasons, media, work tokens and post IDs fail closed. A
 historical `admitted` status is not current visibility or identification
 authority.
 
+`ObservationPublicationTargetRequest` discovers an observation's original
+operation through a separate exact two-field request. Its 4 KiB decoder accepts
+explicit JSON null or the exact five-field status, preserving the remote
+operation and historical analysis. Empty, malformed or private responses are
+never absence. Discovery cannot reconstruct consent, acknowledge a local claim,
+replace a held UUID or assert current visibility. Retained recovery presentation
+remains a separate owner.
+
 `ObservationPublicationConsentRequest` and
 `ObservationPublicationConsentSnapshot` add a separate descriptive preflight for
 an explicit historical analysis. Its exact eight-field response has its own 32
@@ -30,10 +38,13 @@ not prove ready media or select the final cohort.
 bridge, requires the expected owner at dispatch and disables classified-401
 session recovery so Auth-drained work cannot await itself. None of its three
 routes opts into automatic ambiguous-transport replay. Existing platform-route
-discovery retries remain unchanged. The separate durable delivery owner now
-recovers saved publication operations; the prepared foreground consent service
-validates explicit choices before persistence, while ordinary UI remains
-unconnected. This layer never mints operation IDs or calls legacy sharing.
+discovery retries remain unchanged. The fourth, target-only route uses the
+closed observation bridge with a thirty-second timeout and explicitly disables
+transient, 401 and missing-route replay; the general network facade is
+unchanged. The separate durable delivery owner now recovers saved publication
+operations; the prepared foreground consent service validates explicit choices
+before persistence, while ordinary UI remains unconnected. This layer never
+mints operation IDs or calls legacy sharing.
 `ObservationPublicationConsentService` saves the exact chosen 1–6 media before
 delivery, fences account/session changes and rejects stale preflight state. No
 rollout activation.

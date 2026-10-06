@@ -9,7 +9,13 @@ verified user and the quota-address hash from the shared server HMAC boundary.
 HTTP 202 `accepted` means the immutable request is durably saved. It does not
 mean moderation completed, photos became public or a worker was scheduled. Exact
 retries recover the same receipt and original hash under owner/deletion fences;
-changed consent conflicts. Eight new operations per owner per rolling 24 hours
+changed consent conflicts. After exact replay, another UUID for the same
+observation conflicts, including when the original operation needs attention.
+Historical analysis changes do not bypass this observation-wide rule. No
+terminal state automatically permits a replacement. The separate prepared
+service-only target lookup resolves one original operation or fails on legacy
+duplicates; the separate owner-authenticated target endpoint exposes that read
+without admitting work. Eight new operations per owner per rolling 24 hours
 bound intake independently of provider/scan credits. No external work is
 performed. `publication_operation_enabled` defaults false. Native durable
 delivery and service worker owners are prepared behind closed activation gates;

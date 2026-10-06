@@ -3131,3 +3131,27 @@ checks itself after completion, so dismissing one joined sheet cannot poison
 another. This adds no shell slot, idle polling or automatic publication;
 explicit consent UI and rollout qualification remain open and every activation
 gate stays false.
+
+### October 6: observation-wide publication admission recovery
+
+A forward database guard now prevents competing operation UUIDs for one
+observation while retaining exact-request replay first. Community publication is
+scan-wide, so switching historical analyses cannot bypass the guard. All
+retained states, including terminal needs-action, require recovery rather than
+automatic replacement. Existing duplicate admissions remain recoverable by exact
+ID; a new service-only target lookup conflicts on multiple rows instead of
+guessing the latest. Missing/deleted ownership never looks vacant. Catalogs and
+real lock races cover competing IDs, target discovery during admission, deletion
+and historical replay. Native staging mirrors the guard after exact replay, and
+strict local target lookup detects ambiguous or damaged linkage without exposing
+consent. A separate owner-authenticated HTTP target reader now exposes vacancy
+or historical status without admission effects. Native target transport now uses
+strict bounded null-or-status decoding and a fixed owner-bound route with no
+automatic transient, 401 or missing-route retry. Retained recovery presentation
+and consent UI remain open; activation gates remain false.
+
+The target RPC uses an explicit non-null versioned envelope, unwrapped only
+after validation. A real-route regression reproduced the SDK's
+empty-success-to-null ambiguity; empty 200/204 replies now fail closed rather
+than imply vacancy. The public HTTP shape remains null or exact historical
+status.

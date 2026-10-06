@@ -13533,7 +13533,26 @@ status:"accepted", admitted_at}`.
 Accepted means durable intake, not completed moderation, public availability or
 a scheduled worker. No provider quota, scan credit, storage write or post
 creation occurs here. A later execution/status owner must supply the terminal
-result; no native caller is connected yet.
+result. Prepared native delivery exists, while ordinary UI remains disabled.
+
+New operation admission is also observation-wide: after exact UUID replay, any
+existing intake for that observation rejects a different UUID with
+`analysis_history_operation_conflict`. Pending, held, unknown and terminal
+`needs_action` all retain the original identity. A different historical analysis
+is not another publication target. Terminal remediation does not authorize an
+automatic replacement; explicit supersession requires a separate contract. This
+guard is confined to intake, preserving original moderation/copy recovery.
+
+The prepared service-only database lookup
+`read_owned_observation_publication_target(owner, observation)` uses the same
+owner/deletion lock. It always returns an exact non-null
+`{schema_version:1,operation}` envelope: no intake has `operation:null` only for
+an existing owned observation; one intake has the existing five-field status;
+multiple legacy intakes conflict without choosing a latest row. It exposes no
+consent or private evidence. Exact-ID replay remains available for each original
+legacy operation. The separate prepared HTTP target reader is documented below.
+The native reader currently resolves only local occupancy; preflight is not
+proof that no other operation exists.
 
 At most eight new operations per owner are accepted in a rolling 24-hour window.
 This is intake protection, separate from provider and complimentary-credit
@@ -14119,6 +14138,37 @@ cleanup, so failed cleanup depends on the permanent registry and independent
 `erase-publication-photos` worker; no copy claim will recover it. All gates
 remain false. CPU/process-memory qualification and owner/native delivery remain
 pending. This prepared endpoint does not authorize scheduling or deployment.
+
+## Owner publication target recovery
+
+Prepared `POST get-observation-publication-target` accepts only
+`{schema_version:1,observation_id}` within a 1 KiB body. `withEdgeHandler`
+authenticates the owner, and the fixed service repository invokes
+`read_owned_observation_publication_target` with a twelve-second deadline and no
+retry. Success is literal JSON null for an existing owned vacant observation, or
+the unchanged five-field status shape described below. It validates exact keys,
+lowercase identities, schema and closed status values before returning. No
+client-supplied owner, operation, analysis, URL or consent is accepted.
+
+Missing, foreign and deleted observations share opaque 404; duplicate targets
+return 409. Unknown errors and malformed responses return sanitized 503, never
+vacancy. Method/body/auth errors and successful responses all use private
+no-store. The historical analysis may differ from the displayed one; the result
+is neither current authority nor public visibility. No operation or worker is
+created. Existing exact-ID status and its native decoder remain unchanged.
+
+Remote absence is advisory and final admission closes cross-device races. A
+remote status lacks the immutable request fingerprint, so it cannot become a
+synthetic native intent. A locally held losing request after 409 retains its
+original UUID and consent. Explicit remote recovery may display a different
+operation separately, without rebinding, acknowledging or reopening the local
+request. Null or failure after uncertainty never authorizes a successor. The
+prepared native target transport uses a separate exact two-field request and 4
+KiB null-or-status decoder. Empty successful responses cannot mean absence; the
+discovered operation and historical analysis are preserved without becoming
+local consent. Its fixed owner-bound route disables transient, 401 and
+missing-route replay with a thirty-second timeout. Retained recovery
+presentation remains to be connected; all activation gates stay false.
 
 ## Owner publication operation status
 

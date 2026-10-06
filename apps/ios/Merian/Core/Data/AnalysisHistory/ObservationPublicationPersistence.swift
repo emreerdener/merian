@@ -25,12 +25,16 @@ enum ObservationPublicationPersistence {
             guard existingJobs.count <= 1 else { throw IntegrityError.conflict }
             if let existing = existingJobs.first {
                 let saved = try restore(existing)
+                _ = try validatedStatus(existing, intent: saved)
                 guard saved.ownerID == ownerID, saved.identity == request.statusRequest,
                       saved.requestSHA256 == candidate.requestSHA256 else { throw IntegrityError.conflict }
                 return saved
             }
             // Exact replay remains recoverable after authority advances. Only
             // newly accepted consent must still match the foreground preview.
+            guard try targetJob(ownerID: ownerID, observationID: request.observationID, context: context) == nil else {
+                throw IntegrityError.conflict
+            }
             try validateNew(context)
             guard let text = String(bytes: try candidate.storedData(), encoding: .utf8) else { throw IntegrityError.conflict }
             context.insert(OfflineJobRecord(id: jobID(request.operationID, observationID: request.observationID), kind: .observationPublicationSync,
@@ -38,6 +42,21 @@ enum ObservationPublicationPersistence {
                 metadataJSON: text))
             return candidate
         }
+    }
+
+    /// Caller owns the transaction and parent fence. Namespace and subject are
+    /// independent discovery hints; damaged linkage must not look like vacancy.
+    static func targetJob(ownerID: UUID, observationID: UUID, context: ModelContext) throws -> OfflineJobRecord? {
+        let scope = observationPrefix(observationID), subject = observationID.uuidString.lowercased()
+        let jobs = try context.fetch(FetchDescriptor<OfflineJobRecord>()).filter {
+            $0.id.hasPrefix(scope) || ($0.kindRaw == OfflineJobKind.observationPublicationSync.rawValue && $0.subjectId?.lowercased() == subject)
+        }
+        guard jobs.count <= 1 else { throw IntegrityError.conflict }
+        guard let job = jobs.first else { return nil }
+        let intent = try restore(job)
+        guard intent.ownerID == ownerID, intent.identity.observationID == observationID else { throw IntegrityError.conflict }
+        _ = try validatedStatus(job, intent: intent)
+        return job
     }
 
     /// Compare-and-save prevents a stale response replacing a newer or deleted job.

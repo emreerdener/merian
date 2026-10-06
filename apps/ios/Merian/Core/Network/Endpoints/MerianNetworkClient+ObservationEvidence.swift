@@ -5,17 +5,26 @@ extension MerianNetworkClient {
     enum ObservationOperation {
         case uploadEvidence(@MainActor @Sendable () throws -> Void)
         case analyze(IdentificationDispatchAuthorization)
+        case publicationTarget
 
         var function: String {
             switch self {
             case .uploadEvidence: return "upload-observation-evidence"
             case .analyze: return "analyze-observation"
+            case .publicationTarget: return "get-observation-publication-target"
+            }
+        }
+
+        private var timeoutInterval: TimeInterval {
+            switch self {
+            case .publicationTarget: return 30
+            default: return 130
             }
         }
 
         func request(url: URL, body: Data, ownerID: UUID) -> AuthenticatedRequestExecutor.Request {
             var request = AuthenticatedRequestExecutor.Request(url: url, method: "POST", body: body,
-                timeoutInterval: 130, idempotencyKey: nil, allowsTransientTransportRetry: false,
+                timeoutInterval: timeoutInterval, idempotencyKey: nil, allowsTransientTransportRetry: false,
                 allowsUnauthorizedSessionRecovery: false, onRequestBodySent: nil,
                 authTransitionOwner: nil, expectedAuthUserID: ownerID)
             switch self {
@@ -24,6 +33,8 @@ extension MerianNetworkClient {
                 request.validateAttempt = validate
             case let .analyze(authorization):
                 request.identificationAuthorization = authorization
+            case .publicationTarget:
+                request.allowsRouteUnavailableRetry = false
             }
             return request
         }

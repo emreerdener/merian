@@ -25,6 +25,8 @@ async function observeBlock(observer: Client, waiter: number, blocker: number) {
 for (
   const scenario of [
     "duplicate admission",
+    "different UUID same observation",
+    "target read during admission",
     "duplicate work claim",
     "binding before work claim",
     "deletion before work claim",
@@ -103,6 +105,17 @@ for (
             "internal.admit_protected_observation_analysis(owner_id,pg_temp.protected_input(observation,analysis,media),repeat(replace(observation::text,'-',''),2))",
           ),
         );
+        const legacyFixture = await Deno.readTextFile(
+          new URL(
+            "../../tests/publication_operation_admission.sql",
+            import.meta.url,
+          ),
+        );
+        await observer.queryArray(
+          legacyFixture.split(
+            "-- Reconstruct pre-guard admitted rows for compatibility/capacity tests only.\n",
+          )[1].split("SELECT extensions.ok")[0],
+        );
         previous = (await observer.queryObject<Record<string, boolean>>(
           `SELECT ${
             flags.join(",")
@@ -159,10 +172,25 @@ for (
               otherMedia,
             ],
           )).rows[0].request;
+          // Prior-version duplicate rows still consume owner capacity. Keep both
+          // racing observations vacant, and model that legacy population on a third.
+          const legacyObservation = crypto.randomUUID(),
+            legacyAnalysis = crypto.randomUUID(),
+            legacyMedia = crypto.randomUUID();
+          await observer.queryArray(
+            "SELECT pg_temp.seed_publication_intent($1,$2,$3,$4)",
+            [owner, legacyObservation, legacyAnalysis, legacyMedia],
+          );
           for (let n = 0; n < 7; n++) {
             await observer.queryArray(
-              "SELECT public.admit_owned_observation_publication($1,$2::jsonb || jsonb_build_object('operation_id',$3::uuid),repeat('a',64))",
-              [owner, JSON.stringify(request), crypto.randomUUID()],
+              "SELECT pg_temp.legacy_publication_intake($1,pg_temp.publication_request($2,$3,$4,$5),repeat('a',64))",
+              [
+                owner,
+                legacyObservation,
+                legacyAnalysis,
+                crypto.randomUUID(),
+                legacyMedia,
+              ],
             );
           }
         }
@@ -192,6 +220,41 @@ for (
           assert(outcome.ok);
           assertEquals(outcome.value.rows[0].receipt, { claimed: false });
           await second.queryArray("COMMIT");
+        } else if (
+          scenario === "different UUID same observation" ||
+          scenario === "target read during admission"
+        ) {
+          const original = (await admit(first)).rows[0].receipt;
+          const pending = scenario === "different UUID same observation"
+            ? settle(second.queryObject<{ receipt: unknown }>(
+              "SELECT public.admit_owned_observation_publication($1,$2::jsonb || jsonb_build_object('operation_id',$3::uuid),repeat('a',64)) AS receipt",
+              [owner, JSON.stringify(request), crypto.randomUUID()],
+            ))
+            : settle(second.queryObject<{ receipt: unknown }>(
+              "SELECT public.read_owned_observation_publication_target($1,$2)->'operation' AS receipt",
+              [owner, observation],
+            ));
+          await observeBlock(observer, secondPid, firstPid);
+          await first.queryArray("COMMIT");
+          const outcome = await pending;
+          if (scenario === "different UUID same observation") {
+            assert(!outcome.ok);
+            assert(
+              outcome.error.includes("analysis_history_operation_conflict"),
+            );
+            await second.queryArray("ROLLBACK");
+          } else {
+            assert(outcome.ok);
+            assertEquals(
+              outcome.value.rows[0].receipt,
+              (await second.queryObject<{ receipt: unknown }>(
+                "SELECT public.read_owned_observation_publication_status($1,$2,$3) AS receipt",
+                [owner, observation, operation],
+              )).rows[0].receipt,
+            );
+            await second.queryArray("COMMIT");
+          }
+          assertEquals((await admit(observer)).rows[0].receipt, original);
         } else if (scenario === "duplicate work claim") {
           const original = (await claim(first)).rows[0].receipt;
           assert(original.claimed);
@@ -338,7 +401,10 @@ for (
         )).rows[0].count;
         assertEquals(
           count,
-          scenario === "owner capacity across observations" ? 8 : [
+          [
+              "owner capacity across observations",
+              "different UUID same observation",
+              "target read during admission",
               "duplicate admission",
               "duplicate work claim",
               "binding before work claim",

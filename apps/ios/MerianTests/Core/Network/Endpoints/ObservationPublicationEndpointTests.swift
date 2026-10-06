@@ -25,6 +25,98 @@ struct ObservationPublicationEndpointTests {
     static func data(_ row: [String: Any]) throws -> Data { try JSONSerialization.data(withJSONObject: row) }
     static func json(_ row: [String: Any]) throws -> String { String(decoding: try data(row), as: UTF8.self) }
 
+    @Test func targetDiscoveryKeepsRemoteIdentityAndExplicitAbsence() async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        let owner = try #require(fixture.client.overridingAuthUserID)
+        let request = ObservationPublicationTargetRequest(observationID: Self.observation)
+        let encoded = try JSONEncoder().encode(request)
+        let body = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        #expect(Set(body.keys) == ["schema_version", "observation_id"])
+        let expected = String(decoding: encoded, as: UTF8.self)
+        let remoteOperation = UUID(), remoteAnalysis = UUID()
+        var row = Self.row("needs_action")
+        row["operation_id"] = remoteOperation.uuidString.lowercased()
+        row["analysis_id"] = remoteAnalysis.uuidString.lowercased()
+        for response in [try Self.json(row), "null"] {
+            fixture.transport.register(path: "/get-observation-publication-target") { wire in
+                try NetworkEndpointTestSupport.expectPOST(wire, function: "get-observation-publication-target", json: expected)
+                return try NetworkEndpointTestSupport.response(to: wire, json: response)
+            }
+            let receipt = try await fixture.client.observationPublicationTarget(request, ownerID: owner)
+            if response == "null" { #expect(receipt == nil) } else {
+                #expect(receipt?.operationID == remoteOperation)
+                #expect(receipt?.analysisID == remoteAnalysis)
+                #expect(receipt?.status == .needsAction)
+            }
+        }
+    }
+
+    @Test(arguments: ["", " ", "nul", "\"null\"", "[]", "{}", "false", "0", "{\"operation\":null}", String(repeating: " ", count: 4097)])
+    func targetAbsenceMustBeExplicitJSONNull(_ response: String) throws {
+        #expect(throws: (any Error).self) {
+            try ObservationPublicationReceipt.decodeTarget(Data(response.utf8), request: .init(observationID: Self.observation))
+        }
+    }
+
+    @Test func targetRejectsAuthorityDriftAndPrivateFields() throws {
+        for patch: [String: Any] in [["observation_id": Self.operation.uuidString.lowercased()],
+            ["operation_id": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"], ["analysis_id": NSNull()],
+            ["schema_version": true], ["status": "published"], ["post_id": "private"], ["reason": "private"]] {
+            let data = try Self.data(Self.row().merging(patch) { _, new in new })
+            #expect(throws: (any Error).self) {
+                try ObservationPublicationReceipt.decodeTarget(data, request: .init(observationID: Self.observation))
+            }
+        }
+    }
+
+    @Test(arguments: [200, 204])
+    func emptySuccessfulTargetResponseIsNotAbsence(_ status: Int) async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        let owner = try #require(fixture.client.overridingAuthUserID)
+        fixture.transport.register(path: "/get-observation-publication-target") { wire in
+            try NetworkEndpointTestSupport.response(to: wire, status: status, json: "")
+        }
+        await #expect(throws: (any Error).self) {
+            try await fixture.client.observationPublicationTarget(.init(observationID: Self.observation), ownerID: owner)
+        }
+    }
+
+    @Test(arguments: [0, 401, 404, 503])
+    func targetTransportNeverReplaysOrFallsBack(_ status: Int) async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        let owner = try #require(fixture.client.overridingAuthUserID)
+        let calls = OSAllocatedUnfairLock(initialState: 0)
+        fixture.transport.register(path: "/get-observation-publication-target") { wire in
+            calls.withLock { $0 += 1 }
+            if status == 0 { throw URLError(.networkConnectionLost) }
+            return try NetworkEndpointTestSupport.response(to: wire, status: status,
+                json: "{\"code\":\"NOT_FOUND\",\"message\":\"Requested function was not found\"}")
+        }
+        await #expect(throws: (any Error).self) {
+            try await fixture.client.observationPublicationTarget(.init(observationID: Self.observation), ownerID: owner)
+        }
+        #expect(calls.withLock { $0 } == 1)
+        let url = try #require(URL(string: "https://example.com/functions/v1/get-observation-publication-target"))
+        let transport = MerianNetworkClient.ObservationOperation.publicationTarget.request(url: url, body: Data(), ownerID: owner)
+        #expect(transport.expectedAuthUserID == owner)
+        #expect(transport.timeoutInterval == 30)
+        #expect(!transport.allowsTransientTransportRetry && !transport.allowsUnauthorizedSessionRecovery && !transport.allowsRouteUnavailableRetry)
+    }
+
+    @Test func targetRequiresCurrentAccountWithoutDispatch() async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        fixture.client.overridingAuthUserID = nil
+        await confirmation("No target dispatch without account", expectedCount: 0) { sent in
+            fixture.transport.register(path: "/get-observation-publication-target") { wire in
+                sent()
+                return try NetworkEndpointTestSupport.response(to: wire, json: "null")
+            }
+            await #expect(throws: SupabaseAuthTransitionError.signOutSessionChanged) {
+                try await fixture.client.observationPublicationTarget(.init(observationID: Self.observation), ownerID: UUID())
+            }
+        }
+    }
+
     @Test func consentRoundTripKeepsOrderNullsAndExactIdentity() throws {
         let request = try Self.input()
         let bytes = try JSONEncoder().encode(request)

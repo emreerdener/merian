@@ -3491,3 +3491,13 @@ cohort metadata prevents analysis identity reuse after abandoned-object cleanup.
 It returns only V2 content references. Native append-only capture/queue wiring
 and private storage/erasure qualification remain outstanding; all activation
 controls remain disabled.
+
+## Prepared owner publication target recovery
+
+`get-observation-publication-target` resolves observation-wide occupancy under
+authenticated owner/deletion fences. It returns literal null only for a valid
+owned vacant observation, one original sanitized status, or a conflict for
+legacy duplicates. It never selects the latest operation, exposes consent or
+creates work. Native target transport remains unconnected and all gates stay
+false. See the
+[target recovery contract](../../docs/backend-and-data/05-api-contracts.md#owner-publication-target-recovery).

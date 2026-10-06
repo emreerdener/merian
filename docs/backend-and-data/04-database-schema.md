@@ -7080,6 +7080,23 @@ parent/account erasure cascades it. Intake does not execute external work. See
 the
 [intake contract](05-api-contracts.md#prepared-authenticated-publication-operation-intake).
 
+Migration `20261006033539_guard_observation_publication_target.sql` serializes
+new intake per observation under the same owner-first lock. Exact operation
+replay remains first. Any prior admission, including terminal `needs_action`,
+blocks another UUID; switching historical analyses is not a new target because
+community publication is observation-wide. No automatic replacement is defined.
+Existing duplicate rows are preserved for exact-ID recovery rather than hidden
+by a destructive uniqueness migration. The service-only
+`read_owned_observation_publication_target(owner, observation)` returns an exact
+non-null `{schema_version:1,operation}` envelope: `operation` is JSON null for
+an existing owned observation with no intake, or the original sanitized status
+for one operation. Multiple legacy operations conflict. The explicit envelope
+prevents empty successful SDK replies from masquerading as vacancy. Deletion and
+ownership failure never become an empty result. The separate prepared
+owner-authenticated `get-observation-publication-target` endpoint exposes this
+sanitized lookup. Native storage separately mirrors the observation-wide
+admission rule and strict local lookup without schema changes.
+
 ### Prepared publication operation worker state
 
 `20261004125428_prepare_publication_operation_worker.sql` adds private

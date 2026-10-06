@@ -7,13 +7,13 @@ import Testing
 @Suite(.serialized, .sharedProcessState(.offlineQueueManager))
 struct ObservationPublicationPersistenceTests {
     let owner = UUID(uuidString: "10000000-0000-4000-8000-000000000001")!
-    let observation = UUID(uuidString: "10000000-0000-4000-8000-000000000002")!
+    let observation = UUID(uuidString: "10000000-0000-4000-8000-00000000000a")!
     let analysis = UUID(uuidString: "10000000-0000-4000-8000-000000000003")!
     let operation = UUID(uuidString: "10000000-0000-4000-8000-000000000004")!
     let now = Date(timeIntervalSince1970: 1_780_000_000)
 
-    func request(note: String? = "Private synthetic note") throws -> ObservationPublicationRequest {
-        try .init(operationID: operation, observationID: observation, analysisID: analysis,
+    func request(note: String? = "Private synthetic note", operationID: UUID? = nil, analysisID: UUID? = nil) throws -> ObservationPublicationRequest {
+        try .init(operationID: operationID ?? operation, observationID: observation, analysisID: analysisID ?? analysis,
                   expectedObservationRevision: 3, expectedReviewRevision: 1,
                   taxonomyVersionID: UUID(uuidString: "10000000-0000-4000-8000-000000000005")!, initialTaxonID: nil,
                   note: note, mediaIDs: [UUID(uuidString: "10000000-0000-4000-8000-000000000006")!,

@@ -290,6 +290,7 @@ report-user
 request-community-identification
 request-observation-publication
 get-observation-publication-status
+get-observation-publication-target
 prepare-observation-publication-consent
 upload-observation-evidence
 moderate-publication-photos
@@ -458,3 +459,14 @@ and deadline-bound private storage verification. No rollout gate or worker is
 activated. Its
 [README](../../services/supabase/functions/upload-observation-evidence/README.md)
 owns the strict framing, retry and privacy contract.
+
+### October 6: prepared publication target recovery
+
+`get-observation-publication-target` is a separate owner-authenticated bounded
+reader using `withEdgeHandler` and a fixed service RPC. It returns explicit
+owned vacancy or one original sanitized status, rejects legacy duplicates, and
+never exposes private consent or chooses a latest operation. The unchanged
+exact-operation status reader still owns saved-request recovery. Responses are
+private/no-store and the RPC has a twelve-second deadline. There is no native
+caller or deployment/activation authorization in this slice. See its
+[README](../../services/supabase/functions/get-observation-publication-target/README.md).

@@ -486,6 +486,17 @@ moderation/copy workers, owner status and native durable delivery are connected
 behind closed activation gates; ordinary UI admission remains separate. See the
 [intake contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-authenticated-publication-operation-intake).
 
+New intake now rejects another operation UUID for the same observation after
+checking exact replay first. This applies to every retained intake state,
+including terminal needs-action; no automatic successor is authorized. The
+service-only target lookup returns no intake, one original sanitized status or a
+legacy-duplicate conflict under the owner/deletion lock. It never selects a
+latest operation. `publicationTarget.ts` supplies the strict null-or-status HTTP
+contract for the separate owner-authenticated target endpoint, after strict
+validation of a non-null database envelope. Empty SDK success cannot become
+vacancy. Native persistence has its own strict local occupancy guard; local
+absence is not remote vacancy.
+
 ## Prepared publication worker ownership
 
 Separate private work records now provide bounded discovery, scoped expiring

@@ -101,10 +101,6 @@ BEGIN
 END;
 $$;
 
-SELECT extensions.ok(NOT (SELECT publication_operation_enabled FROM internal.observation_history_rollout),'operation gate defaults closed');
-SELECT extensions.ok(has_function_privilege('service_role','public.admit_owned_observation_publication(uuid,jsonb,text)','EXECUTE'),'service intake allowed');
-SELECT extensions.ok(NOT has_function_privilege('authenticated','public.admit_owned_observation_publication(uuid,jsonb,text)','EXECUTE') AND NOT has_function_privilege('anon','public.admit_owned_observation_publication(uuid,jsonb,text)','EXECUTE'),'client roles cannot nominate an owner');
-SELECT extensions.ok(NOT has_table_privilege('service_role','internal.observation_publication_operations','SELECT'),'operation data is private');
 UPDATE internal.entitlement_rollout_config SET entitlement_mode='complimentary',required_client_protocol=3 WHERE config_key='current';
 UPDATE internal.observation_history_rollout SET media_enabled=TRUE,admission_enabled=TRUE,dispatch_enabled=TRUE,append_enabled=TRUE,protected_analysis_enabled=TRUE,reader_enabled=TRUE,media_reader_enabled=TRUE,state_reader_enabled=TRUE,publication_intent_enabled=TRUE;
 SELECT pg_temp.seed_publication_intent('00000000-0000-4000-8000-00000000fe01','00000000-0000-4000-8000-00000000fe11','00000000-0000-4000-8000-00000000fe21','00000000-0000-4000-8000-00000000fe31');
@@ -114,44 +110,45 @@ CREATE FUNCTION pg_temp.admit_fixture(delta JSONB DEFAULT '{}',ip TEXT DEFAULT r
  SELECT public.admit_owned_observation_publication('00000000-0000-4000-8000-00000000fe01',request||delta,ip) FROM publication_fixture;
 $$;
 GRANT EXECUTE ON FUNCTION pg_temp.admit_fixture(JSONB,TEXT) TO service_role;
-SELECT extensions.throws_ok('SELECT pg_temp.admit_fixture()','55000','analysis_history_unavailable','closed intake gate writes nothing');
-SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_intents),0,'closed intake does not even prepare an intent');
-UPDATE internal.observation_history_rollout SET publication_operation_enabled=TRUE;
-SELECT extensions.throws_ok($$SELECT pg_temp.admit_fixture('{}','raw-address')$$,'22023','invalid_analysis_history','only server HMAC hash may be stored');
-SELECT extensions.throws_ok($$SELECT pg_temp.admit_fixture('{"owner_id":"00000000-0000-4000-8000-00000000fe01"}')$$,'22023','invalid_analysis_history','request cannot nominate owner');
-SELECT extensions.throws_ok($$SELECT public.admit_owned_observation_publication('00000000-0000-4000-8000-00000000fe02',request,repeat('a',64)) FROM publication_fixture$$,'P0002','analysis_history_not_found','cross-owner cannot admit');
+
+CREATE FUNCTION pg_temp.target_fixture() RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT NULLIF(public.read_owned_observation_publication_target('00000000-0000-4000-8000-00000000fe01','00000000-0000-4000-8000-00000000fe11')->'operation','null'::JSONB);
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.target_fixture() TO service_role,authenticated,anon;
+SELECT extensions.ok(has_function_privilege('service_role','public.read_owned_observation_publication_target(uuid,uuid)','EXECUTE'),'service-only target discovery');
+SELECT extensions.ok(NOT has_function_privilege('authenticated','public.read_owned_observation_publication_target(uuid,uuid)','EXECUTE') AND NOT has_function_privilege('anon','public.read_owned_observation_publication_target(uuid,uuid)','EXECUTE'),'user roles cannot nominate owners');
 SELECT set_config('request.jwt.claims','{"role":"service_role"}',true);
 SET LOCAL ROLE service_role;
-CREATE TEMP TABLE accepted AS SELECT pg_temp.admit_fixture() AS receipt;
-SELECT extensions.is((SELECT receipt->>'status' FROM accepted),'accepted','actual service role gets durable acceptance only');
-SELECT extensions.is(pg_temp.admit_fixture('{}',repeat('b',64)),(SELECT receipt FROM accepted),'changed network recovers exact receipt');
+SELECT extensions.ok(pg_temp.target_fixture() IS NULL,'vacant owned observation returns explicit absence, even with gates closed');
+SELECT extensions.is(public.read_owned_observation_publication_target('00000000-0000-4000-8000-00000000fe01','00000000-0000-4000-8000-00000000fe11'),'{"schema_version":1,"operation":null}'::JSONB,'vacancy requires a non-null exact database envelope');
 RESET ROLE;
-SELECT extensions.is((SELECT ip_hash FROM internal.observation_publication_operations),repeat('a',64),'first hash remains bound to future quota');
-SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_operations),1,'duplicate intake stores one operation');
-SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_photo_moderations),0,'intake never reserves moderation');
-SELECT extensions.is((SELECT count(*)::INT FROM internal.publication_photo_objects),0,'intake never reserves public copies');
-SELECT extensions.is((SELECT count(*)::INT FROM public.explore_posts),0,'intake creates no public post');
-SELECT extensions.ok((SELECT receipt-ARRAY['schema_version','operation_id','observation_id','analysis_id','status','admitted_at']='{}'::JSONB FROM accepted),'response excludes notes, media, hash and source identities');
-SELECT extensions.throws_ok($$UPDATE internal.observation_publication_operations SET ip_hash=repeat('b',64)$$,'22023','analysis_history_evidence_immutable','operation facts cannot mutate');
-SELECT extensions.throws_ok($$SELECT pg_temp.admit_fixture('{"note":"changed"}')$$,'22023','analysis_history_operation_conflict','changed consent is not an exact retry');
+SELECT extensions.throws_ok($$SELECT public.read_owned_observation_publication_target('00000000-0000-4000-8000-00000000fe02','00000000-0000-4000-8000-00000000fe11')$$,'P0002','analysis_history_not_found','foreign owner cannot discover another operation');
+UPDATE internal.observation_history_rollout SET publication_operation_enabled=TRUE;
+CREATE TEMP TABLE accepted AS SELECT pg_temp.admit_fixture() AS receipt;
+SET LOCAL ROLE service_role;
+SELECT extensions.is(pg_temp.target_fixture(),public.read_owned_observation_publication_status('00000000-0000-4000-8000-00000000fe01','00000000-0000-4000-8000-00000000fe11','00000000-0000-4000-8000-00000000fe41'),'target resolves original exact status');
+SELECT extensions.ok(pg_temp.target_fixture()-ARRAY['schema_version','operation_id','observation_id','analysis_id','status']='{}'::JSONB,'target exposes no request/media/provider/storage state');
+SELECT extensions.throws_ok($$SELECT pg_temp.admit_fixture('{"operation_id":"00000000-0000-4000-8000-00000000fe42"}')$$,'22023','analysis_history_operation_conflict','new UUID cannot duplicate pending intake');
+SELECT extensions.throws_ok($$SELECT pg_temp.admit_fixture('{"operation_id":"00000000-0000-4000-8000-00000000fe42","analysis_id":"00000000-0000-4000-8000-00000000fe22"}')$$,'22023','analysis_history_operation_conflict','changing historical analysis cannot evade observation target');
+RESET ROLE;
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_intents),1,'denial leaves no second intent');
+-- Model durable terminal provider facts without any external dispatch.
+INSERT INTO internal.observation_publication_moderation_outcomes(operation_id,owner_id,observation_id,state,reason,attempt_ids)
+VALUES('00000000-0000-4000-8000-00000000fe41','00000000-0000-4000-8000-00000000fe01','00000000-0000-4000-8000-00000000fe11','needs_action','unknown_execution',ARRAY['00000000-0000-4000-8000-00000000fe71'::UUID]);
+SELECT extensions.is(pg_temp.target_fixture()->>'status','needs_action','target recovers durable needs-action state');
+SELECT extensions.throws_ok($$SELECT pg_temp.admit_fixture('{"operation_id":"00000000-0000-4000-8000-00000000fe42"}')$$,'22023','analysis_history_operation_conflict','terminal remediation does not authorize a successor');
 UPDATE internal.observation_history_rollout SET publication_operation_enabled=FALSE,publication_intent_enabled=FALSE;
-SELECT extensions.is(pg_temp.admit_fixture(),(SELECT receipt FROM accepted),'gates closing preserve exact acknowledgement replay');
+SELECT extensions.is(pg_temp.admit_fixture(),(SELECT receipt FROM accepted),'exact old request recovers before closed gates and outcomes');
+SELECT extensions.is(pg_temp.target_fixture()->>'status','needs_action','discovery does not require fresh admission gates');
 UPDATE internal.observation_history_rollout SET publication_operation_enabled=TRUE,publication_intent_enabled=TRUE;
--- Legacy rows still count toward owner capacity; new target admission cannot
--- manufacture them. Use a fresh second observation for the capacity denial.
-SELECT pg_temp.seed_publication_intent('00000000-0000-4000-8000-00000000fe01','00000000-0000-4000-8000-00000000fe12','00000000-0000-4000-8000-00000000fe22','00000000-0000-4000-8000-00000000fe32');
-DO $$ BEGIN FOR i IN 42..48 LOOP PERFORM pg_temp.legacy_publication_intake('00000000-0000-4000-8000-00000000fe01',
- (SELECT request||jsonb_build_object('operation_id',('00000000-0000-4000-8000-00000000fe'||i)::UUID) FROM publication_fixture),repeat('a',64)); END LOOP; END $$;
-SELECT extensions.throws_ok($$SELECT public.admit_owned_observation_publication('00000000-0000-4000-8000-00000000fe01',
- pg_temp.publication_request('00000000-0000-4000-8000-00000000fe12','00000000-0000-4000-8000-00000000fe22','00000000-0000-4000-8000-00000000fe49','00000000-0000-4000-8000-00000000fe32'),repeat('a',64))$$,
- '55000','analysis_history_unavailable','rolling intake bound refuses additional new work on a fresh observation');
-SELECT extensions.is(pg_temp.admit_fixture(),(SELECT receipt FROM accepted),'capacity cannot strand lost-response recovery');
-SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_intents),8,'capacity denial cannot leave an orphan intent');
+SELECT pg_temp.legacy_publication_intake('00000000-0000-4000-8000-00000000fe01',request||'{"operation_id":"00000000-0000-4000-8000-00000000fe42"}',repeat('a',64)) FROM publication_fixture;
+SELECT extensions.throws_ok('SELECT pg_temp.target_fixture()','22023','analysis_history_operation_conflict','legacy duplicates never resolve by latest timestamp');
+SELECT extensions.is(pg_temp.admit_fixture(),(SELECT receipt FROM accepted),'known exact operation still recovers with legacy duplicates');
 SET LOCAL ROLE authenticated;
-SELECT extensions.throws_ok($$SELECT public.admit_owned_observation_publication('00000000-0000-4000-8000-00000000fe01',request,repeat('a',64)) FROM publication_fixture$$,'42501','permission denied for function admit_owned_observation_publication','actual user role denied');
+SELECT extensions.throws_ok('SELECT pg_temp.target_fixture()','42501','permission denied for function read_owned_observation_publication_target','actual authenticated caller denied');
 RESET ROLE;
 INSERT INTO internal.scan_deletion_tombstones(scan_id,user_id) VALUES('00000000-0000-4000-8000-00000000fe11','00000000-0000-4000-8000-00000000fe01');
-SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_operations),0,'observation fence immediately removes every queued operation');
-SELECT extensions.throws_ok('SELECT pg_temp.admit_fixture()','P0002','analysis_history_not_found','deletion wins over accepted receipt replay');
+SELECT extensions.throws_ok('SELECT pg_temp.target_fixture()','P0002','analysis_history_not_found','deleted observation never looks vacant');
+SELECT extensions.throws_ok('SELECT pg_temp.admit_fixture()','P0002','analysis_history_not_found','deletion wins over exact replay');
 SELECT * FROM extensions.finish();
 ROLLBACK;

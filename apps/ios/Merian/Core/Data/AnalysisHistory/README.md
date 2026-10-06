@@ -385,6 +385,17 @@ minimal receipts across restart without blocking account transitions as
 unfinished work. Same-terminal replay preserves its first local observation
 time. Storage never selects a result or modifies review authority.
 
+After exact UUID replay, new staging also checks observation-wide occupancy
+under the same transaction. Any prior operation, including a terminal receipt,
+blocks another UUID even when a different historical analysis is chosen.
+`readTarget` returns the one original local operation and historical child,
+without consent payloads; duplicate, malformed or cross-scope records throw.
+Namespace and kind/subject indexes independently detect damaged work rather than
+treating it as vacancy. Known exact operations remain recoverable even when
+legacy duplicates exist. There is no automatic replacement policy and no server
+target-discovery HTTP caller yet; local absence alone is not evidence of remote
+vacancy.
+
 Direct and bulk scan deletion erase the scan-qualified job namespace in the same
 transaction as the observation. This does not depend on intact consent or
 subject metadata. Confirmed cloud deletion additionally checks the exact owner;
