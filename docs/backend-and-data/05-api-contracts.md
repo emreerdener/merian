@@ -14245,19 +14245,32 @@ publication.
 
 ### Native explicit consent persistence
 
-`ObservationPublicationConsentService` binds preflight to the initiating owner
-and the historical result's own locally acknowledged observation/review
-revisions. It checks pending review/selection, enrollment, deletion and
-foreground session state. Final explicit acceptance validates 1–6 distinct
+`ObservationPublicationConsentService` requires the immutable displayed review
+ticket, including owner, observation, historical target, selected context, both
+revisions and result/authority digests. It validates that exact ticket before
+and after preflight and requires the server snapshot's revisions to match. It
+never adopts newer authority on behalf of a stale presentation. This native
+admission contract changes no HTTP payload.
+
+New preparation and consent require both settled legacy review and completed
+native analysis-bound review work across the observation. Pending, running,
+waiting, received-but-unreconciled, needs-attention, corrupt or misbound jobs
+cannot authorize new consent. The check runs under the existing persistence
+transaction, alongside selection, enrollment, deletion and foreground-session
+fences; it does not broaden the shared legacy settlement predicate used by
+receipt reconciliation. Final explicit acceptance validates 1–6 distinct
 candidate IDs in user order, fixes initial taxon and public note to null, and
 creates a retained immutable operation. Private notes are not used by this
 photo-only consent flow.
 
 New-intent validation runs inside `ObservationPublicationPersistence.stage`
-after exact-operation replay, before insertion/save. A same-ID terminal receipt
-remains recoverable despite subsequent authority changes. A failed save never
-wakes delivery; success wakes the existing durable scheduler without starting
-feature-owned network work. Ordinary UI wiring and activation remain separate.
+after exact-operation replay, before insertion/save, and retains the original
+displayed ticket through final acceptance. An exact saved operation, including a
+terminal receipt, remains recoverable despite subsequent authority changes or
+new pending review. Recovery cannot authorize a different operation UUID. A
+failed save never wakes delivery; success wakes the existing durable scheduler
+without starting feature-owned network work. Ordinary UI wiring and activation
+remain separate.
 
 ### Private reanalysis photo upload
 

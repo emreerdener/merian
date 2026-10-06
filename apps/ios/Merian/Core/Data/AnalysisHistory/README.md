@@ -423,21 +423,33 @@ failure, single-flight cancellation and owner-scoped wake recovery.
 ## Explicit publication consent
 
 `ObservationPublicationConsentService` prepares owner-bound descriptive photo
-candidates for an explicitly requested historical analysis. It checks the
-result's own retained state against the observation revision before and after
-preflight, preserving pending review, selection, enrollment and deletion fences.
-The target does not have to be selected. The caller supplies its foreground
-session guard; no idle session owns an Auth work lease.
+candidates for an explicitly requested historical analysis. The caller supplies
+the immutable `ObservationAnalysisReviewTicket` captured when the result was
+presented. Preparation compares that full ticket (owner, target, selection, both
+revisions and result/authority digests) to retained state before and after
+preflight. The returned server revisions must match the displayed ticket; newer
+authority requires a fresh preview rather than silently rebasing consent. The
+target does not have to be selected. The caller supplies its foreground session
+guard; no idle session owns an Auth work lease.
+
+New preparation and admission require completed native analysis review work for
+the entire observation, as well as settled legacy review, idle selection and
+valid enrollment/owner/deletion state. Pending, received-but-unreconciled, held
+and damaged review jobs fail closed. This check uses the existing transaction's
+context; it does not nest a status-reader lock or change the shared legacy
+settlement predicate needed by review recovery.
 
 Final acceptance chooses 1–6 distinct candidates in user order and creates one
 immutable operation value. The caller retains that value across save retries.
 This initial flow explicitly shares photos without a public note; private scan
 notes are never copied. Preparation does not mint an operation or choose media.
-Stage validates new intent in the existing transaction, after exact
-saved-operation recovery, then saves before waking the durable scheduler.
-Historical terminal receipts remain recoverable after review/selection changes
-and do not wake work. The ordinary UI remains unconnected and all activation
-gates remain closed.
+The prepared value retains the displayed ticket through acceptance. Stage
+validates new intent against that same ticket in the existing transaction, after
+exact saved-operation recovery, then saves before waking the durable scheduler.
+An existing exact operation remains recoverable even if a newer review is now
+pending; that does not authorize another operation. Historical terminal receipts
+remain recoverable after review/selection changes and do not wake work. The
+ordinary UI remains unconnected and all activation gates remain closed.
 
 ## Parent deletion of queued reanalyses
 

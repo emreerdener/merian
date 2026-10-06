@@ -5,10 +5,11 @@ import SwiftData
 @MainActor
 struct ObservationPublicationConsentService {
     struct Prepared {
-        let ownerID: UUID
+        var ownerID: UUID { ticket.ownerID }
+        fileprivate let ticket: ObservationAnalysisReviewTicket
         let snapshot: ObservationPublicationConsentSnapshot
-        fileprivate init(ownerID: UUID, snapshot: ObservationPublicationConsentSnapshot) {
-            self.ownerID = ownerID; self.snapshot = snapshot
+        fileprivate init(ticket: ObservationAnalysisReviewTicket, snapshot: ObservationPublicationConsentSnapshot) {
+            self.ticket = ticket; self.snapshot = snapshot
         }
 
         /// Call only on final user acceptance; retain this value across save retries.
@@ -43,13 +44,13 @@ struct ObservationPublicationConsentService {
         OfflineJobScheduler.shared.scheduleNextPersistedWake(using: OfflineQueueManager.shared)
     }
 
-    func prepare(observationID: UUID, analysisID: UUID, ownerID: UUID, container: ModelContainer,
+    func prepare(ticket: ObservationAnalysisReviewTicket, container: ModelContainer,
                  isCurrent: () -> Bool) async throws -> Prepared {
+        let observationID = ticket.observationID, analysisID = ticket.analysisID, ownerID = ticket.ownerID
         func current() -> Bool { !Task.isCancelled && isCurrent() }
         guard current() else { throw ObservationHistoryError.accountChanged }
         try ConfirmedSpeciesReviewPersistence.transaction {
-            try Self.validate(observationID: observationID, analysisID: analysisID, ownerID: ownerID,
-                              snapshot: nil, context: ModelContext(container))
+            try Self.validate(ticket: ticket, snapshot: nil, context: ModelContext(container))
         }
         let lease = try cloud.begin(ownerID)
         defer { cloud.finish(lease) }
@@ -62,10 +63,9 @@ struct ObservationPublicationConsentService {
             throw MerianError.invalidResponse
         }
         try ConfirmedSpeciesReviewPersistence.transaction {
-            try Self.validate(observationID: observationID, analysisID: analysisID, ownerID: ownerID,
-                              snapshot: snapshot, context: ModelContext(container))
+            try Self.validate(ticket: ticket, snapshot: snapshot, context: ModelContext(container))
         }
-        return Prepared(ownerID: ownerID, snapshot: snapshot)
+        return Prepared(ticket: ticket, snapshot: snapshot)
     }
 
     @discardableResult
@@ -73,15 +73,15 @@ struct ObservationPublicationConsentService {
         let prepared = acceptance.prepared, snapshot = prepared.snapshot
         let intent = try ObservationPublicationPersistence.stage(acceptance.request, ownerID: prepared.ownerID,
             container: container, isCurrent: isCurrent, validateNew: { context in
-                try Self.validate(observationID: snapshot.observationID, analysisID: snapshot.analysisID,
-                                  ownerID: prepared.ownerID, snapshot: snapshot, context: context)
+                try Self.validate(ticket: prepared.ticket, snapshot: snapshot, context: context)
             }, save: save)
         if !intent.isTerminal { wake() }
         return intent
     }
 
-    private static func validate(observationID: UUID, analysisID: UUID, ownerID: UUID,
+    private static func validate(ticket: ObservationAnalysisReviewTicket,
                                  snapshot: ObservationPublicationConsentSnapshot?, context: ModelContext) throws {
+        let observationID = ticket.observationID, analysisID = ticket.analysisID, ownerID = ticket.ownerID
         let scan = try ObservationHistorySyncService.enrolledScan(observationID.uuidString, context: context)
         guard scan.analysisOwnerAccountID == ownerID.uuidString.lowercased(),
               !(try ObservationHistoryEnrollmentIntent.holds(scan.id, context: context)) else {
@@ -89,14 +89,33 @@ struct ObservationPublicationConsentService {
         }
         try ObservationHistorySelectionIntent.requireIdle(scan.id, context: context)
         try ObservationHistoryStateSyncService.requireSettledReview(scan, context: context)
+        try requireCompletedAnalysisReviews(observationID: observationID, ownerID: ownerID, context: context)
+        guard try ObservationAnalysisReviewAdmission.currentTicket(ticket, scan: scan, context: context) == ticket else {
+            throw ObservationHistoryPreviewService.AdmissionError.refreshRequired
+        }
         let target = try ObservationHistorySelectionProjection.retained(analysisID, scan: scan, context: context)
         guard target.observationRevision == scan.observationStateRevision else {
             throw ObservationHistoryPreviewService.AdmissionError.refreshRequired
         }
         if let snapshot {
-            guard target.observationRevision == snapshot.expectedObservationRevision,
-                  target.reviewRevision == snapshot.expectedReviewRevision else {
+            guard snapshot.observationID == observationID, snapshot.analysisID == analysisID,
+                  ticket.observationRevision == snapshot.expectedObservationRevision,
+                  ticket.reviewRevision == snapshot.expectedReviewRevision else {
                 throw ObservationHistoryPreviewService.AdmissionError.refreshRequired
+            }
+        }
+    }
+
+    /// This caller already owns the persistence lock. Do not call the public
+    /// status reader here or broaden legacy settlement (review recovery uses it).
+    private static func requireCompletedAnalysisReviews(observationID: UUID, ownerID: UUID, context: ModelContext) throws {
+        let scope = ObservationAnalysisReviewPersistence.observationPrefix(observationID)
+        for job in try context.fetch(FetchDescriptor<OfflineJobRecord>()) where job.id.hasPrefix(scope)
+            || (job.kindRaw == OfflineJobKind.observationAnalysisReviewSync.rawValue
+                && job.subjectId?.lowercased() == observationID.uuidString.lowercased()) {
+            let intent = try ObservationAnalysisReviewPersistence.restore(job)
+            guard intent.ownerID == ownerID, intent.request.observationID == observationID, intent.isComplete else {
+                throw ObservationHistoryError.unavailable
             }
         }
     }

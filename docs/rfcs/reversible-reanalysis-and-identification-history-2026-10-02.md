@@ -3085,3 +3085,14 @@ tokens invalidate delayed dialogs after reopening. Fresh enrollment guards also
 withhold legacy nested review and reject delayed mutation callbacks. Ordinary
 access and activation remain disabled. Explicit publication consent and runtime,
 CPU, heap, CDN and independent erasure qualification remain open.
+
+### October 6: explicit community-consent admission fencing
+
+Native consent preparation now requires the immutable displayed ticket, rejects
+newer returned revisions and retains the full ticket through final admission.
+Pending or held native analysis reviews block new consent alongside existing
+legacy review, selection and account/deletion fences. Received reviews remain
+blocking until paired reconciliation completes. The lock-local check preserves
+review recovery and exact already-saved publication replay. No HTTP payload or
+activation gate changed; the remaining consent presentation and lifetime owners
+are still separate implementation work.
