@@ -119,6 +119,11 @@ import SwiftData
     @ObservationIgnored lazy var reanalysisAdmissionRuntime = makeReanalysisAdmissionRuntime()
     @ObservationIgnored let reanalysisExecutionOwner = ObservationReanalysisExecutionOwner()
     @ObservationIgnored let publicationDeliveryOwner = ObservationPublicationDeliveryOwner()
+    private(set) var publicationDeliveryGeneration: UInt64 = 0
+    func publicationDeliveryDidFinish(ownerID: UUID, context: ModelContext, currentOwnerID: UUID?) {
+        guard currentOwnerID == ownerID, modelContext === context else { return }
+        publicationDeliveryGeneration &+= 1
+    }
     private(set) var analysisReviewDeliveryGeneration: UInt64 = 0
     func analysisReviewDeliveryDidFinish(ownerID: UUID, context: ModelContext, currentOwnerID: UUID?) {
         guard currentOwnerID == ownerID, modelContext === context else { return }

@@ -2542,3 +2542,14 @@ corruption; cloud-confirmed cleanup requires decoded ownership. The
 [native review owner](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-analysis-bound-review-persistence)
 defines the receipt, claim and recovery boundary. History activation remains
 disabled.
+
+## Prepared community-help delivery completion
+
+The queue-owned publication drain retains one task across joined callers and
+Auth cancellation. Only the actual task exit, after account-lease release,
+notifies `publicationDeliveryGeneration`; a replaced account or model context
+suppresses that notification. Scheduling is rearmed by the same exit, not by
+each joiner. The generation supports local exact-operation status refresh and is
+not proof of successful admission or current public visibility. No idle polling
+or idle account lease is introduced, and ordinary consent access stays disabled
+pending the remaining presentation and rollout qualifications.

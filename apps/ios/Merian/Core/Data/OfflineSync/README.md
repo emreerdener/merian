@@ -701,7 +701,12 @@ owner-bound envelopes and suppresses wakes while that owner is running.
 Persisted claim deadlines recover interrupted work; save failures also request a
 bounded process-local wake. A fresh claim clears that fallback only after
 acquiring the account lease. Account changes suppress another owner's work and
-fallback wakes.
+fallback wakes. The retained pass emits one completion callback only after its
+actual task exits and releases its lease; joined callers do not emit another
+completion. The manager advances `publicationDeliveryGeneration` only when the
+captured owner and exact model context remain current, then rearms scheduling.
+This prepares local status refresh without polling or an idle Auth lease; it
+does not assert that an operation succeeded or remains publicly visible.
 
 Unknown raw kinds and unrecognized `future` namespaces are excluded without
 deleting them. Known `library-details:` retries retain their deadlines. This is

@@ -168,6 +168,49 @@ struct ObservationPublicationDeliveryTests {
         started.continuation.finish(); release.continuation.finish(); joined.continuation.finish()
     }
 
+    @Test func passExitEmitsOnceAfterActualLeaseReleaseNotForJoiners() async {
+        let entered = AsyncStream<Void>.makeStream(), joined = AsyncStream<Void>.makeStream()
+        let owner = ObservationPublicationDeliveryOwner(didJoin: { joined.continuation.yield(()) })
+        var release: CheckedContinuation<Void, Never>?
+        var leaseReleased = false, exits = 0, joinerExits = 0
+        let first = Task {
+            await owner.run(didFinish: {
+                #expect(leaseReleased && !owner.isRunning)
+                exits += 1
+            }) {
+                await withCheckedContinuation { release = $0; entered.continuation.yield(()) }
+                leaseReleased = true
+            }
+        }
+        var iterator = entered.stream.makeAsyncIterator(); _ = await iterator.next()
+        let second = Task { await owner.run(didFinish: { joinerExits += 1 }) { Issue.record("Duplicate pass") } }
+        var joinedIterator = joined.stream.makeAsyncIterator(); _ = await joinedIterator.next()
+        owner.cancel()
+        #expect(owner.isRunning && exits == 0 && !leaseReleased)
+        release?.resume()
+        await owner.cancelAndAwait(); await first.value; await second.value
+        #expect(exits == 1 && joinerExits == 0 && !owner.isRunning)
+        await owner.run(didFinish: { exits += 1 }) {}
+        #expect(exits == 2)
+        entered.continuation.finish(); joined.continuation.finish()
+    }
+
+    @Test func publicationPassExitRejectsReplacedOwnerOrContext() throws {
+        let manager = OfflineQueueManager.shared, previous = manager.modelContext
+        let context = ModelContext(try fixture.container()), replacement = ModelContext(try fixture.container())
+        manager.modelContext = context
+        defer { manager.modelContext = previous }
+        let generation = manager.publicationDeliveryGeneration
+        manager.publicationDeliveryDidFinish(ownerID: fixture.owner, context: context, currentOwnerID: UUID())
+        manager.publicationDeliveryDidFinish(ownerID: fixture.owner, context: context, currentOwnerID: nil)
+        manager.modelContext = replacement
+        manager.publicationDeliveryDidFinish(ownerID: fixture.owner, context: context, currentOwnerID: fixture.owner)
+        #expect(manager.publicationDeliveryGeneration == generation)
+        manager.modelContext = context
+        manager.publicationDeliveryDidFinish(ownerID: fixture.owner, context: context, currentOwnerID: fixture.owner)
+        #expect(manager.publicationDeliveryGeneration == generation &+ 1)
+    }
+
     @Test func schedulerUsesOnlyCurrentOwnerAndRecoversClaimDeadline() throws {
         let container = try fixture.container(), intent = try seed(container)
         let manager = OfflineQueueManager.shared, original = manager.modelContext

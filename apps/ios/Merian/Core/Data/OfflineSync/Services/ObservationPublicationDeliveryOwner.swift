@@ -10,22 +10,24 @@ final class ObservationPublicationDeliveryOwner {
 
     init(didJoin: @escaping @MainActor () -> Void = {}) { self.didJoin = didJoin }
 
-    func run(_ operation: @escaping @MainActor () async -> Void) async {
+    func run(didFinish: @escaping @MainActor () -> Void = {},
+             _ operation: @escaping @MainActor () async -> Void) async {
         guard !Task.isCancelled else { return }
         if let task { didJoin(); await task.value; return }
         let generation = UUID()
         self.generation = generation
         let task = Task { @MainActor [self] in
-            defer { finish(generation: generation) }
+            defer { finish(generation: generation, didFinish: didFinish) }
             await operation()
         }
         self.task = task
         await task.value
     }
 
-    private func finish(generation: UUID) {
+    private func finish(generation: UUID, didFinish: @MainActor () -> Void) {
         guard self.generation == generation else { return }
         self.task = nil; self.generation = nil
+        didFinish()
     }
 
     func cancel() { task?.cancel() }
