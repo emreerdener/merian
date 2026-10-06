@@ -1,7 +1,9 @@
+import SwiftData
 import SwiftUI
 
 struct ConfidenceBadge: View {
     @Environment(InferenceEngine.self) private var inferenceEngine
+    @Environment(\.modelContext) private var modelContext
 
     let confidenceScore: Double?
     let inferenceTier: String?
@@ -343,7 +345,8 @@ struct ConfidenceBadge: View {
             onAskCommunity?()
         case .refineScan(_, let initialDescription):
             if let prepared { prepared.resume(); return }
-            guard prepareSavedReanalysis == nil else { return }
+            guard prepareSavedReanalysis == nil,
+                  ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: action.context.scanId, container: modelContext.container) else { return }
             viewModel.requestRefinementRoute(
                 scanId: action.context.scanId,
                 initialDescription: initialDescription

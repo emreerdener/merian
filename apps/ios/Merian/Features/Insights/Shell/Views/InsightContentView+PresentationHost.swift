@@ -181,7 +181,8 @@ extension InsightContentView {
                     confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
                     allowsAskCommunity: prepareCommunityConsent != nil || (viewModel.canRequestCommunityIdentification &&
                         ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanId, container: modelContext.container)),
-                    allowsRefinement: true,
+                    allowsRefinement: prepareSavedReanalysis != nil ||
+                        ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanId, container: modelContext.container),
                     onRequestDismissalAction: { request in
                         pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
                         if case .askCommunity = request.action, let prepareCommunityConsent {

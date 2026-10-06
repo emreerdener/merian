@@ -72,6 +72,7 @@ extension InsightSheetView {
             viewModel.state.isInsightChatSheetPresented = false
             return
         }
+        guard permitsLegacyReview(expectedScanId) else { return }
         guard dependencies.isProActive() else {
             pendingInsightChatDismissalAction = .showPaywall(
                 scanId: expectedScanId,
@@ -117,7 +118,7 @@ extension InsightSheetView {
             )
         case .reanalyze:
             if let prepared { prepared.resume(); return }
-            guard dependencies.savedReanalysisAccess == nil else { return }
+            guard dependencies.savedReanalysisAccess == nil, permitsLegacyReview(context.scanId) else { return }
             dependencies.selectionFeedback()
             dependencies.requestRefinement(
                 context.scanId,
@@ -125,6 +126,7 @@ extension InsightSheetView {
             )
         case .showPaywall:
             prepared?.cancel()
+            guard permitsLegacyReview(context.scanId) else { return }
             viewModel.state.showPaywall = true
         }
     }

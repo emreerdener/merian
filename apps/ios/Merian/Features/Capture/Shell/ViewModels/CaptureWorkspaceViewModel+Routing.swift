@@ -94,7 +94,9 @@ extension CaptureWorkspaceViewModel {
             }
             activeSheet = .insight
         case .refinement(let scanId, let initialDescription, let entryPoint):
-            guard startRefinementScan(
+            guard ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                scanID: scanId, container: diContainer.offlineQueueManager.modelContext?.container
+            ), startRefinementScan(
                 scanId: scanId,
                 initialDescription: initialDescription,
                 entryPoint: entryPoint

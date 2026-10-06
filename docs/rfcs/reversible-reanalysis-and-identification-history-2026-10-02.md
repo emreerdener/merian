@@ -3226,3 +3226,25 @@ request without permitting replacement. A retained screenshot confirms the
 historical pending state. The runtime audit lists this selector, and the Release
 binary audit excludes its launch marker. This evidence does not activate the
 feature or replace the remaining operational qualification.
+
+### October 6: deny protected-to-legacy reanalysis fallback
+
+An audit found that absent prepared reanalysis access could still leave a Pro
+user's enrolled observation eligible for the legacy refinement route. The
+Capture route now checks fresh enrollment protection before any staging or
+paywall, while Insight construction and delayed callbacks independently deny
+legacy actions for staged, acknowledged or unreadable protection. The dedicated
+historical route remains separate. Ordinary unenrolled refinement is preserved.
+Regression coverage includes damaged holds, missing rows/context, protection
+committed after presentation and the real enrolled menu. Activation stays off.
+
+Submission repeats the fence before and after asynchronous admission and keeps
+its original refinement target. Cancellation or retargeting preserves the draft
+without enqueue. Completion checks protection again before copying metadata.
+Previously dispatched legacy children are not canceled/refunded; the old
+protocol has no server-verifiable parent linkage. Final local validation passed
+5,290 tests (5,281 unit tests and nine UI smokes), with zero failures/skips and
+critical-result validation. Focused 118 tests, strict lint, source guards, exact
+indexed project membership and 26 documentation tests also passed. Independent
+review is clear. Hosted/runtime qualification and immutable admitted Field Chat
+context remain open; no activation is authorized by these results.

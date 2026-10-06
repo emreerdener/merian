@@ -20,7 +20,10 @@ enum InferenceScanReplacement {
               !originalScanId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !replacementScanId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               originalScanId.caseInsensitiveCompare(replacementScanId) != .orderedSame,
-              let context = modelContext else { return nil }
+              let context = modelContext,
+              ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                  scanID: originalScanId, container: context.container
+              ) else { return nil }
 
         do {
             // A pending insert in the presentation context is not durable proof.

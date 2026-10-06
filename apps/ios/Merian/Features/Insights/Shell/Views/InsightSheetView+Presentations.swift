@@ -101,7 +101,7 @@ extension InsightSheetView {
                         expectedGeneration: generation
                     )
                 } : nil,
-                onReanalyzeSpecies: viewModel.canReanalyze ? {
+                onReanalyzeSpecies: viewModel.canReanalyze && (dependencies.savedReanalysisAccess != nil || permitsLegacyReview(scanId)) ? {
                     startReanalysisFromInsightChat(
                         expectedScanId: scanId,
                         expectedGeneration: generation

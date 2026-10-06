@@ -238,7 +238,8 @@ extension InsightContentView {
             )
         case .refineScan:
             if let prepared { prepared.resume(); return }
-            guard prepareSavedReanalysis == nil else { return }
+            guard prepareSavedReanalysis == nil,
+                  ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: request.scanId, container: modelContext.container) else { return }
             viewModel.dependencies.selectionFeedback()
             viewModel.dependencies.requestRefinement(
                 request.scanId,

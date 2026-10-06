@@ -88,7 +88,7 @@ struct ConfidenceExplanationSheet: View {
                 dismissWithPreparedReanalysis(prepareSavedReanalysis(scanId, presentationGeneration))
             }
         }
-        guard let snapshot = viewModel.refinementSnapshot else { return nil }
+        guard permitsLegacyReview, let snapshot = viewModel.refinementSnapshot else { return nil }
 
         return {
             guard permitsLegacyReview, isSubjectPresentationCurrent,

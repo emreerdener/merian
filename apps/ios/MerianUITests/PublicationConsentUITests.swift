@@ -19,7 +19,9 @@ import XCTest
         let action = app.buttons["Confirm species name"]
         let initialMenu = XCTAttachment(screenshot: app.screenshot())
         initialMenu.name = "Broader identification review menu"; initialMenu.lifetime = .keepAlways; add(initialMenu)
-        XCTAssertTrue(action.waitForExistence(timeout: 5)); action.tap()
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["ReanalyzeSpeciesMenu"].exists, "An enrolled result without protected access must not offer legacy refinement")
+        action.tap()
         let confirm = app.buttons["SelectedReviewConfirmName"], name = app.textFields["SelectedReviewSpeciesName"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5)); XCTAssertFalse(confirm.isEnabled)
         XCTAssertTrue(name.exists)

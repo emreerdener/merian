@@ -26,7 +26,8 @@ struct BiologicalView: View {
         scanId: String?,
         generation: UInt64
     ) -> (() -> Void)? {
-        guard let scanId else { return nil }
+        guard let scanId, prepareSavedReanalysis != nil ||
+                ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanId, container: modelContext.container) else { return nil }
         return {
             guard viewModel.isPresentingLocalRecord(
                       scanId: scanId,

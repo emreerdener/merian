@@ -67,7 +67,7 @@ extension InsightSheetView {
             hasCollectionScanId: toolbarRecordSnapshot != nil,
             onIdentificationHistory: historyAction(scanId: toolbarLocalScanId, generation: toolbarGeneration),
             onReanalysisStatus: reanalysisStatusAction(scanId: toolbarLocalScanId, generation: toolbarGeneration),
-            onReanalyze: viewModel.canReanalyze ? {
+            onReanalyze: viewModel.canReanalyze && (dependencies.savedReanalysisAccess != nil || permitsLegacyReview(toolbarLocalScanId)) ? {
                 guard let scanId = toolbarLocalScanId,
                       viewModel.isPresentingLocalRecord(
                           scanId: scanId,
@@ -79,6 +79,7 @@ extension InsightSheetView {
                     startSavedReanalysis(scanID: scanId, generation: toolbarGeneration)
                     return
                 }
+                guard permitsLegacyReview(scanId) else { return }
                 if dependencies.isProActive() {
                     if let record = viewModel.activeLocalRecord,
                        record.id.caseInsensitiveCompare(scanId) == .orderedSame {

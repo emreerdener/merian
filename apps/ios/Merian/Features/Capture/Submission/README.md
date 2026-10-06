@@ -240,6 +240,14 @@ Additional physical media, video-derived evidence, multiple descriptions, and
 refinement preflight as Pro-only. The RPC is a short-lived, read-only UX
 preview, not a reservation.
 
+Legacy refinement also rechecks original-observation enrollment before
+requesting this preview and after it returns, before enqueue. A protected or
+unreadable parent leaves the draft intact and cannot enter legacy submission.
+The visual path retains the same parent across that suspension. Ordinary new
+captures have no replacement parent and keep their existing admission behavior.
+A previously dispatched legacy child is not canceled or refunded by this local
+guard.
+
 Before taking the preview's account-work lease, iOS joins or retries eligible
 first-launch session setup through the existing Auth bootstrap coordinator. A
 tap during background warmup therefore waits for session publication. Failed

@@ -398,6 +398,11 @@ This README maps that contract to native source and test ownership.
   owner. Interactive override, confirmation, and reset sequencing, persistence
   implementation, transport, Explore invalidation, and milestone lookup remain
   outside the engine.
+- Before copying replacement metadata, `InferenceScanReplacement` requires a
+  fresh enrollment check on the original. A staged or acknowledged history hold,
+  damaged hold or failed lookup preserves both records without copying tags,
+  collections or notes. The repository's deletion fence remains independent;
+  this guard does not cancel an already dispatched legacy child.
 - `Inference/Result/InferenceScanReplacement.swift` owns the synchronous
   reanalysis metadata safety boundary. Only a typed persisted outcome with
   distinct, non-empty scan IDs and a replacement visible in a fresh store
@@ -408,11 +413,11 @@ This README maps that contract to native source and test ownership.
   restores only the helper's staged fields, not unrelated user edits. A cleanup
   failure can leave two scans; it cannot justify deleting the only usable
   original. Review state intentionally belongs to the new analysis. This remains
-  the current native replacement workflow. The
-  [reversible-history backend preparation](../../../../../docs/rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md#implementation-progress)
-  has not replaced it with append-only results or added restoration UI. History
-  activation requires removing replacement deletion from every completion path
-  and integrating the native migration, sync, retention and deletion gates.
+  the legacy workflow for unenrolled scans. The prepared
+  [identification-history flow](../../Features/Insights/History/README.md)
+  instead appends immutable results and exposes explicit Restore/Undo without
+  calling this replacement helper. Its ordinary access and activation gates stay
+  disabled pending complete integration and operational qualification.
 - `Inference/Recovery/InferenceLiveFailurePolicy.swift` owns stateless
   interruption and failure classification, modality-specific retirement reasons,
   and telemetry/circuit/feedback decisions. It reuses Core Network's

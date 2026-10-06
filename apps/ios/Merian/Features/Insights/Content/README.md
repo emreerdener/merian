@@ -324,4 +324,7 @@ to biological guidance, candidate cards and the confidence header. A protected
 guidance action leaves the parent presentation alive while its exact prepared
 request resolves. Nested candidate actions retain the same ticket across
 dismissal; Content does not create requests from a later selected result or
-perform network/persistence work. Nil capability preserves legacy refinement.
+perform network/persistence work. Nil capability preserves legacy refinement
+only when a fresh enrollment check allows scan-only mutation. Staged or
+acknowledged enrollment, damaged holds and failed lookups withhold that action.
+Delayed handoffs and the Capture route repeat the check before legacy staging.

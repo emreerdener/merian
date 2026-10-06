@@ -591,3 +591,22 @@ Explicitly injected workspace dependencies are authoritative, including their
 nil access. The App installation gate is fixed false and does not construct the
 bundle; ordinary Capture remains unchanged and unavailable for historical
 routes.
+
+### Legacy reanalysis admission fence
+
+Legacy refinement routes check fresh enrollment protection before Capture
+staging or the Pro paywall. A staged enrollment intent, acknowledged history,
+damaged intent, missing record or unavailable context denies the route. The
+independent historical route still requires its exact protected access. Insight
+toolbar, chat, biological/candidate and confidence actions withhold legacy
+reanalysis when protected access is absent and repeat the fence at delayed
+handoffs. The content action checks again before feedback or navigation.
+Ordinary unenrolled scans retain legacy behavior; protected failure never
+authorizes replacement.
+
+Already-open legacy drafts repeat enrollment checks before admission preview and
+after its suspension, before enqueue. A denial preserves the draft and its
+original target. Completed legacy results also check fresh protection before
+copying source tags, collections or notes; the existing deletion fence remains
+independent. This does not cancel or refund an already dispatched legacy child,
+and legacy requests do not carry a server-verifiable parent association.
