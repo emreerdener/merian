@@ -117,6 +117,7 @@ import SwiftData
     @ObservationIgnored let reanalysisPreparationOwner = ObservationReanalysisPreparationOwner()
     @ObservationIgnored let historyEnrollmentOwner = ObservationHistoryEnrollmentOwner()
     @ObservationIgnored let publicationConsentPreparationOwner = ObservationPublicationPreparationOwner()
+    @ObservationIgnored let publicationTargetRecoveryOwner = ObservationPublicationRecoveryOwner()
     @ObservationIgnored lazy var reanalysisAdmissionRuntime = makeReanalysisAdmissionRuntime()
     @ObservationIgnored let reanalysisExecutionOwner = ObservationReanalysisExecutionOwner()
     @ObservationIgnored let publicationDeliveryOwner = ObservationPublicationDeliveryOwner()

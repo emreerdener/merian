@@ -30,6 +30,8 @@ extension OfflineQueueManager {
         reanalysisPreparationOwner.cancelAll()
         historyEnrollmentOwner.cancelAll()
         publicationConsentPreparationOwner.cancelAll()
+        publicationTargetRecoveryOwner.cancelAll()
+        await publicationTargetRecoveryOwner.cancelAndAwaitAll()
         await publicationConsentPreparationOwner.cancelAndAwaitAll()
         await historyEnrollmentOwner.cancelAndAwaitAll()
         await reanalysisPreparationOwner.cancelAndAwaitAll()

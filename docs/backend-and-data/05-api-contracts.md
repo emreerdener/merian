@@ -14167,8 +14167,15 @@ prepared native target transport uses a separate exact two-field request and 4
 KiB null-or-status decoder. Empty successful responses cannot mean absence; the
 discovered operation and historical analysis are preserved without becoming
 local consent. Its fixed owner-bound route disables transient, 401 and
-missing-route replay with a thirty-second timeout. Retained recovery
-presentation remains to be connected; all activation gates stay false.
+missing-route replay with a thirty-second timeout. The injected queue-retained
+`ObservationPublicationRecoveryOwner` coalesces at most four owner, observation,
+session, generation and container scopes. Its read-only service checks strict
+local target state before and after remote I/O and releases its account lease
+before removing retained work. Auth transitions cancel and await these reads; an
+individual presentation cannot poison another waiter. Prepared History access
+returns local held status and remote historical status separately, without
+saving, acknowledging or waking delivery. UI presentation remains to be
+connected; all activation gates stay false.
 
 ## Owner publication operation status
 

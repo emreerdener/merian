@@ -21,8 +21,9 @@ operation through a separate exact two-field request. Its 4 KiB decoder accepts
 explicit JSON null or the exact five-field status, preserving the remote
 operation and historical analysis. Empty, malformed or private responses are
 never absence. Discovery cannot reconstruct consent, acknowledge a local claim,
-replace a held UUID or assert current visibility. Retained recovery presentation
-remains a separate owner.
+replace a held UUID or assert current visibility. The injected retained
+`ObservationPublicationRecoveryOwner` and read-only service now recover this
+status without idle leases or writes. UI presentation remains unconnected.
 
 `ObservationPublicationConsentRequest` and
 `ObservationPublicationConsentSnapshot` add a separate descriptive preflight for

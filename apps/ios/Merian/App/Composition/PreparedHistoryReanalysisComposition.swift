@@ -70,7 +70,10 @@ struct PreparedHistoryReanalysisComposition {
             submitted: { queue.requestReanalysisAdmissionRecovery(.submitted($0)) },
             cleanup: { queue.requestReanalysisErasureRecovery() },
             reviewWake: { queue.requestAnalysisReviewRecovery() }, reviewGeneration: { queue.analysisReviewDeliveryGeneration },
-            publication: .init(owner: queue.publicationConsentPreparationOwner, fetch: { request, owner in
+            publication: .init(owner: queue.publicationConsentPreparationOwner,
+                recoveryOwner: queue.publicationTargetRecoveryOwner, fetchTarget: { request, owner in
+                    try await MerianNetworkClient.shared.observationPublicationTarget(request, ownerID: owner)
+                }, fetch: { request, owner in
                 try await MerianNetworkClient.shared.prepareObservationPublicationConsent(request, ownerID: owner)
             }, wake: { OfflineJobScheduler.shared.scheduleNextPersistedWake(using: queue) },
                 generation: { queue.publicationDeliveryGeneration }))

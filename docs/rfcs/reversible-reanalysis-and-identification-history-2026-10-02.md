@@ -3155,3 +3155,16 @@ after validation. A real-route regression reproduced the SDK's
 empty-success-to-null ambiguity; empty 200/204 replies now fail closed rather
 than imply vacancy. The public HTTP shape remains null or exact historical
 status.
+
+### October 6: retained publication target recovery
+
+An injected read-only recovery service and queue-retained owner now preserve
+separate local and remote historical status. Exact observation/account/session/
+generation/container scopes coalesce up to four active reads, independent of
+individual waiter presentation. Cancellation remains retained through lease
+release and is awaited before Auth drain. Strict local scope validation
+surrounds remote I/O and is repeated before presentation. A locally held losing
+request is never rebound to a different remote winner, acknowledged, retried or
+replaced. Explicit remote null and failure do not authorize a successor. No
+polling, idle lease, consent construction, delivery wake or activation was
+added. Recovery presentation and explicit ordered photo consent UI remain next.

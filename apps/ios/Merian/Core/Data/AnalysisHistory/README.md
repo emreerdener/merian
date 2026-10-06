@@ -1189,3 +1189,24 @@ fixed preflight fetch through the existing History session factory. Shared reads
 use the common account environment; each waiter separately validates its
 presentation after completion. Explicit consent presentation still needs
 integration; ordinary access remains disabled.
+
+### Explicit publication target recovery
+
+`ObservationPublicationRecoveryOwner` retains at most four explicit target
+reads, coalescing by owner, observation, Auth session, generation and container.
+The scope intentionally excludes analysis: an existing server operation may
+refer to another historical result. Each waiter checks its own cancellation and
+presentation after shared work completes. Exact-scope cancellation, occupied
+cancelled slots and overlapping drains preserve lease release before Auth
+teardown. The queue owns this lifecycle; no polling or idle lease is introduced.
+
+`ObservationPublicationRecoveryService` validates strict local target state
+before and after the owner-bound remote read. Missing/deleted enrollment,
+malformed or multiple local jobs and account changes fail closed. The History
+access rereads local state after its own presentation check and returns local
+and remote historical status separately. A held local losing UUID remains intact
+when another device's operation won admission. Remote absence or failure after
+uncertainty never authorizes a successor. Recovery has no save, acknowledgement,
+consent-construction or delivery-wake capability. App injection is inert and all
+activation gates remain false; explicit recovery and consent presentation remain
+to be connected.

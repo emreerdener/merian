@@ -467,6 +467,8 @@ reader using `withEdgeHandler` and a fixed service RPC. It returns explicit
 owned vacancy or one original sanitized status, rejects legacy duplicates, and
 never exposes private consent or chooses a latest operation. The unchanged
 exact-operation status reader still owns saved-request recovery. Responses are
-private/no-store and the RPC has a twelve-second deadline. There is no native
-caller or deployment/activation authorization in this slice. See its
+private/no-store and the RPC has a twelve-second deadline. A strict native
+caller and queue-retained read-only recovery access are now prepared; local held
+status and remote historical status remain separate. UI remains unconnected and
+there is no deployment/activation authorization. See its
 [README](../../services/supabase/functions/get-observation-publication-target/README.md).
