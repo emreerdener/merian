@@ -1173,5 +1173,8 @@ admission closed until every captured task exits.
 The queue retains this owner and cancels/awaits it in retained
 account-transition quiescence before Auth drains its leases. Preparation does
 not hold an idle lease after returning, mint an operation UUID, stage consent or
-wake delivery. The inert App composition and explicit consent presentation still
-need integration; ordinary access remains disabled.
+wake delivery. The inert App composition now supplies the owner and an explicit
+fixed preflight fetch through the existing History session factory. Shared reads
+use the common account environment; each waiter separately validates its
+presentation after completion. Explicit consent presentation still needs
+integration; ordinary access remains disabled.

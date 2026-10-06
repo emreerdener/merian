@@ -44,6 +44,7 @@ struct IdentificationHistoryDependencies {
     var isCurrent: () -> Bool
     var close: () -> Void
     var review: IdentificationHistoryReviewAccess?
+    var publicationConsent: IdentificationHistoryPublicationAccess?
     var pendingReview: () throws -> ObservationAnalysisReviewStatus? = { nil }
     var now: () -> Date = Date.init
     var reanalysis: ((UUID, ObservationHistoryListingService.Context) throws -> IdentificationHistoryReanalysisAction)?
@@ -64,11 +65,13 @@ final class IdentificationHistorySession {
     private var closed = false
     private let reviewWake: (() -> Void)?
     private let reviewGeneration: () -> UInt64
+    private let publication: IdentificationHistoryPublicationAccess.Configuration?
 
     init(observation: String, container: ModelContainer,
          cloud: ObservationHistoryCloudClient = .live,
          photos: ObservationHistoryPhotoLoader? = nil,
          reviewWake: (() -> Void)? = nil, reviewGeneration: @escaping () -> UInt64 = { 0 },
+         publication: IdentificationHistoryPublicationAccess.Configuration? = nil,
          currentGeneration: @escaping @MainActor () -> UInt64 = { SupabaseManager.shared.authSessionGeneration },
          sessionIsCurrent: @escaping @MainActor (AuthTransitionSession) -> Bool = { session in
              let manager = SupabaseManager.shared
@@ -79,7 +82,7 @@ final class IdentificationHistorySession {
                  && manager.client.auth.currentSession?.user.isAnonymous == session.isAnonymous
          }) throws {
         self.observation = observation; self.container = container
-        self.reviewWake = reviewWake; self.reviewGeneration = reviewGeneration
+        self.reviewWake = reviewWake; self.reviewGeneration = reviewGeneration; self.publication = publication
         self.photos = photos ?? ObservationHistoryPhotoLoader(account: cloud, resolve: cloud.resolvePhoto)
         self.cloud = cloud; self.currentGeneration = currentGeneration; self.sessionIsCurrent = sessionIsCurrent
         let state = try ObservationHistoryListingService(cloud: cloud).context(observationID: observation, container: container)
@@ -90,7 +93,10 @@ final class IdentificationHistorySession {
         guard sessionIsCurrent(session) else { throw ObservationHistoryError.accountChanged }
     }
     func isCurrent() -> Bool {
-        !closed && currentGeneration() == generation && sessionIsCurrent(session)
+        !closed && commonEnvironmentIsCurrent()
+    }
+    func commonEnvironmentIsCurrent() -> Bool {
+        currentGeneration() == generation && sessionIsCurrent(session)
     }
     func check() throws {
         guard isCurrent() else { throw ObservationHistoryError.accountChanged }
@@ -142,6 +148,7 @@ final class IdentificationHistorySession {
             return UIImage(cgImage: image.cgImage)
         }, isCurrent: { [self] in isCurrent() }, close: { [self] in close() },
            review: reviewWake.map { reviewAccess(wake: $0, generation: reviewGeneration) },
+           publicationConsent: publication.map { publicationAccess($0) },
            pendingReview: { [self] in try pendingReview() },
            reanalysis: { [self] analysis, context in try reanalysisAction(analysis, context: context) })
     }

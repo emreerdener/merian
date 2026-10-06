@@ -3119,3 +3119,15 @@ Stale or cancelled waiters cannot receive private prepared snapshots; exact
 scope cancellation cannot retire a newer presentation. This creates no durable
 operation, automatic retry or idle lease. Explicit App composition and consent
 UI remain open, and all activation gates remain disabled.
+
+### October 6: inert consent access composition
+
+The existing prepared History session now carries explicitly injected consent
+preparation, synchronous acceptance persistence and exact local operation
+status. The App composition supplies its cloud/account owner, fixed endpoint
+fetch, queue-retained preparation owner, wake and pass-exit generation. Shared
+work uses common account/session/container validity while each presentation
+checks itself after completion, so dismissing one joined sheet cannot poison
+another. This adds no shell slot, idle polling or automatic publication;
+explicit consent UI and rollout qualification remain open and every activation
+gate stays false.

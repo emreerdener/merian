@@ -146,3 +146,21 @@ admission, uncertain-save identity, stale receipt Undo, held work, other-target
 blocking and nested lifecycle teardown in
 `IdentificationHistoryReviewModelTests` and
 `IdentificationHistoryReviewLifecycleTests`.
+
+## Prepared community-help consent access
+
+The inert App composition explicitly injects the retained preparation owner,
+fixed owner-bound preflight fetch, queue wake and actual-exit generation into
+its existing History session factory. `IdentificationHistoryPublicationAccess`
+exposes exact-ticket preparation, synchronous final-acceptance persistence and
+owner/parent/child/operation status. Construction and opening perform no
+preflight or publication. Ordinary session dependencies remain nil.
+
+Shared preparation checks the common account/session/container environment; the
+waiter separately checks its presentation after the await. Closing one sheet
+therefore withholds its private result without poisoning another joined sheet.
+Final consent still requires explicit ordered media acceptance, and the caller
+must retain that Acceptance across uncertain saves. Status is a local operation
+receipt, never public visibility. The existing exact private-photo loader
+remains the image boundary. The explicit consent UI is not connected yet; all
+activation gates remain false.
