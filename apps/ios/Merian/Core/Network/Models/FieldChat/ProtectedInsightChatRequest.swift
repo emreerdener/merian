@@ -73,3 +73,14 @@ enum ProtectedInsightChatWire {
         return value.intValue
     }
 }
+
+/// Validated receipt plus original bytes for atomic storage without lossy Codable re-encoding.
+struct ProtectedInsightChatReply {
+    let data: Data
+    let receipt: InsightChatProtectedCompletion
+    init(data: Data, request: ProtectedInsightChatRequest) throws {
+        receipt = try FieldChatResponseDecoder.decodeProtectedCompletion(data,
+            expectedSubjectId: request.observationID, expectedClientMessageId: request.clientMessageID)
+        self.data = data
+    }
+}

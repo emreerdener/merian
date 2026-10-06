@@ -14,7 +14,7 @@ final class MerianNetworkClient {
     private let speciesDictionaryResponses = SpeciesDictionaryResponseCache()
     private let sessionTransport: PinnedNetworkTransport
     private let authenticatedTransport: AuthenticatedTransportDispatcher
-    let observationHistoryReviewTransport: ObservationAnalysisReviewTransport
+    let observationHistoryMutationTransport: ObservationHistoryMutationTransport
 
     init() {
         let sessionTransport = PinnedNetworkTransport()
@@ -22,7 +22,7 @@ final class MerianNetworkClient {
         authenticatedTransport = AuthenticatedTransportDispatcher(
             sessionTransport: sessionTransport
         )
-        observationHistoryReviewTransport = ObservationAnalysisReviewTransport(baseURL: supabaseUrl, dispatcher: authenticatedTransport)
+        observationHistoryMutationTransport = ObservationHistoryMutationTransport(baseURL: supabaseUrl, dispatcher: authenticatedTransport)
     }
 
     // MARK: - Test Transport Overrides

@@ -107,6 +107,20 @@ final class AuthenticatedTransportDispatcher {
     func perform(
         _ attempt: AuthenticatedRequestExecutor.TransportAttempt
     ) async throws -> AuthenticatedRequestExecutor.TransportResult {
+        try await perform(attempt, protectedChatExpiry: nil)
+    }
+
+    func performProtectedInsightChat(
+        _ attempt: AuthenticatedRequestExecutor.TransportAttempt, claimExpiresAt: Date
+    ) async throws -> AuthenticatedRequestExecutor.TransportResult {
+        guard attempt.expectedAuthUserID != nil, attempt.validateAttempt != nil,
+              attempt.authTransitionOwner == nil else { throw MerianError.invalidResponse }
+        return try await perform(attempt, protectedChatExpiry: claimExpiresAt)
+    }
+
+    private func perform(
+        _ attempt: AuthenticatedRequestExecutor.TransportAttempt, protectedChatExpiry: Date?
+    ) async throws -> AuthenticatedRequestExecutor.TransportResult {
         let accountWorkLease: AccountBoundWorkLease?
         if attempt.authTransitionOwner == nil {
             accountWorkLease = try await acquireAccountWorkLeaseIfRequired(
@@ -147,14 +161,30 @@ final class AuthenticatedTransportDispatcher {
             )
             try await attempt.identificationAuthorization?.validate()
             try await attempt.validateAttempt?()
+            if let protectedChatExpiry {
+                #if DEBUG
+                if sessionTransport.isUsingOverridingSession,
+                   overridingAuthUserID != attempt.expectedAuthUserID {
+                    throw SupabaseAuthTransitionError.signOutSessionChanged
+                }
+                #endif
+                try ProtectedInsightChatBudget.requireDispatch(claimExpiresAt: protectedChatExpiry)
+            }
             let authCompletedAt = CFAbsoluteTimeGetCurrent()
 
             let transportResult = try await dispatch(
                 request: request,
                 body: attempt.body,
-                onRequestBodySent: attempt.onRequestBodySent
+                onRequestBodySent: attempt.onRequestBodySent,
+                protectedChatExpiry: protectedChatExpiry
             )
 
+            #if DEBUG
+            if protectedChatExpiry != nil, sessionTransport.isUsingOverridingSession,
+               overridingAuthUserID != attempt.expectedAuthUserID {
+                throw SupabaseAuthTransitionError.signOutSessionChanged
+            }
+            #endif
             try await validateTransitionOwner(attempt.authTransitionOwner)
             try await finishAndValidate(accountWorkLease)
 
@@ -242,8 +272,12 @@ final class AuthenticatedTransportDispatcher {
     private func dispatch(
         request: URLRequest,
         body: Data?,
-        onRequestBodySent: (@Sendable () -> Void)?
+        onRequestBodySent: (@Sendable () -> Void)?, protectedChatExpiry: Date?
     ) async throws -> TransportDispatchResult {
+        if let protectedChatExpiry {
+            let (data, response) = try await sessionTransport.protectedInsightChatData(for: request, claimExpiresAt: protectedChatExpiry)
+            return TransportDispatchResult(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
+        }
         guard let body, let onRequestBodySent else {
             let (data, response) = try await sessionTransport.data(for: request)
             return TransportDispatchResult(

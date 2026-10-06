@@ -3961,13 +3961,13 @@ inference.
 `Endpoints/MerianNetworkClient+ObservationAnalysisReview.swift` accepts the
 closed request in `Models/ObservationReview`. Reject/Undo use the fixed
 protocol-9 owner RPC; confirmation uses `confirm-observation-analysis`. The
-typed `ObservationAnalysisReviewTransport` owns both exact routes, preserves the
-initiating account, and disables transient retry, gateway-route retry and
-classified-401 recovery. A required caller validator reaches the existing
-dispatcher after asynchronous Auth preparation and before sending bytes; it
-rechecks exact claim, expiry, owner and deletion. It exposes neither arbitrary
-URLs nor the dispatcher. The facade stores only the injected component;
-read-only admission routes stay unchanged.
+typed review overload in `ObservationHistoryMutationTransport` owns both exact
+routes, preserves the initiating account, and disables transient retry,
+gateway-route retry and classified-401 recovery. A required caller validator
+reaches the existing dispatcher after asynchronous Auth preparation and before
+sending bytes; it rechecks exact claim, expiry, owner and deletion. It exposes
+neither arbitrary URLs nor the dispatcher. The facade stores only the injected
+component; read-only admission routes stay unchanged.
 
 Exact keys, lowercase UUIDs, integral non-Boolean revisions, required nulls, 2
 KiB requests and 4 KiB receipts match the executable backend parsers. Named
@@ -4000,3 +4000,33 @@ rejects unnormalized or oversized UTF-16 text, and emits sorted-key JSON without
 Unicode normalization. A legacy null-ticket request is deliberately outside this
 native subset. The existing retryable 45-second Field Chat endpoint is not its
 transport; dedicated bounded delivery remains required before activation.
+
+## Scoped protected chat transport
+
+`ObservationHistoryMutationTransport` exposes only typed review and protected
+chat operations through the existing private authenticated dispatcher. Its chat
+path sends the exact saved request once, without generic transient, 401 or route
+recovery, and returns only a validated immutable receipt. A required claim fence
+runs after Auth before dispatch; a separate post-response fence checks the
+unchanged attempt and account scope without treating expiry as a reason to lose
+an exact late receipt.
+
+`PinnedNetworkTransport` owns a per-operation pinned session for the 145-second
+chat wire window. The ordinary resource ceiling remains 90 seconds. The scoped
+session has no cache or cookie store, rejects redirects and collects at most 32
+KiB through the task delegate, including responses without Content-Length.
+Cancellation, overflow and deadline cancel the task; the scope always
+invalidates its session. DEBUG uses the injected protocol/header configuration
+without invalidating the injected session. The Auth lease covers request and
+response. After Auth, dispatch requires 145 seconds plus 15 seconds for local
+receipt persistence and a two-second margin within the original claim expiry. It
+never extends a claim. Delivery, teardown and send UI remain separate; all gates
+stay false.
+
+The collector forwards task-level TLS challenges to the same private pin
+validator as session-level challenges. Successful responses require JSON before
+body acceptance; the scoped session has no credential store. A second budget
+check immediately before starting the task uses the original claim expiry.
+`ProtectedInsightChatReply` retains both the validated completion and the exact
+bounded response bytes for `acknowledge`; no Codable reconstruction can omit
+required null fields before durable storage.

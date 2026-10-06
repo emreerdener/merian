@@ -3541,3 +3541,13 @@ cannot. Disk-backed restart restores the prior held generation without granting
 a send. Transport, retained account delivery and UI remain unconnected and all
 activation gates stay disabled. The current native contract is in the
 [AnalysisHistory owner guide](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#native-chat-claims-and-receipts).
+
+### October 6 — scoped native chat transport
+
+The prepared closed history mutation owner now includes exact protected chat
+sends alongside the existing typed review operations. It retains account work
+through a bounded pinned request, streams a maximum 32 KiB, rejects redirects
+and has no automatic retry or token-recovery path. The145-second scoped session
+leaves the ordinary 90-second session unchanged, and dispatch checks remaining
+claim time after Auth with explicit receipt-save reserve. Retained delivery and
+send UI remain separate work; all activation gates stay false.

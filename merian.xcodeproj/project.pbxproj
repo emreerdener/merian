@@ -595,6 +595,7 @@
 		3ECD4A7828610059F1E706B1 /* PrimaryIdentification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 518E9F47D11483ED5209B5C5 /* PrimaryIdentification.swift */; };
 		3ED3CA0121E3279B4DE83937 /* ScanRepositoryModelPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8D7DC35DEA652EFBB295B5F /* ScanRepositoryModelPersistenceTests.swift */; };
 		3EE73BA3A45C9FEE1F2E98D4 /* ConsentManagerAuthorityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA5B9EB9DFE9C7C93841230E /* ConsentManagerAuthorityTests.swift */; };
+		3F05D6C8E0955093D90DC193 /* ObservationHistoryMutationTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD27B15EA5416052F6A31059 /* ObservationHistoryMutationTransport.swift */; };
 		3F11C278D0C78DF09F7722F6 /* OnboardingPermissionDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0C2AA8EC52212311931C47 /* OnboardingPermissionDependencies.swift */; };
 		3F99FC502E9A8060208B1AD0 /* MerianMessagesExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 66B6468625AB1E47BFE6C8B1 /* MerianMessagesExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3FA47EA46DA4AAB72A0BC29C /* OAuthSignInCoordinatorTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96965C31E27F9A82404094F6 /* OAuthSignInCoordinatorTestSupport.swift */; };
@@ -741,6 +742,7 @@
 		4E35FC469AD239640A5B9EC0 /* AudioPlaybackFilePlayerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6CCC0E3C74B63E0F91F2AC7 /* AudioPlaybackFilePlayerTests.swift */; };
 		4E363D26640959FA90E54EDF /* SchemaV19.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81C08D4DBED36A84D38A0396 /* SchemaV19.swift */; };
 		4E3879DAF60C6EF8FFFD7F91 /* AIIdentificationReviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3E3AC67928133D7F7934896 /* AIIdentificationReviewTests.swift */; };
+		4E57B44096D95FE72EBF4300 /* MerianNetworkClient+ProtectedInsightChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BE1A7F2EC2860F3A7D3BC7 /* MerianNetworkClient+ProtectedInsightChat.swift */; };
 		4E6616BDC5ED3EB882ED3795 /* PurchaseIdentitySessionLiveServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8363BBA3AEF4FF0128D3324F /* PurchaseIdentitySessionLiveServiceTests.swift */; };
 		4E85F1A6775FE58671285889 /* ConsentRestorationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FD0ACE13597508488F9F5C7 /* ConsentRestorationCoordinatorTests.swift */; };
 		4E8716B2391B5A836EB2C983 /* FieldNotesEditPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1680A67C998524D2E5827192 /* FieldNotesEditPolicyTests.swift */; };
@@ -1478,7 +1480,6 @@
 		9AEA1781ABED270A3D1E0AA3 /* DateUtilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4BA5174670296C98053C13 /* DateUtilities.swift */; };
 		9AF15A8204765F62EC94AFBF /* InsightSheetViewModel+ContentActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 517075E5CC7A66BF98591093 /* InsightSheetViewModel+ContentActions.swift */; };
 		9B1268F905DE91FF443B7793 /* DescriptionTextCarouselPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2049F37B9A1F29D0C11F6E5 /* DescriptionTextCarouselPage.swift */; };
-		9B1C603C5ED269FCA3E6EBF8 /* ObservationAnalysisReviewTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 779A2636E666C0594D470623 /* ObservationAnalysisReviewTransport.swift */; };
 		9B398F11E7A7CF42D32E8E28 /* FieldChatPromptRevealModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E9E62A59765F112682AE03 /* FieldChatPromptRevealModel.swift */; };
 		9B42DB36177C3C28A57BB0E4 /* InsightChatViewModel+Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE937CB42C5A8E4FA98A4B97 /* InsightChatViewModel+Conversation.swift */; };
 		9B62244FCAB92557FA93265E /* MerianNetworkClient+Inference.swift in Sources */ = {isa = PBXBuildFile; fileRef = F67CE15747F2364C4E0B82CD /* MerianNetworkClient+Inference.swift */; };
@@ -2057,6 +2058,7 @@
 		D2696A12580A97524929CB0F /* AppleCredentialRevocationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DACE83DAC0A6768502A66061 /* AppleCredentialRevocationCoordinator.swift */; };
 		D29893C462535867AAEACA67 /* AccountDeletionRecoveryCapabilityStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5748F1930D3D76CCF810392 /* AccountDeletionRecoveryCapabilityStoreTests.swift */; };
 		D299A0C7BAEBE9C614C623B6 /* CommunityIdentificationActivityFeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0969537940FED33DEC6F2EBE /* CommunityIdentificationActivityFeedViewModel.swift */; };
+		D2B3228B14B2403E9B6BCBDB /* ProtectedInsightChatTransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30B9DC2A9DB52D23250A36A /* ProtectedInsightChatTransportTests.swift */; };
 		D3136833C722D4D0782FFEE7 /* ExploreShellNavigationPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F81CA2F8959E13E13C8FBCA /* ExploreShellNavigationPolicyTests.swift */; };
 		D325DC2D95A9437DE273A65F /* CollectionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 563EEB02F0BD9E0DFAC51EA6 /* CollectionCard.swift */; };
 		D3390BD49270B2D23E57D64C /* CommunityFeedbackViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B80F06F9CA7CB09831D884E /* CommunityFeedbackViewModel.swift */; };
@@ -3106,6 +3108,7 @@
 		33B597E5336FB1E874581CA0 /* DefaultCollectionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultCollectionCard.swift; sourceTree = "<group>"; };
 		33B66B71F719156C6F6B8088 /* ObservationHistoryPhotoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationHistoryPhotoTests.swift; sourceTree = "<group>"; };
 		33BB45486A887B0866CE5C68 /* IdentificationHistoryReanalysisTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentificationHistoryReanalysisTests.swift; sourceTree = "<group>"; };
+		33BE1A7F2EC2860F3A7D3BC7 /* MerianNetworkClient+ProtectedInsightChat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MerianNetworkClient+ProtectedInsightChat.swift"; sourceTree = "<group>"; };
 		33FD2D0B0B8D49842926B1FC /* AppDIContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDIContainer.swift; sourceTree = "<group>"; };
 		3414F70F2979CEF0BCAA927B /* InferenceLivePipelineCoordinator+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InferenceLivePipelineCoordinator+Live.swift"; sourceTree = "<group>"; };
 		3422FB4CC601CF8D37455103 /* MerianNetworkClient+MediaUploads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MerianNetworkClient+MediaUploads.swift"; sourceTree = "<group>"; };
@@ -3760,7 +3763,6 @@
 		776ADF7011178CB25E0A75A2 /* InsightSheetView+Presentations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InsightSheetView+Presentations.swift"; sourceTree = "<group>"; };
 		77802703E61537D44069869E /* InferencePresentationStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferencePresentationStateTests.swift; sourceTree = "<group>"; };
 		7791DBCD8E617219EAC067CD /* ProfilePublicScanImageDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilePublicScanImageDependencies.swift; sourceTree = "<group>"; };
-		779A2636E666C0594D470623 /* ObservationAnalysisReviewTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationAnalysisReviewTransport.swift; sourceTree = "<group>"; };
 		77EDCC199F9D353B16A91317 /* FadingScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FadingScrollView.swift; sourceTree = "<group>"; };
 		780270204D2908667698AEA8 /* ExploreMapPointsRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreMapPointsRequest.swift; sourceTree = "<group>"; };
 		7811F86CBCA6CDB0188A8929 /* ScansManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansManagerTests.swift; sourceTree = "<group>"; };
@@ -4321,6 +4323,7 @@
 		B249DB122361622CBEEB1A74 /* RecordingCountdownBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingCountdownBadge.swift; sourceTree = "<group>"; };
 		B2AF93B97DABA879A1E589C2 /* ScansGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansGrid.swift; sourceTree = "<group>"; };
 		B2D424A0FA200EF20614848A /* ObservationReanalysisAdvisoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationReanalysisAdvisoryTests.swift; sourceTree = "<group>"; };
+		B30B9DC2A9DB52D23250A36A /* ProtectedInsightChatTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtectedInsightChatTransportTests.swift; sourceTree = "<group>"; };
 		B31A0D98AECDA6BB6791C77F /* AppRouteCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouteCoordinatorTests.swift; sourceTree = "<group>"; };
 		B346F08BB57033FB8C35804A /* ExploreMapPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreMapPresentationTests.swift; sourceTree = "<group>"; };
 		B36AAE7B7B8DD123C3A81CE9 /* ConsentRetryPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsentRetryPolicy.swift; sourceTree = "<group>"; };
@@ -4414,6 +4417,7 @@
 		BD184A5429A467C5B25D3418 /* ExploreMapFilterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreMapFilterSheet.swift; sourceTree = "<group>"; };
 		BD1CBA826844AB42CF69B7F4 /* ScrollBounceDisabler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollBounceDisabler.swift; sourceTree = "<group>"; };
 		BD21D1193B6ED5677E76BA74 /* EnvironmentLocationPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentLocationPolicyTests.swift; sourceTree = "<group>"; };
+		BD27B15EA5416052F6A31059 /* ObservationHistoryMutationTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationHistoryMutationTransport.swift; sourceTree = "<group>"; };
 		BD5A4100AABEDDFAB583F020 /* CaptureScanOperationStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureScanOperationStateTests.swift; sourceTree = "<group>"; };
 		BDA0DE1EC2DFBC1208983691 /* FieldTripCatalogAPIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldTripCatalogAPIModels.swift; sourceTree = "<group>"; };
 		BDD224A5B678552DF28EF214 /* InsightSharePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightSharePresentation.swift; sourceTree = "<group>"; };
@@ -9852,7 +9856,7 @@
 				1B08D882DE2C1EA518F0619C /* EdgeFunctionErrorPolicy.swift */,
 				715E6067F81432AE17BC2B4F /* EdgeFunctionRoutePolicy.swift */,
 				BFEF02C180626CDE44376DBC /* IdentificationBenchmarkRecord.swift */,
-				779A2636E666C0594D470623 /* ObservationAnalysisReviewTransport.swift */,
+				BD27B15EA5416052F6A31059 /* ObservationHistoryMutationTransport.swift */,
 				287650284E26B0D3C5C7160D /* PinnedNetworkTransport.swift */,
 			);
 			path = Transport;
@@ -9889,6 +9893,7 @@
 				F42572A90936994DE5D32A4B /* MerianNetworkClient+ObservationEvidence.swift */,
 				E3429D95A8135934B8AE5A85 /* MerianNetworkClient+ObservationPublication.swift */,
 				68190BDA6C864320FBF2D42A /* MerianNetworkClient+ProductFeedback.swift */,
+				33BE1A7F2EC2860F3A7D3BC7 /* MerianNetworkClient+ProtectedInsightChat.swift */,
 				6F2CC5C4C6978F1C542F5DD4 /* MerianNetworkClient+PublicProfile.swift */,
 				818836DE28BF527D9D32F557 /* MerianNetworkClient+ReanalysisRecovery.swift */,
 				9E4C2A18AE9DDCCCC6E0299C /* MerianNetworkClient+ScanEnrichment.swift */,
@@ -12904,6 +12909,7 @@
 				FC4BE60BF46E1751F74FE855 /* EdgeFunctionRoutePolicyTests.swift */,
 				788712FB2B3F4B8264F48C8F /* IdentificationBenchmarkRecordTests.swift */,
 				E62662CCAC4E8478A0BBA7B6 /* PinnedNetworkTransportTests.swift */,
+				B30B9DC2A9DB52D23250A36A /* ProtectedInsightChatTransportTests.swift */,
 			);
 			path = Transport;
 			sourceTree = "<group>";
@@ -14063,6 +14069,7 @@
 				3E5E713644EDECBF1D55140A /* ProfileViewModelTests.swift in Sources */,
 				70F16485A9332A7EC4FC450F /* ProtectedInsightChatClaimsTests.swift in Sources */,
 				06298A68C9684E7E4B286519 /* ProtectedInsightChatPersistenceTests.swift in Sources */,
+				D2B3228B14B2403E9B6BCBDB /* ProtectedInsightChatTransportTests.swift in Sources */,
 				40B7D673C4DD35F24470AD46 /* PublicAuthorIdentityRefreshCoordinatorTestSupport.swift in Sources */,
 				A9F2B1881C745911E5DC969C /* PublicAuthorIdentityRefreshCoordinatorTests.swift in Sources */,
 				BB4BEB1A33617A8707AF6A8C /* PublicBrandTests.swift in Sources */,
@@ -15269,6 +15276,7 @@
 				96810C0D00C5B1C5F79D8689 /* MerianNetworkClient+ObservationPublication.swift in Sources */,
 				866FD897E6AEB408478E0AEE /* MerianNetworkClient+OwnedScanRecovery.swift in Sources */,
 				EBE04F016B34AEDEE6DD907B /* MerianNetworkClient+ProductFeedback.swift in Sources */,
+				4E57B44096D95FE72EBF4300 /* MerianNetworkClient+ProtectedInsightChat.swift in Sources */,
 				DE33AE6400D3E2D916AD8E89 /* MerianNetworkClient+PublicProfile.swift in Sources */,
 				F25255991E30353D86484E27 /* MerianNetworkClient+ReanalysisRecovery.swift in Sources */,
 				AF9D6A7EBCC5C09A090D9DC2 /* MerianNetworkClient+ScanEnrichment.swift in Sources */,
@@ -15339,7 +15347,6 @@
 				3B2C2DD9095F75D02BE973C1 /* ObservationAnalysisReviewRequest.swift in Sources */,
 				43079A1E2A6556F71659755F /* ObservationAnalysisReviewStatus.swift in Sources */,
 				1CE9B16F5C5656E06A0B4044 /* ObservationAnalysisReviewTicket.swift in Sources */,
-				9B1C603C5ED269FCA3E6EBF8 /* ObservationAnalysisReviewTransport.swift in Sources */,
 				99656DDB45231B3EE9380D50 /* ObservationContext.swift in Sources */,
 				F150C1D45C901600D40015C4 /* ObservationEvidenceUpload.swift in Sources */,
 				70CF051B883A9E115F452B12 /* ObservationHistoryCloudClient.swift in Sources */,
@@ -15349,6 +15356,7 @@
 				16C49B78CA5007395D49C4F6 /* ObservationHistoryEnrollmentOwner.swift in Sources */,
 				B4C76F1DD395E352DB0BF259 /* ObservationHistoryEnrollmentService.swift in Sources */,
 				69B868845E495D2302A678C1 /* ObservationHistoryListingService.swift in Sources */,
+				3F05D6C8E0955093D90DC193 /* ObservationHistoryMutationTransport.swift in Sources */,
 				B75E13DA1C976C2F5BCE82C6 /* ObservationHistoryPage+SavedIdentification.swift in Sources */,
 				1CE544E3AC3294A850744011 /* ObservationHistoryPage.swift in Sources */,
 				87DF8D9C60DC2A6B0C77A303 /* ObservationHistoryPhotoLoader.swift in Sources */,

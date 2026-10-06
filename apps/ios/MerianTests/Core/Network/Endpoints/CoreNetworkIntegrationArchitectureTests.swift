@@ -4293,7 +4293,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             "Endpoints/MerianNetworkClient+Collections.swift",
             "Endpoints/MerianNetworkClient+Inference.swift",
             "Endpoints/MerianNetworkClient+ScanLifecycle.swift",
-            "Transport/ObservationAnalysisReviewTransport.swift"
+            "Transport/ObservationHistoryMutationTransport.swift"
         ])
         #expect(dispatcher.contains("final class AuthenticatedTransportDispatcher"))
         #expect(dispatcher.contains("private let sessionTransport: PinnedNetworkTransport"))
@@ -4476,11 +4476,15 @@ struct CoreNetworkIntegrationArchitectureTests {
     @Test func analysisReviewTransportHasOnlyTypedDomainAccess() throws {
         let sources = try networkSources()
         let consumers = Set(sources.compactMap { path, text in
-            text.contains("observationHistoryReviewTransport") ? path : nil
+            text.contains("observationHistoryMutationTransport") ? path : nil
         })
-        #expect(consumers == ["MerianNetworkClient.swift", "Endpoints/MerianNetworkClient+ObservationAnalysisReview.swift"])
-        let transport = try networkSource("Transport/ObservationAnalysisReviewTransport.swift")
+        #expect(consumers == ["MerianNetworkClient.swift", "Endpoints/MerianNetworkClient+ObservationAnalysisReview.swift",
+            "Endpoints/MerianNetworkClient+ProtectedInsightChat.swift"])
+        let transport = try networkSource("Transport/ObservationHistoryMutationTransport.swift")
         #expect(transport.contains("private let dispatcher: AuthenticatedTransportDispatcher"))
+        let pinned = try networkSource("Transport/PinnedNetworkTransport.swift")
+        #expect(pinned.contains("tlsDelegate.urlSession(session, didReceive: challenge, completionHandler: completionHandler)"))
+        #expect(pinned.contains("configuration.urlCredentialStorage = nil"))
         #expect(transport.contains("allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false"))
         let reads = try networkSource("Transport/AdmissionRPCRequestPolicy.swift")
         #expect(!reads.contains("review_owned_observation_analysis"))
@@ -4507,6 +4511,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "MerianNetworkClient+ObservationEvidence.swift",
         "MerianNetworkClient+ObservationPublication.swift",
         "MerianNetworkClient+ProductFeedback.swift",
+        "MerianNetworkClient+ProtectedInsightChat.swift",
         "MerianNetworkClient+PublicProfile.swift",
         "MerianNetworkClient+ReanalysisRecovery.swift",
         "MerianNetworkClient+ScanEnrichment.swift",
@@ -4525,7 +4530,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "EdgeFunctionErrorPolicy.swift",
         "EdgeFunctionRoutePolicy.swift",
         "IdentificationBenchmarkRecord.swift",
-        "ObservationAnalysisReviewTransport.swift",
+        "ObservationHistoryMutationTransport.swift",
         "PinnedNetworkTransport.swift"
     ]
 

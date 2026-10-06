@@ -12928,22 +12928,23 @@ canonically equivalent but byte-distinct names remain different operation
 intent. Saved requests are bounded to 2 KiB, receipts to 4 KiB. Receipt decoding
 binds every field to the original request and admits only outcome-specific keys.
 
-`ObservationAnalysisReviewTransport` owns only the fixed owner RPC (reader 9)
-and confirmation Edge route, selected by the typed decision. It composes the
-existing private authenticated dispatcher and disables transient transport
-replay and classified-401 recovery. A required durable-attempt validator runs
-after Auth preparation and before actual dispatch. The read-only admission RPC
-capability and wire payloads are unchanged. Transport never mints an operation
-ID, changes selection, projects review status, or falls back to legacy review.
-Prepared native persistence now retains the exact request, local fingerprint and
-terminal receipt across restart, with claim/account/deletion fences and a saved
-applied Reject association for Undo. Only one unfinished review is admitted per
-observation, through projection reconciliation. Storage does not treat receipt
-acceptance as current authority. The delivery owner must retain an account lease
-and reconcile current protocol-9 state separately. A nonselected target response
-cannot advance the parent revision while leaving a stale selected projection.
-The prepared native reconciler now reads the exact pair under one account lease
-and applies the selected state before the distinct target cache in one locked
+The review overload of `ObservationHistoryMutationTransport` owns only the fixed
+owner RPC (reader 9) and confirmation Edge route, selected by the typed
+decision. It composes the existing private authenticated dispatcher and disables
+transient transport replay and classified-401 recovery. A required
+durable-attempt validator runs after Auth preparation and before actual
+dispatch. The read-only admission RPC capability and wire payloads are
+unchanged. Transport never mints an operation ID, changes selection, projects
+review status, or falls back to legacy review. Prepared native persistence now
+retains the exact request, local fingerprint and terminal receipt across
+restart, with claim/account/deletion fences and a saved applied Reject
+association for Undo. Only one unfinished review is admitted per observation,
+through projection reconciliation. Storage does not treat receipt acceptance as
+current authority. The delivery owner must retain an account lease and reconcile
+current protocol-9 state separately. A nonselected target response cannot
+advance the parent revision while leaving a stale selected projection. The
+prepared native reconciler now reads the exact pair under one account lease and
+applies the selected state before the distinct target cache in one locked
 transaction with receipt completion. Applied receipts bound only their own
 target authority; selected-result review authority remains independent. Failed
 validation or save rolls back the entire projection. The prepared one-operation
@@ -14749,3 +14750,23 @@ while preserving the exact original request. Claim expiry denies new dispatch
 but permits an unchanged late receipt. Replaced attempts cannot acknowledge, and
 terminal receipts never reopen. These local attempts do not authorize provider
 successors. No gate is enabled.
+
+The prepared native protected chat transport now sends one exact saved request
+through a closed typed mutation boundary. It bypasses the legacy 45-second
+retrying executor. A scoped pinned session permits 145 seconds and bounds actual
+received bytes to 32 KiB; the ordinary session retains its 90-second resource
+ceiling. Redirects, automatic 401 refresh, transient retry and route retry are
+forbidden. Owner and claim validation follows Auth before dispatch, and a
+separate response fence validates the unchanged attempt. Dispatch requires the
+full 145-second wire budget, 15-second local receipt reserve and two-second
+margin inside the original claim. Late exact replies can still reach atomic
+acknowledgement; the transport does not extend expiry or mint identities.
+Retained delivery, Auth teardown and actual send UI remain unconnected. All
+activation gates remain false.
+
+Native `ProtectedInsightChatReply` retains the validated completion alongside
+original bounded receipt bytes for atomic persistence, preserving required null
+fields. Both session and task authentication challenges share the existing
+certificate-pin validator. Successful JSON MIME validation precedes body
+acceptance, and a final synchronous budget check precedes task start. The scoped
+session has no credential store; ordinary transport policies remain unchanged.
