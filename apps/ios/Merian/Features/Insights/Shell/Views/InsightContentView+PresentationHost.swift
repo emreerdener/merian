@@ -179,9 +179,14 @@ extension InsightContentView {
                     presentationGeneration: engineGeneration,
                     candidates: candidates,
                     confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
-                    allowsAskCommunity: viewModel.canRequestCommunityIdentification,
+                    allowsAskCommunity: prepareCommunityConsent != nil || (viewModel.canRequestCommunityIdentification &&
+                        ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanId, container: modelContext.container)),
                     allowsRefinement: true,
                     onRequestDismissalAction: { request in
+                        pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
+                        if case .askCommunity = request.action, let prepareCommunityConsent {
+                            pendingCommunityConsent = prepareCommunityConsent(request.scanId, request.presentationGeneration)
+                        }
                         pendingCandidateReanalysis?.cancel()
                         pendingCandidateReanalysis = nil
                         if case .refineScan = request.action, let prepareSavedReanalysis {

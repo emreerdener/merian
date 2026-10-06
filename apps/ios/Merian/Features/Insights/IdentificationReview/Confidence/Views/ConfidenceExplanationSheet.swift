@@ -14,7 +14,10 @@ struct ConfidenceExplanationSheet: View {
     var aiScientificName: String?
     var onAskCommunity: (() -> Void)?
     let onRequestDismissalAction: (ConfidenceExplanationDismissalAction) -> Void
+    var prepareCommunityConsent: CommunityConsentPreparation?
+    @State private var pendingCommunityConsent: CommunityConsentTicket?
     var prepareSavedReanalysis: SavedReanalysisPreparation?
+    var onPreparedCommunityConsent: ((ConfidenceExplanationActionContext, CommunityConsentTicket) -> Void)?
     var onPreparedReanalysis: ((ConfidenceExplanationActionContext, SavedReanalysisTicket) -> Void)?
     @State private var pendingReanalysis: SavedReanalysisTicket?
 
@@ -45,7 +48,9 @@ struct ConfidenceExplanationSheet: View {
         onRequestDismissalAction: @escaping (
             ConfidenceExplanationDismissalAction
         ) -> Void,
+        prepareCommunityConsent: CommunityConsentPreparation? = nil,
         prepareSavedReanalysis: SavedReanalysisPreparation? = nil,
+        onPreparedCommunityConsent: ((ConfidenceExplanationActionContext, CommunityConsentTicket) -> Void)? = nil,
         onPreparedReanalysis: ((ConfidenceExplanationActionContext, SavedReanalysisTicket) -> Void)? = nil,
         dependencies: ConfidenceReviewDependencies = .live
     ) {
@@ -60,7 +65,9 @@ struct ConfidenceExplanationSheet: View {
         self.aiScientificName = aiScientificName
         self.onAskCommunity = onAskCommunity
         self.onRequestDismissalAction = onRequestDismissalAction
+        self.prepareCommunityConsent = prepareCommunityConsent
         self.prepareSavedReanalysis = prepareSavedReanalysis
+        self.onPreparedCommunityConsent = onPreparedCommunityConsent
         self.onPreparedReanalysis = onPreparedReanalysis
         self._viewModel = State(
             initialValue: ConfidenceExplanationViewModel(
@@ -139,8 +146,14 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var communityRequestAction: (() -> Void)? {
-        guard onAskCommunity != nil else { return nil }
+        guard onAskCommunity != nil || prepareCommunityConsent != nil else { return nil }
         return {
+            if let prepareCommunityConsent {
+                guard let ticket = prepareCommunityConsent(scanId, presentationGeneration) else { return }
+                dismissWithPreparedCommunityConsent(ticket)
+                return
+            }
+            guard permitsLegacyReview else { return }
             requestDismissalAction(.askCommunity(actionContext))
         }
     }
@@ -302,7 +315,9 @@ struct ConfidenceExplanationSheet: View {
                         onAskCommunity: communityRequestAction,
                         onMatchConfirmed: nil,
                         onRefineScan: refinementAction,
+                        prepareCommunityConsent: prepareCommunityConsent,
                         prepareSavedReanalysis: prepareSavedReanalysis,
+                        resumeCommunityConsent: dismissWithPreparedCommunityConsent,
                         resumeSavedReanalysis: dismissWithPreparedReanalysis,
                         showDismissButton: false,
                         dependencies: viewModel.candidateDependencies
@@ -373,6 +388,10 @@ struct ConfidenceExplanationSheet: View {
                 allowsAskCommunity: communityRequestAction != nil,
                 allowsRefinement: refinementAction != nil,
                 onRequestDismissalAction: { request in
+                    pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
+                    if case .askCommunity = request.action, let prepareCommunityConsent {
+                        pendingCommunityConsent = prepareCommunityConsent(request.scanId, request.presentationGeneration)
+                    }
                     pendingReanalysis?.cancel()
                     pendingReanalysis = nil
                     if case .refineScan = request.action, let prepareSavedReanalysis {
@@ -387,6 +406,7 @@ struct ConfidenceExplanationSheet: View {
             PaywallView()
         }
         .onDisappear {
+            pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
             pendingReanalysis?.cancel()
             pendingReanalysis = nil
         }
@@ -420,6 +440,12 @@ struct ConfidenceExplanationSheet: View {
         dismiss()
     }
 
+    private func dismissWithPreparedCommunityConsent(_ ticket: CommunityConsentTicket) {
+        guard isSubjectPresentationCurrent, let onPreparedCommunityConsent else { ticket.cancel(); return }
+        onPreparedCommunityConsent(actionContext, ticket)
+        dismiss()
+    }
+
     private func dismissWithPreparedReanalysis(_ ticket: SavedReanalysisTicket) {
         guard isSubjectPresentationCurrent, let onPreparedReanalysis else { ticket.cancel(); return }
         onPreparedReanalysis(actionContext, ticket)
@@ -427,6 +453,10 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private func resumePendingSwipeDismissalRequest() {
+        let community = pendingCommunityConsent
+        pendingCommunityConsent = nil
+        var communityForwarded = false
+        defer { if !communityForwarded { community?.cancel() } }
         let prepared = pendingReanalysis
         pendingReanalysis = nil
         guard let request = viewModel.candidateReview
@@ -455,6 +485,8 @@ struct ConfidenceExplanationSheet: View {
                 )
             }
         case .askCommunity:
+            if let community { communityForwarded = true; dismissWithPreparedCommunityConsent(community); return }
+            guard prepareCommunityConsent == nil, permitsLegacyReview else { return }
             communityRequestAction?()
         case .refineScan:
             if let prepared { dismissWithPreparedReanalysis(prepared); return }

@@ -7,6 +7,7 @@ extension InsightSheetView {
             viewModel: viewModel,
             queuedScan: queuedScan,
             onOpenFieldTripOverview: openFieldTripOverview,
+            prepareCommunityConsent: communityConsentPreparation,
             prepareSavedReanalysis: savedReanalysisPreparation
         )
             .merianSystemFeedback(

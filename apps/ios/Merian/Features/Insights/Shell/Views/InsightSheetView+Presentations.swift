@@ -18,6 +18,8 @@ extension InsightSheetView {
         _ presentation: InsightShellPresentation
     ) -> some View {
         switch presentation {
+        case .publicationConsent:
+            if let selectedPublicationModel { IdentificationPublicationSheet(model: selectedPublicationModel) }
         case .reanalysisStatus:
             if let reanalysisStatusModel { ReanalysisStatusSheet(model: reanalysisStatusModel) }
         case .identificationHistory:
@@ -322,6 +324,8 @@ extension InsightSheetView {
             resumePendingInsightChatDismissalAction()
         case .explore:
             handleExploreSheetDismissed()
+        case .publicationConsent:
+            selectedPublicationModel?.close(); selectedPublicationModel = nil
         case .reanalysisStatus:
             reanalysisStatusModel?.close(); reanalysisStatusModel = nil
         case .identificationHistory(let scanID, let generation):
@@ -346,6 +350,8 @@ extension InsightSheetView {
     @MainActor
     func isShellPresentationValid(_ presentation: InsightShellPresentation) -> Bool {
         switch presentation {
+        case .publicationConsent(let scanId, let generation):
+            selectedPublicationModel != nil && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
         case .reanalysisStatus(let scanId, let generation):
             reanalysisStatusModel != nil && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
         case .identificationHistory(let scanId, let generation):
@@ -393,6 +399,9 @@ extension InsightSheetView {
         releasePayload: Bool
     ) {
         switch presentation {
+        case .publicationConsent:
+            selectedPublicationModel?.close()
+            if releasePayload { selectedPublicationModel = nil }
         case .reanalysisStatus:
             reanalysisStatusModel?.close()
             if releasePayload { reanalysisStatusModel = nil }

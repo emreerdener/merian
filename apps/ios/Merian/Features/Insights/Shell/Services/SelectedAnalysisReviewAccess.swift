@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import UIKit
 
 /// Prepared read/admission only. Opening does not enroll, request consent or send review.
 @MainActor
@@ -19,7 +20,7 @@ struct SelectedAnalysisReviewAccess {
                 }, matchesDisplayedTicket: {
                     guard scope.isCurrent() else { return false }
                     return (try? Self.ticket(baseline, cloud: cloud, container: container)) == ticket
-                }, close: scope.close)
+                }, close: scope.close, publication: scope.dependencies.publicationConsent, photo: scope.dependencies.photo)
             } catch { scope.close(); throw error }
         })
     }
@@ -52,6 +53,8 @@ struct SelectedAnalysisReviewSession {
     let isScopeCurrent: () -> Bool
     let matchesDisplayedTicket: () -> Bool
     let close: () -> Void
+    var publication: IdentificationHistoryPublicationAccess?
+    var photo: ((UUID, UUID) async throws -> UIImage)?
 
     func reviewModel(presentationIsCurrent: @escaping () -> Bool) -> IdentificationHistoryReviewModel {
         .init(ticket: ticket, access: access, isCurrent: { presentationIsCurrent() && isScopeCurrent() },

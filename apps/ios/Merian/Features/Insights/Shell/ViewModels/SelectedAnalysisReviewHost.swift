@@ -47,6 +47,37 @@ final class SelectedAnalysisReviewHost {
         }
     }
 
+    /// Freeze the already-displayed ticket at the actual tap. The returned
+    /// handle can cross child dismissal, but cannot reopen or retarget a session.
+    func preparePublication(token: UUID, container: ModelContainer,
+                            continuation: PublicationConsentContinuation, isCurrent: @escaping () -> Bool,
+                            present: @escaping (IdentificationPublicationModel) -> Void) -> CommunityConsentTicket? {
+        guard isCurrent(), accepts(token), permitsPublication(), let key, key.container == ObjectIdentifier(container),
+              let session, session.matchesDisplayedTicket(), let access = session.publication,
+              let photo = session.photo else { return nil }
+        continuation.bind(owner: session.ticket.ownerID, observation: session.ticket.observationID, container: container)
+        guard continuation.matches(session.ticket) else { return nil }
+        return CommunityConsentTicket { [weak self] in
+            guard let self, isCurrent(), self.accepts(token), self.permitsPublication(), self.key == key,
+                  session.matchesDisplayedTicket(), continuation.matches(session.ticket) else { return }
+            let model = IdentificationPublicationModel(ticket: session.ticket, access: access, continuation: continuation,
+                isCurrent: { [weak self] in
+                    guard let self else { return false }
+                    return isCurrent() && self.token == token && self.key == key && self.scopeIsCurrent
+                        && session.matchesDisplayedTicket()
+                }, photo: photo)
+            present(model)
+        }
+    }
+
+    var hasPublicationAccess: Bool {
+        session?.publication != nil && session?.photo != nil && scopeIsCurrent && !terminal && model?.hasUnresolvedRequest != true
+    }
+    private func permitsPublication() -> Bool {
+        guard model?.hasUnresolvedRequest != true, let session else { return false }
+        do { return try session.access.pending() == nil } catch { return false }
+    }
+
     func submit(_ decision: ObservationAnalysisReviewRequest.Decision, token: UUID) {
         guard accepts(token) else { return }
         model?.submit(decision)

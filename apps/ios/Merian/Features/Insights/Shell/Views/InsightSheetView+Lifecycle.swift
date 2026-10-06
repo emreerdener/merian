@@ -83,6 +83,7 @@ extension InsightSheetView {
             }
             .onAppear(perform: handleAppearance)
             .onDisappear {
+                closeSelectedPublication()
                 selectedReviewHost.close()
                 cancelSavedReanalysis()
                 appSettings.suppressInferenceBanners = false
@@ -453,6 +454,7 @@ extension InsightSheetView {
     }
 
     func dismissInsightPresentation() {
+        closeSelectedPublication()
         publicationContinuation.clear()
         cancelSavedReanalysis()
         viewModel.endPresentationSession()

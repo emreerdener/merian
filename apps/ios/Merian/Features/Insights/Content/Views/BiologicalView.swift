@@ -14,6 +14,7 @@ struct BiologicalView: View {
     // MARK: - Context State
     var timestamp: Date?
     var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
+    var prepareCommunityConsent: CommunityConsentPreparation?
     var prepareSavedReanalysis: SavedReanalysisPreparation?
 
     @Environment(\.dismiss) private var dismiss
@@ -51,6 +52,17 @@ struct BiologicalView: View {
     }
 
     // MARK: - Visual Layout
+    private func communityAction(scanID: String?, generation: UInt64) -> (() -> Void)? {
+        guard let scanID else { return nil }
+        if let prepareCommunityConsent {
+            let engineGeneration = inferenceEngine.scanPresentationGeneration
+            return { prepareCommunityConsent(scanID, engineGeneration)?.resume() }
+        }
+        guard viewModel.canRequestCommunityIdentification,
+              ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanID, container: modelContext.container) else { return nil }
+        return { viewModel.presentCommunityIdentificationRequest(expectedScanId: scanID, expectedGeneration: generation) }
+    }
+
     var body: some View {
         let fieldNotesScanId = viewModel.currentFieldNotesScanId
         let fieldNotesGeneration = viewModel.scanBoundActionGeneration
@@ -92,13 +104,8 @@ struct BiologicalView: View {
                 userConfirmedIdentification: inferenceEngine.speciesData?.primaryIdentification == nil ? (inferenceEngine.speciesData?.userConfirmedIdentification ?? false) : false,
                 isFlagged: inferenceEngine.speciesData?.isFlagged ?? false,
                 aiScientificName: inferenceEngine.speciesData?.aiScientificName,
-                onAskCommunity: viewModel.canRequestCommunityIdentification ? {
-                    guard let scanId = biologicalScanId else { return }
-                    viewModel.presentCommunityIdentificationRequest(
-                        expectedScanId: scanId,
-                        expectedGeneration: fieldNotesGeneration
-                    )
-                } : nil,
+                onAskCommunity: communityAction(scanID: biologicalScanId, generation: fieldNotesGeneration),
+                prepareCommunityConsent: prepareCommunityConsent,
                 prepareSavedReanalysis: prepareSavedReanalysis,
                 onScrollOffsetChange: { maxY in
                     viewModel.evaluateScrollOffset(minY: maxY)
@@ -195,20 +202,14 @@ struct BiologicalView: View {
                 if CandidateReviewVisibilityPolicy.showsIncorrectGuidance(
                     for: inferenceEngine.speciesData,
                     canReanalyze: viewModel.canReanalyze,
-                    canAskCommunity: viewModel.canRequestCommunityIdentification
+                    canAskCommunity: communityAction(scanID: biologicalScanId, generation: fieldNotesGeneration) != nil
                 ) {
                     IncorrectIdentificationGuidanceCard(
                         onReanalyze: viewModel.canReanalyze ? refinementAction(
                             scanId: biologicalScanId,
                             generation: fieldNotesGeneration
                         ) : nil,
-                        onAskCommunity: viewModel.canRequestCommunityIdentification ? {
-                            guard let scanId = biologicalScanId else { return }
-                            viewModel.presentCommunityIdentificationRequest(
-                                expectedScanId: scanId,
-                                expectedGeneration: fieldNotesGeneration
-                            )
-                        } : nil
+                        onAskCommunity: communityAction(scanID: biologicalScanId, generation: fieldNotesGeneration)
                     )
                 }
 
@@ -222,13 +223,7 @@ struct BiologicalView: View {
                         aiScientificName: primaryAIName,
                         inferenceTier: inferenceEngine.speciesData?.inferenceTier,
                         confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
-                        onAskCommunity: viewModel.canRequestCommunityIdentification ? {
-                            guard let scanId = biologicalScanId else { return }
-                            viewModel.presentCommunityIdentificationRequest(
-                                expectedScanId: scanId,
-                                expectedGeneration: fieldNotesGeneration
-                            )
-                        } : nil,
+                        onAskCommunity: communityAction(scanID: biologicalScanId, generation: fieldNotesGeneration),
                         onMatchConfirmed: {
                             guard let scanId = biologicalScanId,
                                   viewModel.isPresentingLocalRecord(
@@ -243,7 +238,8 @@ struct BiologicalView: View {
                             scanId: biologicalScanId,
                             generation: fieldNotesGeneration
                         ),
-                        prepareSavedReanalysis: prepareSavedReanalysis
+                        prepareCommunityConsent: prepareCommunityConsent,
+                prepareSavedReanalysis: prepareSavedReanalysis
                     )
                     .insightCardEntrance(index: 2, isAnimationEnabled: cardEntranceAnimationEnabled)
                 }

@@ -190,6 +190,16 @@ not.
 
 Saved status refresh uses the injected delivery-exit generation and foreground
 opportunities, without timers or idle account leases. A historical admission is
-not presented as proof of public visibility. This is prepared History UI only;
-ordinary access and every activation gate remain disabled. The selected Insight
-community entry remains separate integration work.
+not presented as proof of public visibility. Ordinary access and every
+activation gate remain disabled.
+
+The selected Insight entry reuses its retained History session and frozen review
+ticket through `SelectedAnalysisReviewHost`. Toolbar, biological content and
+nested confidence/candidate actions prepare a one-use `CommunityConsentTicket`
+at the actual tap, before child dismissal. Resuming validates the original
+binding token, both presentation domains, container and displayed authority; it
+never opens a replacement session or substitutes a newer selection. The native
+`IdentificationPublicationSheet` consumes the same consent model and parent
+continuation as History. Protected scans with missing access remain withheld;
+unenrolled scans retain their fenced legacy route. Closing the sheet clears its
+private presentation, while an uncertain Acceptance remains parent-owned.

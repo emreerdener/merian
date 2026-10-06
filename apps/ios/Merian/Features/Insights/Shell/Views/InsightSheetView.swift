@@ -29,6 +29,7 @@ struct InsightSheetView: View {
     @State var pendingHistoryReanalysis: IdentificationHistoryReanalysisHandoff?
     @State var selectedReviewHost = SelectedAnalysisReviewHost()
     @State var historyModel: IdentificationHistoryViewModel?
+    @State var selectedPublicationModel: IdentificationPublicationModel?
     @State var publicationContinuation = PublicationConsentContinuation()
     @State var reanalysisStatusModel: ReanalysisStatusViewModel?
     @State var savedReanalysisHandoff = SavedReanalysisHandoff()
@@ -181,6 +182,7 @@ struct InsightSheetView: View {
         .onChange(of: isPresented) { _, isNowPresented in
             guard isNowPresented else {
                 cancelSavedReanalysis()
+                closeSelectedPublication()
                 selectedReviewHost.close()
                 publicationContinuation.clear()
                 historyModel?.close(); historyModel = nil; pendingHistoryReanalysis = nil
@@ -206,10 +208,11 @@ struct InsightSheetView: View {
             pendingShellPresentation = nil
         }
 
-        .onChange(of: ObjectIdentifier(modelContext.container)) { _, _ in publicationContinuation.clear() }
-        .onChange(of: dependencies.authenticationSnapshot()) { _, _ in publicationContinuation.clear() }
+        .onChange(of: ObjectIdentifier(modelContext.container)) { _, _ in closeSelectedPublication(); publicationContinuation.clear() }
+        .onChange(of: dependencies.authenticationSnapshot()) { _, _ in closeSelectedPublication(); publicationContinuation.clear() }
         .onChange(of: viewModel.scanBoundActionGeneration) { _, _ in
             cancelSavedReanalysis()
+            closeSelectedPublication()
             historyModel?.close(); historyModel = nil; pendingHistoryReanalysis = nil
             reanalysisStatusModel?.close(); reanalysisStatusModel = nil
             cancelOrDismissShellPresentation { if case .reanalysisStatus = $0 { true } else { false } }
@@ -219,7 +222,10 @@ struct InsightSheetView: View {
         .onChange(of: selectedReviewKey, initial: true) { _, _ in bindSelectedReview() }
         .onChange(of: selectedReviewHost.deliveryGeneration) { _, _ in refreshSelectedReview() }
         .onChange(of: selectedReviewHost.scopeIsCurrent) { _, current in
-            if !current, selectedReviewHost.model != nil { selectedReviewHost.invalidateScope() }
+            if !current {
+                closeSelectedPublication()
+                if selectedReviewHost.model != nil { selectedReviewHost.invalidateScope() }
+            }
         }
         .onChange(of: selectedReviewHost.message) { _, message in
             if let message { viewModel.state.toastMessage = .information(message) }

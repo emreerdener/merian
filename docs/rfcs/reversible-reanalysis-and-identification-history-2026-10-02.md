@@ -3187,3 +3187,14 @@ no private parent notes/media are substituted and no selection is changed.
 Ordinary access remains disabled. Selected Insight community entry, dedicated
 photo-consent UI automation and integrated operational qualification remain
 separate work.
+
+### October 6: prepared selected Insight community entry
+
+The selected review session now supplies its optional publication capability and
+exact private-photo loader to the same photo-consent model used by History.
+Toolbar and nested confidence/candidate handoffs capture the displayed target
+before dismissal and resume only under the original binding token and scope. The
+parent retains ambiguous acceptance across both entry points. No new session,
+selection substitution, operation replacement or legacy fallback is introduced
+for protected scans. Ordinary access and all activation gates remain disabled;
+dedicated consent UI automation and operational qualification remain open.

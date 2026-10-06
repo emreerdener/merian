@@ -11,6 +11,8 @@ struct ConfidenceBadge: View {
     var isFlagged: Bool = false
     var aiScientificName: String?
     var onAskCommunity: (() -> Void)?
+    var prepareCommunityConsent: CommunityConsentPreparation?
+    @State private var pendingCommunityConsent: CommunityConsentTicket?
     var prepareSavedReanalysis: SavedReanalysisPreparation?
     @State private var pendingReanalysis: SavedReanalysisTicket?
     /// When set, the badge shows an analyzing state with this phrase as its label.
@@ -33,6 +35,7 @@ struct ConfidenceBadge: View {
         isFlagged: Bool = false,
         aiScientificName: String? = nil,
         onAskCommunity: (() -> Void)? = nil,
+        prepareCommunityConsent: CommunityConsentPreparation? = nil,
         prepareSavedReanalysis: SavedReanalysisPreparation? = nil,
         analyzingPhrase: String? = nil,
         onAnalyzingTap: (() -> Void)? = nil,
@@ -46,6 +49,7 @@ struct ConfidenceBadge: View {
         self.isFlagged = isFlagged
         self.aiScientificName = aiScientificName
         self.onAskCommunity = onAskCommunity
+        self.prepareCommunityConsent = prepareCommunityConsent
         self.prepareSavedReanalysis = prepareSavedReanalysis
         self.analyzingPhrase = analyzingPhrase
         self.onAnalyzingTap = onAnalyzingTap
@@ -251,11 +255,18 @@ struct ConfidenceBadge: View {
                         aiScientificName: aiScientificName,
                         onAskCommunity: onAskCommunity,
                         onRequestDismissalAction: { action in
+                            pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
                             pendingReanalysis?.cancel()
                             pendingReanalysis = nil
                             viewModel.stageDismissalAction(action)
                         },
+                        prepareCommunityConsent: prepareCommunityConsent,
                         prepareSavedReanalysis: prepareSavedReanalysis,
+                        onPreparedCommunityConsent: { context, ticket in
+                            pendingCommunityConsent?.cancel()
+                            pendingCommunityConsent = ticket
+                            viewModel.stageDismissalAction(.askCommunity(context))
+                        },
                         onPreparedReanalysis: { context, ticket in
                             pendingReanalysis?.cancel()
                             pendingReanalysis = ticket
@@ -276,6 +287,7 @@ struct ConfidenceBadge: View {
                 }
             }
             .onDisappear {
+                pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
                 pendingReanalysis?.cancel()
                 pendingReanalysis = nil
             }
@@ -305,6 +317,9 @@ struct ConfidenceBadge: View {
     }
 
     private func resumePendingExplanationDismissalAction() {
+        let community = pendingCommunityConsent
+        pendingCommunityConsent = nil
+        defer { community?.cancel() }
         let prepared = pendingReanalysis
         pendingReanalysis = nil
         guard let currentScanId = inferenceEngine.speciesData?.scanId else {
@@ -323,6 +338,8 @@ struct ConfidenceBadge: View {
         switch action {
         case .askCommunity:
             prepared?.cancel()
+            if let community { community.resume(); return }
+            guard prepareCommunityConsent == nil else { return }
             onAskCommunity?()
         case .refineScan(_, let initialDescription):
             if let prepared { prepared.resume(); return }

@@ -12,6 +12,7 @@ struct InsightContentView: View {
     /// the queued snapshot during the brief window before `viewModel.queuedContext` is bound.
     var queuedScan: QueuedScanContext?
     var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
+    var prepareCommunityConsent: CommunityConsentPreparation?
     var prepareSavedReanalysis: SavedReanalysisPreparation?
 
     // MARK: - Layout Constants
@@ -23,6 +24,7 @@ struct InsightContentView: View {
     @State var fullscreenGalleryPresentation: MediaGalleryPresentation?
     @State var fullscreenGalleryPresentationScanId: String?
     @State var fullscreenGalleryPresentationGeneration: UInt64?
+    @State var pendingCommunityConsent: CommunityConsentTicket?
     @State var pendingCandidateReanalysis: SavedReanalysisTicket?
     @State var pendingCandidateSwipeDismissalRequest:
         InsightCandidateSwipeDismissalRequest?
@@ -111,6 +113,7 @@ struct InsightContentView: View {
                     viewModel: viewModel,
                     queuedScan: presentationQueuedScan,
                     onOpenFieldTripOverview: onOpenFieldTripOverview,
+                    prepareCommunityConsent: prepareCommunityConsent,
                     prepareSavedReanalysis: prepareSavedReanalysis
                 )
                     .padding(.top, overlapRadius)
@@ -135,6 +138,7 @@ struct InsightContentView: View {
         }
 
         .onDisappear {
+            pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
             pendingCandidateReanalysis?.cancel()
             pendingCandidateReanalysis = nil
         }

@@ -14,6 +14,7 @@ struct InsightHeader: View {
     var isFlagged: Bool = false
     var aiScientificName: String?
     var onAskCommunity: (() -> Void)?
+    var prepareCommunityConsent: CommunityConsentPreparation?
     var prepareSavedReanalysis: SavedReanalysisPreparation?
     var onScrollOffsetChange: ((CGFloat) -> Void)?
     /// Alternative English common names for this species, excluding the current headline.
@@ -35,6 +36,7 @@ struct InsightHeader: View {
                     isFlagged: isFlagged,
                     aiScientificName: aiScientificName,
                     onAskCommunity: onAskCommunity,
+                    prepareCommunityConsent: prepareCommunityConsent,
                     prepareSavedReanalysis: prepareSavedReanalysis
                 )
 

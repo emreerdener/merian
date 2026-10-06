@@ -13,7 +13,10 @@ struct CandidatesCard: View {
     var onAskCommunity: (() -> Void)?
     var onMatchConfirmed: (() -> Void)?
     var onRefineScan: (() -> Void)?
+    var prepareCommunityConsent: CommunityConsentPreparation?
+    @State private var pendingCommunityConsent: CommunityConsentTicket?
     var prepareSavedReanalysis: SavedReanalysisPreparation?
+    var resumeCommunityConsent: ((CommunityConsentTicket) -> Void)?
     var resumeSavedReanalysis: ((SavedReanalysisTicket) -> Void)?
     @State private var pendingReanalysis: SavedReanalysisTicket?
     var showDismissButton: Bool = true
@@ -30,7 +33,9 @@ struct CandidatesCard: View {
         onAskCommunity: (() -> Void)? = nil,
         onMatchConfirmed: (() -> Void)? = nil,
         onRefineScan: (() -> Void)? = nil,
+        prepareCommunityConsent: CommunityConsentPreparation? = nil,
         prepareSavedReanalysis: SavedReanalysisPreparation? = nil,
+        resumeCommunityConsent: ((CommunityConsentTicket) -> Void)? = nil,
         resumeSavedReanalysis: ((SavedReanalysisTicket) -> Void)? = nil,
         showDismissButton: Bool = true,
         dependencies: CandidateReviewDependencies = .live
@@ -44,7 +49,9 @@ struct CandidatesCard: View {
         self.onAskCommunity = onAskCommunity
         self.onMatchConfirmed = onMatchConfirmed
         self.onRefineScan = onRefineScan
+        self.prepareCommunityConsent = prepareCommunityConsent
         self.prepareSavedReanalysis = prepareSavedReanalysis
+        self.resumeCommunityConsent = resumeCommunityConsent
         self.resumeSavedReanalysis = resumeSavedReanalysis
         self.showDismissButton = showDismissButton
         self._viewModel = State(
@@ -124,7 +131,9 @@ struct CandidatesCard: View {
             generation: presentedGeneration
         )
         Group {
-            if !permitsLegacyReview(presentedScanId) || viewModel.shouldHideCard(scanId: presentedScanId) {
+            if !permitsLegacyReview(presentedScanId) {
+                if let guardedAskCommunity { Button("Ask the community", action: guardedAskCommunity) }
+            } else if viewModel.shouldHideCard(scanId: presentedScanId) {
                 EmptyView()
             } else if candidates.isEmpty {
                 CandidateVerificationView(
@@ -233,6 +242,10 @@ struct CandidatesCard: View {
                     allowsAskCommunity: onAskCommunity != nil,
                     allowsRefinement: onRefineScan != nil,
                     onRequestDismissalAction: { request in
+                        pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
+                        if case .askCommunity = request.action, let prepareCommunityConsent {
+                            pendingCommunityConsent = prepareCommunityConsent(request.scanId, request.presentationGeneration)
+                        }
                         pendingReanalysis?.cancel()
                         pendingReanalysis = nil
                         if case .refineScan = request.action, let prepareSavedReanalysis {
@@ -245,6 +258,7 @@ struct CandidatesCard: View {
             }
         }
         .onDisappear {
+            pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
             pendingReanalysis?.cancel()
             pendingReanalysis = nil
         }
@@ -279,6 +293,10 @@ struct CandidatesCard: View {
     }
 
     private func resumePendingSwipeDismissalRequest() {
+        let community = pendingCommunityConsent
+        pendingCommunityConsent = nil
+        var communityForwarded = false
+        defer { if !communityForwarded { community?.cancel() } }
         let prepared = pendingReanalysis
         pendingReanalysis = nil
         guard let currentScanId = inferenceEngine.speciesData?.scanId else {
@@ -314,6 +332,11 @@ struct CandidatesCard: View {
                 )
             }
         case .askCommunity:
+            if let community {
+                if let resumeCommunityConsent { communityForwarded = true; resumeCommunityConsent(community) } else { community.resume() }
+                return
+            }
+            guard prepareCommunityConsent == nil, permitsLegacyReview(request.scanId) else { return }
             onAskCommunity?()
         case .refineScan:
             if let prepared {

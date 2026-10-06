@@ -175,6 +175,9 @@ extension InsightContentView {
     }
 
     func resumePendingCandidateSwipeDismissalRequest() {
+        let community = pendingCommunityConsent
+        pendingCommunityConsent = nil
+        defer { community?.cancel() }
         let prepared = pendingCandidateReanalysis
         pendingCandidateReanalysis = nil
         guard let pending = pendingCandidateSwipeDismissalRequest else { prepared?.cancel(); return }
@@ -226,7 +229,9 @@ extension InsightContentView {
                 )
             }
         case .askCommunity:
-            guard viewModel.canRequestCommunityIdentification else { return }
+            if let community { community.resume(); return }
+            guard prepareCommunityConsent == nil, viewModel.canRequestCommunityIdentification,
+                  ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: request.scanId, container: modelContext.container) else { return }
             viewModel.presentCommunityIdentificationRequest(
                 expectedScanId: request.scanId,
                 expectedGeneration: pending.localPresentationGeneration

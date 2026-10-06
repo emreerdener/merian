@@ -2669,7 +2669,8 @@ reads, without idle polling or an idle account lease. Closing, backing out,
 paging, account changes and acknowledged revision changes invalidate nested
 review controls. Fresh unfinished-review checks block restoration, selection
 Undo and reanalysis. All ordinary access and activation gates remain disabled;
-publication consent remains separate integration work.
+prepared community consent is described below, with operational qualification
+still pending.
 
 ### Prepared selected-result review baseline
 
@@ -2702,7 +2703,8 @@ candidate, override, reset and Confidence review controls; callbacks already
 queued by those surfaces recheck protection before mutation. Ordinary unenrolled
 scans retain their legacy review flow. Protected reanalysis in the Confidence
 footer keeps its separate exact-source handoff. All activation gates remain
-false; publication consent and integrated operational qualification remain open.
+false; prepared community consent is described below, and integrated operational
+qualification remains open.
 
 ## Prepared community photo consent
 
@@ -2732,5 +2734,16 @@ identity.
 Status uses local receipt refresh after actual delivery passes and foreground
 opportunities. No idle polling or Auth lease is retained. Server admission is a
 historical receipt, not a guarantee that a post is currently visible. All
-ordinary access and activation gates remain disabled; selected Insight community
-entry and integrated operational qualification are still pending.
+ordinary access and activation gates remain disabled; dedicated consent UI
+automation and integrated operational qualification remain pending.
+
+The selected Insight screen shares this flow through its existing retained
+History session. Its toolbar and biological content use the already-displayed
+selected ticket. Confidence and candidate sheets capture a one-use presentation
+handle at the tap before dismissing; they never reconstruct the target in a
+dismissal callback. Scope, authority or selection changes invalidate the handle.
+The chooser shares the parent continuation with History, so moving between the
+two entry points cannot replace an uncertain sharing choice. Protected scans
+with unavailable access do not fall back to legacy publication. The shell admits
+a chooser only when its presentation and dismissal slots are idle, so an earlier
+sheet's delayed dismissal cannot close a newer chooser.

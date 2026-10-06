@@ -99,13 +99,7 @@ extension InsightSheetView {
             onRetryReviewSave: retryReviewAction(),
             onUndoIncorrect: undoReviewAction(scanID: toolbarLocalScanId, generation: toolbarGeneration),
             onMarkIncorrect: incorrectReviewAction(scanID: toolbarLocalScanId, generation: toolbarGeneration),
-            onAskCommunity: viewModel.canRequestCommunityIdentification ? {
-                guard let scanId = toolbarLocalScanId else { return }
-                viewModel.presentCommunityIdentificationRequest(
-                    expectedScanId: scanId,
-                    expectedGeneration: toolbarGeneration
-                )
-            } : nil,
+            onAskCommunity: communityConsentAction,
             sharedExplorePostId: toolbarSharedExplorePostId,
             sharedCommunityIdentificationRequestId: toolbarCommunityRequestId,
             onEditExplorePost: toolbarSharedExplorePostId != nil ? {
@@ -239,14 +233,8 @@ extension InsightSheetView {
                     )
                 }
             } : nil,
-            onAskCommunity: viewModel.canRequestCommunityIdentification ? {
-                guard let scanId = toolbarLocalScanId else { return }
-                viewModel.presentCommunityIdentificationRequest(
-                    expectedScanId: scanId,
-                    expectedGeneration: toolbarGeneration
-                )
-            } : nil,
-            onEditCommunityRequest: toolbarCommunityRequestId != nil ? {
+            onAskCommunity: communityConsentAction,
+            onEditCommunityRequest: toolbarCommunityRequestId != nil && permitsLegacyReview(toolbarLocalScanId) ? {
                 guard let scanId = toolbarLocalScanId else { return }
                 viewModel.presentCommunityIdentificationRequest(
                     expectedScanId: scanId,
