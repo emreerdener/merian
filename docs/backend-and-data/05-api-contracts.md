@@ -14410,3 +14410,43 @@ recipient discovery. Expected owner and durable claim checks surround this work
 and remain in the final dispatch authorization. Required consent and optional
 OpenAI permission can still deny the original request. Recovery-only cannot be
 used as execution permission or to reconstruct an unbound request.
+
+### Prepared immutable Insight admission protocol
+
+The private, service-only database boundary
+`reserve_insight_chat_send_with_context(uuid,uuid,uuid,text,uuid,jsonb,integer)`
+returns the existing admission fields (`conversation_id`, `message`,
+`is_replay`, `sends_today`) plus `context_snapshot`. This is prepared storage,
+not an enabled HTTP contract. Existing `insight-chat` request/response DTOs and
+native callers are unchanged in this slice.
+
+Protocol/context version is exactly 1. `p_displayed_ticket` is JSON null for
+unenrolled observations; enrolled sends supply exactly `analysis_id`,
+`state_revision` and `review_revision` for the displayed selected
+identification. A new request cannot silently adopt newer selection or
+authority. Same-key replay requires original normalized text and ticket, and
+recovers original context even if the gate or authority later changes. Ownership
+and deletion still win. An old admitted question lacking a context row returns
+`field_chat_context_missing`; there is no snapshot backfill or permission to
+redispatch it from current data.
+
+The context contains version, source kind (`legacy_scan_v1` or
+`analysis_history_v1`), original ticket, bounded `scan_context` and an ordered
+`conversation_prefix` of at most 12 `{role,text}` entries, capped at 900
+characters per entry. Source projection excludes media, exact coordinates, raw
+library notes and unrelated payload keys, including nested keys. Historical
+imports with missing encounter data remain unavailable. Internal IDs are
+recovery metadata and must not enter model prompts.
+
+Database denials distinguish invalid input (`22023 field_chat_invalid_request`),
+changed ticket (`40001 field_chat_context_conflict`), changed same-ID intent
+(`23505 field_chat_idempotency_conflict`), missing legacy context
+(`55000
+field_chat_context_missing`), closed/malformed context
+(`55000
+field_chat_context_unavailable`) and absent/deleted ownership
+(`P0002
+field_chat_subject_not_found`). Existing admission errors remain
+authoritative. HTTP status mapping, execution from immutable context and native
+displayed-ticket transport must land before activation. This boundary neither
+retries providers nor changes quota settlement.

@@ -7263,3 +7263,38 @@ reopens it, preserves correction/state bytes, round-trips qualified linkage and
 verifies queue-media cascade without deleting the parent observation.
 `QueueWorkQualificationTests` exercises malformed routing, direct legacy claims
 and late completion refusal. All activation gates remain disabled.
+
+### Prepared immutable Insight Field Chat turn context
+
+`20261006084439_prepare_immutable_insight_chat_context.sql` adds private
+`internal.insight_chat_turn_contexts`, keyed solely by the admitted user
+`message_id`, with a cascading message foreign key. Ownership continues through
+message → conversation → scan; account merge can reparent a surviving message
+without rewriting its context. Deleting a duplicate merge source message erases
+only that source context. Context rows are immutable, RLS-enabled and
+inaccessible to API roles, including direct service-role reads and writes.
+
+The service-only `reserve_insight_chat_send_with_context` RPC takes owner,
+conversation candidate, observation, question, client-message UUID, displayed
+history ticket (or explicit JSON null for an unenrolled scan), and context
+version 1. It atomically composes existing admission/cap accounting with context
+insertion. Lock order is owner, Field Chat user/subject advisories, ingestion
+advisory, owned scan and history. Owner/deletion checks precede replay; exact
+replay returns saved context before current authority and rollout checks. A
+saved question without context cannot reconstruct it from current data.
+
+New history sends require the exact selected analysis, observation-state
+revision and review revision displayed to the user. Evidence comes from that
+immutable result and its validated authority; absent imported-result encounter
+fields stay unavailable. A damaged history cannot fall back to the mutable scan.
+Unenrolled scans use a separately marked legacy snapshot. Both sources pass
+explicit scalar, array and nested-field allowlists; private media, raw
+coordinates and raw library `field_notes` are excluded. The selected dictionary
+projection and last 12 ordered message texts (900 characters each) are
+materialized in the same transaction. Context is bounded to 128 KiB.
+
+`chat_context_enabled` defaults false. This migration does not connect the HTTP
+handler, change provider funding/recovery, or activate any history surface. A
+future handler must use the stored context for execution and hold uncontexted
+legacy messages; native sends must preserve the displayed ticket. Existing
+Explore and Dictionary admission remain unchanged.

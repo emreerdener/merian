@@ -3248,3 +3248,31 @@ critical-result validation. Focused 118 tests, strict lint, source guards, exact
 indexed project membership and 26 documentation tests also passed. Independent
 review is clear. Hosted/runtime qualification and immutable admitted Field Chat
 context remain open; no activation is authorized by these results.
+
+### October 6: prepared immutable Field Chat admission
+
+A forward migration prepares atomic question-and-context storage under the
+existing message identity and conversation/daily admission rules. The private
+snapshot uses exact selected evidence/authority and displayed revisions, a
+bounded dictionary projection and the last 12 ordered messages. Message-only
+ownership preserves account merge and deletion cascades. Same-ID recovery never
+adopts newer context; preexisting uncontexted questions remain held. Explicit
+nested allowlists exclude private media and raw library notes. Imported missing
+encounter fields remain unavailable.
+
+This is a default-off storage boundary. HTTP execution, native displayed-ticket
+wiring and recovery integration remain next; no provider behavior or activation
+changes in this slice. Existing prepared reanalysis and publication execution
+owners remain implemented and gated; earlier implementation-gap notes are dated
+history, not instructions to recreate those owners.
+
+Storage validation passed 2,768 backend tests (425 steps), 104 SQL catalogs
+(1,564 assertions), four real-session context concurrency cases, 409 migration
+contracts, all 116 endpoint deployment configurations, full Supabase tooling and
+26 documentation tests. Database lint and privileged-routine audit passed with
+zero violations; advisor error gates passed without new context findings.
+Independent contract review is clear. Earlier fixture cleanup/cutover isolation
+and SQL function-volatility issues were corrected before the final full run. The
+next boundary is a read-only exact-context resolver, distinct from new-send
+admission, so entitlement, eligibility or quota denial cannot consume a chat
+slot.

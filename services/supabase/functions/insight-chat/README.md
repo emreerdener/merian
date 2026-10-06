@@ -282,3 +282,30 @@ hosted authenticated-wrapper release evidence.
 The upstream owner-row, retry, recovery, and deployment guarantees are
 documented in
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#field-chat-readiness).
+
+## Prepared immutable turn admission
+
+The default-off database RPC `reserve_insight_chat_send_with_context` atomically
+stores the admitted question and its bounded immutable context. It preserves the
+existing daily/conversation caps and exact message identity. Context follows the
+message through account merge and cascades with deletion. History admission uses
+the displayed selected analysis and global/review revisions; imported missing
+encounter fields stay unavailable instead of borrowing mutable parent metadata.
+Snapshot replay precedes fresh authority checks, while owner/deletion checks
+still apply. Old messages without a snapshot are held, never reconstructed.
+
+This storage slice does **not** change the live handler or provider recovery.
+Before activation, connect the handler to the new admission result, build every
+recovered answer from its saved snapshot/prefix, add strict HTTP/native ticket
+contracts, and prevent the old mutable execution path for enrolled sends. No
+provider successor, refund or new quota authority is introduced here.
+
+Database/static/concurrency contracts live in `insight_chat_turn_context.sql`,
+`insightChatContextMigrationContract.test.ts` and
+`insightChatContextConcurrencyDb.test.ts`. The canonical
+[API contract](../../../../docs/backend-and-data/05-api-contracts.md#prepared-immutable-insight-admission-protocol)
+and
+[schema](../../../../docs/backend-and-data/04-database-schema.md#prepared-immutable-insight-field-chat-turn-context)
+describe bounds and denial behavior. Raw library `field_notes` are not part of
+this snapshot; the existing captured `user_observation_context` has its own
+explicit text allowlist.
