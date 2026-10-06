@@ -14804,3 +14804,22 @@ presentation does not cancel durable delivery. Local pages contain original
 questions and immutable receipts, never a reconstructed mutable thread. These UI
 connections remain behind the disabled complete History installation gate;
 server-proven terminal remediation and UI/runtime qualification remain open.
+
+### Prepared exact chat no-admission proof
+
+The service-only `seal_unadmitted_insight_chat_request` RPC is a separate
+prepared recovery boundary. It accepts the exact original request tuple and
+returns either `{status:"held"}` or the closed six-field receipt with
+`status:"not_admitted"`, `context_version:1`, `scan_id`, `conversation_id`,
+`client_message_id` and `reason:"displayed_identification_changed"`. The server
+independently proves the stale displayed ticket under admission locks and
+permanently prohibits that request from entering any context or quota writer.
+Existing attempt evidence never becomes this receipt. Lost replies require an
+exact recovery design; a generic error, absent context, timeout or cancellation
+is not proof. Proposed conversation is immutable request correlation only.
+
+The proof neither refunds provider usage nor authorizes another execution. A
+future native consumer may retire only its matching saved request; a new
+question requires a separate explicit tap and current displayed ticket. This RPC
+does not yet change the protected HTTP response or native decoder, and all
+activation gates remain closed.

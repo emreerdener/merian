@@ -937,3 +937,18 @@ Field Chat fingerprint includes this runtime. Native receipt decoding is
 prepared, but native persisted send tickets and operational qualification still
 precede any separately authorized deployment or activation. All gates remain
 false.
+
+The prepared no-admission seal is an exact allowlisted service-only RPC, not an
+authenticated-client table write. Its private immutable columns can never gain
+quota, message or dispatch authority. Both quota INSERT and UPDATE paths and the
+shared context admission owner enforce the seal. Only a locked exact
+stale-ticket denial is sealable; gate, authorization, network and damaged-state
+errors remain failures or holds. Historical replay still checks current owner
+and deletion first. This source addition does not enable HTTP/native recovery or
+change any rollout gate.
+
+A terminal seal colliding with another account's attempted UUID blocks account
+merge with `55000/field_chat_execution_merge_conflict`. The whole merge rolls
+back, preserving both owners and all attempt evidence. Neither operational quota
+retirement nor a user-controlled bypass resolves this conflict. Two terminal
+seals with the same UUID also block merge; no winner is selected.

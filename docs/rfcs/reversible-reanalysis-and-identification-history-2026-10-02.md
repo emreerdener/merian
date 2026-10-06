@@ -3583,3 +3583,12 @@ for protected scans and never cancels durable delivery when the sheet closes.
 Task-exit refresh remains local and event-driven. All activation gates stay
 false; server-proven no-admission remediation and dedicated UI/runtime
 qualification remain required before readiness.
+
+### October 6: prepared exact chat non-admission retirement
+
+A forward migration prepares a service-only permanent stale-ticket seal, derived
+under canonical admission locks rather than from an HTTP error. The shared
+context writer and generic quota INSERT/UPDATE paths prevent a sealed request
+from later executing. Existing attempts remain held, and no provider refund or
+successor is introduced. HTTP/native proof delivery and terminal remediation
+remain a subsequent slice; all activation gates stay false.

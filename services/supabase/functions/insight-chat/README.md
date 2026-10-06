@@ -537,3 +537,15 @@ answer and nullable usage normalization rejects uncertainty rather than
 inventing results. Post-dispatch uncertainty stays charged and held. No generic
 quota refund/failure, legacy prompt, mutable thread reconstruction or duplicate
 usage event is used.
+
+### Prepared stale-ticket retirement
+
+The separate service-only no-admission seal can permanently retire an exact
+request only after the database independently verifies a changed displayed
+identification and absence of current admission/attempt evidence under writer
+locks. It preserves a private request fingerprint and original proposed
+conversation. Existing quota, message or execution evidence stays held. All
+context/quota writers honor the terminal seal, including direct unfunded
+admission and quota updates. The schema and API contracts define its closed
+receipt. HTTP and native recovery do not consume it yet; generic errors or
+absence never release local occupancy, and no refund or successor is granted.

@@ -7452,3 +7452,38 @@ writes back without refunding dispatch. Late dispatched replies can finish after
 lease expiry or gate/consent changes; this does not authorize fresh inference.
 No answer is overwritten, and no provider execution, quota admission or
 activation occurs here.
+
+### Prepared protected chat no-admission seal
+
+Migration `20261006183134_prepare_protected_chat_no_admission.sql` adds an
+insert-only terminal alternative to the private scan-owned execution fence.
+`seal_unadmitted_insight_chat_request` accepts the original owner, observation,
+proposed conversation, client-message UUID, normalized text, displayed ticket
+and context version. It takes the canonical subject locks and owner/request
+lock, then rejects ambiguous or cross-observation identity and holds any
+existing attempt, quota or message evidence. Only the shared context helper's
+exact stale-ticket denial can produce `displayed_identification_changed`.
+Current tickets remain held; unavailable or damaged context, ownership loss,
+closed gates and generic errors cannot produce a seal.
+
+The six-field `not_admitted` receipt contains context version, observation,
+proposed conversation, client-message UUID and the closed reason. Its original
+request fingerprint and proposed conversation are immutable. The latter is
+correlation only, never authority over a real conversation. Exact receipt replay
+precedes fresh gates but follows current ownership and deletion checks. Fresh
+sealing requires both context and execution gates. No question, daily slot,
+quota or provider attempt is created. The seal prevents future admission; it
+does not attest to erased legacy execution or authorize a refund.
+
+The shared immutable-context writer checks the seal before either replay or
+fresh admission. Funded admission, local refusal and generic quota insertion or
+update cannot bind a sealed request. Deletion cascades the private seal, while
+canonical scan ownership supplies merge behavior. Pre-existing ambiguous
+owner/request evidence remains held. The RPC is service-only, and HTTP/native
+terminal remediation remains unconnected; all activation gates stay false.
+
+A terminal seal colliding with another account's attempted UUID blocks account
+merge with `55000/field_chat_execution_merge_conflict`. The whole merge rolls
+back, preserving both owners and all attempt evidence. Neither operational quota
+retirement nor a user-controlled bypass resolves this conflict. Two terminal
+seals with the same UUID also block merge; no winner is selected.
