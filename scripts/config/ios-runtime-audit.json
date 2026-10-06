@@ -348,6 +348,13 @@
       ]
     },
     {
+      "selector": "merianUITests/merianUITests/testExactQuestionPersistsAndReopeningKeepsPendingIdentity",
+      "owner": "apps/ios/MerianUITests/ProtectedInsightChatUITests.swift",
+      "suite_names": [
+        "merianUITests"
+      ]
+    },
+    {
       "selector": "merianUITests/merianUITests/testBackgroundInterruptionPreservesQueuedAudioInsight",
       "suite_names": [
         "merianUITests"

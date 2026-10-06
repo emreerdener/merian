@@ -2814,11 +2814,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "execute four deterministic runtime UI smokes: `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`, `testLiveInsightConnectivityFailureTransitionsToDurableQueue`, `testQueuedRetryPresentationUsesSafeActionableCopy`, and `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` under `merianUITests/merianUITests`",
+    "execute five deterministic runtime UI smokes: `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`, `testLiveInsightConnectivityFailureTransitionsToDurableQueue`, `testQueuedRetryPresentationUsesSafeActionableCopy`, `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff`, and `testExactQuestionPersistsAndReopeningKeepsPendingIdentity` under `merianUITests/merianUITests`",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "exactly those four passed cases and zero failed or skipped cases",
+    "exactly those five passed cases and zero failed or skipped cases",
   );
   assert(
     !compact(testingStrategySource).includes(

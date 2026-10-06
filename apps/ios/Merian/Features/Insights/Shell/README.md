@@ -357,3 +357,35 @@ sheet dismissal and before mutations. Unenrolled scans retain their existing
 review flow. `SelectedAnalysisReviewHostTests` verifies retry identity, delayed
 binding tokens, receipt consumption, conflict lockout and scope loss; the
 existing enrollment and architecture suites cover the underlying boundaries.
+
+## Prepared protected Field Chat
+
+`ProtectedInsightChatAccess` bridges the loaded selected baseline to local
+immutable requests and the injected queue delivery owner.
+`ProtectedInsightChatModel` shows saved questions and exact assistant receipts
+without the mutable legacy thread. The final Send action retains
+UUIDs/text/ticket and synchronously stages before queue handoff. A parent
+`ProtectedInsightChatContinuation` retains a save-uncertain candidate across
+sheet reopening; a changed ticket can only recover an already saved exact
+request, never admit unseen authority. Retrying a save only persists and
+refreshes; the separate saved-question action authorizes delivery.
+
+`InsightSheetView+ProtectedChat` owns the independent token-qualified shell
+presentation. Toolbar protection precedes legacy Pro, unavailable-cache and
+cloud-readiness actions. Nil/stale protected access never falls back. Closing
+only closes the presentation; the retained queue continues independently under
+account/deletion fences. Account/container loss clears private UI state.
+
+Saved pending work has an explicit same-intent send action. Held or expired
+running work has explicit exact-claim recovery; unexpired running work cannot
+enter replay. Terminal replies never send again. Queue task-exit generation
+refreshes local status without polling or an idle lease. Receipt pages are
+bounded and replace one another, and new questions still require transactional
+admission. Server-proven no-admission remediation and runtime qualification
+remain outstanding. `ProtectedInsightChatUITests` uses
+`-seedProtectedInsightChat` and the real enrolled V2 seed/persistence to check
+empty-send disabling, exact saved question and identity across reopening. Only
+the delivery boundary is synthetic; it checks the durable owner, target,
+revisions and request before withholding network execution. The launch seed is
+Debug-only and included in the Release archive marker check. All ordinary access
+and activation gates remain disabled.

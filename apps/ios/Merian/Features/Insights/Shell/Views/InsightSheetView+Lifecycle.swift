@@ -83,6 +83,7 @@ extension InsightSheetView {
             }
             .onAppear(perform: handleAppearance)
             .onDisappear {
+                closeProtectedChat()
                 closeSelectedPublication()
                 selectedReviewHost.close()
                 cancelSavedReanalysis()

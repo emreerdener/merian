@@ -23,6 +23,7 @@ enum InsightChatDismissalAction: Equatable {
 
 enum InsightShellPresentation: Identifiable, Equatable {
     case paywall
+    case protectedChat(token: UUID, scanId: String, generation: UInt64)
     case reviewName(formID: UUID, scanId: String, generation: UInt64)
     case publicationConsent(scanId: String, generation: UInt64)
     case identificationHistory(scanId: String, generation: UInt64)
@@ -42,6 +43,8 @@ enum InsightShellPresentation: Identifiable, Equatable {
             "reanalysis-status-\(scanId)-\(generation)"
         case .identificationHistory(let scanId, let generation):
             "identification-history-\(scanId)-\(generation)"
+        case .protectedChat(let token, let scanId, let generation):
+            "protected-chat-\(token)-\(scanId)-\(generation)"
         case .paywall:
             "paywall"
         case .fieldTripAuthor(let route):

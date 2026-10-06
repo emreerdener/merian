@@ -2784,3 +2784,30 @@ original target. Completed legacy results also check fresh protection before
 copying source tags, collections or notes; the existing deletion fence remains
 independent. This does not cancel or refund an already dispatched legacy child,
 and legacy requests do not carry a server-verifiable parent association.
+
+### Prepared protected Field Chat presentation
+
+Enrolled scans use a dedicated Field Chat presentation, with the identification
+actually displayed at entry. Protected entry runs before legacy Pro or chat
+availability caches; missing access or a stale baseline shows an unavailable
+message without falling back. The initial request preserves the displayed
+analysis and revisions, exact question and original IDs before any network work.
+
+The composer saves synchronously at the final tap. If saving is uncertain, its
+parent retains the same question and IDs across sheet reopening and offers
+retrying that save without sending it. Saved pending questions offer an explicit
+send action; interrupted questions offer recovery of that same request. A
+running attempt cannot replay until its original claim expires. Reading status,
+reopening or changing connectivity never automatically sends. Completed replies
+display only the original saved question and immutable assistant receipt, with
+bounded pages.
+
+Closing the sheet releases UI state without cancelling durable delivery.
+Account/container/route changes invalidate presentation, and task-exit signals
+refresh local state without polling. An uncertain request continues to occupy
+its observation; a generic HTTP error or absent read cannot authorize a new
+question in its place. Server-issued no-admission remediation remains required.
+The UI is assembled only in the inert complete History bundle; rollout and
+ordinary access remain disabled. A dedicated Debug UI smoke covers durable
+question identity across reopening; runtime and device qualification remain
+open.

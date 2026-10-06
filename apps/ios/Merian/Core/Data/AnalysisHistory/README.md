@@ -1241,11 +1241,12 @@ valid owner envelope. Queue states reject remote state and altered delivery
 configuration. The raw job kind changes no SwiftData schema shape and
 contributes no generic scheduler wake.
 
-Prepared delivery and Auth teardown are owned by OfflineSync; send UI remains
-unconnected. `ProtectedInsightChatPersistence.stage` performs no I/O; explicitly
-injected delivery may dispatch only an already persisted exact claim. Neither
-staging nor delivery enrolls an observation, selects an identification or
-enables the feature. The
+Prepared delivery and Auth teardown are owned by OfflineSync; the dedicated
+Insights shell chat UI now consumes the inert access bundle.
+`ProtectedInsightChatPersistence.stage` performs no I/O; explicitly injected
+delivery may dispatch only an already persisted exact claim. Neither staging nor
+delivery enrolls an observation, selects an identification or enables the
+feature. The
 [protected HTTP contract](../../../../../../docs/backend-and-data/05-api-contracts.md#protected-field-chat-send-http-protocol-version-one)
 owns the wire boundary and rollout remains disabled.
 
@@ -1306,5 +1307,5 @@ in the inert complete History bundle. It validates the visible engine's
 second identical context before freezing the chat ticket. It never substitutes a
 newer selected result. The chat revision ceiling fails closed even when the
 broader display baseline still accepts the integer. Closing releases the
-presentation scope; it cannot mutate or cancel durable delivery. Send UI remains
-unconnected and ordinary access remains nil.
+presentation scope; it cannot mutate or cancel durable delivery. Dedicated send
+UI uses this access; ordinary access remains nil.

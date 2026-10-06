@@ -243,6 +243,7 @@ struct InsightShellDependencies {
         )
         #if DEBUG
         if UITestSeedCoordinator.publicationConsentEnabled, let fixture = UITestSeedCoordinator.publicationConsentFixture {
+            if UITestSeedCoordinator.protectedChatEnabled { result.protectedChatAccess = fixture.protectedChat }
             result.selectedReviewAccess = .prepared(cloud: fixture.cloud, session: fixture.session)
             result.historyAccess = .prepared(cloud: fixture.cloud, session: fixture.session)
         } else {

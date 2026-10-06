@@ -31,6 +31,7 @@ struct PreparedHistoryReanalysisComposition {
          submitted: @escaping @MainActor (UUID) -> Void, cleanup: @escaping @MainActor () -> Void,
          reviewWake: (() -> Void)? = nil, reviewGeneration: @escaping () -> UInt64 = { 0 },
          publication: IdentificationHistoryPublicationAccess.Configuration? = nil,
+         protectedChat: ProtectedInsightChatAccess.Configuration? = nil,
          documents: @escaping @MainActor () throws -> URL = {
              try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
          },
@@ -45,7 +46,7 @@ struct PreparedHistoryReanalysisComposition {
         var history = IdentificationHistoryAccess.prepared(cloud: cloud, session: session)
         history.requestReanalysis = { routes.request(.historicalReanalysis($0), source: .internalUserAction) }
         self.history = history
-        protectedChat = .prepared(cloud: cloud, session: session)
+        self.protectedChat = .prepared(cloud: cloud, configuration: protectedChat, session: session)
         selectedReview = .prepared(cloud: cloud, session: session)
         status = .prepared(session: session)
         reanalyze = .prepared(cloud: cloud, enrollment: enrollmentOwner, currentOwner: currentOwner,
@@ -78,6 +79,12 @@ struct PreparedHistoryReanalysisComposition {
                 }, fetch: { request, owner in
                 try await MerianNetworkClient.shared.prepareObservationPublicationConsent(request, ownerID: owner)
             }, wake: { OfflineJobScheduler.shared.scheduleNextPersistedWake(using: queue) },
-                generation: { queue.publicationDeliveryGeneration }))
+                generation: { queue.publicationDeliveryGeneration }),
+            protectedChat: .init(deliver: { intent, admission, container in
+                guard queue.modelContext?.container === container else { return false }
+                return queue.requestProtectedChatDelivery(intent, admission: admission,
+                    service: .live(cloud: .live(manager: manager), client: MerianNetworkClient.shared),
+                    currentOwnerID: { manager.currentUser?.id })
+            }, generation: { queue.protectedChatDeliveryGeneration }))
     }
 }

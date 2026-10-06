@@ -14794,3 +14794,13 @@ selected-chat access validates the actual displayed baseline before constructing
 a new ticket, with a second context check around the exact child read. It is
 installed only in the inert History bundle; ordinary access stays nil and no
 remote read-before-claim path is introduced.
+
+The prepared native composer now stages synchronously before queue handoff and
+retains the original candidate on save uncertainty. Explicit pending delivery
+uses the saved intent without another UUID; held or expired-running recovery
+uses an exact claim. A newly supplied ticket that differs from the session's
+frozen displayed ticket can only read an already saved exact request. Closing
+presentation does not cancel durable delivery. Local pages contain original
+questions and immutable receipts, never a reconstructed mutable thread. These UI
+connections remain behind the disabled complete History installation gate;
+server-proven terminal remediation and UI/runtime qualification remain open.

@@ -3572,3 +3572,14 @@ reports a unique pending/running/held request. Reading never claims or sends,
 replaces held occupancy or changes selection. The complete App composition
 includes this access only behind the disabled installation gate. Send UI,
 server-proven no-admission remediation and runtime qualification remain open.
+
+### October 6 addendum: protected chat composer and saved-question actions
+
+The dedicated prepared Insight chat presentation now persists a retained exact
+question before queue handoff, preserves ambiguous saves across sheet reopening
+and exposes explicit actions for pending or interrupted saved requests. It uses
+the displayed baseline and immutable local receipts, bypasses legacy chat setup
+for protected scans and never cancels durable delivery when the sheet closes.
+Task-exit refresh remains local and event-driven. All activation gates stay
+false; server-proven no-admission remediation and dedicated UI/runtime
+qualification remain required before readiness.

@@ -8,6 +8,7 @@ extension InsightSheetView {
         // the immutable subject and its monotonic presentation generation now;
         // never resolve "the current scan" later inside an old callback.
         let toolbarGeneration = viewModel.scanBoundActionGeneration
+        let toolbarEngineGeneration = inferenceEngine.scanPresentationGeneration
         let toolbarQueuedScanId = viewModel.queuedContext?.id
         let toolbarLocalScanId = viewModel.presentedLocalRecordScanId
         let toolbarScanId = toolbarQueuedScanId ?? toolbarLocalScanId
@@ -180,12 +181,17 @@ extension InsightSheetView {
             scanId: toolbarLocalScanId ?? toolbarFieldChatScanId,
             scanPresentationGeneration: toolbarGeneration,
             canShowInsightChat: toolbarFieldChatScanId != nil &&
-                !chatViewModel.isUnavailable(for: toolbarFieldChatScanId ?? ""),
+                (!permitsLegacyReview(toolbarFieldChatScanId) || !chatViewModel.isUnavailable(for: toolbarFieldChatScanId ?? "")),
             onInsightChat: {
                 guard let scanId = toolbarFieldChatScanId,
                       toolbarGeneration == viewModel.scanBoundActionGeneration,
                       fieldChatScanId?
                         .caseInsensitiveCompare(scanId) == .orderedSame else {
+                    return
+                }
+                if !permitsLegacyReview(scanId) {
+                    openProtectedChat(toolbarRecordSnapshot?.selectedReviewBaseline, scanID: scanId,
+                        generation: toolbarGeneration, engineGeneration: toolbarEngineGeneration)
                     return
                 }
                 if dependencies.isProActive() {
@@ -306,6 +312,9 @@ extension InsightSheetView {
     }
 
     private var fieldChatScanId: String? {
+        if !viewModel.isProcessing, let scanID = viewModel.presentedLocalRecordScanId, !permitsLegacyReview(scanID) {
+            return scanID // Exact immutable eligibility is checked by protected admission.
+        }
         guard !viewModel.isProcessing,
               let scanId = viewModel.presentedSpeciesScanId,
               let speciesData = inferenceEngine.speciesData,
@@ -334,7 +343,7 @@ extension InsightSheetView {
         expectedScanId: String,
         expectedGeneration: UInt64
     ) async -> Bool {
-        guard isPresentingFieldChatScan(
+        guard permitsLegacyReview(expectedScanId), isPresentingFieldChatScan(
             scanId: expectedScanId,
             generation: expectedGeneration
         ) else {
@@ -349,7 +358,7 @@ extension InsightSheetView {
             canLoad = await chatViewModel.prepareForPresentation(
                 scanId: expectedScanId
             ) { @MainActor in
-                guard isPresentingFieldChatScan(
+                guard permitsLegacyReview(expectedScanId), isPresentingFieldChatScan(
                     scanId: expectedScanId,
                     generation: expectedGeneration
                 ) else {
@@ -362,7 +371,7 @@ extension InsightSheetView {
                             record,
                             expectedScanId
                         )
-                    guard isPresentingFieldChatScan(
+                    guard permitsLegacyReview(expectedScanId), isPresentingFieldChatScan(
                         scanId: expectedScanId,
                         generation: expectedGeneration
                     ) else {
@@ -377,7 +386,7 @@ extension InsightSheetView {
                 } catch is CancellationError {
                     return false
                 } catch {
-                    guard isPresentingFieldChatScan(
+                    guard permitsLegacyReview(expectedScanId), isPresentingFieldChatScan(
                         scanId: expectedScanId,
                         generation: expectedGeneration
                     ) else {

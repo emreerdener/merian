@@ -5,7 +5,10 @@ import SwiftData
 
 extension UITestSeedCoordinator {
     static var publicationConsentEnabled: Bool {
-        isEnabled && ProcessInfo.processInfo.arguments.contains("-seedPublicationConsentChooser")
+        isEnabled && ProcessInfo.processInfo.arguments.contains("-seedPublicationConsentChooser") || protectedChatEnabled
+    }
+    static var protectedChatEnabled: Bool {
+        isEnabled && ProcessInfo.processInfo.arguments.contains("-seedProtectedInsightChat")
     }
     @MainActor static var publicationConsentFixture: PublicationConsentUIFixture?
 }
@@ -26,6 +29,7 @@ extension UITestSeedCoordinator {
     let preparation = ObservationPublicationPreparationOwner()
     let recovery = ObservationPublicationRecoveryOwner()
     private var savedOperation: UUID?
+    private var savedChatRequest: ProtectedInsightChatRequest?
 
     init(container: ModelContainer, namedReview: Bool = ProcessInfo.processInfo.arguments.contains("-seedSelectedNameConfirmation")) throws {
         self.container = container
@@ -136,6 +140,31 @@ extension UITestSeedCoordinator {
         return try IdentificationHistorySession(observation: observation, container: candidate, cloud: cloud, photos: photos,
             reviewWake: { [self] in assert((try? verifySavedReview()) == true, "Synthetic review persistence mismatch") }, publication: config, currentGeneration: { 1 },
             sessionIsCurrent: { $0.userID == Self.owner && !$0.isAnonymous })
+    }
+
+    var protectedChat: ProtectedInsightChatAccess {
+        .prepared(cloud: cloud, configuration: .init(deliver: { [self] intent, admission, candidate in
+            assert((try? verifySavedChat(intent, admission: admission, candidate: candidate)) == true,
+                   "Synthetic protected chat persistence mismatch")
+            return false // Leave the real durable request pending; no provider or HTTP call.
+        }, generation: { 0 }), session: session)
+    }
+
+    private func verifySavedChat(_ intent: ProtectedInsightChatIntent,
+                                 admission: ProtectedInsightChatDeliveryService.Admission,
+                                 candidate: ModelContainer) throws -> Bool {
+        guard candidate === container, intent.ownerID == Self.owner, case .initial = admission,
+              intent.request.observationID.uuidString.lowercased() == Self.observation,
+              intent.request.selection.analysisID.uuidString.lowercased() == Self.selected,
+              intent.request.selection.stateRevision == 1, intent.request.selection.reviewRevision == 0,
+              intent.request.messageText == "What does this identification mean?" else { return false }
+        let page = try ProtectedInsightChatPersistence.status(ownerID: Self.owner, observationID: intent.request.observationID,
+            container: container, isCurrent: { true })
+        guard page.completed.isEmpty, page.unfinished?.state == .pending,
+              page.unfinished?.intent.request == intent.request else { return false }
+        if let savedChatRequest { guard savedChatRequest == intent.request else { return false } }
+        savedChatRequest = intent.request
+        return try ObservationHistorySyncService.enrolledScan(Self.observation, context: ModelContext(container)).selectedAnalysisID == Self.selected
     }
 
     private func verifySavedReview() throws -> Bool {

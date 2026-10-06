@@ -18,6 +18,8 @@ extension InsightSheetView {
         _ presentation: InsightShellPresentation
     ) -> some View {
         switch presentation {
+        case .protectedChat(let token, _, _):
+            if let model = protectedChatModel, model.id == token { ProtectedInsightChatSheet(model: model) }
         case .reviewName(let formID, _, _):
             if let form = selectedNameConfirmation, form.id == formID { SelectedAnalysisNameConfirmationSheet(model: form) }
         case .publicationConsent:
@@ -60,7 +62,7 @@ extension InsightSheetView {
         scanId: String,
         generation: UInt64
     ) -> some View {
-        if generation == viewModel.scanBoundActionGeneration,
+        if permitsLegacyReview(scanId), generation == viewModel.scanBoundActionGeneration,
            let speciesData = inferenceEngine.speciesData,
            speciesData.scanId?.caseInsensitiveCompare(scanId) == .orderedSame {
             InsightChatSheet(
@@ -322,6 +324,8 @@ extension InsightSheetView {
         dismissedShellPresentation = nil
 
         switch presentation {
+        case .protectedChat(let token, _, _):
+            if protectedChatModel?.id == token { protectedChatModel?.close(); protectedChatModel = nil }
         case .chat:
             resumePendingInsightChatDismissalAction()
         case .explore:
@@ -354,6 +358,9 @@ extension InsightSheetView {
     @MainActor
     func isShellPresentationValid(_ presentation: InsightShellPresentation) -> Bool {
         switch presentation {
+        case .protectedChat(let token, let scanId, let generation):
+            protectedChatModel?.id == token && protectedChatModel?.isCurrent == true
+                && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
         case .reviewName(let formID, let scanId, let generation):
             selectedNameConfirmation?.id == formID && selectedNameConfirmation?.isClosed == false
                 && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
@@ -368,7 +375,7 @@ extension InsightSheetView {
         case .fieldTripAuthor:
             true
         case .chat(let scanId, let generation):
-            viewModel.state.isInsightChatSheetPresented &&
+            permitsLegacyReview(scanId) && viewModel.state.isInsightChatSheetPresented &&
                 selectedInsightChatScanId?
                     .caseInsensitiveCompare(scanId) == .orderedSame &&
                 selectedInsightChatGeneration == generation &&
@@ -406,6 +413,11 @@ extension InsightSheetView {
         releasePayload: Bool
     ) {
         switch presentation {
+        case .protectedChat(let token, _, _):
+            if protectedChatModel?.id == token {
+                protectedChatModel?.close()
+                if releasePayload { protectedChatModel = nil }
+            }
         case .reviewName(let formID, _, _):
             if selectedNameConfirmation?.id == formID {
                 selectedNameConfirmation?.close()

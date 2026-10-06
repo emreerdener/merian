@@ -26,6 +26,8 @@ struct InsightSheetView: View {
     }
 
     // MARK: - State
+    @State var protectedChatModel: ProtectedInsightChatModel?
+    @State var protectedChatContinuation = ProtectedInsightChatContinuation()
     @State var pendingHistoryReanalysis: IdentificationHistoryReanalysisHandoff?
     @State var selectedNameConfirmation: SelectedAnalysisNameConfirmation?
     @State var selectedReviewHost = SelectedAnalysisReviewHost()
@@ -182,6 +184,7 @@ struct InsightSheetView: View {
         }
         .onChange(of: isPresented) { _, isNowPresented in
             guard isNowPresented else {
+                closeProtectedChat(clearContinuation: true)
                 cancelSavedReanalysis()
                 closeSelectedPublication()
                 closeSelectedNameConfirmation()
@@ -210,9 +213,10 @@ struct InsightSheetView: View {
             pendingShellPresentation = nil
         }
 
-        .onChange(of: ObjectIdentifier(modelContext.container)) { _, _ in closeSelectedNameConfirmation(); closeSelectedPublication(); publicationContinuation.clear() }
-        .onChange(of: dependencies.authenticationSnapshot()) { _, _ in closeSelectedNameConfirmation(); closeSelectedPublication(); publicationContinuation.clear() }
+        .onChange(of: ObjectIdentifier(modelContext.container)) { _, _ in closeProtectedChat(clearContinuation: true); closeSelectedNameConfirmation(); closeSelectedPublication(); publicationContinuation.clear() }
+        .onChange(of: dependencies.authenticationSnapshot()) { _, _ in closeProtectedChat(clearContinuation: true); closeSelectedNameConfirmation(); closeSelectedPublication(); publicationContinuation.clear() }
         .onChange(of: viewModel.scanBoundActionGeneration) { _, _ in
+            closeProtectedChat()
             cancelSavedReanalysis()
             closeSelectedNameConfirmation()
             closeSelectedPublication()
@@ -222,7 +226,7 @@ struct InsightSheetView: View {
             cancelOrDismissShellPresentation { if case .identificationHistory = $0 { true } else { false } }
         }
 
-        .onChange(of: inferenceEngine.scanPresentationGeneration) { _, _ in closeSelectedNameConfirmation() }
+        .onChange(of: inferenceEngine.scanPresentationGeneration) { _, _ in closeProtectedChat(); closeSelectedNameConfirmation() }
         .onChange(of: selectedReviewKey, initial: true) { _, _ in bindSelectedReview() }
         .onChange(of: selectedReviewHost.deliveryGeneration) { _, _ in refreshSelectedReview() }
         .onChange(of: selectedReviewHost.scopeIsCurrent) { _, current in
