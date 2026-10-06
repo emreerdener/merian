@@ -33,6 +33,12 @@ The canonical behavioral contract is the
   parent/container. Durable retry remains in the existing enrollment intent,
   with no timer or implicit History/status admission. See the
   [enrollment owner](../AnalysisHistory/README.md#prepared-native-enrollment).
+- `publicationConsentPreparationOwner` retains bounded, exactly scoped
+  foreground community-help preflight reads. Account transitions cancel and
+  await actual lease release before Auth drains; cancelled or joined callers
+  cannot retire another scope's task. This owner has no timer, durable
+  publication admission or ordinary UI caller. See the
+  [foreground consent owner](../AnalysisHistory/README.md#retained-foreground-consent-preparation).
 - `Persistence/` contains narrow throwing SwiftData lookups for offline jobs,
   idempotent cloud-deletion task/job creation, durable Field Trip goal-hint
   reads/deletion, one fresh-context projection of mirrored scan/job retry

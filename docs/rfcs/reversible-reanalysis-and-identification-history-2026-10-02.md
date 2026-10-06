@@ -3109,3 +3109,13 @@ cannot authorize another dispatch, while legitimate acknowledgement without a
 dispatch claim remains recoverable. Storage-read failures reach bounded retry.
 This adds no schema, network contract or activation change. Foreground consent
 preparation lifetime and the explicit consent presentation remain unfinished.
+
+### October 6: retained community-help preflight ownership
+
+A queue-retained foreground owner now coalesces exact immutable ticket, Auth
+session, generation and container scopes with a four-request bound. It retains
+cancelled tasks through actual lease release and is awaited before Auth drain.
+Stale or cancelled waiters cannot receive private prepared snapshots; exact
+scope cancellation cannot retire a newer presentation. This creates no durable
+operation, automatic retry or idle lease. Explicit App composition and consent
+UI remain open, and all activation gates remain disabled.

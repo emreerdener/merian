@@ -1155,3 +1155,23 @@ also carries its immutable primary scientific name for accurate action labels.
 Queue pass exit signals local status refresh only for its originating account
 and active database context; it is not authority or a receipt. Ordinary UI
 remains unconnected and holds no idle account lease.
+
+### Retained foreground consent preparation
+
+`ObservationPublicationPreparationOwner` retains at most four foreground reads,
+coalescing only identical immutable tickets, Auth sessions, generations and
+model-container identities. It receives the consent service explicitly and
+creates no durable operation or retry. The owned task checks its token,
+cancellation and common account/session/container environment around service
+execution, including the exact leased session. Each waiter separately checks its
+own cancellation and current environment before receiving the private snapshot.
+A dismissed waiter cannot cancel another caller's shared read; explicit
+lifecycle cancellation matches the full scope. Cancelled slots stay occupied
+until actual service completion and lease release. Overlapping drains keep
+admission closed until every captured task exits.
+
+The queue retains this owner and cancels/awaits it in retained
+account-transition quiescence before Auth drains its leases. Preparation does
+not hold an idle lease after returning, mint an operation UUID, stage consent or
+wake delivery. The inert App composition and explicit consent presentation still
+need integration; ordinary access remains disabled.

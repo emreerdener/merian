@@ -2563,3 +2563,12 @@ Acknowledged waiting work without a previous dispatch remains valid. Local
 attention and terminal receipts stay out of scheduling; storage failures retain
 the bounded recovery wake. The status is a minimal saved-operation projection,
 not current public visibility, and adds no idle network work.
+
+Foreground community-help preparation has a separate retained owner, bounded to
+four exact ticket/session/generation/container scopes. It coalesces identical
+reads and withholds stale private results. Queue account-transition quiescence
+cancels and awaits these tasks before Auth lease drain; slots remain occupied
+until the service releases its lease, including cancellation-ignoring responses.
+Overlapping drains block admission until all captured work exits. A cancelled
+waiter does not cancel another caller's shared read. This adds no durable
+intent, automatic replay, timer, idle lease or ordinary UI activation.
