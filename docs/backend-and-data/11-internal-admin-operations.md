@@ -168,8 +168,8 @@ deploy from a commit whose admin-quality job was skipped, cancelled, or failed.
 The registry-backed audit is intentionally blocking: high/critical findings and
 an unavailable audit registry both stop the admin release.
 `lib/dependency-security.test.ts` independently checks the frozen Next.js,
-PostCSS, and Sharp versions and protects the workflow sequence from silent
-drift.
+PostCSS, Sharp, and `source-map-js` versions and protects the workflow sequence
+from silent drift.
 
 Main accepts direct pushes without a required pre-push status check. In the
 separate admin Vercel project's
@@ -196,6 +196,10 @@ The checked-in dependency graph, reviewed on 2026-09-30, is:
 - Sharp 0.35.4, enforced through the Next.js override, following the
   [libheif advisory recommendation](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c)
   and including its optional native packages.
+
+On 2026-10-06, the frozen `source-map-js` entry was updated to 1.2.2 for the
+[indexed source-map event-loop denial of service](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
+The executable security contract enforces that floor for every resolved copy.
 
 The selector parser lockfile floor is 7.1.3 for the reviewed
 [uncontrolled recursion vulnerability](https://github.com/advisories/GHSA-w9m9-85wc-3x92).

@@ -2524,10 +2524,11 @@ non-caching, and non-retrying.
   strict response headers, CSRF/origin-checked Server Actions, and no
   service-role key. Its dependency-security tests and
   `.github/workflows/admin-quality.yml` enforce a frozen install, reviewed
-  Next.js/PostCSS/Sharp floors, blocking dependency audit, tests, type-check,
-  and production build for every pull request and affected `main` changes.
-  Repository rules must require the resulting status, and the separate Vercel
-  project must use it as a required Deployment Check before domain promotion.
+  Next.js/PostCSS/Sharp/source-map-js floors, blocking dependency audit, tests,
+  type-check, and production build for every pull request and affected `main`
+  changes. Repository rules must require the resulting status, and the separate
+  Vercel project must use it as a required Deployment Check before domain
+  promotion.
 - `services/supabase/migrations/20260719161112_add_internal_admin_foundation.sql`:
   internal membership/session/audit/review/feedback/pricing schema, narrow admin
   RPCs, reversible post moderation, and canonical AI usage ledger.

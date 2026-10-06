@@ -5777,11 +5777,12 @@ Turnstile verification. The suite also proves incomplete Turnstile configuration
 fails before any provider fetch. Migration coverage requires both bounded
 counter-retention paths to use `FOR UPDATE SKIP LOCKED`, preventing concurrent
 request cleanup from becoming a lock convoy.
-`apps/web/lib/dependencySecurity.test.ts` also checks every locked PostCSS and
-Sharp instance against the reviewed patched floors, keeps the Next.js transitive
-overrides explicit, and verifies that the dependency audit follows the frozen
-install. `.github/workflows/web-quality.yml` runs the live registry-backed audit
-with a high-severity failure threshold, those tests, TypeScript checking, and a
+`apps/web/lib/dependencySecurity.test.ts` also checks every locked PostCSS,
+Sharp, and `source-map-js` instance against the reviewed patched floors
+(including `source-map-js` 1.2.2), keeps the Next.js transitive overrides
+explicit, and verifies that the dependency audit follows the frozen install.
+`.github/workflows/web-quality.yml` runs the live registry-backed audit with a
+high-severity failure threshold, those tests, TypeScript checking, and a
 production Next.js build for affected web changes. High and critical findings,
 or an unavailable audit registry, block the job.
 

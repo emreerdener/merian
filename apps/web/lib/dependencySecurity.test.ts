@@ -92,6 +92,7 @@ test("the lockfile excludes reviewed Next, Tiptap, and selector parser vulnerabi
       ["next", "16.3.6"],
       ["@tiptap/core", "3.30.5"],
       ["postcss-selector-parser", "7.1.3"],
+      ["source-map-js", "1.2.2"],
     ]
   ) {
     const versions = packageVersions(name);

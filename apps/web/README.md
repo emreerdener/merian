@@ -527,3 +527,11 @@ observer selection and community labels are explicit; detail preserves original
 AI labels separately. Malformed present metadata fails closed. Broader/community
 labels cannot substitute a species reference thumbnail or reference carousel.
 Legacy payloads with no identification metadata retain their presentation.
+
+### Indexed source-map dependency floor
+
+The frozen graph requires `source-map-js` 1.2.2 or newer to exclude the reviewed
+[indexed source-map event-loop denial of service](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
+The package security contract checks every resolved copy. Preserve the blocking
+dependency audit and complete frozen-install, test, type-check and production
+build sequence when updating this transitive dependency.

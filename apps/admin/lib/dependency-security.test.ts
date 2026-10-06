@@ -110,6 +110,15 @@ test("the admin CSS parser excludes the reviewed recursion vulnerability", () =>
   );
 });
 
+test("the admin graph excludes the reviewed indexed source-map denial of service", () => {
+  const versions = packageVersions("source-map-js");
+  assert.ok(versions.length > 0);
+  assert.ok(
+    versions.every((version) => versionAtLeast(version, "1.2.2")),
+    `Source-map-js versions below 1.2.2: ${versions.join(", ")}`,
+  );
+});
+
 test("the admin build uses the pinned native TypeScript CLI and retains the test parser API", () => {
   assert.equal(packageManifest.devDependencies?.typescript, "7.0.2");
   assert.deepEqual(packageVersions("typescript"), ["7.0.2"]);
