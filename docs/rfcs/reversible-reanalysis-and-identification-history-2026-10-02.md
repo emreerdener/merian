@@ -3503,3 +3503,17 @@ authorize a missing answer. Unknown write responses allow a read only, never
 another provider attempt, refund or automatic successor. HTTP orchestration,
 native persisted send tickets and integrated operational qualification remain
 open. All activation gates remain false.
+
+### Bounded protected Field Chat HTTP owner — October 6, 2026
+
+The source handler now routes protected sends through exact immutable recovery
+before all mutable legacy reads. Fresh work preserves
+eligibility/Pro/safety/quota ordering, prompts from final admitted context, and
+fresh one-time grant authority. A separate receipt-shaped response and native
+deterministic receipt decoder avoid reconstructing mutable conversation state.
+The raw provider transport enforces parent cancellation, one call, a 90-second
+deadline and 32 KiB response ceiling; the owner reserves completion/recovery
+headroom before dispatch. Unknown outcomes stay held and cannot trigger a
+successor or refund. Native actual-send ticket persistence/delivery and
+integrated operational qualification remain open. Every activation gate stays
+false; source integration does not authorize deployment.

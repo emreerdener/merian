@@ -3983,3 +3983,13 @@ owner lease and claims each phase separately. Automatic scheduling and UI remain
 separate work; no ordinary caller or activation is enabled. The canonical
 [API contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-native-analysis-bound-review-wire)
 owns these bounds and remaining integration requirements.
+
+## Protected Field Chat receipt
+
+`FieldChatResponseDecoder.decodeProtectedCompletion` validates the separate
+version-one immutable-send receipt within 32 KiB. It checks exact envelope keys,
+original observation/request and deterministic conversation-bound assistant
+UUID, without converting the receipt into a full chat thread or adopting
+selection. The existing legacy conversation decoder is unchanged. Native durable
+send-ticket storage and delivery remain separate unfinished owners; ordinary
+access stays behind the disabled History gate.

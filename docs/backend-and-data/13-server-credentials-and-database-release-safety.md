@@ -904,10 +904,10 @@ legacy work until its exact assistant receipt exists.
 The new Insight handler requires the forward routing migration before rollout; a
 missing or unknown routing RPC fails closed rather than selecting legacy. Its
 source-derived Field Chat bundle identity is regenerated. Immutable-required
-HTTP sends remain explicitly unavailable until bounded recovery/execution and
-atomic local-refusal completion are connected and qualified. These source
-changes do not authorize applying migrations, activating either chat gate or
-deploying the Function.
+HTTP sends now use the bounded protected owner in source; fresh admission
+remains behind disabled database gates and requires coordinated native
+qualification. These source changes do not authorize applying migrations,
+activating either chat gate or deploying the Function.
 
 The exact completion and atomic local-refusal routines are separately
 service-only allowlisted. Their private receipt/copy helpers have no API execute
@@ -927,3 +927,13 @@ and consumed dispatch marker. Read recovery compares private accounting without
 returning it. Completion never refunds, redispatches or extends execution
 authority. The migration leaves every activation gate unchanged and does not
 authorize hosted application or deployment.
+
+Protected HTTP execution now uses the exact immutable recovery/admission and
+original-grant completion owners. Source routing cannot turn a client protocol
+omission into legacy permission. The isolated raw provider adapter has a fixed
+origin/model, one invocation, real parent cancellation and bounded response
+body; unknown outcomes remain charged with no successor. The source-derived
+Field Chat fingerprint includes this runtime. Native receipt decoding is
+prepared, but native persisted send tickets and operational qualification still
+precede any separately authorized deployment or activation. All gates remain
+false.

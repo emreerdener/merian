@@ -14689,4 +14689,41 @@ but SQL verifies their full equality on recovery. The prepared
 uses a five-second call bound within the parent signal. An unknown write permits
 one exact full-payload read only; absent, changed or uncertain recovery stays
 unknown. It never writes again, dispatches, refunds or creates a successor. The
-module is not yet connected to protected HTTP execution.
+protected HTTP execution owner now uses this module.
+
+### Protected Field Chat send HTTP protocol, version one
+
+For server-required immutable sends, `insight-chat` accepts exactly `action`
+(`send`), `context_version` (`1`), lowercase UUID `scan_id`, `conversation_id`
+and `client_message_id`, normalized 1–600-character `message_text`, and an
+explicit `displayed_ticket` (null for a legacy immutable snapshot, otherwise
+exact `analysis_id`, `state_revision`, `review_revision`). No new UUID or ticket
+is inferred after uncertainty. Server routing precedes mutable scan/thread
+reads; client omission cannot choose legacy, and explicit protected fields on a
+legacy route fail closed instead of starting a legacy request.
+
+Success is the closed `{data:{context_version:1,completed:true,message}}`
+receipt, not the legacy conversation envelope. `message` has exactly `id`,
+`conversation_id`, `scan_id`, `role`, `text`, `client_message_id`, `model`,
+`is_refusal`, `refusal_reason`, `created_at`. Its deterministic assistant UUID
+binds returned conversation and original request. The proposed conversation may
+resolve to an existing owned conversation at atomic admission. No context,
+usage, current-selection projection, thread messages or quota estimates are
+returned. Native `decodeProtectedCompletion` validates this separate 32 KiB
+contract, including the fixed provider model and valid local-refusal
+combinations; existing conversation decoding and ordinary access stay unchanged.
+Native persisted send-ticket delivery is still required before coordinated
+activation.
+
+Existing turns recover before fresh eligibility or Pro. Fresh sends preserve
+immutable eligibility → Pro → local safety → protected quota → context admission
+→ one-time grant ordering. All prompts use the final saved context and prefix.
+Unknown admission, provider or completion never authorizes automatic redispatch,
+refund or a replacement request. Incomplete exact recovery returns held (503);
+stale immutable context and request conflicts remain explicit errors. Every
+protected success/error is no-store. The request budget is measured from entry;
+provider dispatch requires five-second grant, 90-second provider and 15-second
+persistence/recovery headroom plus a two-second margin. A confirmed grant
+invokes once within the remaining provider window, preserving completion time.
+Provider HTTP uses actual cancellation, no retries, no redirects and a 32 KiB
+response limit. All activation gates remain false.

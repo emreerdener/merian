@@ -456,19 +456,21 @@ stale-chat recovery must never reopen protected work.
 `sendRoute.ts` performs a bounded, retry-disabled owner/scan route read before
 all mutable send work. The server requires immutable context for enrolled or
 previously protected observations and for the execution cutover; client fields
-cannot opt out. Until the bounded execution owner is connected, the handler
-returns `field_chat_context_required` for that route and holds unknown reads.
-SQL independently fences existing generic admission, quota commit and stale
-rescue, including old deployed handlers. Enrollment waits for the exact reply of
-any already-committed legacy attempt. See the
+cannot opt out. The handler delegates that route to the bounded immutable send
+owner and holds unknown route reads. Protected protocol fields cannot select
+legacy when the server has not enabled the protected route. SQL independently
+fences existing generic admission, quota commit and stale rescue, including old
+deployed handlers. Enrollment waits for the exact reply of any already-committed
+legacy attempt. See the
 [storage contract](../../../../docs/backend-and-data/04-database-schema.md#legacy-insight-admission-and-enrollment-boundary).
 
 `protectedContextAdmission.ts` is the separate funding-bound adapter. It retains
 the original quota pair, marks returned replay explicitly, and allows only one
 read after unknown admission. Read recovery never authorizes dispatch or refund.
-This prepared adapter is not yet the HTTP execution owner. Deterministic safety
+The bounded HTTP execution owner uses this adapter. Deterministic safety
 refusals use the prepared atomic question/context/reply routine below, consuming
-a chat slot without provider quota. The protected HTTP route remains disabled.
+a chat slot without provider quota. Fresh protected execution remains gated off
+in the database.
 
 ### Prepared exact completion and atomic local refusal
 
@@ -485,8 +487,8 @@ incomplete provider turn. Exact static replay survives gate/authority changes;
 changed request/reason, cross-scan reuse and prior provider attempts hold.
 Transport uncertainty preserves the original request with no retry/refund. Tests
 cover static-copy parity, rollback, concurrent replay/deletion and actual
-account merge. Recovery orchestration, protected HTTP execution and native
-persisted send tickets remain to be connected; all gates stay closed.
+account merge. Recovery orchestration is connected to the protected HTTP owner;
+native persisted send tickets remain to be connected, and all gates stay closed.
 
 ### Prepared original-grant provider completion
 
@@ -501,5 +503,37 @@ An unknown write permits one dedicated full-payload read, comparing usage and
 generated metadata in SQL while returning only the public receipt. Missing or
 conflicting recovery holds; it never triggers another write/provider call or
 refund. Each transport has a five-second bound within the parent deadline. The
-protected HTTP execution owner and native persisted send tickets remain
-unconnected, with all activation gates false.
+protected HTTP execution owner uses this adapter; native persisted send tickets
+remain pending, with all activation gates false.
+
+### Protected send HTTP owner
+
+`protectedSendContract.ts` requires the closed version-one send object:
+`action`, `context_version`, `scan_id`, proposed `conversation_id`,
+`client_message_id`, `message_text`, and explicit `displayed_ticket` (object or
+null). The owner is JWT-derived. The normalized question and ticket are frozen
+before any send work. `protectedSend.ts` recovers original context first;
+existing turns only read the exact completion. A missing turn uses immutable
+eligibility, current Pro, local safety, protected quota, funded context
+admission, immutable saved prompts, one fresh grant and one provider call.
+Replayed or recovered admissions cannot execute. Local safety refusal consumes a
+chat slot without provider quota.
+
+The response is `{data:{context_version:1,completed:true,message}}`, using the
+existing fixed ten-field assistant receipt. It never claims to contain a current
+thread or remaining quota. The native exact receipt decoder validates request,
+observation and deterministic assistant identity; durable sending is a separate
+owner still to be connected. Legacy conversation decoding remains separate.
+Responses are no-store. An omitted ticket never falls back to legacy.
+
+The owner measures its 135-second budget from HTTP entry. Before grant it
+reserves five seconds for grant, 90 seconds for provider and 15 seconds for
+completion and one exact recovery read, plus a two-second dispatch margin; it
+also checks headroom before quota admission. A confirmed grant invokes once with
+the remaining provider window, preserving the completion reserve. The raw
+one-shot provider transport inherits parent cancellation through headers and
+body, rejects redirects, caps JSON at 32 KiB and never retries. Strict model,
+answer and nullable usage normalization rejects uncertainty rather than
+inventing results. Post-dispatch uncertainty stays charged and held. No generic
+quota refund/failure, legacy prompt, mutable thread reconstruction or duplicate
+usage event is used.

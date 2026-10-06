@@ -1,3 +1,5 @@
+import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { handleProtectedChatSend } from "./protectedSendHandler.ts";
 import { Type } from "@google/genai";
 import { insightChatRequiresContext } from "./sendRoute.ts";
 import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
@@ -225,17 +227,16 @@ async function generatePromptSuggestions(
   };
 }
 
-Deno.serve((req: Request) =>
-  withEdgeHandler(req, async (user, supabaseAdmin) => {
+function createInsightHandler(req: Request, protectedStartedAt: number) {
+  return async (user: User, supabaseAdmin: SupabaseClient) => {
     const parsedBody = await parseJsonBody(req, { limit: "standard" });
     if (parsedBody instanceof Response) return parsedBody;
 
     const action = normalizeAction(parsedBody.action);
     const scanId = requireUuid(parsedBody.scan_id, "scan_id").toLowerCase();
     if (action === "send") {
-      // Until the bounded immutable execution owner is connected, protected
-      // sends hold here. Neither missing client fields nor a closed rollout
-      // may select the mutable legacy path.
+      // Server-owned routing precedes every mutable legacy read. Protected
+      // omission or uncertainty cannot fall through to the old protocol.
       try {
         if (
           await insightChatRequiresContext(supabaseAdmin, {
@@ -243,11 +244,25 @@ Deno.serve((req: Request) =>
             scanId,
           }, req.signal)
         ) {
+          return await handleProtectedChatSend(
+            req,
+            supabaseAdmin,
+            user.id,
+            parsedBody,
+            protectedStartedAt,
+          );
+        }
+        if (
+          ["context_version", "displayed_ticket", "conversation_id"].some(
+            (key) => Object.hasOwn(parsedBody, key),
+          )
+        ) {
           return publicErrorResponse(
             req,
             503,
             "field_chat_context_required",
-            "Field Chat for this identification is not available yet.",
+            "Protected Field Chat is not enabled for this observation.",
+            { extraHeaders: { "Cache-Control": "no-store" } },
           );
         }
       } catch {
@@ -256,6 +271,7 @@ Deno.serve((req: Request) =>
           503,
           "field_chat_context_unavailable",
           "Field Chat is temporarily unavailable. Please try again later.",
+          { extraHeaders: { "Cache-Control": "no-store" } },
         );
       }
     }
@@ -968,5 +984,11 @@ Deno.serve((req: Request) =>
         sendsTodayAfterRequest,
       ),
     }, 200);
-  }, { responseHeaders: FIELD_CHAT_RESPONSE_HEADERS })
+  };
+}
+
+Deno.serve((req: Request) =>
+  withEdgeHandler(req, createInsightHandler(req, performance.now()), {
+    responseHeaders: FIELD_CHAT_RESPONSE_HEADERS,
+  })
 );

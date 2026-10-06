@@ -102,7 +102,7 @@ Deno.test("HTTP send routing fences before all mutable context, tier and quota w
   ) assert(route < source.indexOf(marker), marker);
   assert(
     source.slice(start, source.indexOf("const sendsToday", start)).includes(
-      '"field_chat_context_required"',
+      "return await handleProtectedChatSend",
     ),
   );
 });
