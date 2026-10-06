@@ -263,3 +263,22 @@ and
 [canonical activation checklist](../system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist).
 Project Guardrails includes runtime workflow, manifest, and tooling paths so
 these contracts cannot change without the portable CI-tooling checks.
+
+## Protected chat proof and refresh measurements
+
+The performance manifest includes an app-process clock, CPU and memory workload
+for durable question staging, exact no-admission proof settlement and explicit
+identification refresh. Each sample launches the existing enrolled-V2 Debug
+fixture, prepares the same question outside the interval, then measures Send
+through proof presentation and refresh closing the stale chat. Reopening checks
+an empty composer and the retained proof outside the interval. Only strict
+server/state responses are synthetic; persistence, delivery, queue ownership,
+state synchronization and host projection use production components.
+
+Each test invocation requests ten XCTest measurement iterations; the audit
+requests three test invocations. Inspect actual exported sample counts. Each
+measurement uses a newly seeded process to keep durable occupancy and authority
+identical. These are report-only measurements of that bounded flow, not
+sustained heap-retention, leak, real-provider or physical-device evidence. Keep
+raw XCResult samples and matching environment/workload identity; no timing or
+memory threshold is inferred from one local run.

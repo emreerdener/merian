@@ -486,6 +486,12 @@
       "suite_names": [
         "RuntimePerformanceTests"
       ]
+    },
+    {
+      "selector": "merianUITests/RuntimePerformanceTests/testProtectedChatProofRefresh",
+      "suite_names": [
+        "RuntimePerformanceTests"
+      ]
     }
   ]
 }
