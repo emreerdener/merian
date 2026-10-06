@@ -7327,3 +7327,16 @@ and rolls back all admission effects. Preflight is advisory: authority or
 deletion changes before final admission can deny the send. SQL NULL legacy
 tickets are normalized to JSON null at both boundaries; stored history tickets
 remain exact.
+
+### Immutable chat projection semantics
+
+`20261006101459_preserve_chat_context_semantics.sql` replaces only the private
+context projector. It preserves candidate nullness and rank, denies malformed
+candidate containers, and adds optional version-1 `metrics_qualified` computed
+from untouched original provenance. Unknown metadata cannot acquire metric
+qualification when private/unknown keys are removed. Missing provenance differs
+from explicit legacy null. Existing immutable turn rows are never rewritten;
+consumers omit scores when the marker is absent. The prepared pure semantic
+adapter consumes this immutable marker without later recomputation, without
+borrowing mutable scan fields or exposing operational IDs in prompts. Gates,
+service-only grants, replay order and message-keyed retention stay unchanged.

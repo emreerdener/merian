@@ -168,9 +168,12 @@ const review = shape({
   "community",
 ]);
 const candidate = shape({
-  ...fields("scientific_name common_name distinguishing_feature", (v) => {
-    storedText(v, 500);
-  }),
+  ...fields(
+    "taxon_rank scientific_name common_name distinguishing_feature",
+    (v) => {
+      storedText(v, 500);
+    },
+  ),
   ...fields("confidence_score", number),
 });
 const dictionary = shape({
@@ -208,6 +211,8 @@ const requiredScanKeys = [
   "confirmed_species",
 ];
 const scan = shape({
+  // Older immutable snapshots lack this marker and cannot qualify scores.
+  metrics_qualified: bool,
   ...fields(
     "timestamp weather_condition semantic_location time_of_day depth_scale_text inference_tier ai_reasoning ecology_type life_stage reproductive_condition sex sex_evidence invasive_status_region invasive_rationale user_identification_override user_review_state",
     text,
@@ -236,10 +241,10 @@ const scan = shape({
       evidence: strings(3, 500),
     }, ["evidence"]),
   ),
-  candidates: (v) => {
+  candidates: nullable((v) => {
     if (!Array.isArray(v) || v.length > 6) return invalidStoredContext();
     v.forEach(candidate);
-  },
+  }),
   species_dictionary: nullable(dictionary),
   confirmed_species: nullable(dictionary),
 }, requiredScanKeys);

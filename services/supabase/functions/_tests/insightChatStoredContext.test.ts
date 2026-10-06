@@ -393,3 +393,47 @@ Deno.test("stored resolver never retries throttling or transient server failures
     assertEquals(calls, 1);
   }
 });
+
+Deno.test("stored context preserves optional qualification and candidate nullness without upgrading old snapshots", () => {
+  const base = response();
+  for (
+    const patch of [
+      {},
+      { metrics_qualified: true },
+      { metrics_qualified: false },
+      { candidates: null },
+      {
+        candidates: [{
+          taxon_rank: "species",
+          scientific_name: "Fixture species",
+          confidence_score: 0.8,
+        }],
+      },
+    ]
+  ) {
+    const scan = { ...base.context_snapshot.scan_context, ...patch };
+    const parsed = parseStoredInsightChatResolution({
+      ...base,
+      context_snapshot: {
+        ...base.context_snapshot,
+        scan_context: scan,
+      },
+    }, request);
+    assert(parsed.found);
+    assertEquals(parsed.context.scan_context, scan);
+  }
+  for (const marker of [null, "true", 1, {}]) {
+    assertThrows(() =>
+      parseStoredInsightChatResolution({
+        ...base,
+        context_snapshot: {
+          ...base.context_snapshot,
+          scan_context: {
+            ...base.context_snapshot.scan_context,
+            metrics_qualified: marker,
+          },
+        },
+      }, request)
+    );
+  }
+});

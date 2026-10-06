@@ -376,3 +376,23 @@ The SQL catalog `insight_chat_context_preflight.sql` and the
 `insightChatPreflight*`/`insightChatPreparedContext` tests verify no-slot
 preflight, exact replay, missing historical data, final size rollback and real
 preflight/authority/admission/deletion races.
+
+### Prepared immutable semantics and prompts
+
+`immutableContextPrompt.ts` accepts decoded prepared or stored context and
+shares the existing effective-identification, biological, human and unresolved
+eligibility rules. It never casts sparse historical data to a mutable scan or
+fetches missing fields. Its detached prompt data omits ticket, review,
+dictionary and operation IDs, and all provider configuration. Missing encounter
+fields remain unavailable. Stored prompts preserve the original ordered prefix;
+fresh preflight has no conversation prefix.
+
+The forward projection preserves null candidates and candidate rank. Malformed
+candidate containers fail closed instead of being filtered into empty evidence.
+An additive optional `metrics_qualified` Boolean records compatibility against
+the untouched original provenance before sanitization. Missing provenance is
+unqualified; explicit legacy null retains its established semantics. The prompt
+uses that immutable decision alone, without requalifying sanitized metadata.
+Older immutable contexts without the marker remain readable but omit scores; no
+existing snapshot is rewritten. Unqualified candidate descriptions remain
+available. This adapter does not yet change HTTP dispatch or native requests.

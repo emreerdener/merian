@@ -3335,3 +3335,30 @@ audit had zero violations, and advisor error gates found no new preflight
 issues. Independent review is clear. No Swift changed; the prior native
 milestone remains applicable. Pure immutable prompt/eligibility adaptation, live
 HTTP/native wiring and qualification remain open.
+
+### October 6: prepared immutable Field Chat semantics
+
+The pure eligibility/prompt adapter now consumes decoded immutable context,
+shares existing identification and human/biological policy, and excludes
+operational IDs and provider configuration from prompt data. Missing encounter
+fields stay unavailable; stored conversation prefixes retain original role/text
+order. Handler and native dispatch integration remains pending.
+
+Review found two sanitizer losses before integration: null candidates became
+empty arrays and candidate rank was dropped, invalidating legitimate primary
+results; removing unknown provenance keys could also falsely qualify metrics. A
+forward private-projector correction preserves candidate semantics and records
+qualification against untouched source metadata. Existing contexts are not
+rewritten and omit scores without the new optional marker. Descriptive
+alternatives remain usable even when scores are unqualified. All activation
+gates remain false.
+
+Final semantic validation passed 2,802 backend tests (425 steps), 107 SQL
+catalogs (1,622 assertions), 413 migration contracts, all 116 isolated endpoint
+checks, full Supabase tooling, DTO checks, lint/format and 26 documentation
+tests. The 317-routine privilege audit had zero violations; schema lint and
+advisor error gates passed with no new projector findings. Independent review is
+clear. The initial stale generated Field Chat bundle fingerprint was regenerated
+before the final tooling run. Review also removed replay-time metric
+requalification; the final fresh-reset runtime run uses the saved decision
+alone. No Swift changed, so the preceding native milestone remains applicable.

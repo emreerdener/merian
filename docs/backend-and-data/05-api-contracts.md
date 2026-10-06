@@ -14506,3 +14506,22 @@ first, then checks fresh immutable eligibility and existing Pro/quota rules
 before admission. Transport-ambiguous admission outcomes retain their original
 identity and unresolved reservation; they do not authorize unconditional refunds
 or successors.
+
+### Prepared immutable Insight semantic adapter
+
+The private version-1 `scan_context` producer now preserves null alternatives
+and each alternative's `taxon_rank`. It rejects malformed candidate containers
+rather than silently discarding evidence. Optional `metrics_qualified` is a
+Boolean computed against original provenance before its allowlist projection:
+missing provenance is false, explicit legacy null retains compatibility, and
+unknown provider/configuration additions cannot become qualified by sanitation.
+Older stored snapshots lack this field and remain unqualified without backfill.
+
+The pure prompt/eligibility adapter accepts decoded prepared or stored context,
+uses existing effective-identification and human/biological rules, and keeps
+missing V3 encounter values unavailable. Its prompt data excludes operational
+IDs, review records and provider configuration. Qualified scores require the
+saved true marker, with no later qualification-policy recomputation; descriptive
+alternatives remain available when scores are omitted. Stored conversation roles
+and text retain their exact order. Preflight has no prefix and cannot fabricate
+an admitted turn. Live HTTP/native wiring remains pending and default-off.

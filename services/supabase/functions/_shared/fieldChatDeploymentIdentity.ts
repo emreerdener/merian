@@ -6,7 +6,7 @@ export const FIELD_CHAT_BUNDLE_SHA256 = Object.freeze(
     "explore-post-chat":
       "2318a747becc57466af905a8d142715484fdadddb9c5e96b701deb7e818ee867",
     "insight-chat":
-      "d816ef445e70a1874c94457b1981d77b4890944f837d8cddc3230a2ee42cdbfb",
+      "63fde5361d566ff239455c9ca2b4cf6a5832037530bd6147d3bb20d17a040942",
     "species-dictionary-chat":
       "5546330db8c270594dda540054445168530763b3dee11a9925cdf9ccab771a48",
   } as const,
