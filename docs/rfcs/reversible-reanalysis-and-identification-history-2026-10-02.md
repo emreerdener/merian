@@ -3276,3 +3276,33 @@ and SQL function-volatility issues were corrected before the final full run. The
 next boundary is a read-only exact-context resolver, distinct from new-send
 admission, so entitlement, eligibility or quota denial cannot consume a chat
 slot.
+
+### October 6: prepared exact Field Chat recovery
+
+A service-only read-only resolver now distinguishes a missing turn from an
+existing immutable context and an old uncontexted message. It pins current
+message ownership, preserves original text/ticket association across authority
+changes and account merge, and lets deletion win. It never admits a message or
+consumes a daily/conversation slot. Closed TypeScript decoding bounds the whole
+response, strips no missing evidence into invented defaults, and returns a
+detached frozen context. The fixed RPC adapter respects cancellation and a
+five-second deadline, disables retries, and never interprets malformed output or
+a missing route as permission for new work.
+
+Live handler/native integration remains unconnected. The next fresh-turn
+boundary must share current immutable ticket/scan derivation with final
+admission, without reading or reserving conversation history. Only final atomic
+admission freezes the prior-message prefix. Existing eligibility, Pro and quota
+ordering remains; ambiguous admission replies require exact recovery and cannot
+become unconditional refunds or new provider operations. All activation gates
+remain false.
+
+Recovery validation passed 2,782 backend tests (425 steps), 105 SQL catalogs
+(1,582 assertions), three real admission/recovery/deletion concurrency cases,
+410 migration contracts, full Supabase tooling, all 116 isolated endpoint
+configurations and 26 documentation tests. Database lint and the 316-routine
+privilege audit passed without violations; advisor error gates passed with no
+new context findings. Independent review is clear. Initial merge/cutover
+fixture, SQL qualification and driver error-code assertions were corrected
+before the final fresh-reset full run. No Swift changed in this slice; the
+previous 5,290 native milestone remains the applicable local evidence.

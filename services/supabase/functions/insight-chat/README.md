@@ -309,3 +309,39 @@ and
 describe bounds and denial behavior. Raw library `field_notes` are not part of
 this snapshot; the existing captured `user_observation_context` has its own
 explicit text allowlist.
+
+### Prepared read-only recovery
+
+`get_insight_chat_turn_context` resolves an exact owner, observation,
+client-message UUID, normalized question, original displayed ticket and version.
+A missing message returns `{context_version:1,found:false}` without creating a
+conversation or consuming a send. An existing message returns its original
+context before any current authority or rollout checks. Uncontexted old messages
+remain held. Ownership and deletion are checked first; surviving merged messages
+resolve under their current owner. Explicit JSON-null legacy tickets cross
+PostgREST as SQL NULL and are normalized by this resolver.
+
+`storedContextContract.ts` and `storedContext.ts` decode a bounded, closed
+storage shape, validate message/ticket association and return detached frozen
+data. Missing V3 fields remain absent. `storedContextRepository.ts` performs one
+fixed RPC with a five-second deadline and caller cancellation; malformed
+success, unknown errors and missing routes never become `found:false`. Only
+exact SQL code/message pairs classify missing subjects, uncontexted turns or
+idempotency conflicts. This is a prepared internal adapter, with no live handler
+import.
+
+Future send integration must recover before the global mutable scan fetch and
+before stale-quota recovery. A genuinely absent turn needs read-only immutable
+eligibility preflight, existing Pro/provider-quota checks and then atomic
+admission with final ticket revalidation. Admission is never a recovery probe.
+Prompt construction must use only the saved snapshot/prefix and apply existing
+semantic authority and metric qualification; structural decoding alone grants no
+execution authority. Native retry must retain the displayed ticket verbatim,
+with an explicit restart-durability design before claiming restart recovery.
+
+`insight_chat_context_recovery.sql`,
+`insightChatRecoveryMigrationContract.test.ts`,
+`insightChatRecoveryConcurrencyDb.test.ts` and
+`insightChatStoredContext.test.ts` cover no-slot probes, original-context
+recovery, merge/deletion, concurrent admission/deletion, strict decoding and
+transport cancellation. All activation gates remain closed.

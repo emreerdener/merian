@@ -7298,3 +7298,15 @@ handler, change provider funding/recovery, or activate any history surface. A
 future handler must use the stored context for execution and hold uncontexted
 legacy messages; native sends must preserve the displayed ticket. Existing
 Explore and Dictionary admission remain unchanged.
+
+`20261006091111_prepare_insight_chat_context_recovery.sql` adds the service-only
+read-only resolver `get_insight_chat_turn_context`. Owner-first shared row
+locks, existing Field Chat advisories and the ingestion advisory serialize
+recovery with admission, merge and deletion. The exact joined user message and
+saved context are pinned until transaction completion. Missing user turns return
+an explicit false marker; old messages without context hold. Recovery reads
+neither current history nor rollout state and creates no admissions or
+conversations. The response carries the original immutable context with current
+message ownership, so an account merge does not require rewriting snapshots.
+Direct private-table access stays revoked. No activation or provider-policy
+changes are part of this migration.

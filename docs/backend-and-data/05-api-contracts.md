@@ -14450,3 +14450,31 @@ field_chat_subject_not_found`). Existing admission errors remain
 authoritative. HTTP status mapping, execution from immutable context and native
 displayed-ticket transport must land before activation. This boundary neither
 retries providers nor changes quota settlement.
+
+### Prepared read-only Insight context resolution
+
+Service-only `get_insight_chat_turn_context(uuid,uuid,uuid,text,jsonb,integer)`
+takes owner, observation, client-message UUID, original normalized question,
+displayed ticket and context version 1. It returns exactly
+`{context_version:1,found:false}` for an absent user turn, or
+`{context_version:1,found:true,message,context_snapshot}` for a stored turn.
+`message` contains exactly `id`, `conversation_id`, `scan_id`, `user_id`,
+`role`, `client_message_id` and `message_text`; role is `user`. The ticket, text
+and joined current ownership must match. A JSON-null legacy ticket (SQL NULL
+through PostgREST) is normalized to stored JSON null. History tickets remain
+exact, closed three-field objects. Total recovery response is capped at 136 KiB;
+the snapshot remains capped at 128 KiB.
+
+The resolver does not admit, consume daily/conversation capacity, inspect
+current history or gates, or authorize provider execution. Owner/deletion checks
+precede saved context. An uncontexted existing user turn holds with
+`55000 field_chat_context_missing`; it is never treated as absent. The internal
+TypeScript adapter maps only exact code/message pairs to missing-subject 404,
+missing-context 409 or idempotency-conflict 409. Unknown errors, malformed data
+and missing RPC routes become unavailable 503, never fresh-send permission. It
+issues one request bounded to five seconds and respects parent cancellation.
+These are prepared internal errors, not a newly activated HTTP endpoint.
+
+After genuine absence, future handler integration must run read-only immutable
+eligibility and existing Pro/quota checks before atomic context admission; no
+recovery probe may consume a slot. Live HTTP/native DTOs remain unchanged.
