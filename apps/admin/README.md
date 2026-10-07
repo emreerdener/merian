@@ -116,7 +116,7 @@ npm run build
 that complete sequence for every pull request and every affected `main` push. It
 deliberately reports on every pull request so GitHub can require a stable check
 without path-filtered changes remaining pending. The currently protected graph
-pins Next.js 16.3.6 and PostCSS 8.5.28 and overrides Next.js's private Sharp
+pins Next.js 16.3.8 and PostCSS 8.5.28 and overrides Next.js's private Sharp
 dependency to 0.35.5 for the
 [librsvg memory-safety fix](https://github.com/advisories/GHSA-wq5f-xc86-pv6w).
 `lib/dependency-security.test.ts` rejects a lockfile below those floors or a
@@ -225,3 +225,8 @@ The Sharp security contract also checks every optional `@img/sharp-*` artifact,
 including nested copies: native bindings must be at least 0.35.5 and bundled
 libvips packages at least 1.3.4. A patched JavaScript wrapper alone does not
 satisfy this decoder boundary.
+
+The October 7, 2026 dependency review pins Next.js 16.3.8 for the
+[security patch release](https://github.com/vercel/next.js/releases/tag/v16.3.8),
+including Image Optimization SSRF and cache-isolation fixes. Existing PostCSS
+and Sharp overrides remain unchanged; the dependency audit is not bypassed.

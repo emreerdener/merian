@@ -211,7 +211,7 @@ and retain the complete frozen-install, audit, test, type-check, and build gate.
 
 The package pins the reviewed Next.js release exactly; do not replace it with a
 range or `latest`. Use `npm ci` so CI and production consume the committed lock
-file. Next.js 16.3.6 also fixes the
+file. Next.js 16.3.8 also fixes the
 [next/og ImageResponse RCE](https://github.com/vercel/next.js/security/advisories/GHSA-vcvr-r3jv-pc5j).
 It retains the fixes for the reviewed
 [Windows-hosted RCE](https://github.com/advisories/GHSA-p293-qw3h-jr36) and
@@ -234,7 +234,7 @@ Tiptap packages are pinned together at 3.31.3 to cover both the
 and [Markdown parser ReDoS](https://github.com/advisories/GHSA-j95f-988m-3j2f).
 The lockfile also excludes the affected
 [CSS selector parser releases](https://github.com/advisories/GHSA-w9m9-85wc-3x92).
-`lib/dependencySecurity.test.ts` enforces the reviewed Next.js 16.3.6, PostCSS
+`lib/dependencySecurity.test.ts` enforces the reviewed Next.js 16.3.8, PostCSS
 8.5.25, Sharp 0.35.5, Tiptap core 3.30.5, and selector parser 7.1.3 floors,
 explicit Next overrides, and the workflow audit step. Dependency update pull
 requests must run the full dependency audit, test, type-check, and
@@ -544,3 +544,8 @@ The Sharp security contract also checks every optional `@img/sharp-*` artifact,
 including nested copies: native bindings must be at least 0.35.5 and bundled
 libvips packages at least 1.3.4. A patched JavaScript wrapper alone does not
 satisfy this decoder boundary.
+
+The October 7, 2026 dependency review pins Next.js 16.3.8 for the
+[security patch release](https://github.com/vercel/next.js/releases/tag/v16.3.8),
+including Image Optimization SSRF and cache-isolation fixes. Existing PostCSS
+and Sharp overrides remain unchanged; the dependency audit is not bypassed.
