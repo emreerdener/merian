@@ -10869,3 +10869,15 @@ cancellation after a known response retains the proof for same-scope settlement.
 shared collector's existing chat limits, claim budget, TLS/redirect, deadline
 and cancellation behavior. This is inert transport evidence, not durable
 retirement or UI acceptance. The alternatives card remains unchanged.
+
+### Native retirement staging qualification
+
+`ReanalysisRetirementStagingTests` covers closed version-eight metadata,
+owner/request-qualified admitted status, rejection of absent/dispatched/draft or
+terminal status, legacy held normalization, full-snapshot claim races and
+normal-execution exclusion. Save-before-commit failure retains the prior claim;
+commit-then-throw retains the same retirement UUID. Disk reopen preserves that
+identity. Account loss, pending deletion and completed results deny staging.
+Selection and evidence remain unchanged; no HTTP request or cleanup is performed
+by this foundation. Dedicated retirement ownership and terminal receipt
+settlement require their own subsequent coverage.

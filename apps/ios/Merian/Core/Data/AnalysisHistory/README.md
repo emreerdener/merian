@@ -1372,3 +1372,21 @@ the commit transaction. Pending or malformed analysis-review work blocks that
 refresh. Completed reconciled reviews permit it. This is separate from the
 legacy-review fence used inside native reconciliation, so a review does not
 block its own paired-state completion.
+
+### Staged execution retirement
+
+Bound reanalysis metadata version eight retains the original request, dispatch
+provenance and one explicit retirement operation UUID. Version-one unknown and
+version-seven consumed execution can enter this state only from an exact
+owner/request-qualified `admitted` status and a fresh full-snapshot transaction.
+An absent status never permits retirement. Ready, unbound, deleted, completed or
+changed local work fails closed. No SwiftData schema shape changes.
+
+Staging persists before retirement I/O and invalidates previous execution
+claims. Normal claim, settlement, completion and candidate discovery exclude
+retirement work. A save that commits and then throws leaves the same operation
+recoverable from persistence; reopening must not mint a replacement UUID.
+Original photos, selection and child identity remain unchanged. This checkpoint
+is inert: dedicated retirement claims, terminal proof settlement, retained
+account delivery and action UI remain to be connected. Status alone cannot
+release local occupancy or authorize erasure, refund or provider execution.

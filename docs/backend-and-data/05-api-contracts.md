@@ -12570,6 +12570,16 @@ retirement, acknowledge a job, clean files or release occupancy; those durable
 owners and user actions remain a later checkpoint. Unknown outcomes retain the
 original retirement UUID and require exact receipt recovery.
 
+Native version-eight bound metadata now stages that one retirement UUID with its
+unchanged request and dispatch provenance. The typed status retains its
+validated owner and full request identity; staging compares both and requires
+`admitted`, plus a fresh full-snapshot local CAS. Version-one unknown and
+version-seven consumed work are eligible to request retirement; ready work is
+not. Staging fences older normal workers and is excluded from normal execution
+discovery. It does not itself call the endpoint, erase evidence or release
+occupancy. Dedicated retirement claims, terminal-proof settlement and UI remain
+subsequent checkpoints; only server retirement can resolve a dispatch race.
+
 The prepared native `analyzeObservation` transport preserves the complete saved
 request bytes, initiating account and 130-second timeout. It disables automatic
 transport retries and 401 session refresh so the durable owner controls

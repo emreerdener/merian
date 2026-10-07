@@ -24,6 +24,7 @@ enum ObservationReanalysisExecutionStore {
         let nextRun: Date?
         let hold: Hold?
         let server: ObservationAnalysisReceipt.State?
+        var retirement: UUID?
     }
     struct Claim: Sendable {
         let snapshot: Snapshot
@@ -63,6 +64,7 @@ enum ObservationReanalysisExecutionStore {
                   let intent = try? ObservationReanalysisIntent.decode(Data(metadata.utf8)), intent.identity == identity else { continue }
             do {
                 let saved = try read(identity, container: container, isCurrent: isCurrent)
+                guard saved.retirement == nil else { continue } // Dedicated retirement ownership is required.
                 switch saved.status {
                 case .pending: candidates.append(.init(snapshot: saved, admission: .initial, due: saved.nextRun!))
                 case .waiting: candidates.append(.init(snapshot: saved, admission: .dueRetry, due: saved.nextRun!))
@@ -126,11 +128,38 @@ enum ObservationReanalysisExecutionStore {
         }
     }
 
+    /// Explicit user retirement intent. Status supports requesting retirement, never local cleanup.
+    /// Full-snapshot CAS invalidates every older execution claim before any retirement I/O.
+    static func stageRetirement(_ expected: Snapshot, status: ObservationAnalysisExecutionStatus,
+                                operationID: UUID, now: Date, container: ModelContainer, isCurrent: () -> Bool,
+                                save: (ModelContext) throws -> Void = { try $0.save() }) throws -> Snapshot {
+        guard now.timeIntervalSince1970.isFinite, expected.retirement == nil, expected.dispatch != .ready,
+              status.state == .admitted, status.ownerID == expected.intent.ownerID,
+              status.request == ObservationAnalysisExecutionLookup(expected.intent.request) else {
+            throw Persistence.IntegrityError.conflict
+        }
+        let bound = ObservationReanalysisIntent.Bound(intent: expected.intent, dispatch: expected.dispatch, retirement: operationID)
+        guard let metadata = String(data: try bound.data(), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
+        return try Persistence.transaction(expected.intent.identity, container: container, isCurrent: isCurrent, save: save) { context in
+            let (row, job) = try matching(expected, context: context)
+            let child = expected.intent.request.analysisID.uuidString.lowercased()
+            guard try context.fetch(FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate { $0.id == child })).isEmpty else {
+                throw Persistence.IntegrityError.conflict
+            }
+            job.metadataJSON = metadata
+            job.status = .waiting; job.nextRunAt = now; job.updatedAt = now; job.lastErrorCode = nil
+            job.serverStatus = ObservationAnalysisReceipt.State.admitted.rawValue
+            if job.attemptCount == 0 { job.attemptCount = 1; job.lastAttemptAt = now }
+            mirror(job, into: row)
+            return try snapshot(row, job)
+        }
+    }
+
     /// `interrupted` is for a replacement execution owner after draining its old tasks.
     /// Every new claim advances the persisted attempt fence, including exact-request recovery.
     static func claim(_ expected: Snapshot, admission: Admission, now: Date, container: ModelContainer,
                       isCurrent: () -> Bool, save: (ModelContext) throws -> Void = { try $0.save() }) throws -> Claim {
-        guard now.timeIntervalSince1970.isFinite, expected.attempt < Int.max else { throw Persistence.IntegrityError.conflict }
+        guard expected.retirement == nil, now.timeIntervalSince1970.isFinite, expected.attempt < Int.max else { throw Persistence.IntegrityError.conflict }
         return try Persistence.transaction(expected.intent.identity, container: container, isCurrent: isCurrent, save: save) { context in
             let (row, job) = try matching(expected, context: context)
             switch admission {
@@ -154,7 +183,7 @@ enum ObservationReanalysisExecutionStore {
                                 save: (ModelContext) throws -> Void = { try $0.save() }) throws -> Claim {
         try Persistence.transaction(claim.intent.identity, container: container, isCurrent: isCurrent, save: save) { context in
             let (row, job) = try matching(claim.snapshot, context: context)
-            guard claim.snapshot.status == .running, claim.snapshot.dispatch == .ready else { throw Persistence.IntegrityError.conflict }
+            guard claim.snapshot.retirement == nil, claim.snapshot.status == .running, claim.snapshot.dispatch == .ready else { throw Persistence.IntegrityError.conflict }
             let bound = ObservationReanalysisIntent.Bound(intent: claim.intent, dispatch: .consumed(attempt: claim.snapshot.attempt))
             guard let metadata = String(data: try bound.data(), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
             job.metadataJSON = metadata
@@ -165,7 +194,7 @@ enum ObservationReanalysisExecutionStore {
     static func validate(_ claim: Claim, container: ModelContainer, isCurrent: () -> Bool) throws {
         try Persistence.transaction(claim.intent.identity, container: container, isCurrent: isCurrent, save: { try $0.save() }) { context in
             _ = try matching(claim.snapshot, context: context)
-            guard claim.snapshot.status == .running else { throw Persistence.IntegrityError.conflict }
+            guard claim.snapshot.retirement == nil, claim.snapshot.status == .running else { throw Persistence.IntegrityError.conflict }
         }
     }
 
@@ -175,7 +204,7 @@ enum ObservationReanalysisExecutionStore {
         guard now.timeIntervalSince1970.isFinite else { throw Persistence.IntegrityError.conflict }
         try Persistence.transaction(claim.intent.identity, container: container, isCurrent: isCurrent, save: save) { context in
             let (row, job) = try matching(claim.snapshot, context: context)
-            guard job.status == .running else { throw Persistence.IntegrityError.conflict }
+            guard claim.snapshot.retirement == nil, job.status == .running else { throw Persistence.IntegrityError.conflict }
             switch settlement {
             case let .waiting(until, server):
                 guard until.timeIntervalSince1970.isFinite, until > now, server != .failedTerminal,
@@ -194,13 +223,14 @@ enum ObservationReanalysisExecutionStore {
     /// Exact committed replay is checked before the normal erasure fence; deletion still wins.
     static func complete(_ claim: Claim, resultBytes: Data, container: ModelContainer,
                          isCurrent: () -> Bool, save: (ModelContext) throws -> Void = { try $0.save() }) throws -> ObservationReanalysisErasureReceipt {
+        guard claim.snapshot.retirement == nil else { throw Persistence.IntegrityError.conflict }
         let result = try ObservationReanalysisResult.decode(resultBytes, matching: claim.intent.request)
         let identity = claim.intent.identity
         let receipt = ObservationReanalysisErasureReceipt(parentID: identity.observationID, childID: identity.analysisID)
         if try completedReplay(claim.intent, result: result, receipt: receipt, container: container, isCurrent: isCurrent) { return receipt }
         return try Persistence.transaction(identity, container: container, isCurrent: isCurrent, save: save) { context in
             let (row, job) = try matching(claim.snapshot, context: context)
-            guard job.status == .running else { throw Persistence.IntegrityError.conflict }
+            guard claim.snapshot.retirement == nil, job.status == .running else { throw Persistence.IntegrityError.conflict }
             let parent = try ObservationHistorySyncService.enrolledScan(identity.observationID.uuidString, context: context)
             _ = try ObservationHistorySyncService.insert([result], into: parent, ownerID: identity.ownerID, context: context)
             try receipt.record(in: context)
@@ -263,6 +293,10 @@ enum ObservationReanalysisExecutionStore {
         if stored.dispatch == .ready, stored.status != .needsAttention {
             guard server == nil else { throw Persistence.IntegrityError.conflict }
         }
+        if stored.retirement != nil {
+            guard stored.dispatch != .ready, server == .admitted,
+                  [.waiting, .running, .needsAttention].contains(stored.status) else { throw Persistence.IntegrityError.conflict }
+        }
         switch stored.status {
         case .needsAttention:
             guard job.nextRunAt == nil,
@@ -278,7 +312,7 @@ enum ObservationReanalysisExecutionStore {
         default: throw Persistence.IntegrityError.conflict
         }
         return Snapshot(intent: stored.intent, dispatch: stored.dispatch, status: stored.status, attempt: job.attemptCount, updatedAt: job.updatedAt,
-            lastAttempt: job.lastAttemptAt, nextRun: job.nextRunAt, hold: hold, server: server)
+            lastAttempt: job.lastAttemptAt, nextRun: job.nextRunAt, hold: hold, server: server, retirement: stored.retirement)
     }
 
     /// Ambiguous legacy aliases and a deletion marker always win. A canonical history result

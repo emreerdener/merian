@@ -254,3 +254,167 @@ struct ObservationReanalysisExecutionTests {
     }
 
 }
+
+@MainActor
+@Suite(.serialized, .sharedProcessState(.offlineQueueManager))
+struct ReanalysisRetirementStagingTests {
+    typealias Store = ObservationReanalysisExecutionStore
+    let execution = ObservationReanalysisExecutionTests()
+    let operation = UUID(uuidString: "30000000-0000-4000-8000-000000000001")!
+
+    func status(_ intent: ObservationReanalysisIntent, state: String = "admitted") throws -> ObservationAnalysisExecutionStatus {
+        let request = ObservationAnalysisExecutionLookup(intent.request)
+        var object = request.object()
+        object["owner_id"] = intent.ownerID.uuidString.lowercased(); object["state"] = state
+        return try .init(data: JSONSerialization.data(withJSONObject: object), request: request, ownerID: intent.ownerID)
+    }
+
+    func consumed(_ container: ModelContainer) throws -> Store.Claim {
+        try Store.consumeDispatch(execution.claim(container), container: container, isCurrent: { true })
+    }
+
+    @Test func stagingInvalidatesOldWorkerWithoutErasingEvidenceOrSelection() throws {
+        let container = try execution.fixture.fixture.container(), original = try consumed(container)
+        let staged = try Store.stageRetirement(original.snapshot, status: status(original.intent), operationID: operation,
+            now: execution.now, container: container, isCurrent: { true })
+        #expect(staged.retirement == operation && staged.intent == original.intent && staged.dispatch == original.snapshot.dispatch)
+        #expect(staged.status == .waiting && staged.server == .admitted)
+        #expect(try Store.candidates(ownerID: original.intent.ownerID, container: container, isCurrent: { true }).isEmpty)
+        #expect(throws: (any Error).self) { try Store.validate(original, container: container, isCurrent: { true }) }
+        #expect(throws: (any Error).self) {
+            try Store.settle(original, as: .held(.terminalFailure), now: execution.now, container: container, isCurrent: { true })
+        }
+        #expect(throws: (any Error).self) {
+            try Store.complete(original, resultBytes: execution.result(), container: container, isCurrent: { true })
+        }
+        #expect(throws: (any Error).self) {
+            try Store.claim(staged, admission: .dueRetry, now: execution.now, container: container, isCurrent: { true })
+        }
+        let (context, row, _) = try execution.fixture.stored(container)
+        #expect(row.inferenceImagePaths == original.intent.photoPaths)
+        #expect(try context.fetchCount(FetchDescriptor<LocalAnalysisRecord>()) == 1)
+        #expect(try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(original.intent.request.analysisID)) == nil)
+    }
+
+    @Test func heldLegacyWorkCanStageOnlyWithExactAdmittedEvidence() throws {
+        let container = try execution.fixture.fixture.container(), intent = try execution.fixture.intent()
+        _ = try execution.fixture.stage(container)
+        let (context, _, job) = try execution.fixture.stored(container)
+        job.metadataJSON = String(data: try JSONSerialization.data(withJSONObject: ["version": 1,
+            "owner_id": intent.ownerID.uuidString.lowercased(), "request_base64": intent.request.body.base64EncodedString()]), encoding: .utf8)
+        try context.save()
+        let held = try Store.read(intent.identity, container: container, isCurrent: { true })
+        #expect(held.dispatch == .legacyUnknown && held.attempt == 0)
+        let staged = try Store.stageRetirement(held, status: status(intent), operationID: operation,
+            now: execution.now, container: container, isCurrent: { true })
+        #expect(staged.dispatch == .legacyUnknown && staged.attempt == 1 && staged.lastAttempt == execution.now)
+        #expect(try Store.read(intent.identity, container: container, isCurrent: { true }) == staged)
+    }
+
+    @Test(arguments: ["absent", "dispatched", "draft", "complete", "failed_terminal"])
+    func nonAdmittedStateNeverStages(_ state: String) throws {
+        let container = try execution.fixture.fixture.container(), original = try consumed(container)
+        #expect(throws: (any Error).self) {
+            try Store.stageRetirement(original.snapshot, status: status(original.intent, state: state), operationID: operation,
+                now: execution.now, container: container, isCurrent: { true })
+        }
+        try Store.validate(original, container: container, isCurrent: { true })
+    }
+
+    @Test func readyAndDifferentRequestStatusCannotStage() throws {
+        let container = try execution.fixture.fixture.container(), ready = try execution.claim(container)
+        #expect(throws: (any Error).self) {
+            try Store.stageRetirement(ready.snapshot, status: status(ready.intent), operationID: operation,
+                now: execution.now, container: container, isCurrent: { true })
+        }
+        let original = try Store.consumeDispatch(ready, container: container, isCurrent: { true })
+        let changed = try execution.fixture.intent(text: "Different evidence")
+        for wrong in [changed, ObservationReanalysisIntent(ownerID: UUID(), request: original.intent.request)] {
+            #expect(throws: (any Error).self) {
+                try Store.stageRetirement(original.snapshot, status: status(wrong), operationID: operation,
+                    now: execution.now, container: container, isCurrent: { true })
+            }
+        }
+        try Store.validate(original, container: container, isCurrent: { true })
+    }
+
+    @Test(arguments: [false, true])
+    func uncertainSaveRetainsOriginalOperationWhenCommitted(_ commits: Bool) throws {
+        let container = try execution.fixture.fixture.container(), original = try consumed(container)
+        #expect(throws: (any Error).self) {
+            try Store.stageRetirement(original.snapshot, status: status(original.intent), operationID: operation,
+                now: execution.now, container: container, isCurrent: { true }, save: { context in
+                    if commits { try context.save() }
+                    throw CocoaError(.fileWriteUnknown)
+                })
+        }
+        let reopened = try Store.read(original.intent.identity, container: container, isCurrent: { true })
+        #expect(reopened.retirement == (commits ? operation : nil))
+        if commits {
+            #expect(throws: (any Error).self) {
+                try Store.stageRetirement(reopened, status: status(original.intent), operationID: UUID(),
+                    now: execution.now, container: container, isCurrent: { true })
+            }
+        } else {
+            #expect(try Store.stageRetirement(reopened, status: status(original.intent), operationID: operation,
+                now: execution.now, container: container, isCurrent: { true }).retirement == operation)
+        }
+    }
+
+    @Test func committedRetirementSurvivesDiskReopenWithSameUUID() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("retirement.sqlite")
+        let staged: Store.Snapshot
+        do {
+            let container = try execution.fixture.fixture.container(url: url), original = try consumed(container)
+            staged = try Store.stageRetirement(original.snapshot, status: status(original.intent), operationID: operation,
+                now: execution.now, container: container, isCurrent: { true })
+        }
+        let reopened = try execution.fixture.fixture.container(url: url, seed: false)
+        #expect(try Store.read(staged.intent.identity, container: reopened, isCurrent: { true }) == staged)
+        #expect(try Store.candidates(ownerID: staged.intent.ownerID, container: reopened, isCurrent: { true }).isEmpty)
+    }
+
+    @Test(arguments: ["account", "deletion", "new-claim", "completed"])
+    func staleRetirementCannotOverwriteNewerAuthority(_ change: String) throws {
+        let container = try execution.fixture.fixture.container(), original = try consumed(container)
+        switch change {
+        case "deletion":
+            let context = ModelContext(container)
+            context.insert(PendingCloudDeletionTask(scanId: original.intent.identity.observationID.uuidString.lowercased()))
+            try context.save()
+        case "new-claim":
+            _ = try Store.claim(original.snapshot, admission: .interrupted, now: execution.now, container: container, isCurrent: { true })
+        case "completed":
+            _ = try Store.complete(original, resultBytes: execution.result(), container: container, isCurrent: { true })
+        default: break
+        }
+        #expect(throws: (any Error).self) {
+            try Store.stageRetirement(original.snapshot, status: status(original.intent), operationID: operation,
+                now: execution.now, container: container, isCurrent: { change != "account" })
+        }
+    }
+
+    @Test func envelopeRejectsChangedShapeAndPreservesOldVersions() throws {
+        let intent = try execution.fixture.intent()
+        let bound = ObservationReanalysisIntent.Bound(intent: intent, dispatch: .consumed(attempt: 2), retirement: operation)
+        #expect(try ObservationReanalysisIntent.Bound.decode(bound.data()) == bound)
+        #expect(try ObservationReanalysisIntent.Bound.decode(intent.storedData()).retirement == nil)
+        let original = try #require(JSONSerialization.jsonObject(with: bound.data()) as? [String: Any])
+        for field in ["version", "retirement", "dispatch_state", "dispatch_attempt", "extra"] {
+            var changed = original
+            switch field {
+            case "version": changed[field] = 7
+            case "retirement": changed[field] = ["operation_id": intent.request.analysisID.uuidString.lowercased(), "state": "staged"]
+            case "dispatch_state": changed[field] = "ready"; changed["dispatch_attempt"] = NSNull()
+            case "dispatch_attempt": changed[field] = true
+            default: changed[field] = true
+            }
+            #expect(throws: (any Error).self) {
+                try ObservationReanalysisIntent.Bound.decode(JSONSerialization.data(withJSONObject: changed))
+            }
+        }
+    }
+}

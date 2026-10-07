@@ -8,6 +8,7 @@ enum ObservationReanalysisPersistence {
         let intent: ObservationReanalysisIntent
         let status: OfflineJobStatus
         let dispatch: ObservationReanalysisIntent.Dispatch
+        var retirement: UUID?
         var isTerminal: Bool { status == .complete || status == .cancelled }
     }
 
@@ -169,6 +170,6 @@ enum ObservationReanalysisPersistence {
         if [.complete, .cancelled, .needsAttention].contains(status) {
             guard job.nextRunAt == nil else { throw IntegrityError.conflict }
         }
-        return Stored(intent: intent, status: status, dispatch: bound.dispatch)
+        return Stored(intent: intent, status: status, dispatch: bound.dispatch, retirement: bound.retirement)
     }
 }

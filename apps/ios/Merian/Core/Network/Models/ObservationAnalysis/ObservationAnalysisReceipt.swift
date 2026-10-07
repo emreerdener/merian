@@ -60,6 +60,8 @@ struct ObservationAnalysisExecutionStatus: Sendable, Equatable {
         case failedTerminal = "failed_terminal"
     }
     let state: State
+    let request: ObservationAnalysisExecutionLookup
+    let ownerID: UUID
 
     init(data: Data, request: ObservationAnalysisExecutionLookup, ownerID: UUID) throws {
         guard data.count <= 4096,
@@ -76,7 +78,7 @@ struct ObservationAnalysisExecutionStatus: Sendable, Equatable {
               let raw = row["state"] as? String, let state = State(rawValue: raw) else {
             throw MerianError.invalidResponse
         }
-        self.state = state
+        self.state = state; self.request = request; self.ownerID = ownerID
     }
 }
 
