@@ -10831,3 +10831,18 @@ establish retirement or new-execution authority: absent and dispatched states
 remain observations only. Unknown original execution never permits an analyze
 replay. Full action-owner integration and retirement-versus-dispatch acceptance
 are subsequent slice-4 checkpoints, with media journeys still separately held.
+
+### Admitted analysis retirement proof
+
+`observation_analysis_retirement.sql` exercises protected evidence cleanup and
+its erasure outbox, claimed-admitted retirement, quota/credit settlement,
+receipt-save rollback, exact replay after gate closure, immutable receipts,
+owner/reader/identity denials, contradictory durable evidence, and account-merge
+and deletion fences. `observationAnalysisRetirementConcurrencyDb.test.ts` uses
+independent sessions for retirement-versus-dispatch in both orders, duplicate
+receipt replay, retirement-versus-deletion in both orders and account deletion.
+
+This proves the admitted-only SQL boundary. It does not establish absent-request
+sealing, native restart/UI settlement or hosted erasure liveness. Those remain
+separate acceptance checkpoints; a status label never supplies retirement
+permission.

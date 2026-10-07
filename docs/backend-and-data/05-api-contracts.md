@@ -12521,6 +12521,33 @@ expected owner and post-Auth claim validation with no transient, 401 or missing
 route retry. It is prepared independently of action UI and retirement authority;
 this checkpoint does not install either or change activation gates.
 
+The separately prepared service-only
+`retire_owned_observation_analysis_execution(p_owner,p_request,p_reader:9)`
+requires default-false `execution_retirement_api_enabled`. An authenticated Edge
+owner boundary must derive `p_owner`; native direct RPC access is denied. That
+HTTP/native action owner is a subsequent checkpoint, not installed by this SQL
+preparation. The closed schema-1 request adds one retained `operation_id` to the
+original parent/child/nullable-source/digest identity. The exact receipt echoes
+those six fields plus `state:"retired_before_dispatch"`.
+
+After owner/deletion locks, exact stored receipt replay precedes the fresh gate.
+Fresh retirement requires an admitted intent with no invocation, outcome, draft,
+result, completion receipt, terminal reason or usage, an exact reserved quota
+and any complimentary row still held. Canonical locks serialize dispatch.
+Retirement refunds only that proven-unused reservation, releases its held
+complimentary credit, invalidates the worker claim, marks the intent terminal,
+queues private evidence erasure and saves the immutable receipt in one
+transaction. A receipt-save failure rolls all of that back. An active admitted
+worker claim does not prove provider invocation and can be revoked atomically.
+
+Dispatched uncertainty, draft/completed results, other terminal failures,
+malformed ledgers and absent intents do not receive this proof. A different
+retirement UUID cannot replace the saved one. Parent/account deletion wins
+replay and cascades the private receipt; the existing account-merge guard stays
+closed while the terminal intent exists. This is admitted-only retirement, not a
+no-admission seal for an HTTP request still in flight and not blanket terminal
+remediation or permission for another provider invocation.
+
 The prepared native `analyzeObservation` transport preserves the complete saved
 request bytes, initiating account and 130-second timeout. It disables automatic
 transport retries and 401 session refresh so the durable owner controls

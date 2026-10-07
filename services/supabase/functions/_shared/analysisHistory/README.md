@@ -686,3 +686,19 @@ expiry so an old analysis cannot acquire new consent or a renewed deadline. The
 legacy per-item helper alone is not an authenticated upload boundary. Native
 capture/queue integration, bucket qualification and independent erasure remain
 activation prerequisites; all flags stay false.
+
+## Execution recovery and retirement contracts
+
+`executionStatus.ts` strictly decodes the owner-bound seven-field status read.
+`executionRetirement.ts` owns the exact original execution identity plus a
+retained retirement operation UUID and the matching `retired_before_dispatch`
+receipt. Neither decoder creates authority. Status `absent` or `failed_terminal`
+cannot substitute for a retirement receipt.
+
+The prepared service-only retirement routine requires the authenticated Edge
+owner boundary, separately held until its HTTP owner is connected. It verifies
+never-dispatched admitted state and exact reserved funding under canonical
+locks, revokes live work and saves settlement, private erasure and receipt
+atomically. Unknown dispatch is denied without refund or successor. Native
+persistence/action integration and absent-operation seals are separate work; all
+activation gates remain false.

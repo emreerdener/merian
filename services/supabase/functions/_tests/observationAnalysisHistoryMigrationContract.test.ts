@@ -1301,3 +1301,51 @@ Deno.test("execution status is closed, owner locked and strictly non-dispatching
   );
   assert(!sql.includes("execution_status_api_enabled=TRUE"));
 });
+
+Deno.test("retirement is service-only, exact replay first and atomic before dispatch", async () => {
+  const sql = await migration(
+    "20261007115940_prepare_analysis_execution_retirement",
+  );
+  assertStringIncludes(
+    sql,
+    "execution_retirement_api_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+  );
+  assertStringIncludes(sql, "PERFORM internal.require_service_role()");
+  assertStringIncludes(
+    sql,
+    "PERFORM internal.lock_owned_observation_evidence(p_owner,observation)",
+  );
+  assertStringIncludes(
+    sql,
+    "prior.request_identity IS DISTINCT FROM p_request",
+  );
+  assert(
+    sql.indexOf("RETURN prior.receipt") <
+      sql.indexOf("SELECT execution_retirement_api_enabled"),
+  );
+  assertStringIncludes(sql, "saved.state IS DISTINCT FROM 'admitted'");
+  assertStringIncludes(
+    sql,
+    "saved.invocation_id IS NOT NULL OR saved.provider_outcome IS NOT NULL OR saved.draft IS NOT NULL",
+  );
+  assertStringIncludes(sql, "reservation.state IS DISTINCT FROM 'reserved'");
+  assertStringIncludes(
+    sql,
+    "internal.finalize_observation_provider_reservation(p_owner,analysis,reservation.id,reservation.lease_token,'refunded')",
+  );
+  assertStringIncludes(
+    sql,
+    "provider_usage='{}'::JSONB,work_token=NULL,work_expires_at=NULL",
+  );
+  assertStringIncludes(
+    sql,
+    "REFERENCES internal.observation_analysis_intents(analysis_id) ON DELETE CASCADE",
+  );
+  assertStringIncludes(
+    sql,
+    "CREATE TRIGGER immutable_analysis_retirement_receipt BEFORE UPDATE",
+  );
+  assertStringIncludes(sql, "TO service_role");
+  assert(!sql.includes("TO authenticated"));
+  assert(!sql.includes("execution_retirement_api_enabled=TRUE"));
+});

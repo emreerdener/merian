@@ -7571,3 +7571,23 @@ owner/parent lock helper checks deletion before the exact intent read. Scope
 conflicts fail closed; missing intent is only an observation, never permission
 to admit, dispatch, refund or retire. No rows, claims, funding, provider usage,
 selection or review authority change. Completion recovery remains separate.
+
+### Never-dispatched analysis retirement
+
+Migration `20261007115940_prepare_analysis_execution_retirement.sql` prepares
+service-only `retire_owned_observation_analysis_execution(uuid,jsonb,integer)`
+and default-false `execution_retirement_api_enabled`.
+`internal.observation_analysis_retirement_receipts` has a unique operation and
+child, bounded exact request/receipt, RLS, no API table grants and an update
+rejection trigger. Its child foreign key cascades with intent deletion; the
+existing account-merge denial for retained intents remains unchanged.
+
+Under owner/parent and intent/quota locks, only an admitted operation without
+provider/result/terminal evidence and with matching reserved funding can retire.
+The transaction settles only proven-unused funding, clears the work claim,
+terminalizes the original intent and saves its receipt. Existing evidence
+retirement triggers create the opaque erasure obligation in that transaction.
+Exact receipt replay follows ownership/deletion checks and precedes new gates.
+An absent intent cannot be retired by this routine; no late-admission seal is
+created. Unknown provider execution, other terminal outcomes and inconsistent
+ledger rows fail closed. No ordinary access or HTTP action is enabled here.
