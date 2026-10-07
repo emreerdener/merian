@@ -15203,6 +15203,12 @@ writer produced `fmt` / 4,044-byte `FLLR` / `data`; fixed 44-byte headers alone
 would reject that output. This is format evidence, not iOS/device qualification.
 The verifier never transforms bytes or establishes their digest/readiness.
 
+The prepared native `ObservationAudioContainer.isValid` mirrors these byte rules
+without changing the broader legacy capture validator. Its tests include actual
+`InferenceAudioPreparer` output and exact PCM preservation. This isolated
+validator does not connect native upload, durable preparation or execution, and
+does not authorize a historical media fallback.
+
 The separate prepared cohort RPCs below now allocate immutable receipts with
 fixed expiry. The separate binary upload route below verifies exact WAV bytes
 and their digest. Coordinated admission must still bind the audio provider
