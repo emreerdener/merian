@@ -133,6 +133,7 @@ test-ios-xcode-release-workflow:
 	bash scripts/test-ios-xcode-release-workflow.sh
 
 test-ios-ci-tooling:
+	python3 -B scripts/test-ios-device-review-schemes.py
 	python3 -B scripts/test-ios-runtime-audit.py
 	python3 -B scripts/test-local-ios-build.py
 	bash scripts/test-check-ios-project-resources.sh

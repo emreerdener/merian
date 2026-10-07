@@ -251,3 +251,126 @@ schemes:
       config: Debug
     archive:
       config: Release
+
+  # Guided synthetic device review; no live history installation or rollout.
+  Merian Device - History:
+    build:
+      targets:
+        Merian: all
+    profile:
+      config: Debug
+    run:
+      config: Debug
+      environmentVariables:
+        UITesting: "true"
+        UITestKeychainNamespace: "1ff84ac9-a5e4-5ee5-a349-9ccf4af7d546"
+      commandLineArguments:
+        "-skipOnboarding": true
+        "-seedCurrentRequiredConsent": true
+        "-seedLocationPermissionPromptSuppressed": true
+        "-mockCameraFeed": true
+        "-hasCompletedOnboarding YES": true
+        "-seedPrivateScanMapFlow": true
+        "-seedIdentificationHistory": true
+
+  # Guided synthetic device review; no live history installation or rollout.
+  Merian Device - Community Photos:
+    build:
+      targets:
+        Merian: all
+    profile:
+      config: Debug
+    run:
+      config: Debug
+      environmentVariables:
+        UITesting: "true"
+        UITestKeychainNamespace: "a955c80c-8472-54bb-aaed-9df9bb752fa0"
+      commandLineArguments:
+        "-skipOnboarding": true
+        "-seedCurrentRequiredConsent": true
+        "-seedLocationPermissionPromptSuppressed": true
+        "-mockCameraFeed": true
+        "-hasCompletedOnboarding YES": true
+        "-seedPublicationConsentChooser": true
+
+  # Guided synthetic device review; no live history installation or rollout.
+  Merian Device - Species Name:
+    build:
+      targets:
+        Merian: all
+    profile:
+      config: Debug
+    run:
+      config: Debug
+      environmentVariables:
+        UITesting: "true"
+        UITestKeychainNamespace: "853b2e7c-00b7-58c9-8d22-fdfc09925155"
+      commandLineArguments:
+        "-skipOnboarding": true
+        "-seedCurrentRequiredConsent": true
+        "-seedLocationPermissionPromptSuppressed": true
+        "-mockCameraFeed": true
+        "-hasCompletedOnboarding YES": true
+        "-seedPublicationConsentChooser": true
+        "-seedSelectedNameConfirmation": true
+
+  # Guided synthetic device review; no live history installation or rollout.
+  Merian Device - Chat Pending:
+    build:
+      targets:
+        Merian: all
+    profile:
+      config: Debug
+    run:
+      config: Debug
+      environmentVariables:
+        UITesting: "true"
+        UITestKeychainNamespace: "f3870c40-524c-5038-8d0f-841f7f383b79"
+      commandLineArguments:
+        "-skipOnboarding": true
+        "-seedCurrentRequiredConsent": true
+        "-seedLocationPermissionPromptSuppressed": true
+        "-mockCameraFeed": true
+        "-hasCompletedOnboarding YES": true
+        "-seedProtectedInsightChat": true
+
+  # Guided synthetic device review; no live history installation or rollout.
+  Merian Device - Chat Refresh:
+    build:
+      targets:
+        Merian: all
+    profile:
+      config: Debug
+    run:
+      config: Debug
+      environmentVariables:
+        UITesting: "true"
+        UITestKeychainNamespace: "9bbbf133-a692-5ee1-8897-913f7aedba19"
+      commandLineArguments:
+        "-skipOnboarding": true
+        "-seedCurrentRequiredConsent": true
+        "-seedLocationPermissionPromptSuppressed": true
+        "-mockCameraFeed": true
+        "-hasCompletedOnboarding YES": true
+        "-seedProtectedChatStale": true
+
+  # Guided synthetic device review; no live history installation or rollout.
+  Merian Device - Reanalysis Guard:
+    build:
+      targets:
+        Merian: all
+    profile:
+      config: Debug
+    run:
+      config: Debug
+      environmentVariables:
+        UITesting: "true"
+        UITestKeychainNamespace: "5e19aa62-1c1e-5580-aa98-99fe1a79e4de"
+      commandLineArguments:
+        "-skipOnboarding": true
+        "-seedCurrentRequiredConsent": true
+        "-seedLocationPermissionPromptSuppressed": true
+        "-mockCameraFeed": true
+        "-hasCompletedOnboarding YES": true
+        "-seedPrivateScanMapFlow": true
+        "-seedSavedReanalysisFailure": true

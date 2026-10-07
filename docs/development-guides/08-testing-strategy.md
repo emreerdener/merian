@@ -226,6 +226,19 @@ legacy HTTPS/custom-scheme parsing, malformed UUID rejection, share URL copy,
 conflicting-route cleanup, Dictionary-tab presentation state, and survival of
 the immediate foreground timeout reset.
 
+## Guided identification-history device review
+
+The generated `Merian Device - …` schemes expose the existing Debug-only guided
+History, protected-entry failure, publication consent, named confirmation and
+chat fixtures for Xcode Run on an iPhone. They preserve `UITesting=true`,
+separate synthetic keychain namespaces and in-memory storage; ordinary
+installation stays disabled. See the
+[device checklist](24-identification-history-device-review.md) for exact fixture
+inputs and pass/fail reporting. These profiles do not prove restart durability,
+account transitions, migration or live provider/storage behavior.
+`scripts/test-ios-device-review-schemes.py` checks the generated launch
+configuration and unchanged ordinary scheme boundary.
+
 ## Observation analysis history preparation
 
 The protected-photo preparation adds

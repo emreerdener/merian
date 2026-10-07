@@ -54,6 +54,9 @@ controls.** The
 owns the verdict. Internal test builds may continue; that does not authorize
 production submission or public release.
 
+- [Identification-history device review](./development-guides/24-identification-history-device-review.md)
+  provides Xcode launch profiles, guided fixture steps and a concise result
+  template.
 - [Testing strategy](./development-guides/08-testing-strategy.md) owns the
   compiled **iOS Build and Test** gate and **Supabase Candidate Validation**.
   Candidate validation uses a disposable database without production secrets or

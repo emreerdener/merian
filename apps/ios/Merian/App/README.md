@@ -118,6 +118,15 @@ path; compatibility pauses still apply. Release device builds retain the prompt.
 See the
 [update-required UX contract](../../../../docs/system-architecture/10-event-and-presentation-routing.md#update-required-presentation).
 
+## Guided device review
+
+The shared `Merian Device - …` Xcode schemes reuse existing Debug/UI fixtures
+for manual iPhone review. They set `UITesting=true`, a scenario keychain
+namespace and the same launch arguments as the automated scenarios. They install
+no live history bundle and use an in-memory SwiftData library. The
+[device checklist](../../../../docs/development-guides/24-identification-history-device-review.md)
+records exact supported inputs and the separate live/restart/migration limits.
+
 ## Prepared history composition
 
 `Composition/PreparedHistoryReanalysisComposition.swift` assembles the existing
