@@ -12872,6 +12872,38 @@ authority mutations; analysis-bound community authority and its revocation
 behavior remain activation requirements. Privacy/deletion cleanup retains its
 existing path.
 
+### Prepared cross-device rejection Undo discovery
+
+`get_owned_observation_rejection_undo(p_request JSONB, p_reader INTEGER)` is an
+authenticated, mutation-free eligibility lookup. Reader 9 and the existing
+default-false rejection, reader and state-reader gates are required. Its five
+request fields are `schema_version: 1`, exact observation/analysis IDs and
+`expected_observation_revision` / `expected_review_revision`. The 2 KiB request
+and five-second statement limit match confirmation discovery.
+
+The bounded reply echoes the request plus either `status: available` and
+`rejection_operation_id`, or `status: unavailable` and `reason`:
+`community_authority`, `not_rejected`, `receipt_unavailable`,
+`rejection_changed` or `revision_conflict`. No original request, receipt,
+rejected label or provider information is returned.
+`analysisHistory/rejectionUndo.ts` owns the strict TypeScript parser. This
+server checkpoint does not yet replace native admission's local-receipt
+requirement; explicit recovered native admission is the next checkpoint.
+
+The lookup and mutation share `internal.observation_rejection_undo_eligibility`
+under canonical owner, ingestion, owned live scan, history and target-authority
+locks. Eligibility matches the same-target applied Reject receipt, its outer
+review revision and the current rejection operation. The original receipt's
+parent revision may be older; the nested AI review counter is independent. The
+displayed current parent and target revisions still must match. No digest
+condition or confirmation-specific rule is added to rejection Undo.
+
+Missing receipt action, outcome or revision now fails closed in both paths; SQL
+null values cannot qualify a malformed association. Exact saved mutation replay
+remains before fresh gates and eligibility, after ownership/deletion checks.
+Lookup never creates a receipt, changes selection, rearms work, invokes
+inference or authorizes replacement. All activation holds remain disabled.
+
 ### Durable Undo confirmation
 
 `20261007033012_add_analysis_confirmation_undo.sql` extends the eight-field

@@ -434,6 +434,16 @@ and fresh disposable-database/backend gates. Candidate counts and prior failed
 runs belong in the
 [dated review addendum](../rfcs/identification-history-integrated-review-results-2026-10-07.md#undo-confirmation-addendum--october-7-2026).
 
+Prepared rejection-Undo recovery has a separate backend checkpoint. The
+`observation_analysis_review.sql` catalog proves exact association, an older
+original parent revision, independent nested/outer counters, malformed receipt
+denial, privileges and gates. `observationRejectionUndoConcurrencyDb.test.ts`
+serializes lookup against review, selection and deletion using real connections.
+The unchanged eight-field Undo request and bounded lookup have strict decoder
+coverage in `_shared/analysisHistory/rejectionUndo_test.ts`. These checks do not
+establish native recovered admission; that requires the next native checkpoint
+without an original local rejection receipt. All activation gates remain false.
+
 Two focused coverage items remain open after the October 7 re-review:
 
 1. A dedicated UI scenario must load applied primary and named confirmations,

@@ -1172,3 +1172,43 @@ Deno.test("confirmation Undo uses current target receipt association and indepen
   );
   assert(!helper.includes("prior.receipt->>'observation_revision'"));
 });
+
+Deno.test("rejection Undo recovery shares exact target association without original parent CAS", async () => {
+  const sql = await migration("20261007064255_recover_analysis_rejection_undo");
+  const mutation = sql.slice(
+    sql.indexOf("CREATE OR REPLACE FUNCTION public.review_owned"),
+    sql.indexOf("CREATE FUNCTION public.get_owned"),
+  );
+  assert(
+    mutation.indexOf("RETURN saved.receipt") <
+      mutation.indexOf("FROM internal.observation_history_rollout"),
+  );
+  assertStringIncludes(
+    mutation,
+    "internal.observation_rejection_undo_eligibility(observation,target)",
+  );
+  const helper = sql.slice(
+    0,
+    sql.indexOf("CREATE OR REPLACE FUNCTION public.review_owned"),
+  );
+  assertStringIncludes(
+    helper,
+    "prior.receipt->>'review_revision' IS DISTINCT FROM authority.review_revision::TEXT",
+  );
+  assert(!helper.includes("prior.receipt->>'observation_revision'"));
+  assert(!helper.includes("operation_digest"));
+  const lookup = sql.slice(sql.indexOf("CREATE FUNCTION public.get_owned"));
+  assertStringIncludes(
+    lookup,
+    "rejection_api_enabled AND reader_enabled AND state_reader_enabled",
+  );
+  assertStringIncludes(
+    lookup,
+    "GRANT EXECUTE ON FUNCTION public.get_owned_observation_rejection_undo(JSONB,INTEGER) TO authenticated",
+  );
+  assertStringIncludes(lookup, "internal.scan_deletion_tombstones");
+  assert(
+    !/INSERT INTO internal\.observation_review_receipts|UPDATE (public|internal)\./
+      .test(lookup),
+  );
+});

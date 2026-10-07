@@ -6896,6 +6896,19 @@ Community projection, native review admission and ordinary history activation
 remain incomplete. Confirmation is separately prepared below. No rollout flag is
 enabled by this migration.
 
+### Rejection reversal recovery
+
+`20261007064255_recover_analysis_rejection_undo.sql` adds authenticated
+`get_owned_observation_rejection_undo` and the ungranted shared
+`internal.observation_rejection_undo_eligibility` helper. It reuses existing
+receipt tables, revision counters, canonical locks and disabled rejection/reader
+gates. The helper also guards new rejection Undo mutations; malformed receipt
+fields fail closed. Existing exact receipt replay and deletion precedence remain
+unchanged. The lookup exposes only exact-target eligibility and the original
+rejection operation ID, never the private receipt. No table, native schema,
+provider execution or rollout is introduced. See the
+[recovery contract](05-api-contracts.md#prepared-cross-device-rejection-undo-discovery).
+
 ### Confirmation reversal receipts
 
 `20261007033012_add_analysis_confirmation_undo.sql` adds the default-false

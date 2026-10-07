@@ -3183,6 +3183,11 @@ checks remain authoritative. See the
 Native review admission, community/publication integration and ordinary history
 activation remain outstanding. Confirmation is separately prepared below.
 
+The prepared rejection recovery lookup shares mutation-time target/receipt
+eligibility while exposing no receipt body. Its existing rejection/reader gates
+remain disabled; cross-device native admission is a separate checkpoint. See the
+[rejection recovery contract](../../docs/backend-and-data/05-api-contracts.md#prepared-cross-device-rejection-undo-discovery).
+
 ## Prepared analysis-bound confirmation
 
 [`confirm-observation-analysis`](functions/confirm-observation-analysis/README.md)
