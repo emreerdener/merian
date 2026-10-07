@@ -886,3 +886,21 @@ account leases. Closing a chat cancels only its waiter; no generic timer or chat
 delivery is scheduled by refresh. Exact terminal proof may free the completed
 request, but its stale ticket remains barred until actual different authority is
 loaded.
+
+### Retained reanalysis retirement delivery
+
+The existing reanalysis execution owner retains one bounded pass for both normal
+execution and version-eight retirement work. Normal execution remains separately
+fenced; retirement has only exact-result reads and its fixed saved-operation
+HTTP request. The pass handles at most eight due operations. Unknown retirement
+replies become held work without a timer, and no retry invokes a provider.
+
+Owner scopes distinguish dispatch cancellation from known-receipt settlement.
+Offline/constrained cancellation stops requests while preserving a same-owner,
+same-container, same-generation receipt scope. Auth quiescence invalidates both
+before awaiting actual task and account-lease release. The queue bridge also
+checks the active Auth-transition flag. Only a typed retirement proof may settle
+after task cancellation; ordinary result completion stays
+cancellation-sensitive. Actual completion notifies existing observers and wakes
+receipt-bound cleanup. UI retirement admission/status remains unconnected and
+rollout gates stay false.

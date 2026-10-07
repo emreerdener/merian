@@ -3036,7 +3036,8 @@ endpoint is deployed or scheduled by this implementation.
 exact admitted, never-dispatched operation. Its service-only SQL routine
 atomically prevents dispatch and saves a permanent receipt. The endpoint owns a
 scoped five-second/4-KiB transport and never supplies inference permission.
-`execution_retirement_api_enabled` stays false; native durable retirement and UI
+`execution_retirement_api_enabled` stays false. Native retained delivery now
+recovers the exact result or retirement proof without inference; status and UI
 integration remain separate. No deployment or scheduling is authorized.
 
 ## Guest library transition owners

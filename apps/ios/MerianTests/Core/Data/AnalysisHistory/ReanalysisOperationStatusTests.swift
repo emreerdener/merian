@@ -75,7 +75,9 @@ struct ReanalysisOperationStatusTests {
     }
 
     @Test func runningWaitingAndCompletedResultsDoNotInventRemoteProgress() throws {
-        let container = try execution.fixture.fixture.container(), claim = try execution.claim(container), identity = claim.intent.identity
+        let container = try execution.fixture.fixture.container(), initial = try execution.claim(container)
+        let claim = try ObservationReanalysisExecutionStore.consumeDispatch(initial, container: container, isCurrent: { true })
+        let identity = claim.intent.identity
         #expect(try page(identity, container).items.first?.phase == .processing)
         try ObservationReanalysisExecutionStore.settle(claim, as: .waiting(until: execution.now.addingTimeInterval(30), server: .dispatched),
             now: execution.now, container: container, isCurrent: { true })

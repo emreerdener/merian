@@ -4289,6 +4289,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             "Endpoints/MerianNetworkClient+AIReview.swift",
             "Endpoints/MerianNetworkClient+ObservationEvidence.swift",
             "Endpoints/MerianNetworkClient+ObservationPublication.swift",
+            "Endpoints/MerianNetworkClient+ReanalysisRecovery.swift",
             "MerianNetworkClient.swift",
             "Endpoints/MerianNetworkClient+Collections.swift",
             "Endpoints/MerianNetworkClient+Inference.swift",

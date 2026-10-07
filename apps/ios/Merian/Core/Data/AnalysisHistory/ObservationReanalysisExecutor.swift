@@ -159,3 +159,69 @@ struct ObservationReanalysisExecutor {
         }
     }
 }
+
+/// Retirement can only recover an outcome or replay its fixed retirement RPC; it has no provider dependencies.
+@MainActor
+struct ObservationReanalysisRetirementExecutor {
+    typealias Store = ObservationReanalysisExecutionStore
+    typealias Validator = ObservationReanalysisExecutor.Validator
+    struct Dependencies {
+        var recover: (ObservationReanalysisIntent, @escaping Validator) async throws -> Data?
+        var retire: (ObservationAnalysisRetirementRequest, UUID, @escaping Validator, @escaping Validator) async throws -> ObservationAnalysisRetirementReceipt
+
+        static func live(client: MerianNetworkClient) -> Self {
+            Self(recover: { intent, validate in
+                try await client.recoverObservationAnalysis(intent.request, expectedAuthUserID: intent.ownerID, validateAttempt: validate)
+            }, retire: { request, owner, attempt, response in
+                try await client.analysisRetirementTransport().retire(request, ownerID: owner,
+                    validateAttempt: attempt, validateResponse: response)
+            })
+        }
+    }
+    let dependencies: Dependencies
+    var now: () -> Date = Date.init
+
+    func execute(_ expected: Store.Snapshot, admission: Store.RetirementAdmission, container: ModelContainer,
+                 mayDispatch: @escaping @MainActor @Sendable () -> Bool,
+                 maySettleKnownReceipt: @escaping @MainActor @Sendable () -> Bool) async throws -> ObservationReanalysisExecutor.Outcome {
+        let claim = try Store.claimRetirement(expected, admission: admission, now: now(), container: container, isCurrent: mayDispatch)
+        let validate: Validator = {
+            try Task.checkCancellation()
+            try Store.validateRetirement(claim, container: container, isCurrent: mayDispatch)
+        }
+        let validateResponse: Validator = {
+            guard maySettleKnownReceipt() else { throw ObservationHistoryError.accountChanged }
+            // completeRetirement performs the fresh full-claim CAS immediately after the typed response.
+        }
+        let recovered: Data?
+        do {
+            try validate()
+            recovered = try await dependencies.recover(expected.intent, validate)
+            try validate()
+        } catch {
+            try validate()
+            try Store.holdRetirement(claim, now: now(), container: container, isCurrent: mayDispatch)
+            return .held(.reconciliationRequired)
+        }
+        if let recovered {
+            return .completed(try Store.completeRetirementOutcome(claim, resultBytes: recovered, container: container, isCurrent: mayDispatch))
+        }
+        let proof: ObservationAnalysisRetirementReceipt
+        do {
+            try validate()
+            proof = try await dependencies.retire(claim.request, expected.intent.ownerID, validate, validateResponse)
+        } catch {
+            try validate()
+            // A competing dispatch may have completed after the first read. One exact read, never analyze.
+            let outcome = try? await dependencies.recover(expected.intent, validate)
+            try validate()
+            if let outcome {
+                return .completed(try Store.completeRetirementOutcome(claim, resultBytes: outcome, container: container, isCurrent: mayDispatch))
+            }
+            try Store.holdRetirement(claim, now: now(), container: container, isCurrent: mayDispatch)
+            return .held(.reconciliationRequired)
+        }
+        try validateResponse()
+        return .completed(try Store.completeRetirement(claim, proof: proof, container: container, isCurrent: maySettleKnownReceipt))
+    }
+}

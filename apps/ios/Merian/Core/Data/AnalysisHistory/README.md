@@ -1383,14 +1383,14 @@ An absent status never permits retirement. Ready, unbound, deleted, completed or
 changed local work fails closed. No SwiftData schema shape changes.
 
 Staging persists before retirement I/O and invalidates previous execution
-claims. Normal claim, settlement, completion and candidate discovery exclude
-retirement work. A save that commits and then throws leaves the same operation
-recoverable from persistence; reopening must not mint a replacement UUID.
-Original photos, selection and child identity remain unchanged. This checkpoint
-is inert: retained account delivery, status projection and action UI remain to
-be connected. Dedicated claims and proof settlement are described below. Status
-alone cannot release local occupancy or authorize erasure, refund or provider
-execution.
+claims. Normal claim, settlement and completion exclude retirement work.
+Dedicated retirement delivery consumes runnable waiting/running candidates. A
+save that commits and then throws leaves the same operation recoverable from
+persistence; reopening must not mint a replacement UUID. Original photos,
+selection and child identity remain unchanged. This checkpoint still has no
+action UI: retained delivery, dedicated claims and proof settlement are
+described below. All activation gates remain disabled. Status alone cannot
+release local occupancy or authorize erasure, refund or provider execution.
 
 ### Exact retirement claims and terminal proof
 
@@ -1419,6 +1419,10 @@ exact receipt and exact saved result bytes. Version three cannot be replayed as
 version-one completion or version-two retirement. Cancellation before this
 normal result save leaves version-eight work for another non-dispatching read.
 
-The executor, status projection and user actions remain inert pending delivery
-integration. No result recovery fabricates a successful retirement receipt or
-authorizes a provider call.
+The retained execution pass routes retirement candidates to a dedicated executor
+with only exact-result recovery and retirement-RPC dependencies. It reads the
+original result first, then sends the saved retirement request. A failed request
+allows one more exact outcome read; unresolved work holds without a deadline.
+The normal upload/analyze executor is never used. Status projection and user
+actions remain a following checkpoint. No result recovery fabricates a
+successful retirement receipt or authorizes a provider call.

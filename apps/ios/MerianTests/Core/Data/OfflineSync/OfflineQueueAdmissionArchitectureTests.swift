@@ -319,7 +319,7 @@ struct OfflineQueueAdmissionArchitectureTests {
         let queueDrain = try contents(of: repository.appendingPathComponent(
             "apps/ios/Merian/Core/Data/OfflineSync/Services/OfflineQueueManager+ReanalysisExecution.swift"
         ))
-        #expect(queueDrain.contains("reanalysisExecutionOwner.cancel()"))
+        #expect(queueDrain.contains("reanalysisExecutionOwner.invalidate()"))
         #expect(queueDrain.contains("await awaitCollectionSyncQuiescenceForAuthTransition()"))
         #expect(queueDrain.contains("await reanalysisExecutionOwner.cancelAndAwait()"))
         #expect(queueDrain.contains("analysisReviewDeliveryOwner.cancel()"))

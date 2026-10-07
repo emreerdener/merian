@@ -279,7 +279,7 @@ struct ReanalysisRetirementStagingTests {
             now: execution.now, container: container, isCurrent: { true })
         #expect(staged.retirement == operation && staged.intent == original.intent && staged.dispatch == original.snapshot.dispatch)
         #expect(staged.status == .waiting && staged.server == .admitted)
-        #expect(try Store.candidates(ownerID: original.intent.ownerID, container: container, isCurrent: { true }).isEmpty)
+        #expect(try Store.candidates(ownerID: original.intent.ownerID, container: container, isCurrent: { true }).map(\.snapshot) == [staged])
         #expect(throws: (any Error).self) { try Store.validate(original, container: container, isCurrent: { true }) }
         #expect(throws: (any Error).self) {
             try Store.settle(original, as: .held(.terminalFailure), now: execution.now, container: container, isCurrent: { true })
@@ -374,7 +374,7 @@ struct ReanalysisRetirementStagingTests {
         }
         let reopened = try execution.fixture.fixture.container(url: url, seed: false)
         #expect(try Store.read(staged.intent.identity, container: reopened, isCurrent: { true }) == staged)
-        #expect(try Store.candidates(ownerID: staged.intent.ownerID, container: reopened, isCurrent: { true }).isEmpty)
+        #expect(try Store.candidates(ownerID: staged.intent.ownerID, container: reopened, isCurrent: { true }).map(\.snapshot) == [staged])
     }
 
     @Test(arguments: ["account", "deletion", "new-claim", "completed"])

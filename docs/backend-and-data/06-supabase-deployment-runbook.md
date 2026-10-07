@@ -8761,7 +8761,8 @@ not create a retirement request or open a gate.
 A configured endpoint enters ordinary function discovery on a future authorized
 deployment; default-off runtime controls do not exclude it from that inventory.
 No deployment, scheduling or gate change is authorized by implementation or
-local tests. Native durable retirement/UI, unknown-admission sealing and the
-remaining device/hosted/privacy qualifications remain separate. A timeout or
-absent status cannot authorize a successor or refund; only exact permanent
-retirement proof can establish this admitted-only terminal outcome.
+local tests. Native retained retirement delivery is implemented; status/UI,
+unknown-admission sealing and remaining device/hosted/privacy qualifications
+remain separate. A timeout or absent status cannot authorize a successor or
+refund; only exact permanent retirement proof can establish this admitted-only
+terminal outcome.

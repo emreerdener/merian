@@ -13,11 +13,11 @@ struct ObservationReanalysisSchedulingTests {
         var release: CheckedContinuation<Void, Never>?, valid: (@MainActor @Sendable () -> Bool)?
         var finishes = 0, drained = false
         let firstStarted = owner.start(operation: { current in
-            valid = current
+            valid = current.mayDispatch
             await withCheckedContinuation { continuation in
                 release = continuation; started.continuation.yield(())
             }
-            #expect(!current())
+            #expect(!current.mayDispatch())
         }, didFinish: { finishes += 1 })
         #expect(firstStarted)
         var iterator = started.stream.makeAsyncIterator(); _ = await iterator.next()
@@ -32,12 +32,32 @@ struct ObservationReanalysisSchedulingTests {
         #expect(drained && finishes == 1 && !owner.isRunning)
         let completed = AsyncStream<Void>.makeStream()
         defer { completed.continuation.finish() }
-        let secondStarted = owner.start(operation: { current in #expect(current()) },
+        let secondStarted = owner.start(operation: { current in #expect(current.mayDispatch()) },
             didFinish: { finishes += 1; completed.continuation.yield(()) })
         #expect(secondStarted && valid?() == false)
         var completion = completed.stream.makeAsyncIterator(); _ = await completion.next()
         #expect(finishes == 2 && !owner.isRunning)
     }
+    @Test func dispatchCancellationPreservesReceiptScopeUntilAuthInvalidationAndActualExit() async throws {
+        let owner = ObservationReanalysisExecutionOwner(), started = AsyncStream<Void>.makeStream()
+        defer { started.continuation.finish() }
+        var release: CheckedContinuation<Void, Never>?, scope: ObservationReanalysisExecutionOwner.Scope?
+        #expect(owner.start(operation: { current in
+            scope = current
+            await withCheckedContinuation { continuation in release = continuation; started.continuation.yield(()) }
+        }, didFinish: {}))
+        var iterator = started.stream.makeAsyncIterator(); _ = await iterator.next()
+        let original = try #require(scope)
+        #expect(original.mayDispatch() && original.maySettleKnownReceipt())
+        owner.cancel()
+        #expect(!original.mayDispatch() && original.maySettleKnownReceipt() && owner.isRunning)
+        owner.invalidate()
+        #expect(!original.mayDispatch() && !original.maySettleKnownReceipt() && owner.isRunning)
+        try #require(release).resume()
+        await owner.cancelAndAwait()
+        #expect(!owner.isRunning && !original.maySettleKnownReceipt())
+    }
+
     @Test func schedulerUsesOnlyAdmittedOwnerQualifiedWorkAndHonorsFailureFloor() throws {
         let container = try fixture.fixture.fixture.fixture.container(), draft = try fixture.stage(container)
         let manager = OfflineQueueManager.shared, previous = manager.modelContext
@@ -82,7 +102,7 @@ struct ObservationReanalysisSchedulingTests {
                 return .completed(.init(parentID: draft.identity.observationID, childID: draft.identity.analysisID))
             }, now: { fixture.fixture.now })
         await service.drain(ownerID: draft.identity.ownerID, container: container,
-            isCurrent: { state != "offline" }, didStart: { began += 1 }, requestRetry: { retries += 1 }, cleanup: { #expect(notified == 1); cleaned += 1 }, didComplete: { notified += 1 })
+            isCurrent: { state != "offline" }, maySettleKnownReceipt: { current }, didStart: { began += 1 }, requestRetry: { retries += 1 }, cleanup: { #expect(notified == 1); cleaned += 1 }, didComplete: { notified += 1 })
         #expect(began == (state == "offline" ? 0 : 1) && finished == began)
         #expect(executed == (["offline", "future", "query-error"].contains(state) ? 0 : 1))
         #expect(retries == (["query-error", "commit-error"].contains(state) ? 1 : 0))
@@ -100,7 +120,7 @@ struct ObservationReanalysisSchedulingTests {
             Issue.record("Lease failure read private candidates"); return []
         }, execute: { _, _, _ in Issue.record("Lease failure executed"); return .waiting })
         await service.drain(ownerID: fixture.fixture.fixture.fixture.owner, container: container,
-            isCurrent: { current }, didStart: { Issue.record("Lease failure started pass") },
+            isCurrent: { current }, maySettleKnownReceipt: { current }, didStart: { Issue.record("Lease failure started pass") },
             requestRetry: { retries += 1 }, cleanup: { Issue.record("Lease failure cleaned evidence") })
         #expect(retries == (stale ? 0 : 1))
     }
@@ -120,5 +140,81 @@ struct ObservationReanalysisSchedulingTests {
             replayInference: { _ in }, replayFieldTripProgress: { _ in }, syncPendingDeletions: { _ in }, syncCollections: { _ in }),
             deletionAccountID: { draft.identity.ownerID })
         #expect(scheduler.nextPersistedWakeDate(using: manager) == nil)
+    }
+}
+
+@MainActor
+@Suite(.serialized, .sharedProcessState(.offlineQueueManager))
+struct ReanalysisRetirementRuntimeTests {
+    typealias Store = ObservationReanalysisExecutionStore
+    let fixture = ReanalysisRetirementStagingTests()
+
+    func staged(_ container: ModelContainer) throws -> Store.Snapshot {
+        let original = try fixture.consumed(container)
+        return try Store.stageRetirement(original.snapshot, status: fixture.status(original.intent), operationID: fixture.operation,
+            now: fixture.execution.now, container: container, isCurrent: { true })
+    }
+
+    func proof(_ request: ObservationAnalysisRetirementRequest) throws -> ObservationAnalysisRetirementReceipt {
+        var object = try #require(JSONSerialization.jsonObject(with: request.body) as? [String: Any]); object["state"] = "retired_before_dispatch"
+        return try .init(data: JSONSerialization.data(withJSONObject: object), request: request)
+    }
+
+    @Test(arguments: ["retired", "result-first", "dispatch-wins", "unknown"])
+    func dedicatedPassNeverUsesNormalProviderExecutor(_ state: String) async throws {
+        let container = try fixture.execution.fixture.fixture.container(), saved = try staged(container)
+        let bytes = try fixture.execution.result()
+        var reads = 0, retires = 0, notified = 0, cleaned = 0, finished = 0, retries = 0
+        let worker = ObservationReanalysisRetirementExecutor(dependencies: .init(recover: { intent, validate in
+            try validate(); #expect(intent == saved.intent); reads += 1
+            return state == "result-first" || state == "dispatch-wins" && reads == 2 ? bytes : nil
+        }, retire: { request, owner, validate, response in
+            try validate(); retires += 1
+            #expect(request.operationID == fixture.operation && owner == saved.intent.ownerID)
+            if state == "dispatch-wins" || state == "unknown" { throw MerianError.httpError(statusCode: 409, message: "fixture") }
+            let answer = try proof(request); try response(); return answer
+        }), now: { fixture.execution.now })
+        let service = ObservationReanalysisExecutionService(account: ObservationReanalysisProducerTests().account(finish: { finished += 1 }),
+            execute: { _, _, _ in Issue.record("Retirement reached normal executor"); return .waiting }, retirement: worker, now: { fixture.execution.now })
+        await service.drain(ownerID: saved.intent.ownerID, container: container, isCurrent: { true }, maySettleKnownReceipt: { true },
+            didStart: {}, requestRetry: { retries += 1 }, cleanup: { cleaned += 1 }, didComplete: { notified += 1 })
+        #expect(finished == 1 && retries == 0 && retires == (state == "result-first" ? 0 : 1))
+        #expect(reads == (["dispatch-wins", "unknown"].contains(state) ? 2 : 1))
+        #expect(notified == (state == "unknown" ? 0 : 1) && cleaned == notified)
+        if state == "unknown" {
+            let held = try Store.read(saved.intent.identity, container: container, isCurrent: { true })
+            #expect(held.retirement == fixture.operation && held.status == .needsAttention && held.nextRun == nil)
+            #expect(try Store.candidates(ownerID: saved.intent.ownerID, container: container, isCurrent: { true }).isEmpty)
+        } else {
+            let context = ModelContext(container)
+            let fetched = try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(saved.intent.identity.analysisID))
+            let job = try #require(fetched), receipt = try ObservationReanalysisErasureReceipt.restore(job)
+            #expect((receipt.retirementProof != nil) == (state == "retired"))
+            #expect((receipt.completedRetirementRequest != nil) == (state != "retired"))
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func knownReceiptSurvivesNetworkCancellationButNotAuthInvalidation(_ invalidated: Bool) async throws {
+        let container = try fixture.execution.fixture.fixture.container(), saved = try staged(container)
+        var dispatch = true, settlement = true, finished = 0, notified = 0
+        let worker = ObservationReanalysisRetirementExecutor(dependencies: .init(recover: { _, validate in try validate(); return nil },
+            retire: { request, _, validate, response in
+                try validate()
+                let answer = try proof(request)
+                dispatch = false; settlement = !invalidated
+                withUnsafeCurrentTask { $0?.cancel() }
+                try response(); return answer
+            }), now: { fixture.execution.now })
+        let service = ObservationReanalysisExecutionService(account: ObservationReanalysisProducerTests().account(finish: { finished += 1 }),
+            execute: { _, _, _ in Issue.record("Normal executor called"); return .waiting }, retirement: worker, now: { fixture.execution.now })
+        let task = Task { @MainActor in
+            await service.drain(ownerID: saved.intent.ownerID, container: container, isCurrent: { dispatch },
+                maySettleKnownReceipt: { settlement }, didStart: {}, requestRetry: { Issue.record("Cancelled pass scheduled retry") },
+                cleanup: {}, didComplete: { notified += 1 })
+        }
+        await task.value
+        #expect(finished == 1 && notified == (invalidated ? 0 : 1))
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineQueuedScan>()) == (invalidated ? 1 : 0))
     }
 }

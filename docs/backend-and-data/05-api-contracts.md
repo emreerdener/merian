@@ -12526,11 +12526,11 @@ The separately prepared service-only
 requires default-false `execution_retirement_api_enabled`. Prepared
 authenticated `POST retire-observation-analysis` derives `p_owner` from
 `withEdgeHandler`; native direct RPC access is denied. The HTTP boundary is
-implemented; native durable staging and proof settlement are prepared, while
-delivery and UI remain subsequent checkpoints. The closed schema-1 request adds
-one retained `operation_id` to the original parent/child/nullable-source/digest
-identity. The exact receipt echoes those six fields plus
-`state:"retired_before_dispatch"`.
+implemented; native durable staging, proof settlement and retained delivery are
+prepared, while status and UI remain subsequent checkpoints. The closed schema-1
+request adds one retained `operation_id` to the original
+parent/child/nullable-source/digest identity. The exact receipt echoes those six
+fields plus `state:"retired_before_dispatch"`.
 
 After owner/deletion locks, exact stored receipt replay precedes the fresh gate.
 Fresh retirement requires an admitted intent with no invocation, outcome, draft,
@@ -12561,37 +12561,41 @@ absent read releases occupancy; an uncertain reply requires the identical
 retained retirement request to recover its permanent receipt. No deployment is
 implied.
 
-The inert native retirement wire retains canonical request bytes for a future
-durable owner. Its fixed five-second authenticated dispatch bypasses generic
-response-time cancellation so an exact received proof can reach a separate
-same-account/container/claim settlement check. The pinned collector limits
-actual streamed responses to 4 KiB and rejects redirects. It never retries
-transient, 401 or missing-route failures. This transport does not itself stage
-retirement, acknowledge a job, clean files or release occupancy; those durable
-owners and user actions remain a later checkpoint. Unknown outcomes retain the
-original retirement UUID and require exact receipt recovery.
+The gated native retirement wire retains canonical request bytes for the
+retained durable owner. Its fixed five-second authenticated dispatch bypasses
+generic response-time cancellation so an exact received proof can reach a
+separate same-account/container/claim settlement check. The pinned collector
+limits actual streamed responses to 4 KiB and rejects redirects. It never
+retries transient, 401 or missing-route failures. This transport does not itself
+stage retirement, acknowledge a job, clean files or release occupancy; those
+durable owners and user actions remain a later checkpoint. Unknown outcomes
+retain the original retirement UUID and require exact receipt recovery.
 
 Native version-eight bound metadata now stages that one retirement UUID with its
 unchanged request and dispatch provenance. The typed status retains its
 validated owner and full request identity; staging compares both and requires
 `admitted`, plus a fresh full-snapshot local CAS. Version-one unknown and
 version-seven consumed work are eligible to request retirement; ready work is
-not. Staging fences older normal workers and is excluded from normal execution
-discovery. It does not itself call the endpoint, erase evidence or release
-occupancy. Dedicated claims and terminal-proof settlement now retain the same
-operation through explicit recovery and save ambiguity. Closed local erasure
-metadata version two preserves the owner and exact bounded server proof in the
-same save that deletes the queued child/job. Unknown replies hold without a
-timer; replaced claims cannot settle. Cancellation alone cannot discard a known
-answer when account, deletion and claim checks still pass. Ordinary result
-cleanup remains a distinct version-one receipt. Original-result reconciliation
-after a dispatch-winning race uses distinct local version-three
-`recovered_original_result` cleanup metadata with the owner and exact retirement
-request. It requires validated immutable result bytes, appends without changing
-selection and verifies both receipt and saved result on replay. It never
-represents successful retirement or authorizes redispatch. Delivery/status/UI
-remain subsequent checkpoints; only server retirement can resolve a dispatch
-race.
+not. Staging fences older normal workers. Runnable retirement records now enter
+the dedicated retirement branch of the retained execution pass. It does not
+itself call the endpoint, erase evidence or release occupancy. Dedicated claims
+and terminal-proof settlement now retain the same operation through explicit
+recovery and save ambiguity. Closed local erasure metadata version two preserves
+the owner and exact bounded server proof in the same save that deletes the
+queued child/job. Unknown replies hold without a timer; replaced claims cannot
+settle. Cancellation alone cannot discard a known answer when account, deletion
+and claim checks still pass. Ordinary result cleanup remains a distinct
+version-one receipt. Original-result reconciliation after a dispatch-winning
+race uses distinct local version-three `recovered_original_result` cleanup
+metadata with the owner and exact retirement request. It requires validated
+immutable result bytes, appends without changing selection and verifies both
+receipt and saved result on replay. It never represents successful retirement or
+authorizes redispatch. Retained delivery now performs only exact-result recovery
+and the fixed retirement request, holding unknown outcomes without a timer.
+Separate dispatch and known-receipt scopes preserve same-account proof
+settlement after network cancellation while invalidating both before Auth drain.
+Status/UI remain subsequent checkpoints; only server retirement can resolve a
+dispatch race.
 
 The prepared native `analyzeObservation` transport preserves the complete saved
 request bytes, initiating account and 130-second timeout. It disables automatic

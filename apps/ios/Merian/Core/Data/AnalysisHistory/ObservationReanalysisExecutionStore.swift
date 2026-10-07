@@ -64,7 +64,6 @@ enum ObservationReanalysisExecutionStore {
                   let intent = try? ObservationReanalysisIntent.decode(Data(metadata.utf8)), intent.identity == identity else { continue }
             do {
                 let saved = try read(identity, container: container, isCurrent: isCurrent)
-                guard saved.retirement == nil else { continue } // Dedicated retirement ownership is required.
                 switch saved.status {
                 case .pending: candidates.append(.init(snapshot: saved, admission: .initial, due: saved.nextRun!))
                 case .waiting: candidates.append(.init(snapshot: saved, admission: .dueRetry, due: saved.nextRun!))

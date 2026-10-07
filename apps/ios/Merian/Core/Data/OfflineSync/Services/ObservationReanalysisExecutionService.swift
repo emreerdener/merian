@@ -14,10 +14,12 @@ struct ObservationReanalysisExecutionService {
             files: ObservationReanalysisFileStore(documents: .documentsDirectory), client: .shared))
         return try await worker.execute($0.snapshot, admission: $0.admission, container: $1, isCurrent: $2)
     }
+    var retirement: ObservationReanalysisRetirementExecutor?
     var now: () -> Date = Date.init
 
     func drain(ownerID: UUID, container: ModelContainer,
                isCurrent: @escaping @MainActor @Sendable () -> Bool,
+               maySettleKnownReceipt: @escaping @MainActor @Sendable () -> Bool,
                didStart: () -> Void, requestRetry: () -> Void,
                cleanup: () async -> Void, didComplete: () -> Void = {}) async {
         guard isCurrent(), !Task.isCancelled else { return }
@@ -30,14 +32,26 @@ struct ObservationReanalysisExecutionService {
         let current: @MainActor @Sendable () -> Bool = {
             lease.session.userID == ownerID && account.isCurrent(lease) && isCurrent()
         }
+        let settlementCurrent: @MainActor @Sendable () -> Bool = {
+            lease.session.userID == ownerID && account.isCurrent(lease) && maySettleKnownReceipt()
+        }
         guard current(), !Task.isCancelled else { return }
         didStart()
         do {
             let due = try candidates(ownerID, container, current).filter { $0.due <= now() }.prefix(8)
             for candidate in due {
                 guard current(), !Task.isCancelled else { return }
-                let outcome = try await execute(candidate, container, current)
-                guard current(), !Task.isCancelled else { return }
+                let outcome: ObservationReanalysisExecutor.Outcome
+                if candidate.snapshot.retirement != nil {
+                    guard let retirement else { continue }
+                    outcome = try await retirement.execute(candidate.snapshot,
+                        admission: candidate.snapshot.status == .running ? .interrupted : .initial, container: container,
+                        mayDispatch: current, maySettleKnownReceipt: settlementCurrent)
+                    guard settlementCurrent() else { return }
+                } else {
+                    outcome = try await execute(candidate, container, current)
+                    guard current(), !Task.isCancelled else { return }
+                }
                 if case .completed = outcome {
                     // Notify only after the executor's atomic append, before optional file cleanup.
                     didComplete()

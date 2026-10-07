@@ -10897,3 +10897,24 @@ queue removal, distinct version-three metadata, stale-claim denial and
 commit-then-throw replay. V1 cleanup, V2 retirement proof and V3
 recovered-result receipts cannot substitute for each other. These persistence
 tests do not yet qualify the dedicated runtime or action UI.
+
+`ReanalysisRetirementRuntimeTests` exercises the actual bounded execution
+service: result-before-request recovery, retirement proof, dispatch-winning
+result recovery, unknown-outcome hold, no normal/provider executor calls,
+account lease release, and network-cancelled proof settlement versus Auth
+invalidation. `ObservationReanalysisSchedulingTests` separately checks retained
+slots and dispatch/settlement scope invalidation. Include
+`OfflineQueueAdmissionArchitectureTests`,
+`OfflineSyncFoundationArchitectureTests` and `CoreIntegrationArchitectureTests`
+when validating these ownership changes. Record shared-worktree guard failures
+separately from exact-candidate source evidence; do not weaken guard ceilings.
+
+The retirement-runtime checkpoint ran 5,481 shared-worktree unit tests: 5,475
+passed and six failed. Four failures came from unrelated local network/Auth
+facade-size changes; two identified stale test contracts. The fixed status
+fixture now consumes its dispatch marker before reporting server dispatch, and
+the exact unauthorized-refresh opt-out inventory includes the fixed reanalysis
+status reader. The corrected focused run passed all 28 tests in six suites,
+including both corrected tests and the runtime/owner/status coverage. This does
+not turn the earlier full run green or establish clean-candidate qualification.
+Retain both result bundles and use current-candidate CI separately.

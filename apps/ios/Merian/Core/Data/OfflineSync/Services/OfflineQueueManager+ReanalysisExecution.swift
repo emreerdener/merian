@@ -7,14 +7,20 @@ extension OfflineQueueManager {
         guard !TestExecutionCoordinator.isRunningTests, isOnline, !isCurrentNetworkConstrained,
               let context = modelContext, let owner = CloudDeletionAccountWork.currentAccountID else { return }
         let scheduler = OfflineJobScheduler.shared
-        reanalysisExecutionOwner.start(operation: { [weak self] tokenCurrent in
+        reanalysisExecutionOwner.start(operation: { [weak self] scope in
             guard let self else { return }
-            let current: @MainActor @Sendable () -> Bool = {
-                tokenCurrent() && self.modelContext === context && self.isOnline && !self.isCurrentNetworkConstrained &&
-                    CloudDeletionAccountWork.currentAccountID == owner
+            let manager = SupabaseManager.shared
+            let settlementCurrent: @MainActor @Sendable () -> Bool = {
+                scope.maySettleKnownReceipt() && self.modelContext === context &&
+                    CloudDeletionAccountWork.currentAccountID == owner && !manager.isAuthTransitionInProgress
             }
-            await ObservationReanalysisExecutionService().drain(ownerID: owner, container: context.container,
-                isCurrent: current, didStart: { scheduler.reanalysisDrainDidStart(using: self) },
+            let current: @MainActor @Sendable () -> Bool = {
+                scope.mayDispatch() && self.modelContext === context && self.isOnline && !self.isCurrentNetworkConstrained &&
+                    CloudDeletionAccountWork.currentAccountID == owner && !manager.isAuthTransitionInProgress
+            }
+            await ObservationReanalysisExecutionService(account: .live(manager: manager),
+                retirement: .init(dependencies: .live(client: .shared))).drain(ownerID: owner, container: context.container,
+                isCurrent: current, maySettleKnownReceipt: settlementCurrent, didStart: { scheduler.reanalysisDrainDidStart(using: self) },
                 requestRetry: { scheduler.scheduleReanalysisRetry(using: self) },
                 cleanup: { await self.drainPendingReanalysisErasures(in: context.container) },
                 didComplete: { AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged) })
@@ -30,7 +36,7 @@ extension OfflineQueueManager {
         confirmationUndoOwner.cancelAll()
         rejectionUndoOwner.cancelAll()
         analysisReviewDeliveryOwner.cancel()
-        reanalysisExecutionOwner.cancel()
+        reanalysisExecutionOwner.invalidate()
         reanalysisAdmissionRuntime.cancel()
         reanalysisPreparationOwner.cancelAll()
         historyEnrollmentOwner.cancelAll()
