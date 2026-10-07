@@ -1,7 +1,7 @@
 import Foundation
+@testable import Merian
 import os
 import Testing
-@testable import Merian
 
 @Suite("Observation Analysis Review Wire and Transport")
 @MainActor
@@ -11,7 +11,7 @@ struct ObservationAnalysisReviewEndpointTests {
     nonisolated static let operation = UUID(uuidString: "aaaaaaaa-0000-4000-8000-000000000003")!
     nonisolated static let rejection = UUID(uuidString: "aaaaaaaa-0000-4000-8000-000000000004")!
     nonisolated static var decisions: [ObservationAnalysisReviewRequest.Decision] {
-        [.reject, .undo(rejectionOperationID: rejection), .confirmPrimary, .confirmName("Examplea testus")]
+        [.reject, .undo(rejectionOperationID: rejection), .undoConfirmation(confirmationOperationID: rejection), .confirmPrimary, .confirmName("Examplea testus")]
     }
     static func input(_ decision: ObservationAnalysisReviewRequest.Decision = .reject) throws -> ObservationAnalysisReviewRequest {
         try .init(observationID: observation, analysisID: analysis, operationID: operation,
@@ -57,7 +57,7 @@ struct ObservationAnalysisReviewEndpointTests {
         missing = original; missing["action"] = "undo"
         #expect(throws: (any Error).self) { try ObservationAnalysisReviewRequest.decode(Self.data(missing)) }
         #expect(throws: (any Error).self) { try ObservationAnalysisReviewRequest.decode(Data(repeating: 32, count: 2049)) }
-        let integral = String(decoding: try Self.data(original), as: UTF8.self).replacingOccurrences(of: "\"expected_review_revision\":2", with: "\"expected_review_revision\":2e0")
+        let integral = (try #require(String(bytes: Self.data(original), encoding: .utf8))).replacingOccurrences(of: "\"expected_review_revision\":2", with: "\"expected_review_revision\":2e0")
         #expect(try ObservationAnalysisReviewRequest.decode(Data(integral.utf8)) == Self.input())
     }
     @Test func scientificNamesMatchJavaScriptWithoutNormalization() throws {
@@ -87,7 +87,7 @@ struct ObservationAnalysisReviewEndpointTests {
     func fixedRoutesCarryOriginalOperationAndOwner(_ decision: ObservationAnalysisReviewRequest.Decision) async throws {
         let fixture = NetworkEndpointFixture(); defer { fixture.close() }
         let owner = try #require(fixture.client.overridingAuthUserID), request = try Self.input(decision)
-        let response = String(decoding: try Self.receipt(request), as: UTF8.self)
+        let response = try #require(String(bytes: Self.receipt(request), encoding: .utf8))
         let original = try request.encoded()
         let path = decision.isConfirmation ? "/functions/v1/confirm-observation-analysis" : "/rest/v1/rpc/review_owned_observation_analysis"
         fixture.transport.register(path: path) { wire in

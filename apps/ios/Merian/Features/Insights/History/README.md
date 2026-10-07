@@ -228,3 +228,20 @@ exact operation. Closing the form preserves the host's uncertain request for
 retry. The dedicated Debug chooser fixture also covers a genus result and
 verifies production review staging, original revisions and unchanged selection
 without delivery.
+
+## Durable confirmation Undo
+
+Existing review controls accept primary/name confirmation reversal through the
+same durable review owner. Presentation-scoped eligibility can come from a
+completed local receipt or exact server recovery after reinstall; recovered
+admission never fabricates or requires a local original receipt. A retained,
+max-four lookup owner drains account leases before Auth transition. Imported
+confirmations without exact receipts explain their unavailability. Named Undo
+warns that the original AI identification returns; primary Undo is direct.
+Selection and the alternatives card are unchanged.
+
+Explicit opening and every staging attempt (including an uncertain save) request
+one persisted-job discovery wake. Status refresh/render does not wake or poll.
+Commit-then-throw followed by reopening observes and resumes the original UUID;
+held jobs never rearm automatically. The Core transaction remains the final
+scope/authority check, with no optimistic review mutation or legacy fallback.

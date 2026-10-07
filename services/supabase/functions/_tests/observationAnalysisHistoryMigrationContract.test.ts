@@ -1143,3 +1143,32 @@ Deno.test("publication target guard preserves exact replay and deterministic pri
   );
   assert(!sql.includes("TO authenticated"));
 });
+
+Deno.test("confirmation Undo uses current target receipt association and independent closed gate", async () => {
+  const sql = await migration("20261007033012_add_analysis_confirmation_undo");
+  for (
+    const text of [
+      "confirmation_undo_api_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+      "public.get_owned_observation_confirmation_undo",
+      "prior.receipt->>'review_revision' IS DISTINCT FROM authority.review_revision::TEXT",
+      "internal.observation_confirmation_undo_eligibility(observation,target)",
+      "'user_confirmed_identification',FALSE,'user_review_state','unreviewed'",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) assertStringIncludes(sql, text);
+  assert(
+    sql.indexOf("RETURN saved.receipt") <
+      sql.indexOf(
+        "CASE WHEN p_request->>'action'='undo_confirmation' THEN confirmation_undo_api_enabled",
+      ),
+  );
+  assert(
+    !/UPDATE public\.scans|UPDATE internal\.complimentary_scan_usage|DELETE FROM internal\.observation_review_receipts/
+      .test(sql),
+  );
+  const helper = sql.slice(
+    0,
+    sql.indexOf("CREATE OR REPLACE FUNCTION public.review_owned"),
+  );
+  assert(!helper.includes("prior.receipt->>'observation_revision'"));
+});

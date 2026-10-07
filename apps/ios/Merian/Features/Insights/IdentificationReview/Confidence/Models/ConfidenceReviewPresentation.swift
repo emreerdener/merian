@@ -192,12 +192,26 @@ enum ConfidenceExplanationPresentation {
 
 /// Actions retain the Shell's exact displayed subject and review receipt.
 struct ConfidenceReviewControls {
+    enum ConfirmationState: Equatable {
+        case primary, named(String)
+        static func resolve(_ ticket: ObservationAnalysisReviewTicket) -> Self? {
+            if ticket.confirmationAction == .primary, ticket.reviewState == .aiConfirmed { return .primary }
+            if ticket.confirmationAction == .name, ticket.reviewState == .userOverridden, let name = ticket.correctionName { return .named(name) }
+            return nil
+        }
+    }
+    var confirmationState: ConfirmationState?
     var undo: (() -> Void)?
+    var undoConfirmation: (() -> Void)?
+    var undoConfirmationRequiresPrompt = false
+    var confirmationUndoReason: String?
     var confirmProposal: (() -> Void)?
     var unavailableReason: String?
 
     func checking(_ isCurrent: @escaping () -> Bool) -> Self {
-        Self(undo: undo.map { action in { if isCurrent() { action() } } },
+        Self(confirmationState: confirmationState, undo: undo.map { action in { if isCurrent() { action() } } },
+             undoConfirmation: undoConfirmation.map { action in { if isCurrent() { action() } } },
+             undoConfirmationRequiresPrompt: undoConfirmationRequiresPrompt, confirmationUndoReason: confirmationUndoReason,
              confirmProposal: confirmProposal.map { action in { if isCurrent() { action() } } },
              unavailableReason: unavailableReason)
     }

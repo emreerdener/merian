@@ -3,11 +3,11 @@ import Foundation
 /// Immutable protocol-9 decision. The durable caller supplies every identity and revision.
 struct ObservationAnalysisReviewRequest: Encodable, Equatable, Sendable {
     enum Decision: Equatable, Sendable {
-        case reject, undo(rejectionOperationID: UUID), confirmPrimary, confirmName(String)
+        case reject, undo(rejectionOperationID: UUID), undoConfirmation(confirmationOperationID: UUID), confirmPrimary, confirmName(String)
         static func == (lhs: Self, rhs: Self) -> Bool {
             switch (lhs, rhs) {
             case (.reject, .reject), (.confirmPrimary, .confirmPrimary): true
-            case let (.undo(left), .undo(right)): left == right
+            case let (.undo(left), .undo(right)), let (.undoConfirmation(left), .undoConfirmation(right)): left == right
             case let (.confirmName(left), .confirmName(right)): left.utf8.elementsEqual(right.utf8)
             default: false
             }
@@ -16,6 +16,7 @@ struct ObservationAnalysisReviewRequest: Encodable, Equatable, Sendable {
             switch self {
             case .reject: "reject"
             case .undo: "undo"
+            case .undoConfirmation: "undo_confirmation"
             case .confirmPrimary: "confirm_primary"
             case .confirmName: "confirm_name"
             }
@@ -23,7 +24,7 @@ struct ObservationAnalysisReviewRequest: Encodable, Equatable, Sendable {
         var isConfirmation: Bool {
             switch self {
             case .confirmPrimary, .confirmName: true
-            case .reject, .undo: false
+            case .reject, .undo, .undoConfirmation: false
             }
         }
     }
@@ -62,7 +63,7 @@ struct ObservationAnalysisReviewRequest: Encodable, Equatable, Sendable {
         try values.encode(decision.action, forKey: .action)
         switch decision {
         case .reject: try values.encodeNil(forKey: .undoOperationID)
-        case let .undo(id): try values.encode(id.uuidString.lowercased(), forKey: .undoOperationID)
+        case let .undo(id), let .undoConfirmation(id): try values.encode(id.uuidString.lowercased(), forKey: .undoOperationID)
         case .confirmPrimary: try values.encodeNil(forKey: .scientificName)
         case let .confirmName(name): try values.encode(name, forKey: .scientificName)
         }
@@ -87,6 +88,7 @@ struct ObservationAnalysisReviewRequest: Encodable, Equatable, Sendable {
             guard row["undo_operation_id"] is NSNull else { throw MerianError.invalidResponse }
             decision = .reject
         case "undo": decision = .undo(rejectionOperationID: try ObservationAnalysisReviewWire.uuid(row["undo_operation_id"]))
+        case "undo_confirmation": decision = .undoConfirmation(confirmationOperationID: try ObservationAnalysisReviewWire.uuid(row["undo_operation_id"]))
         case "confirm_primary":
             guard row["scientific_name"] is NSNull else { throw MerianError.invalidResponse }
             decision = .confirmPrimary

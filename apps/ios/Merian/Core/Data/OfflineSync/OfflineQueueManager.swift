@@ -131,6 +131,7 @@ import SwiftData
         guard currentOwnerID == ownerID, modelContext === context else { return }
         analysisReviewDeliveryGeneration &+= 1
     }
+    @ObservationIgnored let confirmationUndoOwner = ObservationConfirmationUndoOwner()
     @ObservationIgnored let analysisReviewDeliveryOwner = ObservationAnalysisReviewDeliveryOwner()
     @ObservationIgnored let protectedChatRefreshOwner = ProtectedInsightChatRefreshOwner()
     @ObservationIgnored let protectedChatDeliveryOwner = ProtectedInsightChatDeliveryOwner()

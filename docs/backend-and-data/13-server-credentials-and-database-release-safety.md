@@ -307,6 +307,15 @@ owner-bound update; client recovery JSON remains outside that authority.
 
 ### Held observation review authority
 
+Confirmation reversal is independently default-off under
+`confirmation_undo_api_enabled`. Its owner-authenticated eligibility RPC has no
+API-role table grants and returns only the exact confirmation ID/action or an
+unavailable reason. Reversal repeats shared receipt/authority validation under
+canonical locks. The lookup uses reader 9 and a five-second timeout; neither it
+nor Undo runs taxonomy/provider/funding operations. All activation flags remain
+closed. Field Trip reconciliation still needs separate qualification and cannot
+be described as live credit revocation from the emitted obligation alone.
+
 Protocol-9 `review_owned_observation_analysis` is owner-authenticated and
 remains behind default-false rejection/read gates. Private review receipts have
 no API role table grants, bind one analysis and both revisions, and are erased

@@ -65,6 +65,7 @@ final class IdentificationHistorySession {
     private var closed = false
     private let reviewWake: (() -> Void)?
     private let reviewGeneration: () -> UInt64
+    let confirmationUndo: IdentificationHistoryReviewAccess.ConfirmationUndoConfiguration?
     private let publication: IdentificationHistoryPublicationAccess.Configuration?
 
     init(observation: String, container: ModelContainer,
@@ -72,6 +73,7 @@ final class IdentificationHistorySession {
          photos: ObservationHistoryPhotoLoader? = nil,
          reviewWake: (() -> Void)? = nil, reviewGeneration: @escaping () -> UInt64 = { 0 },
          publication: IdentificationHistoryPublicationAccess.Configuration? = nil,
+         confirmationUndo: IdentificationHistoryReviewAccess.ConfirmationUndoConfiguration? = nil,
          currentGeneration: @escaping @MainActor () -> UInt64 = { SupabaseManager.shared.authSessionGeneration },
          sessionIsCurrent: @escaping @MainActor (AuthTransitionSession) -> Bool = { session in
              let manager = SupabaseManager.shared
@@ -82,6 +84,7 @@ final class IdentificationHistorySession {
                  && manager.client.auth.currentSession?.user.isAnonymous == session.isAnonymous
          }) throws {
         self.observation = observation; self.container = container
+        self.confirmationUndo = confirmationUndo
         self.reviewWake = reviewWake; self.reviewGeneration = reviewGeneration; self.publication = publication
         self.photos = photos ?? ObservationHistoryPhotoLoader(account: cloud, resolve: cloud.resolvePhoto)
         self.cloud = cloud; self.currentGeneration = currentGeneration; self.sessionIsCurrent = sessionIsCurrent

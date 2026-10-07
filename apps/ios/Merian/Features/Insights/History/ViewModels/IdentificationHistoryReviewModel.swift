@@ -8,6 +8,10 @@ final class IdentificationHistoryReviewModel {
     private(set) var request: ObservationAnalysisReviewRequest?
     private(set) var status: ObservationAnalysisReviewStatus?
     private(set) var undoOperation: UUID?
+    private(set) var confirmationUndo: ObservationConfirmationUndoEligibility?
+    private(set) var confirmationUndoMessage: String?
+    private var lookupTask: Task<Void, Never>?
+    private var opened = false
     private(set) var message: String?
     private(set) var terminalMessage: String?
     private(set) var canRetrySave = false
@@ -23,6 +27,40 @@ final class IdentificationHistoryReviewModel {
         self.ticket = ticket; self.access = access; self.isCurrent = isCurrent
         self.canStartReview = canStartReview ?? isCurrent
         refresh()
+    }
+    /// Explicit presentation opportunity, never called from status/epoch refresh.
+    func open() {
+        guard current(), !opened else { return }
+        opened = true
+        access.wake()
+        guard canSubmit else { return }
+        guard ticket.confirmationAction != nil else {
+            if ticket.reviewState == .aiConfirmed || ticket.reviewState == .userOverridden {
+                confirmationUndoMessage = "This identification’s current authority cannot be undone as your confirmation."
+            }
+            return
+        }
+        guard let prepare = access.prepareConfirmationUndo else {
+            confirmationUndoMessage = "Undo confirmation is unavailable in this presentation."
+            return
+        }
+        confirmationUndoMessage = "Checking confirmation record…"
+        lookupTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let resolution = try await prepare(self.ticket)
+                try Task.checkCancellation()
+                guard self.current(), self.canStartReview(), self.canSubmit else { return }
+                switch resolution {
+                case let .available(eligibility): self.confirmationUndo = eligibility; self.confirmationUndoMessage = nil
+                case let .unavailable(reason): self.confirmationUndoMessage = reason.message
+                }
+            } catch {
+                guard !Task.isCancelled, self.current() else { return }
+                self.confirmationUndoMessage = "Confirmation status is unavailable. Reopen this identification to try again."
+            }
+            self.lookupTask = nil
+        }
     }
     var canSubmit: Bool { !isClosed && !blocked && request == nil && terminalMessage == nil }
     var hasUnresolvedRequest: Bool { request != nil && terminalMessage == nil }
@@ -40,6 +78,9 @@ final class IdentificationHistoryReviewModel {
             if case let .undo(rejectionID) = decision {
                 guard try access.undo(ticket) == rejectionID else { throw ObservationHistoryError.resultConflict }
             }
+            if case let .undoConfirmation(operation) = decision {
+                guard confirmationUndo?.operationID == operation else { throw ObservationHistoryError.resultConflict }
+            }
             request = try ticket.request(decision, operationID: UUID())
             persist()
         } catch {
@@ -54,12 +95,16 @@ final class IdentificationHistoryReviewModel {
     private func persist() {
         guard let request, current() else { return }
         blocked = true; canRetrySave = false
+        // Discovery is safe after a throw: only committed runnable work can execute.
+        defer { if current() { access.wake() } }
         do {
-            try access.stage(request, ticket)
+            if case .undoConfirmation = request.decision {
+                guard let confirmationUndo, let stage = access.stageConfirmationUndo else { throw ObservationHistoryError.unavailable }
+                try stage(request, ticket, confirmationUndo)
+            } else { try access.stage(request, ticket) }
             guard current() else { return }
             observedOperation = request.operationID
             message = nil
-            access.wake()
             refresh()
         } catch {
             guard current() else { return }
@@ -112,6 +157,7 @@ final class IdentificationHistoryReviewModel {
         return true
     }
     func close() {
+        lookupTask?.cancel(); lookupTask = nil; confirmationUndo = nil; confirmationUndoMessage = nil
         isClosed = true; blocked = true; canRetrySave = false
         request = nil; observedOperation = nil; status = nil; undoOperation = nil; message = nil; terminalMessage = nil
     }

@@ -6,13 +6,27 @@ extension InsightSheetView {
         let generation = viewModel.scanBoundActionGeneration
         let undo = undoReviewAction(scanID: scanID, generation: generation)
         let review = inferenceEngine.speciesData?.aiReview ?? .init()
-        let protectedMessage = scanID.flatMap { permitsLegacyReview($0) ? nil : selectedReviewHost.model?.message }
+        let protectedMessage = scanID.flatMap { permitsLegacyReview($0) ? nil
+            : selectedReviewHost.model?.message ?? selectedReviewHost.message
+                ?? (selectedReviewHost.model == nil ? "Identification review is unavailable. Reopen this scan to refresh it." : nil) }
         let confirm = inferenceEngine.speciesData?.canConfirmReanalysisProposal == true
             ? confirmReviewAction(scanID: scanID, generation: generation) : nil
-        let reason = protectedMessage ?? IdentificationReviewNotice.unavailableReason(review)
+        let reason = protectedMessage ?? selectedReviewHost.model?.confirmationUndoMessage ?? IdentificationReviewNotice.unavailableReason(review)
             ?? (review.state == .awaitingAcceptance && confirm == nil
                 ? "This proposal cannot be accepted here. Review its identification or ask the community." : nil)
-        return ConfidenceReviewControls(undo: undo, confirmProposal: confirm, unavailableReason: undo == nil ? reason : nil)
+        let confirmationState = selectedReviewHost.model.flatMap { ConfidenceReviewControls.ConfirmationState.resolve($0.ticket) }
+        let confirmationReason = protectedMessage ?? selectedReviewHost.model?.confirmationUndoMessage
+            ?? (confirmationState != nil ? selectedReviewHost.message ?? "Undo confirmation is unavailable. Open this identification again to refresh its review." : nil)
+        return ConfidenceReviewControls(confirmationState: confirmationState, undo: undo,
+            undoConfirmation: undoConfirmationAction(scanID: scanID, generation: generation),
+            undoConfirmationRequiresPrompt: selectedReviewHost.model?.confirmationUndo?.action == .name,
+            confirmationUndoReason: undoConfirmationAction(scanID: scanID, generation: generation) == nil ? confirmationReason : nil,
+            confirmProposal: confirm, unavailableReason: undo == nil ? reason : nil)
+    }
+
+    func undoConfirmationAction(scanID: String?, generation: UInt64) -> (() -> Void)? {
+        guard let scanID, !permitsLegacyReview(scanID), let undo = selectedReviewHost.model?.confirmationUndo else { return nil }
+        return protectedReviewAction(.undoConfirmation(confirmationOperationID: undo.operationID), scanID: scanID, generation: generation)
     }
 
     func confirmReviewAction(scanID: String?, generation: UInt64) -> (() -> Void)? {

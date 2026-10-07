@@ -131,6 +131,33 @@ struct ConfidenceReviewPresentationTests {
         rejected.undo?(); #expect(undoes == 1)
     }
 
+    @MainActor @Test func protectedConfirmationPresentationDoesNotDependOnLegacyBadgeInputs() throws {
+        let fixture = ObservationAnalysisReviewTicketTests()
+        let primary = try PrimaryIdentification.Snapshot(resolution: .species, scientificName: "Synthetic original", commonName: nil)
+        let confirmed = try fixture.ticket(primary: primary, authorityPatch: ["user_review_state": "ai_confirmed"])
+        let corrected = try fixture.ticket(primary: primary, authorityPatch: ["user_review_state": "user_overridden",
+            "user_identification_override": "Synthetic correction"])
+        #expect(ConfidenceReviewControls.ConfirmationState.resolve(confirmed) == .primary)
+        #expect(ConfidenceReviewControls.ConfirmationState.resolve(corrected) == .named("Synthetic correction"))
+        var current = true, calls = 0
+        let controls = ConfidenceReviewControls(confirmationState: .named("Synthetic correction"), undoConfirmation: { calls += 1 },
+            undoConfirmationRequiresPrompt: true).checking { current }
+        controls.undoConfirmation?(); current = false; controls.undoConfirmation?()
+        #expect(calls == 1 && controls.confirmationState == .named("Synthetic correction") && controls.undoConfirmationRequiresPrompt)
+        let unavailable = ConfidenceReviewControls(confirmationState: .primary, confirmationUndoReason: "Original receipt unavailable")
+        #expect(unavailable.undoConfirmation == nil && unavailable.confirmationState == .primary && unavailable.confirmationUndoReason != nil)
+    }
+
+    @MainActor @Test func communityConfirmationNeverAppearsAsOwnersReversibleConfirmation() throws {
+        let fixture = ObservationAnalysisReviewTicketTests()
+        let ai: [String: Any] = ["version": 1, "revision": 1, "state": "clear", "origin_scan_id": NSNull(),
+            "origin_identification": NSNull(), "operation_id": NSNull(), "operation_digest": NSNull(),
+            "community": ["request_id": UUID().uuidString.lowercased(), "rank": "genus", "scientific_name": "Synthetic",
+                          "common_name": NSNull(), "species_id": NSNull()]]
+        let ticket = try fixture.ticket(authorityPatch: ["user_review_state": "ai_confirmed", "ai_identification_review": ai])
+        #expect(ticket.confirmationAction == nil && ConfidenceReviewControls.ConfirmationState.resolve(ticket) == nil)
+    }
+
     private func badge(score: Double?) -> ConfidenceBadgePresentation {
         ConfidenceBadgePresentation.resolve(
             confidenceScore: score,

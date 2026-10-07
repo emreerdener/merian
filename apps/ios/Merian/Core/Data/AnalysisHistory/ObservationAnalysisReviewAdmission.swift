@@ -9,6 +9,7 @@ enum ObservationAnalysisReviewAdmission {
 
     static func stage(_ request: ObservationAnalysisReviewRequest, ticket: ObservationAnalysisReviewTicket,
                       container: ModelContainer, isCurrent: () -> Bool,
+                      confirmationUndo: ObservationConfirmationUndoEligibility? = nil,
                       save: (ModelContext) throws -> Void = { try $0.save() }) throws -> ObservationAnalysisReviewIntent {
         guard try ticket.request(request.decision, operationID: request.operationID) == request else {
             throw Store.IntegrityError.conflict
@@ -18,6 +19,10 @@ enum ObservationAnalysisReviewAdmission {
             try ObservationHistorySelectionIntent.requireIdle(scan.id, context: context)
             try ObservationHistoryStateSyncService.requireSettledReview(scan, context: context)
             guard try currentTicket(ticket, scan: scan, context: context) == ticket else { throw Store.IntegrityError.conflict }
+            if case let .undoConfirmation(operation) = request.decision {
+                guard let confirmationUndo, confirmationUndo.operationID == operation else { throw Store.IntegrityError.conflict }
+                try confirmationUndo.validate(ticket: ticket, context: context)
+            }
             if case let .undo(rejectionID) = request.decision {
                 guard try ObservationAnalysisReviewStatus.undoOperation(ticket, context: context) == rejectionID else {
                     throw Store.IntegrityError.conflict

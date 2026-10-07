@@ -954,6 +954,19 @@ production Shell and Library file remains below the 600-line review guard.
 
 ## 3. Inferences & Telemetry (`InsightSheetView`)
 
+Prepared History review controls, the selected-result menu and Confidence
+confirmed/corrected cards expose **Undo confirmation** for an exact reversible
+owner confirmation. Primary Undo is direct; named Undo first explains that the
+original AI identification returns. Both return that result to unreviewed
+without changing selection, confidence or evidence, and never restore an older
+rejection. Exact server eligibility supports another device or reinstall;
+imported confirmations without a receipt show an unavailable explanation.
+Pending/conflicted authority cannot fall back to legacy review. The alternatives
+card is unchanged. Ordinary History access and the independent Undo API gate
+remain disabled. See the [API contract](../backend-and-data/05-api-contracts.md)
+and
+[History ownership](../../apps/ios/Merian/Features/Insights/History/README.md#durable-confirmation-undo).
+
 The `InsightSheetView` is Merian's central contextual readout, triggered after
 an Edge API response or opened offline via the Scans library.
 

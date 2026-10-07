@@ -56,7 +56,7 @@ struct IdentificationHistoryReviewModelTests {
         #expect(model.request == request && fixture.saved == [request])
         fixture.failSave = false
         model.retrySave()
-        #expect(fixture.saved == [request, request] && fixture.wakes == 1 && !model.canRetrySave)
+        #expect(fixture.saved == [request, request] && fixture.wakes == 2 && !model.canRetrySave)
     }
 
     @Test func readFailureAfterAmbiguousSaveCannotMintReplacement() throws {

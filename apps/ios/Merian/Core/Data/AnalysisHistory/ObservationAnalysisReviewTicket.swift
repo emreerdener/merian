@@ -16,6 +16,10 @@ struct ObservationAnalysisReviewTicket: Equatable {
     let canConfirmPrimary: Bool
     let canConfirmName: Bool
     let rejectionOperationID: UUID?
+    let confirmationOperationID: UUID?
+    let confirmationAction: ObservationConfirmationAction?
+    let reviewState: UserReviewState?
+    let correctionName: String?
     private let resultDigest: Data
     private let authorityDigest: Data
 
@@ -52,18 +56,24 @@ struct ObservationAnalysisReviewTicket: Equatable {
         } == true
         rejectionOperationID = available && authority.state != .userOverridden && authority.aiReview?.state == .aiRejected
             ? authority.aiReview?.operationID.flatMap(UUID.init(uuidString:)) : nil
+        reviewState = authority.state; correctionName = authority.override
+        confirmationAction = available && (authority.aiReview?.state ?? .clear) == .clear
+            ? (authority.state == .aiConfirmed ? .primary : (authority.state == .userOverridden ? .name : nil)) : nil
+        confirmationOperationID = confirmationAction != nil ? authority.aiReview?.operationID.flatMap(UUID.init(uuidString:)) : nil
         resultDigest = Data(SHA256.hash(data: entry.result.bytes))
         authorityDigest = Data(SHA256.hash(data: authority.data))
     }
 
     /// Call synchronously at the actual tap and retain the returned request across
-    /// uncertain saves. Undo's association also needs a completed local receipt.
+    /// uncertain saves. Rejection Undo needs its local receipt; confirmation Undo
+    /// also admits strictly recovered eligibility in the staging transaction.
     func request(_ decision: ObservationAnalysisReviewRequest.Decision, operationID: UUID) throws -> ObservationAnalysisReviewRequest {
         let allowed: Bool
         switch decision {
         case .reject: allowed = canReject
         case .confirmPrimary: allowed = canConfirmPrimary
         case .confirmName: allowed = canConfirmName
+        case let .undoConfirmation(operation): allowed = confirmationOperationID == operation && confirmationAction != nil
         case let .undo(rejectionID): allowed = rejectionOperationID == rejectionID
         }
         guard allowed else { throw ObservationHistoryError.unavailable }

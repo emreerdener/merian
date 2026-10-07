@@ -3,6 +3,7 @@ import SwiftUI
 struct IdentificationHistoryReviewSection: View {
     @Bindable var model: IdentificationHistoryReviewModel
     @State private var scientificName = ""
+    @State private var pendingConfirmationUndo: (() -> Void)?
 
     var body: some View {
         Section {
@@ -26,6 +27,15 @@ struct IdentificationHistoryReviewSection: View {
                     .disabled(!model.canSubmit)
                     .accessibilityIdentifier("HistoryReject")
             }
+            if let undo = model.confirmationUndo {
+                Button("Undo confirmation") {
+                    let action = { model.submit(.undoConfirmation(confirmationOperationID: undo.operationID)) }
+                    if undo.action == .name { pendingConfirmationUndo = action } else { action() }
+                }
+                .disabled(!model.canSubmit)
+                .accessibilityIdentifier("HistoryUndoConfirmation")
+            }
+            if let reason = model.confirmationUndoMessage { Text(reason).font(.callout) }
             if let operation = model.undoOperation {
                 Button("Undo incorrect mark") { model.submit(.undo(rejectionOperationID: operation)) }
                     .disabled(!model.canSubmit)
@@ -39,6 +49,8 @@ struct IdentificationHistoryReviewSection: View {
         } header: { Text("Review this identification") } footer: {
             Text("A review applies only to this result. It does not select it or confirm another identification in the history.")
         }
+        .task { model.open() }
+        .confirmationUndoPrompt(action: $pendingConfirmationUndo)
     }
     private var validName: Bool {
         (try? model.ticket.request(.confirmName(scientificName), operationID: model.ticket.analysisID)) != nil

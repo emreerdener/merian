@@ -87,6 +87,7 @@ struct TopToolbar: ToolbarContent {
 
     @State private var showsIncorrectConfirmation = false
     @State private var pendingIncorrectAction: (() -> Void)?
+    @State private var pendingConfirmationUndo: (() -> Void)?
 
     @Environment(\.dismiss) var dismiss
 
@@ -116,6 +117,9 @@ struct TopToolbar: ToolbarContent {
     var confirmationTitle: String
     var onRetryReviewSave: (() -> Void)?
     var onUndoIncorrect: (() -> Void)?
+    var onUndoConfirmation: (() -> Void)?
+    var undoConfirmationRequiresPrompt: Bool
+    var confirmationUndoReason: String?
     var reviewUnavailableReason: String?
     var onMarkIncorrect: (() -> Void)?
     var onAskCommunity: (() -> Void)?
@@ -158,6 +162,9 @@ struct TopToolbar: ToolbarContent {
         confirmationTitle: String = "Confirm species",
         onRetryReviewSave: (() -> Void)? = nil,
         onUndoIncorrect: (() -> Void)? = nil,
+        onUndoConfirmation: (() -> Void)? = nil,
+        undoConfirmationRequiresPrompt: Bool = false,
+        confirmationUndoReason: String? = nil,
         reviewUnavailableReason: String? = nil,
         onMarkIncorrect: (() -> Void)? = nil,
         onAskCommunity: (() -> Void)? = nil,
@@ -199,6 +206,9 @@ struct TopToolbar: ToolbarContent {
         self.confirmationTitle = confirmationTitle
         self.onRetryReviewSave = onRetryReviewSave
         self.onUndoIncorrect = onUndoIncorrect
+        self.onUndoConfirmation = onUndoConfirmation
+        self.undoConfirmationRequiresPrompt = undoConfirmationRequiresPrompt
+        self.confirmationUndoReason = confirmationUndoReason
         self.reviewUnavailableReason = reviewUnavailableReason
         self.onMarkIncorrect = onMarkIncorrect
         self.onAskCommunity = onAskCommunity
@@ -296,6 +306,7 @@ struct TopToolbar: ToolbarContent {
                     isFallbackActive: shouldUseContainedToolbarChrome
                 )
         }
+        .confirmationUndoPrompt(action: $pendingConfirmationUndo)
         .alert("Mark identification as incorrect?", isPresented: $showsIncorrectConfirmation) {
             Button("Mark as incorrect", role: .destructive) {
                 let action = pendingIncorrectAction
@@ -460,6 +471,16 @@ struct TopToolbar: ToolbarContent {
                 }) {
                     Label(communityAction.title, systemImage: communityAction.systemImage)
                 }
+            }
+            if let onUndoConfirmation {
+                Button {
+                    if undoConfirmationRequiresPrompt { pendingConfirmationUndo = onUndoConfirmation } else { onUndoConfirmation() }
+                } label: {
+                    Label("Undo confirmation", systemImage: "arrow.uturn.backward")
+                }
+                .accessibilityIdentifier("UndoConfirmationMenu")
+            } else if let confirmationUndoReason {
+                Label(confirmationUndoReason, systemImage: "info.circle")
             }
             if let onUndoIncorrect {
                 Button(action: onUndoIncorrect) {

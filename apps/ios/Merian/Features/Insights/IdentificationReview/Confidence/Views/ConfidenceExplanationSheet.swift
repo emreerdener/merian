@@ -29,6 +29,7 @@ struct ConfidenceExplanationSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var viewModel: ConfidenceExplanationViewModel
+    @State private var pendingConfirmationUndo: (() -> Void)?
     @State private var showPaywall = false
     @State private var showsIncorrectConfirmation = false
     @State private var reviewToast: ToastPayload?
@@ -79,6 +80,25 @@ struct ConfidenceExplanationSheet: View {
         )
     }
 
+    private var displayedCorrection: String? {
+        guard permitsLegacyReview else {
+            if case let .named(name) = confidenceReviewControls.confirmationState { return name }
+            return nil
+        }
+        return userIdentificationOverride
+    }
+    private var displayedConfirmation: Bool {
+        permitsLegacyReview ? userConfirmedIdentification : confidenceReviewControls.confirmationState == .primary
+    }
+
+    private var protectedConfirmationUndoAction: (() -> Void)? {
+        guard isSubjectPresentationCurrent, let action = confidenceReviewControls.undoConfirmation else { return nil }
+        return {
+            guard isSubjectPresentationCurrent else { return }
+            if confidenceReviewControls.undoConfirmationRequiresPrompt { pendingConfirmationUndo = action } else { action() }
+        }
+    }
+
     private var showLocationPrompt: Bool {
         let status = environmentContext.locationAuthorizationStatus
         return status == .notDetermined || status == .restricted || status == .denied
@@ -119,8 +139,8 @@ struct ConfidenceExplanationSheet: View {
             confidenceScore: confidenceScore,
             inferenceTier: inferenceTier,
             provenance: provenance,
-            hasUserOverride: userIdentificationOverride != nil,
-            isUserConfirmed: userConfirmedIdentification
+            hasUserOverride: displayedCorrection != nil,
+            isUserConfirmed: displayedConfirmation
         )
     }
 
@@ -266,9 +286,7 @@ struct ConfidenceExplanationSheet: View {
                 let storedCandidateCount = storedCandidates.count
                 let isExhausted = inferenceEngine.speciesData?.alternativesExhausted == true
 
-                if !permitsLegacyReview {
-                    EmptyView()
-                } else if isExhausted {
+                if isExhausted && permitsLegacyReview {
                     AllCandidatesReviewedView(
                         candidatesCount: storedCandidateCount,
                         onReviewAgain: {
@@ -292,7 +310,7 @@ struct ConfidenceExplanationSheet: View {
                         feedback: viewModel.feedback
                     )
                     .padding(.horizontal, 16)
-                } else if let override = userIdentificationOverride {
+                } else if let override = displayedCorrection {
                     let displayOverride = ConfidenceExplanationPresentation
                         .overrideDisplayName(
                             overrideScientificName: override,
@@ -302,7 +320,7 @@ struct ConfidenceExplanationSheet: View {
                     OverriddenView(
                         overrideName: displayOverride,
                         aiScientificName: aiScientificName ?? "Unknown",
-                        onUndo: {
+                        onUndo: permitsLegacyReview ? {
                             guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                             viewModel.feedback.lightImpact()
                             Task { @MainActor in
@@ -313,12 +331,13 @@ struct ConfidenceExplanationSheet: View {
                                     modelContext: modelContext
                                 )
                             }
-                        }
+                        } : protectedConfirmationUndoAction,
+                        unavailableReason: permitsLegacyReview ? nil : confidenceReviewControls.confirmationUndoReason
                     )
                     .padding(.horizontal, 16)
-                } else if userConfirmedIdentification && inferenceEngine.speciesData?.aiReview.isUnresolved != true {
+                } else if displayedConfirmation && inferenceEngine.speciesData?.aiReview.isUnresolved != true {
                     ConfirmedView(
-                        onReset: {
+                        onReset: permitsLegacyReview ? {
                             guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                             viewModel.feedback.lightImpact()
                             Task { @MainActor in
@@ -329,9 +348,14 @@ struct ConfidenceExplanationSheet: View {
                                     modelContext: modelContext
                                 )
                             }
-                        }
+                        } : protectedConfirmationUndoAction,
+                        unavailableReason: permitsLegacyReview ? nil : confidenceReviewControls.confirmationUndoReason
                     )
                     .padding(.horizontal, 16)
+                } else if !permitsLegacyReview {
+                    if let reason = confidenceReviewControls.unavailableReason {
+                        Text(reason).font(.callout).foregroundStyle(.secondary).padding(.horizontal, 16)
+                    }
                 } else if !candidates.isEmpty {
 
                     CandidatesCard(
@@ -432,6 +456,7 @@ struct ConfidenceExplanationSheet: View {
         .sheet(isPresented: $showPaywall) {
             PaywallView()
         }
+        .confirmationUndoPrompt(action: $pendingConfirmationUndo)
         .onDisappear {
             pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
             pendingReanalysis?.cancel()

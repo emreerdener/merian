@@ -6896,6 +6896,20 @@ Community projection, native review admission and ordinary history activation
 remain incomplete. Confirmation is separately prepared below. No rollout flag is
 enabled by this migration.
 
+### Confirmation reversal receipts
+
+`20261007033012_add_analysis_confirmation_undo.sql` adds the default-false
+`confirmation_undo_api_enabled` gate, a private shared eligibility helper and
+owner-authenticated mutation-free lookup. Existing immutable review receipts
+record Undo using action `undo_confirmation`; no new receipt table or native
+schema is introduced. Eligibility matches the original confirmation's outer
+target review revision and current operation/state, not its old parent revision
+or nested AI counter. Primary/name Undo clears confirmation/correction to
+unreviewed, preserving selection and evidence without resurrecting rejection.
+Existing authority/public invalidation triggers and reconciliation obligations
+apply; Field Trip's downstream consumer remains held. See the
+[Undo contract](05-api-contracts.md#durable-undo-confirmation).
+
 ### Prepared analysis-bound confirmation transactions
 
 `20261004043041_prepare_analysis_bound_confirmation.sql` adds default-false

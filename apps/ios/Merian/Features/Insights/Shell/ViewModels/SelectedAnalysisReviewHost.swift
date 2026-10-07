@@ -40,6 +40,7 @@ final class SelectedAnalysisReviewHost {
                 guard let self else { return false }
                 return self.token == token && self.key == key && self.presentationIsCurrent()
             })
+            model?.open()
             message = model?.message
         } catch {
             terminal = true

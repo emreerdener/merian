@@ -12808,10 +12808,10 @@ one exact operation request; new staging revalidates the complete ticket, idle
 selection and settled legacy review in one local transaction. Exact
 saved-request replay precedes fresh-action validation. Local status
 distinguishes pending, receipt reconciliation, attention and historical
-completion without asserting current authority. Undo requires a reconciled
-applied same-target Reject receipt and the current ticket's exact rejection
-association/review revision. No idle Auth lease, implicit enrollment, optimistic
-review or selection change is added.
+completion without asserting current authority. Rejection Undo requires a
+reconciled applied same-target Reject receipt and the current ticket's exact
+rejection association/review revision. No idle Auth lease, implicit enrollment,
+optimistic review or selection change is added.
 
 `public.review_owned_observation_analysis(p_request JSONB, p_reader INTEGER)` is
 an authenticated owner RPC with a separate, default-false
@@ -12825,9 +12825,11 @@ The exact eight-field request contains `schema_version: 1`, `observation_id`,
 `analysis_id`, `operation_id`, `expected_observation_revision`,
 `expected_review_revision`, `action`, and `undo_operation_id`. IDs are lowercase
 UUIDs and revisions are integers from zero through 2,147,483,646. `action` is
-`reject` or `undo`; `undo_operation_id` is null for Reject and the acknowledged
-rejection operation UUID for Undo. Request bytes are bounded to 2 KiB.
-Confirmation, carry, and community actions are deliberately unsupported.
+`reject`, `undo`, or `undo_confirmation`; `undo_operation_id` is null for
+Reject, the acknowledged rejection operation UUID for rejection Undo, or the
+original confirmation UUID for confirmation Undo. Request bytes are bounded to 2
+KiB. Positive confirmation uses its separate endpoint; carry and community
+mutations are unsupported by this RPC.
 
 The RPC locks owner, observation generation, owned live scan, history, and
 target authority in that order. Ownership and the deletion fence are checked
@@ -12854,8 +12856,8 @@ same result's accepted rejection receipt; it clears rejection to unreviewed and
 never reinstates confirmation. It cannot undo an imported rejection without a
 bound receipt. Neither action changes selection or immutable evidence. Every
 successful review advances the observation revision and enqueues reconciliation;
-only a selected result's review changes the active projection. Downstream credit
-and publication reconciliation remains held.
+only a selected result's review changes the active projection. Existing public
+authority invalidation applies; the Field Trip credit consumer remains held.
 
 Legacy `review-scan-identification` and `confirm-scan-species` target lookups
 now call service-only `require_legacy_scan_review` before quota admission or
@@ -12869,6 +12871,64 @@ updates, and both sides of reparenting are also fenced, as are scan-row
 authority mutations; analysis-bound community authority and its revocation
 behavior remain activation requirements. Privacy/deletion cleanup retains its
 existing path.
+
+### Durable Undo confirmation
+
+`20261007033012_add_analysis_confirmation_undo.sql` extends the eight-field
+review RPC with `undo_confirmation`, independently held by default-false
+`confirmation_undo_api_enabled` plus the existing reader/state-reader gates. It
+performs no taxonomy verification, provider call, credit charge or refund.
+
+The original applied `confirm_primary` or `confirm_name` receipt must belong to
+this observation and analysis. Its outer `review_revision` must equal current
+analysis authority, which must still name the exact confirmation operation and
+matching confirmed/corrected state, without community authority. Its original
+observation revision may be older after selection or another child's review; the
+nested AI-review revision is a separate counter. The new Undo request CASes the
+currently displayed observation and target review revisions. Exact replay
+precedes fresh gates, after owner/deletion checks.
+
+Undo clears owner confirmation, named correction and verified species identity,
+returning the original immutable AI identification to unreviewed. Selection,
+evidence and confidence remain unchanged; the original receipt remains intact.
+An earlier rejection is never restored. Existing authority triggers update the
+selected projection, invalidate public authority and enqueue reconciliation.
+Field Trip's held downstream consumer remains a separate activation requirement;
+an obligation does not establish live credit revocation.
+
+Authenticated
+`get_owned_observation_confirmation_undo(p_request JSONB,
+p_reader INTEGER)` is
+a mutation-free, five-second lookup using reader 9. Its exact request has
+`schema_version: 1`, observation/analysis UUIDs and the two expected revisions.
+Its bounded response echoes those fields plus either `status: available`,
+`confirmation_operation_id`, `confirmation_action`
+(`confirm_primary`/`confirm_name`), or `status: unavailable`, `reason`
+(`community_authority`, `not_confirmed`, `receipt_unavailable`,
+`confirmation_changed`, `revision_conflict`). It discloses no original name,
+request or receipt. Mutation repeats the shared eligibility check; lookup alone
+never authorizes a stale mutation. Imported confirmations without exact receipts
+remain unavailable. The strict executable decoder is
+`functions/_shared/analysisHistory/confirmationUndo.ts`.
+
+Native presentation retains typed local/recovered eligibility with the full
+immutable ticket. Fresh transactional staging rechecks ticket, association, idle
+selection and pending review fences. Recovered eligibility does not require a
+local original confirmation job; rejection Undo still requires its local
+receipt. The retained lookup owner coalesces at most four exact account/session/
+generation/container scopes, validates after Auth and around awaits, and drains
+before Auth teardown. Transport has no transient, 401 or route retry; decoded
+responses are bounded to 4 KiB. No idle lease or polling is introduced.
+
+Every staging attempt, including a throw, requests one scope-qualified discovery
+wake. Explicit opening/reopening also wakes once. Discovery only resumes
+persisted runnable jobs: it does not restage, mint an operation or rearm held
+work. Commit-then-throw retains the same UUID while open; reopening and startup
+discover that persisted operation. A pre-commit failure creates no work and
+explicit in-memory save retry retains its UUID. Named Undo explains that the
+original AI identification returns before the final tap; primary Undo is direct.
+Existing History, selected menu and Confidence controls share the same retained
+review. The alternatives card and ordinary disabled activation remain unchanged.
 
 ### Prepared analysis-bound confirmation
 
