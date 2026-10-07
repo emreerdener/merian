@@ -328,3 +328,81 @@ Deno.test("database adapters bind authenticated owner, protocol and verified que
     assertEquals(error.message.includes("private database diagnostics"), false);
   }
 });
+
+Deno.test("candidate confirmation carries exact provenance through HTTP execution and saved replay", async () => {
+  const candidate: AnalysisConfirmationRequest = {
+    ...body,
+    schema_version: 2,
+    action: "confirm_name",
+    scientific_name: "Fixtureus synonym",
+    candidate_reference: {
+      version: 1,
+      analysis_id: body.analysis_id,
+      representation: "stored_species_candidates_v1",
+      ordinal: 1,
+    },
+  };
+  const receipt = {
+    ...candidate,
+    outcome: "applied",
+    observation_revision: 5,
+    review_revision: 3,
+  } as const;
+  const events: string[] = [];
+  const dependencies: ConfirmationDependencies = {
+    prepare: (_admin, owner, parsed) => {
+      assertEquals(owner, user.id);
+      assertEquals(parsed, candidate);
+      events.push("prepare");
+      return Promise.resolve({
+        schema_version: 1,
+        status: "verify",
+        request: parsed,
+        scientific_name: candidate.scientific_name,
+      });
+    },
+    admit: () => {
+      events.push("admit");
+      return Promise.resolve();
+    },
+    verify: (name) => {
+      assertEquals(name, candidate.scientific_name);
+      events.push("verify");
+      return Promise.resolve(proof);
+    },
+    complete: (_admin, owner, parsed, name, taxon) => {
+      assertEquals(owner, user.id);
+      assertEquals(parsed, candidate);
+      assertEquals(name, candidate.scientific_name);
+      assertEquals(taxon, proof);
+      events.push("complete");
+      return Promise.resolve(receipt);
+    },
+  };
+  assertEquals(
+    await (await handleAnalysisConfirmation(
+      request(candidate),
+      user,
+      admin,
+      dependencies,
+    )).json(),
+    receipt,
+  );
+  assertEquals(events, ["prepare", "admit", "verify", "complete"]);
+  events.length = 0;
+  dependencies.prepare = (_admin, _owner, parsed) => {
+    assertEquals(parsed, candidate);
+    events.push("replay");
+    return Promise.resolve({ schema_version: 1, status: "complete", receipt });
+  };
+  assertEquals(
+    await (await handleAnalysisConfirmation(
+      request(candidate),
+      user,
+      admin,
+      dependencies,
+    )).json(),
+    receipt,
+  );
+  assertEquals(events, ["replay"]);
+});

@@ -35,3 +35,11 @@ mirrors these exact fields and limits. Its closed typed transport disables
 automatic transient replay and 401 recovery and never treats a receipt as
 current authority. Durable native delivery and ordinary UI remain separate; this
 adds no activation or deployment.
+
+The versioned candidate checkpoint accepts schema-2 `confirm_name` with an exact
+analysis-bound `stored_species_candidates_v1` reference. Preparation and
+completion validate raw immutable membership; receipt replay retains the whole
+reference. The private SQL resolver rejects rankless/imported or unsupported
+candidate evidence, and confirmation Undo recognizes the same correction.
+Schema-1 requests remain unchanged. Native candidate controls are a separate
+checkpoint; this adds no ordinary producer or UI layout change.

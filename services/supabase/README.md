@@ -3199,6 +3199,14 @@ or transfers authority between results. The
 owns held legacy/community behavior, retry semantics and remaining native and
 rollout work. This source preparation authorizes no deployment or activation.
 
+The candidate-provenance backend checkpoint adds schema-2 `confirm_name` with an
+analysis-scoped raw ordinal and fixed representation. Both phases validate
+membership in the immutable species-candidate array; receipts preserve the
+reference, and confirmation Undo validates the same association. Schema-1
+requests replay unchanged. Rankless legacy and opaque imported candidates stay
+unsupported. The native producer and existing alternatives-control wiring are
+separate checkpoints; this changes no card layout or activation gate.
+
 ## Private community authority foundation
 
 The database-only community binding and reconciliation layer now preserves an

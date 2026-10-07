@@ -6946,6 +6946,18 @@ PostgREST schema cache and grants only the two explicit service wrappers. See
 [confirmation semantics](05-api-contracts.md#prepared-analysis-bound-confirmation)
 for exact payloads, replay, unsupported states and remaining activation holds.
 
+`20261007080657_preserve_analysis_candidate_provenance.sql` extends the same
+transaction owner with schema-2 candidate confirmation. The ungranted, pure
+`internal.observation_candidate_name` resolver reads only its supplied exact
+immutable result/manifest/reference. Both locked phases derive and compare the
+saved candidate name; the original request retains its analysis-scoped raw
+ordinal and representation. Existing intents and receipts need no new columns.
+The confirmation-Undo helper verifies this association for schema-2 originals;
+rejection-Undo's separately recovered admission remains unchanged. Existing
+schema-1 replay and default-false rollout gates are preserved. The
+[confirmation contract](05-api-contracts.md#prepared-analysis-bound-confirmation)
+defines supported evidence and explicit legacy exclusions.
+
 ### Private community binding and reconciliation
 
 `20261004050937_prepare_analysis_community_authority.sql` adds the default-false

@@ -357,6 +357,14 @@ clear only the named result's rejection. Native admission, community authority
 and ordinary activation remain held. See the
 [canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-confirmation).
 
+The candidate-provenance backend checkpoint adds schema-2 `confirm_name` with an
+analysis-scoped raw ordinal and fixed representation. Both phases validate
+membership in the immutable species-candidate array; receipts preserve the
+reference, and confirmation Undo validates the same association. Schema-1
+requests replay unchanged. Rankless legacy and opaque imported candidates stay
+unsupported. The native producer and existing alternatives-control wiring are
+separate checkpoints; this changes no card layout or activation gate.
+
 ## Private community authority foundation
 
 The community binding/reconciliation migration prepares database-only ownership

@@ -1212,3 +1212,57 @@ Deno.test("rejection Undo recovery shares exact target association without origi
       .test(lookup),
   );
 });
+
+Deno.test("candidate confirmation retains v1 replay and binds v2 provenance in both phases and Undo", async () => {
+  const sql = await migration(
+    "20261007080657_preserve_analysis_candidate_provenance",
+  );
+  assertStringIncludes(sql, "stored_species_candidates_v1");
+  assertStringIncludes(
+    sql,
+    "pg_catalog.jsonb_array_length(candidates) NOT BETWEEN 1 AND 2",
+  );
+  assertStringIncludes(
+    sql,
+    "p_result#>>'{primary_identification,resolution}' IS DISTINCT FROM 'species'",
+  );
+  assertStringIncludes(
+    sql,
+    "candidate->>'taxon_rank' IS DISTINCT FROM 'species'",
+  );
+  assertStringIncludes(
+    sql,
+    "name IS DISTINCT FROM p_request->>'scientific_name'",
+  );
+  const mutation = sql.slice(
+    sql.indexOf(
+      "CREATE OR REPLACE FUNCTION internal.confirm_observation_analysis",
+    ),
+    sql.indexOf(
+      "CREATE OR REPLACE FUNCTION internal.observation_confirmation_undo_eligibility",
+    ),
+  );
+  assert(
+    mutation.indexOf("'receipt',saved.receipt") <
+      mutation.indexOf("FROM internal.observation_history_rollout"),
+  );
+  assert(
+    mutation.indexOf("internal.observation_candidate_name(target") <
+      mutation.indexOf("IF NOT p_complete THEN"),
+  );
+  assertStringIncludes(mutation, "request_identity IS DISTINCT FROM p_request");
+  assertStringIncludes(
+    mutation,
+    "p_request || pg_catalog.jsonb_build_object('outcome','applied'",
+  );
+  assertStringIncludes(
+    sql,
+    "internal.observation_candidate_name(p_analysis,evidence.result_snapshot,evidence.evidence_manifest,prior.request_identity->'candidate_reference')",
+  );
+  assert(
+    !sql.includes(
+      "CREATE OR REPLACE FUNCTION public.review_owned_observation_analysis",
+    ),
+  );
+  assert(!sql.includes("SET confirmation_api_enabled=TRUE"));
+});

@@ -12980,18 +12980,41 @@ rollout is enabled. `_shared/analysisHistory/confirmation.ts` owns the strict
 request, preparation envelope and terminal receipt parsers. Identify DTOs,
 web/admin payloads and native schemas are unchanged.
 
-POST accepts exactly eight fields: `schema_version: 1`, `observation_id`,
-`analysis_id`, `operation_id`, `expected_observation_revision`,
-`expected_review_revision`, `action`, and `scientific_name`. IDs are lowercase
-UUIDs, revisions are integers 0–2,147,483,646, and the stored request is bounded
-to 2 KiB. `confirm_primary` requires a null name and derives the verification
-query from that child's immutable species-level primary identification.
-`confirm_name` requires a trimmed, control-free name of 1–160 characters and
-explicitly accepts a verified species, including from a broader primary answer.
-The request cannot supply owner identity, species UUID, taxonomy proof or review
-authority. Both actions require biological evidence with an explicit stored
-primary; imported legacy results without one remain viewable/restorable but
-cannot use this confirmation endpoint. Community authority remains held.
+Schema-1 POST accepts exactly eight fields: `schema_version: 1`,
+`observation_id`, `analysis_id`, `operation_id`,
+`expected_observation_revision`, `expected_review_revision`, `action`, and
+`scientific_name`. IDs are lowercase UUIDs, revisions are integers
+0–2,147,483,646, and the stored request is bounded to 2 KiB. `confirm_primary`
+requires a null name and derives the verification query from that child's
+immutable species-level primary identification. `confirm_name` requires a
+trimmed, control-free name of 1–160 characters and explicitly accepts a verified
+species, including from a broader primary answer. The request cannot supply
+owner identity, species UUID, taxonomy proof or review authority. Both actions
+require biological evidence with an explicit stored primary; imported legacy
+results without one remain viewable/restorable but cannot use this confirmation
+endpoint. Community authority remains held.
+
+A versioned candidate correction accepts schema 2 with the same fields and one
+additional `candidate_reference` object. Its exact fields are `version: 1`,
+`analysis_id` equal to the request target,
+`representation: "stored_species_candidates_v1"`, and raw immutable array
+`ordinal` (0 or 1). The reference is scoped to the saved analysis; it is never a
+filtered display index or a name-based lookup. Both prepare and complete derive
+the query from that member and require exact equality with the non-null outer
+`scientific_name`. The entire reference is retained in the immutable intent and
+terminal receipt. Schema-1 requests and saved receipts keep their exact shape.
+
+Supported candidate evidence is a V1/V2 immutable result with biological,
+explicit species-level primary authority and one or two species-ranked
+candidates. The chosen candidate must have a numeric confidence in [0,1] and a
+trimmed, control-free name within the confirmation query's 160-character bound.
+Rankless legacy arrays, broader primaries, opaque V3 imports, malformed arrays
+and unsupported references fail closed; a name alone cannot establish
+membership. Optional candidate display fields do not establish identity.
+Confirmation Undo validates schema-2 membership again and retains `confirm_name`
+semantics: it removes the owner's correction and exposes the original AI
+identification unreviewed, preserving selection and immutable evidence. This
+backend checkpoint adds no native producer or alternatives-layout change.
 
 The service-only `prepare_observation_analysis_confirmation` RPC acquires owner
 → observation generation → owned live scan → history → target authority locks.
@@ -13015,7 +13038,7 @@ query to that intent. No network call runs while database locks are held.
 Provider executions and complimentary scan credits are untouched: this is
 dictionary verification, not another AI analysis.
 
-HTTP 200 returns the exact eight request fields plus one terminal outcome:
+HTTP 200 returns the exact versioned request fields plus one terminal outcome:
 
 - `applied`, with `observation_revision` and `review_revision`, each exactly one
   greater than requested;
