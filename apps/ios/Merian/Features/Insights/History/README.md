@@ -151,8 +151,11 @@ result-specific authority, including eligible imported results.
 stages it synchronously at the button callback, before the injected queue wake.
 It retains the exact request after an uncertain save, including when status is
 nil or unreadable. Retry saving reuses that request. A held operation never
-rearms from this UI. Undo rechecks the completed applied same-target Reject
-receipt and current association at the actual tap.
+rearms from this UI. Rejection Undo rechecks the completed applied same-target
+receipt or strictly recovered eligibility and current association at the actual
+tap. Confirmation Undo has its own explicit eligibility branch; see the durable
+confirmation and recovered rejection sections below. Neither operation derives
+permission from a display label or substitutes a newer result.
 
 The App-owned composition injects local admission/status, queue wake and the
 observable actual-pass-exit generation. The generation only prompts an

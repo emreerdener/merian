@@ -55,9 +55,16 @@ profile supplies an applied confirmation receipt and eligibility lookup, so
 neither demonstrates **Undo confirmation**. Do not treat the table above as
 coverage of that new action or enable live gates to make it appear.
 
-Before activation, add a separately reviewed prepared fixture with exact applied
-primary/name confirmation authority and strict synthetic lookup/delivery
-boundaries. Then record these device and UI-automation outcomes:
+A separate prepared fixture now exists. Launch with
+`-seedPublicationConsentChooser -seedConfirmationUndo`; also add
+`-seedSelectedNameConfirmation` for the named-correction case. The six
+`PublicationConsentUITests` primary/name scenarios exercise History, the
+selected menu and Confidence using real native admission, delivery and paired
+reconciliation with synthetic network boundaries. They passed in the dated
+[capability follow-up](../rfcs/identification-history-integrated-review-results-2026-10-07.md#capability-follow-up-direct-undo-coverage).
+The original launch profiles above still do not exercise this action.
+
+Physical-device acceptance remains required. Record these outcomes:
 
 - From History, the selected-result menu and Confidence card, primary Undo
   directly saves the exact reversal. Named Undo first explains that the original
@@ -75,9 +82,10 @@ boundaries. Then record these device and UI-automation outcomes:
 
 The
 [verification matrix](08-testing-strategy.md#durable-confirmation-undo-verification)
-records the existing lower-level coverage and the separate joined-waiter test
-gap. This is an acceptance specification, not a claim that the new fixture or UI
-automation already exists, and not deployment or activation authorization.
+records the lower-level coverage, six direct UI paths and passing joined-waiter
+cancellation regression. Direct stale/imported UI cases and physical-device
+results remain separate; simulator success is not device, restart or hosted
+qualification. This checklist does not authorize deployment or activation.
 
 ## What this establishes
 

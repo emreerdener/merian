@@ -302,3 +302,69 @@ limits exactly, and the complete iOS tooling suite passes, including workflow
 and critical-selector contracts. These are clean source/tooling checks, not a
 clean runtime rerun. Current-candidate CI must establish the clean full runtime
 result. Failed evidence remains retained; no test guard was weakened.
+
+### Capability checkpoint through e5bbb1783
+
+This dated follow-up records the approved seven-slice plan through the isolated
+audio-contract foundation. It does not extend the original integrated-review
+verdict to unfinished capabilities.
+
+| Slice                         | Implemented boundary                                                                                                                                                             | Remaining acceptance                                                                                                                   |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Confirmation Undo coverage | Six primary/name History, menu and Confidence UI paths; named Cancel/final action; shared-lookup waiter cancellation.                                                            | Direct stale/imported UI cases and device qualification remain explicit.                                                               |
+| 2. Recovered rejection Undo   | Server eligibility and explicit native recovered admission without a local original receipt.                                                                                     | Real second-device qualification remains separate from synthetic/native tests.                                                         |
+| 3. Candidate provenance       | Immutable candidate reference, server membership validation, retained correction provenance and existing alternatives controls. Confirmation Undo returns original AI authority. | Final integrated journey; alternatives card design/layout remains unchanged.                                                           |
+| 4. Evidence-based recovery    | Durable dispatch evidence, admitted-only retirement, retained delivery, atomic receipt settlement and explicit held-outcome lookup.                                              | No absence-based release of existing uncertain V2 work; final integration remains open.                                                |
+| 5. Audio                      | Inert manifest-3 metadata and complete bounded PCM-container validators only.                                                                                                    | Upload/receipt authorization, persistence, provider profile, SQL admission, native delivery/readers, recovery and erasure integration. |
+| 6. Video                      | Contract milestones remain planned.                                                                                                                                              | Immutable source clip and saved frame/audio derivation, ordering/digests/parameters/version, execution, restart and cleanup.           |
+| 7. Integrated acceptance      | Earlier checkpoint evidence remains retained.                                                                                                                                    | Run the complete audio/video journey and final affected gates; no acceptance claim yet.                                                |
+
+The [API action matrix](../backend-and-data/05-api-contracts.md) owns recovery
+preconditions. Unknown execution permits exact status/outcome recovery and
+reconciliation only. Neither explicit retry nor reopening authorizes another
+provider invocation. Existing V2 quota/invocation absence cannot prove
+historical non-execution after pruning, so no permanent no-admission seal ships
+for those identities. This is distinct from the existing protected Field Chat
+seal.
+
+The final journey remains: Reject A → reanalyze into unreviewed B → explicitly
+view/select B → return to rejected A → Undo A. Verify independent authority,
+unchanged original evidence and exact operation recovery after interruption for
+audio and video; qualify second-device rejection recovery separately.
+
+#### Latest validation and requested double-check
+
+Held-outcome commit `20f4e42e2` passed 59 focused test functions in seven suites
+(120 parameter-expanded runs, no failures or skips). Its independent re-review
+traced presentation, retained account lease, exact reader, full-snapshot checks,
+atomic append/cleanup and restart replay; no concrete defect was found.
+Selection is unchanged and unknown/malformed/absent replies remain held.
+
+Audio foundation `e5bbb1783` passed 2,993 backend tests with 425 steps, 117
+fresh database catalogs with 1,953 assertions, full tooling, 118 endpoint
+configurations, DTO21, docs26 and formatting/lint. The final 13 focused audio
+tests passed again during the requested double-check. An additional exploratory
+check exercised 4,406 truncated/length-mutated buffers without unexpected
+exceptions and accepted the synthetic Core Audio sample. It does not establish
+native device compatibility, sustained memory or provider execution.
+
+Raw evidence remains under `/private/tmp/history-held-outcome-final-tests.log`,
+`/private/tmp/history-audio-manifest-full.log`,
+`/private/tmp/history-audio-profile-final-db.log`,
+`/private/tmp/history-double-check-audio.log` and
+`/private/tmp/history-audio-adversarial.log`. These are local retained evidence,
+not portable repository fixtures. Earlier failures remain recorded above and in
+the testing strategy; focused success does not retroactively make a failed full
+shared-worktree run green.
+
+At the double-check, five current-candidate workflows had passed; iOS814,
+startup760 and backend330 were unfinished. Earlier iOS812 reported failure but
+exposed only skipped dependent jobs, no executed steps or annotations; its cause
+was unconfirmed. These observations are time-scoped, not a current all-green CI
+claim. No product source changes were needed by the double-check.
+
+All activation gates remain false, ordinary access nil and schedules paused.
+Merge, deployment and distribution remain excluded. Device migration/restart,
+sustained heap, hosted provider/runtime, storage/CDN and independent erasure
+qualification remain separate, as does Field Trip's held reconciliation
+consumer.

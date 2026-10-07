@@ -126,8 +126,14 @@ production submission or public release.
   prepared workflows, not every implemented action. The
   [Undo verification matrix](./development-guides/08-testing-strategy.md#durable-confirmation-undo-verification)
   records direct primary/name Undo UI and joined-presentation cancellation
-  coverage, with stale/imported UI and external qualification kept explicit. See
-  the
+  coverage, with stale/imported UI and external qualification kept explicit.
+  Recovered rejection Undo, immutable candidate correction and evidence-based
+  retirement/outcome checks are implemented behind the same disabled access. The
+  [capability checkpoint](./rfcs/identification-history-integrated-review-results-2026-10-07.md#capability-checkpoint-through-e5bbb1783)
+  separates that work from the remaining audio/video integration. The
+  [prepared audio contract](./backend-and-data/05-api-contracts.md#prepared-audio-metadata-generation)
+  currently validates metadata and PCM containers only; it does not enable
+  upload, inference or native audio history. See the
   [current schema](./backend-and-data/04-database-schema.md#prepared-observation-analysis-history),
   [device checklist](./development-guides/24-identification-history-device-review.md)
   and
