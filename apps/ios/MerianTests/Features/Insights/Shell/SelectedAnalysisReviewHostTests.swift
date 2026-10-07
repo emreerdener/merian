@@ -37,16 +37,18 @@ struct SelectedAnalysisReviewHostTests {
 
     @Test func rerenderAndMissingReceiptPreserveUncertainRequestForExactRetry() throws {
         let f = try Fixture(); try f.bind()
+        #expect(f.review.wakes == 1)
         let token = try #require(f.host.token)
         f.review.failSave = true
         f.host.submit(.reject, token: token)
+        #expect(f.review.wakes == 2)
         let request = try #require(f.host.model?.request)
         try f.bind()
         f.host.refresh { _ in Issue.record("An uncertain save cannot refresh the parent") }
-        #expect(f.opens == 1 && f.host.model?.request == request)
+        #expect(f.opens == 1 && f.host.model?.request == request && f.review.wakes == 2)
         f.review.failSave = false
         f.host.retrySave(token: token)
-        #expect(f.review.saved == [request, request] && f.review.wakes == 1)
+        #expect(f.review.saved == [request, request] && f.review.wakes == 3)
     }
 
     @Test func oldAlertCannotActAfterSameBaselineReopens() throws {
@@ -96,14 +98,15 @@ struct SelectedAnalysisReviewHostTests {
         #expect(f.host.model == nil && f.closes == 1 && f.review.saved.count == 1)
     }
 
-    @Test func receiptOnlyReopeningAndHeldWorkNeverDispatch() throws {
+    @Test func heldReopeningDiscoversWithoutRestagingOrRearming() throws {
         let f = try Fixture()
         f.review.pending = .init(operationID: UUID(), analysisID: f.review.ticket.analysisID, phase: .needsAttention)
         f.review.receipt = f.review.pending
         try f.bind()
+        #expect(f.review.wakes == 1)
         let token = try #require(f.host.token)
         f.host.submit(.reject, token: token); f.host.retrySave(token: token)
         f.host.refresh { _ in Issue.record("Held review cannot apply") }
-        #expect(f.review.saved.isEmpty && f.review.wakes == 0 && f.host.model?.status?.phase == .needsAttention)
+        #expect(f.review.saved.isEmpty && f.review.wakes == 1 && f.host.model?.status?.phase == .needsAttention)
     }
 }

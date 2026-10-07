@@ -1,6 +1,6 @@
 import Foundation
-import SwiftData
 @testable import Merian
+import SwiftData
 import Testing
 
 @MainActor
@@ -28,6 +28,7 @@ struct SelectedAnalysisNameConfirmationTests {
         defer { session.close() }
         #expect(session.ticket.canConfirmName && !session.ticket.canConfirmPrimary && session.ticket.primaryScientificName == "Danaus")
         let model = session.reviewModel(presentationIsCurrent: { true })
+        model.open()
         model.submit(.confirmName("Danaus plexippus"))
         #expect(model.status?.phase == .pending && model.canRetrySave == false)
         let jobs = try ModelContext(context.container).fetch(FetchDescriptor<OfflineJobRecord>())
@@ -36,13 +37,14 @@ struct SelectedAnalysisNameConfirmationTests {
 
     @Test func openingAndEditingDoNotCreateOperationAndFinalTapFreezesExactName() throws {
         let f = try fixture(), form = try form(f)
+        #expect(f.review.wakes == 1)
         #expect(!f.review.ticket.canConfirmPrimary && f.review.ticket.canConfirmName)
         #expect(!form.canSubmit && f.host.model?.request == nil && f.review.saved.isEmpty)
         form.scientificName = "Synthetic species"
         #expect(form.canSubmit && f.host.model?.request == nil)
         form.submit(); form.submit()
         let request = try #require(f.host.model?.request)
-        #expect(request.decision == .confirmName("Synthetic species") && f.review.saved == [request] && f.review.wakes == 1)
+        #expect(request.decision == .confirmName("Synthetic species") && f.review.saved == [request] && f.review.wakes == 2)
         #expect(request.analysisID == f.review.ticket.analysisID)
         #expect(request.expectedObservationRevision == f.review.ticket.observationRevision)
         #expect(request.expectedReviewRevision == f.review.ticket.reviewRevision)
@@ -70,20 +72,23 @@ struct SelectedAnalysisNameConfirmationTests {
         case "pending": f.review.pending = .init(operationID: UUID(), analysisID: UUID(), phase: .pending)
         default: f.review.failRead = true
         }
+        let discoveryWakes = change == "reopen" ? 2 : 1
+        #expect(f.review.wakes == discoveryWakes)
         form.submit()
-        #expect(f.review.saved.isEmpty && f.review.wakes == 0 && f.host.model?.request == nil)
+        #expect(f.review.saved.isEmpty && f.review.wakes == discoveryWakes && f.host.model?.request == nil)
     }
 
     @Test func uncertainSaveAndDismissalRetainHostRequestForExactRetry() throws {
         let f = try fixture(), form = try form(f), token = try #require(f.host.token)
         f.review.failSave = true; form.scientificName = "Synthetic species"; form.submit()
+        #expect(f.review.wakes == 2)
         let request = try #require(f.host.model?.request)
         form.close(); form.submit()
         #expect(form.scientificName.isEmpty && !form.canSubmit && f.host.model?.request == request)
-        #expect(f.host.model?.canRetrySave == true && f.closes == 0)
+        #expect(f.host.model?.canRetrySave == true && f.closes == 0 && f.review.wakes == 2)
         #expect(f.host.prepareNameConfirmation(token: token, isCurrent: { true }) == nil)
         f.review.failSave = false; f.host.retrySave(token: token)
-        #expect(f.review.saved == [request, request] && f.review.wakes == 1)
+        #expect(f.review.saved == [request, request] && f.review.wakes == 3)
     }
 
     @Test func closedUnsubmittedFormCannotActButHostRemainsAvailable() throws {

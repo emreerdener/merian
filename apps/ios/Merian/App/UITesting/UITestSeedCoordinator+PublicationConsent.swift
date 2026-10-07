@@ -140,7 +140,7 @@ extension UITestSeedCoordinator {
                 assert((try? verifySavedChoice()) == true, "Synthetic consent persistence mismatch")
             }, generation: { 0 })
         return try IdentificationHistorySession(observation: observation, container: candidate, cloud: cloud, photos: photos,
-            reviewWake: { [self] in assert((try? verifySavedReview()) == true, "Synthetic review persistence mismatch") }, publication: config, currentGeneration: { 1 },
+            reviewWake: { [self] in assert((try? verifyReviewDiscovery()) == true, "Synthetic review persistence mismatch") }, publication: config, currentGeneration: { 1 },
             sessionIsCurrent: { $0.userID == Self.owner && !$0.isAnonymous })
     }
 
@@ -187,11 +187,13 @@ extension UITestSeedCoordinator {
         return try ObservationHistorySyncService.enrolledScan(Self.observation, context: ModelContext(container)).selectedAnalysisID == Self.selected
     }
 
-    private func verifySavedReview() throws -> Bool {
-        guard namedReview else { return false }
+    private func verifyReviewDiscovery() throws -> Bool {
         let context = ModelContext(container)
         let jobs = try context.fetch(FetchDescriptor<OfflineJobRecord>()).filter { $0.kind == .observationAnalysisReviewSync }
-        guard jobs.count == 1, let text = jobs.first?.metadataJSON else { return false }
+        // Opening a review discovers durable work before any decision is saved.
+        // Chat and publication fixtures also use this same review presentation.
+        if jobs.isEmpty { return true }
+        guard namedReview, jobs.count == 1, let text = jobs.first?.metadataJSON else { return false }
         let intent = try ObservationAnalysisReviewIntent.decode(Data(text.utf8))
         let request = intent.request
         guard request.decision == .confirmName("Danaus plexippus"), request.analysisID.uuidString.lowercased() == Self.selected,
