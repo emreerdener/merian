@@ -15200,10 +15200,10 @@ would reject that output. This is format evidence, not iOS/device qualification.
 The verifier never transforms bytes or establishes their digest/readiness.
 
 The separate prepared cohort RPCs below now allocate immutable receipts with
-fixed expiry. A subsequent binary route must verify exact bytes/digests, and
-coordinated admission must bind the audio provider profile before quota. Native
-sidecars are transient until exact durable persistence; retries must not
-transcode again.
+fixed expiry. The separate binary upload route below verifies exact WAV bytes
+and their digest. Coordinated admission must still bind the audio provider
+profile before quota. Native sidecars are transient until exact durable
+persistence; retries must not transcode again.
 
 The coordinated audio generation will use input schema 3 / manifest 3 / history
 capability 9 and result schema 4 / reader 10. Result schema 3 already represents
@@ -15231,9 +15231,9 @@ replay returns that original receipt; changed metadata conflicts. Missing or
 expired receipts fail without replacement, including fully ready but unbound
 expired evidence. Completion accepts only the original unexpired cohort/object
 and acknowledges trusted byte verification; it is not evidence that a client
-uploaded valid bytes. A future binary route must verify the entire prepared WAV
-container and exact digest before reservation, write once, and verify storage
-before completion. This checkpoint adds no such route or client authorization.
+uploaded valid bytes. The separate authenticated binary route below verifies the
+entire prepared WAV container and exact digest before reservation, writes once,
+and verifies storage before completion.
 
 Audio and photo cohorts cannot share a child identity. Existing photo wire
 versions, descriptors and exact replay stay unchanged. Current protected
@@ -15244,3 +15244,50 @@ nor a successful upload permits provider dispatch, a successor operation or
 refund. Native integration, audio provider-profile binding and the coordinated
 input/result/reader generation remain later checkpoints. All activation gates
 remain false.
+
+### Private reanalysis audio upload
+
+Prepared `POST upload-observation-audio` authenticates the caller and derives
+the owner from the verified session. Gateway JWT verification is disabled only
+for the shared handler authentication boundary. The existing `media_enabled` and
+default-false `prepared_audio_evidence_enabled` database gates remain required.
+The endpoint is registered for candidate validation; registration is not rollout
+or deployment authorization.
+
+The body is `application/octet-stream`: four bytes of unsigned big-endian JSON
+metadata length (1–1,024), that many strict UTF-8 bytes, then exactly one WAV.
+Metadata has exactly `{schema_version:1,observation_id,analysis_id,audio}`;
+`audio` has exactly `{media_id,content_type:"audio/wav",byte_count}`. All three
+identities are distinct lowercase UUIDs. This endpoint's wire version 1 is
+separate from the unchanged photo-upload wire. It accepts no client owner,
+object key, URL, digest or provider profile.
+
+The streaming body is bounded to 2,701,028 bytes. The handler owns and validates
+the complete 46–2,700,000-byte WAV before reservation, computes SHA-256 itself,
+and validates the exact private reservation receipt. Storage uses conditional
+write-once plus digest/type/length and erasure-marker verification. A ready
+replay skips writing but still completes through the owner/deletion-fenced RPC.
+The original object and five-minute expiry never change; expired ready evidence
+also fails. Completion must return that same tuple, object, expiry and readiness
+association. Unknown replies never mint another object or dispatch inference.
+
+The success body is exactly
+`{schema_version:1,observation_id,analysis_id,items:[{kind:"audio",media_id,content_type:"audio/wav",byte_count,sha256}]}`.
+No owner, storage identity, URL, readiness timestamp or private metadata is
+returned. Responses are `private, no-store`. The request has a shared 120-second
+abortable body/RPC/storage budget and fixed 12-second RPC bounds with no
+retries. Errors use the existing bounded history codes (400 invalid request, 404
+unknown owned target, 409 operation conflict, otherwise 503 unavailable).
+Cancellation and ambiguous completion require replay of the original bytes and
+identities.
+
+Unready writes abort twelve seconds before fixed receipt expiry, leaving a
+bounded completion-attempt window; insufficient time denies storage. This is not
+a completion guarantee: SQL expiry remains authoritative. A PUT accepted before
+cancellation or a late rejected completion can leave private bytes for
+independent erasure. It never permits replacement or a new expiry.
+
+Native upload transport, durable audio production, provider-profile binding,
+input-3 execution and result-4/reader-10 remain subsequent checkpoints. This
+upload grants neither execution nor reader compatibility. Existing photo
+acceptance and saved replay remain unchanged.

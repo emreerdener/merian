@@ -792,3 +792,6 @@ verify_jwt = false
 # Authenticated exact retirement; default-off SQL gate, never provider execution.
 [functions.retire-observation-analysis]
 verify_jwt = false
+
+[functions.upload-observation-audio]
+verify_jwt = false

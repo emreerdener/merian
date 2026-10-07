@@ -10972,3 +10972,15 @@ expiry replay and cross-owner child collision.
 gate, privilege and cleanup boundary explicit. Run the fresh full catalog before
 concurrency tests. These tests do not establish a binary audio upload endpoint,
 native audio execution or video support.
+
+### Prepared private audio upload boundary
+
+`upload-observation-audio/handler_test.ts` proves whole-WAV validation and exact
+server hashing before I/O, strict receipt scope/tuple/readiness, fixed expiry,
+owned bytes across awaits, cancellation, no retry on uncertain outcomes and no
+private storage data in responses. `route_test.ts` covers authentication,
+bounded streaming, exact fixed RPC parameters and stalled-body cancellation.
+Both tests run in the two candidate-validation focused lists. Existing
+photo-upload tests run alongside them to preserve its unchanged wire and
+accepted evidence types. These synthetic checks do not qualify a device WAV
+producer, real R2/CDN or provider execution.

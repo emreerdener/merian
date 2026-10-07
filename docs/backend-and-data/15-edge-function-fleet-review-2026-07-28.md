@@ -309,6 +309,7 @@ request-observation-publication
 get-observation-publication-status
 get-observation-publication-target
 prepare-observation-publication-consent
+upload-observation-audio
 upload-observation-evidence
 moderate-publication-photos
 copy-publication-photos
@@ -491,3 +492,14 @@ status and remote historical status remain separate. Prepared History consent
 now reads this boundary before preflight; ordinary access remains disabled and
 there is no deployment/activation authorization. See its
 [README](../../services/supabase/functions/get-observation-publication-target/README.md).
+
+### Prepared private audio upload addition
+
+`upload-observation-audio` adds an independently gated, owner-authenticated
+binary WAV upload boundary. It validates the entire bounded container before
+reserving an immutable cohort, computes its digest, writes once, and rechecks
+ownership and deletion during completion. The shared deadline covers body, fixed
+RPCs and storage. Its narrow response exposes only immutable media descriptors.
+All audio/media rollout gates remain false; native audio inference and hosted
+qualification remain separate. See the
+[endpoint contract](../../services/supabase/functions/upload-observation-audio/README.md).

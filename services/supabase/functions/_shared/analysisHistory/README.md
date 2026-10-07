@@ -722,14 +722,18 @@ owned immutable values and rejection by current executable/photo paths.
 
 `audioContainer.ts` is the separate bounded full-container verifier for PCM16
 mono 44.1 kHz, compact headers or one zero-filled Core Audio `FLLR` chunk. It
-rejects unexamined/trailing chunks and transforms no bytes. Neither prepared
-module is connected to upload, SQL or provider execution in this checkpoint.
+rejects unexamined/trailing chunks and transforms no bytes. The separate
+default-off audio upload route now calls this verifier before reservation.
+Neither module authorizes provider execution.
 
 The separate prepared audio cohort migration now reserves one immutable WAV
 receipt behind service-only RPCs and a default-false audio gate. It preserves
 photo replay and prevents expired/erased audio identities entering legacy
 admission. The
 [audio cohort API contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-audio-cohort-rpcs)
-owns tuple, expiry and cleanup rules. These validators are still not imported by
-a production audio upload or inference route; database readiness cannot replace
-future exact-byte and storage verification.
+owns tuple, expiry and cleanup rules. The separate
+[`upload-observation-audio`](../../upload-observation-audio/README.md) endpoint
+verifies owned bytes, hashes them and uses the strict audio receipt parser. The
+legacy receipt parser remains unchanged in its accepted types. Neither upload
+nor database readiness authorizes inference; native and versioned execution
+integration remain pending.
