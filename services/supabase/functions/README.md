@@ -39,6 +39,7 @@ that layout.
 - [reconcile-scan-media-assets](./reconcile-scan-media-assets/README.md)
 - [repair-scan-image](./repair-scan-image/README.md)
 - [replay-scan-ingestion](./replay-scan-ingestion/README.md)
+- [retire-observation-analysis](./retire-observation-analysis/README.md)
 - [scan-media-health](./scan-media-health/README.md)
 - [sync-collections](./sync-collections/README.md)
 

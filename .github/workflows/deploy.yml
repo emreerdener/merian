@@ -1155,6 +1155,7 @@ jobs:
             species-discovery-search
             resolve-species-dictionary
             confirm-observation-analysis
+            retire-observation-analysis
             confirm-scan-species
             review-scan-identification
             request-community-identification

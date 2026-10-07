@@ -788,3 +788,7 @@ verify_jwt = false
 # Independently gated service-only private history marker cleanup.
 [functions.erase-observation-evidence]
 verify_jwt = false
+
+# Authenticated exact retirement; default-off SQL gate, never provider execution.
+[functions.retire-observation-analysis]
+verify_jwt = false

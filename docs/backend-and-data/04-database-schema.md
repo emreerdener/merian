@@ -7590,4 +7590,6 @@ retirement triggers create the opaque erasure obligation in that transaction.
 Exact receipt replay follows ownership/deletion checks and precedes new gates.
 An absent intent cannot be retired by this routine; no late-admission seal is
 created. Unknown provider execution, other terminal outcomes and inconsistent
-ledger rows fail closed. No ordinary access or HTTP action is enabled here.
+ledger rows fail closed. The prepared authenticated retirement HTTP wrapper
+derives the owner and invokes this service-only routine through bounded
+transport. The SQL gate remains false and no ordinary access is enabled.

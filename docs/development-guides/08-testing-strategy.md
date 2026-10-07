@@ -10846,3 +10846,14 @@ This proves the admitted-only SQL boundary. It does not establish absent-request
 sealing, native restart/UI settlement or hosted erasure liveness. Those remain
 separate acceptance checkpoints; a status label never supplies retirement
 permission.
+
+### Retirement HTTP boundary
+
+`retire-observation-analysis/handler_test.ts` and `route_test.ts` exercise the
+actual authenticated wrapper, exact RPC parameters, owner injection rejection,
+strict receipt association, private/no-store responses, cancellation and a
+stalled transport. The response-cap test omits Content-Length and sends more
+than 4 KiB; the timeout test verifies the five-second budget without sleeping.
+Upstream 401/503 and malformed replies make one attempt and return no proof.
+These synthetic boundaries complement the SQL race catalogs; they do not prove
+native durable retirement admission or deployed behavior.

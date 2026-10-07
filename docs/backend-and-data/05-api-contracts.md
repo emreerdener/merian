@@ -12523,10 +12523,11 @@ this checkpoint does not install either or change activation gates.
 
 The separately prepared service-only
 `retire_owned_observation_analysis_execution(p_owner,p_request,p_reader:9)`
-requires default-false `execution_retirement_api_enabled`. An authenticated Edge
-owner boundary must derive `p_owner`; native direct RPC access is denied. That
-HTTP/native action owner is a subsequent checkpoint, not installed by this SQL
-preparation. The closed schema-1 request adds one retained `operation_id` to the
+requires default-false `execution_retirement_api_enabled`. Prepared
+authenticated `POST retire-observation-analysis` derives `p_owner` from
+`withEdgeHandler`; native direct RPC access is denied. The HTTP boundary is
+implemented; native durable action admission and UI remain a subsequent
+checkpoint. The closed schema-1 request adds one retained `operation_id` to the
 original parent/child/nullable-source/digest identity. The exact receipt echoes
 those six fields plus `state:"retired_before_dispatch"`.
 
@@ -12547,6 +12548,17 @@ replay and cascades the private receipt; the existing account-merge guard stays
 closed while the terminal intent exists. This is admitted-only retirement, not a
 no-admission seal for an HTTP request still in flight and not blanket terminal
 remediation or permission for another provider invocation.
+
+The HTTP wrapper accepts at most 2 KiB and uses a scoped five-second service
+transport with an actual streamed 4-KiB response cap. It invokes one fixed RPC,
+propagates cancellation and regains control even if abort acknowledgement
+stalls. There is no automatic retry. Strict exact receipt decoding precedes a
+200 response; malformed server data or interrupted I/O returns sanitized 503.
+Invalid input is 400, missing/foreign/deleted work shares 404, and exact
+operation conflict is 409. Every response is private/no-store. No error or
+absent read releases occupancy; an uncertain reply requires the identical
+retained retirement request to recover its permanent receipt. No deployment is
+implied.
 
 The prepared native `analyzeObservation` transport preserves the complete saved
 request bytes, initiating account and 130-second timeout. It disables automatic

@@ -3032,6 +3032,13 @@ outcomes/drafts. Their false orchestration gate and SQL work claims are separate
 from native history reads, selection and legacy scan replacement. Neither
 endpoint is deployed or scheduled by this implementation.
 
+`retire-observation-analysis` separately authenticates explicit retirement of an
+exact admitted, never-dispatched operation. Its service-only SQL routine
+atomically prevents dispatch and saves a permanent receipt. The endpoint owns a
+scoped five-second/4-KiB transport and never supplies inference permission.
+`execution_retirement_api_enabled` stays false; native durable retirement and UI
+integration remain separate. No deployment or scheduling is authorized.
+
 ## Guest library transition owners
 
 The [canonical contract](./backend-and-data/21-guest-library-transitions.md)

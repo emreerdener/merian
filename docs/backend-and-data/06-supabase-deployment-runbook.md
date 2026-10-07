@@ -8745,3 +8745,23 @@ provider dispatch. Ordinary enrollment/history scheduling, legacy divergence,
 review/community writers, public/credit authority, privacy/deletion integration
 and the complete activation matrix still gate rollout. See the
 [prepared UI contract](../features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet).
+
+### Prepared analysis execution retirement hold
+
+`retire-observation-analysis` is authenticated prepared source, registered with
+`verify_jwt=false` because `withEdgeHandler` validates JWTs. It calls only the
+service-only retirement RPC introduced by migration
+`20261007115940_prepare_analysis_execution_retirement.sql`. Any separately
+authorized deployment must apply the reviewed migration before deploying this
+function. Keep `execution_retirement_api_enabled=false` and the independently
+prepared `execution_status_api_enabled=false`; registration is not activation.
+The route is included in the future authenticated-denial smoke list, which must
+not create a retirement request or open a gate.
+
+A configured endpoint enters ordinary function discovery on a future authorized
+deployment; default-off runtime controls do not exclude it from that inventory.
+No deployment, scheduling or gate change is authorized by implementation or
+local tests. Native durable retirement/UI, unknown-admission sealing and the
+remaining device/hosted/privacy qualifications remain separate. A timeout or
+absent status cannot authorize a successor or refund; only exact permanent
+retirement proof can establish this admitted-only terminal outcome.

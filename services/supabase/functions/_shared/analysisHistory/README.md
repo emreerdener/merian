@@ -702,3 +702,9 @@ locks, revokes live work and saves settlement, private erasure and receipt
 atomically. Unknown dispatch is denied without refund or successor. Native
 persistence/action integration and absent-operation seals are separate work; all
 activation gates remain false.
+
+The prepared `retire-observation-analysis` HTTP owner authenticates the user,
+then invokes the service-only retirement routine with the strict contract above.
+Its scoped five-second/4-KiB transport is separate from ordinary clients. No
+HTTP failure supplies retirement proof or provider execution permission. Native
+durable retirement and activation remain separate.

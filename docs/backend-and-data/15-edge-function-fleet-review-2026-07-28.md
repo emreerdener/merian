@@ -39,6 +39,14 @@ deadlines. It returns aggregate no-store counts and accepts no caller keys. No
 hosted schedule, deployment, credential change or activation is implied. See the
 [worker contract](05-api-contracts.md#prepared-private-evidence-cleanup-rpcs).
 
+**2026-10-07 retirement source addendum:** `retire-observation-analysis` adds an
+authenticated, default-off admitted-execution retirement boundary. Its scoped
+five-second/4-KiB service transport returns only an exact permanent receipt;
+errors never authorize replacement or inference. Canonical SQL locks prevent
+retirement racing a later dispatch. It is prepared source, not deployed or
+installed into native UI. See the
+[endpoint contract](../../services/supabase/functions/retire-observation-analysis/README.md).
+
 ## Scope
 
 This review inventories every configured deployable Supabase Edge Function
@@ -307,6 +315,7 @@ copy-publication-photos
 request-export-dwca
 resolve-purchase-principal
 restore-community-identification
+retire-observation-analysis
 revenuecat-webhook
 safe-delete
 scan-media-health
