@@ -10949,3 +10949,14 @@ historical non-execution. The failed local migration-anchor evidence and
 rejected draft are retained outside the candidate; no new backend migration
 ships with this native lookup checkpoint. Current unknown work remains held by
 contract.
+
+### Prepared audio contract verification
+
+`analysisHistory/audioManifest_test.ts` verifies the future-only manifest-3
+metadata limits, exact order, detached immutable values, Unicode boundary and
+rejection by current executable/photo routes. `audioContainer_test.ts` covers
+compact and zero-padded Core Audio RIFF containers, full byte consumption,
+PCM-field consistency, private/unknown/trailing chunk rejection and raw bounds.
+The whole-tree backend test task discovers both suites. Neither module grants
+upload, readiness, inference or reader compatibility; no native/device or audio
+end-to-end acceptance is implied by these pure tests.

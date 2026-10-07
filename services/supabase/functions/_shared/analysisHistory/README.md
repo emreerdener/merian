@@ -708,3 +708,19 @@ then invokes the service-only retirement routine with the strict contract above.
 Its scoped five-second/4-KiB transport is separate from ordinary clients. No
 HTTP failure supplies retirement proof or provider execution permission. Native
 durable retirement and activation remain separate.
+
+## Prepared audio manifest foundation
+
+`audioManifest.ts` validates a closed, immutable manifest-3 metadata value for
+one audio reference plus ordered descriptions. It does not verify WAV bytes,
+reserve storage, authorize inference or enter a current runtime route. Existing
+V2 photo admission and reader-9 contracts remain unchanged. The
+[versioned audio contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-audio-metadata-generation)
+records the coordinated upload, persistence, profile and reader work still
+required. `audioManifest_test.ts` covers closed keys, bounds, exact ordering,
+owned immutable values and rejection by current executable/photo paths.
+
+`audioContainer.ts` is the separate bounded full-container verifier for PCM16
+mono 44.1 kHz, compact headers or one zero-filled Core Audio `FLLR` chunk. It
+rejects unexamined/trailing chunks and transforms no bytes. Neither prepared
+module is connected to upload, SQL or provider execution in this checkpoint.

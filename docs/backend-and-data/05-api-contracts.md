@@ -15170,3 +15170,43 @@ validates the original local ticket before state synchronization and the
 returned full ticket before host projection. It closes the stale session without
 rewriting it or automatically opening/sending another question. All activation
 gates remain closed.
+
+### Prepared audio metadata generation
+
+`analysisHistory/audioManifest.ts` defines the isolated manifest-3 metadata
+contract before audio upload, persistence and execution are connected. It is not
+accepted by `parseExecutableAnalysisInput`, reader 9, existing SQL admission or
+the photo upload endpoint. Existing V2 photo bytes and replay remain unchanged.
+
+The exact object is `{schema_version:3,items:[...]}`. Ordered items contain
+exactly one `{kind:"audio",media_id,content_type:"audio/wav",byte_count,sha256}`
+and optional `{kind:"description",text}` entries, at most 64 total. The
+lowercase media UUID differs from observation and child IDs. Declared length is
+46 through 2,700,000 bytes; the digest is 64 lowercase hexadecimal characters.
+Description limits preserve 8,192 Unicode scalars and 16,384 UTF-16 units per
+entry and 32,000 UTF-16 units combined. Parsing owns and freezes descriptors
+without sorting or normalizing text. Paths, URLs, filenames, duration,
+owner/object identities and provider data are not accepted.
+
+This parser validates metadata only. Neither a claimed WAV MIME type nor a
+claimed digest proves content, ownership, readiness or historical provenance.
+`audioContainer.ts` separately verifies the complete mono 44.1 kHz PCM16 RIFF
+container: exact RIFF length, one 16-byte `fmt` chunk, consistent byte rate and
+block alignment, optional one zero-filled `FLLR` chunk (1–4,096 bytes, with zero
+padding), and one final nonempty even-length `data` chunk. Duplicate, unknown,
+private metadata and trailing chunks fail closed. A synthetic macOS Core Audio
+writer produced `fmt` / 4,044-byte `FLLR` / `data`; fixed 44-byte headers alone
+would reject that output. This is format evidence, not iOS/device qualification.
+The verifier never transforms bytes or establishes their digest/readiness.
+
+The subsequent coordinated checkpoint must allocate immutable upload receipts
+with fixed expiry, verify exact digests and bind the existing audio provider
+profile before quota. Native sidecars are transient until exact durable
+persistence; retries must not transcode again.
+
+The coordinated audio generation will use input schema 3 / manifest 3 / history
+capability 9 and result schema 4 / reader 10. Result schema 3 already represents
+imported saved identification and must not be repurposed. No current decoder is
+widened by this metadata checkpoint. Durable request canonicalization, native
+DTOs, upload/receipt authorization, SQL admission, result readers and execution
+must be reviewed together before this generation enters a runtime route.
