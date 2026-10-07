@@ -4,12 +4,14 @@ extension MerianNetworkClient {
     /// A closed route set keeps exact-byte replay out of the generic endpoint bridge.
     enum ObservationOperation {
         case uploadEvidence(@MainActor @Sendable () throws -> Void)
+        case uploadAudioEvidence(@MainActor @Sendable () throws -> Void)
         case analyze(IdentificationDispatchAuthorization)
         case publicationTarget
 
         var function: String {
             switch self {
             case .uploadEvidence: return "upload-observation-evidence"
+            case .uploadAudioEvidence: return "upload-observation-audio"
             case .analyze: return "analyze-observation"
             case .publicationTarget: return "get-observation-publication-target"
             }
@@ -31,6 +33,10 @@ extension MerianNetworkClient {
             case let .uploadEvidence(validate):
                 request.contentType = .octetStream
                 request.validateAttempt = validate
+            case let .uploadAudioEvidence(validate):
+                request.contentType = .octetStream
+                request.validateAttempt = validate
+                request.allowsRouteUnavailableRetry = false
             case let .analyze(authorization):
                 request.identificationAuthorization = authorization
             case .publicationTarget:

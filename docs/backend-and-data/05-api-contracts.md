@@ -15246,14 +15246,14 @@ entire prepared WAV container and exact digest before reservation, writes once,
 and verifies storage before completion.
 
 Audio and photo cohorts cannot share a child identity. Existing photo wire
-versions, descriptors and exact replay stay unchanged. Current protected
-admission and result readers still reject the new audio generation. Expiry
-cleanup retains the immutable cohort/object/deadline and enqueues opaque
-erasure; parent deletion removes private cohort data. Neither expiry, absence
-nor a successful upload permits provider dispatch, a successor operation or
-refund. Native integration, audio provider-profile binding and the coordinated
-input/result/reader generation remain later checkpoints. All activation gates
-remain false.
+versions, descriptors and exact replay stay unchanged. Protected input-3
+admission and reader-10 results now support the gated audio generation; native
+durable audio execution and V4 actions remain held. Expiry cleanup retains the
+immutable cohort/object/deadline and enqueues opaque erasure; parent deletion
+removes private cohort data. Neither expiry, absence nor a successful upload
+permits provider dispatch, a successor operation or refund. The gated backend
+binds the audio provider profile as described below; native durable integration
+remains a later checkpoint. All activation gates remain false.
 
 ### Private reanalysis audio upload
 
@@ -15297,10 +15297,16 @@ a completion guarantee: SQL expiry remains authoritative. A PUT accepted before
 cancellation or a late rejected completion can leave private bytes for
 independent erasure. It never permits replacement or a new expiry.
 
-Native upload transport and durable audio production remain subsequent
-checkpoints. Gated backend execution and result-4/reader-10 are described below.
-Upload readiness alone grants neither execution nor reader compatibility.
-Existing photo acceptance and saved replay remain unchanged.
+The separate native `ObservationAudioEvidenceUpload` validates owned WAV bytes
+and hashes them before producing this exact frame. Its fixed
+`uploadObservationAudioEvidence` route validates the expected owner and caller's
+claim before preparation, after preparation, after Auth before dispatch, and
+after the response. It disables transient, 401 and missing-route replay; the 4
+KiB decoder requires the exact audio descriptor and digest. Durable audio
+production and execution remain subsequent checkpoints. Gated backend execution
+and result-4/reader-10 are described below. Upload readiness alone grants
+neither execution nor reader compatibility. Existing photo acceptance and saved
+replay remain unchanged.
 
 ### Prepared audio request and draft contract
 
@@ -15320,6 +15326,15 @@ owner, profile, provider configuration, storage key or URL is accepted. The
 server admission reserves `multimodal_audio_v1`; its name is not a
 client-selected field. Valid metadata proves neither an uploaded WAV nor current
 consent, entitlement, quota or execution authority.
+
+Native `ObservationAudioReanalysisRequest` represents only reanalysis with a
+non-null exact source. It requires the same schema-3/audio contract, pins Gemini
+and history protocol 9 (distinct from result reader 10), rejects source/media
+identity aliases, and preserves ordered descriptions without normalization. Its
+native fingerprint is SHA-256 of sorted-key JSON without escaped slashes,
+excluding `request_digest`. Restoration verifies that fingerprint and retains
+the original saved bytes. A valid request is neither consent nor execution
+authority; dedicated durable audio admission remains unconnected.
 
 New request serialization is deterministic; it must never be used to rewrite
 stored V2 photo requests. The prepared draft revalidates the original saved

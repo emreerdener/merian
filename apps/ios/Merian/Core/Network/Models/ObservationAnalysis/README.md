@@ -73,3 +73,28 @@ ordered evidence obeys the same limits without assigning a placeholder provider.
 Extracting this validation changes neither the wire format nor its canonical
 request digest; the existing Unicode/order fingerprint fixture remains the
 compatibility check.
+
+## Separate immutable audio wire
+
+`ObservationAudioEvidenceUpload` prepares the fixed wire-1 audio frame using
+`ObservationAudioContainer` and SHA-256 off the main actor. Its receipt decoder
+accepts exactly one matching manifest-3 audio descriptor, with no storage or
+provider fields. The fixed audio endpoint preserves expected-owner leases and
+caller claim checks around preparation, Auth and response; automatic transient,
+401 and route replay are disabled. It does not reuse the photo upload parser.
+
+`ObservationAudioReanalysisRequest` separately prepares input 3, entitlement 3,
+identification 6 and history 9 with the fixed `google_gemini` processor. Reader
+10 is a result/action compatibility version, not this input's history protocol.
+The existing strict audio manifest decoder owns description/scalar/UTF-16 limits
+and descriptor validation. The request additionally rejects media equal to the
+source, verifies the native canonical SHA-256, and retains exact saved bytes.
+Current consent and server funding remain required; this value does not grant
+either. Schema-2 photo request parsing and saved replay remain unchanged.
+
+`ObservationAudioEvidenceUploadTests` covers binary framing, exact receipt
+association, malformed WAV rejection before I/O, account/claim fences and
+retry-free failures. `ObservationAudioReanalysisRequestTests` covers saved
+order/text/bytes, strict versions/processor, aliased identities, Unicode bounds,
+digest corruption and cross-generation refusal. These are wire-boundary tests;
+durable audio preparation, execution, private restore and UI remain pending.

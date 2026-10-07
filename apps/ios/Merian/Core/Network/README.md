@@ -4069,3 +4069,17 @@ TLS/redirect, cancellation and deadline rules. The existing protected-chat
 wrapper uses the same collector at its unchanged 32-KiB limit with its original
 claim-budget check and scoped session. Ordinary session limits remain unchanged.
 No arbitrary mutation capability or activation gate is exposed.
+
+### Separate protected audio wire boundary
+
+`ObservationAudioEvidenceUpload` and `ObservationAudioReanalysisRequest` are
+separate from saved photo contracts. The fixed
+`MerianNetworkClient+ObservationAudioEvidence` endpoint validates exact WAV
+bytes off the main actor, retains expected-owner and caller claim fences, and
+disables automatic transport/401/route retry. The bounded receipt must match the
+original audio descriptor and digest. Input-3 requests retain exact saved bytes
+and pin the audio processor; they do not grant execution. See the
+[wire owner](Models/ObservationAnalysis/README.md#separate-immutable-audio-wire)
+and
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#private-reanalysis-audio-upload).
+Durable audio production/delivery remains unconnected; gates stay false.
