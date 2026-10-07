@@ -12490,14 +12490,17 @@ the existing strict V1/V2 admission contract, derives owner from verified auth
 and IP HMAC from the trusted request boundary, and returns only
 `{schema_version:1, observation_id, analysis_id, state}`. Terminal states
 `complete`/`failed_terminal` return 200; admitted/dispatched/draft return 202.
-All responses are private/no-store. Transport failure requires the same analysis
-ID/input on retry. An immutable identity conflict from admission returns HTTP
-409 with `analysis_history_operation_conflict`; it does not invite endless retry
-of the conflicting input. Later worker-claim conflicts remain sanitized 503
-failures so retry can recover saved work. New analyses use fresh IDs. Completion
-never changes selection. V2 input is additionally limited to five photos and 5
-MiB combined before quota; storage's 32 MiB receipt allowance does not expand
-provider admission.
+All responses are private/no-store. Transport failure retains the same analysis
+ID/input. Once native dispatch permission is consumed, only non-dispatching
+outcome recovery is allowed; neither an absent result nor reopening authorizes
+another analyze invocation. An immutable identity conflict from admission
+returns HTTP 409 with `analysis_history_operation_conflict`; it does not invite
+endless retry of the conflicting input. Later worker-claim conflicts remain
+sanitized 503 failures; callers must distinguish safe outcome recovery from
+inference retry. New analyses use fresh IDs only for a separate explicit action,
+never as an uncertain-operation successor. Completion never changes selection.
+V2 input is additionally limited to five photos and 5 MiB combined before quota;
+storage's 32 MiB receipt allowance does not expand provider admission.
 
 The prepared native `analyzeObservation` transport preserves the complete saved
 request bytes, initiating account and 130-second timeout. It disables automatic
@@ -14558,7 +14561,12 @@ queue delivery or selection, and do not activate any gate.
 The prepared native `ObservationReanalysisExecutionStore` persists local attempt
 claims independently of provider execution identities. Fresh row/job
 compare-and-save rejects stale workers; retry and interrupted recovery retain
-the same immutable request. Evidence/consent/reconciliation holds and proven
+the same immutable request. Native bound metadata version seven adds a durable
+one-time dispatch boundary without changing the HTTP payload. Consumed or older
+version-one unknown requests permit only non-dispatching outcome recovery; an
+absent completed result is not permission to invoke analyze again. Exact
+full-snapshot CAS consumes the boundary before bytes leave, and an ambiguous
+save never grants dispatch. Evidence/consent/reconciliation holds and proven
 terminal failures remain held for explicit remediation. Local execution never
 claims or settles funding. Exact validated completion appends the child, retires
 only its transport work and records temporary-file erasure authority in one

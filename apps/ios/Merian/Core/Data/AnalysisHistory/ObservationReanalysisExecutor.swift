@@ -32,6 +32,12 @@ struct ObservationReanalysisExecutor {
     var dependencies: Dependencies
     var account = ObservationHistoryCloudClient.live
     var now: () -> Date = Date.init
+    var saveDispatch: (ModelContext) throws -> Void = { try $0.save() }
+
+    @MainActor private final class CurrentClaim {
+        var value: Store.Claim
+        init(_ value: Store.Claim) { self.value = value }
+    }
 
     func execute(_ expected: Store.Snapshot, admission: Store.Admission, container: ModelContainer,
                  isCurrent: @escaping @MainActor @Sendable () -> Bool) async throws -> Outcome {
@@ -40,38 +46,44 @@ struct ObservationReanalysisExecutor {
         let current: @MainActor @Sendable () -> Bool = {
             lease.session.userID == owner && account.isCurrent(lease) && isCurrent()
         }
-        let claim = try Store.claim(expected, admission: admission, now: now(), container: container, isCurrent: current)
+        let claim = CurrentClaim(try Store.claim(expected, admission: admission, now: now(), container: container, isCurrent: current))
         let validate: Validator = {
             try Task.checkCancellation()
-            try Store.validate(claim, container: container, isCurrent: current)
+            try Store.validate(claim.value, container: container, isCurrent: current)
         }
         let phase: Phase
         do {
-            phase = try await perform(claim.intent, validate: validate)
+            phase = try await perform(claim.value.intent, dispatch: claim.value.snapshot.dispatch, validate: validate) {
+                claim.value = try Store.consumeDispatch(claim.value, container: container, isCurrent: current, save: saveDispatch)
+            }
         } catch {
             // Stale/cancelled owners cannot settle over deletion or a newer claim.
             try validate()
             if error is CancellationError { throw error }
             let hold = Self.hold(for: error)
-            return try settle(claim, hold: hold, server: nil, container: container, current: current)
+            return try settle(claim.value, hold: hold, server: nil, container: container, current: current)
         }
         try validate()
         switch phase {
         case let .result(bytes):
             // Local save errors stay outside transport classification. A replacement owner recovers.
-            return .completed(try Store.complete(claim, resultBytes: bytes, container: container, isCurrent: current))
+            return .completed(try Store.complete(claim.value, resultBytes: bytes, container: container, isCurrent: current))
+        case .recoveryPending:
+            return try settle(claim.value, hold: nil, server: claim.value.snapshot.server, container: container, current: current)
         case let .receipt(state):
-            return try settle(claim, hold: state == .failedTerminal ? .terminalFailure : nil,
+            return try settle(claim.value, hold: state == .failedTerminal ? .terminalFailure : nil,
                 server: state, container: container, current: current)
         }
     }
 
-    private enum Phase { case result(Data), receipt(ObservationAnalysisReceipt.State) }
-    private func perform(_ intent: ObservationReanalysisIntent, validate: @escaping Validator) async throws -> Phase {
+    private enum Phase { case result(Data), receipt(ObservationAnalysisReceipt.State), recoveryPending }
+    private func perform(_ intent: ObservationReanalysisIntent, dispatch: ObservationReanalysisIntent.Dispatch,
+                         validate: @escaping Validator, consume: () throws -> Void) async throws -> Phase {
         try validate()
         let recovered = try await dependencies.recover(intent, validate)
         try validate()
         if let recovered { return .result(recovered) }
+        guard dispatch == .ready else { return .recoveryPending }
         let authorization = try await dependencies.authorize(intent, validate)
         try validate()
         guard authorization.recipient == intent.request.processor, authorization.recipient != .recoveryOnly else { throw MerianError.invalidResponse }
@@ -91,6 +103,8 @@ struct ObservationReanalysisExecutor {
         guard receipt.observationID == intent.request.observationID, receipt.analysisID == intent.request.analysisID,
               receipt.items == expectedPhotos else { throw ObservationHistoryError.resultConflict }
         try authorization.validate()
+        try consume()
+        try validate()
         let state = try await dependencies.analyze(intent, authorization)
         try validate()
         guard state.observationID == intent.request.observationID, state.analysisID == intent.request.analysisID else { throw MerianError.invalidResponse }

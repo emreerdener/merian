@@ -5980,12 +5980,16 @@ Prepared reanalysis jobs use `observationReanalysisSync` with the existing
 `scan-ingestion:<child UUID>` erasure index. A local version-2 `draft` envelope
 retains owner, parent/source/child and ordered evidence before recipient
 preflight, without a processor. One-time binding replaces only this metadata
-with the immutable version-1 owner/exact-request envelope; replay never changes
-a bound request or revives terminal work. The qualified V58 row supplies
-independent parent/source/owner routing and deletion linkage. The distinct raw
-kind excludes them from ordinary complimentary-funding restoration. Adding a raw
-string value changes no stored schema shape or retired snapshot. Atomic staging
-remains held until dedicated execution is connected.
+with the immutable version-seven owner/exact-request envelope and unused
+analyze-dispatch evidence. Atomic consumption records the original local attempt
+before an analyze call; subsequent attempts recover outcomes only. Version-one
+bound requests remain readable as unknown/recovery-only, without rewriting their
+bytes. Versions 2–6 retain their existing unbound meanings. Replay never changes
+a bound request, resets consumed evidence or revives terminal work. The
+qualified V58 row supplies independent parent/source/owner routing and deletion
+linkage. The distinct raw kind excludes them from ordinary complimentary-funding
+restoration. Adding a raw string value changes no stored schema shape or retired
+snapshot. Atomic staging remains held until dedicated execution is connected.
 
 Prepared publication jobs use
 `observation-publication:<observation UUID>:<operation UUID>` so atomic scan

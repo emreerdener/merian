@@ -189,4 +189,136 @@ struct ObservationReanalysisExecutorTests {
         #expect(next.intent == saved.intent && next.hold == .retryLimit && next.nextRun == nil)
         #expect(calls.phases.allSatisfy { $0 == "recover" })
     }
+    @Test(arguments: ["unknown", "cancelled"])
+    func consumedAttemptOnlyReadsOutcomeAfterInterruption(_ failure: String) async throws {
+        let container = try fixture.fixture.fixture.container(), saved = try stage(container), calls = Calls()
+        calls.after = { phase in
+            if phase == "analyze" {
+                if failure == "cancelled" { throw CancellationError() }
+                throw URLError(.networkConnectionLost)
+            }
+        }
+        do { _ = try await executor(calls).execute(saved, admission: .initial, container: container, isCurrent: { true }) } catch { #expect(error is CancellationError) }
+        var next = try snapshot(container)
+        #expect(next.dispatch == .consumed(attempt: 1))
+        calls.after = { _ in }; calls.phases = []
+        for _ in 0..<2 {
+            var worker = executor(calls); let due = next.nextRun ?? fixture.now; worker.now = { due }
+            _ = try await worker.execute(next, admission: next.status == .running ? .interrupted : .dueRetry,
+                container: container, isCurrent: { true })
+            next = try snapshot(container)
+        }
+        #expect(calls.phases == ["recover", "recover"])
+        #expect(next.dispatch == .consumed(attempt: 1) && next.intent == saved.intent)
+    }
+
+    @Test func preDispatchFailureCanRetrySameRequestOnce() async throws {
+        let container = try fixture.fixture.fixture.container(), saved = try stage(container), calls = Calls()
+        calls.after = { if $0 == "upload" { throw URLError(.networkConnectionLost) } }
+        _ = try await executor(calls).execute(saved, admission: .initial, container: container, isCurrent: { true })
+        let waiting = try snapshot(container)
+        #expect(waiting.dispatch == .ready)
+        calls.after = { _ in }; calls.phases = []; calls.state = .admitted
+        var worker = executor(calls); worker.now = { waiting.nextRun! }
+        _ = try await worker.execute(waiting, admission: .dueRetry, container: container, isCurrent: { true })
+        #expect(calls.phases == ["recover", "authorize", "read", "upload", "analyze"])
+        #expect(try snapshot(container).dispatch == .consumed(attempt: 2))
+    }
+
+    @Test(arguments: [false, true])
+    func dispatchSaveFailureNeverSendsAndCommittedUnknownRemainsRecoveryOnly(_ committed: Bool) async throws {
+        let container = try fixture.fixture.fixture.container(), saved = try stage(container), calls = Calls()
+        var worker = executor(calls)
+        worker.saveDispatch = { context in
+            if committed { try context.save() }
+            throw URLError(.cannotWriteToFile)
+        }
+        if committed {
+            await #expect(throws: (any Error).self) {
+                try await worker.execute(saved, admission: .initial, container: container, isCurrent: { true })
+            }
+        } else { _ = try await worker.execute(saved, admission: .initial, container: container, isCurrent: { true }) }
+        #expect(!calls.phases.contains("analyze"))
+        let stored = try snapshot(container)
+        #expect(stored.dispatch == (committed ? .consumed(attempt: 1) : .ready))
+        if committed {
+            calls.phases = []
+            _ = try await executor(calls).execute(stored, admission: .interrupted, container: container, isCurrent: { true })
+            #expect(calls.phases == ["recover"])
+        }
+    }
+
+    @Test func legacyBoundRequestCannotGainDispatchEvidenceOrAdmission() async throws {
+        let container = try fixture.fixture.fixture.container()
+        _ = try fixture.fixture.stage(container)
+        let (context, _, job) = try fixture.fixture.stored(container)
+        let original = try fixture.fixture.intent()
+        job.metadataJSON = String(data: try JSONSerialization.data(withJSONObject: [
+            "version": 1, "owner_id": original.ownerID.uuidString.lowercased(),
+            "request_base64": original.request.body.base64EncodedString()
+        ], options: [.sortedKeys]), encoding: .utf8)
+        try context.save()
+        let held = try Store.bindAndAdmit(.init(identity: original.identity, evidence: original.request.evidence),
+            processor: original.request.processor, now: fixture.now, container: container, isCurrent: { true })
+        #expect(held.dispatch == .legacyUnknown && held.status == .needsAttention)
+        var admission = ObservationReanalysisAdmission()
+        let calls = Calls()
+        admission.account = executor(calls).account
+        admission.authorizeBound = { _, _, _ in Issue.record("Legacy unknown must not authorize"); throw MerianError.invalidResponse }
+        let replay = try await admission.admit(.init(identity: original.identity, evidence: original.request.evidence),
+            container: container, isCurrent: { true })
+        #expect(replay == held)
+    }
+
+    @Test func consumedDispatchSurvivesDiskRestartAndRecoversWithoutInference() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("store.sqlite")
+        do {
+            let container = try fixture.fixture.fixture.container(url: url), saved = try stage(container), calls = Calls()
+            calls.after = { if $0 == "analyze" { throw URLError(.networkConnectionLost) } }
+            _ = try await executor(calls).execute(saved, admission: .initial, container: container, isCurrent: { true })
+        }
+        let reopened = try fixture.fixture.fixture.container(url: url, seed: false), waiting = try snapshot(reopened), calls = Calls()
+        var worker = executor(calls); worker.now = { waiting.nextRun! }
+        _ = try await worker.execute(waiting, admission: .dueRetry, container: reopened, isCurrent: { true })
+        #expect(calls.phases == ["recover"])
+        #expect(try snapshot(reopened).dispatch == .consumed(attempt: 1))
+    }
+
+    @Test(arguments: [OfflineJobStatus.running, .waiting])
+    func rewoundReadyEvidenceWithServerDispatchCannotRun(_ status: OfflineJobStatus) async throws {
+        let container = try fixture.fixture.fixture.container(), saved = try stage(container), calls = Calls()
+        let claim = try Store.claim(saved, admission: .initial, now: fixture.now, container: container, isCurrent: { true })
+        let (context, row, job) = try fixture.fixture.stored(container)
+        job.status = status; job.serverStatus = "dispatched"
+        job.nextRunAt = status == .waiting ? fixture.now : nil
+        row.queueLastServerStatus = job.serverStatus; row.queueNextRetryAt = job.nextRunAt
+        try context.save()
+        #expect(throws: (any Error).self) { try snapshot(container) }
+        let candidates = try Store.candidates(ownerID: saved.intent.ownerID, container: container, isCurrent: { true })
+        #expect(candidates.isEmpty)
+        await #expect(throws: (any Error).self) {
+            try await executor(calls).execute(claim.snapshot, admission: .interrupted, container: container, isCurrent: { true })
+        }
+        #expect(calls.phases.isEmpty)
+    }
+
+    @Test func admittedLegacyEnvelopeRecoversOnlyAndPreservesOriginalMetadata() async throws {
+        let container = try fixture.fixture.fixture.container(), saved = try stage(container), calls = Calls()
+        let (context, _, job) = try fixture.fixture.stored(container)
+        let legacy = try JSONSerialization.data(withJSONObject: [
+            "version": 1, "owner_id": saved.intent.ownerID.uuidString.lowercased(),
+            "request_base64": saved.intent.request.body.base64EncodedString()
+        ], options: [.sortedKeys])
+        job.metadataJSON = String(data: legacy, encoding: .utf8); try context.save()
+        let original = try snapshot(container)
+        _ = try await executor(calls).execute(original, admission: .initial, container: container, isCurrent: { true })
+        #expect(calls.phases == ["recover"])
+        let (_, _, retained) = try fixture.fixture.stored(container)
+        #expect(retained.metadataJSON == String(data: legacy, encoding: .utf8))
+        #expect(try snapshot(container).dispatch == .legacyUnknown)
+    }
+
 }

@@ -16,6 +16,7 @@ enum ObservationReanalysisExecutionStore {
     enum Settlement { case waiting(until: Date, server: ObservationAnalysisReceipt.State?), held(Hold) }
     struct Snapshot: Equatable, Sendable {
         let intent: ObservationReanalysisIntent
+        let dispatch: ObservationReanalysisIntent.Dispatch
         let status: OfflineJobStatus
         let attempt: Int
         let updatedAt: Date
@@ -118,7 +119,7 @@ enum ObservationReanalysisExecutionStore {
                 job.metadataJSON = metadata
             }
             let current = try snapshot(row, job)
-            guard current.status == .needsAttention, current.attempt == 0 else { return current }
+            guard current.status == .needsAttention, current.attempt == 0, current.dispatch == .ready else { return current }
             job.status = .pending; job.nextRunAt = now; job.updatedAt = now
             mirror(job, into: row)
             return try snapshot(row, job)
@@ -147,6 +148,20 @@ enum ObservationReanalysisExecutionStore {
         }
     }
 
+    /// Commit before analyze; a throwing save never yields dispatch permission.
+    /// The new full snapshot invalidates the pre-consumption claim immediately.
+    static func consumeDispatch(_ claim: Claim, container: ModelContainer, isCurrent: () -> Bool,
+                                save: (ModelContext) throws -> Void = { try $0.save() }) throws -> Claim {
+        try Persistence.transaction(claim.intent.identity, container: container, isCurrent: isCurrent, save: save) { context in
+            let (row, job) = try matching(claim.snapshot, context: context)
+            guard claim.snapshot.status == .running, claim.snapshot.dispatch == .ready else { throw Persistence.IntegrityError.conflict }
+            let bound = ObservationReanalysisIntent.Bound(intent: claim.intent, dispatch: .consumed(attempt: claim.snapshot.attempt))
+            guard let metadata = String(data: try bound.data(), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
+            job.metadataJSON = metadata
+            return Claim(snapshot: try snapshot(row, job))
+        }
+    }
+
     static func validate(_ claim: Claim, container: ModelContainer, isCurrent: () -> Bool) throws {
         try Persistence.transaction(claim.intent.identity, container: container, isCurrent: isCurrent, save: { try $0.save() }) { context in
             _ = try matching(claim.snapshot, context: context)
@@ -163,7 +178,8 @@ enum ObservationReanalysisExecutionStore {
             guard job.status == .running else { throw Persistence.IntegrityError.conflict }
             switch settlement {
             case let .waiting(until, server):
-                guard until.timeIntervalSince1970.isFinite, until > now, server != .failedTerminal else { throw Persistence.IntegrityError.conflict }
+                guard until.timeIntervalSince1970.isFinite, until > now, server != .failedTerminal,
+                      claim.snapshot.dispatch != .ready || server == nil else { throw Persistence.IntegrityError.conflict }
                 job.status = .waiting; job.nextRunAt = until; job.lastErrorCode = nil; job.serverStatus = server?.rawValue
             case let .held(reason):
                 job.status = .needsAttention; job.nextRunAt = nil; job.lastErrorCode = reason.rawValue
@@ -239,8 +255,14 @@ enum ObservationReanalysisExecutionStore {
               job.serverStage == nil, job.serverRetryAfter == nil,
               job.lastAttemptAt.map({ $0.timeIntervalSince1970.isFinite }) ?? true,
               job.nextRunAt.map({ $0.timeIntervalSince1970.isFinite }) ?? true else { throw Persistence.IntegrityError.conflict }
+        if case let .consumed(attempt) = stored.dispatch {
+            guard attempt <= job.attemptCount, job.attemptCount > 0 else { throw Persistence.IntegrityError.conflict }
+        }
         let hold = job.lastErrorCode.flatMap(Hold.init(rawValue:)), server = job.serverStatus.flatMap(ObservationAnalysisReceipt.State.init(rawValue:))
         guard job.lastErrorCode == hold?.rawValue, job.serverStatus == server?.rawValue else { throw Persistence.IntegrityError.conflict }
+        if stored.dispatch == .ready, stored.status != .needsAttention {
+            guard server == nil else { throw Persistence.IntegrityError.conflict }
+        }
         switch stored.status {
         case .needsAttention:
             guard job.nextRunAt == nil,
@@ -255,7 +277,7 @@ enum ObservationReanalysisExecutionStore {
                   (stored.status == .running) == (job.nextRunAt == nil) else { throw Persistence.IntegrityError.conflict }
         default: throw Persistence.IntegrityError.conflict
         }
-        return Snapshot(intent: stored.intent, status: stored.status, attempt: job.attemptCount, updatedAt: job.updatedAt,
+        return Snapshot(intent: stored.intent, dispatch: stored.dispatch, status: stored.status, attempt: job.attemptCount, updatedAt: job.updatedAt,
             lastAttempt: job.lastAttemptAt, nextRun: job.nextRunAt, hold: hold, server: server)
     }
 

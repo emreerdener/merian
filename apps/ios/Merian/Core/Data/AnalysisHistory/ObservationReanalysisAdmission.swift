@@ -62,7 +62,7 @@ struct ObservationReanalysisAdmission {
         case let .bound(saved):
             let snapshot = try ObservationReanalysisExecutionStore.read(draft.identity, container: container, isCurrent: current)
             // Admission replay reports the durable state, without re-preflight, permission I/O or revival.
-            guard snapshot.status == .needsAttention, snapshot.attempt == 0 else { return snapshot }
+            guard snapshot.status == .needsAttention, snapshot.attempt == 0, snapshot.dispatch == .ready else { return snapshot }
             authorization = try await authorizeBound(saved.intent.request.processor, draft.identity.ownerID, validate)
             guard authorization.recipient == saved.intent.request.processor else { throw ObservationReanalysisPersistence.IntegrityError.conflict }
         }

@@ -188,6 +188,25 @@ struct ObservationReanalysisPersistenceTests {
         try context.save()
         #expect(scheduler.nextPersistedWakeDate(using: manager) == nil)
     }
+    @Test func boundDispatchEnvelopeIsClosedAndCannotConfuseDraftVersions() throws {
+        let original = try intent(), ready = try original.storedData()
+        let row = try #require(JSONSerialization.jsonObject(with: ready) as? [String: Any])
+        #expect(try ObservationReanalysisIntent.Bound.decode(ready).dispatch == .ready)
+        for patch: [String: Any] in [
+            ["version": 6], ["dispatch_state": "legacy_unknown"], ["dispatch_attempt": 1],
+            ["dispatch_state": "consumed", "dispatch_attempt": NSNull()],
+            ["dispatch_state": "consumed", "dispatch_attempt": true],
+            ["dispatch_state": "consumed", "dispatch_attempt": 0],
+            ["dispatch_state": "consumed", "dispatch_attempt": 1.5]
+        ] {
+            let data = try JSONSerialization.data(withJSONObject: row.merging(patch) { _, new in new })
+            #expect(throws: (any Error).self) { try ObservationReanalysisIntent.Bound.decode(data) }
+        }
+        let consumed = try ObservationReanalysisIntent.Bound(intent: original, dispatch: .consumed(attempt: 2)).data()
+        #expect(try ObservationReanalysisIntent.decode(consumed) == original)
+        #expect(try ObservationReanalysisIntent.Bound.decode(consumed).dispatch == .consumed(attempt: 2))
+    }
+
 }
 
 @MainActor
@@ -308,4 +327,5 @@ struct ObservationReanalysisDraftTests {
         #expect(throws: (any Error).self) { try ObservationReanalysisDraft.decode(Data(repeating: 32, count: 1_044_481)) }
         #expect(throws: (any Error).self) { try ObservationReanalysisDraft(identity: original.identity, evidence: []) }
     }
+
 }

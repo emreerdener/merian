@@ -407,6 +407,19 @@ predicates and catalog assertions do not close those integration cases. Native
 install-over and UI evidence must use the normal iOS build/migration gates when
 those surfaces are implemented.
 
+### Reanalysis dispatch-boundary verification
+
+`ObservationReanalysisExecutorTests` proves that a consumed analyze boundary
+performs only exact outcome reads after unknown replies, cancellation and disk
+restart. It also covers pre-boundary upload retries, save-before-commit failure,
+commit-then-throw, old version-one held/admitted envelopes, and contradictory
+ready/server-dispatch evidence. `ObservationReanalysisExecutionTests` checks
+whole-snapshot claim replacement and one-time consumption;
+`ObservationReanalysisPersistenceTests` rejects ambiguous envelope versions,
+booleans, fractional attempts and unknown dispatch shapes. These tests do not
+prove permanent server retirement or hosted provider qualification; those remain
+separate slice-four and activation requirements.
+
 ### Durable confirmation Undo verification
 
 The

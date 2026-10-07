@@ -11,10 +11,14 @@ execution before any hold; transcoding is not implicit.
 
 The response is exactly
 `{schema_version:1, observation_id, analysis_id, state}`, with 200 for
-`complete`/`failed_terminal`, otherwise 202. It is private/no-store. Clients
-retry the same immutable input and analysis ID after transport failure, then
-retrieve completed results through the owner history reader. A fresh analysis ID
-requests another analysis. Completion appends; it never selects.
+`complete`/`failed_terminal`, otherwise 202. It is private/no-store. Native
+callers persist a one-time analyze boundary before sending. Once consumed or
+uncertain, they use non-dispatching exact outcome recovery; reopening, absence
+or explicit retry cannot authorize another provider invocation. Earlier bound
+native requests without that evidence are recovery-only. Completed results come
+from the owner history reader. A fresh analysis ID is a separate user request,
+never automatic recovery of uncertain execution. Completion appends; it never
+selects.
 
 Immutable request-identity conflicts during admission return HTTP 409 with
 `analysis_history_operation_conflict`. The caller must recover the original

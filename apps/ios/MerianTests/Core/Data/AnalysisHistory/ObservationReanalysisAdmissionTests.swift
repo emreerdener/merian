@@ -58,7 +58,8 @@ struct ObservationReanalysisAdmissionTests {
         if phase != "pending" {
             let claim = try Store.claim(pending, admission: .initial, now: fixture.now, container: container, isCurrent: { true })
             if phase == "waiting" {
-                try Store.settle(claim, as: .waiting(until: fixture.now.addingTimeInterval(30), server: .dispatched), now: fixture.now,
+                let dispatched = try Store.consumeDispatch(claim, container: container, isCurrent: { true })
+                try Store.settle(dispatched, as: .waiting(until: fixture.now.addingTimeInterval(30), server: .dispatched), now: fixture.now,
                     container: container, isCurrent: { true })
             } else if phase == "held" {
                 try Store.settle(claim, as: .held(.consentRequired), now: fixture.now, container: container, isCurrent: { true })

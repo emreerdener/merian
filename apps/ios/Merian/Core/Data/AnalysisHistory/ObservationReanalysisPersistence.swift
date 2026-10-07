@@ -7,6 +7,7 @@ enum ObservationReanalysisPersistence {
     struct Stored: Sendable {
         let intent: ObservationReanalysisIntent
         let status: OfflineJobStatus
+        let dispatch: ObservationReanalysisIntent.Dispatch
         var isTerminal: Bool { status == .complete || status == .cancelled }
     }
 
@@ -29,7 +30,7 @@ enum ObservationReanalysisPersistence {
             }
             try validateNew(context)
             try insert(intent.identity, paths: intent.photoPaths, metadata: intent.storedData(), context: context)
-            return Stored(intent: intent, status: .needsAttention)
+            return Stored(intent: intent, status: .needsAttention, dispatch: .ready)
         }
     }
 
@@ -64,7 +65,7 @@ enum ObservationReanalysisPersistence {
             case .draft:
                 guard let metadata = String(bytes: try candidate.storedData(), encoding: .utf8) else { throw IntegrityError.conflict }
                 job.metadataJSON = metadata
-                return Stored(intent: candidate, status: .needsAttention)
+                return Stored(intent: candidate, status: .needsAttention, dispatch: .ready)
             case .submitted:
                 // Submitted work requires source-proof validation and atomic execution admission.
                 throw IntegrityError.conflict
@@ -74,7 +75,7 @@ enum ObservationReanalysisPersistence {
 
     static func restoreDraft(_ expected: ObservationReanalysisDraft, row: OfflineQueuedScan, job: OfflineJobRecord) throws -> DraftState {
         guard let text = job.metadataJSON else { throw IntegrityError.conflict }
-        // Version 1 has a full request; its strict decoder rejects all draft and unknown envelopes.
+        // Bound versions retain a full request; strict decoding rejects unbound/unknown envelopes.
         if let bound = try? ObservationReanalysisIntent.decode(Data(text.utf8)) {
             let stored = try restore(row: row, job: job)
             guard bound.identity == expected.identity, bound.request.evidence == expected.evidence else { throw IntegrityError.conflict }
@@ -157,7 +158,8 @@ enum ObservationReanalysisPersistence {
         guard let metadata = job.metadataJSON,
               job.kindRaw == OfflineJobKind.observationReanalysisSync.rawValue,
               let status = OfflineJobStatus(rawValue: job.statusRaw) else { throw IntegrityError.conflict }
-        let intent = try ObservationReanalysisIntent.decode(Data(metadata.utf8))
+        let bound = try ObservationReanalysisIntent.Bound.decode(Data(metadata.utf8))
+        let intent = bound.intent
         let childID = intent.request.analysisID.uuidString.lowercased()
         guard row.work == .reanalysis(intent.identity), row.id == childID,
               row.inferenceImagePaths == intent.photoPaths,
@@ -167,6 +169,6 @@ enum ObservationReanalysisPersistence {
         if [.complete, .cancelled, .needsAttention].contains(status) {
             guard job.nextRunAt == nil else { throw IntegrityError.conflict }
         }
-        return Stored(intent: intent, status: status)
+        return Stored(intent: intent, status: status, dispatch: bound.dispatch)
     }
 }

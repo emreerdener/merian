@@ -1844,8 +1844,11 @@ completion validator rechecks the full V2 result, exact source and saved request
 digest, and the complete ordered manifest before atomic append; it does not
 apply selection or review state. Ordinary scheduler deadlines ignore qualified,
 invalid and orphan ingestion work; a separate strict owner-qualified reader now
-restores explicitly admitted reanalysis pending/waiting/running deadlines. See
-the
+restores explicitly admitted reanalysis pending/waiting/running deadlines. New
+bound metadata version seven durably consumes the first analyze attempt before
+network dispatch. Consumed work and older bound version-one work recover
+outcomes only; target absence never authorizes another analyze call. Unbound
+versions 2–6 and original request bytes remain compatible. See the
 [local persistence contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-immutable-reanalysis-staging).
 
 Offline preparation now has a strict local draft phase containing the permanent

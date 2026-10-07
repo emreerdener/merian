@@ -501,12 +501,14 @@ these fences and the disabled producer.
 ## Prepared immutable reanalysis staging
 
 `ObservationReanalysisIntent` retains the exact validated request bytes and
-owner in a bounded version-1 envelope. Its ordered local photo paths are derived
-from the immutable media UUIDs under `ReanalysisQueue/<child>/<media>.jpg` or
-`.png`. The preparation caller must durably copy verified input files there
-before staging; parent-owned file references are never adopted. Execution must
-recheck length and digest before private upload. This persistence boundary does
-not read files or claim that remote evidence is ready.
+owner in a bounded version-seven envelope. Original version-one envelopes stay
+readable as recovery-only unknown work. Its ordered local photo paths are
+derived from the immutable media UUIDs under
+`ReanalysisQueue/<child>/<media>.jpg` or `.png`. The preparation caller must
+durably copy verified input files there before staging; parent-owned file
+references are never adopted. Execution must recheck length and digest before
+private upload. This persistence boundary does not read files or claim that
+remote evidence is ready.
 
 `ObservationReanalysisPersistence.stage` writes the qualified V58 queue row and
 its dedicated `observationReanalysisSync` job in one fresh, non-autosaving
@@ -525,10 +527,10 @@ contains no processor, request body, URL or funding claim. It shares the final
 request's strict evidence validator without inventing a provider. `stageDraft`
 persists the same qualified child and job under the existing
 owner/source/deletion transaction. `bindDraft` compares the entire draft and
-replaces only its metadata with the version-1 immutable request envelope once a
-concrete recipient is available. `recoveryOnly` cannot bind a draft. The full
-saved request is required to recover an existing server intent; reconstructing
-it from today's provider is forbidden.
+replaces only its metadata with the version-seven immutable request envelope
+once a concrete recipient is available. `recoveryOnly` cannot bind a draft. The
+full saved request is required to recover an existing server intent;
+reconstructing it from today's provider is forbidden.
 
 Exact draft replay recovers an already-bound request without downgrading it.
 Binding to another processor, changing evidence, missing either row, attempted
@@ -795,13 +797,25 @@ bytes into `ObservationReanalysisExecutionStore.complete`. See the
 
 `ObservationReanalysisExecutor` now composes one claimed attempt. It owns an
 account lease and validates that lease, caller generation and saved claim around
-every suspension. Recovery comes first; only exact target absence proceeds to
+every suspension. Recovery comes first. Only a version-seven bound envelope with
+unused dispatch evidence may proceed from exact target absence to
 saved-processor consent, locked file verification, exact private upload and the
-original analyze request. Upload checks are repeated immediately before wire
-dispatch without adding inference headers to binary evidence. A complete receipt
-triggers a second target read; it never manufactures a result. Atomic completion
-returns the permanent erasure receipt so the execution coordinator can wake
-cleanup.
+original analyze request. Immediately before analyze, an atomic full-snapshot
+CAS consumes that permission and records the original local attempt. The
+executor replaces its current claim only after save succeeds; the after-Auth
+validator and settlement use that new exact snapshot. A save that commits and
+then throws never permits the call.
+
+Consumed envelopes and legacy version-one bound requests only read the original
+outcome. They never authorize, access/upload files or call analyze again, even
+after restart or continued target absence. Version one retains its original
+bytes; admission cannot upgrade it to fresh permission. Unbound versions 2–6
+remain unchanged. A local consumed marker is conservative evidence of possible
+execution, not proof of server dispatch, failure or safe retirement. Upload
+checks are repeated immediately before wire dispatch without adding inference
+headers to binary evidence. A complete receipt triggers a second target read; it
+never manufactures a result. Atomic completion returns the permanent erasure
+receipt so the execution coordinator can wake cleanup.
 
 Uncertain transport responses schedule the same request with bounded maintenance
 backoff. The tenth unsuccessful automatic attempt holds the same child with

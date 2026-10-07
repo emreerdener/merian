@@ -241,4 +241,16 @@ struct ObservationReanalysisExecutionTests {
         #expect(replacement.snapshot.attempt == 2 && replacement.intent == first.intent)
         #expect(throws: (any Error).self) { try Store.validate(first, container: reopened, isCurrent: { true }) }
     }
+    @Test func consumedDispatchReplacesWholeClaimAndCannotBeConsumedAgain() throws {
+        let container = try fixture.fixture.container(), original = try claim(container)
+        let consumed = try Store.consumeDispatch(original, container: container, isCurrent: { true })
+        #expect(consumed.snapshot.dispatch == .consumed(attempt: original.snapshot.attempt))
+        #expect(consumed.intent == original.intent)
+        #expect(throws: (any Error).self) { try Store.validate(original, container: container, isCurrent: { true }) }
+        #expect(throws: (any Error).self) { try Store.consumeDispatch(consumed, container: container, isCurrent: { true }) }
+        try Store.validate(consumed, container: container, isCurrent: { true })
+        let replay = try fixture.stage(container)
+        #expect(replay.dispatch == consumed.snapshot.dispatch)
+    }
+
 }
