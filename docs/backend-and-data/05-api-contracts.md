@@ -12502,6 +12502,25 @@ never as an uncertain-operation successor. Completion never changes selection.
 V2 input is additionally limited to five photos and 5 MiB combined before quota;
 storage's 32 MiB receipt allowance does not expand provider admission.
 
+`get_owned_observation_analysis_execution(p_request,p_reader:9)` is a separate
+owner-only, mutation-free execution read behind default-false
+`execution_status_api_enabled` plus `reader_enabled`. Its exact schema-1 request
+contains `observation_id`, `analysis_id`, explicit nullable
+`source_analysis_id`, and `request_digest`. The exact seven-field response
+echoes that request plus `owner_id` and `state`: `absent`, `admitted`,
+`dispatched`, `draft`, `complete`, or `failed_terminal`. Source and digest must
+match the original admitted input. It returns no private input, result, quota or
+lease. Owner/parent/deletion locks serialize it with dispatch and deletion.
+Current selection, review revision and inference consent cannot rebase the saved
+input.
+
+Every state is observational: `absent` is not a no-admission seal, retirement
+receipt or permission to dispatch; `complete` still needs exact immutable result
+recovery. The native fixed RPC uses a five-second timeout, 4-KiB strict decoder,
+expected owner and post-Auth claim validation with no transient, 401 or missing
+route retry. It is prepared independently of action UI and retirement authority;
+this checkpoint does not install either or change activation gates.
+
 The prepared native `analyzeObservation` transport preserves the complete saved
 request bytes, initiating account and 130-second timeout. It disables automatic
 transport retries and 401 session refresh so the durable owner controls

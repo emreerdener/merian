@@ -55,3 +55,26 @@ extension MerianNetworkClient {
         return ["details", "hint"].allSatisfy { row[$0] == nil || row[$0] is NSNull || row[$0] is String }
     }
 }
+
+/// Fixed reader-9 endpoint; does not expose arbitrary RPC or mutation access.
+struct ObservationReanalysisStatusTransport {
+    let baseURL: String
+    let dispatcher: AuthenticatedTransportDispatcher
+
+    func read(_ input: ObservationAnalysisExecutionLookup, ownerID: UUID,
+              validateAttempt: @escaping @MainActor @Sendable () throws -> Void) async throws -> ObservationAnalysisExecutionStatus {
+        try Task.checkCancellation()
+        try await validateAttempt()
+        guard let base = SecureTransportPolicy.httpsURL(from: baseURL) else { throw MerianError.invalidURL }
+        let body = try JSONSerialization.data(withJSONObject: ["p_request": input.object(), "p_reader": 9])
+        var request = AuthenticatedRequestExecutor.Request(
+            url: base.appendingPathComponent("rest/v1/rpc/get_owned_observation_analysis_execution"), method: "POST", body: body,
+            timeoutInterval: 5, idempotencyKey: nil, allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false,
+            onRequestBodySent: nil, authTransitionOwner: nil, expectedAuthUserID: ownerID, allowsRouteUnavailableRetry: false)
+        request.validateAttempt = validateAttempt
+        let (data, _) = try await AuthenticatedRequestExecutor.live(using: dispatcher).execute(request)
+        try Task.checkCancellation()
+        try await validateAttempt()
+        return try ObservationAnalysisExecutionStatus(data: data, request: input, ownerID: ownerID)
+    }
+}

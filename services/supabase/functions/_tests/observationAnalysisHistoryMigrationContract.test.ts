@@ -1266,3 +1266,38 @@ Deno.test("candidate confirmation retains v1 replay and binds v2 provenance in b
   );
   assert(!sql.includes("SET confirmation_api_enabled=TRUE"));
 });
+
+Deno.test("execution status is closed, owner locked and strictly non-dispatching", async () => {
+  const sql = await migration(
+    "20261007113127_prepare_owned_analysis_execution_status",
+  );
+  assertStringIncludes(
+    sql,
+    "execution_status_api_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+  );
+  assertStringIncludes(sql, "reader_enabled AND execution_status_api_enabled");
+  assertStringIncludes(sql, "p_reader IS DISTINCT FROM 9");
+  assertStringIncludes(
+    sql,
+    "internal.lock_owned_observation_evidence(caller, observation)",
+  );
+  assertStringIncludes(sql, "saved.owner_id IS DISTINCT FROM caller");
+  assertStringIncludes(
+    sql,
+    "saved.input_snapshot->>'source_analysis_id' IS DISTINCT FROM source::TEXT",
+  );
+  assertStringIncludes(
+    sql,
+    "'request_digest',p_request->>'request_digest','state',execution_state",
+  );
+  assertStringIncludes(sql, "FROM PUBLIC,anon,authenticated,service_role");
+  assertStringIncludes(sql, "TO authenticated");
+  const routine = sql.slice(sql.indexOf("DECLARE"), sql.indexOf("REVOKE ALL"));
+  assert(!/\b(INSERT|UPDATE|DELETE)\b/.test(routine));
+  assert(
+    !/internal\.(admit|claim|dispatch|fail|complete)_observation_analysis/.test(
+      routine,
+    ),
+  );
+  assert(!sql.includes("execution_status_api_enabled=TRUE"));
+});

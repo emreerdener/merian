@@ -15,6 +15,7 @@ struct ObservationReanalysisRequest: Sendable, Equatable {
     let processor: IdentificationRecipientExpectation
     let evidence: [Evidence]
     let body: Data
+    let requestDigest: String
 
     init(observationID: UUID, analysisID: UUID, sourceAnalysisID: UUID,
          processor: IdentificationRecipientExpectation, evidence: [Evidence]) throws {
@@ -56,7 +57,7 @@ struct ObservationReanalysisRequest: Sendable, Equatable {
         }
         self.evidence = try Self.decodeEvidence(row["evidence_manifest"], observationID: observation, analysisID: analysis)
         self.observationID = observation; self.analysisID = analysis; self.sourceAnalysisID = source
-        self.processor = processor; self.body = savedBody
+        self.processor = processor; self.body = savedBody; self.requestDigest = digest
     }
 
     /// Shared with the offline draft: evidence validation never needs an invented recipient.

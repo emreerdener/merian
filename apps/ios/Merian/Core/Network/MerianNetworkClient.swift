@@ -15,6 +15,7 @@ final class MerianNetworkClient {
     private let sessionTransport: PinnedNetworkTransport
     private let authenticatedTransport: AuthenticatedTransportDispatcher
     let observationHistoryMutationTransport: ObservationHistoryMutationTransport
+    func reanalysisStatusTransport() -> ObservationReanalysisStatusTransport { .init(baseURL: supabaseUrl, dispatcher: authenticatedTransport) }
 
     init() {
         let sessionTransport = PinnedNetworkTransport()

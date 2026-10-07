@@ -7558,3 +7558,16 @@ merge with `55000/field_chat_execution_merge_conflict`. The whole merge rolls
 back, preserving both owners and all attempt evidence. Neither operational quota
 retirement nor a user-controlled bypass resolves this conflict. Two terminal
 seals with the same UUID also block merge; no winner is selected.
+
+### Exact analysis execution status
+
+Migration `20261007113127_prepare_owned_analysis_execution_status.sql` adds
+false-by-default `execution_status_api_enabled` and authenticated-only
+`get_owned_observation_analysis_execution(jsonb,integer)`. Reader 9 and the
+existing history reader gate are required. The closed schema-1 request binds
+parent, child, nullable original source and request digest; the response echoes
+those fields and the authenticated owner with a closed execution state. The
+owner/parent lock helper checks deletion before the exact intent read. Scope
+conflicts fail closed; missing intent is only an observation, never permission
+to admit, dispatch, refund or retire. No rows, claims, funding, provider usage,
+selection or review authority change. Completion recovery remains separate.

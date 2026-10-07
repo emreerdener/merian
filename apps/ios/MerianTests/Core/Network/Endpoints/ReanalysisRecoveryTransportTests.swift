@@ -132,3 +132,103 @@ struct ReanalysisRecoveryTransportTests {
         #expect(sends.withLock { $0 } == 1)
     }
 }
+
+@MainActor
+@Suite("Observation Execution Status Transport")
+struct ObservationExecutionStatusTransportTests {
+    func reply(_ request: ObservationAnalysisExecutionLookup, owner: UUID, state: String = "absent") -> [String: Any] {
+        request.object().merging(["owner_id": owner.uuidString.lowercased(), "state": state]) { _, value in value }
+    }
+
+    @Test func strictStatusNeverBecomesExecutionPermission() throws {
+        let request = ObservationAnalysisExecutionLookup(try ObservationReanalysisResultTests().fixture().0), owner = UUID()
+        for state in ObservationAnalysisExecutionStatus.State.allCases {
+            let data = try JSONSerialization.data(withJSONObject: reply(request, owner: owner, state: state.rawValue))
+            #expect(try ObservationAnalysisExecutionStatus(data: data, request: request, ownerID: owner).state == state)
+        }
+        let valid = reply(request, owner: owner)
+        for (key, value) in ["schema_version": true, "owner_id": UUID().uuidString.lowercased(),
+                             "analysis_id": UUID().uuidString.lowercased(), "observation_id": UUID().uuidString.lowercased(),
+                             "source_analysis_id": NSNull(), "request_digest": String(repeating: "b", count: 64), "state": "held", "extra": true] as [String: Any] {
+            var changed = valid; changed[key] = value
+            #expect(throws: (any Error).self) {
+                try ObservationAnalysisExecutionStatus(data: JSONSerialization.data(withJSONObject: changed), request: request, ownerID: owner)
+            }
+        }
+        for key in valid.keys {
+            var changed = valid; changed.removeValue(forKey: key)
+            #expect(throws: (any Error).self) {
+                try ObservationAnalysisExecutionStatus(data: JSONSerialization.data(withJSONObject: changed), request: request, ownerID: owner)
+            }
+        }
+        for data in [Data("null".utf8), Data(), Data(repeating: 32, count: 4097)] {
+            #expect(throws: (any Error).self) { try ObservationAnalysisExecutionStatus(data: data, request: request, ownerID: owner) }
+        }
+    }
+
+    @Test func exactNullableSourceSupportedWithoutRelaxingPhotoReanalysis() throws {
+        let owner = UUID()
+        let lookup = try ObservationAnalysisExecutionLookup(observationID: UUID(), analysisID: UUID(), sourceAnalysisID: nil,
+                                                           requestDigest: String(repeating: "a", count: 64))
+        #expect(lookup.object()["source_analysis_id"] is NSNull)
+        let data = try JSONSerialization.data(withJSONObject: reply(lookup, owner: owner))
+        #expect(try ObservationAnalysisExecutionStatus(data: data, request: lookup, ownerID: owner).state == .absent)
+        var mismatched = reply(lookup, owner: owner); mismatched["source_analysis_id"] = UUID().uuidString.lowercased()
+        #expect(throws: (any Error).self) {
+            try ObservationAnalysisExecutionStatus(data: JSONSerialization.data(withJSONObject: mismatched), request: lookup, ownerID: owner)
+        }
+        #expect(throws: (any Error).self) {
+            try ObservationAnalysisExecutionLookup(observationID: owner, analysisID: owner, sourceAnalysisID: nil, requestDigest: String(repeating: "a", count: 64))
+        }
+    }
+
+    @Test(arguments: [200, 401, 503])
+    func fixedBoundedReadNeverRetries(status: Int) async throws {
+        let network = NetworkEndpointFixture(); defer { network.close() }
+        let owner = try #require(network.client.overridingAuthUserID), input = ObservationAnalysisExecutionLookup(try ObservationReanalysisResultTests().fixture().0)
+        let body = try #require(String(data: JSONSerialization.data(withJSONObject: reply(input, owner: owner)), encoding: .utf8))
+        let sends = OSAllocatedUnfairLock(initialState: 0), refreshes = OSAllocatedUnfairLock(initialState: 0)
+        network.client.overridingInferenceConsentCheck = { throw MerianError.aiConsentRequired }
+        network.client.overridingAuthSessionRefresh = { refreshes.withLock { $0 += 1 }; return true }
+        network.transport.register(path: "/get_owned_observation_analysis_execution") { wire in
+            sends.withLock { $0 += 1 }
+            #expect(wire.httpMethod == "POST" && wire.timeoutInterval == 5)
+            #expect(wire.value(forHTTPHeaderField: "Idempotency-Key") == nil)
+            let sentBody = try #require(MockURLProtocol.bodyData(for: wire))
+            let row = try #require(JSONSerialization.jsonObject(with: sentBody) as? [String: Any])
+            #expect(Set(row.keys) == ["p_request", "p_reader"] && row["p_reader"] as? Int == 9)
+            let sentRequest = try #require(row["p_request"] as? [String: Any])
+            #expect(NSDictionary(dictionary: sentRequest) == NSDictionary(dictionary: input.object()))
+            return try NetworkEndpointTestSupport.response(to: wire, status: status, json: body)
+        }
+        if status == 200 {
+            let value = try await network.client.reanalysisStatusTransport().read(input, ownerID: owner, validateAttempt: {})
+            #expect(value.state == .absent)
+        } else {
+            await #expect(throws: (any Error).self) {
+                try await network.client.reanalysisStatusTransport().read(input, ownerID: owner, validateAttempt: {})
+            }
+        }
+        #expect(sends.withLock { $0 } == 1 && refreshes.withLock { $0 } == 0)
+    }
+
+    @Test(arguments: [false, true])
+    func staleClaimBeforeDispatchOrAfterReplyCannotReturnStatus(afterReply: Bool) async throws {
+        let network = NetworkEndpointFixture(); defer { network.close() }
+        let owner = try #require(network.client.overridingAuthUserID), input = ObservationAnalysisExecutionLookup(try ObservationReanalysisResultTests().fixture().0)
+        let body = try #require(String(data: JSONSerialization.data(withJSONObject: reply(input, owner: owner)), encoding: .utf8))
+        let stale = OSAllocatedUnfairLock(initialState: false), sends = OSAllocatedUnfairLock(initialState: 0)
+        network.transport.register(path: "/get_owned_observation_analysis_execution") { wire in
+            sends.withLock { $0 += 1 }; stale.withLock { $0 = true }
+            return try NetworkEndpointTestSupport.response(to: wire, json: body)
+        }
+        var validations = 0
+        await #expect(throws: CancellationError.self) {
+            try await network.client.reanalysisStatusTransport().read(input, ownerID: owner, validateAttempt: {
+                validations += 1
+                if stale.withLock({ $0 }) || (!afterReply && validations == 2) { throw CancellationError() }
+            })
+        }
+        #expect(sends.withLock { $0 } == (afterReply ? 1 : 0))
+    }
+}

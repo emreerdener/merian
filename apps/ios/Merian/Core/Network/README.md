@@ -4034,3 +4034,19 @@ check immediately before starting the task uses the original claim expiry.
 `ProtectedInsightChatReply` retains both the validated completion and the exact
 bounded response bytes for `acknowledge`; no Codable reconstruction can omit
 required null fields before durable storage.
+
+### Exact reanalysis execution status
+
+`ObservationReanalysisStatusTransport` in the reanalysis recovery endpoint owns
+only `get_owned_observation_analysis_execution`. The client's narrow factory
+injects its existing authenticated dispatcher; no private transport visibility
+or generic RPC capability is widened. It sends reader 9 and the saved parent,
+child, source and digest with a five-second timeout. The dispatcher validates
+the durable attempt after Auth and before bytes leave; the read validates again
+after suspension. Automatic transient, 401 and route retries are disabled.
+`ObservationAnalysisExecutionStatus` requires the exact seven-field response,
+matching owner and immutable identity, and at most 4 KiB. It never interprets
+invalid or empty responses as absence. Status alone cannot dispatch, retire,
+release occupancy, append a result or change selection. The adapter remains
+inert until the dedicated recovery action owner supplies its account lease and
+claim checks; it does not replace completed-result recovery.

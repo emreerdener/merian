@@ -10813,3 +10813,21 @@ noted copies remain pending; validated legacy publications are protected. Actual
 caller roles, immutability and deletion are covered. The concurrency suite adds
 duplicate settlement, deletion in both orders, and binding/settlement in both
 orders. Provider approval and quota stay unchanged.
+
+### Reanalysis execution status boundary
+
+The default-off execution-status reader has a separate read-only contract. Run
+`observation_analysis_execution_status.sql` on the freshly replayed disposable
+database before the execution-status concurrency suite. Catalogs prove exact
+scope, grants, gate closure, all execution states, unchanged funding/intent
+records and deletion denial. Independent-session races exercise read-first,
+dispatch-first, observation deletion and account deletion.
+
+Native `ObservationExecutionStatusTransportTests`,
+`ReanalysisRecoveryTransportTests` and `ObservationReanalysisRequestTests` cover
+the exact seven-field status response, null original source, malformed
+responses, owner/claim fences and no hidden transport retry. These tests do not
+establish retirement or new-execution authority: absent and dispatched states
+remain observations only. Unknown original execution never permits an analyze
+replay. Full action-owner integration and retirement-versus-dispatch acceptance
+are subsequent slice-4 checkpoints, with media journeys still separately held.

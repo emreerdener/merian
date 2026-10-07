@@ -59,3 +59,15 @@ request, then let this endpoint own atomic funding/admission; a legacy child
 credit preclaim would conflict. See the canonical contract above for its exact
 3/6/8 request and eight-field response. The RPC remains behind the existing
 closed execution gates.
+
+## Non-dispatching execution status
+
+The separate authenticated reader-9 `get_owned_observation_analysis_execution`
+RPC reads the exact original parent/child/source/digest under owner/deletion
+locks. Its default-false `execution_status_api_enabled` gate is independent of
+provider admission. The response echoes identity and only `absent`, `admitted`,
+`dispatched`, `draft`, `complete` or `failed_terminal`. It is not an analyze
+replay: there is no quota, claim, provider call, refund or selection mutation.
+Absence is not a retirement or no-admission proof. Complete state still requires
+exact stored-result recovery; unknown dispatch remains non-dispatching.
+Retirement and user action integration require separate durable authority.
