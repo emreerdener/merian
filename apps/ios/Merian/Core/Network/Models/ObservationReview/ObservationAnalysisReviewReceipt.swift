@@ -30,7 +30,7 @@ struct ObservationAnalysisReviewReceipt: Equatable, Sendable {
               raw == "applied" || raw == "revision_conflict" || (raw == "not_verified" && request.decision.isConfirmation) else {
             throw MerianError.invalidResponse
         }
-        let requestKeys = ObservationAnalysisReviewRequest.keys(confirmation: request.decision.isConfirmation)
+        let requestKeys = ObservationAnalysisReviewRequest.keys(confirmation: request.decision.isConfirmation, candidate: request.decision.isCandidate)
         let extra: Set<String> = raw == "applied" ? ["outcome", "observation_revision", "review_revision"] : ["outcome"]
         guard Set(row.keys) == requestKeys.union(extra),
               try ObservationAnalysisReviewRequest.decode(row.filter { requestKeys.contains($0.key) }) == request else {

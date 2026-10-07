@@ -74,10 +74,13 @@ struct ConfirmationUndoEligibilityTests {
         #expect(throws: (any Error).self) { try recovered(ticket, operation: operation, named: true) }
         #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
     }
-    @Test func localReceiptMatchesOuterRevisionDespiteOlderParentAndDifferentNestedCounter() async throws {
-        let fixture = try await seed(), ticket = fixture.ticket
+    @Test(arguments: [false, true])
+    func localReceiptMatchesOuterRevisionDespiteOlderParentAndDifferentNestedCounter(candidate: Bool) async throws {
+        let fixture = try await seed(named: candidate), ticket = fixture.ticket
+        let decision: ObservationAnalysisReviewRequest.Decision = candidate
+            ? .confirmCandidate(try .init(analysisID: ticket.analysisID, ordinal: 1, scientificName: "Synthetic correction")) : .confirmPrimary
         let request = try ObservationAnalysisReviewRequest(observationID: ticket.observationID, analysisID: ticket.analysisID,
-            operationID: fixture.operation, expectedObservationRevision: 1, expectedReviewRevision: 1, decision: .confirmPrimary)
+            operationID: fixture.operation, expectedObservationRevision: 1, expectedReviewRevision: 1, decision: decision)
         var row = try #require(JSONSerialization.jsonObject(with: request.encoded()) as? [String: Any])
         row["outcome"] = "applied"; row["observation_revision"] = 2; row["review_revision"] = 2
         let receipt = try ObservationAnalysisReviewReceipt.decode(JSONSerialization.data(withJSONObject: row), request: request)

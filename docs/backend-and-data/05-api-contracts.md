@@ -13014,7 +13014,12 @@ membership. Optional candidate display fields do not establish identity.
 Confirmation Undo validates schema-2 membership again and retains `confirm_name`
 semantics: it removes the owner's correction and exposes the original AI
 identification unreviewed, preserving selection and immutable evidence. This
-backend checkpoint adds no native producer or alternatives-layout change.
+native foundation pairs each saved choice with its raw ordinal before display
+filtering and emits schema 2 only for an exact `confirmCandidate` decision.
+Fresh native admission revalidates the complete displayed ticket; durable
+requests and receipts preserve the reference across restart. Protected
+alternatives UI wiring remains a separate checkpoint, with no alternatives-card
+layout change.
 
 The service-only `prepare_observation_analysis_confirmation` RPC acquires owner
 → observation generation → owned live scan → history → target authority locks.

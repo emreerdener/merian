@@ -473,6 +473,20 @@ owner. Device and hosted qualification remain separate. All activation gates
 remain disabled; this document does not authorize rollout, deployment or
 distribution.
 
+### Immutable candidate correction verification
+
+`ObservationAnalysisReviewEndpointTests` verifies schema-2 nine-field requests,
+strict nested references, original confirmation routing and receipt binding,
+while retaining schema-1 coverage. `ObservationAnalysisReviewTicketTests` checks
+raw ordinals before filtering, duplicate names, unsupported representations and
+forged membership. `ObservationAnalysisReviewPersistenceTests` reopens a real
+on-disk store and proves the candidate request/receipt survives unchanged and
+cannot be rebound to another ordinal or a name-only request.
+`ConfirmationUndoEligibilityTests` includes applied candidate corrections with
+an older parent revision and an independent nested AI counter. These foundation
+tests do not establish protected alternatives UI handoff or end-to-end
+acceptance.
+
 ## In-Memory Database Containers (`SwiftData`)
 
 Test suites must not pollute the user's iOS files or application store. Ordinary

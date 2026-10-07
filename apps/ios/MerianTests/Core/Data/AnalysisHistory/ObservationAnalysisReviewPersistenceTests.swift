@@ -243,6 +243,29 @@ struct ObservationAnalysisReviewPersistenceTests {
         try Store.requireDispatch(claimed, at: now, container: container, isCurrent: { true })
     }
 
+    @Test func candidateReferenceAndReceiptSurviveDiskReopenWithoutRebinding() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("candidate.store")
+        let reference = try ObservationAnalysisCandidateReference(analysisID: analysis, ordinal: 1, scientificName: "Synthetic candidate")
+        let original = try request(.confirmCandidate(reference))
+        func write() throws {
+            let container = try container(url: url), pending = try stage(container, request: original)
+            _ = try acknowledge(pending, in: container)
+        }
+        try write()
+        let reopened = try container(url: url, seed: false)
+        let saved = try stage(reopened, request: original)
+        #expect(saved.hasReceipt && saved.request == original)
+        #expect(saved.requestSHA256 == (try ObservationAnalysisReviewIntent.fingerprint(original)))
+        let different = try ObservationAnalysisCandidateReference(analysisID: analysis, ordinal: 0, scientificName: reference.scientificName)
+        #expect(throws: (any Error).self) { try stage(reopened, request: request(.confirmCandidate(different))) }
+        #expect(throws: (any Error).self) { try stage(reopened, request: request(.confirmName(reference.scientificName))) }
+        let receiptClaim = try claim(saved, in: reopened)
+        #expect(throws: (any Error).self) { try Store.requireDispatch(receiptClaim, at: now, container: reopened, isCurrent: { true }) }
+    }
+
     @Test func receiptAndRejectAssociationSurviveDiskReopen() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

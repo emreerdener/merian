@@ -5,17 +5,19 @@ import Testing
 @MainActor
 struct ObservationAnalysisReviewTicketTests {
     func ticket(biological: Any = true, primary: PrimaryIdentification.Snapshot? = nil,
-                authorityPatch: [String: Any] = [:], revision: Int? = 0) throws -> ObservationAnalysisReviewTicket {
+                authorityPatch: [String: Any] = [:], revision: Int? = 0, resultPatch: [String: Any] = [:], version: Int = 3) throws -> ObservationAnalysisReviewTicket {
         let fixture = try ObservationHistoryStateTests().fixture()
         let state = try ObservationHistoryStateTests().decode(fixture)
         var envelope = try #require(JSONSerialization.jsonObject(with: state.result.bytes) as? [String: Any])
         var result = try #require(envelope["result"] as? [String: Any])
         result["is_biological_subject"] = biological
         result["primary_identification"] = try primary.map { try JSONSerialization.jsonObject(with: JSONEncoder().encode($0)) } ?? NSNull()
+        result.merge(resultPatch) { _, next in next }
+        envelope["schema_version"] = version
         envelope["result"] = result
         var authority = try #require(JSONSerialization.jsonObject(with: state.review.data) as? [String: Any])
         authority.merge(authorityPatch) { _, new in new }
-        let raw = ObservationHistoryPage.Result(version: 3, photos: [], analysisID: state.result.analysisID,
+        let raw = ObservationHistoryPage.Result(version: version, photos: [], analysisID: state.result.analysisID,
             completedAt: nil, importedAt: state.result.importedAt, bytes: try JSONSerialization.data(withJSONObject: envelope))
         let entry = ObservationHistoryListingService.Entry(result: raw, display: nil,
             authority: try ObservationHistoryAuthority.decode(authority), reviewRevision: revision)
@@ -31,6 +33,28 @@ struct ObservationAnalysisReviewTicketTests {
         #expect(request.expectedObservationRevision == 1 && request.expectedReviewRevision == 0)
         #expect(throws: (any Error).self) { try ticket.request(.confirmPrimary, operationID: UUID()) }
         #expect(throws: (any Error).self) { try ticket.request(.undo(rejectionOperationID: UUID()), operationID: UUID()) }
+    }
+
+    @Test func candidateChoicesRetainRawOrdinalAndRejectUnsupportedEvidence() throws {
+        let primary = try PrimaryIdentification.Snapshot(resolution: .species, scientificName: "Synthetic primary", commonName: nil)
+        let first: [String: Any] = ["taxon_rank": "species", "scientific_name": "Synthetic same", "confidence_score": 0.4]
+        let second: [String: Any] = ["taxon_rank": "species", "scientific_name": "Synthetic same", "confidence_score": 0.2]
+        let reviewed = try ticket(primary: primary, resultPatch: ["candidates": [first, second]], version: 2)
+        #expect(reviewed.candidateChoices.map(\.reference.ordinal) == [0, 1])
+        #expect(reviewed.candidateChoices[0].reference != reviewed.candidateChoices[1].reference)
+        let chosen = reviewed.candidateChoices[1].reference
+        #expect(try reviewed.request(.confirmCandidate(chosen), operationID: UUID()).decision == .confirmCandidate(chosen))
+        let forged = try ObservationAnalysisCandidateReference(analysisID: reviewed.analysisID, ordinal: 1, scientificName: "Synthetic forged")
+        #expect(throws: (any Error).self) { try reviewed.request(.confirmCandidate(forged), operationID: UUID()) }
+        #expect(try ticket(primary: primary, resultPatch: ["candidates": [first]], version: 1).candidateChoices.count == 1)
+        #expect(try ticket(primary: primary, resultPatch: ["candidates": [first]], version: 3).candidateChoices.isEmpty)
+        #expect(try ticket(resultPatch: ["candidates": [first]], version: 2).candidateChoices.isEmpty)
+        for candidates: Any in [[], [first, second, first], ["bad"], NSNull(), [first.merging(["taxon_rank": NSNull()]) { _, next in next }],
+            [first.merging(["confidence_score": true]) { _, next in next }], [first.merging(["confidence_score": 2]) { _, next in next }]] {
+            #expect(try ticket(primary: primary, resultPatch: ["candidates": candidates], version: 2).candidateChoices.isEmpty)
+        }
+        let filtered = try ticket(primary: primary, resultPatch: ["candidates": [first.merging(["scientific_name": ""]) { _, next in next }, second]], version: 2)
+        #expect(filtered.candidateChoices.map(\.reference.ordinal) == [1])
     }
 
     @Test func numericTrueMissingBiologyAndMissingRevisionNeverAuthorize() throws {

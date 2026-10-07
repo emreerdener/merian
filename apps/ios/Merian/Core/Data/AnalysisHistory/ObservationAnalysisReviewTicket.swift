@@ -15,6 +15,7 @@ struct ObservationAnalysisReviewTicket: Equatable {
     let canReject: Bool
     let canConfirmPrimary: Bool
     let canConfirmName: Bool
+    let candidateChoices: [ObservationAnalysisCandidateChoice]
     let rejectionOperationID: UUID?
     let confirmationOperationID: UUID?
     let confirmationAction: ObservationConfirmationAction?
@@ -48,6 +49,8 @@ struct ObservationAnalysisReviewTicket: Equatable {
         primaryScientificName = primary?.scientificName
         canReject = available && authority.state != .userOverridden && (authority.aiReview?.state ?? .clear) == .clear
         canConfirmName = available && primary != nil
+        candidateChoices = available && (try? ObservationAnalysisReviewWire.integer(envelope?["schema_version"])) == entry.result.version
+            ? ObservationAnalysisCandidateChoice.extract(result: result, version: entry.result.version, analysisID: entry.result.analysisID) : []
         // Reuse the exact explicit-name wire validator, including UTF-16 bounds.
         canConfirmPrimary = available && primary?.resolution == .species && primary?.scientificName.map {
             (try? ObservationAnalysisReviewRequest(observationID: observationID, analysisID: entry.result.analysisID,
@@ -73,6 +76,7 @@ struct ObservationAnalysisReviewTicket: Equatable {
         case .reject: allowed = canReject
         case .confirmPrimary: allowed = canConfirmPrimary
         case .confirmName: allowed = canConfirmName
+        case let .confirmCandidate(reference): allowed = canConfirmName && candidateChoices.contains { $0.reference == reference }
         case let .undoConfirmation(operation): allowed = confirmationOperationID == operation && confirmationAction != nil
         case let .undo(rejectionID): allowed = rejectionOperationID == rejectionID
         }

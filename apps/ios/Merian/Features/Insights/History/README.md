@@ -286,3 +286,26 @@ changed record explains unavailability and never enables a legacy mutation. Undo
 restores unreviewed AI authority without confirmation, evidence replacement or
 selection change. This composition remains inert while ordinary access is
 disabled.
+
+## Immutable candidate correction foundation
+
+`ObservationAnalysisReviewTicket.candidateChoices` derives alternatives directly
+from the saved result, pairing each display value with its original raw array
+ordinal and analysis ID before filtering or reordering. Only the supported
+species-ranked V1/V2 representation is eligible. Duplicate scientific names
+remain distinct members; display labels and mutable parent candidates never
+establish membership.
+
+The handwritten review request emits schema 2 only for `confirmCandidate`, with
+an exact nested reference and the original scientific name. Existing schema-1
+requests remain unchanged. Fresh admission reconstructs and compares the whole
+displayed ticket, including immutable result bytes, before saving. Durable
+fingerprints, claims and receipts retain the reference across restart; a
+name-only request or different ordinal cannot replace that operation. Candidate
+corrections remain `confirm_name` authority for confirmation Undo, which
+restores the original AI identification without changing selection.
+
+This foundation does not yet connect the alternatives UI. The legacy swipe
+session uses scientific names as identity and cannot carry protected provenance.
+Its card design and layout remain unchanged; protected wiring must retain the
+exact choice through the existing review owner and final synchronous admission.

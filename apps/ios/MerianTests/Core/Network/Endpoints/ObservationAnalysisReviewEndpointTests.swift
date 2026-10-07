@@ -43,6 +43,36 @@ struct ObservationAnalysisReviewEndpointTests {
             #expect(throws: (any Error).self) { try ObservationAnalysisReviewReceipt.decode(Self.receipt(request, outcome: "not_verified"), request: request) }
         }
     }
+    @Test func candidateReferenceRoundTripAndFixedConfirmationRoute() async throws {
+        let reference = try ObservationAnalysisCandidateReference(analysisID: Self.analysis, ordinal: 1, scientificName: "Examplea alternative")
+        let decision = ObservationAnalysisReviewRequest.Decision.confirmCandidate(reference), request = try Self.input(decision)
+        let row = try Self.row(request)
+        #expect(row.count == 9 && row["schema_version"] as? Int == 2 && row["action"] as? String == "confirm_name")
+        #expect(try ObservationAnalysisReviewRequest.decode(request.encoded()) == request)
+        for outcome in ["applied", "not_verified", "revision_conflict"] {
+            let receipt = try ObservationAnalysisReviewReceipt.decode(Self.receipt(request, outcome: outcome), request: request)
+            #expect(receipt.request == request)
+            #expect(try ObservationAnalysisReviewReceipt.decode(receipt.encoded(), request: request) == receipt)
+        }
+        try await fixedRoutesCarryOriginalOperationAndOwner(decision)
+        let referenceRow = try #require(row["candidate_reference"] as? [String: Any])
+        for patch: [String: Any] in [["ordinal": 2], ["ordinal": true], ["ordinal": -1], ["version": 2],
+            ["analysis_id": Self.observation.uuidString.lowercased()], ["representation": "display_candidates"], ["name": "Examplea alternative"]] {
+            var changed = row; changed["candidate_reference"] = referenceRow.merging(patch) { _, next in next }
+            #expect(throws: (any Error).self) { try ObservationAnalysisReviewRequest.decode(Self.data(changed)) }
+        }
+        for patch: [String: Any] in [["schema_version": 1], ["schema_version": 3], ["action": "confirm_primary"], ["scientific_name": NSNull()]] {
+            #expect(throws: (any Error).self) { try ObservationAnalysisReviewRequest.decode(Self.data(row.merging(patch) { _, next in next })) }
+        }
+        var changed = try Self.row(request); changed["candidate_reference"] = referenceRow.merging(["ordinal": 0]) { _, next in next }
+        let other = try ObservationAnalysisReviewRequest.decode(Self.data(changed))
+        #expect(throws: (any Error).self) { try ObservationAnalysisReviewReceipt.decode(Self.receipt(other), request: request) }
+        #expect(throws: (any Error).self) {
+            try ObservationAnalysisReviewRequest(observationID: Self.observation, analysisID: Self.observation, operationID: Self.operation,
+                expectedObservationRevision: 8, expectedReviewRevision: 2, decision: decision)
+        }
+    }
+
     @Test func exactRequestRejectsDriftAndBounds() throws {
         let original = try Self.row(Self.input())
         let patches: [[String: Any]] = [["schema_version": true], ["expected_review_revision": true],
