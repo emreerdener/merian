@@ -483,9 +483,11 @@ forged membership. `ObservationAnalysisReviewPersistenceTests` reopens a real
 on-disk store and proves the candidate request/receipt survives unchanged and
 cannot be rebound to another ordinal or a name-only request.
 `ConfirmationUndoEligibilityTests` includes applied candidate corrections with
-an older parent revision and an independent nested AI counter. These foundation
-tests do not establish protected alternatives UI handoff or end-to-end
-acceptance.
+an older parent revision and an independent nested AI counter.
+`AnalysisCandidateReviewModelTests` covers duplicate-name navigation, exact
+candidate submission, stale scope/token/authority, pending work, and dismissal
+with an uncertain save retained by the host. These foundation tests do not
+establish protected alternatives UI handoff or end-to-end acceptance.
 
 ## In-Memory Database Containers (`SwiftData`)
 

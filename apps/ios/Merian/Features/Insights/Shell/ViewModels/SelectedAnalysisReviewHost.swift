@@ -91,6 +91,17 @@ final class SelectedAnalysisReviewHost {
         }, submit: { [weak self] name in self?.submit(.confirmName(name), token: token) })
     }
 
+    func prepareCandidateConfirmation(token: UUID, isCurrent: @escaping () -> Bool) -> AnalysisCandidateReviewModel? {
+        guard isCurrent(), accepts(token), let key, let session, let model,
+              session.matchesDisplayedTicket(), model.canSubmit, !model.ticket.candidateChoices.isEmpty,
+              (try? session.access.pending() == nil) == true else { return nil }
+        return .init(review: model, isCurrent: { [weak self] in
+            guard let self else { return false }
+            return isCurrent() && self.token == token && self.key == key && self.model === model
+                && self.scopeIsCurrent && session.matchesDisplayedTicket()
+        }, confirm: { [weak self] reference in self?.submit(.confirmCandidate(reference), token: token) })
+    }
+
     func submit(_ decision: ObservationAnalysisReviewRequest.Decision, token: UUID) {
         guard accepts(token) else { return }
         model?.submit(decision)

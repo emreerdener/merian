@@ -309,3 +309,12 @@ This foundation does not yet connect the alternatives UI. The legacy swipe
 session uses scientific names as identity and cannot carry protected provenance.
 Its card design and layout remain unchanged; protected wiring must retain the
 exact choice through the existing review owner and final synchronous admission.
+
+The prepared `AnalysisCandidateReviewModel` borrows a retained review and keeps
+original candidate references through skip, local dismissal and restart. Local
+deck actions never mark an analysis incorrect or exhaust saved alternatives.
+`SelectedAnalysisReviewHost.prepareCandidateConfirmation` captures the host key,
+token, model and displayed ticket, checks unfinished work, and revalidates scope
+at the final synchronous submission. Closing the deck leaves the host's
+uncertain request available for exact retry. The owner is prepared for UI
+integration; no alternatives control is connected by this checkpoint.
