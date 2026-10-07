@@ -149,6 +149,11 @@ The findings ledger and local evidence inventory remain under
 core-invariant medium finding remains unresolved at source-review level. This
 statement does not waive final CI or the separate qualification below.
 
+Agent Quality600 caught missing catalog entries for the two new review RFCs. The
+follow-up registers them only as supporting engineering documents and
+regenerates the register; no study, dataset or capability assessment changes.
+The full local `validate-agent-assets` gate passed after correction.
+
 Failed evidence remains retained: the first added audio fixture used an invalid
 test API; the next presentation fixture omitted required authority origin. Both
 were corrected. A later full run was intentionally stopped after IR-06 was

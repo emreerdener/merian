@@ -733,3 +733,9 @@ are not additional paid studies and are not summed with the entries above.
 - [Prepared Gemini photo return based on beta feedback](../../../docs/rfcs/identification-gemini-photo-return-2026-10-03.md)
   — Product routing decision and prepared migration; not a new paid study or
   benchmark qualification.
+- [Identification-history integrated review plan](../../../docs/rfcs/identification-history-integrated-review-plan-2026-10-07.md)
+  — Supporting feature integration review; software validation only, not an
+  identification experiment or production qualification.
+- [Integrated identification-history review results](../../../docs/rfcs/identification-history-integrated-review-results-2026-10-07.md)
+  — Supporting feature integration review; software validation only, not an
+  identification experiment or production qualification.
