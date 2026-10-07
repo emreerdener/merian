@@ -43,6 +43,25 @@ struct IdentificationHistoryViewModelTests {
         }
         func model() -> IdentificationHistoryViewModel { .init(dependencies: dependencies, didAdmit: { self.admissions += 1 }) }
     }
+    @Test func completionRefreshesListButKeepsOpenExactPreviewUntilBack() async {
+        let fixture = Fixture(), model = fixture.model()
+        await model.perform(.newest)
+        model.refreshForLibraryChange()
+        while fixture.reads < 2 || model.isBusy { await Task.yield() }
+        #expect(model.selected == fixture.a && fixture.prepares == 0)
+        await Task.yield()
+        await model.perform(.preview(fixture.a))
+        let reads = fixture.reads
+        model.refreshForLibraryChange(); model.refreshForLibraryChange()
+        await Task.yield()
+        #expect(model.detail?.row.id == fixture.a && fixture.reads == reads)
+        model.back()
+        while fixture.reads == reads || model.isBusy { await Task.yield() }
+        #expect(fixture.reads == reads + 1 && model.detail == nil && model.selected == fixture.a)
+        fixture.current = false; model.refreshForLibraryChange()
+        #expect(model.isClosed && model.rows.isEmpty)
+    }
+
     @Test func previewIsReadOnlyAndRestoreUndoUseAcknowledgedIdentity() async {
         let fixture = Fixture(), model = fixture.model()
         await model.perform(.newest); await model.perform(.preview(fixture.b))
@@ -60,6 +79,10 @@ struct IdentificationHistoryViewModelTests {
         await model.perform(.newest); await model.perform(.preview(fixture.b)); fixture.failSend = true
         await model.perform(.restore)
         let operation = fixture.operation
+        let reads = fixture.reads
+        model.refreshForLibraryChange()
+        await Task.yield()
+        #expect(fixture.reads == reads && fixture.operation == operation)
         #expect(model.pending && model.selected == fixture.a && model.undoOperation == nil)
         await model.perform(.restore)
         #expect(fixture.prepares == 1 && fixture.operation == operation)

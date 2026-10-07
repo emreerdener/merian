@@ -219,3 +219,31 @@ Confidence's protected reanalysis handoff remains independent. Ordinary
 unenrolled scans retain their existing controls. This wiring is prepared behind
 disabled gates; see the canonical Insight contract for activation and remaining
 qualification.
+
+## Integrated review: proposal and rejection are distinct
+
+Only an explicit `aiRejected` state displays **Incorrect**. The legacy
+replacement flow preserves its existing carry contract: a new proposal is
+`awaitingAcceptance`, displays **Review new result**, and needs explicit
+acceptance. It has not been rejected by the user. A settled species-level
+proposal offers **Accept this identification** even without alternative
+candidates. Pending sync, damaged review and ineligible acceptance explain why
+further actions are unavailable. Broader identifications can use community help.
+
+Prepared history reanalysis instead appends a separate unreviewed result and
+preserves the selected result and its authority. It does not invoke legacy
+carry. Viewing a completed result and using it remain separate actions.
+
+The confidence card receives the same retained, receipt-bound protected Undo
+control as the main menu. Both Shell and engine presentation scopes are checked
+at invocation. Unavailable reversal is explained; no Undo confirms a species or
+reverses another result's rejection. Delayed rejection, confirmation, Undo and
+candidate-override callbacks cannot act on a later displayed subject or review.
+Each legacy action captures the exact review shown with the action: the UI and
+coordinator recheck it, and the existing write transaction compares it with
+fresh durable authority before creating an intent. Candidate controls and
+delayed child-dismissal handoffs retain that same review. Both authority-free
+persistence paths compare it before saving; a denied legacy save stops remote
+synchronization rather than treating a no-op as success. Alternatives never make
+an obsolete proposal callback eligible after rejection. Rollout gates remain
+disabled.

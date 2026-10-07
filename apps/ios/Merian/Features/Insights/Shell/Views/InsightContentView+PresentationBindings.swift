@@ -199,7 +199,8 @@ extension InsightContentView {
         switch request.action {
         case .applyOverride(let scientificName):
             Task { @MainActor in
-                guard ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: request.scanId, container: modelContext.container),
+                guard let expectedReview = request.expectedReview, inferenceEngine.speciesData?.aiReview == expectedReview,
+                      ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: request.scanId, container: modelContext.container),
                       viewModel.isPresentingLocalRecord(
                     scanId: request.scanId,
                     generation: pending.localPresentationGeneration
@@ -211,12 +212,15 @@ extension InsightContentView {
                 await inferenceEngine.applyIdentificationOverride(
                     scientificName: scientificName,
                     expectedScanId: request.scanId,
-                    modelContext: modelContext
+                    modelContext: modelContext, expectedReview: expectedReview
                 )
             }
         case .confirmOriginal:
             Task { @MainActor in
-                guard ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: request.scanId, container: modelContext.container),
+                guard let expectedReview = request.expectedReview,
+                      inferenceEngine.speciesData?.aiReview == expectedReview,
+                      inferenceEngine.scanPresentationGeneration == request.presentationGeneration,
+                      ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: request.scanId, container: modelContext.container),
                       viewModel.isPresentingLocalRecord(
                     scanId: request.scanId,
                     generation: pending.localPresentationGeneration
@@ -225,7 +229,7 @@ extension InsightContentView {
                 }
                 await inferenceEngine.confirmAIIdentification(
                     expectedScanId: request.scanId,
-                    modelContext: modelContext
+                    modelContext: modelContext, expectedReview: expectedReview
                 )
             }
         case .askCommunity:

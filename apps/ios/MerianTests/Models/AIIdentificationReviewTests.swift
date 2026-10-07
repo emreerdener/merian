@@ -9,6 +9,56 @@ struct AIIdentificationReviewTests {
     let scanID = "00000000-0000-4000-8000-000000000001"
     let ownerID = UUID(uuidString: "00000000-0000-4000-8000-000000000002")!
 
+    @Test func proposalAcceptanceComparesFreshDurableReviewBeforeCreatingIntent() throws {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer(), context = ModelContext(container)
+        let expected = LocalAIIdentificationReview(authority: .init(revision: 2, state: .awaitingAcceptance,
+            originScanID: scanID, originIdentification: nil))
+        let scan = LocalScanRecord(id: scanID, speciesId: "species", scientificName: "Fixtureus species", commonName: "Fixture")
+        scan.aiIdentificationReviewData = try expected.storedData(); context.insert(scan); try context.save()
+        let service = IdentificationReviewSyncService(dependencies: .init(allowsMutation: { true }, ownerID: { ownerID }))
+        let fresh = ModelContext(container)
+        let changed = try #require(try IdentificationReviewSyncService.record(scanID, context: fresh))
+        let rejected = LocalAIIdentificationReview(authority: .init(revision: 3, state: .aiRejected,
+            originScanID: scanID, originIdentification: nil))
+        changed.aiIdentificationReviewData = try rejected.storedData(); try fresh.save()
+        #expect(throws: ConfirmedSpeciesReview.IntegrityError.conflictingRevision) {
+            try service.enqueue(scanID: scanID, action: .confirmPrimary, context: context, expectedReview: expected)
+        }
+        let verify = ModelContext(container)
+        #expect(try IdentificationReviewSyncService.record(scanID, context: verify)?.localAIIdentificationReview == rejected)
+        #expect(try verify.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+        // Only a new, exact current proposal may create one confirmation intent.
+        let current = LocalAIIdentificationReview(authority: .init(revision: 4, state: .awaitingAcceptance,
+            originScanID: scanID, originIdentification: nil))
+        changed.aiIdentificationReviewData = try current.storedData(); try fresh.save()
+        let pending = try service.enqueue(scanID: scanID, action: .confirmPrimary, context: context, expectedReview: current)
+        #expect(pending.pending?.expectedRevision == 4 && pending.pending?.action == .confirmPrimary)
+        #expect(throws: ConfirmedSpeciesReview.IntegrityError.conflictingRevision) {
+            try service.enqueue(scanID: scanID, action: .confirmPrimary, context: context, expectedReview: current)
+        }
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
+    }
+
+    @Test(arguments: [false, true])
+    func staleRejectOrUndoCannotRebaseOntoNewerReview(undo: Bool) throws {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer(), context = ModelContext(container)
+        let expected = LocalAIIdentificationReview(authority: .init(revision: 2, state: undo ? .aiRejected : .clear,
+            originScanID: scanID, originIdentification: nil))
+        let current = LocalAIIdentificationReview(authority: .init(revision: 3, state: undo ? .aiRejected : .clear,
+            originScanID: scanID, originIdentification: nil))
+        let scan = LocalScanRecord(id: scanID, speciesId: "species", scientificName: "Fixtureus species", commonName: "Fixture")
+        scan.aiIdentificationReviewData = try current.storedData(); context.insert(scan); try context.save()
+        let service = IdentificationReviewSyncService(dependencies: .init(allowsMutation: { true }, ownerID: { ownerID }))
+        #expect(throws: ConfirmedSpeciesReview.IntegrityError.conflictingRevision) {
+            try service.enqueue(scanID: scanID, action: undo ? .undo : .reject, context: context, expectedReview: expected)
+        }
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+        let pending = try service.enqueue(scanID: scanID, action: undo ? .undo : .reject, context: context, expectedReview: current)
+        #expect(pending.pending?.expectedRevision == 3)
+        let saved = try #require(try IdentificationReviewSyncService.record(scanID, context: ModelContext(container)))
+        #expect(!saved.userConfirmedIdentification)
+    }
+
     @Test func rejectingPersistsIntentAndOutboxTogetherWithoutChangingEvidence() throws {
         let container = try ModelContainer(for: Schema(versionedSchema: CurrentSchema.self), configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let context = ModelContext(container)
@@ -258,6 +308,11 @@ struct AIIdentificationReviewTests {
         #expect(replacement.localAIIdentificationReview.state == .awaitingAcceptance)
         #expect(replacement.localAIIdentificationReview.authority == nil)
         #expect(replacement.localAIIdentificationReview.pending?.sourceRevision == 2)
+        let reopened = LocalAIIdentificationReview.restoring(replacement.aiIdentificationReviewData)
+        #expect(reopened.state == .awaitingAcceptance)
+        #expect(IdentificationReviewNotice.title(reopened) == "Review new result")
+        #expect(IdentificationReviewNotice.unavailableReason(reopened)?.contains("waiting to sync") == true)
+        #expect(source.localAIIdentificationReview.state == .aiRejected)
         #expect(!replacement.hasSpeciesLevelIdentification)
         #expect(try context.fetchCount(FetchDescriptor<LocalScanRecord>()) == 2)
     }

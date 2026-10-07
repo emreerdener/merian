@@ -69,7 +69,7 @@ struct ObservationReanalysisSchedulingTests {
     func boundedServiceUsesFallbackOnlyForCurrentOwnerAndCleansOnlyCompletion(_ state: String) async throws {
         let container = try fixture.fixture.fixture.fixture.container(), draft = try fixture.stage(container)
         let pending = try fixture.admit(draft, container)
-        var current = true, began = 0, retries = 0, cleaned = 0, finished = 0, executed = 0
+        var current = true, began = 0, retries = 0, cleaned = 0, finished = 0, executed = 0, notified = 0
         let service = ObservationReanalysisExecutionService(account: ObservationReanalysisProducerTests().account(
             current: { current }, finish: { finished += 1 }), candidates: { _, _, _ in
                 if state == "query-error" { throw CocoaError(.fileReadUnknown) }
@@ -82,11 +82,12 @@ struct ObservationReanalysisSchedulingTests {
                 return .completed(.init(parentID: draft.identity.observationID, childID: draft.identity.analysisID))
             }, now: { fixture.fixture.now })
         await service.drain(ownerID: draft.identity.ownerID, container: container,
-            isCurrent: { state != "offline" }, didStart: { began += 1 }, requestRetry: { retries += 1 }, cleanup: { cleaned += 1 })
+            isCurrent: { state != "offline" }, didStart: { began += 1 }, requestRetry: { retries += 1 }, cleanup: { #expect(notified == 1); cleaned += 1 }, didComplete: { notified += 1 })
         #expect(began == (state == "offline" ? 0 : 1) && finished == began)
         #expect(executed == (["offline", "future", "query-error"].contains(state) ? 0 : 1))
         #expect(retries == (["query-error", "commit-error"].contains(state) ? 1 : 0))
         #expect(cleaned == (state == "success" ? 1 : 0))
+        #expect(notified == cleaned)
     }
 
     @Test(arguments: [false, true])

@@ -102,8 +102,8 @@ struct CandidatesCard: View {
         }
     }
 
-    private func confirmOriginal(scanId: String, generation: UInt64) async {
-        guard permitsLegacyReview(scanId), isSubjectPresentationCurrent(
+    private func confirmOriginal(scanId: String, generation: UInt64, expectedReview: LocalAIIdentificationReview?) async {
+        guard let expectedReview, permitsLegacyReview(scanId), isSubjectPresentationCurrent(
             scanId: scanId,
             generation: generation
         ) else {
@@ -116,7 +116,7 @@ struct CandidatesCard: View {
         guard await viewModel.confirmOriginal(
             subject: subject,
             inferenceEngine: inferenceEngine,
-            modelContext: modelContext
+            modelContext: modelContext, expectedReview: expectedReview
         ) else { return }
         viewModel.feedback.successPulse()
         onMatchConfirmed?()
@@ -125,6 +125,7 @@ struct CandidatesCard: View {
     var body: some View {
         let presentedScanId = inferenceEngine.speciesData?.scanId
         let presentedGeneration = inferenceEngine.scanPresentationGeneration
+        let presentedReview = inferenceEngine.speciesData?.aiReview
         let guardedAskCommunity = guardedAction(
             onAskCommunity,
             scanId: presentedScanId,
@@ -143,7 +144,7 @@ struct CandidatesCard: View {
                         guard let presentedScanId else { return }
                         await confirmOriginal(
                             scanId: presentedScanId,
-                            generation: presentedGeneration
+                            generation: presentedGeneration, expectedReview: presentedReview
                         )
                     },
                     onAskCommunity: guardedAskCommunity,
@@ -190,7 +191,7 @@ struct CandidatesCard: View {
                         guard let presentedScanId else { return }
                         await confirmOriginal(
                             scanId: presentedScanId,
-                            generation: presentedGeneration
+                            generation: presentedGeneration, expectedReview: presentedReview
                         )
                     },
                     onDismiss: {
@@ -316,19 +317,19 @@ struct CandidatesCard: View {
         switch request.action {
         case .applyOverride(let scientificName):
             Task { @MainActor in
-                guard permitsLegacyReview(request.scanId) else { return }
+                guard let expectedReview = request.expectedReview, permitsLegacyReview(request.scanId) else { return }
                 await viewModel.applyOverride(
                     scientificName: scientificName,
                     subject: request.subject,
                     inferenceEngine: inferenceEngine,
-                    modelContext: modelContext
+                    modelContext: modelContext, expectedReview: expectedReview
                 )
             }
         case .confirmOriginal:
             Task { @MainActor in
                 await confirmOriginal(
                     scanId: request.scanId,
-                    generation: request.presentationGeneration
+                    generation: request.presentationGeneration, expectedReview: request.expectedReview
                 )
             }
         case .askCommunity:

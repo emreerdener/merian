@@ -89,6 +89,35 @@ struct ObservationReanalysisExecutionTests {
         #expect(throws: (any Error).self) { try fixture.stage(container) }
     }
 
+    @Test func completedChildSurvivesDiskReopenWithOriginalRejectionAndBecomesDiscoverable() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("history.sqlite")
+        let review = try LocalAIIdentificationReview(authority: .init(revision: 1, state: .aiRejected,
+            originScanID: fixture.fixture.observation.uuidString.lowercased(), originIdentification: nil)).storedData()
+        let active: Store.Claim
+        let bytes = try result()
+        let listing = ObservationHistoryListingService(cloud: ObservationReanalysisProducerTests().account())
+        do {
+            let container = try fixture.fixture.container(url: url)
+            let context = ModelContext(container)
+            let parent = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+            parent.aiIdentificationReviewData = review; try context.save()
+            #expect(try !listing.hasMultiple(observationID: parent.id, container: container))
+            active = try claim(container)
+            _ = try Store.complete(active, resultBytes: bytes, container: container, isCurrent: { true })
+            #expect(try listing.hasMultiple(observationID: parent.id, container: container))
+        }
+        let reopened = try fixture.fixture.container(url: url, seed: false)
+        let parent = try #require(ModelContext(reopened).fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(parent.selectedAnalysisID == fixture.fixture.analysis.uuidString.lowercased())
+        #expect(parent.aiIdentificationReviewData == review && parent.localAIIdentificationReview.state == .aiRejected)
+        #expect(try listing.hasMultiple(observationID: parent.id, container: reopened))
+        _ = try Store.complete(active, resultBytes: bytes, container: reopened, isCurrent: { true })
+        #expect(try ModelContext(reopened).fetchCount(FetchDescriptor<LocalAnalysisRecord>()) == 2)
+    }
+
     @Test(arguments: [false, true])
     func completionFailureRollsBackAppendRetirementAndErasure(accountChange: Bool) throws {
         let container = try fixture.fixture.container(), active = try claim(container)

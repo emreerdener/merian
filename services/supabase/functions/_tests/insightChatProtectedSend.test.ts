@@ -167,6 +167,12 @@ async function scenario(kind: string) {
             }
             : prepared();
         } else if (name === "reserve_protected_insight_chat_quota") {
+          if (kind === "quota_gate_closed") {
+            return Promise.resolve(Response.json({
+              code: "55000",
+              message: "field_chat_execution_unavailable",
+            }, { status: 400 }));
+          }
           if (kind === "quota_unknown") {
             return Promise.resolve(
               Response.json({ message: "unknown" }, { status: 503 }),
@@ -456,4 +462,17 @@ Deno.test("held and uncertain seal reads or writes never create proof or call a 
     );
     assert(r.paths.filter((p) => p.startsWith("seal_")).length <= 1);
   }
+});
+
+Deno.test("closed protected execution gate holds without provider, admission or legacy fallback", async () => {
+  const r = await scenario("quota_gate_closed");
+  assertEquals(r.response.status, 503);
+  assertEquals(r.provider, 0);
+  assertEquals(r.writes, 0);
+  assertEquals(r.paths, [
+    "get_insight_chat_turn_context",
+    "get_insight_chat_no_admission",
+    "prepare_insight_chat_send_context",
+    "reserve_protected_insight_chat_quota",
+  ]);
 });

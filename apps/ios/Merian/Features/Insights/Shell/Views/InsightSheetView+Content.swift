@@ -8,7 +8,8 @@ extension InsightSheetView {
             queuedScan: queuedScan,
             onOpenFieldTripOverview: openFieldTripOverview,
             prepareCommunityConsent: communityConsentPreparation,
-            prepareSavedReanalysis: savedReanalysisPreparation
+            prepareSavedReanalysis: savedReanalysisPreparation,
+            confidenceReviewControls: confidenceReviewControls
         )
             .merianSystemFeedback(
                 toast: $viewModel.state.toastMessage,

@@ -19,7 +19,7 @@ struct ObservationReanalysisExecutionService {
     func drain(ownerID: UUID, container: ModelContainer,
                isCurrent: @escaping @MainActor @Sendable () -> Bool,
                didStart: () -> Void, requestRetry: () -> Void,
-               cleanup: () async -> Void) async {
+               cleanup: () async -> Void, didComplete: () -> Void = {}) async {
         guard isCurrent(), !Task.isCancelled else { return }
         let lease: AccountBoundWorkLease
         do { lease = try account.begin(ownerID) } catch {
@@ -38,7 +38,11 @@ struct ObservationReanalysisExecutionService {
                 guard current(), !Task.isCancelled else { return }
                 let outcome = try await execute(candidate, container, current)
                 guard current(), !Task.isCancelled else { return }
-                if case .completed = outcome { await cleanup() }
+                if case .completed = outcome {
+                    // Notify only after the executor's atomic append, before optional file cleanup.
+                    didComplete()
+                    await cleanup()
+                }
             }
         } catch {
             guard current(), !Task.isCancelled else { return }

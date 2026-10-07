@@ -16,6 +16,7 @@ struct BiologicalView: View {
     var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
     var prepareCommunityConsent: CommunityConsentPreparation?
     var prepareSavedReanalysis: SavedReanalysisPreparation?
+    var confidenceReviewControls = ConfidenceReviewControls()
 
     @Environment(\.dismiss) private var dismiss
     @State private var namePickerScanId: String?
@@ -108,6 +109,7 @@ struct BiologicalView: View {
                 onAskCommunity: communityAction(scanID: biologicalScanId, generation: fieldNotesGeneration),
                 prepareCommunityConsent: prepareCommunityConsent,
                 prepareSavedReanalysis: prepareSavedReanalysis,
+                    confidenceReviewControls: confidenceReviewControls,
                 onScrollOffsetChange: { maxY in
                     viewModel.evaluateScrollOffset(minY: maxY)
                 },

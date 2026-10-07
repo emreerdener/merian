@@ -23,12 +23,13 @@ struct IdentificationReviewSpeciesPatch: Sendable {
 final class InferenceIdentificationReviewCoordinator {
     struct Dependencies {
         let beginOverride:
-            @MainActor @Sendable (ModelContainer, String, String) async -> Void
+            @MainActor @Sendable (ModelContainer, String, String, LocalAIIdentificationReview?) async -> Bool
         let persistReview:
             @MainActor @Sendable (
                 ModelContainer,
-                InferenceIdentificationReviewMutation
-            ) async -> Void
+                InferenceIdentificationReviewMutation,
+                LocalAIIdentificationReview?
+            ) async -> Bool
         let clearFlag:
             @MainActor @Sendable (ModelContainer, String) async -> Void
         let persistSpeciesPatch:
@@ -49,7 +50,7 @@ final class InferenceIdentificationReviewCoordinator {
     }
 
     struct VerifiedDependencies {
-        let prepare: @MainActor @Sendable (ModelContainer, InferenceIdentificationReviewMutation) async throws -> VerifiedSpeciesReviewRequest
+        let prepare: @MainActor @Sendable (ModelContainer, InferenceIdentificationReviewMutation, LocalAIIdentificationReview?) async throws -> VerifiedSpeciesReviewRequest
         let apply: @MainActor @Sendable (ModelContainer, String, ConfirmedSpeciesReview, InferenceIdentificationReviewMutation?) async throws -> ConfirmedSpeciesReview?
     }
 
@@ -187,7 +188,8 @@ final class InferenceIdentificationReviewCoordinator {
         scanId: String,
         scientificName: String,
         actionGeneration: UInt64,
-        modelContainer: ModelContainer
+        modelContainer: ModelContainer, expectedReview: LocalAIIdentificationReview? = nil,
+        didPersist: @escaping @MainActor @Sendable () -> Void = {}
     ) -> Task<Void, Never>? {
         let beginOverride = dependencies.beginOverride
         return enqueueWrite(
@@ -195,7 +197,8 @@ final class InferenceIdentificationReviewCoordinator {
             actionGeneration: actionGeneration
         ) { @MainActor in
             guard ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanId, container: modelContainer) else { return }
-            await beginOverride(modelContainer, scanId, scientificName)
+            guard await beginOverride(modelContainer, scanId, scientificName, expectedReview) else { return }
+            didPersist()
         }
     }
 
@@ -205,6 +208,7 @@ final class InferenceIdentificationReviewCoordinator {
         actionGeneration: UInt64,
         channel: InferenceWriteCoordinator.IdentificationChannel = .review,
         modelContainer: ModelContainer?,
+        expectedReview: LocalAIIdentificationReview? = nil,
         didPersist: @escaping @MainActor @Sendable () -> Void = {}
     ) -> Task<Void, Never>? {
         let persistReview = dependencies.persistReview
@@ -215,7 +219,7 @@ final class InferenceIdentificationReviewCoordinator {
         ) { @MainActor [weak self] in
             guard ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: mutation.scanID, container: modelContainer) else { return }
             if let modelContainer {
-                await persistReview(modelContainer, mutation)
+                guard await persistReview(modelContainer, mutation, expectedReview) else { return }
             }
             guard let self, !self.isAuthTransitionFenceActive,
                   self.writeCoordinator.isIdentificationActionCurrent(scanId: mutation.scanID, generation: actionGeneration, channel: channel),
@@ -232,6 +236,7 @@ final class InferenceIdentificationReviewCoordinator {
         _ mutation: InferenceIdentificationReviewMutation,
         actionGeneration: UInt64,
         modelContainer: ModelContainer,
+        expectedReview: LocalAIIdentificationReview? = nil,
         didPrepare: @escaping @MainActor @Sendable () -> Void = {},
         didReconcile: @escaping @MainActor @Sendable (ConfirmedSpeciesReview) -> Void
     ) -> Task<Void, Never>? {
@@ -239,7 +244,7 @@ final class InferenceIdentificationReviewCoordinator {
             guard let self,
                   ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: mutation.scanID, container: modelContainer) else { return }
             do {
-                let request = try await self.verifiedDependencies.prepare(modelContainer, mutation)
+                let request = try await self.verifiedDependencies.prepare(modelContainer, mutation, expectedReview)
                 try Task.checkCancellation()
                 guard ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: mutation.scanID, container: modelContainer),
                       !self.isAuthTransitionFenceActive,

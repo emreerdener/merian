@@ -12816,10 +12816,10 @@ review or selection change is added.
 `public.review_owned_observation_analysis(p_request JSONB, p_reader INTEGER)` is
 an authenticated owner RPC with a separate, default-false
 `rejection_api_enabled` hold. Reader and state-reader gates must also be open;
-`p_reader` must equal 9. It has no ordinary native caller yet. The executable
-request and receipt contract lives in
-`functions/_shared/analysisHistory/review.ts`; Identify DTO generation, web and
-admin payloads are unchanged.
+`p_reader` must equal 9. Its prepared native caller is not installed while the
+App activation gate is disabled. The executable request and receipt contract
+lives in `functions/_shared/analysisHistory/review.ts`; Identify DTO generation,
+web and admin payloads are unchanged.
 
 The exact eight-field request contains `schema_version: 1`, `observation_id`,
 `analysis_id`, `operation_id`, `expected_observation_revision`,
@@ -12989,8 +12989,10 @@ uncertainty and state revision races retain bounded retry. The dedicated native
 scheduler now retains a bounded, account-fenced pass over saved work, restores
 strict owner-qualified deadlines and awaits task cancellation before Auth drain.
 Database uncertainty has a bounded owner/container recovery wake; malformed or
-held jobs cannot be automatically reclaimed. Ordinary review UI remains separate
-implementation work. See the
+held jobs cannot be automatically reclaimed. Prepared History and
+selected-Insight review UI are implemented in the complete App-owned
+composition, behind the disabled app-installation and server rollout gates;
+ordinary access is not installed. See the
 [native persistence contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-analysis-bound-review-persistence).
 All activation gates remain false.
 
@@ -14534,10 +14536,10 @@ gate/authority checks.
 The prepared TypeScript adapter performs one five-second request with
 cancellation and retries disabled. Exact `P0002 field_chat_subject_not_found`
 maps internally to 404, and `40001 field_chat_context_conflict` to 409. Other
-errors, missing routes and malformed results become unavailable 503. This is not
-an activated HTTP/native contract. Future integration recovers stored turns
-first, then checks fresh immutable eligibility and existing Pro/quota rules
-before admission. Transport-ambiguous admission outcomes retain their original
+errors, missing routes and malformed results become unavailable 503. The
+connected protected HTTP owner recovers stored turns first, then checks fresh
+immutable eligibility and existing Pro/quota rules before admission. Activation
+remains disabled. Transport-ambiguous admission outcomes retain their original
 identity and unresolved reservation; they do not authorize unconditional refunds
 or successors.
 
@@ -14558,7 +14560,8 @@ IDs, review records and provider configuration. Qualified scores require the
 saved true marker, with no later qualification-policy recomputation; descriptive
 alternatives remain available when scores are omitted. Stored conversation roles
 and text retain their exact order. Preflight has no prefix and cannot fabricate
-an admitted turn. Live HTTP/native wiring remains pending and default-off.
+an admitted turn. The protected HTTP owner and native transport use this
+boundary; activation remains default-off.
 
 ### Prepared immutable Insight admission adapter
 
@@ -14576,15 +14579,16 @@ remain unknown. The recovery coordinator may issue one exact read, returning a
 separate recovered-context result on success. It never repeats admission or
 synthesizes missing daily-count/admission receipt fields. An absent read after
 timeout does not prove non-commit; unknown outcomes retain the original identity
-and hold. These prepared adapters do not change HTTP/native contracts or enable
-provider execution.
+and hold. These adapters do not independently authorize provider execution; the
+connected protected owner still requires the dedicated dispatch grant.
 
 Protected execution additionally requires a dedicated quota admission fence:
 legacy same-ID quota reopening and stale-chat recovery can authorize another
 metered provider attempt, so they are not safe dispatch authority for uncertain
-immutable turns. The fence must survive ordinary quota-row pruning and preserve
-account merge/deletion semantics. HTTP wiring remains blocked on this execution
-contract; existing legacy funding behavior is unchanged.
+immutable turns. The implemented fence survives ordinary quota-row pruning and
+preserves account merge/deletion semantics. The protected HTTP owner uses this
+execution contract behind disabled gates; existing legacy funding behavior is
+unchanged.
 
 ### Prepared protected Insight quota and context admission
 
@@ -14600,7 +14604,9 @@ Every exact retained replay returns only `{status: "held"}` and cannot authorize
 dispatch. `field_chat_execution_unavailable` (55000) is the closed fresh gate;
 `field_chat_execution_held` (55000) preserves retired/unknown work and
 `field_chat_idempotency_conflict` (23505) rejects altered content or same-owner
-request reuse across observations. No public HTTP or native caller is connected.
+request reuse across observations. The protected HTTP owner calls this RPC; the
+native durable transport calls that owner. Neither connection enables the closed
+fresh-execution gate.
 
 `reserve_protected_insight_chat_send_with_context` accepts the seven arguments
 of `reserve_insight_chat_send_with_context` followed by original reservation
@@ -14612,11 +14618,10 @@ read-only context resolver remains separate and does not expose execution
 authority.
 
 The unconnected `contextAdmission.ts` still calls the earlier context-only RPC.
-The future protected HTTP owner must use these new funding-bound boundaries and
-the dedicated one-time dispatch boundary; it must not treat generic idempotent
-quota commit or a recovered context as permission to call the provider again.
-Lost replies retain their original identity and hold. No automatic
-successor/refund is added.
+The connected protected HTTP owner uses the funding-bound adapter and dedicated
+one-time dispatch boundary. It never treats generic idempotent quota commit or a
+recovered context as permission to call the provider again. Lost replies retain
+their original identity and hold. No automatic successor/refund is added.
 
 ### Prepared one-time Insight provider dispatch
 

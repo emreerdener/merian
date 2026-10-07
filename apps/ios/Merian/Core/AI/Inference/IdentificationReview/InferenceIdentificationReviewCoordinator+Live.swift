@@ -40,25 +40,25 @@ extension InferenceIdentificationReviewCoordinator.Dependencies {
             @escaping @MainActor @Sendable (String) async -> Void
     ) -> Self {
         Self(
-            beginOverride: { container, scanID, scientificName in
+            beginOverride: { container, scanID, scientificName, expectedReview in
                 let actor = BackgroundDatabaseActor(
                     modelContainer: container
                 )
-                await actor.beginScanIdentificationOverride(
+                return await actor.beginScanIdentificationOverride(
                     scanId: scanID,
-                    scientificName: scientificName
+                    scientificName: scientificName, expectedReview: expectedReview
                 )
             },
-            persistReview: { container, mutation in
+            persistReview: { container, mutation, expectedReview in
                 let actor = BackgroundDatabaseActor(
                     modelContainer: container
                 )
-                await actor.updateScanWithOverride(
+                return await actor.updateScanWithOverride(
                     scanId: mutation.scanID,
                     override: mutation.override,
                     confirmed: mutation.confirmed,
                     newConfirmedSpeciesId: mutation.confirmedSpeciesID,
-                    userReviewState: mutation.userReviewState
+                    userReviewState: mutation.userReviewState, expectedReview: expectedReview
                 )
             },
             clearFlag: { container, scanID in
@@ -117,8 +117,8 @@ extension InferenceIdentificationReviewCoordinator.Dependencies {
 extension InferenceIdentificationReviewCoordinator.VerifiedDependencies {
     static var live: Self {
         Self(
-            prepare: { container, mutation in
-                try await BackgroundDatabaseActor(modelContainer: container).prepareVerifiedSpeciesReview(mutation)
+            prepare: { container, mutation, expectedReview in
+                try await BackgroundDatabaseActor(modelContainer: container).prepareVerifiedSpeciesReview(mutation, expectedReview: expectedReview)
             },
             apply: { container, scanID, review, intent in
                 try await BackgroundDatabaseActor(modelContainer: container).applyVerifiedSpeciesReview(

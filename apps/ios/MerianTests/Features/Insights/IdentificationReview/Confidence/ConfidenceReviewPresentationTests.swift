@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import Merian
@@ -86,6 +87,48 @@ struct ConfidenceReviewPresentationTests {
             overrideScientificName: "Danaus plexippus",
             commonName: "Unknown subject"
         ) == "Danaus plexippus")
+    }
+
+    @Test func proposalAndRejectedPresentationRemainDistinctAfterRestoration() throws {
+        for state in [AIIdentificationReview.State.aiRejected, .awaitingAcceptance] {
+            let original = LocalAIIdentificationReview(authority: .init(
+                revision: 2, state: state, originScanID: "00000000-0000-4000-8000-000000000001", originIdentification: nil
+            ))
+            let restored = LocalAIIdentificationReview.restoring(try original.storedData())
+            let presentation = ConfidenceBadgePresentation.resolve(
+                confidenceScore: 0.99, inferenceTier: "pro", hasUserOverride: false,
+                isUserConfirmed: false, analyzingPhrase: nil, review: restored
+            )
+            #expect(restored == original)
+            #expect(presentation.label == (state == .aiRejected ? "Incorrect" : "Review new result"))
+            #expect(presentation.style == (state == .aiRejected ? .incorrect : .awaitingReview))
+            #expect(IdentificationReviewNotice.explanation(restored).contains("You marked") == (state == .aiRejected))
+        }
+    }
+
+    @Test func damagedReviewExplainsUnavailabilityInsteadOfClaimingRejection() {
+        let review = LocalAIIdentificationReview.restoring(Data("invalid".utf8))
+        let presentation = ConfidenceBadgePresentation.resolve(
+            confidenceScore: 0.99, inferenceTier: "pro", hasUserOverride: false,
+            isUserConfirmed: false, analyzingPhrase: nil, review: review
+        )
+        #expect(presentation.label == "Review needs attention")
+        #expect(IdentificationReviewNotice.unavailableReason(review)?.contains("needs attention") == true)
+        #expect(!IdentificationReviewNotice.explanation(review).contains("You marked"))
+    }
+
+    @Test func forwardedControlsRejectDelayedSubjectAndPreserveExactUndo() {
+        var generation = 1, confirms = 0, undoes = 0
+        let proposal = ConfidenceReviewControls(confirmProposal: { confirms += 1 }).checking { generation == 1 }
+        #expect(proposal.undo == nil)
+        proposal.confirmProposal?(); #expect(confirms == 1)
+        generation = 2
+        proposal.confirmProposal?(); #expect(confirms == 1)
+        let rejected = ConfidenceReviewControls(undo: { undoes += 1 }).checking { generation == 2 }
+        #expect(rejected.confirmProposal == nil)
+        rejected.undo?(); #expect(undoes == 1 && confirms == 1)
+        generation = 3
+        rejected.undo?(); #expect(undoes == 1)
     }
 
     private func badge(score: Double?) -> ConfidenceBadgePresentation {

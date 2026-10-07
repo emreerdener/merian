@@ -46,8 +46,12 @@ enum ConfirmedSpeciesReviewPersistence {
 extension BackgroundDatabaseActor {
     /// Called inside the existing serialized review write before remote work.
     /// A failed local save cannot send a confirmation or synthesize authority.
-    func prepareVerifiedSpeciesReview(_ mutation: InferenceIdentificationReviewMutation) throws -> VerifiedSpeciesReviewRequest {
+    func prepareVerifiedSpeciesReview(_ mutation: InferenceIdentificationReviewMutation,
+                                      expectedReview: LocalAIIdentificationReview? = nil) throws -> VerifiedSpeciesReviewRequest {
         try withReviewRecord(mutation.scanID) { record, context in
+            guard expectedReview == nil || record.localAIIdentificationReview == expectedReview else {
+                throw ConfirmedSpeciesReview.IntegrityError.conflictingRevision
+            }
             guard let primary = record.primaryIdentification, primary.value != nil else {
                 throw ConfirmedSpeciesReview.IntegrityError.invalidRequest
             }

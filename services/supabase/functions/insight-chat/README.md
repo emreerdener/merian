@@ -440,16 +440,16 @@ for dispatched attempts. The
 [schema contract](../../../../docs/backend-and-data/04-database-schema.md#prepared-protected-field-chat-execution-fence)
 owns the storage and lifecycle rules.
 
-Protected admission RPCs remain behind `chat_execution_enabled = false` and are
-not called by the handler. The funded context adapter is prepared separately.
-The prepared `protectedExecution.ts` adapter now reserves through the narrow
+Protected admission RPCs are connected to the recovery-first HTTP owner and
+remain behind `chat_execution_enabled = false`. The owner uses the funded
+context adapter. The `protectedExecution.ts` adapter reserves through the narrow
 five-field receipt and invokes a separate one-time dispatch RPC. The latter
 records a permanent marker and commits quota atomically; only its fresh decoded
 reply permits provider execution. Replays return held, and unknown replies never
 retry, refund or call the provider. Generic finalizer success is not permission.
-The future HTTP owner must retain owner/deletion/consent checks, recovery-first
-ordering, final saved context and a qualified shared deadline. Generic
-stale-chat recovery must never reopen protected work.
+The connected HTTP owner retains owner/deletion/consent checks, recovery-first
+ordering, final saved context and a bounded shared deadline. Generic stale-chat
+recovery must never reopen protected work.
 
 ### Server routing and legacy boundary
 

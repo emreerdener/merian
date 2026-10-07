@@ -8,6 +8,21 @@ struct ReanalysisStatusViewModelTests {
     typealias Page = ObservationReanalysisOperationStatus.Page
     let fixture = ObservationReanalysisRecoveryTests()
 
+    @Test func completionEventRemovesFinishedStatusWithoutPolling() async {
+        var completed = false, reads = 0
+        let row = ObservationReanalysisOperationStatus.Summary(id: UUID(), sourceAnalysisID: UUID(), phase: .processing)
+        let model = ReanalysisStatusViewModel(dependencies: .init(page: { _ in
+            reads += 1
+            return .init(items: completed ? [] : [row], next: nil)
+        }, validate: {}, isCurrent: { true }, close: {}))
+        await model.load(); #expect(model.rows.count == 1)
+        completed = true; model.refreshForLibraryChange()
+        while reads < 2 || model.isBusy { await Task.yield() }
+        #expect(model.rows.isEmpty && reads == 2)
+        model.close(); model.refreshForLibraryChange()
+        await Task.yield(); #expect(reads == 2)
+    }
+
     @Test func oneIdentificationCanOfferStatusWithoutOfferingHistoryOrMutatingWork() async throws {
         let seed = try fixture.seed(action: .submit); defer { try? FileManager.default.removeItem(at: seed.root) }
         let cloud = fixture.producerFixture.account()

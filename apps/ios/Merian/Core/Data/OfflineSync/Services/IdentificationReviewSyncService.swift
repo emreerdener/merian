@@ -38,7 +38,7 @@ struct IdentificationReviewSyncService {
     var dependencies = Dependencies()
 
     func enqueue(scanID: String, action: AIIdentificationReviewRequest.Action, scientificName: String? = nil,
-                 context: ModelContext) throws -> LocalAIIdentificationReview {
+                 context: ModelContext, expectedReview: LocalAIIdentificationReview? = nil) throws -> LocalAIIdentificationReview {
         guard dependencies.allowsMutation(), let ownerID = dependencies.ownerID() else { throw ConfirmedSpeciesReview.IntegrityError.invalidRequest }
         return try ConfirmedSpeciesReviewPersistence.transaction {
             // Use a fresh context so a review cannot commit unrelated presentation edits.
@@ -48,6 +48,8 @@ struct IdentificationReviewSyncService {
             guard let scan = try Self.record(scanID, context: write) else { throw ConfirmedSpeciesReview.IntegrityError.missingRecord }
             var local = scan.localAIIdentificationReview
             guard !local.needsAttention else { throw ConfirmedSpeciesReview.IntegrityError.conflictingRevision }
+            // Compare inside the write transaction; displayed authority can lag a durable review change.
+            guard expectedReview == nil || local == expectedReview else { throw ConfirmedSpeciesReview.IntegrityError.conflictingRevision }
             let expectedRevision = local.pending.map { $0.expectedRevision + 1 } ?? local.authority?.revision ?? 0
             let expectedSpeciesRevision = local.pending?.expectedSpeciesReviewRevision.map { $0 + 1 }
             let verified = try ConfirmedSpeciesReview.restoring(scan.confirmedSpeciesIdentityData)

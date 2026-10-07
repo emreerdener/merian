@@ -16,6 +16,7 @@ struct InsightHeader: View {
     var onAskCommunity: (() -> Void)?
     var prepareCommunityConsent: CommunityConsentPreparation?
     var prepareSavedReanalysis: SavedReanalysisPreparation?
+    var confidenceReviewControls = ConfidenceReviewControls()
     var onScrollOffsetChange: ((CGFloat) -> Void)?
     /// Alternative English common names for this species, excluding the current headline.
     var alternativeCommonNames: [String]?
@@ -37,7 +38,8 @@ struct InsightHeader: View {
                     aiScientificName: aiScientificName,
                     onAskCommunity: onAskCommunity,
                     prepareCommunityConsent: prepareCommunityConsent,
-                    prepareSavedReanalysis: prepareSavedReanalysis
+                    prepareSavedReanalysis: prepareSavedReanalysis,
+                    confidenceReviewControls: confidenceReviewControls
                 )
 
             if let primaryRankDescription {

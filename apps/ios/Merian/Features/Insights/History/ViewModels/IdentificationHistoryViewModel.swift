@@ -28,6 +28,7 @@ final class IdentificationHistoryViewModel {
     private var acknowledgedRevision: Int?
     private var photoGeneration = 0
     private var work: Task<Void, Never>?
+    private var libraryRefreshPending = false
     private var reanalysisAction: IdentificationHistoryReanalysisAction?
     private let handoffReanalysis: ((IdentificationHistoryReanalysisAction) -> Bool)?
     var canReanalyze: Bool { reanalysisAction != nil && handoffReanalysis != nil && !pending && !isBusy && !isClosed }
@@ -47,14 +48,17 @@ final class IdentificationHistoryViewModel {
         let expected = generation
         work = Task { [weak self] in
             await self?.perform(command)
-            if self?.generation == expected { self?.work = nil }
+            if self?.generation == expected {
+                self?.work = nil
+                self?.refreshLibraryWhenIdle()
+            }
         }
     }
     func perform(_ command: Command) async {
         guard !isBusy, validate() else { return }
         isBusy = true; message = nil
         let expected = generation
-        defer { if generation == expected { isBusy = false } }
+        defer { if generation == expected { isBusy = false; refreshLibraryWhenIdle() } }
         do {
             switch command {
             case .newest, .older:
@@ -136,6 +140,17 @@ final class IdentificationHistoryViewModel {
             return false
         }
     }
+    func refreshForLibraryChange() {
+        guard validate() else { return }
+        libraryRefreshPending = true
+        refreshLibraryWhenIdle()
+    }
+    private func refreshLibraryWhenIdle() {
+        guard libraryRefreshPending, work == nil, !isBusy, !isClosed,
+              detail == nil, review == nil, publication == nil, !pending else { return }
+        libraryRefreshPending = false
+        start(.newest)
+    }
     func refreshReview() {
         guard validate() else { return }
         review?.refresh()
@@ -202,6 +217,7 @@ final class IdentificationHistoryViewModel {
         guard !isBusy else { return }
         generation += 1; work?.cancel(); work = nil
         detail = nil; photo = nil; reanalysisAction = nil; isBusy = false; message = nil
+        refreshLibraryWhenIdle()
     }
     // Observable account/presentation state invalidates the sheet without idle
     // database polling. Persistence is revalidated at each operation boundary.

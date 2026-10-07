@@ -100,6 +100,7 @@ extension InsightSheetView {
             confirmationTitle: selectedReviewConfirmationTitle,
             onRetryReviewSave: retryReviewAction(),
             onUndoIncorrect: undoReviewAction(scanID: toolbarLocalScanId, generation: toolbarGeneration),
+            reviewUnavailableReason: confidenceReviewControls.unavailableReason,
             onMarkIncorrect: incorrectReviewAction(scanID: toolbarLocalScanId, generation: toolbarGeneration),
             onAskCommunity: communityConsentAction,
             sharedExplorePostId: toolbarSharedExplorePostId,

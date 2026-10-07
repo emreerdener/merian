@@ -16,6 +16,7 @@ struct ConfidenceBadge: View {
     var prepareCommunityConsent: CommunityConsentPreparation?
     @State private var pendingCommunityConsent: CommunityConsentTicket?
     var prepareSavedReanalysis: SavedReanalysisPreparation?
+    var confidenceReviewControls: ConfidenceReviewControls
     @State private var pendingReanalysis: SavedReanalysisTicket?
     /// When set, the badge shows an analyzing state with this phrase as its label.
     /// The explanation sheet is suppressed while analyzing.
@@ -39,6 +40,7 @@ struct ConfidenceBadge: View {
         onAskCommunity: (() -> Void)? = nil,
         prepareCommunityConsent: CommunityConsentPreparation? = nil,
         prepareSavedReanalysis: SavedReanalysisPreparation? = nil,
+        confidenceReviewControls: ConfidenceReviewControls = .init(),
         analyzingPhrase: String? = nil,
         onAnalyzingTap: (() -> Void)? = nil,
         dependencies: ConfidenceReviewDependencies = .live
@@ -53,6 +55,7 @@ struct ConfidenceBadge: View {
         self.onAskCommunity = onAskCommunity
         self.prepareCommunityConsent = prepareCommunityConsent
         self.prepareSavedReanalysis = prepareSavedReanalysis
+        self.confidenceReviewControls = confidenceReviewControls
         self.analyzingPhrase = analyzingPhrase
         self.onAnalyzingTap = onAnalyzingTap
         self._viewModel = State(
@@ -83,7 +86,7 @@ struct ConfidenceBadge: View {
             hasUserOverride: userIdentificationOverride != nil,
             isUserConfirmed: userConfirmedIdentification,
             analyzingPhrase: analyzingPhrase,
-            isIncorrect: inferenceEngine.speciesData?.aiReview.isUnresolved == true
+            review: inferenceEngine.speciesData?.aiReview ?? .init()
         )
     }
 
@@ -97,7 +100,7 @@ struct ConfidenceBadge: View {
             return .green
         case .incorrect:
             return .red
-        case .possible:
+        case .possible, .awaitingReview:
             return .orange
         case .weak, .unknown:
             return .gray
@@ -264,6 +267,7 @@ struct ConfidenceBadge: View {
                         },
                         prepareCommunityConsent: prepareCommunityConsent,
                         prepareSavedReanalysis: prepareSavedReanalysis,
+                        confidenceReviewControls: confidenceReviewControls,
                         onPreparedCommunityConsent: { context, ticket in
                             pendingCommunityConsent?.cancel()
                             pendingCommunityConsent = ticket

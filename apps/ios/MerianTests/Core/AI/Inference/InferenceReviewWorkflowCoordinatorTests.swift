@@ -88,6 +88,25 @@ private final class ReviewWorkflowHydrationRecorder {
 @MainActor
 @Suite("Inference Identification Review Workflow Coordinator")
 struct InferenceReviewWorkflowCoordinatorTests {
+    @Test func retainedProposalConfirmationCannotConfirmLaterRejectionWithAlternatives() async throws {
+        let harness = IdentificationReviewCoordinatorHarness()
+        let subject = makeSubject(reviewHarness: harness)
+        let presentation = ReviewWorkflowPresentationHarness(speciesData: speciesData())
+        let expected = LocalAIIdentificationReview(authority: .init(revision: 2, state: .awaitingAcceptance,
+            originScanID: "00000000-0000-4000-8000-000000000001", originIdentification: nil))
+        presentation.speciesData?.aiReview = expected
+        presentation.speciesData?.candidates = [.init(scientificName: "Procyon cancrivorus", commonName: "Alternative", confidenceScore: 0.7)]
+        let request = InferenceReviewWorkflowCoordinator.ConfirmationRequest(expectedScanID: "scan-review",
+            modelContext: ModelContext(try makeLegacyContainer()), expectedReview: expected)
+        presentation.speciesData?.aiReview = .init(authority: .init(revision: 3, state: .aiRejected,
+            originScanID: "00000000-0000-4000-8000-000000000001", originIdentification: nil))
+        await subject.workflow.confirm(request, callbacks: presentation.callbacks())
+        #expect(presentation.speciesData?.aiReview.state == .aiRejected)
+        #expect(presentation.speciesData?.userConfirmedIdentification == false)
+        #expect(harness.events.isEmpty)
+        #expect(try request.modelContext?.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+    }
+
     @Test func overrideAdmitsLocalStateBeforeLookupAndSerializesWrites()
         async throws {
         let reviewHarness = IdentificationReviewCoordinatorHarness()

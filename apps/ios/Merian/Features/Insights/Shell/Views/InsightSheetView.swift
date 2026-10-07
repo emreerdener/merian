@@ -31,6 +31,7 @@ struct InsightSheetView: View {
     @State var pendingHistoryReanalysis: IdentificationHistoryReanalysisHandoff?
     @State var selectedNameConfirmation: SelectedAnalysisNameConfirmation?
     @State var selectedReviewHost = SelectedAnalysisReviewHost()
+    @State var historyAvailabilityRevision: UInt64 = 0
     @State var historyModel: IdentificationHistoryViewModel?
     @State var selectedPublicationModel: IdentificationPublicationModel?
     @State var publicationContinuation = PublicationConsentContinuation()

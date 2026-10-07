@@ -83,18 +83,19 @@ extension BackgroundDatabaseActor {
 
     /// Fetches a single `LocalScanRecord` by ID, applies `mutation`, and saves.
     /// All point-update methods below delegate here to keep fetch-mutate-save DRY.
-    private func mutateScan(
+    @discardableResult private func mutateScan(
         id: String,
         expectedScientificName: String? = nil,
         preservesEnrollment: Bool = false,
         legacyReview: Bool = false,
+        expectedReview: LocalAIIdentificationReview? = nil,
         mutation: (LocalScanRecord) -> Void
-    ) {
+    ) -> Bool {
         ConfirmedSpeciesReviewPersistence.transaction {
             let modelContext = ModelContext(modelContainer)
             modelContext.autosaveEnabled = false
-            if legacyReview, (try? ObservationHistoryEnrollmentIntent.protects(id, context: modelContext)) != false { return }
-            if preservesEnrollment, (try? ObservationHistoryEnrollmentIntent.holds(id, context: modelContext)) != false { return }
+            if legacyReview, (try? ObservationHistoryEnrollmentIntent.protects(id, context: modelContext)) != false { return false }
+            if preservesEnrollment, (try? ObservationHistoryEnrollmentIntent.holds(id, context: modelContext)) != false { return false }
             var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
             descriptor.fetchLimit = 1
             let record: LocalScanRecord?
@@ -104,20 +105,23 @@ extension BackgroundDatabaseActor {
                 MerianLog.data.error(
                     "mutateScan: fetch failed for \(id, privacy: .private): \(error, privacy: .private)"
                 )
-                return
+                return false
             }
             guard let record,
+                  expectedReview == nil || record.localAIIdentificationReview == expectedReview,
                   expectedScientificName.map({
                       effectiveScientificName(for: record).caseInsensitiveCompare($0)
                           == .orderedSame
                   }) ?? true else {
-                return
+                return false
             }
             mutation(record)
             do { try modelContext.save() } catch {
                 modelContext.rollback()
                 MerianLog.data.error("mutateScan: save failed for \(id, privacy: .private): \(error, privacy: .private)")
+                return false
             }
+            return true
         }
     }
 
@@ -201,11 +205,11 @@ extension BackgroundDatabaseActor {
     /// Atomically admits a new local override before asynchronous dictionary
     /// hydration. A crash can therefore leave either the prior AI identity or
     /// a complete override placeholder, never fields from both species.
-    func beginScanIdentificationOverride(
+    @discardableResult func beginScanIdentificationOverride(
         scanId: String,
-        scientificName: String
-    ) {
-        mutateScan(id: scanId, legacyReview: true) { record in
+        scientificName: String, expectedReview: LocalAIIdentificationReview? = nil
+    ) -> Bool {
+        mutateScan(id: scanId, legacyReview: true, expectedReview: expectedReview) { record in
             record.userIdentificationOverride = scientificName
             record.userConfirmedIdentification = false
             record.confirmedSpeciesId = nil
@@ -224,14 +228,14 @@ extension BackgroundDatabaseActor {
     ///   - scanId: The scan record to update.
     ///   - override: The scientific name the user selected, or nil to clear.
     ///   - newConfirmedSpeciesId: The definitive species UUID (either the AI original or an override candidate).
-    func updateScanWithOverride(
+    @discardableResult func updateScanWithOverride(
         scanId: String,
         override: String?,
         confirmed: Bool,
         newConfirmedSpeciesId: String?,
-        userReviewState: UserReviewState
-    ) {
-        mutateScan(id: scanId, legacyReview: true) { record in
+        userReviewState: UserReviewState, expectedReview: LocalAIIdentificationReview? = nil
+    ) -> Bool {
+        mutateScan(id: scanId, legacyReview: true, expectedReview: expectedReview) { record in
             // Snapshot the original AI identity before mutating any SwiftData-backed
             // review fields. The reset placeholder must not depend on a managed
             // accessor after the record has begun changing.

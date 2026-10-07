@@ -54,6 +54,11 @@ controls.** The
 owns the verdict. Internal test builds may continue; that does not authorize
 production submission or public release.
 
+- [Identification-history integrated review plan](./rfcs/identification-history-integrated-review-plan-2026-10-07.md)
+  defines the final cross-surface review, evidence ledger and completion
+  criteria. The
+  [integrated review results](./rfcs/identification-history-integrated-review-results-2026-10-07.md)
+  record findings, repairs, validation and remaining qualification.
 - [Identification-history device review](./development-guides/24-identification-history-device-review.md)
   provides Xcode launch profiles, guided fixture steps and a concise result
   template.

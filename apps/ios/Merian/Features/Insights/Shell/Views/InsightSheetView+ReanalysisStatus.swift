@@ -3,6 +3,7 @@ import SwiftUI
 
 extension InsightSheetView {
     func reanalysisStatusAction(scanId: String?, generation: UInt64) -> (() -> Void)? {
+        _ = historyAvailabilityRevision
         guard let scanId, let access = dependencies.reanalysisStatusAccess,
               access.available(scanId, modelContext.container) else { return nil }
         return {

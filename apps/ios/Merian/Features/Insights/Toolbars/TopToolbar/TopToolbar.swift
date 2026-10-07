@@ -116,6 +116,7 @@ struct TopToolbar: ToolbarContent {
     var confirmationTitle: String
     var onRetryReviewSave: (() -> Void)?
     var onUndoIncorrect: (() -> Void)?
+    var reviewUnavailableReason: String?
     var onMarkIncorrect: (() -> Void)?
     var onAskCommunity: (() -> Void)?
     var sharedExplorePostId: String?
@@ -157,6 +158,7 @@ struct TopToolbar: ToolbarContent {
         confirmationTitle: String = "Confirm species",
         onRetryReviewSave: (() -> Void)? = nil,
         onUndoIncorrect: (() -> Void)? = nil,
+        reviewUnavailableReason: String? = nil,
         onMarkIncorrect: (() -> Void)? = nil,
         onAskCommunity: (() -> Void)? = nil,
         sharedExplorePostId: String? = nil,
@@ -197,6 +199,7 @@ struct TopToolbar: ToolbarContent {
         self.confirmationTitle = confirmationTitle
         self.onRetryReviewSave = onRetryReviewSave
         self.onUndoIncorrect = onUndoIncorrect
+        self.reviewUnavailableReason = reviewUnavailableReason
         self.onMarkIncorrect = onMarkIncorrect
         self.onAskCommunity = onAskCommunity
         self.sharedExplorePostId = sharedExplorePostId
@@ -462,6 +465,8 @@ struct TopToolbar: ToolbarContent {
                 Button(action: onUndoIncorrect) {
                     Label("Undo incorrect", systemImage: "arrow.uturn.backward")
                 }
+            } else if let reviewUnavailableReason {
+                Label(reviewUnavailableReason, systemImage: "info.circle")
             } else if let onMarkIncorrect {
                 Button(role: .destructive) {
                     pendingIncorrectAction = onMarkIncorrect

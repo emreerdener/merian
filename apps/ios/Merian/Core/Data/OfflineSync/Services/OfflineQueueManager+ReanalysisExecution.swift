@@ -16,7 +16,8 @@ extension OfflineQueueManager {
             await ObservationReanalysisExecutionService().drain(ownerID: owner, container: context.container,
                 isCurrent: current, didStart: { scheduler.reanalysisDrainDidStart(using: self) },
                 requestRetry: { scheduler.scheduleReanalysisRetry(using: self) },
-                cleanup: { await self.drainPendingReanalysisErasures(in: context.container) })
+                cleanup: { await self.drainPendingReanalysisErasures(in: context.container) },
+                didComplete: { AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged) })
         }, didFinish: { [weak self] in
             guard let self else { return }
             scheduler.scheduleNextPersistedWake(using: self)

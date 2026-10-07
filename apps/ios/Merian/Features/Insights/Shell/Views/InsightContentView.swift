@@ -14,6 +14,7 @@ struct InsightContentView: View {
     var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
     var prepareCommunityConsent: CommunityConsentPreparation?
     var prepareSavedReanalysis: SavedReanalysisPreparation?
+    var confidenceReviewControls = ConfidenceReviewControls()
 
     // MARK: - Layout Constants
     private let overlapRadius: CGFloat = 32
@@ -114,7 +115,8 @@ struct InsightContentView: View {
                     queuedScan: presentationQueuedScan,
                     onOpenFieldTripOverview: onOpenFieldTripOverview,
                     prepareCommunityConsent: prepareCommunityConsent,
-                    prepareSavedReanalysis: prepareSavedReanalysis
+                    prepareSavedReanalysis: prepareSavedReanalysis,
+                    confidenceReviewControls: confidenceReviewControls
                 )
                     .padding(.top, overlapRadius)
                     .frame(maxWidth: .infinity)

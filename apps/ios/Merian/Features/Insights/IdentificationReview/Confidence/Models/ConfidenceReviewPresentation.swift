@@ -32,6 +32,7 @@ struct ConfidenceBadgePresentation: Equatable {
         case analyzing
         case confirmed
         case incorrect
+        case awaitingReview
         case strong
         case possible
         case weak
@@ -54,7 +55,7 @@ struct ConfidenceBadgePresentation: Equatable {
         hasUserOverride: Bool,
         isUserConfirmed: Bool,
         analyzingPhrase: String?,
-        isIncorrect: Bool = false
+        review: LocalAIIdentificationReview = .init()
     ) -> Self {
         if let analyzingPhrase {
             let label = analyzingPhrase.hasSuffix("...")
@@ -67,7 +68,13 @@ struct ConfidenceBadgePresentation: Equatable {
                 isVisible: true
             )
         }
-        if isIncorrect {
+        if review.needsAttention {
+            return Self(label: "Review needs attention", icon: "exclamationmark.circle", style: .awaitingReview, isVisible: true)
+        }
+        if review.state == .awaitingAcceptance {
+            return Self(label: "Review new result", icon: "questionmark.circle", style: .awaitingReview, isVisible: true)
+        }
+        if review.state == .aiRejected {
             return Self(label: "Incorrect", icon: "xmark.circle.fill", style: .incorrect, isVisible: true)
         }
         if hasUserOverride || isUserConfirmed {
@@ -180,5 +187,42 @@ enum ConfidenceExplanationPresentation {
             return overrideScientificName
         }
         return "\(commonName.capitalized) (\(overrideScientificName))"
+    }
+}
+
+/// Actions retain the Shell's exact displayed subject and review receipt.
+struct ConfidenceReviewControls {
+    var undo: (() -> Void)?
+    var confirmProposal: (() -> Void)?
+    var unavailableReason: String?
+
+    func checking(_ isCurrent: @escaping () -> Bool) -> Self {
+        Self(undo: undo.map { action in { if isCurrent() { action() } } },
+             confirmProposal: confirmProposal.map { action in { if isCurrent() { action() } } },
+             unavailableReason: unavailableReason)
+    }
+}
+
+enum IdentificationReviewNotice {
+    static func title(_ review: LocalAIIdentificationReview) -> String {
+        if review.needsAttention { return "Review needs attention" }
+        return review.state == .aiRejected ? "Marked as incorrect" : "Review new result"
+    }
+
+    static func explanation(_ review: LocalAIIdentificationReview) -> String {
+        if review.needsAttention {
+            return "This review could not be reconciled. Refresh the identification before making another choice."
+        }
+        if review.state == .aiRejected {
+            return "You marked this AI identification as incorrect. Your scan and its original details are preserved."
+        }
+        return "Reanalysis produced a new proposal. Review it before accepting it; it has not been marked incorrect."
+    }
+
+    static func unavailableReason(_ review: LocalAIIdentificationReview) -> String? {
+        if review.needsAttention { return "Undo unavailable: this review needs attention." }
+        if review.pending != nil { return "Review waiting to sync. Further changes are unavailable until it finishes." }
+        if review.state == .aiRejected { return "Undo unavailable: no reversible rejection is available for this identification." }
+        return nil
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 
 extension InsightSheetView {
     func historyAction(scanId: String?, generation: UInt64) -> (() -> Void)? {
+        _ = historyAvailabilityRevision
         guard let scanId, let access = dependencies.historyAccess,
               access.hasMultiple(scanId, modelContext.container) else { return nil }
         return {

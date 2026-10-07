@@ -7,6 +7,7 @@ struct InsightContentRouterView: View {
     var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
     var prepareCommunityConsent: CommunityConsentPreparation?
     var prepareSavedReanalysis: SavedReanalysisPreparation?
+    var confidenceReviewControls = ConfidenceReviewControls()
     @Environment(InferenceEngine.self) private var inferenceEngine
 
     private var presentationQueuedScan: QueuedScanContext? {
@@ -59,7 +60,8 @@ struct InsightContentRouterView: View {
                         timestamp: viewModel.activeRecordTimestamp,
                         onOpenFieldTripOverview: onOpenFieldTripOverview,
                         prepareCommunityConsent: prepareCommunityConsent,
-                        prepareSavedReanalysis: prepareSavedReanalysis
+                        prepareSavedReanalysis: prepareSavedReanalysis,
+                    confidenceReviewControls: confidenceReviewControls
                     )
                     .transition(.opacity)
                 }
