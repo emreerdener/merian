@@ -144,7 +144,7 @@ struct ProtectedInsightChatTransportTests {
             try await ProtectedInsightChatDataTask().response(using: session, request: request,
                 timeout: 1, claimExpiresAt: Date().addingTimeInterval(160))
         }
-        let collector = ProtectedInsightChatDataTask(), task = session.dataTask(with: request)
+        let collector = PinnedBoundedJSONDataTask(maximumBytes: 32_768), task = session.dataTask(with: request)
         let denied = OSAllocatedUnfairLock(initialState: false)
         collector.urlSession(session, task: task,
             willPerformHTTPRedirection: HTTPURLResponse(url: request.url!, statusCode: 302, httpVersion: nil, headerFields: [:])!,

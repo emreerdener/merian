@@ -232,3 +232,135 @@ struct ObservationExecutionStatusTransportTests {
         #expect(sends.withLock { $0 } == (afterReply ? 1 : 0))
     }
 }
+
+@MainActor
+@Suite("Observation Analysis Retirement Transport")
+struct AnalysisRetirementTransportTests {
+    func fixture() throws -> ObservationAnalysisRetirementRequest {
+        try .init(operationID: UUID(), execution: .init(ObservationReanalysisResultTests().fixture().0))
+    }
+    func reply(_ input: ObservationAnalysisRetirementRequest) throws -> Data {
+        var row = try #require(JSONSerialization.jsonObject(with: input.body) as? [String: Any])
+        row["state"] = "retired_before_dispatch"
+        return try JSONSerialization.data(withJSONObject: row, options: [.sortedKeys])
+    }
+
+    @Test func savedIdentityAndTerminalProofAreStrict() throws {
+        let input = try fixture(), proof = try reply(input)
+        #expect(try ObservationAnalysisRetirementRequest(savedBody: input.body) == input)
+        #expect(try ObservationAnalysisRetirementReceipt(data: proof, request: input).data == proof)
+        let valid = try #require(JSONSerialization.jsonObject(with: proof) as? [String: Any])
+        for (key, value) in ["schema_version": true, "operation_id": UUID().uuidString.lowercased(), "observation_id": UUID().uuidString.lowercased(),
+                             "analysis_id": UUID().uuidString.lowercased(), "source_analysis_id": NSNull(), "request_digest": String(repeating: "b", count: 64),
+                             "state": "absent", "extra": true] as [String: Any] {
+            var changed = valid; changed[key] = value
+            #expect(throws: (any Error).self) { try ObservationAnalysisRetirementReceipt(data: JSONSerialization.data(withJSONObject: changed), request: input) }
+        }
+        for key in valid.keys {
+            var changed = valid; changed.removeValue(forKey: key)
+            #expect(throws: (any Error).self) { try ObservationAnalysisRetirementReceipt(data: JSONSerialization.data(withJSONObject: changed), request: input) }
+        }
+        #expect(throws: (any Error).self) { try ObservationAnalysisRetirementRequest(savedBody: input.body + Data(" ".utf8)) }
+        #expect(throws: (any Error).self) { try ObservationAnalysisRetirementReceipt(data: Data(repeating: 32, count: 4097), request: input) }
+        #expect(throws: (any Error).self) { try ObservationAnalysisRetirementRequest(operationID: input.execution.analysisID, execution: input.execution) }
+        let nullable = try ObservationAnalysisExecutionLookup(observationID: UUID(), analysisID: UUID(), sourceAnalysisID: nil, requestDigest: String(repeating: "a", count: 64))
+        let other = try ObservationAnalysisRetirementRequest(operationID: UUID(), execution: nullable)
+        #expect(try ObservationAnalysisRetirementReceipt(data: reply(other), request: other).request == other)
+        #expect(try ObservationAnalysisRetirementRequest(savedBody: other.body) == other)
+        #expect(throws: (any Error).self) { try ObservationAnalysisRetirementReceipt(data: reply(input), request: other) }
+    }
+
+    @Test(arguments: [200, 401, 404, 503])
+    func fixedMutationNeverRetriesOrRequiresInferenceConsent(status: Int) async throws {
+        let network = NetworkEndpointFixture(); defer { network.close() }
+        let owner = try #require(network.client.overridingAuthUserID), input = try fixture()
+        let bytes = try reply(input), text = try #require(String(data: bytes, encoding: .utf8))
+        let sends = OSAllocatedUnfairLock(initialState: 0), refreshes = OSAllocatedUnfairLock(initialState: 0)
+        network.client.overridingInferenceConsentCheck = { throw MerianError.aiConsentRequired }
+        network.client.overridingAuthSessionRefresh = { refreshes.withLock { $0 += 1 }; return true }
+        network.transport.register(path: "/retire-observation-analysis") { wire in
+            sends.withLock { $0 += 1 }
+            #expect(wire.httpMethod == "POST" && wire.timeoutInterval == 5)
+            #expect(wire.value(forHTTPHeaderField: "Idempotency-Key") == nil)
+            #expect(MockURLProtocol.bodyData(for: wire) == input.body)
+            return try NetworkEndpointTestSupport.response(to: wire, status: status, json: text)
+        }
+        if status == 200 {
+            let receipt = try await network.client.analysisRetirementTransport().retire(input, ownerID: owner, validateAttempt: {}, validateResponse: {})
+            #expect(receipt.request == input && receipt.data == bytes)
+        } else {
+            await #expect(throws: (any Error).self) {
+                try await network.client.analysisRetirementTransport().retire(input, ownerID: owner, validateAttempt: {}, validateResponse: {})
+            }
+        }
+        #expect(sends.withLock { $0 } == 1 && refreshes.withLock { $0 } == 0)
+    }
+
+    @Test(arguments: [false, true])
+    func distinctDispatchAndSettlementClaimFences(afterReply: Bool) async throws {
+        let network = NetworkEndpointFixture(); defer { network.close() }
+        let owner = try #require(network.client.overridingAuthUserID), input = try fixture()
+        let bytes = try reply(input), text = try #require(String(data: bytes, encoding: .utf8))
+        let sends = OSAllocatedUnfairLock(initialState: 0)
+        network.transport.register(path: "/retire-observation-analysis") { wire in
+            sends.withLock { $0 += 1 }; return try NetworkEndpointTestSupport.response(to: wire, json: text)
+        }
+        var validations = 0
+        await #expect(throws: CancellationError.self) {
+            try await network.client.analysisRetirementTransport().retire(input, ownerID: owner, validateAttempt: {
+                validations += 1
+                if !afterReply && validations == 2 { throw CancellationError() }
+            }, validateResponse: { throw CancellationError() })
+        }
+        #expect(sends.withLock { $0 } == (afterReply ? 1 : 0))
+    }
+    @Test func cancelledKnownAnswerStillReachesSettlementButChangedOwnerDoesNot() async throws {
+        let network = NetworkEndpointFixture(); defer { network.close() }
+        let owner = try #require(network.client.overridingAuthUserID), input = try fixture()
+        let data = try reply(input), text = try #require(String(data: data, encoding: .utf8))
+        let taskBox = OSAllocatedUnfairLock<Task<ObservationAnalysisRetirementReceipt, Error>?>(initialState: nil)
+        network.transport.register(path: "/retire-observation-analysis") { wire in
+            try NetworkEndpointTestSupport.response(to: wire, json: text)
+        }
+        let task = Task {
+            try await network.client.analysisRetirementTransport().retire(input, ownerID: owner, validateAttempt: {}, validateResponse: {
+                taskBox.withLock { $0?.cancel() }
+                #expect(Task.isCancelled)
+            })
+        }
+        taskBox.withLock { $0 = task }
+        let receipt = try await task.value
+        #expect(receipt.data == data && task.isCancelled)
+        network.transport.register(path: "/retire-observation-analysis") { wire in
+            network.client.overridingAuthUserID = UUID()
+            return try NetworkEndpointTestSupport.response(to: wire, json: text)
+        }
+        await #expect(throws: (any Error).self) {
+            try await network.client.analysisRetirementTransport().retire(input, ownerID: owner, validateAttempt: {}, validateResponse: {})
+        }
+    }
+
+    @Test func retirementCollectorStopsChunkedOverflowWithoutContentLength() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RetirementChunksProtocol.self]
+        let session = URLSession(configuration: configuration); defer { session.invalidateAndCancel() }
+        let transport = PinnedNetworkTransport(); transport.overridingSession = session
+        let request = URLRequest(url: URL(string: "https://example.supabase.co/retire-observation-analysis")!)
+        await #expect(throws: MerianError.invalidResponse) { try await transport.analysisRetirementData(for: request) }
+    }
+
+}
+
+private class RetirementChunksProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(repeating: 32, count: 2048))
+        client?.urlProtocol(self, didLoad: Data(repeating: 32, count: 2048))
+        client?.urlProtocol(self, didLoad: Data([32]))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}

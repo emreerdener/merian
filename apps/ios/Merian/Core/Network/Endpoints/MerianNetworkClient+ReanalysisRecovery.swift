@@ -78,3 +78,32 @@ struct ObservationReanalysisStatusTransport {
         return try ObservationAnalysisExecutionStatus(data: data, request: input, ownerID: ownerID)
     }
 }
+
+/// Fixed retirement mutation. Its caller must first persist the exact operation and claim.
+struct ObservationAnalysisRetirementTransport {
+    let baseURL: String
+    let dispatcher: AuthenticatedTransportDispatcher
+
+    func retire(_ input: ObservationAnalysisRetirementRequest, ownerID: UUID,
+                validateAttempt: @escaping @MainActor @Sendable () throws -> Void,
+                validateResponse: @escaping @MainActor @Sendable () throws -> Void) async throws -> ObservationAnalysisRetirementReceipt {
+        try Task.checkCancellation()
+        try await validateAttempt()
+        let url = try EdgeFunctionRoutePolicy.endpointURL(baseURL: baseURL, function: "retire-observation-analysis")
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 5)
+        request.httpMethod = "POST"; request.httpBody = input.body
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("3", forHTTPHeaderField: "X-Merian-Entitlement-Protocol")
+        let result = try await dispatcher.performAnalysisRetirement(.init(request: request, body: input.body,
+            onRequestBodySent: nil, authTransitionOwner: nil, expectedAuthUserID: ownerID, validateAttempt: validateAttempt))
+        guard let response = result.response as? HTTPURLResponse else { throw MerianError.invalidResponse }
+        guard response.statusCode == 200 else {
+            throw MerianError.httpError(statusCode: response.statusCode, message: "analysis_history_unavailable")
+        }
+        let receipt = try ObservationAnalysisRetirementReceipt(data: result.data, request: input)
+        // Dispatch cancellation must not erase a known same-claim answer.
+        try await validateResponse()
+        return receipt
+    }
+}

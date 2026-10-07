@@ -4050,3 +4050,21 @@ invalid or empty responses as absence. Status alone cannot dispatch, retire,
 release occupancy, append a result or change selection. The adapter remains
 inert until the dedicated recovery action owner supplies its account lease and
 claim checks; it does not replace completed-result recovery.
+
+### Exact admitted-analysis retirement transport
+
+`ObservationAnalysisRetirementRequest` retains one canonical retirement UUID and
+original execution identity; `ObservationAnalysisRetirementReceipt` accepts only
+the exact bounded terminal proof. `ObservationAnalysisRetirementTransport` is a
+fixed five-second Edge mutation with no transient, auth-refresh or route retry.
+It uses a dedicated authenticated-dispatch entry point, validates the attempt
+after Auth and checks a separate account/container/claim settlement predicate
+after decoding a known answer. Dispatch cancellation alone does not erase that
+answer. Durable request admission, claims and UI are not installed by this wire
+component.
+
+`PinnedBoundedJSONDataTask` collects at most 4 KiB for retirement and preserves
+TLS/redirect, cancellation and deadline rules. The existing protected-chat
+wrapper uses the same collector at its unchanged 32-KiB limit with its original
+claim-budget check and scoped session. Ordinary session limits remain unchanged.
+No arbitrary mutation capability or activation gate is exposed.

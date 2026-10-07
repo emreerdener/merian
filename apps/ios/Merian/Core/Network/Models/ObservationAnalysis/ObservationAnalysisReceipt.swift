@@ -70,12 +70,65 @@ struct ObservationAnalysisExecutionStatus: Sendable, Equatable {
               row["owner_id"] as? String == ownerID.uuidString.lowercased(),
               row["observation_id"] as? String == request.observationID.uuidString.lowercased(),
               row["analysis_id"] as? String == request.analysisID.uuidString.lowercased(),
-              ((request.sourceAnalysisID == nil && row["source_analysis_id"] is NSNull) ||
-               (request.sourceAnalysisID != nil && row["source_analysis_id"] as? String == request.sourceAnalysisID?.uuidString.lowercased())),
+              request.sourceAnalysisID == nil && row["source_analysis_id"] is NSNull ||
+                  request.sourceAnalysisID != nil && row["source_analysis_id"] as? String == request.sourceAnalysisID?.uuidString.lowercased(),
               row["request_digest"] as? String == request.requestDigest,
               let raw = row["state"] as? String, let state = State(rawValue: raw) else {
             throw MerianError.invalidResponse
         }
         self.state = state
+    }
+}
+
+/// One retained retirement identity. Creating this value grants no mutation authority.
+struct ObservationAnalysisRetirementRequest: Sendable, Equatable {
+    let operationID: UUID
+    let execution: ObservationAnalysisExecutionLookup
+    let body: Data
+
+    init(operationID: UUID, execution: ObservationAnalysisExecutionLookup) throws {
+        guard operationID != execution.observationID, operationID != execution.analysisID,
+              operationID != execution.sourceAnalysisID else { throw MerianError.invalidResponse }
+        self.operationID = operationID; self.execution = execution
+        body = try JSONSerialization.data(withJSONObject: execution.object().merging([
+            "operation_id": operationID.uuidString.lowercased()
+        ]) { _, value in value }, options: [.sortedKeys])
+        guard body.count <= 2048 else { throw MerianError.invalidResponse }
+    }
+
+    init(savedBody: Data) throws {
+        guard savedBody.count <= 2048,
+              let row = try JSONSerialization.jsonObject(with: savedBody) as? [String: Any],
+              Set(row.keys) == ["schema_version", "operation_id", "observation_id", "analysis_id", "source_analysis_id", "request_digest"],
+              let version = row["schema_version"] as? NSNumber, CFGetTypeID(version) != CFBooleanGetTypeID(), version.doubleValue == 1,
+              let digest = row["request_digest"] as? String else { throw MerianError.invalidResponse }
+        func uuid(_ key: String) throws -> UUID {
+            guard let text = row[key] as? String, let value = UUID(uuidString: text), value.uuidString.lowercased() == text else {
+                throw MerianError.invalidResponse
+            }
+            return value
+        }
+        let source: UUID? = row["source_analysis_id"] is NSNull ? nil : try uuid("source_analysis_id")
+        let execution = try ObservationAnalysisExecutionLookup(observationID: uuid("observation_id"), analysisID: uuid("analysis_id"),
+                                                              sourceAnalysisID: source, requestDigest: digest)
+        try self.init(operationID: uuid("operation_id"), execution: execution)
+        guard body == savedBody else { throw MerianError.invalidResponse }
+    }
+}
+
+/// Exact terminal server proof; neither an error nor absent status can create this value.
+struct ObservationAnalysisRetirementReceipt: Sendable, Equatable {
+    let request: ObservationAnalysisRetirementRequest
+    let data: Data
+
+    init(data: Data, request: ObservationAnalysisRetirementRequest) throws {
+        guard data.count <= 4096,
+              var row = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              Set(row.keys) == ["schema_version", "operation_id", "observation_id", "analysis_id", "source_analysis_id", "request_digest", "state"],
+              row.removeValue(forKey: "state") as? String == "retired_before_dispatch",
+              try ObservationAnalysisRetirementRequest(savedBody: JSONSerialization.data(withJSONObject: row, options: [.sortedKeys])) == request else {
+            throw MerianError.invalidResponse
+        }
+        self.request = request; self.data = data
     }
 }

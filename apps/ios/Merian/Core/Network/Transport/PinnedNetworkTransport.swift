@@ -236,6 +236,11 @@ final class PinnedNetworkTransport: @unchecked Sendable {
         return try await ProtectedInsightChatDataTask().response(using: session, request: request, claimExpiresAt: claimExpiresAt)
     }
 
+    /// Fixed retirement response budget on the existing pinned session.
+    func analysisRetirementData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await PinnedBoundedJSONDataTask(maximumBytes: 4096).response(using: activeSession, request: request, timeout: 5)
+    }
+
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await activeSession.data(for: request)
     }
@@ -375,7 +380,17 @@ private final class MerianTLSDelegate: NSObject, URLSessionDelegate {
 }
 
 /// One bounded response collector. The pinned owner supplies and retires its scoped session.
-final class ProtectedInsightChatDataTask: NSObject, URLSessionDataDelegate, Sendable {
+struct ProtectedInsightChatDataTask: Sendable {
+    func response(using session: URLSession, request: URLRequest,
+                  timeout: TimeInterval = ProtectedInsightChatBudget.requestSeconds, claimExpiresAt: Date? = nil) async throws -> (Data, URLResponse) {
+        try await PinnedBoundedJSONDataTask(maximumBytes: 32_768).response(using: session, request: request, timeout: timeout) {
+            if let claimExpiresAt { try ProtectedInsightChatBudget.requireDispatch(claimExpiresAt: claimExpiresAt) }
+        }
+    }
+}
+
+/// Shared bounded JSON collection; callers own route, budget, account and mutation policy.
+final class PinnedBoundedJSONDataTask: NSObject, URLSessionDataDelegate, Sendable {
     private typealias Reply = (Data, URLResponse)
     private struct State {
         var continuation: CheckedContinuation<Reply, Error>?
@@ -391,17 +406,18 @@ final class ProtectedInsightChatDataTask: NSObject, URLSessionDataDelegate, Send
     }
     private let tlsDelegate = MerianTLSDelegate()
     private let state = OSAllocatedUnfairLock(initialState: State())
-    private static let limit = 32_768
-    private static let deadlineQueue = DispatchQueue(label: "com.merian.protected-chat-deadline")
+    private let limit: Int
+    init(maximumBytes: Int) { limit = maximumBytes; super.init() }
+    private static let deadlineQueue = DispatchQueue(label: "com.merian.bounded-json-deadline")
 
-    func response(using session: URLSession, request: URLRequest,
-                  timeout: TimeInterval = ProtectedInsightChatBudget.requestSeconds, claimExpiresAt: Date? = nil) async throws -> (Data, URLResponse) {
-        guard timeout.isFinite, timeout > 0 else { throw URLError(.timedOut) }
+    func response(using session: URLSession, request: URLRequest, timeout: TimeInterval,
+                  beforeStart: @Sendable () throws -> Void = {}) async throws -> (Data, URLResponse) {
+        guard limit > 0, timeout.isFinite, timeout > 0 else { throw URLError(.timedOut) }
         return try await withTaskCancellationHandler {
             try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 do {
-                    if let claimExpiresAt { try ProtectedInsightChatBudget.requireDispatch(claimExpiresAt: claimExpiresAt) }
+                    try beforeStart()
                 } catch {
                     continuation.resume(throwing: error)
                     return
@@ -431,7 +447,7 @@ final class ProtectedInsightChatDataTask: NSObject, URLSessionDataDelegate, Send
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                     completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-        guard let http = response as? HTTPURLResponse, response.expectedContentLength <= Int64(Self.limit),
+        guard let http = response as? HTTPURLResponse, response.expectedContentLength <= Int64(limit),
               http.statusCode != 200 || http.mimeType?.lowercased() == "application/json" else {
             completionHandler(.cancel)
             finish(error: MerianError.invalidResponse)
@@ -448,7 +464,7 @@ final class ProtectedInsightChatDataTask: NSObject, URLSessionDataDelegate, Send
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         let overflow = state.withLock { value in
             guard !value.finished else { return false }
-            guard data.count <= Self.limit - value.data.count else { return true }
+            guard data.count <= limit - value.data.count else { return true }
             value.data.append(data)
             return false
         }

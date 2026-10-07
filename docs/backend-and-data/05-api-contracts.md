@@ -12560,6 +12560,16 @@ absent read releases occupancy; an uncertain reply requires the identical
 retained retirement request to recover its permanent receipt. No deployment is
 implied.
 
+The inert native retirement wire retains canonical request bytes for a future
+durable owner. Its fixed five-second authenticated dispatch bypasses generic
+response-time cancellation so an exact received proof can reach a separate
+same-account/container/claim settlement check. The pinned collector limits
+actual streamed responses to 4 KiB and rejects redirects. It never retries
+transient, 401 or missing-route failures. This transport does not itself stage
+retirement, acknowledge a job, clean files or release occupancy; those durable
+owners and user actions remain a later checkpoint. Unknown outcomes retain the
+original retirement UUID and require exact receipt recovery.
+
 The prepared native `analyzeObservation` transport preserves the complete saved
 request bytes, initiating account and 130-second timeout. It disables automatic
 transport retries and 401 session refresh so the durable owner controls

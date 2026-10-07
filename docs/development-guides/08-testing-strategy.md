@@ -10857,3 +10857,15 @@ than 4 KiB; the timeout test verifies the five-second budget without sleeping.
 Upstream 401/503 and malformed replies make one attempt and return no proof.
 These synthetic boundaries complement the SQL race catalogs; they do not prove
 native durable retirement admission or deployed behavior.
+
+### Native retirement wire qualification
+
+`AnalysisRetirementTransportTests` exercises canonical saved request identity,
+nullable original source, exact terminal proof, one-attempt HTTP failures,
+after-Auth dispatch validation, separate response settlement and account change.
+Chunked overflow without Content-Length proves the 4-KiB collector boundary;
+cancellation after a known response retains the proof for same-scope settlement.
+`ProtectedInsightChatTransportTests` and `PinnedNetworkTransportTests` cover the
+shared collector's existing chat limits, claim budget, TLS/redirect, deadline
+and cancellation behavior. This is inert transport evidence, not durable
+retirement or UI acceptance. The alternatives card remains unchanged.

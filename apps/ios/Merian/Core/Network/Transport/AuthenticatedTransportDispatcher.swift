@@ -118,8 +118,16 @@ final class AuthenticatedTransportDispatcher {
         return try await perform(attempt, protectedChatExpiry: claimExpiresAt)
     }
 
+    func performAnalysisRetirement(
+        _ attempt: AuthenticatedRequestExecutor.TransportAttempt
+    ) async throws -> AuthenticatedRequestExecutor.TransportResult {
+        guard attempt.expectedAuthUserID != nil, attempt.validateAttempt != nil,
+              attempt.authTransitionOwner == nil else { throw MerianError.invalidResponse }
+        return try await perform(attempt, protectedChatExpiry: nil, retirement: true)
+    }
+
     private func perform(
-        _ attempt: AuthenticatedRequestExecutor.TransportAttempt, protectedChatExpiry: Date?
+        _ attempt: AuthenticatedRequestExecutor.TransportAttempt, protectedChatExpiry: Date?, retirement: Bool = false
     ) async throws -> AuthenticatedRequestExecutor.TransportResult {
         let accountWorkLease: AccountBoundWorkLease?
         if attempt.authTransitionOwner == nil {
@@ -161,6 +169,11 @@ final class AuthenticatedTransportDispatcher {
             )
             try await attempt.identificationAuthorization?.validate()
             try await attempt.validateAttempt?()
+            #if DEBUG
+            if retirement, sessionTransport.isUsingOverridingSession, overridingAuthUserID != attempt.expectedAuthUserID {
+                throw SupabaseAuthTransitionError.signOutSessionChanged
+            }
+            #endif
             if let protectedChatExpiry {
                 #if DEBUG
                 if sessionTransport.isUsingOverridingSession,
@@ -176,11 +189,11 @@ final class AuthenticatedTransportDispatcher {
                 request: request,
                 body: attempt.body,
                 onRequestBodySent: attempt.onRequestBodySent,
-                protectedChatExpiry: protectedChatExpiry
+                protectedChatExpiry: protectedChatExpiry, retirement: retirement
             )
 
             #if DEBUG
-            if protectedChatExpiry != nil, sessionTransport.isUsingOverridingSession,
+            if protectedChatExpiry != nil || retirement, sessionTransport.isUsingOverridingSession,
                overridingAuthUserID != attempt.expectedAuthUserID {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
@@ -272,8 +285,12 @@ final class AuthenticatedTransportDispatcher {
     private func dispatch(
         request: URLRequest,
         body: Data?,
-        onRequestBodySent: (@Sendable () -> Void)?, protectedChatExpiry: Date?
+        onRequestBodySent: (@Sendable () -> Void)?, protectedChatExpiry: Date?, retirement: Bool
     ) async throws -> TransportDispatchResult {
+        if retirement {
+            let (data, response) = try await sessionTransport.analysisRetirementData(for: request)
+            return TransportDispatchResult(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
+        }
         if let protectedChatExpiry {
             let (data, response) = try await sessionTransport.protectedInsightChatData(for: request, claimExpiresAt: protectedChatExpiry)
             return TransportDispatchResult(data: data, response: response, notifyRequestBodySentIfNeeded: nil)

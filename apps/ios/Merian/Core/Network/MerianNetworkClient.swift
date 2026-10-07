@@ -16,6 +16,7 @@ final class MerianNetworkClient {
     private let authenticatedTransport: AuthenticatedTransportDispatcher
     let observationHistoryMutationTransport: ObservationHistoryMutationTransport
     func reanalysisStatusTransport() -> ObservationReanalysisStatusTransport { .init(baseURL: supabaseUrl, dispatcher: authenticatedTransport) }
+    func analysisRetirementTransport() -> ObservationAnalysisRetirementTransport { .init(baseURL: supabaseUrl, dispatcher: authenticatedTransport) }
 
     init() {
         let sessionTransport = PinnedNetworkTransport()
@@ -234,7 +235,7 @@ final class MerianNetworkClient {
 
     /// Fixed read-only RPC through the same account-bound, pinned dispatcher.
     func performOwnedIdentificationRead(body: Data, expectedAuthUserID: UUID,
-        route: AdmissionRPCRequestPolicy.Route = .recipient) async throws -> Data {
+                                        route: AdmissionRPCRequestPolicy.Route = .recipient) async throws -> Data {
         guard route == .recipient || route == .reanalysisRecipient || route == .analysisState else { throw MerianError.invalidURL }
         let url = try AdmissionRPCRequestPolicy.url(baseURL: supabaseUrl, route: route)
         let (data, _) = try await performAuthenticatedRequest(
