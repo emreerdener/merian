@@ -40,20 +40,30 @@ enum ObservationAudioPreparationStore {
     }
 
     static func restore(_ expected: ObservationAudioPreparation, row: OfflineQueuedScan, job: OfflineJobRecord) throws -> Phase {
-        let child = expected.identity.analysisID.uuidString.lowercased()
         guard let metadata = job.metadataJSON else { throw Persistence.IntegrityError.conflict }
         let saved = try ObservationAudioPreparation.decode(Data(metadata.utf8))
-        guard saved.preparation == expected, row.id == child, row.work == .reanalysis(expected.identity),
+        guard saved.preparation == expected else { throw Persistence.IntegrityError.conflict }
+        try validateRow(expected, row: row, job: job)
+        return saved.phase
+    }
+
+    /// Shared by audio preparation and its separate bound envelope; no metadata interpretation here.
+    static func validateRow(_ expected: ObservationAudioPreparation, row: OfflineQueuedScan, job: OfflineJobRecord) throws {
+        let child = expected.identity.analysisID.uuidString.lowercased()
+        guard row.id == child, row.work == .reanalysis(expected.identity),
               row.inferenceImagePaths == nil, row.visualMediaItemsJSON == nil, row.coverImagePath == nil,
               let json = row.capturedMediaJSON, MediaJSONParser.serializedItems(jsonString: json) == expected.media,
               CapturedMediaEntry.serializedItems(from: row.capturedMediaEntries ?? []) == expected.media,
               row.queueNeedsAttention, row.scanStateRaw == ScanQueueState.pending.rawValue,
               row.queueAttemptCount == 0, row.queueLastAttemptAt == nil, row.queueNextRetryAt == nil,
               row.stagedR2Keys == nil, row.fieldNotes == nil,
+              row.queueLastErrorCode == nil, row.queueLastErrorMessage == nil, row.queueLastHTTPStatus == nil,
+              row.queueLastServerStatus == nil, row.queueLastServerStage == nil, row.queueLastServerRetryAfter == nil,
               job.id == OfflineQueueManager.scanIngestionJobId(scanId: child), job.subjectId == child,
               job.kindRaw == OfflineJobKind.observationReanalysisSync.rawValue,
               job.statusRaw == OfflineJobStatus.needsAttention.rawValue,
-              job.attemptCount == 0, job.lastAttemptAt == nil, job.nextRunAt == nil else { throw Persistence.IntegrityError.conflict }
-        return saved.phase
+              job.attemptCount == 0, job.lastAttemptAt == nil, job.nextRunAt == nil,
+              job.lastErrorCode == nil, job.lastErrorMessage == nil, job.lastHTTPStatus == nil,
+              job.serverStatus == nil, job.serverStage == nil, job.serverRetryAfter == nil else { throw Persistence.IntegrityError.conflict }
     }
 }

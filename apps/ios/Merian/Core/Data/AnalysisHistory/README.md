@@ -1521,3 +1521,31 @@ photo file/recovery/producer tests remain the shared-storage regression gate. No
 audio Capture submission, automatic admission, provider execution or V4
 historical source loader is connected by this checkpoint; all activation gates
 stay false.
+
+### Inert audio request binding and claims
+
+`ObservationAudioExecutionIntent` retains the exact saved schema-3 request bytes
+and frozen source SHA in a closed `audio_execution` envelope.
+`ObservationAudioExecutionStore` binds only submitted-v2 `admission_pending`
+work under current account/source/deletion checks and fixed-Gemini consent.
+Authorization validates before the nonrecursive persistence lock: its callback
+may itself read durable state. The entire transition is synchronous on MainActor
+with no suspension between consent validation and the fresh transaction. Exact
+already-bound replay is read before fresh consent gates and never resets state.
+
+Private `idle`/`running`/`held` state and an attempt generation leave the
+ordinary queue/job execution fields pristine. Fresh claims require
+idle/unconsumed work. Explicit resumption of held/unconsumed work requires fresh
+Gemini authorization. Held/consumed work permits only recovery claims. The
+original consumed attempt is immutable; consuming it commits before a
+potentially dispatching call and invalidates the preceding claim. A save that
+throws yields no permission. Holds have no deadlines, scheduler wakes or
+automatic retries. Running work cannot be superseded through these APIs;
+interrupted-owner adoption awaits a retained owner/drain contract.
+
+This is an inert persistence kernel, with no transport, scheduler or UI caller.
+`ObservationAudioExecutionStoreTests` covers immutable binding, exact replay,
+consumed-save ambiguity, stale claims, explicit resumption, denied scopes,
+malformed metadata and disk reopen. Private audio erasure remains parent-indexed
+and independent of the envelope. Saved photo request/claim behavior is
+unchanged.

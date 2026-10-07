@@ -11059,7 +11059,14 @@ account loss. A promotion error retains the verified WAV because the database
 save may have committed. Initial-save uncertainty must precede any private
 write.
 
-Run this suite with `ObservationReanalysisFileStoreTests`,
+`ObservationAudioExecutionStoreTests` covers exact-byte one-time binding, replay
+before fresh consent, initial and explicitly resumed unconsumed claims,
+consumed-save uncertainty, stale claim/permit denial, malformed generic queue
+residue, scanner exclusion and disk-backed outcome-only recovery. Recovery
+claims cannot become dispatch permits. Binding and consumption saves that commit
+then throw retain the original request and consumed authority.
+
+Run these suites with `ObservationReanalysisFileStoreTests`,
 `ObservationReanalysisSubmissionTests`, `ObservationReanalysisOwnershipTests`
 and `OfflineSyncFoundationArchitectureTests` through `make ios-local-build`.
 These suites also run under the general native unit target; they are not a

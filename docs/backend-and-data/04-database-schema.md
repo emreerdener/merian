@@ -7408,6 +7408,16 @@ receipts. See the
 Audio Capture submission, advisory admission/execution and historical V4 source
 loading remain disconnected. Persisted submission intent alone cannot dispatch.
 
+The separate inert `audio_execution` version-1 envelope binds exact schema-3
+request bytes, owner and source SHA once. Private state, generation and original
+consumed-attempt fields do not repurpose normal V58 job counters. An idle first
+claim, explicitly authorized held/unconsumed resumption and held/consumed
+outcome recovery are distinct transitions. Consumption is saved before any
+potentially dispatching call; a lost save response never permits a call, and
+recovery never clears that marker. Existing photo scanners reject this closed
+envelope. No scheduler or network caller is connected. See the
+[audio claim owner](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#inert-audio-request-binding-and-claims).
+
 ### Prepared immutable Insight Field Chat turn context
 
 `20261006084439_prepare_immutable_insight_chat_context.sql` adds private

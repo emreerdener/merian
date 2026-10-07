@@ -15410,6 +15410,12 @@ before private WAV writes, with complete locked recovery even for ready replays.
 This separate local envelope cannot enter photo admission or execution; see the
 [V58 audio preparation contract](04-database-schema.md#audio-preparation-intent-in-v58).
 The inert local audio submission primitive versions intent before file writes;
-old held preparations remain inert. Consent binding, upload/execution delivery
-and separate action admission remain required before activation. All gates
-remain false; there is no deployment or activation authorization.
+old held preparations remain inert. The separate local `audio_execution`
+envelope binds exact schema-3 request bytes and the source digest once, after
+current fixed-Gemini authorization. Exact bound replay precedes fresh consent. A
+private attempt CAS and permanent consumed marker separate first dispatch from
+outcome-only recovery; only a successful consume save returns a typed dispatch
+permit. Unknown outcomes cannot acquire another permit. This kernel has no
+transport, scheduler or UI caller. Upload/execution delivery and separate action
+admission remain required before activation. All gates remain false; there is no
+deployment or activation authorization.
