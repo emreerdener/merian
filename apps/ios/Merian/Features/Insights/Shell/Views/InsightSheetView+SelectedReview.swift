@@ -70,24 +70,34 @@ extension InsightSheetView {
 
 extension InsightSheetView {
     func candidateReviewAction(scanID: String, generation: UInt64) -> (() -> Void)? {
+        candidateReviewPreparation(scanID: scanID, generation: generation).map { prepare in
+            { prepare()?.resume() }
+        }
+    }
+    func candidateReviewPreparation(scanID: String, generation: UInt64) -> CandidateReviewPreparation? {
         guard selectedReviewHost.model?.canSubmit == true,
               selectedReviewHost.model?.ticket.candidateChoices.isEmpty == false,
               let token = selectedReviewHost.token else { return nil }
         let engineGeneration = inferenceEngine.scanPresentationGeneration
         return {
             guard selectedCandidateReview == nil, activeShellPresentation == nil,
-                  pendingShellPresentation == nil, dismissedShellPresentation == nil else { return }
+                  pendingShellPresentation == nil, dismissedShellPresentation == nil else { return nil }
             let current = {
                 viewModel.isPresentingLocalRecord(scanId: scanID, generation: generation)
                     && inferenceEngine.scanPresentationGeneration == engineGeneration
                     && inferenceEngine.speciesData?.scanId?.caseInsensitiveCompare(scanID) == .orderedSame
                     && !permitsLegacyReview(scanID)
             }
-            guard let model = selectedReviewHost.prepareCandidateConfirmation(token: token, isCurrent: current) else { return }
+            guard let model = selectedReviewHost.prepareCandidateConfirmation(token: token, isCurrent: current) else { return nil }
             selectedCandidateReview = model
-            guard requestShellPresentation(.reviewCandidates(formID: model.id, scanId: scanID, generation: generation)) else {
-                model.close(); selectedCandidateReview = nil; return
-            }
+            return CandidateReviewTicket(present: {
+                guard selectedCandidateReview === model, model.isScopeCurrent, current(),
+                      activeShellPresentation == nil, pendingShellPresentation == nil, dismissedShellPresentation == nil else { return false }
+                return requestShellPresentation(.reviewCandidates(formID: model.id, scanId: scanID, generation: generation))
+            }, discard: {
+                model.close()
+                if selectedCandidateReview === model { selectedCandidateReview = nil }
+            })
         }
     }
     func closeSelectedCandidateReview() {

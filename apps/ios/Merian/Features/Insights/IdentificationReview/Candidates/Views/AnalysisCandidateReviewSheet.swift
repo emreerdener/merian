@@ -21,7 +21,7 @@ struct AnalysisCandidateReviewSheet: View {
                                     onImmediateConfirm: { model.submit(choice.reference) })
                                     .frame(height: 420)
                                 Button("Confirm \(choice.reference.scientificName)") { model.submit(choice.reference) }
-                                    .accessibilityIdentifier("HistoryCandidateConfirm_\(choice.reference.ordinal)")
+                                    .accessibilityIdentifier("CandidateConfirm_\(choice.reference.ordinal)")
                             }
                             .disabled(!model.canReview)
                         }
@@ -30,7 +30,7 @@ struct AnalysisCandidateReviewSheet: View {
                             Button("Review again") { model.restart() }.disabled(!model.canReview)
                         }
                     }
-                    if let message = model.review.message { Text(message).accessibilityIdentifier("CandidateReviewStatus") }
+                    if let message = model.review.terminalMessage ?? model.review.message { Text(message).accessibilityIdentifier("CandidateReviewStatus") }
                     if model.review.canRetrySave {
                         Button("Retry saving this choice") { model.review.retrySave() }
                             .disabled(!model.isScopeCurrent)
@@ -39,10 +39,12 @@ struct AnalysisCandidateReviewSheet: View {
                 }
                 .padding(20)
             }
+            .accessibilityIdentifier("CandidateReviewScroll")
             .navigationTitle("Review alternatives")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
+        .accessibilityIdentifier("AnalysisCandidateReviewSheet")
         .task { await model.loadEvidence() }
         .onChange(of: model.isScopeCurrent) { _, current in if !current { model.close() } }
     }

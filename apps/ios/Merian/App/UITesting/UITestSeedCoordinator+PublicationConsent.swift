@@ -26,6 +26,7 @@ extension UITestSeedCoordinator {
     let container: ModelContainer
     let namedReview: Bool
     let undoReview: ConfirmationUndoUIFixture?
+    let candidateReview: CandidateConfirmationUIFixture?
     let bytes: Data
     let digest: String
     let snapshots: [String: Data]
@@ -36,10 +37,12 @@ extension UITestSeedCoordinator {
     private var savedChatRequest: ProtectedInsightChatRequest?
 
     init(container: ModelContainer, namedReview: Bool = ProcessInfo.processInfo.arguments.contains("-seedSelectedNameConfirmation"),
-         confirmationUndo: Bool = ProcessInfo.processInfo.arguments.contains("-seedConfirmationUndo")) throws {
+         confirmationUndo: Bool = ProcessInfo.processInfo.arguments.contains("-seedConfirmationUndo"),
+         candidateConfirmation: Bool = ProcessInfo.processInfo.arguments.contains("-seedCandidateConfirmation")) throws {
         self.container = container
         self.namedReview = namedReview
         undoReview = confirmationUndo ? .init(named: namedReview) : nil
+        candidateReview = candidateConfirmation ? .init() : nil
         let bytes = try UITestSeedCoordinator.uiTestPNGData()
         let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
         self.bytes = bytes; self.digest = digest
@@ -54,7 +57,7 @@ extension UITestSeedCoordinator {
                 "blur_score": 0.2, "colors": [], "estimated_size_cm": 8.5,
                 "extracted_visual_traits": ["orange wings"],
                 "image_quality": ["diagnostic_utility": 9, "framing": 7, "overall_score": 82, "sharpness": 8]]
-            if namedReview || confirmationUndo {
+            if namedReview || confirmationUndo || candidateConfirmation {
                 result["scientific_name"] = namedReview ? "Danaus" : "Danaus plexippus"
                 result["primary_identification"] = ["version": 1, "resolution": namedReview ? "genus" : "species", "scientific_name": namedReview ? "Danaus" : "Danaus plexippus", "common_name": "Consent Butterfly"]
                 result["is_new_to_merian_dictionary"] = false
@@ -63,6 +66,11 @@ extension UITestSeedCoordinator {
                     "prompt": "synthetic_primary_v1", "schema": "merian_identify_primary_v1", "confidence": "openai_unqualified_v1",
                     "diagnostic_trigger": NSNull(), "prompt_diagnostic_trigger": NSNull(), "safety": "openai_photo_moderation_v1",
                     "timeout_ms": 90_000, "generation": ["max_output_tokens": 8_192, "reasoning_effort": "low", "image_detail": "high"]]
+            }
+            if candidateConfirmation {
+                result["candidates"] = [0.4, 0.2].map {
+                    ["scientific_name": "Limenitis archippus", "taxon_rank": "species", "confidence_score": $0] as [String: Any]
+                }
             }
             return (id, try Self.json(["schema_version": 2, "analysis_id": id, "observation_id": Self.observation,
                 "ordinal": index + 1, "source_analysis_id": index == 0 ? NSNull() : Self.historical as Any,
@@ -113,7 +121,7 @@ extension UITestSeedCoordinator {
         fetch: { [self] request in
             guard request.observation_id == Self.observation, request.before_ordinal == nil, request.limit == 20 else { throw ObservationHistoryError.invalidPage }
             return try Self.json(["schema_version": 1, "owner_id": Self.owner.uuidString.lowercased(),
-                "observation_id": Self.observation, "state_revision": undoReview?.revision ?? chatServerRevision, "next_before_ordinal": NSNull(),
+                "observation_id": Self.observation, "state_revision": undoReview?.revision ?? candidateReview?.revision ?? chatServerRevision, "next_before_ordinal": NSNull(),
                 "items": try [Self.selected, Self.historical].enumerated().map {
                     ["ordinal": 2 - $0.offset, "snapshot": try snapshotText($0.element)] as [String: Any]
                 }])
@@ -158,9 +166,9 @@ extension UITestSeedCoordinator {
             }, generation: { 0 })
         return try IdentificationHistorySession(observation: observation, container: candidate, cloud: cloud, photos: photos,
             reviewWake: { [self] in
-                if let undoReview { undoReview.wake(container: container, cloud: cloud, snapshots: snapshots) } else { assert((try? verifyReviewDiscovery()) == true, "Synthetic review persistence mismatch") }
-            }, reviewGeneration: { [self] in undoReview?.generation ?? 0 }, publication: config,
-            confirmationUndo: undoReview?.configuration, currentGeneration: { 1 },
+                if let undoReview { undoReview.wake(container: container, cloud: cloud, snapshots: snapshots) } else if let candidateReview { candidateReview.wake(container: container, cloud: cloud, snapshots: snapshots) } else { assert((try? verifyReviewDiscovery()) == true, "Synthetic review persistence mismatch") }
+            }, reviewGeneration: { [self] in undoReview?.generation ?? candidateReview?.generation ?? 0 }, publication: config,
+            confirmationUndo: undoReview?.configuration ?? candidateReview?.undoConfiguration, currentGeneration: { 1 },
             sessionIsCurrent: { $0.userID == Self.owner && !$0.isAnonymous })
     }
 
@@ -240,9 +248,9 @@ extension UITestSeedCoordinator {
     }
     private func stateData(_ id: String) throws -> Data {
         try Self.json(["schema_version": 1, "owner_id": Self.owner.uuidString.lowercased(), "observation_id": Self.observation,
-            "state_revision": undoReview?.revision ?? chatServerRevision, "selection_initialized": true, "selected_analysis_id": Self.selected,
-            "analysis": ["snapshot": try snapshotText(id), "review_revision": undoReview?.reviewRevision(id) ?? 0,
-                "review_snapshot": undoReview?.authority(id) ?? ["ai_identification_review": NSNull(), "confirmed_species_identity": NSNull(),
+            "state_revision": undoReview?.revision ?? candidateReview?.revision ?? chatServerRevision, "selection_initialized": true, "selected_analysis_id": Self.selected,
+            "analysis": ["snapshot": try snapshotText(id), "review_revision": undoReview?.reviewRevision(id) ?? candidateReview?.reviewRevision(id) ?? 0,
+                "review_snapshot": undoReview?.authority(id) ?? candidateReview?.authority(id) ?? ["ai_identification_review": NSNull(), "confirmed_species_identity": NSNull(),
                     "confirmed_species_identity_revision": 0, "confirmed_species_id": NSNull(), "user_identification_override": NSNull(),
                     "user_confirmed_identification": false, "user_review_state": "unreviewed"]]])
     }

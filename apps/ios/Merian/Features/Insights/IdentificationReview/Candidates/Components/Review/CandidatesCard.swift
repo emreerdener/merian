@@ -19,6 +19,8 @@ struct CandidatesCard: View {
     var resumeCommunityConsent: ((CommunityConsentTicket) -> Void)?
     var resumeSavedReanalysis: ((SavedReanalysisTicket) -> Void)?
     @State private var pendingReanalysis: SavedReanalysisTicket?
+    var confidenceReviewControls = ConfidenceReviewControls()
+    var resumeCandidateReview: ((CandidateReviewTicket) -> Void)?
     var showDismissButton: Bool = true
 
     @Environment(InferenceEngine.self) private var inferenceEngine
@@ -38,6 +40,8 @@ struct CandidatesCard: View {
         resumeCommunityConsent: ((CommunityConsentTicket) -> Void)? = nil,
         resumeSavedReanalysis: ((SavedReanalysisTicket) -> Void)? = nil,
         showDismissButton: Bool = true,
+        confidenceReviewControls: ConfidenceReviewControls = .init(),
+        resumeCandidateReview: ((CandidateReviewTicket) -> Void)? = nil,
         dependencies: CandidateReviewDependencies = .live
     ) {
         self.candidates = candidates
@@ -53,6 +57,8 @@ struct CandidatesCard: View {
         self.prepareSavedReanalysis = prepareSavedReanalysis
         self.resumeCommunityConsent = resumeCommunityConsent
         self.resumeSavedReanalysis = resumeSavedReanalysis
+        self.confidenceReviewControls = confidenceReviewControls
+        self.resumeCandidateReview = resumeCandidateReview
         self.showDismissButton = showDismissButton
         self._viewModel = State(
             initialValue: CandidateReviewViewModel(dependencies: dependencies)
@@ -133,7 +139,21 @@ struct CandidatesCard: View {
         )
         Group {
             if !permitsLegacyReview(presentedScanId) {
-                if let guardedAskCommunity { Button("Ask the community", action: guardedAskCommunity) }
+                if !confidenceReviewControls.candidateChoices.isEmpty {
+                    CandidateAlternativesView(
+                        candidates: confidenceReviewControls.candidateChoices.map(\.display),
+                        confirmButtonTitle: confirmButtonTitle, isWeakMatch: false,
+                        onReviewAlternatives: {
+                            guard let presentedScanId,
+                                  isSubjectPresentationCurrent(scanId: presentedScanId, generation: presentedGeneration),
+                                  let ticket = confidenceReviewControls.prepareCandidateReview?() else { return }
+                            if let resumeCandidateReview { resumeCandidateReview(ticket) } else { ticket.resume() }
+                        }, onConfirm: {}, onDismiss: {}, showDismissButton: false,
+                        showsOriginalConfirmation: false, imageDependencies: viewModel.imageDependencies,
+                        feedback: viewModel.feedback
+                    )
+                    .disabled(confidenceReviewControls.prepareCandidateReview == nil)
+                } else if let guardedAskCommunity { Button("Ask the community", action: guardedAskCommunity) }
             } else if viewModel.shouldHideCard(scanId: presentedScanId) {
                 EmptyView()
             } else if candidates.isEmpty {

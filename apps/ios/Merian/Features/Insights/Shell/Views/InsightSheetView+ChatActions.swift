@@ -110,7 +110,8 @@ extension InsightSheetView {
         switch action {
         case .reviewAlternatives:
             prepared?.cancel()
-            guard viewModel.canReviewIdentificationConcernCandidates else { return }
+            guard permitsLegacyReview(context.scanId),
+                  viewModel.canReviewIdentificationConcernCandidates else { return }
             viewModel.presentCandidateSwipe(
                 source: .identificationConcern,
                 expectedScanId: context.scanId,

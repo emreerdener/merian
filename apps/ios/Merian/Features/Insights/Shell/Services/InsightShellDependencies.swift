@@ -142,8 +142,13 @@ struct InsightShellDependencies {
         let container = AppDIContainer.shared
         let hapticManager = container.hapticManager
         let mediaExportService = MediaExportService.live
+        #if DEBUG
+        let candidateRendering: CandidateReviewRendering = UITestSeedCoordinator.publicationConsentEnabled ? .init() : .live
+        #else
+        let candidateRendering = CandidateReviewRendering.live
+        #endif
         var result = Self(
-            candidateRendering: .live,
+            candidateRendering: candidateRendering,
             appEvents: container.appEventPublisher.publisher,
             authenticationSnapshot: {
                 #if DEBUG

@@ -2719,8 +2719,19 @@ The candidate card uses saved provenance for confidence qualification and the
 exact historical photo loader for original evidence. Unavailable originals show
 an unavailable state, never a current-parent substitute. Species-reference
 imagery remains separately injected. The alternatives card design is unchanged.
-Nested Confidence/Biological handoffs and end-to-end UI qualification remain
-pending; ordinary access and activation gates stay disabled.
+Biological and Confidence controls carry the same frozen choices and a
+`CandidateReviewTicket`. The actual tap prepares the retained model before the
+Confidence sheet dismisses; only the matching current, idle root can consume
+that one-use ticket. Cancellation closes only its deck, preserving any durable
+review. Both local and engine presentation generations are checked. A legacy
+Chat alternatives callback rechecks enrollment after dismissal and is dropped if
+legacy mutation is no longer permitted; it never constructs a replacement
+history ticket. History owns its nested candidate presentation above the dynamic
+list section; opening or closing that child does not end the parent review
+session. Actual shell dismissal and account/scope loss still retire the session.
+Protected candidate cards allow vertical scrolling alongside horizontal review;
+the alternatives card layout remains unchanged. Ordinary access and activation
+gates stay disabled.
 
 Queue pass completion refreshes owner-bound receipt status. Applied completion
 refreshes the reconciled parent once; it never projects a child directly. A

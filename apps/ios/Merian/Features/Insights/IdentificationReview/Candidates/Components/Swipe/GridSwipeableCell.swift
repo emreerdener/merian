@@ -31,25 +31,32 @@ struct GridSwipeableCell: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .offset(x: offset.width, y: 0)
         .rotationEffect(.degrees(Double(offset.width) / 25.0))
-        .gesture(
-            DragGesture()
-                .onChanged { value in
-                    offset = value.translation
-                    isDragging = true
-                }
-                .onEnded { value in
-                    if abs(value.translation.width) >= swipeThreshold {
-                        feedback.mediumPulse()
-                        animateSwipe(direction: value.translation.width > 0 ? .right : .left)
-                    } else {
-                        feedback.lightImpact()
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.72)) {
-                            offset = .zero
-                            isDragging = false
-                        }
+        .gesture(candidateDrag, isEnabled: protectedReview == nil)
+        .simultaneousGesture(candidateDrag, isEnabled: protectedReview != nil)
+    }
+
+    // Protected cards live in a vertical history sheet. Their horizontal review
+    // gesture must not prevent scrolling to another saved alternative.
+    private var candidateDrag: some Gesture {
+        DragGesture(minimumDistance: protectedReview == nil ? 10 : 30)
+            .onChanged { value in
+                guard protectedReview == nil || abs(value.translation.width) > abs(value.translation.height) else { return }
+                offset = value.translation
+                isDragging = true
+            }
+            .onEnded { value in
+                let horizontal = protectedReview == nil || abs(value.translation.width) > abs(value.translation.height)
+                if horizontal && abs(value.translation.width) >= swipeThreshold {
+                    feedback.mediumPulse()
+                    animateSwipe(direction: value.translation.width > 0 ? .right : .left)
+                } else {
+                    feedback.lightImpact()
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.72)) {
+                        offset = .zero
+                        isDragging = false
                     }
                 }
-        )
+            }
     }
 
     private func animateSwipe(direction: CandidateSwipeDirection) {

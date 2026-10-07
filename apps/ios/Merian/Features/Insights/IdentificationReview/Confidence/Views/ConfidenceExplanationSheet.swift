@@ -18,6 +18,7 @@ struct ConfidenceExplanationSheet: View {
     @State private var pendingCommunityConsent: CommunityConsentTicket?
     var prepareSavedReanalysis: SavedReanalysisPreparation?
     var confidenceReviewControls: ConfidenceReviewControls
+    var onPreparedCandidateReview: ((ConfidenceExplanationActionContext, CandidateReviewTicket) -> Void)?
     var onPreparedCommunityConsent: ((ConfidenceExplanationActionContext, CommunityConsentTicket) -> Void)?
     var onPreparedReanalysis: ((ConfidenceExplanationActionContext, SavedReanalysisTicket) -> Void)?
     @State private var pendingReanalysis: SavedReanalysisTicket?
@@ -53,6 +54,7 @@ struct ConfidenceExplanationSheet: View {
         prepareCommunityConsent: CommunityConsentPreparation? = nil,
         prepareSavedReanalysis: SavedReanalysisPreparation? = nil,
         confidenceReviewControls: ConfidenceReviewControls = .init(),
+        onPreparedCandidateReview: ((ConfidenceExplanationActionContext, CandidateReviewTicket) -> Void)? = nil,
         onPreparedCommunityConsent: ((ConfidenceExplanationActionContext, CommunityConsentTicket) -> Void)? = nil,
         onPreparedReanalysis: ((ConfidenceExplanationActionContext, SavedReanalysisTicket) -> Void)? = nil,
         dependencies: ConfidenceReviewDependencies = .live
@@ -71,6 +73,7 @@ struct ConfidenceExplanationSheet: View {
         self.prepareCommunityConsent = prepareCommunityConsent
         self.prepareSavedReanalysis = prepareSavedReanalysis
         self.confidenceReviewControls = confidenceReviewControls
+        self.onPreparedCandidateReview = onPreparedCandidateReview
         self.onPreparedCommunityConsent = onPreparedCommunityConsent
         self.onPreparedReanalysis = onPreparedReanalysis
         self._viewModel = State(
@@ -376,6 +379,15 @@ struct ConfidenceExplanationSheet: View {
                     .padding(.horizontal, 16)
                 }
 
+                if !permitsLegacyReview, !confidenceReviewControls.candidateChoices.isEmpty {
+                    CandidatesCard(candidates: [], aiScientificName: "", inferenceTier: nil,
+                        confirmButtonTitle: confirmButtonTitle, showDismissButton: false,
+                        confidenceReviewControls: confidenceReviewControls.checking { isSubjectPresentationCurrent },
+                        resumeCandidateReview: dismissWithPreparedCandidateReview,
+                        dependencies: viewModel.candidateDependencies)
+                        .padding(.horizontal, 16)
+                }
+
                 let onReanalyze = refinementAction
                 let onAskCommunity = communityRequestAction
                 if onReanalyze != nil || onAskCommunity != nil || incorrectAction != nil {
@@ -489,6 +501,12 @@ struct ConfidenceExplanationSheet: View {
             return
         }
         onRequestDismissalAction(action)
+        dismiss()
+    }
+
+    private func dismissWithPreparedCandidateReview(_ ticket: CandidateReviewTicket) {
+        guard isSubjectPresentationCurrent, let onPreparedCandidateReview else { ticket.cancel(); return }
+        onPreparedCandidateReview(actionContext, ticket)
         dismiss()
     }
 

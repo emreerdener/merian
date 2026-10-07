@@ -14,6 +14,7 @@ struct ConfidenceBadge: View {
     var aiScientificName: String?
     var onAskCommunity: (() -> Void)?
     var prepareCommunityConsent: CommunityConsentPreparation?
+    @State private var pendingCandidateReview: CandidateReviewTicket?
     @State private var pendingCommunityConsent: CommunityConsentTicket?
     var prepareSavedReanalysis: SavedReanalysisPreparation?
     var confidenceReviewControls: ConfidenceReviewControls
@@ -261,6 +262,7 @@ struct ConfidenceBadge: View {
                         aiScientificName: aiScientificName,
                         onAskCommunity: onAskCommunity,
                         onRequestDismissalAction: { action in
+                            pendingCandidateReview?.cancel(); pendingCandidateReview = nil
                             pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
                             pendingReanalysis?.cancel()
                             pendingReanalysis = nil
@@ -269,12 +271,20 @@ struct ConfidenceBadge: View {
                         prepareCommunityConsent: prepareCommunityConsent,
                         prepareSavedReanalysis: prepareSavedReanalysis,
                         confidenceReviewControls: confidenceReviewControls,
+                        onPreparedCandidateReview: { context, ticket in
+                            pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
+                            pendingReanalysis?.cancel(); pendingReanalysis = nil
+                            pendingCandidateReview?.cancel(); pendingCandidateReview = ticket
+                            viewModel.stageDismissalAction(.reviewCandidates(context))
+                        },
                         onPreparedCommunityConsent: { context, ticket in
+                            pendingCandidateReview?.cancel(); pendingCandidateReview = nil
                             pendingCommunityConsent?.cancel()
                             pendingCommunityConsent = ticket
                             viewModel.stageDismissalAction(.askCommunity(context))
                         },
                         onPreparedReanalysis: { context, ticket in
+                            pendingCandidateReview?.cancel(); pendingCandidateReview = nil
                             pendingReanalysis?.cancel()
                             pendingReanalysis = ticket
                             viewModel.stageDismissalAction(.refineScan(context, initialDescription: nil))
@@ -294,6 +304,7 @@ struct ConfidenceBadge: View {
                 }
             }
             .onDisappear {
+                pendingCandidateReview?.cancel(); pendingCandidateReview = nil
                 pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
                 pendingReanalysis?.cancel()
                 pendingReanalysis = nil
@@ -324,6 +335,9 @@ struct ConfidenceBadge: View {
     }
 
     private func resumePendingExplanationDismissalAction() {
+        let candidate = pendingCandidateReview
+        pendingCandidateReview = nil
+        defer { candidate?.cancel() }
         let community = pendingCommunityConsent
         pendingCommunityConsent = nil
         defer { community?.cancel() }
@@ -343,6 +357,9 @@ struct ConfidenceBadge: View {
         ) else { prepared?.cancel(); return }
 
         switch action {
+        case .reviewCandidates:
+            prepared?.cancel()
+            candidate?.resume()
         case .askCommunity:
             prepared?.cancel()
             if let community { community.resume(); return }

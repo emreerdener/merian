@@ -328,3 +328,19 @@ and withholds late images after scope loss or closure. Saved provenance and tier
 govern confidence qualification; present malformed provenance never becomes a
 legacy omission. History back/page/account changes invalidate the borrowed
 review. Dismissing the candidate sheet preserves an uncertain durable request.
+
+## Immutable display encoding compatibility
+
+`ObservationHistoryDisplayProjection` writes sorted nested candidate and pet
+JSON before embedding it in the display cache. V1/V2 cache validation accepts
+only equivalent nested JSON key ordering/whitespace, preserving candidate array
+order, every value and all other display fields. Rendering uses the trusted
+projection rederived from immutable result bytes. Existing valid cache bytes
+remain unchanged during authority updates; V3 saved-display validation keeps its
+original exact-byte contract. No SwiftData schema or immutable result is
+changed.
+
+The History sheet owns candidate presentation above its dynamic list sections.
+Covering History with that child does not close the session or reload its page;
+explicit Done and the shell's actual dismissal own cleanup. Candidate closure
+retires only its presentation, preserving the borrowed review's durable request.

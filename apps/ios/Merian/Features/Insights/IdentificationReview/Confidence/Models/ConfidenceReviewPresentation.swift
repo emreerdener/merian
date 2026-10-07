@@ -13,6 +13,7 @@ struct ConfidenceExplanationActionContext: Sendable, Equatable {
 }
 
 enum ConfidenceExplanationDismissalAction: Sendable, Equatable {
+    case reviewCandidates(ConfidenceExplanationActionContext)
     case askCommunity(ConfidenceExplanationActionContext)
     case refineScan(
         ConfidenceExplanationActionContext,
@@ -21,7 +22,7 @@ enum ConfidenceExplanationDismissalAction: Sendable, Equatable {
 
     var context: ConfidenceExplanationActionContext {
         switch self {
-        case .askCommunity(let context), .refineScan(let context, _):
+        case .reviewCandidates(let context), .askCommunity(let context), .refineScan(let context, _):
             context
         }
     }
@@ -208,13 +209,16 @@ struct ConfidenceReviewControls {
     var confirmationUndoReason: String?
     var confirmProposal: (() -> Void)?
     var unavailableReason: String?
+    var candidateChoices: [ObservationAnalysisCandidateChoice] = []
+    var prepareCandidateReview: CandidateReviewPreparation?
 
     func checking(_ isCurrent: @escaping () -> Bool) -> Self {
         Self(confirmationState: confirmationState, undo: undo.map { action in { if isCurrent() { action() } } },
              undoConfirmation: undoConfirmation.map { action in { if isCurrent() { action() } } },
              undoConfirmationRequiresPrompt: undoConfirmationRequiresPrompt, confirmationUndoReason: confirmationUndoReason,
              confirmProposal: confirmProposal.map { action in { if isCurrent() { action() } } },
-             unavailableReason: unavailableReason)
+             unavailableReason: unavailableReason, candidateChoices: candidateChoices,
+             prepareCandidateReview: prepareCandidateReview.map { prepare in { @MainActor in isCurrent() ? prepare() : nil } })
     }
 }
 

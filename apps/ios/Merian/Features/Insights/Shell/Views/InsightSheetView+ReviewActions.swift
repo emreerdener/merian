@@ -21,7 +21,9 @@ extension InsightSheetView {
             undoConfirmation: undoConfirmationAction(scanID: scanID, generation: generation),
             undoConfirmationRequiresPrompt: selectedReviewHost.model?.confirmationUndo?.action == .name,
             confirmationUndoReason: undoConfirmationAction(scanID: scanID, generation: generation) == nil ? confirmationReason : nil,
-            confirmProposal: confirm, unavailableReason: undo == nil ? reason : nil)
+            confirmProposal: confirm, unavailableReason: undo == nil ? reason : nil,
+            candidateChoices: selectedReviewHost.model?.ticket.candidateChoices ?? [],
+            prepareCandidateReview: scanID.flatMap { candidateReviewPreparation(scanID: $0, generation: generation) })
     }
 
     func undoConfirmationAction(scanID: String?, generation: UInt64) -> (() -> Void)? {

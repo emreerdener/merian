@@ -23,8 +23,13 @@ enum ObservationHistoryStateCache {
             preview = try display.map { try ObservationHistoryDisplayProjection.restore($0, matching: state.result) }
         } else {
             guard initialSavedDisplay == nil else { throw ObservationHistoryError.resultConflict }
-            display = try ObservationHistoryDisplayProjection.snapshot(state.result)
-            preview = try display.map { try AnalysisDisplaySnapshot.restore($0, analysisID: state.result.analysisID) }
+            if let saved = existing?.displaySnapshotData {
+                preview = try ObservationHistoryDisplayProjection.restore(saved, matching: state.result)
+                display = saved // Preserve immutable cache bytes after validating equivalent nested encoding.
+            } else {
+                display = try ObservationHistoryDisplayProjection.snapshot(state.result)
+                preview = try display.map { try AnalysisDisplaySnapshot.restore($0, analysisID: state.result.analysisID) }
+            }
         }
         if let saved = existing {
             guard saved.ownerAccountID == result.ownerAccountID, saved.observationID == result.observationID,

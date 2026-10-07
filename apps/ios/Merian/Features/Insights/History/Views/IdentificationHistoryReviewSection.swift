@@ -2,20 +2,14 @@ import SwiftUI
 
 struct IdentificationHistoryReviewSection: View {
     @Bindable var model: IdentificationHistoryReviewModel
-    var prepareCandidates: (() -> AnalysisCandidateReviewModel?)?
-    var candidateRendering = CandidateReviewRendering()
-    @State private var retainedCandidates: AnalysisCandidateReviewModel?
-    @State private var candidates: AnalysisCandidateReviewModel?
+    var onReviewCandidates: (() -> Void)?
     @State private var scientificName = ""
     @State private var pendingConfirmationUndo: (() -> Void)?
 
     var body: some View {
         Section {
-            if prepareCandidates != nil, !model.ticket.candidateChoices.isEmpty {
-                Button("Review alternatives") {
-                    let candidate = prepareCandidates?()
-                    retainedCandidates = candidate; candidates = candidate
-                }
+            if let onReviewCandidates, !model.ticket.candidateChoices.isEmpty {
+                Button("Review alternatives", action: onReviewCandidates)
                     .disabled(!model.canSubmit)
                     .accessibilityIdentifier("HistoryReviewCandidates")
             }
@@ -61,10 +55,6 @@ struct IdentificationHistoryReviewSection: View {
             }
         } header: { Text("Review this identification") } footer: {
             Text("A review applies only to this result. It does not select it or confirm another identification in the history.")
-        }
-        .sheet(item: $candidates, onDismiss: { retainedCandidates?.close(); retainedCandidates = nil }) { candidate in
-            AnalysisCandidateReviewSheet(model: candidate, rendering: candidateRendering)
-
         }
         .task { model.open() }
         .confirmationUndoPrompt(action: $pendingConfirmationUndo)

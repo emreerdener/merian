@@ -219,11 +219,11 @@ struct BiologicalView: View {
                 // MARK: - Identification Candidates
                 let candidates = CandidateReviewVisibilityPolicy.visibleCandidates(for: inferenceEngine.speciesData)
 
-                if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
-                   !candidates.isEmpty {
+                let primaryAIName = inferenceEngine.speciesData?.aiScientificName
+                if (primaryAIName != nil && !candidates.isEmpty) || !confidenceReviewControls.candidateChoices.isEmpty {
                     CandidatesCard(
                         candidates: candidates,
-                        aiScientificName: primaryAIName,
+                        aiScientificName: primaryAIName ?? "",
                         inferenceTier: inferenceEngine.speciesData?.inferenceTier,
                         confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
                         onAskCommunity: communityAction(scanID: biologicalScanId, generation: fieldNotesGeneration),
@@ -242,7 +242,8 @@ struct BiologicalView: View {
                             generation: fieldNotesGeneration
                         ),
                         prepareCommunityConsent: prepareCommunityConsent,
-                prepareSavedReanalysis: prepareSavedReanalysis
+                        prepareSavedReanalysis: prepareSavedReanalysis,
+                        confidenceReviewControls: confidenceReviewControls
                     )
                     .insightCardEntrance(index: 2, isAnimationEnabled: cardEntranceAnimationEnabled)
                 }

@@ -215,10 +215,17 @@ confirmation, rejection, Undo, alternative override and reset. Already-open
 sheets and delayed dismissal callbacks recheck the guard before mutation.
 Protected review belongs to the retained selected-result Shell host or
 historical preview; nil protected access never restores legacy permission.
-Confidence's protected reanalysis handoff remains independent. Ordinary
-unenrolled scans retain their existing controls. This wiring is prepared behind
-disabled gates; see the canonical Insight contract for activation and remaining
-qualification.
+Protected alternatives use the same retained model from History, the selected
+menu, Biological content and Confidence. `ConfidenceReviewControls` carries
+immutable choices and a one-use `CandidateReviewTicket` preparation closure.
+Confidence prepares at the actual tap, forwards before dismissal and resumes
+only under the original root and engine scopes. A stale or cancelled ticket
+closes its deck without changing the borrowed durable review. The legacy Chat
+alternatives callback rechecks enrollment at dismissal before legacy routing.
+The existing alternatives card layout and styling remain unchanged. Confidence's
+protected reanalysis handoff remains independent. Ordinary unenrolled scans
+retain their existing controls. This wiring is prepared behind disabled gates;
+see the canonical Insight contract for activation and remaining qualification.
 
 ## Integrated review: proposal and rejection are distinct
 

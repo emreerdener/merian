@@ -491,8 +491,21 @@ analysis/media lookup, coalescing, unavailable evidence and withholding after
 closure or scope loss. Ticket tests distinguish absent legacy provenance from
 present invalid provenance. `IdentificationHistoryReviewLifecycleTests` checks
 exact historical candidate submission and denial after back, revision, account
-or pending-work changes. These tests do not establish nested Confidence handoff
-or end-to-end UI acceptance.
+or pending-work changes. `CandidateReviewHandoffTests` adds one-use/cancelled
+handoffs, stale child scope and replacement-host denial.
+`CandidateConfirmationUITests` exercises the selected menu, History preview and
+Confidence dismissal using a real enrolled V2 store. Duplicate-name candidates
+force confirmation of raw ordinal 1, including scrolling to it. The History path
+closes and reopens the candidate deck before admission to exercise parent
+session lifetime. The strict synthetic server boundary uses production delivery
+and paired reconciliation, asserting the completed request and receipt,
+unchanged selection and immutable snapshots. These tests do not replace device,
+hosted or complete native acceptance. `ObservationHistoryStateCacheTests`
+verifies deterministic nested candidate/pet encoding for V1/V2, compatibility
+with equivalent older nested JSON formatting, and denial of changed scores,
+candidate order, extra fields or outer display values. The direct Debug fixture
+ticket test uses the production cache reader; a passing fabricated review ticket
+does not establish this boundary.
 
 ## In-Memory Database Containers (`SwiftData`)
 

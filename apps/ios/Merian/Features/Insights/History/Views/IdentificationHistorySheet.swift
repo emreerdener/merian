@@ -6,6 +6,8 @@ struct IdentificationHistorySheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedPhoto: UUID?
+    @State private var retainedCandidates: AnalysisCandidateReviewModel?
+    @State private var candidates: AnalysisCandidateReviewModel?
 
     var body: some View {
         NavigationStack {
@@ -60,7 +62,10 @@ struct IdentificationHistorySheet: View {
         }
         .accessibilityIdentifier("IdentificationHistorySheet")
         .presentationDetents([.large])
-        .task { model.start(.newest) }
+        .sheet(item: $candidates, onDismiss: { retainedCandidates?.close(); retainedCandidates = nil }) { candidate in
+            AnalysisCandidateReviewSheet(model: candidate, rendering: candidateRendering)
+        }
+        .task { if model.rows.isEmpty && model.detail == nil { model.start(.newest) } }
         .onChange(of: model.isSessionCurrent, initial: true) { _, current in if !current { model.close() } }
         .onChange(of: scenePhase) { _, phase in if phase == .active { model.refreshReview() } }
         .onChange(of: model.reviewDeliveryGeneration) { _, _ in model.refreshReview() }
@@ -68,7 +73,8 @@ struct IdentificationHistorySheet: View {
         .task(id: model.undoOperation) { await model.expireUndo() }
         .task(id: selectedPhoto) { if let selectedPhoto { await model.loadPhoto(selectedPhoto) } }
         .onChange(of: model.detail?.row.id) { _, _ in selectedPhoto = nil }
-        .onDisappear { model.close() }
+        // The owning shell closes this session on actual dismissal. A nested
+        // candidate sheet may cover History without ending its review scope.
     }
     private func rowLabel(_ row: IdentificationHistoryRow) -> some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -96,7 +102,10 @@ struct IdentificationHistorySheet: View {
         } footer: {
             Text("Choosing this entry keeps the entire history. It does not confirm a species, clear an incorrect mark, or update a shared post.")
         }
-        if let review = model.review { IdentificationHistoryReviewSection(model: review, prepareCandidates: model.prepareCandidateReview, candidateRendering: candidateRendering).id(ObjectIdentifier(review)) }
+        if let review = model.review { IdentificationHistoryReviewSection(model: review, onReviewCandidates: {
+            let candidate = model.prepareCandidateReview()
+            retainedCandidates = candidate; candidates = candidate
+        }).id(ObjectIdentifier(review)) }
         if let publication = model.publication {
             IdentificationPublicationSection(model: publication).id(ObjectIdentifier(publication))
         } else if model.canAskCommunity {
