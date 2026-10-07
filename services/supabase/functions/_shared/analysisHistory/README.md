@@ -737,3 +737,12 @@ verifies owned bytes, hashes them and uses the strict audio receipt parser. The
 legacy receipt parser remains unchanged in its accepted types. Neither upload
 nor database readiness authorizes inference; native and versioned execution
 integration remain pending.
+
+`audioAdmission.ts` defines the isolated closed input-3 and canonical draft
+builders. It pins history capability 9 and Gemini, retains exact source/digest
+and ordered immutable evidence metadata, and rejects client-selected profile or
+storage authority. It is intentionally not imported by the executable parser,
+SQL admission or native consumers yet. The
+[request contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-audio-request-and-draft-contract)
+owns fields and bounds. Its tests preserve V2 serialization and prove current
+readers still reject audio/result-version substitution.

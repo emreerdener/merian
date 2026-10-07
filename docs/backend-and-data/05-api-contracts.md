@@ -15291,3 +15291,36 @@ Native upload transport, durable audio production, provider-profile binding,
 input-3 execution and result-4/reader-10 remain subsequent checkpoints. This
 upload grants neither execution nor reader compatibility. Existing photo
 acceptance and saved replay remain unchanged.
+
+### Prepared audio request and draft contract
+
+`analysisHistory/audioAdmission.ts` now owns the isolated input-3 contract. It
+accepts exactly `schema_version`, `observation_id`, `analysis_id`,
+`source_analysis_id`, `request_digest`, `evidence_manifest`,
+`entitlement_protocol`, `identification_protocol`, `history_protocol` and
+`expected_processor_permission`. Versions are exactly 3 / 3 / 6 / 9 for input,
+entitlement, identification and history respectively; the saved processor is
+exactly `google_gemini`. Observation, child and optional source are distinct
+lowercase UUIDs; the digest is lowercase SHA-256. The one audio media identity
+also cannot alias the source analysis.
+
+The manifest uses the existing strict manifest-3 parser. Ordered descriptions
+and audio descriptors are copied and frozen without normalization. No caller
+owner, profile, provider configuration, storage key or URL is accepted. The
+future server admission must reserve `multimodal_audio_v1`; its name is not a
+client-selected field. Valid metadata proves neither an uploaded WAV nor current
+consent, entitlement, quota or execution authority.
+
+New request serialization is deterministic; it must never be used to rewrite
+stored V2 photo requests. The prepared draft revalidates the original saved
+input and preserves its identities, digest and ordered evidence. It reuses the
+canonical Identify/taxonomy result builder, stripping mutable review and funding
+fields. Input and draft reserve 4 KiB below the existing 1 MiB history limit for
+server serialization and completion metadata. This draft is not a result-4
+snapshot or append receipt.
+
+This checkpoint exposes no new HTTP admission, SQL binding or native decoder.
+The executable input parser still rejects input 3; readers 7–9 still reject
+audio result 4 and cannot interpret it as imported result 3. Coordinated forward
+SQL, reader 10, native typed boundaries and verified provider materialization
+remain required before connecting this prepared contract. All gates stay false.

@@ -10984,3 +10984,13 @@ Both tests run in the two candidate-validation focused lists. Existing
 photo-upload tests run alongside them to preserve its unchanged wire and
 accepted evidence types. These synthetic checks do not qualify a device WAV
 producer, real R2/CDN or provider execution.
+
+### Prepared audio request compatibility
+
+`audioAdmission_test.ts` tests strict input-3 capability/processor claims, exact
+immutable evidence metadata order and text, source/media identity isolation,
+closed metadata and bounds, canonical draft taxonomy and removal of mutable
+review/funding authority. It proves existing V2 serialization remains exact and
+input 3 cannot enter current execution or masquerade as imported result 3 in
+readers 7–9. This is prepared contract evidence; no SQL/native audio admission
+or result-4 reader support is claimed.
