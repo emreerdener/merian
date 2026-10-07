@@ -1,7 +1,7 @@
 import Foundation
+@testable import Merian
 import SwiftData
 import Testing
-@testable import Merian
 
 @MainActor
 @Suite("Reanalysis Parent Erasure", .sharedProcessState(.offlineQueueManager))
@@ -128,5 +128,152 @@ struct ObservationReanalysisErasureTests {
         #expect(queue.latestUploadGenerations[id] != generation)
         await queue.finishReanalysisErasure([retainedID], in: context.container)
         #expect(queue.latestUploadGenerations[retainedID] == retainedGeneration)
+    }
+}
+
+@MainActor
+@Suite(.serialized, .sharedProcessState(.offlineQueueManager))
+struct ReanalysisRetirementSettlementTests {
+    typealias Store = ObservationReanalysisExecutionStore
+    let staging = ReanalysisRetirementStagingTests()
+
+    func claim(_ container: ModelContainer) throws -> Store.RetirementClaim {
+        let original = try staging.consumed(container)
+        let saved = try Store.stageRetirement(original.snapshot, status: staging.status(original.intent), operationID: staging.operation,
+            now: staging.execution.now, container: container, isCurrent: { true })
+        return try Store.claimRetirement(saved, admission: .initial, now: staging.execution.now, container: container, isCurrent: { true })
+    }
+
+    func proof(_ claim: Store.RetirementClaim) throws -> ObservationAnalysisRetirementReceipt {
+        var object = try #require(JSONSerialization.jsonObject(with: claim.request.body) as? [String: Any])
+        object["state"] = "retired_before_dispatch"
+        return try .init(data: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]), request: claim.request)
+    }
+
+    @Test func proofRetiresOnlyExactChildAndRemainsAfterCleanup() throws {
+        let container = try staging.execution.fixture.fixture.container(), active = try claim(container), answer = try proof(active)
+        let receipt = try Store.completeRetirement(active, proof: answer, container: container, isCurrent: { true })
+        #expect(receipt.retirementProof == answer && receipt.retirementOwnerID == active.snapshot.intent.ownerID)
+        let context = ModelContext(container)
+        #expect(try context.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<LocalAnalysisRecord>()) == 1)
+        let parent = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(parent.selectedAnalysisID == staging.execution.fixture.fixture.analysis.uuidString.lowercased())
+        #expect(try ObservationReanalysisErasurePersistence.validate(receipt, container: container, isCurrent: { true }, complete: true))
+        #expect(try Store.completeRetirement(active, proof: answer, container: container, isCurrent: { true }) == receipt)
+        let retainedJob = try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(receipt.childID))
+        let retained = try #require(retainedJob)
+        #expect(try ObservationReanalysisErasureReceipt.restore(retained) == receipt)
+        let ordinary = ObservationReanalysisErasureReceipt(parentID: receipt.parentID, childID: receipt.childID)
+        #expect(ordinary != receipt)
+        #expect(throws: (any Error).self) { try ordinary.record(in: context) }
+        try ordinary.recordParentErasure(in: context)
+        #expect(try ObservationReanalysisErasureReceipt.restore(retained) == receipt)
+    }
+
+    @Test func holdHasNoTimerAndExplicitReplayKeepsOperationButFencesOldClaim() throws {
+        let container = try staging.execution.fixture.fixture.container(), first = try claim(container)
+        try Store.holdRetirement(first, now: staging.execution.now, container: container, isCurrent: { true })
+        let held = try Store.read(first.snapshot.intent.identity, container: container, isCurrent: { true })
+        #expect(held.status == .needsAttention && held.nextRun == nil && held.hold == .reconciliationRequired)
+        #expect(try Store.candidates(ownerID: held.intent.ownerID, container: container, isCurrent: { true }).isEmpty)
+        #expect(throws: (any Error).self) {
+            try Store.claimRetirement(held, admission: .initial, now: staging.execution.now, container: container, isCurrent: { true })
+        }
+        let second = try Store.claimRetirement(held, admission: .explicitRetry, now: staging.execution.now, container: container, isCurrent: { true })
+        #expect(second.request == first.request && second.snapshot.attempt == first.snapshot.attempt + 1)
+        #expect(second.snapshot.dispatch == first.snapshot.dispatch)
+        #expect(throws: (any Error).self) { try Store.validateRetirement(first, container: container, isCurrent: { true }) }
+        #expect(throws: (any Error).self) {
+            try Store.completeRetirement(first, proof: proof(first), container: container, isCurrent: { true })
+        }
+        _ = try Store.completeRetirement(second, proof: proof(second), container: container, isCurrent: { true })
+    }
+
+    @Test(arguments: [false, true])
+    func receiptSaveAmbiguityIsAtomicAndExactReplayable(_ commits: Bool) throws {
+        let container = try staging.execution.fixture.fixture.container(), active = try claim(container), answer = try proof(active)
+        #expect(throws: (any Error).self) {
+            try Store.completeRetirement(active, proof: answer, container: container, isCurrent: { true }, save: { context in
+                if commits { try context.save() }
+                throw CocoaError(.fileWriteUnknown)
+            })
+        }
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineQueuedScan>()) == (commits ? 0 : 1))
+        let receipt = try Store.completeRetirement(active, proof: answer, container: container, isCurrent: { true })
+        #expect(receipt.retirementProof == answer)
+    }
+
+    @Test(arguments: [true, false])
+    func cancelledKnownAnswerSettlesOnlyWhileAccountScopeRemainsCurrent(_ current: Bool) async throws {
+        let container = try staging.execution.fixture.fixture.container(), active = try claim(container), answer = try proof(active)
+        let task = Task { @MainActor in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try Store.completeRetirement(active, proof: answer, container: container, isCurrent: { current })
+        }
+        if current {
+            #expect(try await task.value.retirementProof == answer)
+        } else {
+            await #expect(throws: (any Error).self) { try await task.value }
+        }
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineQueuedScan>()) == (current ? 0 : 1))
+    }
+
+    @Test func deletionAndDifferentOperationDenyKnownAnswer() throws {
+        let container = try staging.execution.fixture.fixture.container(), active = try claim(container)
+        let request = try ObservationAnalysisRetirementRequest(operationID: UUID(), execution: active.request.execution)
+        var object = try #require(JSONSerialization.jsonObject(with: request.body) as? [String: Any]); object["state"] = "retired_before_dispatch"
+        let wrong = try ObservationAnalysisRetirementReceipt(data: JSONSerialization.data(withJSONObject: object), request: request)
+        #expect(throws: (any Error).self) { try Store.completeRetirement(active, proof: wrong, container: container, isCurrent: { true }) }
+        let context = ModelContext(container)
+        context.insert(PendingCloudDeletionTask(scanId: active.snapshot.intent.identity.observationID.uuidString.lowercased())); try context.save()
+        #expect(throws: (any Error).self) {
+            try Store.completeRetirement(active, proof: proof(active), container: container, isCurrent: { true })
+        }
+    }
+
+    @Test func terminalRetirementCannotBecomeNormalCompletionAndV1CannotBecomeRetirement() throws {
+        let container = try staging.execution.fixture.fixture.container(), original = try staging.consumed(container)
+        let saved = try Store.stageRetirement(original.snapshot, status: staging.status(original.intent), operationID: staging.operation,
+            now: staging.execution.now, container: container, isCurrent: { true })
+        let active = try Store.claimRetirement(saved, admission: .initial, now: staging.execution.now, container: container, isCurrent: { true })
+        let answer = try proof(active)
+        _ = try Store.completeRetirement(active, proof: answer, container: container, isCurrent: { true })
+        #expect(throws: (any Error).self) {
+            try Store.complete(original, resultBytes: staging.execution.result(), container: container, isCurrent: { true })
+        }
+        let other = try staging.execution.fixture.fixture.container(), otherClaim = try claim(other)
+        let context = ModelContext(other)
+        try ObservationReanalysisErasureReceipt(parentID: saved.intent.identity.observationID,
+            childID: saved.intent.identity.analysisID).record(in: context)
+        try context.save()
+        #expect(throws: (any Error).self) {
+            try Store.completeRetirement(otherClaim, proof: proof(otherClaim), container: other, isCurrent: { true })
+        }
+    }
+
+    @Test func terminalEnvelopeRejectsMalformedOrCrossChildProof() throws {
+        let container = try staging.execution.fixture.fixture.container(), active = try claim(container)
+        let receipt = try Store.completeRetirement(active, proof: proof(active), container: container, isCurrent: { true })
+        let context = ModelContext(container)
+        let savedJob = try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(receipt.childID))
+        let job = try #require(savedJob)
+        let text = try #require(job.metadataJSON)
+        let original = try #require(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+        for field in ["version", "kind", "owner_id", "child_id", "receipt_base64", "extra"] {
+            var changed = original
+            switch field {
+            case "version": changed[field] = true
+            case "kind": changed[field] = "complete"
+            case "owner_id": changed[field] = "invalid"
+            case "child_id": changed[field] = UUID().uuidString.lowercased()
+            case "receipt_base64": changed[field] = Data("{}".utf8).base64EncodedString()
+            default: changed[field] = true
+            }
+            job.metadataJSON = String(data: try JSONSerialization.data(withJSONObject: changed), encoding: .utf8)
+            #expect(throws: (any Error).self) { try ObservationReanalysisErasureReceipt.restore(job) }
+        }
+        job.metadataJSON = text
+        #expect(try ObservationReanalysisErasureReceipt.restore(job) == receipt)
     }
 }

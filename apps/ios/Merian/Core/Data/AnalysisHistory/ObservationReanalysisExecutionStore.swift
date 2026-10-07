@@ -155,6 +155,100 @@ enum ObservationReanalysisExecutionStore {
         }
     }
 
+    enum RetirementAdmission { case initial, interrupted, explicitRetry }
+    struct RetirementClaim: Sendable {
+        let snapshot: Snapshot
+        let request: ObservationAnalysisRetirementRequest
+        fileprivate init(_ snapshot: Snapshot) throws {
+            guard let operation = snapshot.retirement else { throw Persistence.IntegrityError.conflict }
+            self.snapshot = snapshot
+            request = try .init(operationID: operation, execution: .init(snapshot.intent.request))
+        }
+    }
+
+    /// Retirement retries retain the exact saved UUID and never invoke analyze.
+    static func claimRetirement(_ expected: Snapshot, admission: RetirementAdmission, now: Date,
+                                container: ModelContainer, isCurrent: () -> Bool,
+                                save: (ModelContext) throws -> Void = { try $0.save() }) throws -> RetirementClaim {
+        guard expected.retirement != nil, now.timeIntervalSince1970.isFinite, expected.attempt < Int.max else {
+            throw Persistence.IntegrityError.conflict
+        }
+        return try Persistence.transaction(expected.intent.identity, container: container, isCurrent: isCurrent, save: save) { context in
+            let (row, job) = try matching(expected, context: context)
+            switch admission {
+            case .initial:
+                guard expected.status == .waiting, let due = expected.nextRun, due <= now else { throw Persistence.IntegrityError.conflict }
+            case .interrupted:
+                guard expected.status == .running else { throw Persistence.IntegrityError.conflict }
+            case .explicitRetry:
+                guard expected.status == .needsAttention, expected.hold == .reconciliationRequired else { throw Persistence.IntegrityError.conflict }
+            }
+            job.status = .running; job.attemptCount += 1; job.lastAttemptAt = now; job.nextRunAt = nil
+            job.updatedAt = now; job.lastErrorCode = nil
+            mirror(job, into: row)
+            return try RetirementClaim(snapshot(row, job))
+        }
+    }
+
+    static func validateRetirement(_ claim: RetirementClaim, container: ModelContainer, isCurrent: () -> Bool) throws {
+        try Persistence.transaction(claim.snapshot.intent.identity, container: container, isCurrent: isCurrent, save: { try $0.save() }) { context in
+            _ = try matching(claim.snapshot, context: context)
+            guard claim.snapshot.status == .running else { throw Persistence.IntegrityError.conflict }
+        }
+    }
+
+    /// Uncertainty holds without a timer. Only an explicit same-operation recovery may claim again.
+    static func holdRetirement(_ claim: RetirementClaim, now: Date, container: ModelContainer,
+                               isCurrent: () -> Bool, save: (ModelContext) throws -> Void = { try $0.save() }) throws {
+        guard now.timeIntervalSince1970.isFinite else { throw Persistence.IntegrityError.conflict }
+        try Persistence.transaction(claim.snapshot.intent.identity, container: container, isCurrent: isCurrent, save: save) { context in
+            let (row, job) = try matching(claim.snapshot, context: context)
+            guard claim.snapshot.status == .running else { throw Persistence.IntegrityError.conflict }
+            job.status = .needsAttention; job.nextRunAt = nil; job.lastErrorCode = Hold.reconciliationRequired.rawValue
+            job.updatedAt = now; mirror(job, into: row)
+        }
+    }
+
+    /// Typed remote proof, exact claim and child erasure authority commit together. No result is fabricated.
+    static func completeRetirement(_ claim: RetirementClaim, proof: ObservationAnalysisRetirementReceipt,
+                                   container: ModelContainer, isCurrent: () -> Bool,
+                                   save: (ModelContext) throws -> Void = { try $0.save() }) throws -> ObservationReanalysisErasureReceipt {
+        guard claim.snapshot.status == .running, proof.request == claim.request else { throw Persistence.IntegrityError.conflict }
+        let identity = claim.snapshot.intent.identity
+        let receipt = ObservationReanalysisErasureReceipt(ownerID: identity.ownerID, retirement: proof)
+        if try retiredReplay(claim, receipt: receipt, container: container, isCurrent: isCurrent) { return receipt }
+        return try Persistence.transaction(identity, container: container, isCurrent: isCurrent, save: save, settlingRetirement: proof) { context in
+            let (row, job) = try matching(claim.snapshot, context: context)
+            let child = identity.analysisID.uuidString.lowercased()
+            guard try context.fetch(FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate { $0.id == child })).isEmpty else {
+                throw Persistence.IntegrityError.conflict
+            }
+            try receipt.record(in: context)
+            try context.deletePreferredGoalHint(scanId: row.id)
+            context.delete(job); context.delete(row)
+            return receipt
+        }
+    }
+
+    private static func retiredReplay(_ claim: RetirementClaim, receipt: ObservationReanalysisErasureReceipt,
+                                      container: ModelContainer, isCurrent: () -> Bool) throws -> Bool {
+        try ConfirmedSpeciesReviewPersistence.transaction {
+            guard isCurrent() else { throw Persistence.IntegrityError.accountChanged }
+            let context = ModelContext(container); context.autosaveEnabled = false
+            let identity = claim.snapshot.intent.identity
+            try validateNamespace(identity, context: context)
+            guard let job = try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(identity.analysisID)) else { return false }
+            let parent = try ObservationHistorySyncService.enrolledScan(identity.observationID.uuidString, context: context)
+            let child = identity.analysisID.uuidString.lowercased()
+            guard parent.analysisOwnerAccountID == identity.ownerID.uuidString.lowercased(),
+                  try ObservationReanalysisErasureReceipt.restore(job) == receipt,
+                  try Persistence.pair(identity, context: context) == nil,
+                  try context.fetch(FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate { $0.id == child })).isEmpty,
+                  isCurrent() else { throw Persistence.IntegrityError.conflict }
+            return true
+        }
+    }
+
     /// `interrupted` is for a replacement execution owner after draining its old tasks.
     /// Every new claim advances the persisted attempt fence, including exact-request recovery.
     static func claim(_ expected: Snapshot, admission: Admission, now: Date, container: ModelContainer,

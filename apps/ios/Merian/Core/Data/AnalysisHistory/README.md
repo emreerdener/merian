@@ -1387,6 +1387,28 @@ claims. Normal claim, settlement, completion and candidate discovery exclude
 retirement work. A save that commits and then throws leaves the same operation
 recoverable from persistence; reopening must not mint a replacement UUID.
 Original photos, selection and child identity remain unchanged. This checkpoint
-is inert: dedicated retirement claims, terminal proof settlement, retained
-account delivery and action UI remain to be connected. Status alone cannot
-release local occupancy or authorize erasure, refund or provider execution.
+is inert: retained account delivery, status projection and action UI remain to
+be connected. Dedicated claims and proof settlement are described below. Status
+alone cannot release local occupancy or authorize erasure, refund or provider
+execution.
+
+### Exact retirement claims and terminal proof
+
+Retirement uses a distinct full-snapshot claim. Initial and interrupted recovery
+retain the staged UUID; an uncertain reply holds without a deadline, and only
+explicit same-operation recovery can replace that held claim. Replaced claims
+cannot acknowledge a late reply. Normal execution never adopts a retirement
+claim or calls analyze from it.
+
+A validated `retired_before_dispatch` receipt is saved in closed erasure
+metadata version two, retaining the owner and bounded original proof bytes.
+Recording proof and deleting the queued child/job are one transaction. Exact
+replay remains possible after cleanup. Known-answer settlement may ignore task
+cancellation, but never current-account, deletion or claim checks. Ordinary
+version-one result/discard receipts remain distinct and cannot accept or
+overwrite retirement proof. Parent deletion alone can preserve a stronger
+existing proof under the same cleanup scope.
+
+The executor, status projection and user actions remain inert pending delivery
+integration. A dispatch-winning race still needs exact original-result
+reconciliation; it must not fabricate a successful retirement receipt.

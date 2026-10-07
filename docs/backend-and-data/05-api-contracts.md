@@ -12526,10 +12526,11 @@ The separately prepared service-only
 requires default-false `execution_retirement_api_enabled`. Prepared
 authenticated `POST retire-observation-analysis` derives `p_owner` from
 `withEdgeHandler`; native direct RPC access is denied. The HTTP boundary is
-implemented; native durable action admission and UI remain a subsequent
-checkpoint. The closed schema-1 request adds one retained `operation_id` to the
-original parent/child/nullable-source/digest identity. The exact receipt echoes
-those six fields plus `state:"retired_before_dispatch"`.
+implemented; native durable staging and proof settlement are prepared, while
+delivery and UI remain subsequent checkpoints. The closed schema-1 request adds
+one retained `operation_id` to the original parent/child/nullable-source/digest
+identity. The exact receipt echoes those six fields plus
+`state:"retired_before_dispatch"`.
 
 After owner/deletion locks, exact stored receipt replay precedes the fresh gate.
 Fresh retirement requires an admitted intent with no invocation, outcome, draft,
@@ -12577,8 +12578,15 @@ validated owner and full request identity; staging compares both and requires
 version-seven consumed work are eligible to request retirement; ready work is
 not. Staging fences older normal workers and is excluded from normal execution
 discovery. It does not itself call the endpoint, erase evidence or release
-occupancy. Dedicated retirement claims, terminal-proof settlement and UI remain
-subsequent checkpoints; only server retirement can resolve a dispatch race.
+occupancy. Dedicated claims and terminal-proof settlement now retain the same
+operation through explicit recovery and save ambiguity. Closed local erasure
+metadata version two preserves the owner and exact bounded server proof in the
+same save that deletes the queued child/job. Unknown replies hold without a
+timer; replaced claims cannot settle. Cancellation alone cannot discard a known
+answer when account, deletion and claim checks still pass. Ordinary result
+cleanup remains a distinct version-one receipt. Delivery/status/UI and
+dispatch-winning original-result reconciliation remain subsequent checkpoints;
+only server retirement can resolve a dispatch race.
 
 The prepared native `analyzeObservation` transport preserves the complete saved
 request bytes, initiating account and 130-second timeout. It disables automatic

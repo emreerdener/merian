@@ -17,7 +17,7 @@ enum ObservationReanalysisErasure {
         // owner or job metadata cannot strand children or authorize remote work.
         for child in try context.fetch(query) {
             if let childID = UUID(uuidString: child.id), childID.uuidString.lowercased() == child.id, child.id != parent {
-                try ObservationReanalysisErasureReceipt(parentID: parentID, childID: childID).record(in: context)
+                try ObservationReanalysisErasureReceipt(parentID: parentID, childID: childID).recordParentErasure(in: context)
             }
             cleanup.childIDs.append(child.id)
             let media = child.capturedMediaSnapshot

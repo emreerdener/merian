@@ -10881,3 +10881,12 @@ identity. Account loss, pending deletion and completed results deny staging.
 Selection and evidence remain unchanged; no HTTP request or cleanup is performed
 by this foundation. Dedicated retirement ownership and terminal receipt
 settlement require their own subsequent coverage.
+
+`ReanalysisRetirementSettlementTests` checks distinct claims, timer-free holds,
+explicit same-UUID recovery, stale responses, atomic proof/save ambiguity,
+known-answer cancellation with account loss, deletion and exact terminal replay.
+It verifies strict bounded version-two proof decoding, unchanged selection,
+cleanup-proof retention, no downgrade by parent deletion and separation from
+normal result completion and version-one cleanup. This is persistence evidence;
+dedicated retirement delivery and dispatch-winning result reconciliation remain
+separate integration checkpoints.
