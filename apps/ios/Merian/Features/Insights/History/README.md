@@ -245,3 +245,16 @@ one persisted-job discovery wake. Status refresh/render does not wake or poll.
 Commit-then-throw followed by reopening observes and resumes the original UUID;
 held jobs never rearm automatically. The Core transaction remains the final
 scope/authority check, with no optimistic review mutation or legacy fallback.
+
+A closed presentation cancels its waiter and withholds the result. It does not
+cancel a shared lookup needed by another presentation. The retained owner keeps
+at most four scopes until actual completion, uses a five-second RPC timeout, and
+cancels/awaits account leases at both Auth teardown boundaries. It owns no idle
+polling lease. A full owner can reject another lookup until a slot exits; that
+does not authorize a different confirmation or a new mutation.
+
+See
+[confirmation Undo verification](../../../../../../docs/development-guides/08-testing-strategy.md#durable-confirmation-undo-verification)
+for exact tests and remaining direct-UI/joined-presentation coverage. Existing
+named-confirmation and chat UI smokes do not exercise the new Undo tap or alert.
+Ordinary access and the independent API gate remain disabled.

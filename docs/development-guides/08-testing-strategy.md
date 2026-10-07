@@ -407,6 +407,55 @@ predicates and catalog assertions do not close those integration cases. Native
 install-over and UI evidence must use the normal iOS build/migration gates when
 those surfaces are implemented.
 
+### Durable confirmation Undo verification
+
+The
+[API contract](../backend-and-data/05-api-contracts.md#durable-undo-confirmation)
+owns exact receipt eligibility and reader-9 wire semantics. The
+[History owner](../../apps/ios/Merian/Features/Insights/History/README.md#durable-confirmation-undo)
+owns native presentation and recovery. Confirmation Undo is separate from
+rejection Undo and selection Undo; passing either older Undo flow does not prove
+this one.
+
+| Boundary                               | Executable coverage                                                                                                                                                    | What it establishes                                                                                                                                                                                                                          |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Eligibility and native admission       | `ConfirmationUndoEligibilityTests`                                                                                                                                     | Matching outer target-review revision despite an older confirmation parent revision or different nested AI counter; primary/name authority, second-device admission without a local receipt, and rejection of stale or foreign associations. |
+| Closed lookup and mutation transport   | `ConfirmationUndoLookupTests`, `ObservationAnalysisReviewEndpointTests`, `_shared/analysisHistory/confirmationUndo_test.ts`                                            | Exact bounded request/response shapes, reader 9, owner and attempt fences, timeout and no automatic transport/Auth/route replay.                                                                                                             |
+| Shared lookup ownership                | `ObservationConfirmationUndoOwnerTests`                                                                                                                                | Maximum four coalesced scopes, retention until actual lease exit, stale-dispatch denial, and cancellation/await during Auth drain.                                                                                                           |
+| Save uncertainty and restart           | `HistoryReviewSaveRecoveryTests`, `IdentificationHistoryReviewModelTests`, `SelectedAnalysisReviewHostTests`, `SelectedAnalysisNameConfirmationTests`                  | Commit-then-throw discovery, offline/reopen recovery, disk-reopened same UUID, failure-before-commit retry identity, explicit opening/save wakes and no render/held rearm.                                                                   |
+| Visible authority and retained actions | `ConfidenceReviewPresentationTests` plus the selected host/model tests                                                                                                 | Owner confirmation display is distinct from community authority; current-ticket actions and delayed callbacks remain fenced. These are not direct app UI taps.                                                                               |
+| Database integrity                     | `tests/observation_analysis_confirmation.sql`, `_tests/observationConfirmationUndoConcurrencyDb.test.ts`, `_tests/observationAnalysisHistoryMigrationContract.test.ts` | Primary/name reversal, immutable receipt retention, unchanged selection, independent counters, gate/privilege denial, exact replay and real duplicate/review/selection/deletion races.                                                       |
+
+Swift entries name executable test suites, which can differ from their source
+filenames. Backend paths above are relative to `services/supabase` or its
+`functions` tree. Use `make ios-local-build` for focused native checks; the
+final implementation gate remains the complete native target, required UI smokes
+and fresh disposable-database/backend gates. Candidate counts and prior failed
+runs belong in the
+[dated review addendum](../rfcs/identification-history-integrated-review-results-2026-10-07.md#undo-confirmation-addendum--october-7-2026).
+
+Two focused coverage items remain open after the October 7 re-review:
+
+1. A dedicated UI scenario must load applied primary and named confirmations,
+   tap Undo in History, the selected menu and Confidence card, exercise the
+   named alert's Cancel/final confirmation, and verify one exact persisted
+   operation plus unchanged selection. Include a stale/dismissed callback and
+   unavailable imported receipt. Existing History Undo, named-confirmation and
+   chat smokes exercise different actions; they do not close this item.
+2. A joined-lookup test must cancel one presentation while a second waits for
+   the same lookup, prove the cancelled presentation publishes nothing, prove
+   the surviving waiter receives the one shared result, and check slot/lease
+   release at actual completion. Current Auth-drain and capacity tests cover
+   those mechanisms separately, not this complete presentation sequence.
+
+These are validation gaps, not confirmed source defects. A cancelled waiter
+intentionally does not cancel another waiter's shared read. The RPC timeout is
+five seconds; Auth teardown cancels and awaits the retained owner. Do not add
+per-presentation shared-task cancellation merely to make a test pass. Close the
+two items before activation, alongside the separate device and hosted
+qualification. All activation gates remain disabled; this document does not
+authorize a rollout, deployment or distribution.
+
 ## In-Memory Database Containers (`SwiftData`)
 
 Test suites must not pollute the user's iOS files or application store. Ordinary

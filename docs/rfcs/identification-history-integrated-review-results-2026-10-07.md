@@ -186,3 +186,73 @@ and retained acceptance artifact separate guided synthetic UI testing from:
 The user owns device testing. External execution still needs named-target
 authorization. This review authorizes no merge, deployment, hosted scheduling,
 activation or TestFlight distribution.
+
+## Undo confirmation addendum — October 7, 2026
+
+This addendum records the separately approved work after the integrated review
+above; it does not rewrite that review's original scope or test results.
+Implementation `11d3df525` and the reviewed Debug-fixture/test follow-up
+`e3aec22eb` add durable primary/name confirmation Undo. The exact validated
+candidate is `e3aec22eb17ef85050af17ee8a175ff182e442de` on PR #116. The
+[API contract](../backend-and-data/05-api-contracts.md#durable-undo-confirmation)
+and
+[History owner](../../apps/ios/Merian/Features/Insights/History/README.md#durable-confirmation-undo)
+own current behavior. This follow-up adds a forward SQL migration and an action
+to the existing closed wire; it makes no SwiftData schema or frozen-snapshot
+change. The alternatives card remains unchanged.
+
+Three independent read-only re-reviews checked backend authority/privacy, native
+persistence/lifetime/UI and cross-surface contracts. No new confirmed
+correctness defect was found. In particular, receipt eligibility compares the
+outer target-review revision and current confirmation association, not the
+original parent revision or nested AI counter. Recovered native admission does
+not require a fabricated local confirmation receipt. Exact saved replay and
+paired-state reconciliation preserve selection; Undo never resurrects an older
+rejection or reverses community authority.
+
+### Candidate validation
+
+| Evidence                                                                                           | Observed result                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Clean iOS Build and Test792](https://github.com/emreerdener/merian/actions/runs/37574162907)      | 5,380 unit tests, critical-result validator, all six exact required UI smokes and unsigned Release archive passed.                                                                                                                          |
+| [Clean Startup Safety738](https://github.com/emreerdener/merian/actions/runs/37574162934)          | 169 startup/migration tests passed.                                                                                                                                                                                                         |
+| [Supabase Candidate Validation308](https://github.com/emreerdener/merian/actions/runs/37574162892) | Passed on the same candidate; all eight candidate workflows passed.                                                                                                                                                                         |
+| Final shared-workspace native run                                                                  | 5,395 units plus six UI tests: 5,401 passed, zero failures/skips; critical validator and exact UI selectors verified. The 15 extra units belong to preserved unrelated workspace changes.                                                   |
+| Focused native checks                                                                              | Initial 56 tests across ten suites passed; final correction passed 16 units and three named-confirmation/chat UI tests, zero skips.                                                                                                         |
+| Full local backend                                                                                 | 2,940 tests/425 steps; 114 fresh disposable catalogs/1,862 assertions; four new real concurrency cases; 434 migration contracts; all 117 isolated endpoint configurations passed.                                                           |
+| Supporting checks                                                                                  | Native/backend tooling, scoped lint/source guards, exact seven-target indexed project membership, DTO21, docs26 and database lint/privilege/advisor error gates passed. Existing advisor warnings remain; this is not a zero-warning claim. |
+
+Local native results are retained in
+`.artifacts/local-ios/3d5bf0111c1041578f75f28565e4467c.xcresult` (full) and
+`.artifacts/local-ios/282076c32e9e46f9aa23fa643b44f265.xcresult` (final
+focused). The evidence inventory and subsequent source-only double-check are
+`.artifacts/undo-confirmation/final-validation.json` and
+`.artifacts/undo-confirmation/double-check.json`. The double-check reverified
+current-candidate CI; it did not rerun unchanged suites.
+
+Failed evidence is retained. The first full run caught outdated expectations for
+explicit-opening/failed-save discovery wakes and a Debug fixture that
+incorrectly demanded a saved named confirmation on empty discovery. The repair
+keeps exact persisted-request checks once work exists; the final full pass
+supersedes those failures. A focused invocation was stopped during package
+resolution to correct its named-confirmation UI selector, before tests ran. A
+synthetic tooling PTY restriction required an unsandboxed rerun; that case and
+the remaining shell checks passed without provider calls.
+
+### Re-review limits and activation hold
+
+The
+[canonical verification matrix](../development-guides/08-testing-strategy.md#durable-confirmation-undo-verification)
+tracks two still-open coverage items: direct primary/named Undo UI taps and
+alert behavior, and one cancelled presentation with a surviving joined lookup
+waiter. Existing selection-Undo, named-confirmation and chat UI smokes do not
+close those items. They are coverage gaps, not confirmed production defects.
+Shared lookup continuation after one waiter closes is intentional bounded
+coalescing, not an idle lease or account-isolation failure.
+
+Keep all activation gates false, ordinary access nil and schedules paused.
+Source validation and this re-review authorize no merge, deployment or
+distribution. Field Trip's held downstream reconciliation consumer remains a
+separate activation requirement: emitting an obligation does not establish live
+credit revocation. Real device migration/restart/heap, hosted runtime,
+storage/CDN and independent erasure qualification remain separately open.

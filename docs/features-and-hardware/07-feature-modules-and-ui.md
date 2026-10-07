@@ -966,6 +966,11 @@ card is unchanged. Ordinary History access and the independent Undo API gate
 remain disabled. See the [API contract](../backend-and-data/05-api-contracts.md)
 and
 [History ownership](../../apps/ios/Merian/Features/Insights/History/README.md#durable-confirmation-undo).
+The
+[verification matrix](../development-guides/08-testing-strategy.md#durable-confirmation-undo-verification)
+distinguishes the passing contract/persistence tests from the remaining direct
+Undo UI and joined-presentation cancellation scenarios. Existing selection-Undo
+and named-confirmation UI smokes do not establish coverage of those scenarios.
 
 The `InsightSheetView` is Merian's central contextual readout, triggered after
 an Edge API response or opened offline via the Scans library.

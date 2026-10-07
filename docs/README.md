@@ -114,22 +114,21 @@ production submission or public release.
 
 - [Reversible reanalysis and identification history](./rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md)
   defines the agreed stable-observation model, full analysis history, revisioned
-  restoration, funding and deletion boundaries, and staged acceptance gates. A
-  private backend foundation, native legacy-deletion refusal holds, and the
-  [V57 authority/display storage](./backend-and-data/04-database-schema.md#v57-per-analysis-authority-and-display-storage),
-  protocol-9 native admission, private photo resolution, saved-baseline import,
-  explicit previews, device-local saved-display capture, prepared native
-  enrollment admission with durable interruption/deletion protection, durable
-  native selection/Undo requests, owner selection transport with durable
-  conflict recovery, and funded child-analysis recovery are prepared locally. A
-  bounded native history list with preview, explicit selection and receipt-bound
-  Undo is also prepared behind injected access. Reader, append, enrollment and
-  selection gates remain disabled. Normal app access still uses replacement
-  reanalysis; the
-  [history sheet](./features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet)
-  is available only through the explicit Debug UI-test fixture. See the
+  restoration, funding and deletion boundaries, and staged acceptance gates. The
+  gated implementation now includes immutable append-only reanalysis, durable
+  enrollment/selection/review recovery, explicit private-photo publication
+  consent and immutable Field Chat. Durable confirmation Undo supports exact
+  primary/name receipts, including server eligibility recovery after reinstall;
+  it preserves selection and never restores an earlier rejection. The
+  [integrated review and Undo addendum](./rfcs/identification-history-integrated-review-results-2026-10-07.md#undo-confirmation-addendum--october-7-2026)
+  record candidate evidence without implying production readiness. Ordinary app
+  history access remains disabled; existing guided Debug profiles cover selected
+  prepared workflows, not every implemented action. The
+  [Undo verification matrix](./development-guides/08-testing-strategy.md#durable-confirmation-undo-verification)
+  explicitly retains direct-Undo UI and joined-presentation coverage gaps. See
+  the
   [current schema](./backend-and-data/04-database-schema.md#prepared-observation-analysis-history),
-  [verification scope](./development-guides/08-testing-strategy.md#observation-analysis-history-preparation),
+  [device checklist](./development-guides/24-identification-history-device-review.md)
   and
   [activation hold](./backend-and-data/06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
 

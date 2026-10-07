@@ -47,6 +47,38 @@ Record clipped controls, unreachable actions, surprising dismissals, freezes or
 crashes. Keep account changes and real captures for the separately configured
 end-to-end pass.
 
+## Confirmation Undo: additional scenario still required
+
+The existing **History** profile exercises selection Undo. **Species Name**
+saves a confirmation but intentionally stops at **Review pending**. Neither
+profile supplies an applied confirmation receipt and eligibility lookup, so
+neither demonstrates **Undo confirmation**. Do not treat the table above as
+coverage of that new action or enable live gates to make it appear.
+
+Before activation, add a separately reviewed prepared fixture with exact applied
+primary/name confirmation authority and strict synthetic lookup/delivery
+boundaries. Then record these device and UI-automation outcomes:
+
+- From History, the selected-result menu and Confidence card, primary Undo
+  directly saves the exact reversal. Named Undo first explains that the original
+  AI identification returns; Cancel creates no operation and final confirmation
+  saves exactly one operation.
+- The result becomes unreviewed while selection, original evidence and
+  confidence remain unchanged. Returning to another history result uses that
+  result's own review; an older rejection is not restored.
+- Pending, conflicted, community-controlled and receipt-unavailable imported
+  results show the appropriate explanation. Dismissal, revision or account
+  changes invalidate retained actions instead of targeting a newer result.
+- Reopening after an uncertain save observes the same operation. Actual process
+  restart and second-device receipt recovery still require the separate durable
+  store/nonproduction acceptance pass; an in-memory fixture cannot prove them.
+
+The
+[verification matrix](08-testing-strategy.md#durable-confirmation-undo-verification)
+records the existing lower-level coverage and the separate joined-waiter test
+gap. This is an acceptance specification, not a claim that the new fixture or UI
+automation already exists, and not deployment or activation authorization.
+
 ## What this establishes
 
 This pass checks the actual interface, touch behavior and selected native
