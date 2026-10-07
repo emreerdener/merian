@@ -16,6 +16,11 @@ struct ReanalysisStatusSheet: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(title(row.phase)).font(.headline)
                                 Text(detail(row.phase)).font(.callout).foregroundStyle(.secondary)
+                                if model.allowsOutcomeRecovery, row.canCheckOutcome {
+                                    Button("Check for the original result") { model.checkOutcome(row) }
+                                        .disabled(model.isBusy)
+                                        .accessibilityIdentifier("ReanalysisOutcome_\(row.id.uuidString.lowercased())")
+                                }
                                 if model.allowsRetirement, let action = row.retirement {
                                     Button(action == .requestStop ? "Try to stop this reanalysis" : "Check this stop request again") {
                                         model.requestRetirement(row)
@@ -69,7 +74,8 @@ struct ReanalysisStatusSheet: View {
         case .consentRequired: "AI permission required"
         case .evidenceUnavailable: "Photos unavailable"
         case .reconciliationRequired: "Result needs checking"
-        case .retryLimit: "Automatic checks paused"
+        case .retryLimit: "Preparation attempts paused"
+        case .executionRetryLimit: "Result checks paused"
         case .terminalFailure: "Reanalysis could not complete"
         }
     }
@@ -84,7 +90,8 @@ struct ReanalysisStatusSheet: View {
         case .consentRequired: "This request is paused because AI processing permission is required."
         case .evidenceUnavailable: "The original photos for this request could not be recovered. The request is paused."
         case .reconciliationRequired: "The outcome could not be confirmed. The request is paused to avoid starting another analysis."
-        case .retryLimit: "The app could not finish checking this request. Automatic attempts have stopped."
+        case .retryLimit: "The app could not finish preparing this request. Preparation attempts have stopped."
+        case .executionRetryLimit: "Automatic result checks have stopped. You can check for the original result without starting another analysis."
         case .terminalFailure: "This request ended without a new identification. Your saved identification has been kept."
         }
     }

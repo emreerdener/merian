@@ -6,13 +6,14 @@ import SwiftData
 struct ObservationReanalysisOperationStatus {
     enum Phase: Equatable, Sendable {
         case preparingEvidence, waitingToStart, processing, waitingToRetry, stopping, stopNeedsChecking
-        case consentRequired, evidenceUnavailable, reconciliationRequired, retryLimit, terminalFailure
+        case consentRequired, evidenceUnavailable, reconciliationRequired, retryLimit, executionRetryLimit, terminalFailure
     }
     struct Summary: Identifiable, Equatable, Sendable {
         let id: UUID
         let sourceAnalysisID: UUID
         let phase: Phase
         var retirement: ObservationReanalysisRetirementAction.Affordance?
+        var canCheckOutcome = false
     }
     struct Cursor: Equatable, Sendable { fileprivate let childID: String }
     struct Page: Sendable {
@@ -44,7 +45,7 @@ struct ObservationReanalysisOperationStatus {
             guard valid() else { throw ObservationHistoryError.accountChanged }
             guard case let .reanalysis(identity) = work, identity.ownerID == ownerID, identity.observationID == observationID else { continue }
             if let phase = try phase(identity, container: container, isCurrent: valid) {
-                items.append(.init(id: identity.analysisID, sourceAnalysisID: identity.sourceAnalysisID, phase: phase.phase, retirement: phase.retirement))
+                items.append(.init(id: identity.analysisID, sourceAnalysisID: identity.sourceAnalysisID, phase: phase.phase, retirement: phase.retirement, canCheckOutcome: phase.canCheckOutcome))
             }
         }
         try ConfirmedSpeciesReviewPersistence.transaction {
@@ -67,6 +68,7 @@ struct ObservationReanalysisOperationStatus {
     private struct Projection {
         let phase: Phase
         var retirement: ObservationReanalysisRetirementAction.Affordance?
+        var canCheckOutcome = false
     }
 
     private func phase(_ identity: OfflineQueueWork.Reanalysis, container: ModelContainer, isCurrent: () -> Bool) throws -> Projection? {
@@ -106,8 +108,8 @@ struct ObservationReanalysisOperationStatus {
             case .consentRequired: return .init(phase: .consentRequired)
             case .evidenceUnavailable: return .init(phase: .evidenceUnavailable)
             case .terminalFailure: return .init(phase: .terminalFailure)
-            case .reconciliationRequired: return .init(phase: .reconciliationRequired)
-            case .retryLimit: return .init(phase: .retryLimit)
+            case .reconciliationRequired: return .init(phase: .reconciliationRequired, canCheckOutcome: ObservationReanalysisExecutionStore.canRecoverHeldOutcome(saved))
+            case .retryLimit: return .init(phase: saved.dispatch == .ready ? .retryLimit : .executionRetryLimit, canCheckOutcome: ObservationReanalysisExecutionStore.canRecoverHeldOutcome(saved))
             case nil: return nil // Held legacy drafts have never been explicitly admitted.
             }
         default: return nil
@@ -174,6 +176,45 @@ struct ObservationReanalysisRetirementAction {
             _ = try Store.stageRetirement(expected, status: status, operationID: operationID, now: now(),
                 container: container, isCurrent: current, save: save)
             return .saved
+        }
+    }
+}
+
+/// Exact outcome lookup only. Unknown work stays held without changing its durable attempt or request.
+@MainActor
+struct ObservationReanalysisOutcomeAction {
+    typealias Store = ObservationReanalysisExecutionStore
+    typealias Validator = ObservationReanalysisExecutor.Validator
+    let ownership: ObservationReanalysisPreparationOwner
+    let account: ObservationHistoryCloudClient
+    let recover: (ObservationReanalysisIntent, @escaping Validator) async throws -> Data?
+    let completionAttempted: () -> Void
+    var save: (ModelContext) throws -> Void = { try $0.save() }
+
+    func perform(_ identity: OfflineQueueWork.Reanalysis, container: ModelContainer,
+                 isCurrent: @escaping @MainActor @Sendable () -> Bool) async throws -> Bool {
+        try await ownership.perform(identity) { owned in
+            let lease = try account.begin(identity.ownerID)
+            defer { account.finish(lease) }
+            let accountCurrent: @MainActor @Sendable () -> Bool = { isCurrent() && lease.session.userID == identity.ownerID && account.isCurrent(lease) }
+            let current: @MainActor @Sendable () -> Bool = { accountCurrent() && owned() }
+            let expected = try Store.read(identity, container: container, isCurrent: current)
+            guard Store.canRecoverHeldOutcome(expected) else { return false }
+            let validate: Validator = {
+                try Task.checkCancellation()
+                guard current(), try Store.read(identity, container: container, isCurrent: current) == expected else {
+                    throw ObservationHistoryError.resultConflict
+                }
+            }
+            try validate()
+            let bytes = try await recover(expected.intent, validate)
+            try validate()
+            guard let bytes else { return false }
+            // A committed save can throw. Discovery of its cleanup receipt and library
+            // refresh are harmless even if the transaction instead rolled back.
+            defer { if accountCurrent() { completionAttempted() } }
+            _ = try Store.completeHeldOutcome(expected, resultBytes: bytes, container: container, isCurrent: current, save: save)
+            return true
         }
     }
 }

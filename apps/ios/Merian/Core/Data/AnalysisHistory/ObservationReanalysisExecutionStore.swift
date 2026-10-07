@@ -368,6 +368,33 @@ enum ObservationReanalysisExecutionStore {
         }
     }
 
+    /// Explicit read-only recovery leaves the held job untouched until exact completion commits.
+    /// No claim, attempt, dispatch permission or timer is renewed by this operation.
+    static func completeHeldOutcome(_ expected: Snapshot, resultBytes: Data, container: ModelContainer,
+                                    isCurrent: () -> Bool, save: (ModelContext) throws -> Void = { try $0.save() }) throws
+        -> ObservationReanalysisErasureReceipt {
+        guard canRecoverHeldOutcome(expected) else { throw Persistence.IntegrityError.conflict }
+        let result = try ObservationReanalysisResult.decode(resultBytes, matching: expected.intent.request)
+        let identity = expected.intent.identity
+        let receipt = ObservationReanalysisErasureReceipt(parentID: identity.observationID, childID: identity.analysisID)
+        if try completedReplay(expected.intent, result: result, receipt: receipt, container: container, isCurrent: isCurrent) { return receipt }
+        return try Persistence.transaction(identity, container: container, isCurrent: isCurrent, save: save) { context in
+            let (row, job) = try matching(expected, context: context)
+            let parent = try ObservationHistorySyncService.enrolledScan(identity.observationID.uuidString, context: context)
+            _ = try ObservationHistorySyncService.insert([result], into: parent, ownerID: identity.ownerID, context: context)
+            try receipt.record(in: context)
+            try context.deletePreferredGoalHint(scanId: row.id)
+            context.delete(job); context.delete(row)
+            return receipt
+        }
+    }
+
+    static func canRecoverHeldOutcome(_ saved: Snapshot) -> Bool {
+        saved.retirement == nil && saved.dispatch != .ready && saved.status == .needsAttention
+            && (saved.hold == .reconciliationRequired || saved.hold == .retryLimit)
+            && saved.server != .failedTerminal
+    }
+
     private static func completedReplay(_ intent: ObservationReanalysisIntent, result: ObservationHistoryPage.Result,
                                         receipt: ObservationReanalysisErasureReceipt, container: ModelContainer,
                                         isCurrent: () -> Bool) throws -> Bool {

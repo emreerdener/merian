@@ -8,6 +8,8 @@ struct ReanalysisStatusAccess {
         let fetch: (ObservationAnalysisExecutionLookup, UUID, @escaping ObservationReanalysisExecutor.Validator) async throws -> ObservationAnalysisExecutionStatus
         let wake: () -> Void
         var generation: () -> UInt64 = { 0 }
+        var recover: ((ObservationReanalysisIntent, @escaping ObservationReanalysisExecutor.Validator) async throws -> Data?)?
+        var completionAttempted: () -> Void = {}
     }
     var available: (String, ModelContainer) -> Bool
     var open: (String, ModelContainer) throws -> ReanalysisStatusDependencies
@@ -40,6 +42,7 @@ struct ReanalysisStatusDependencies {
     var isCurrent: () -> Bool
     var close: () -> Void
     var generation: () -> UInt64 = { 0 }
+    var recoverOutcome: ((ObservationReanalysisOperationStatus.Summary) async throws -> Bool)?
     var retire: ((ObservationReanalysisOperationStatus.Summary, UUID) async throws -> ObservationReanalysisRetirementAction.Outcome)?
 }
 
@@ -59,6 +62,17 @@ extension IdentificationHistorySession {
             validate: { [self] in try check() }, isCurrent: { [self] in isCurrent() }, close: { [self] in close() })
         if let retirement {
             dependencies.generation = retirement.generation
+            if let recover = retirement.recover {
+                dependencies.recoverOutcome = { [self] row in
+                    try check()
+                    guard row.canCheckOutcome else { return false }
+                    let identity = OfflineQueueWork.Reanalysis(observationID: try ObservationHistoryPage.uuid(observation),
+                        sourceAnalysisID: row.sourceAnalysisID, analysisID: row.id, ownerID: session.userID)
+                    return try await ObservationReanalysisOutcomeAction(ownership: retirement.ownership, account: cloud,
+                        recover: recover, completionAttempted: retirement.completionAttempted).perform(identity,
+                            container: container, isCurrent: { [self] in commonEnvironmentIsCurrent() })
+                }
+            }
             dependencies.retire = { [self] row, operation in
                 try check()
                 guard row.retirement != nil else { return .unavailable }

@@ -81,6 +81,16 @@ that same saved operation. Other holds and absent/dispatched outcomes cannot be
 retired through this control. The model retains its request after ambiguous
 saves; reopening discovers existing V8 work rather than replacing it.
 
+“Check for the original result” is separately available only for durable held
+consumed/legacy-unknown work with a reconciliation or retry-limit hold. It uses
+the injected retained outcome reader; no provider or upload interface is
+available to that action. Absence/errors preserve the held request. Exact
+completion appends without selecting and retains cleanup authority. Preparation
+retry exhaustion (including a bound request whose dispatch remains ready) is
+displayed separately from exhausted result checks. Closing withholds late
+private UI values; pending library refreshes flush after the action exits,
+including save-then-throw, without repeating the remote lookup.
+
 Actual execution-owner exit advances an
 account/context/Auth-generation-qualified observable generation. The presented
 model refreshes its local page on that change so a held stop becomes actionable

@@ -10929,3 +10929,23 @@ presentation dismissal. Qualified actual-pass-exit refresh exposes the held
 recovery action without a library event, polling or mutation; wrong owner or
 context cannot advance its epoch. These focused results do not replace the
 separately recorded shared-worktree full result or device/hosted qualification.
+
+### Explicit held reanalysis outcome verification
+
+`ReanalysisHeldOutcomeTests` exercises exact consumed/legacy-unknown recovery,
+absence/error/malformed replies without durable mutation, owner/deletion/full
+snapshot changes, retained Auth drain, atomic completion, save-before and
+save-after errors, disk reopening and exact receipt replay. No new provider,
+claim, attempt or timer is created. `ReanalysisOperationStatusTests`
+distinguishes admission/preparation exhaustion from consumed execution
+exhaustion; `ReanalysisStatusViewModelTests` verifies explicit-only reads,
+same-row admission, late UI withholding and queued library refresh after a
+committed save throws. These focused tests do not replace final integrated
+media/device qualification.
+
+No existing-V2 no-admission proof is claimed: independent review rejected an
+unpublished draft because pruned quota/invocation records cannot prove
+historical non-execution. The failed local migration-anchor evidence and
+rejected draft are retained outside the candidate; no new backend migration
+ships with this native lookup checkpoint. Current unknown work remains held by
+contract.

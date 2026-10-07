@@ -14,6 +14,7 @@ final class ReanalysisStatusViewModel {
     private var work: Task<Void, Never>?
     private var libraryRefreshPending = false
     private var retirementRequest: (child: UUID, operation: UUID)?
+    var allowsOutcomeRecovery: Bool { dependencies.recoverOutcome != nil }
     var allowsRetirement: Bool { dependencies.retire != nil }
     var deliveryGeneration: UInt64 { dependencies.generation() }
     var isSessionCurrent: Bool { !isClosed && isPresented() && dependencies.isCurrent() }
@@ -68,11 +69,36 @@ final class ReanalysisStatusViewModel {
                     start()
                 } else {
                     message = "This request cannot be safely stopped. Its original outcome is still being preserved."
+                    refreshLibraryWhenIdle()
                 }
             } catch {
                 guard let self, generation == expected, !Task.isCancelled, validate() else { return }
                 work = nil; isBusy = false
                 message = "The stop request could not be confirmed. Try checking the same request again."
+                refreshLibraryWhenIdle()
+            }
+        }
+    }
+
+    func checkOutcome(_ row: ObservationReanalysisOperationStatus.Summary) {
+        guard work == nil, !isBusy, validate(), rows.contains(row), row.canCheckOutcome,
+              let recover = dependencies.recoverOutcome else { return }
+        let expected = generation
+        isBusy = true; message = nil
+        work = Task { [weak self] in
+            do {
+                let completed = try await recover(row)
+                guard let self, generation == expected, !Task.isCancelled, validate() else { return }
+                work = nil; isBusy = false
+                if completed { start() } else {
+                    message = "No completed result is available yet. This request remains paused; no new analysis was started."
+                    refreshLibraryWhenIdle()
+                }
+            } catch {
+                guard let self, generation == expected, !Task.isCancelled, validate() else { return }
+                work = nil; isBusy = false
+                message = "The original result could not be checked. This request remains paused."
+                refreshLibraryWhenIdle()
             }
         }
     }

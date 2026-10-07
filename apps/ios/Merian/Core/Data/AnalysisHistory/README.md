@@ -1435,3 +1435,32 @@ without restaging or rearming anything on its own. Existing actual-pass-exit
 scheduler discovery covers work staged while a pass is already active. No result
 recovery fabricates a successful retirement receipt or authorizes a provider
 call.
+
+### Explicit held outcome recovery
+
+`ObservationReanalysisOutcomeAction` has only an exact-result reader, the
+injected preparation owner/account, and a completion notification. It accepts
+held consumed or legacy-unknown requests with reconciliation/retry-limit holds;
+ready, terminal-failure and retirement records remain outside this action. The
+held snapshot stays unchanged throughout I/O: no new claim, attempt, timer,
+processor permission, upload or inference invocation. Absent, malformed,
+cancelled or failed lookup leaves it held. A returned exact result passes the
+whole saved request/evidence validation and full-snapshot CAS in
+`completeHeldOutcome`; insertion, queue retirement and the existing V1 cleanup
+receipt commit together without selecting the child. Exact completion replay
+requires the saved result bytes and receipt. Account/deletion and replacement
+snapshot fences apply before and after the await and in the transaction.
+
+The preparation owner retains the lease until the real lookup exits and drains
+before Auth teardown. A completion-save attempt notifies cleanup/library readers
+even if saving commits then throws; this notification cannot dispatch, restage
+or rearm. Presentation reopening performs local discovery only. The same saved
+request remains available after restart, and an explicit later check performs
+only another exact result read.
+
+There is no no-admission seal for existing V2 client-generated identities. Quota
+and invocation rows can be pruned; absence and even a later-created photo cohort
+cannot prove that an old identity never executed. Such uncertainty stays held. A
+future stronger proof would require a separately versioned durable
+identity-registration contract; this feature does not retrofit one or release
+occupancy based on missing rows.

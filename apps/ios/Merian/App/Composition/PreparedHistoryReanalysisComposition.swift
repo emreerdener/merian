@@ -97,6 +97,13 @@ struct PreparedHistoryReanalysisComposition {
             }, generation: { queue.protectedChatDeliveryGeneration }, refreshOwner: queue.protectedChatRefreshOwner),
             retirement: .init(ownership: queue.reanalysisPreparationOwner, fetch: { request, owner, validate in
                 try await MerianNetworkClient.shared.reanalysisStatusTransport().read(request, ownerID: owner, validateAttempt: validate)
-            }, wake: { queue.requestReanalysisExecutionRecovery() }, generation: { queue.reanalysisExecutionGeneration }))
+            }, wake: { queue.requestReanalysisExecutionRecovery() }, generation: { queue.reanalysisExecutionGeneration },
+                recover: { intent, validate in
+                    try await MerianNetworkClient.shared.recoverObservationAnalysis(intent.request,
+                        expectedAuthUserID: intent.ownerID, validateAttempt: validate)
+                }, completionAttempted: {
+                    queue.requestReanalysisErasureRecovery()
+                    dependencies.appEventPublisher.send(.scanLibraryChanged)
+                }))
     }
 }

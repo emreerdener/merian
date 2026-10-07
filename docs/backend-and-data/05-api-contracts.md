@@ -12609,6 +12609,37 @@ local status page under current account/context/Auth scope, without polling,
 inference or automatic rearm. Only server retirement can resolve a dispatch
 race.
 
+#### Reanalysis recovery action authority
+
+UI labels do not authorize recovery. The prepared action matrix uses fresh
+validated durable state and keeps admission/preparation exhaustion separate from
+execution/result-check exhaustion:
+
+| Durable precondition                                                                                                            | Action and authority                                        | Identity and replay                                                                        | Durable postcondition                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Pristine unbound, unattempted preparation                                                                                       | Existing exact local discard transaction                    | Original parent/child; permanent local erasure receipt                                     | Only that child is retired; no attempted/bound work is discarded                                      |
+| Submitted files/admission preparation, retry budget exhausted                                                                   | Held; no generic retry or inference action                  | Original draft, source proof and ordered evidence retained                                 | No automatic deadline or replacement; consent rearm is a separate exact CAS                           |
+| Bound dispatch still ready, execution preparation exhausted                                                                     | Held; no outcome-recovery or retirement capability inferred | Exact bound request remains saved                                                          | No invocation permission is added by reopening/status                                                 |
+| Bound consumed/legacy-unknown, running/waiting, exact remote `admitted`                                                         | Explicit retirement staging and service retirement routine  | One retained retirement UUID and exact original request; lost response reuses it           | Only atomic server proof retires never-dispatched work; dispatch-winning result recovers separately   |
+| V8 retirement held for reconciliation                                                                                           | Explicit same-retirement recovery                           | Same UUID/request; full-snapshot CAS, no provider interface                                | Proof settles or original result appends; uncertainty remains held without timers                     |
+| Bound consumed/legacy-unknown, held for reconciliation/result-check exhaustion, no retirement and no terminal-failure authority | Explicit exact-result lookup through retained account owner | Original request and snapshot remain unchanged during I/O; full-snapshot CAS on completion | Exact child appends plus queue/job retirement and V1 cleanup receipt in one save; selection unchanged |
+| Missing result/status, generic HTTP error, cancelled lookup, malformed or conflicting authority                                 | No release or replacement authority                         | Preserve the original operation and evidence                                               | Held occupancy remains; neither explicit checking nor reopening invokes a provider                    |
+
+The held-outcome action never calls `analyzeObservation`, begins admission,
+renews a server execution claim, changes the local attempt, uploads media or
+refunds. It uses the existing exact target reader, independently of inference
+consent, and validates the account, original snapshot and full immutable result.
+A completion-save attempt wakes cleanup/library discovery even when it throws;
+that wake does not replay inference. Completed receipt/result equality permits
+local idempotent recovery after a committed save or restart.
+
+Existing V2 client-generated identities have no permanent no-admission seal.
+Quota/invocation retention prunes evidence, and a photo cohort created later
+cannot establish historical non-execution. Therefore absence cannot release an
+uncertain request. A stronger future proof requires a coordinated durable
+identity-registration protocol; current saved requests are not silently
+upgraded. All ordinary access and activation gates remain disabled.
+
 The prepared native `analyzeObservation` transport preserves the complete saved
 request bytes, initiating account and 130-second timeout. It disables automatic
 transport retries and 401 session refresh so the durable owner controls

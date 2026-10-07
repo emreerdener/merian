@@ -209,4 +209,46 @@ struct ReanalysisStatusViewModelTests {
         #expect(model.deliveryGeneration == before &+ 1)
     }
 
+    @Test func explicitOutcomeCheckDoesNotPollOrRestageAndCloseWithholdsLateReply() async {
+        let row = ObservationReanalysisOperationStatus.Summary(id: UUID(), sourceAnalysisID: UUID(), phase: .executionRetryLimit, canCheckOutcome: true)
+        var reads = 0, calls = 0
+        var reply: CheckedContinuation<Bool, Never>?
+        let model = ReanalysisStatusViewModel(dependencies: .init(page: { _ in reads += 1; return .init(items: [row], next: nil) },
+            validate: {}, isCurrent: { true }, close: {}, recoverOutcome: { requested in
+                #expect(requested == row); calls += 1
+                return await withCheckedContinuation { reply = $0 }
+            }))
+        await model.load()
+        #expect(calls == 0 && reads == 1)
+        model.checkOutcome(row)
+        while reply == nil { await Task.yield() }
+        model.checkOutcome(row); #expect(calls == 1)
+        reply?.resume(returning: false)
+        while model.isBusy { await Task.yield() }
+        #expect(model.message?.contains("no new analysis") == true && reads == 1)
+        reply = nil; model.checkOutcome(row)
+        while reply == nil { await Task.yield() }
+        model.close(); reply?.resume(returning: true)
+        await Task.yield(); await Task.yield()
+        #expect(model.isClosed && model.rows.isEmpty && model.message == nil && calls == 2 && reads == 1)
+    }
+
+    @Test func queuedCompletionRefreshSurvivesSaveThenThrowWithoutRepeatingLookup() async {
+        enum Failure: Error { case saved }
+        let row = ObservationReanalysisOperationStatus.Summary(id: UUID(), sourceAnalysisID: UUID(), phase: .executionRetryLimit, canCheckOutcome: true)
+        var completed = false, reads = 0, lookups = 0
+        var model: ReanalysisStatusViewModel!
+        model = ReanalysisStatusViewModel(dependencies: .init(page: { _ in
+            reads += 1; return .init(items: completed ? [] : [row], next: nil)
+        }, validate: {}, isCurrent: { true }, close: {}, recoverOutcome: { _ in
+            lookups += 1; completed = true
+            model.refreshForLibraryChange()
+            throw Failure.saved
+        }))
+        await model.load(); model.checkOutcome(row)
+        while reads < 2 || model.isBusy { await Task.yield() }
+        #expect(model.rows.isEmpty && reads == 2 && lookups == 1)
+        model.close()
+    }
+
 }

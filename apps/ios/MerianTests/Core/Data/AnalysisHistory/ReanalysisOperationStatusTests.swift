@@ -289,3 +289,143 @@ struct ReanalysisRetirementActionTests {
     }
 
 }
+
+@MainActor
+@Suite(.serialized, .sharedProcessState(.offlineQueueManager))
+struct ReanalysisHeldOutcomeTests {
+    typealias Store = ObservationReanalysisExecutionStore
+    let execution = ObservationReanalysisExecutionTests()
+    enum Failure: Error { case synthetic }
+
+    func held(_ container: ModelContainer, ready: Bool = false) throws -> Store.Snapshot {
+        let active = try execution.claim(container)
+        let claim = ready ? active : try Store.consumeDispatch(active, container: container, isCurrent: { true })
+        try Store.settle(claim, as: .held(.retryLimit), now: execution.now, container: container, isCurrent: { true })
+        return try Store.read(claim.intent.identity, container: container, isCurrent: { true })
+    }
+
+    @Test(arguments: ["absent", "error", "ready", "malformed"])
+    func unknownOrUnsupportedLookupNeverChangesHeldWork(_ mode: String) async throws {
+        let container = try execution.fixture.fixture.container(), saved = try held(container, ready: mode == "ready")
+        var reads = 0, notifications = 0, finishes = 0
+        let action = ObservationReanalysisOutcomeAction(ownership: .init(),
+            account: ReanalysisOperationStatusTests().preparation.producerFixture.account(finish: { finishes += 1 }),
+            recover: { intent, validate in
+                try validate(); reads += 1; #expect(intent == saved.intent)
+                if mode == "error" { throw Failure.synthetic }
+                return mode == "malformed" ? Data("{}".utf8) : nil
+            }, completionAttempted: { notifications += 1 })
+        do {
+            let result = try await action.perform(saved.intent.identity, container: container, isCurrent: { true })
+            #expect(!result && (mode == "absent" || mode == "ready"))
+        } catch { #expect(mode == "error" || mode == "malformed") }
+        #expect(reads == (mode == "ready" ? 0 : 1) && finishes == 1)
+        #expect(notifications == (mode == "malformed" ? 1 : 0))
+        #expect(try Store.read(saved.intent.identity, container: container, isCurrent: { true }) == saved)
+        #expect(try Store.candidates(ownerID: saved.intent.ownerID, container: container, isCurrent: { true }).isEmpty)
+        let row = try #require(ReanalysisOperationStatusTests().page(saved.intent.identity, container).items.first)
+        #expect(row.phase == (mode == "ready" ? .retryLimit : .executionRetryLimit) && row.canCheckOutcome == (mode != "ready"))
+    }
+
+    @Test(arguments: ["success", "save-before", "save-after"])
+    func exactOutcomeCompletesAtomicallyWithoutChangingSelectionOrOriginalRequest(_ mode: String) async throws {
+        let container = try execution.fixture.fixture.container(), saved = try held(container)
+        var notifications = 0
+        let action = ObservationReanalysisOutcomeAction(ownership: .init(), account: ReanalysisOperationStatusTests().preparation.producerFixture.account(),
+            recover: { intent, validate in try validate(); #expect(intent == saved.intent); return try execution.result() },
+            completionAttempted: { notifications += 1 }, save: { context in
+                if mode == "save-before" { throw Failure.synthetic }
+                try context.save()
+                if mode == "save-after" { throw Failure.synthetic }
+            })
+        do {
+            let result = try await action.perform(saved.intent.identity, container: container, isCurrent: { true })
+            #expect(result && mode == "success")
+        } catch { #expect(mode != "success") }
+        let context = ModelContext(container), parent = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(parent.selectedAnalysisID == execution.fixture.fixture.analysis.uuidString.lowercased() && notifications == 1)
+        if mode == "save-before" {
+            #expect(try Store.read(saved.intent.identity, container: container, isCurrent: { true }) == saved)
+            #expect(parent.analysisRecords?.count == 1)
+        } else {
+            #expect(parent.analysisRecords?.count == 2)
+            #expect(try context.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
+            // Exact completion replay needs neither a fresh claim nor a new operation.
+            let receipt = try Store.completeHeldOutcome(saved, resultBytes: execution.result(), container: container, isCurrent: { true })
+            #expect(receipt.childID == saved.intent.request.analysisID)
+            #expect(try context.fetchCount(FetchDescriptor<LocalAnalysisRecord>()) == 2)
+        }
+    }
+
+    @Test(arguments: ["account", "deletion", "changed"])
+    func lateOutcomeCannotCrossItsOriginalScope(_ mode: String) async throws {
+        let container = try execution.fixture.fixture.container(), saved = try held(container)
+        var current = true, notifications = 0
+        let action = ObservationReanalysisOutcomeAction(ownership: .init(), account: ReanalysisOperationStatusTests().preparation.producerFixture.account(),
+            recover: { _, validate in
+                try validate()
+                if mode == "account" { current = false } else {
+                    let (context, row, job) = try execution.fixture.stored(container)
+                    if mode == "deletion" { context.insert(PendingCloudDeletionTask(scanId: saved.intent.identity.observationID.uuidString.lowercased())) } else { row.queueUpdatedAt = execution.now.addingTimeInterval(1); job.updatedAt = row.queueUpdatedAt }
+                    try context.save()
+                }
+                return try execution.result()
+            }, completionAttempted: { notifications += 1 })
+        await #expect(throws: (any Error).self) {
+            try await action.perform(saved.intent.identity, container: container, isCurrent: { current })
+        }
+        #expect(notifications == 0)
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<LocalAnalysisRecord>()) == 1)
+    }
+
+    @Test func authDrainRetainsReadUntilLeaseExitAndLeavesHeldWorkUnchanged() async throws {
+        let container = try execution.fixture.fixture.container(), saved = try held(container), owner = ObservationReanalysisPreparationOwner()
+        var reply: CheckedContinuation<Data?, Never>?
+        var finished = 0, drained = false, draining = false, notifications = 0
+        let action = ObservationReanalysisOutcomeAction(ownership: owner,
+            account: ReanalysisOperationStatusTests().preparation.producerFixture.account(finish: { finished += 1 }),
+            recover: { _, _ in await withCheckedContinuation { reply = $0 } }, completionAttempted: { notifications += 1 })
+        let task = Task { try await action.perform(saved.intent.identity, container: container, isCurrent: { true }) }
+        while reply == nil { await Task.yield() }
+        let drain = Task { draining = true; await owner.cancelAndAwaitAll(); drained = true }
+        while !draining { await Task.yield() }
+        #expect(!drained && finished == 0 && owner.contains(saved.intent.request.analysisID))
+        reply?.resume(returning: try execution.result())
+        do { _ = try await task.value; Issue.record("Cancelled lookup must not append") } catch {}
+        await drain.value
+        #expect(drained && finished == 1 && notifications == 0)
+        #expect(try Store.read(saved.intent.identity, container: container, isCurrent: { true }) == saved)
+    }
+    @Test func legacyUnknownHeldWorkRecoversOnlyItsExactResult() async throws {
+        let container = try execution.fixture.fixture.container(), before = try held(container)
+        let (context, _, job) = try execution.fixture.stored(container)
+        job.metadataJSON = String(data: try JSONSerialization.data(withJSONObject: ["version": 1,
+            "owner_id": before.intent.ownerID.uuidString.lowercased(), "request_base64": before.intent.request.body.base64EncodedString()]), encoding: .utf8)
+        try context.save()
+        let saved = try Store.read(before.intent.identity, container: container, isCurrent: { true })
+        #expect(saved.dispatch == .legacyUnknown && Store.canRecoverHeldOutcome(saved))
+        let action = ObservationReanalysisOutcomeAction(ownership: .init(), account: ReanalysisOperationStatusTests().preparation.producerFixture.account(),
+            recover: { intent, validate in try validate(); #expect(intent == before.intent); return try execution.result() }, completionAttempted: {})
+        #expect(try await action.perform(saved.intent.identity, container: container, isCurrent: { true }))
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<LocalAnalysisRecord>()) == 2)
+    }
+
+    @Test func restartRetainsHeldRequestAndExactCompletionReceipt() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("history.sqlite")
+        let saved: Store.Snapshot
+        do { let container = try execution.fixture.fixture.container(url: url); saved = try held(container) }
+        do {
+            let container = try execution.fixture.fixture.container(url: url, seed: false)
+            #expect(try Store.read(saved.intent.identity, container: container, isCurrent: { true }) == saved)
+            #expect(try Store.candidates(ownerID: saved.intent.ownerID, container: container, isCurrent: { true }).isEmpty)
+            _ = try Store.completeHeldOutcome(saved, resultBytes: execution.result(), container: container, isCurrent: { true })
+        }
+        let reopened = try execution.fixture.fixture.container(url: url, seed: false)
+        _ = try Store.completeHeldOutcome(saved, resultBytes: execution.result(), container: reopened, isCurrent: { true })
+        #expect(try ModelContext(reopened).fetchCount(FetchDescriptor<LocalAnalysisRecord>()) == 2)
+    }
+
+}
