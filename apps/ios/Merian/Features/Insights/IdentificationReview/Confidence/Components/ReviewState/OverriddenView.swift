@@ -21,6 +21,7 @@ struct OverriddenView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.green)
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("ConfidenceUndoConfirmation")
                 }
             }
 

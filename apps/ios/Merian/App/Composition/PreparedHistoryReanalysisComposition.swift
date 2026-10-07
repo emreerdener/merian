@@ -31,6 +31,7 @@ struct PreparedHistoryReanalysisComposition {
          submitted: @escaping @MainActor (UUID) -> Void, cleanup: @escaping @MainActor () -> Void,
          reviewWake: (() -> Void)? = nil, reviewGeneration: @escaping () -> UInt64 = { 0 },
          confirmationUndo: IdentificationHistoryReviewAccess.ConfirmationUndoConfiguration? = nil,
+         rejectionUndo: IdentificationHistoryReviewAccess.RejectionUndoConfiguration? = nil,
          publication: IdentificationHistoryPublicationAccess.Configuration? = nil,
          protectedChat: ProtectedInsightChatAccess.Configuration? = nil,
          documents: @escaping @MainActor () throws -> URL = {
@@ -42,7 +43,7 @@ struct PreparedHistoryReanalysisComposition {
         let photos = ObservationHistoryPhotoLoader(account: cloud, resolve: cloud.resolvePhoto, download: downloadPhoto)
         let session: (String, ModelContainer) throws -> IdentificationHistorySession = { id, container in
             try IdentificationHistorySession(observation: id, container: container, cloud: cloud, photos: photos,
-                reviewWake: reviewWake, reviewGeneration: reviewGeneration, publication: publication, confirmationUndo: confirmationUndo, currentGeneration: generation, sessionIsCurrent: { currentOwner() == $0.userID && sessionIsCurrent($0) && containerIsCurrent(container) })
+                reviewWake: reviewWake, reviewGeneration: reviewGeneration, publication: publication, confirmationUndo: confirmationUndo, rejectionUndo: rejectionUndo, currentGeneration: generation, sessionIsCurrent: { currentOwner() == $0.userID && sessionIsCurrent($0) && containerIsCurrent(container) })
         }
         var history = IdentificationHistoryAccess.prepared(cloud: cloud, session: session)
         history.requestReanalysis = { routes.request(.historicalReanalysis($0), source: .internalUserAction) }
@@ -76,6 +77,9 @@ struct PreparedHistoryReanalysisComposition {
             reviewWake: { queue.requestAnalysisReviewRecovery() }, reviewGeneration: { queue.analysisReviewDeliveryGeneration },
             confirmationUndo: .init(owner: queue.confirmationUndoOwner, fetch: { lookup, owner, validateAttempt in
                 try await MerianNetworkClient.shared.observationConfirmationUndo(lookup, ownerID: owner, validateAttempt: validateAttempt)
+            }),
+            rejectionUndo: .init(owner: queue.rejectionUndoOwner, fetch: { lookup, owner, validateAttempt in
+                try await MerianNetworkClient.shared.observationRejectionUndo(lookup, ownerID: owner, validateAttempt: validateAttempt)
             }),
             publication: .init(owner: queue.publicationConsentPreparationOwner,
                 recoveryOwner: queue.publicationTargetRecoveryOwner, fetchTarget: { request, owner in

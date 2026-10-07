@@ -11,7 +11,7 @@ extension InsightSheetView {
                 ?? (selectedReviewHost.model == nil ? "Identification review is unavailable. Reopen this scan to refresh it." : nil) }
         let confirm = inferenceEngine.speciesData?.canConfirmReanalysisProposal == true
             ? confirmReviewAction(scanID: scanID, generation: generation) : nil
-        let reason = protectedMessage ?? selectedReviewHost.model?.confirmationUndoMessage ?? IdentificationReviewNotice.unavailableReason(review)
+        let reason = protectedMessage ?? selectedReviewHost.model?.rejectionUndoMessage ?? selectedReviewHost.model?.confirmationUndoMessage ?? IdentificationReviewNotice.unavailableReason(review)
             ?? (review.state == .awaitingAcceptance && confirm == nil
                 ? "This proposal cannot be accepted here. Review its identification or ask the community." : nil)
         let confirmationState = selectedReviewHost.model.flatMap { ConfidenceReviewControls.ConfirmationState.resolve($0.ticket) }

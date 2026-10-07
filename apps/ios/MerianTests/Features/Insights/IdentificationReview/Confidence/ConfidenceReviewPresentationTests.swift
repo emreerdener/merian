@@ -35,6 +35,28 @@ struct ConfidenceReviewPresentationTests {
         #expect(analyzing.isVisible)
     }
 
+    @Test func acknowledgedConfirmationDoesNotDependOnLegacyDisplayFlags() {
+        for state in [ConfidenceReviewControls.ConfirmationState.primary, .named("Danaus plexippus")] {
+            let presentation = ConfidenceBadgePresentation.resolve(
+                confidenceScore: 0.8, inferenceTier: nil, hasUserOverride: false,
+                isUserConfirmed: false, analyzingPhrase: nil, confirmationState: state
+            )
+            #expect(presentation.label == "Confirmed")
+            #expect(presentation.style == .confirmed)
+            let damaged = ConfidenceBadgePresentation.resolve(
+                confidenceScore: 0.8, inferenceTier: nil, hasUserOverride: false,
+                isUserConfirmed: false, analyzingPhrase: nil,
+                review: .restoring(Data("invalid".utf8)), confirmationState: state
+            )
+            #expect(damaged.style == .awaitingReview)
+        }
+        let unavailable = ConfidenceBadgePresentation.resolve(
+            confidenceScore: 0.8, inferenceTier: nil, hasUserOverride: false,
+            isUserConfirmed: false, analyzingPhrase: nil, confirmationState: nil
+        )
+        #expect(unavailable.style != .confirmed)
+    }
+
     @Test func analyzingEllipsisIsNotDuplicated() {
         let analyzing = ConfidenceBadgePresentation.resolve(
             confidenceScore: nil,

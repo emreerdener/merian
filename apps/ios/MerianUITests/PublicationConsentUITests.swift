@@ -1,6 +1,89 @@
 import XCTest
 
 @MainActor final class PublicationConsentUITests: XCTestCase {
+    func testPrimaryConfirmationUndoFromMenu() { exerciseConfirmationUndo(named: false, surface: .menu) }
+    func testNamedConfirmationUndoFromMenu() { exerciseConfirmationUndo(named: true, surface: .menu) }
+    func testPrimaryConfirmationUndoFromConfidence() { exerciseConfirmationUndo(named: false, surface: .confidence) }
+    func testNamedConfirmationUndoFromConfidence() { exerciseConfirmationUndo(named: true, surface: .confidence) }
+    func testPrimaryConfirmationUndoFromHistoricalPreview() { exerciseConfirmationUndo(named: false, surface: .history) }
+    func testNamedConfirmationUndoFromHistoricalPreview() { exerciseConfirmationUndo(named: true, surface: .history) }
+
+    private enum UndoSurface { case menu, confidence, history }
+    private func exerciseConfirmationUndo(named: Bool, surface: UndoSurface) {
+        continueAfterFailure = false
+        var arguments = ["-seedPublicationConsentChooser", "-seedConfirmationUndo"]
+        if named { arguments.append("-seedSelectedNameConfirmation") }
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: arguments)
+        defer { app.terminate() }
+        let scans = app.segmentedControls.buttons["Scans"]
+        if !scans.waitForExistence(timeout: 5) {
+            let entry = app.buttons["MainTabBar_Scans"]
+            XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
+        }
+        XCTAssertTrue(scans.waitForExistence(timeout: 10)); scans.tap()
+        let tile = app.buttons["ScanTile_00000000-0000-4000-8000-000000000001"]
+        XCTAssertTrue(tile.waitForExistence(timeout: 10)); tile.tap()
+        let menu = app.buttons["InsightTopMenu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10))
+        let target = surface == .history ? "00000000-0000-4000-8000-000000000002" : "00000000-0000-4000-8000-000000000004"
+        let action: XCUIElement
+        switch surface {
+        case .menu:
+            menu.tap(); action = app.buttons["Undo confirmation"]
+        case .confidence:
+            let badge = app.buttons["Confirmed"]
+            XCTAssertTrue(badge.waitForExistence(timeout: 10)); badge.tap()
+            action = app.buttons["ConfidenceUndoConfirmation"]
+        case .history:
+            menu.tap(); app.buttons["Identification history"].tap()
+            let row = app.buttons["HistoryRow_\(target)"]
+            XCTAssertTrue(row.waitForExistence(timeout: 10)); row.tap()
+            action = app.buttons["HistoryUndoConfirmation"]
+        }
+        XCTAssertTrue(action.waitForExistence(timeout: 10))
+        if !action.isHittable { app.swipeUp() }
+        XCTAssertTrue(action.isHittable); action.tap()
+        let alert = app.alerts["Undo your species identification?"]
+        if named {
+            XCTAssertTrue(alert.waitForExistence(timeout: 5))
+            let explanation = "Your correction will be removed and the original AI identification will return as unreviewed. The current selection will not change."
+            XCTAssertTrue(alert.staticTexts.matching(NSPredicate(format: "label == %@", explanation)).firstMatch.exists)
+            alert.buttons["Cancel"].tap()
+            // Cancellation leaves the same exact target eligible for the final decision.
+            if surface == .menu { menu.tap() }
+            XCTAssertTrue(action.waitForExistence(timeout: 5)); XCTAssertTrue(action.isEnabled); action.tap()
+            XCTAssertTrue(alert.waitForExistence(timeout: 5)); alert.buttons["Undo confirmation"].tap()
+        } else { XCTAssertFalse(alert.exists) }
+        // The synthetic boundary runs real claim/receipt/paired reconciliation and verifies
+        // exactly one completed outbox operation, unchanged selection and immutable snapshots.
+        if surface == .history {
+            let finished = app.staticTexts["Review updated. Open the identification again to see its current review."]
+            // A changed-context refresh can instead invalidate the old preview; reopening below
+            // checks actual authority, not this optional transient message.
+            _ = finished.waitForExistence(timeout: 3)
+            app.buttons["HistoryDone"].tap()
+        } else if surface == .confidence {
+            XCTAssertTrue(action.waitForNonExistence(timeout: 10))
+            // Dismiss through the sheet chrome, independent of content scroll position.
+            app.swipeDown()
+        }
+        let menuReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: menu)
+        XCTAssertEqual(XCTWaiter.wait(for: [menuReady], timeout: 10), .completed)
+        menu.tap()
+        let history = app.buttons["Identification history"]
+        XCTAssertTrue(history.waitForExistence(timeout: 5)); history.tap()
+        let row = app.buttons["HistoryRow_\(target)"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10)); row.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label ENDSWITH %@", "Not confirmed")).firstMatch.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["HistoryUndoConfirmation"].exists)
+        if surface == .history {
+            XCTAssertTrue(app.buttons["HistoryRestore"].exists, "Undoing a historical review must not select it")
+        } else {
+            XCTAssertTrue(app.staticTexts["This is your current identification."].exists)
+        }
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "Confirmation Undo preserves original result"; shot.lifetime = .keepAlways; add(shot)
+    }
+
     func testSelectedBroaderTaxonNameConfirmationPersistsExactReview() {
         continueAfterFailure = false
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedPublicationConsentChooser", "-seedSelectedNameConfirmation"])

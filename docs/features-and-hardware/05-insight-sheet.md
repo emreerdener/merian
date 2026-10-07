@@ -2690,6 +2690,13 @@ before waking delivery. Retry saving review retains the same operation after an
 uncertain local save. Delayed confirmation callbacks carry a binding token, so
 closing and reopening even the same scan cannot authorize an old action.
 
+The confidence badge consumes that same ticket's protected confirmation state,
+so an acknowledged primary confirmation or named correction displays
+**Confirmed** even when legacy display flags are intentionally absent. Pending
+review attention, rejection and awaiting-acceptance presentation retain their
+existing priority. The badge does not infer Undo permission: the receipt lookup,
+current ticket and retained action still establish eligibility independently.
+
 When the immutable primary does not permit direct species confirmation but
 allows an explicit name, that same menu action reads **Confirm species name**
 and opens `SelectedAnalysisNameConfirmationSheet`. Opening and typing create no

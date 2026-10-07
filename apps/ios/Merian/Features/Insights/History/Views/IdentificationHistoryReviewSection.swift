@@ -36,6 +36,7 @@ struct IdentificationHistoryReviewSection: View {
                 .accessibilityIdentifier("HistoryUndoConfirmation")
             }
             if let reason = model.confirmationUndoMessage { Text(reason).font(.callout) }
+            if let reason = model.rejectionUndoMessage { Text(reason).font(.callout) }
             if let operation = model.undoOperation {
                 Button("Undo incorrect mark") { model.submit(.undo(rejectionOperationID: operation)) }
                     .disabled(!model.canSubmit)

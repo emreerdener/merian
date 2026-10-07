@@ -110,9 +110,11 @@ extension OfflineQueueManager {
     ) async -> Bool {
         protectedChatDeliveryOwner.invalidate()
         confirmationUndoOwner.cancelAll()
+        rejectionUndoOwner.cancelAll()
         analysisReviewDeliveryOwner.cancel()
         await publicationDeliveryOwner.cancelAndAwait()
         await confirmationUndoOwner.cancelAndAwaitAll()
+        await rejectionUndoOwner.cancelAndAwaitAll()
         await analysisReviewDeliveryOwner.cancelAndAwait()
         await protectedChatDeliveryOwner.invalidateAndAwait()
         syncTask?.cancel()

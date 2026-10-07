@@ -255,6 +255,34 @@ does not authorize a different confirmation or a new mutation.
 
 See
 [confirmation Undo verification](../../../../../../docs/development-guides/08-testing-strategy.md#durable-confirmation-undo-verification)
-for exact tests and remaining direct-UI/joined-presentation coverage. Existing
-named-confirmation and chat UI smokes do not exercise the new Undo tap or alert.
-Ordinary access and the independent API gate remain disabled.
+for exact tests, including six primary/name Undo UI paths and cancellation of
+one joined presentation while another completes. Older named-confirmation and
+chat UI smokes exercise different actions. Ordinary access and the independent
+API gate remain disabled.
+
+## Recovered rejection Undo
+
+The existing incorrect-mark controls can resolve the original rejection after
+reinstall through an exact, read-only server lookup. The retained
+`ObservationRejectionUndoOwner` coalesces at most four account/session/container
+and displayed-ticket scopes; both Auth teardown boundaries cancel and await
+actual lease release. Closing one presentation cancels its waiter, not another
+presentation's shared lookup. There is no idle lease, timer or automatic lookup
+retry.
+
+A completed local rejection receipt remains the first eligibility source. A
+strict server reply can instead produce typed recovered eligibility without a
+local original rejection job. Fresh staging reconstructs the exact ticket and
+rechecks owner, deletion, idle selection, settled legacy review, unfinished
+operations and the current rejection association in the transaction. The server
+revalidates the original applied rejection against current outer target-review
+revision; its older observation revision and the independent nested AI counter
+do not invalidate an otherwise current rejection.
+
+Exact persisted Undo requests replay before fresh eligibility. Reopening and
+save uncertainty discover the original durable job; neither creates a
+replacement UUID nor automatically rearms a held operation. Lookup failure or a
+changed record explains unavailability and never enables a legacy mutation. Undo
+restores unreviewed AI authority without confirmation, evidence replacement or
+selection change. This composition remains inert while ordinary access is
+disabled.

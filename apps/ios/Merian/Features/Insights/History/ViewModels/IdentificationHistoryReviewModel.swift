@@ -10,6 +10,8 @@ final class IdentificationHistoryReviewModel {
     private(set) var undoOperation: UUID?
     private(set) var confirmationUndo: ObservationConfirmationUndoEligibility?
     private(set) var confirmationUndoMessage: String?
+    private(set) var rejectionUndo: ObservationRejectionUndoEligibility?
+    private(set) var rejectionUndoMessage: String?
     private var lookupTask: Task<Void, Never>?
     private var opened = false
     private(set) var message: String?
@@ -34,6 +36,7 @@ final class IdentificationHistoryReviewModel {
         opened = true
         access.wake()
         guard canSubmit else { return }
+        if ticket.rejectionOperationID != nil { openRejectionUndo(); return }
         guard ticket.confirmationAction != nil else {
             if ticket.reviewState == .aiConfirmed || ticket.reviewState == .userOverridden {
                 confirmationUndoMessage = "This identification’s current authority cannot be undone as your confirmation."
@@ -62,6 +65,30 @@ final class IdentificationHistoryReviewModel {
             self.lookupTask = nil
         }
     }
+    private func openRejectionUndo() {
+        guard let prepare = access.prepareRejectionUndo else {
+            if undoOperation == nil { rejectionUndoMessage = "Undo incorrect mark is unavailable in this presentation." }
+            return
+        }
+        rejectionUndoMessage = "Checking rejection record…"
+        lookupTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let resolution = try await prepare(self.ticket)
+                try Task.checkCancellation()
+                guard self.current(), self.canStartReview(), self.canSubmit else { return }
+                switch resolution {
+                case let .available(eligibility): self.rejectionUndo = eligibility; self.rejectionUndoMessage = nil
+                case let .unavailable(reason): self.rejectionUndoMessage = reason.message
+                }
+                self.refresh()
+            } catch {
+                guard !Task.isCancelled, self.current() else { return }
+                self.rejectionUndoMessage = "Rejection status is unavailable. Reopen this identification to try again."
+            }
+            self.lookupTask = nil
+        }
+    }
     var canSubmit: Bool { !isClosed && !blocked && request == nil && terminalMessage == nil }
     var hasUnresolvedRequest: Bool { request != nil && terminalMessage == nil }
 
@@ -76,7 +103,9 @@ final class IdentificationHistoryReviewModel {
         do {
             guard try access.pending() == nil else { refresh(); return }
             if case let .undo(rejectionID) = decision {
-                guard try access.undo(ticket) == rejectionID else { throw ObservationHistoryError.resultConflict }
+                if rejectionUndo?.operationID != rejectionID {
+                    guard try access.undo(ticket) == rejectionID else { throw ObservationHistoryError.resultConflict }
+                }
             }
             if case let .undoConfirmation(operation) = decision {
                 guard confirmationUndo?.operationID == operation else { throw ObservationHistoryError.resultConflict }
@@ -101,6 +130,9 @@ final class IdentificationHistoryReviewModel {
             if case .undoConfirmation = request.decision {
                 guard let confirmationUndo, let stage = access.stageConfirmationUndo else { throw ObservationHistoryError.unavailable }
                 try stage(request, ticket, confirmationUndo)
+            } else if case .undo = request.decision, let rejectionUndo {
+                guard let stage = access.stageRejectionUndo else { throw ObservationHistoryError.unavailable }
+                try stage(request, ticket, rejectionUndo)
             } else { try access.stage(request, ticket) }
             guard current() else { return }
             observedOperation = request.operationID
@@ -142,7 +174,7 @@ final class IdentificationHistoryReviewModel {
                 message = "Another review for this scan is pending. Resolve it before making another change."
             }
             if !blocked {
-                if canStartReview() { undoOperation = try access.undo(ticket) } else {
+                if canStartReview() { undoOperation = try access.undo(ticket) ?? rejectionUndo?.operationID } else {
                     blocked = true
                     message = "This identification changed. Open it again before making a new review."
                 }
@@ -158,6 +190,7 @@ final class IdentificationHistoryReviewModel {
     }
     func close() {
         lookupTask?.cancel(); lookupTask = nil; confirmationUndo = nil; confirmationUndoMessage = nil
+        rejectionUndo = nil; rejectionUndoMessage = nil
         isClosed = true; blocked = true; canRetrySave = false
         request = nil; observedOperation = nil; status = nil; undoOperation = nil; message = nil; terminalMessage = nil
     }

@@ -12,7 +12,8 @@ enum ObservationAnalysisReviewPersistence {
 
     @MainActor
     static func stage(_ request: ObservationAnalysisReviewRequest, ownerID: UUID, container: ModelContainer,
-                      isCurrent: () -> Bool, validateNew: (ModelContext) throws -> Void,
+                      isCurrent: () -> Bool, rejectionUndo: ObservationRejectionUndoEligibility? = nil,
+                      validateNew: (ModelContext) throws -> Void,
                       save: (ModelContext) throws -> Void = { try $0.save() }) throws -> ObservationAnalysisReviewIntent {
         let candidate = try ObservationAnalysisReviewIntent(request: request, ownerID: ownerID)
         return try transaction(candidate, container: container, isCurrent: isCurrent, save: save) { context in
@@ -38,7 +39,15 @@ enum ObservationAnalysisReviewPersistence {
                 guard try restore(job).isComplete else { throw IntegrityError.conflict }
             }
             try requireNewRevision(candidate, context: context)
-            if case let .undo(rejectionID) = request.decision {
+            if case let .undo(rejectionID) = request.decision, let rejectionUndo {
+                let ticket = rejectionUndo.ticket
+                guard ticket.ownerID == ownerID, rejectionUndo.operationID == rejectionID,
+                      try ticket.request(request.decision, operationID: request.operationID) == request else { throw IntegrityError.conflict }
+                let scan = try ObservationHistorySyncService.enrolledScan(request.observationID.uuidString, context: context)
+                try ObservationHistorySelectionIntent.requireIdle(scan.id, context: context)
+                try ObservationHistoryStateSyncService.requireSettledReview(scan, context: context)
+                try rejectionUndo.validate(ticket: ObservationAnalysisReviewAdmission.currentTicket(ticket, scan: scan, context: context), context: context)
+            } else if case let .undo(rejectionID) = request.decision {
                 guard let rejectJob = try context.fetchOfflineJob(id: jobID(rejectionID, observationID: request.observationID)) else {
                     throw IntegrityError.unavailable
                 }

@@ -10,11 +10,12 @@ enum ObservationAnalysisReviewAdmission {
     static func stage(_ request: ObservationAnalysisReviewRequest, ticket: ObservationAnalysisReviewTicket,
                       container: ModelContainer, isCurrent: () -> Bool,
                       confirmationUndo: ObservationConfirmationUndoEligibility? = nil,
+                      rejectionUndo: ObservationRejectionUndoEligibility? = nil,
                       save: (ModelContext) throws -> Void = { try $0.save() }) throws -> ObservationAnalysisReviewIntent {
         guard try ticket.request(request.decision, operationID: request.operationID) == request else {
             throw Store.IntegrityError.conflict
         }
-        return try Store.stage(request, ownerID: ticket.ownerID, container: container, isCurrent: isCurrent, validateNew: { context in
+        return try Store.stage(request, ownerID: ticket.ownerID, container: container, isCurrent: isCurrent, rejectionUndo: rejectionUndo, validateNew: { context in
             let scan = try ObservationHistorySyncService.enrolledScan(ticket.observationID.uuidString, context: context)
             try ObservationHistorySelectionIntent.requireIdle(scan.id, context: context)
             try ObservationHistoryStateSyncService.requireSettledReview(scan, context: context)
@@ -24,8 +25,13 @@ enum ObservationAnalysisReviewAdmission {
                 try confirmationUndo.validate(ticket: ticket, context: context)
             }
             if case let .undo(rejectionID) = request.decision {
-                guard try ObservationAnalysisReviewStatus.undoOperation(ticket, context: context) == rejectionID else {
-                    throw Store.IntegrityError.conflict
+                if let rejectionUndo {
+                    guard rejectionUndo.operationID == rejectionID else { throw Store.IntegrityError.conflict }
+                    try rejectionUndo.validate(ticket: ticket, context: context)
+                } else {
+                    guard try ObservationAnalysisReviewStatus.undoOperation(ticket, context: context) == rejectionID else {
+                        throw Store.IntegrityError.conflict
+                    }
                 }
             }
         }, save: save)

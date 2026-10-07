@@ -86,7 +86,8 @@ struct ConfidenceBadge: View {
             hasUserOverride: userIdentificationOverride != nil,
             isUserConfirmed: userConfirmedIdentification,
             analyzingPhrase: analyzingPhrase,
-            review: inferenceEngine.speciesData?.aiReview ?? .init()
+            review: inferenceEngine.speciesData?.aiReview ?? .init(),
+            confirmationState: confidenceReviewControls.confirmationState
         )
     }
 

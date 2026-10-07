@@ -1,6 +1,7 @@
 #if DEBUG
 import CryptoKit
 import Foundation
+import Observation
 import SwiftData
 
 extension UITestSeedCoordinator {
@@ -24,6 +25,7 @@ extension UITestSeedCoordinator {
     static let media = ["00000000-0000-4000-8000-000000000005", "00000000-0000-4000-8000-000000000006"]
     let container: ModelContainer
     let namedReview: Bool
+    let undoReview: ConfirmationUndoUIFixture?
     let bytes: Data
     let digest: String
     let snapshots: [String: Data]
@@ -33,9 +35,11 @@ extension UITestSeedCoordinator {
     private var chatServerRevision = 1
     private var savedChatRequest: ProtectedInsightChatRequest?
 
-    init(container: ModelContainer, namedReview: Bool = ProcessInfo.processInfo.arguments.contains("-seedSelectedNameConfirmation")) throws {
+    init(container: ModelContainer, namedReview: Bool = ProcessInfo.processInfo.arguments.contains("-seedSelectedNameConfirmation"),
+         confirmationUndo: Bool = ProcessInfo.processInfo.arguments.contains("-seedConfirmationUndo")) throws {
         self.container = container
         self.namedReview = namedReview
+        undoReview = confirmationUndo ? .init(named: namedReview) : nil
         let bytes = try UITestSeedCoordinator.uiTestPNGData()
         let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
         self.bytes = bytes; self.digest = digest
@@ -50,9 +54,9 @@ extension UITestSeedCoordinator {
                 "blur_score": 0.2, "colors": [], "estimated_size_cm": 8.5,
                 "extracted_visual_traits": ["orange wings"],
                 "image_quality": ["diagnostic_utility": 9, "framing": 7, "overall_score": 82, "sharpness": 8]]
-            if namedReview {
-                result["scientific_name"] = "Danaus"
-                result["primary_identification"] = ["version": 1, "resolution": "genus", "scientific_name": "Danaus", "common_name": "Consent Butterfly"]
+            if namedReview || confirmationUndo {
+                result["scientific_name"] = namedReview ? "Danaus" : "Danaus plexippus"
+                result["primary_identification"] = ["version": 1, "resolution": namedReview ? "genus" : "species", "scientific_name": namedReview ? "Danaus" : "Danaus plexippus", "common_name": "Consent Butterfly"]
                 result["is_new_to_merian_dictionary"] = false
                 result["identification_provenance"] = ["version": 2, "provider": "openai", "binding": "synthetic_primary_v1",
                     "model": "gpt-6-sol", "variant": "multimodal", "operation": "scan_identification", "policy_version": 1,
@@ -79,6 +83,19 @@ extension UITestSeedCoordinator {
             context.insert(scan)
             let state = try ObservationHistoryState.decode(stateData(Self.selected),
                 request: .init(observation_id: Self.observation, analysis_id: nil), ownerID: Self.owner)
+            if undoReview != nil {
+                // Seed an already acknowledged review, as restored by enrollment. A blank
+                // parent is not permission for state sync to overwrite a legacy correction.
+                let review = state.review
+                scan.aiIdentificationReviewData = try LocalAIIdentificationReview(authority: review.aiReview).storedData()
+                scan.confirmedSpeciesIdentityData = try ConfirmedSpeciesReview(revision: review.identityRevision,
+                    identity: review.speciesReview?.identity, override: review.override, confirmed: review.confirmed ?? false,
+                    speciesID: review.confirmedSpeciesID, state: review.state ?? .unreviewed).storedData()
+                scan.confirmedSpeciesId = review.confirmedSpeciesID
+                scan.userIdentificationOverride = review.override
+                scan.userConfirmedIdentification = review.confirmed ?? false
+                scan.userReviewStateRaw = review.state?.rawValue
+            }
             let old = try ObservationHistoryPage.snapshot(snapshot(Self.historical), observationID: Self.observation, ordinal: 1)
             _ = try ObservationHistorySyncService.insert([old], into: scan, ownerID: Self.owner, context: context)
             try ObservationHistoryStateSyncService.apply(state, to: scan, baseline: .init(scan), context: context)
@@ -96,7 +113,7 @@ extension UITestSeedCoordinator {
         fetch: { [self] request in
             guard request.observation_id == Self.observation, request.before_ordinal == nil, request.limit == 20 else { throw ObservationHistoryError.invalidPage }
             return try Self.json(["schema_version": 1, "owner_id": Self.owner.uuidString.lowercased(),
-                "observation_id": Self.observation, "state_revision": chatServerRevision, "next_before_ordinal": NSNull(),
+                "observation_id": Self.observation, "state_revision": undoReview?.revision ?? chatServerRevision, "next_before_ordinal": NSNull(),
                 "items": try [Self.selected, Self.historical].enumerated().map {
                     ["ordinal": 2 - $0.offset, "snapshot": try snapshotText($0.element)] as [String: Any]
                 }])
@@ -140,7 +157,10 @@ extension UITestSeedCoordinator {
                 assert((try? verifySavedChoice()) == true, "Synthetic consent persistence mismatch")
             }, generation: { 0 })
         return try IdentificationHistorySession(observation: observation, container: candidate, cloud: cloud, photos: photos,
-            reviewWake: { [self] in assert((try? verifyReviewDiscovery()) == true, "Synthetic review persistence mismatch") }, publication: config, currentGeneration: { 1 },
+            reviewWake: { [self] in
+                if let undoReview { undoReview.wake(container: container, cloud: cloud, snapshots: snapshots) } else { assert((try? verifyReviewDiscovery()) == true, "Synthetic review persistence mismatch") }
+            }, reviewGeneration: { [self] in undoReview?.generation ?? 0 }, publication: config,
+            confirmationUndo: undoReview?.configuration, currentGeneration: { 1 },
             sessionIsCurrent: { $0.userID == Self.owner && !$0.isAnonymous })
     }
 
@@ -220,14 +240,111 @@ extension UITestSeedCoordinator {
     }
     private func stateData(_ id: String) throws -> Data {
         try Self.json(["schema_version": 1, "owner_id": Self.owner.uuidString.lowercased(), "observation_id": Self.observation,
-            "state_revision": chatServerRevision, "selection_initialized": true, "selected_analysis_id": Self.selected,
-            "analysis": ["snapshot": try snapshotText(id), "review_revision": 0,
-                "review_snapshot": ["ai_identification_review": NSNull(), "confirmed_species_identity": NSNull(),
+            "state_revision": undoReview?.revision ?? chatServerRevision, "selection_initialized": true, "selected_analysis_id": Self.selected,
+            "analysis": ["snapshot": try snapshotText(id), "review_revision": undoReview?.reviewRevision(id) ?? 0,
+                "review_snapshot": undoReview?.authority(id) ?? ["ai_identification_review": NSNull(), "confirmed_species_identity": NSNull(),
                     "confirmed_species_identity_revision": 0, "confirmed_species_id": NSNull(), "user_identification_override": NSNull(),
                     "user_confirmed_identification": false, "user_review_state": "unreviewed"]]])
     }
     private static func json(_ object: [String: Any]) throws -> Data {
         try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+    }
+}
+/// Synthetic server boundary for the actual lookup, admission, delivery and paired reconciliation.
+/// No original local confirmation receipt is seeded: the UI exercises recovered eligibility.
+@MainActor @Observable
+final class ConfirmationUndoUIFixture {
+    private let named: Bool
+    private let lookupOwner = ObservationConfirmationUndoOwner()
+    private let deliveryOwner = ObservationAnalysisReviewDeliveryOwner()
+    private var applied: ObservationAnalysisReviewRequest?
+    private var response: ObservationAnalysisReviewReceipt?
+    private(set) var revision = 11
+    private(set) var generation: UInt64 = 0
+
+    init(named: Bool) { self.named = named }
+
+    private func originalOperation(_ analysis: String) -> UUID {
+        UUID(uuidString: analysis == PublicationConsentUIFixture.selected
+             ? "00000000-0000-4000-8000-000000000009" : "00000000-0000-4000-8000-00000000000a")!
+    }
+    func reviewRevision(_ analysis: String) -> Int {
+        applied?.analysisID.uuidString.lowercased() == analysis ? 3 : 2
+    }
+    func authority(_ analysis: String) -> [String: Any] {
+        let undone = applied?.analysisID.uuidString.lowercased() == analysis
+        return ["user_review_state": undone ? "unreviewed" : (named ? "user_overridden" : "ai_confirmed"),
+            "user_confirmed_identification": !undone && !named,
+            "user_identification_override": !undone && named ? "Danaus plexippus" : NSNull(),
+            "confirmed_species_identity": undone ? NSNull() : ["version": 1,
+                "species_id": "00000000-0000-4000-8000-00000000000b", "scientific_name": "Danaus plexippus",
+                "common_name": NSNull(), "gbif_taxon_key": 1], "confirmed_species_identity_revision": undone ? 2 : 1,
+            "confirmed_species_id": undone ? NSNull() : "00000000-0000-4000-8000-00000000000b",
+            "ai_identification_review": ["version": 1, "revision": undone ? 8 : 7, "state": "clear",
+                "origin_scan_id": PublicationConsentUIFixture.observation, "origin_identification": NSNull(),
+                "operation_id": (undone ? (applied?.operationID ?? originalOperation(analysis)) : originalOperation(analysis)).uuidString.lowercased(),
+                "operation_digest": String(repeating: "a", count: 32), "community": NSNull()]]
+    }
+    var configuration: IdentificationHistoryReviewAccess.ConfirmationUndoConfiguration {
+        .init(owner: lookupOwner, fetch: { [self] request, owner, validate in
+            try validate()
+            guard owner == PublicationConsentUIFixture.owner,
+                  request.observationID.uuidString.lowercased() == PublicationConsentUIFixture.observation,
+                  request.observationRevision == revision,
+                  request.reviewRevision == reviewRevision(request.analysisID.uuidString.lowercased()) else {
+                throw ObservationHistoryError.resultConflict
+            }
+            var row = try request.object()
+            row["status"] = "available"
+            row["confirmation_operation_id"] = originalOperation(request.analysisID.uuidString.lowercased()).uuidString.lowercased()
+            row["confirmation_action"] = named ? "confirm_name" : "confirm_primary"
+            return try .init(data: JSONSerialization.data(withJSONObject: row), request: request)
+        })
+    }
+    func wake(container: ModelContainer, cloud: ObservationHistoryCloudClient, snapshots: [String: Data]) {
+        let service = ObservationAnalysisReviewDeliveryService(cloud: cloud, submit: { [self] request, owner, validate in
+            try validate()
+            guard owner == PublicationConsentUIFixture.owner,
+                  request.observationID.uuidString.lowercased() == PublicationConsentUIFixture.observation,
+                  snapshots[request.analysisID.uuidString.lowercased()] != nil,
+                  request.expectedObservationRevision == 11, request.expectedReviewRevision == 2,
+                  request.decision == .undoConfirmation(confirmationOperationID: originalOperation(request.analysisID.uuidString.lowercased())) else {
+                throw ObservationHistoryError.resultConflict
+            }
+            if let applied {
+                guard applied == request, let response else { throw ObservationHistoryError.resultConflict }
+                return response
+            }
+            guard var row = try JSONSerialization.jsonObject(with: request.encoded()) as? [String: Any] else {
+                throw ObservationHistoryError.invalidSnapshot
+            }
+            row["outcome"] = "applied"; row["observation_revision"] = 12; row["review_revision"] = 3
+            let receipt = try ObservationAnalysisReviewReceipt.decode(JSONSerialization.data(withJSONObject: row), request: request)
+            applied = request; response = receipt; revision = 12
+            return receipt
+        })
+        deliveryOwner.start(operation: { current in
+            await ObservationAnalysisReviewDrain(cloud: cloud, deliver: service.deliver)
+                .run(ownerID: PublicationConsentUIFixture.owner, container: container, isCurrent: current,
+                     didStart: {}, requestRetry: { assertionFailure("Synthetic Undo must not need fallback") })
+        }, didFinish: { [self] in
+            if applied != nil { assert((try? verifyCompletion(container, snapshots: snapshots)) == true, "Synthetic Undo persistence mismatch") }
+            generation &+= 1
+        })
+    }
+    private func verifyCompletion(_ container: ModelContainer, snapshots: [String: Data]) throws -> Bool {
+        guard let applied else { return false }
+        let context = ModelContext(container)
+        let jobs = try context.fetch(FetchDescriptor<OfflineJobRecord>()).filter { $0.kind == .observationAnalysisReviewSync }
+        guard jobs.count == 1, let job = jobs.first else { return false }
+        let intent = try ObservationAnalysisReviewPersistence.restore(job)
+        guard intent.isComplete, intent.request == applied, intent.receipt == response,
+              intent.receipt?.outcome == .applied(observationRevision: 12, reviewRevision: 3) else { return false }
+        let scan = try ObservationHistorySyncService.enrolledScan(PublicationConsentUIFixture.observation, context: context)
+        guard scan.selectedAnalysisID == PublicationConsentUIFixture.selected else { return false }
+        guard let records = scan.analysisRecords, records.count == snapshots.count,
+              Set(records.map(\.id)) == Set(snapshots.keys) else { return false }
+        return records.allSatisfy { snapshots[$0.id] == $0.resultSnapshotData }
     }
 }
 #endif

@@ -307,6 +307,13 @@
         "SavedReanalysisHandoffTests"
       ],
       "owner": "apps/ios/MerianTests/Features/Insights/History/SavedReanalysisHandoffTests.swift"
+    },
+    {
+      "selector": "merianTests/ObservationConfirmationUndoOwnerTests",
+      "suite_names": [
+        "ObservationConfirmationUndoOwnerTests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/AnalysisHistory/ObservationConfirmationUndoOwnerTests.swift"
     }
   ],
   "ui": [
@@ -423,6 +430,48 @@
     },
     {
       "selector": "merianUITests/PublicationConsentUITests/testSelectedBroaderTaxonNameConfirmationPersistsExactReview",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testPrimaryConfirmationUndoFromMenu",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testNamedConfirmationUndoFromMenu",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testPrimaryConfirmationUndoFromConfidence",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testNamedConfirmationUndoFromConfidence",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testPrimaryConfirmationUndoFromHistoricalPreview",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testNamedConfirmationUndoFromHistoricalPreview",
       "suite_names": [
         "PublicationConsentUITests"
       ],

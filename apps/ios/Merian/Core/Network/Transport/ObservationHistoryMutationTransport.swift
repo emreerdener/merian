@@ -45,6 +45,19 @@ struct ObservationHistoryMutationTransport {
         return try ObservationConfirmationUndoReply(data: data, request: lookup)
     }
 
+    func rejectionUndo(_ lookup: ObservationRejectionUndoLookup, ownerID: UUID,
+                       validateAttempt: @escaping @MainActor @Sendable () throws -> Void) async throws -> ObservationRejectionUndoReply {
+        guard let base = SecureTransportPolicy.httpsURL(from: baseURL) else { throw MerianError.invalidURL }
+        let body = try JSONSerialization.data(withJSONObject: ["p_request": lookup.object(), "p_reader": 9])
+        var request = AuthenticatedRequestExecutor.Request(
+            url: base.appendingPathComponent("rest/v1/rpc/get_owned_observation_rejection_undo"), method: "POST", body: body,
+            timeoutInterval: 5, idempotencyKey: nil, allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false,
+            onRequestBodySent: nil, authTransitionOwner: nil, expectedAuthUserID: ownerID, allowsRouteUnavailableRetry: false)
+        request.validateAttempt = validateAttempt
+        let (data, _) = try await AuthenticatedRequestExecutor.live(using: dispatcher).execute(request)
+        return try ObservationRejectionUndoReply(data: data, request: lookup)
+    }
+
     /// Every call may dispatch; the durable caller must already own the exact request claim.
     func submit(_ request: ProtectedInsightChatRequest, expectedAuthUserID: UUID,
                 claimExpiresAt: Date,

@@ -132,6 +132,7 @@ import SwiftData
         analysisReviewDeliveryGeneration &+= 1
     }
     @ObservationIgnored let confirmationUndoOwner = ObservationConfirmationUndoOwner()
+    @ObservationIgnored let rejectionUndoOwner = ObservationRejectionUndoOwner()
     @ObservationIgnored let analysisReviewDeliveryOwner = ObservationAnalysisReviewDeliveryOwner()
     @ObservationIgnored let protectedChatRefreshOwner = ProtectedInsightChatRefreshOwner()
     @ObservationIgnored let protectedChatDeliveryOwner = ProtectedInsightChatDeliveryOwner()

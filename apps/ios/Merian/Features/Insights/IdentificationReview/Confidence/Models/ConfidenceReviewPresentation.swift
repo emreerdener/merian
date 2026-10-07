@@ -55,7 +55,8 @@ struct ConfidenceBadgePresentation: Equatable {
         hasUserOverride: Bool,
         isUserConfirmed: Bool,
         analyzingPhrase: String?,
-        review: LocalAIIdentificationReview = .init()
+        review: LocalAIIdentificationReview = .init(),
+        confirmationState: ConfidenceReviewControls.ConfirmationState? = nil
     ) -> Self {
         if let analyzingPhrase {
             let label = analyzingPhrase.hasSuffix("...")
@@ -77,7 +78,7 @@ struct ConfidenceBadgePresentation: Equatable {
         if review.state == .aiRejected {
             return Self(label: "Incorrect", icon: "xmark.circle.fill", style: .incorrect, isVisible: true)
         }
-        if hasUserOverride || isUserConfirmed {
+        if confirmationState != nil || hasUserOverride || isUserConfirmed {
             return Self(
                 label: "Confirmed",
                 icon: "checkmark.circle.fill",

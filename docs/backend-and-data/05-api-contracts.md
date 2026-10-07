@@ -12886,9 +12886,17 @@ The bounded reply echoes the request plus either `status: available` and
 `community_authority`, `not_rejected`, `receipt_unavailable`,
 `rejection_changed` or `revision_conflict`. No original request, receipt,
 rejected label or provider information is returned.
-`analysisHistory/rejectionUndo.ts` owns the strict TypeScript parser. This
-server checkpoint does not yet replace native admission's local-receipt
-requirement; explicit recovered native admission is the next checkpoint.
+`analysisHistory/rejectionUndo.ts` owns the strict TypeScript parser. Native
+`ObservationRejectionUndoLookup` strictly decodes the same bounded reply through
+a fixed five-second RPC with transient, Auth and route retry disabled.
+`ObservationRejectionUndoEligibility` distinguishes completed local receipts
+from exact recovered associations. The recovered staging branch requires no
+original local rejection job; it reconstructs the current ticket and validates
+owner, deletion, selection, legacy-review and unfinished-operation fences inside
+the fresh transaction. Existing local-receipt admission remains unchanged. The
+queue retains at most four lookup scopes through actual account-lease exit; both
+Auth teardown seams cancel and await that owner. History and selected review
+controls share the presentation-scoped proof and unavailable reason.
 
 The lookup and mutation share `internal.observation_rejection_undo_eligibility`
 under canonical owner, ingestion, owned live scan, history and target-authority
@@ -12946,8 +12954,9 @@ remain unavailable. The strict executable decoder is
 Native presentation retains typed local/recovered eligibility with the full
 immutable ticket. Fresh transactional staging rechecks ticket, association, idle
 selection and pending review fences. Recovered eligibility does not require a
-local original confirmation job; rejection Undo still requires its local
-receipt. The retained lookup owner coalesces at most four exact account/session/
+local original confirmation job. Rejection Undo likewise has an explicit
+recovered admission branch; its original local-receipt path remains available.
+The retained lookup owner coalesces at most four exact account/session/
 generation/container scopes, validates after Auth and around awaits, and drains
 before Auth teardown. Transport has no transient, 401 or route retry; decoded
 responses are bounded to 4 KiB. No idle lease or polling is introduced.

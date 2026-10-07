@@ -19,6 +19,7 @@ struct ConfirmedView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.green)
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("ConfidenceUndoConfirmation")
                 }
             }
 

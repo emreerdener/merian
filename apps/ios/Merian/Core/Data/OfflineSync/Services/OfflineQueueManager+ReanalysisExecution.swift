@@ -28,6 +28,7 @@ extension OfflineQueueManager {
         protectedChatRefreshOwner.cancelAll()
         protectedChatDeliveryOwner.invalidate()
         confirmationUndoOwner.cancelAll()
+        rejectionUndoOwner.cancelAll()
         analysisReviewDeliveryOwner.cancel()
         reanalysisExecutionOwner.cancel()
         reanalysisAdmissionRuntime.cancel()
@@ -44,6 +45,7 @@ extension OfflineQueueManager {
         await awaitCollectionSyncQuiescenceForAuthTransition()
         await reanalysisExecutionOwner.cancelAndAwait()
         await confirmationUndoOwner.cancelAndAwaitAll()
+        await rejectionUndoOwner.cancelAndAwaitAll()
         await analysisReviewDeliveryOwner.cancelAndAwait()
         await protectedChatDeliveryOwner.invalidateAndAwait()
     }

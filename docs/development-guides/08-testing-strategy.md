@@ -440,31 +440,38 @@ original parent revision, independent nested/outer counters, malformed receipt
 denial, privileges and gates. `observationRejectionUndoConcurrencyDb.test.ts`
 serializes lookup against review, selection and deletion using real connections.
 The unchanged eight-field Undo request and bounded lookup have strict decoder
-coverage in `_shared/analysisHistory/rejectionUndo_test.ts`. These checks do not
-establish native recovered admission; that requires the next native checkpoint
-without an original local rejection receipt. All activation gates remain false.
+coverage in `_shared/analysisHistory/rejectionUndo_test.ts`.
+`RejectionUndoEligibilityTests` proves recovered admission without an original
+local rejection receipt and denial after selection, legacy-review, deletion,
+owner or revision changes. `ObservationRejectionUndoOwnerTests` covers retained
+bounded lookup and shared-waiter cancellation; `RejectionUndoLookupTests`
+verifies the fixed five-second route and disabled retry paths. The selected-host
+regression resolves the server association, exposes Undo and stages exactly one
+request without a local original receipt. All activation gates remain false.
 
-Two focused coverage items remain open after the October 7 re-review:
+The seven-slice capability follow-up adds six direct `PublicationConsentUITests`
+scenarios covering primary and named confirmation Undo from History, the
+selected menu and Confidence. The real persisted V2 fixture has no original
+local confirmation receipt; production admission, delivery and paired
+reconciliation verify one exact operation, restored AI review and unchanged
+selection. Named scenarios exercise Cancel and the final alert action.
+`cancelledPresentationCannotPublishWhileJoinedPresentationCompletes` proves one
+shared lookup survives a cancelled waiter and releases its lease and slot only
+at actual exit.
 
-1. A dedicated UI scenario must load applied primary and named confirmations,
-   tap Undo in History, the selected menu and Confidence card, exercise the
-   named alert's Cancel/final confirmation, and verify one exact persisted
-   operation plus unchanged selection. Include a stale/dismissed callback and
-   unavailable imported receipt. Existing History Undo, named-confirmation and
-   chat smokes exercise different actions; they do not close this item.
-2. A joined-lookup test must cancel one presentation while a second waits for
-   the same lookup, prove the cancelled presentation publishes nothing, prove
-   the surviving waiter receives the one shared result, and check slot/lease
-   release at actual completion. Current Auth-drain and capacity tests cover
-   those mechanisms separately, not this complete presentation sequence.
+The confirmation-coverage shared-worktree run passed 45 unit tests and all eight
+tests in `PublicationConsentUITests`. Earlier fixture authority and XCTest query
+failures remain retained with their diagnostics. The Confidence badge regression
+now checks protected primary/named confirmation separately from legacy display
+flags. These focused results do not replace the final full native gate. Direct
+UI coverage of stale/dismissed callbacks and imported receipt unavailability
+remains separate from the existing model/admission tests.
 
-These are validation gaps, not confirmed source defects. A cancelled waiter
-intentionally does not cancel another waiter's shared read. The RPC timeout is
-five seconds; Auth teardown cancels and awaits the retained owner. Do not add
-per-presentation shared-task cancellation merely to make a test pass. Close the
-two items before activation, alongside the separate device and hosted
-qualification. All activation gates remain disabled; this document does not
-authorize a rollout, deployment or distribution.
+A cancelled waiter intentionally does not cancel another waiter's shared read.
+The RPC timeout is five seconds; Auth teardown cancels and awaits the retained
+owner. Device and hosted qualification remain separate. All activation gates
+remain disabled; this document does not authorize rollout, deployment or
+distribution.
 
 ## In-Memory Database Containers (`SwiftData`)
 

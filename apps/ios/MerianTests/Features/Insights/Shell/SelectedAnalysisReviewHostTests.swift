@@ -109,4 +109,50 @@ struct SelectedAnalysisReviewHostTests {
         f.host.refresh { _ in Issue.record("Held review cannot apply") }
         #expect(f.review.saved.isEmpty && f.review.wakes == 1 && f.host.model?.status?.phase == .needsAttention)
     }
+    @Test func selectedHostRecoversRejectionWithoutLocalReceiptAndStagesExactUndo() async throws {
+        let support = RejectionUndoEligibilityTests(), fixture = try await support.seed()
+        let ticket = fixture.ticket, container = fixture.container
+        let owner = ObservationRejectionUndoOwner()
+        let resolved = AsyncStream<Void>.makeStream()
+        defer { resolved.continuation.finish(); owner.cancelAll() }
+        var reads = 0, wakes = 0
+        let cloud = ObservationHistorySyncTests().client(fetch: { _ in Data() })
+        let service = ObservationRejectionUndoService(cloud: cloud, fetch: { lookup, _, validate in
+            try validate(); reads += 1
+            var row = try lookup.object()
+            row["status"] = "available"; row["rejection_operation_id"] = fixture.operation.uuidString.lowercased()
+            return try .init(data: JSONSerialization.data(withJSONObject: row), request: lookup)
+        })
+        let testAccess = IdentificationHistoryReviewAccess(stage: { _, _ in Issue.record("Recovered Undo must use explicit admission") },
+            status: { _, operation in try ObservationAnalysisReviewStatus.read(operationID: operation, ownerID: ticket.ownerID,
+                observationID: ticket.observationID, analysisID: ticket.analysisID, container: container, isCurrent: { true }) },
+            pending: { try ObservationAnalysisReviewStatus.pending(ownerID: ticket.ownerID, observationID: ticket.observationID,
+                container: container, isCurrent: { true }) },
+            undo: { try ObservationAnalysisReviewStatus.undoOperation($0, container: container, isCurrent: { true }) },
+            wake: { wakes += 1 }, generation: { 0 }, prepareRejectionUndo: { displayed in
+                defer { resolved.continuation.yield() }
+                return try await owner.prepare(ticket: displayed, session: .init(userID: ticket.ownerID, isAnonymous: false),
+                    generation: 1, container: container, service: service, isCurrent: { true })
+            }, stageRejectionUndo: { request, displayed, eligibility in
+                _ = try ObservationAnalysisReviewAdmission.stage(request, ticket: displayed, container: container,
+                    isCurrent: { true }, rejectionUndo: eligibility)
+            })
+        let host = SelectedAnalysisReviewHost()
+        let key = SelectedAnalysisReviewHost.Key(baseline: try #require(.init(scanID: ticket.observationID.uuidString,
+            ownerID: ticket.ownerID.uuidString, analysisID: ticket.analysisID.uuidString, revision: ticket.observationRevision)),
+            generation: 1, container: ObjectIdentifier(container))
+        host.bind(key, access: .init(open: { _, _ in
+            .init(ticket: ticket, access: testAccess, isScopeCurrent: { true }, matchesDisplayedTicket: { true }, close: {})
+        }), container: container, isCurrent: { true })
+        for await _ in resolved.stream { break }
+        #expect(reads == 1 && host.model?.undoOperation == fixture.operation)
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+        host.submit(.undo(rejectionOperationID: fixture.operation), token: try #require(host.token))
+        let request = try #require(host.model?.request)
+        #expect(request.decision == .undo(rejectionOperationID: fixture.operation))
+        #expect(request.expectedObservationRevision == ticket.observationRevision && wakes == 2)
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
+        host.close()
+    }
+
 }

@@ -243,12 +243,13 @@ the remaining shell checks passed without provider calls.
 
 The
 [canonical verification matrix](../development-guides/08-testing-strategy.md#durable-confirmation-undo-verification)
-tracks two still-open coverage items: direct primary/named Undo UI taps and
+initially tracked two open coverage items: direct primary/named Undo UI taps and
 alert behavior, and one cancelled presentation with a surviving joined lookup
-waiter. Existing selection-Undo, named-confirmation and chat UI smokes do not
-close those items. They are coverage gaps, not confirmed production defects.
-Shared lookup continuation after one waiter closes is intentional bounded
-coalescing, not an idle lease or account-isolation failure.
+waiter. The capability follow-up below closes those specific items. Direct
+stale/dismissed callback and imported-receipt UI evidence remains distinct from
+model/admission coverage. These are validation limits, not confirmed production
+defects. Shared lookup continuation after one waiter closes is intentional
+bounded coalescing, not an idle lease or account-isolation failure.
 
 Keep all activation gates false, ordinary access nil and schedules paused.
 Source validation and this re-review authorize no merge, deployment or
@@ -256,3 +257,48 @@ distribution. Field Trip's held downstream reconciliation consumer remains a
 separate activation requirement: emitting an obligation does not establish live
 credit revocation. Real device migration/restart/heap, hosted runtime,
 storage/CDN and independent erasure qualification remain separately open.
+
+### Capability follow-up: direct Undo coverage
+
+The later seven-slice implementation closes the six primary/name Undo paths in
+History, the selected menu and Confidence, including named alert Cancel/final
+confirmation. Final shared-worktree evidence is
+`.artifacts/local-ios/d5853622b88245d682f5a2cf48fa358f.xcresult`: 45 focused
+unit tests and all eight `PublicationConsentUITests` passed. The shared-lookup
+cancellation regression proves a cancelled waiter publishes nothing while its
+joined presentation receives the one result and the actual lease exits.
+
+The first UI runs failed on synthetic fixture authority initialization and
+XCTest queries; those logs and XCResults remain retained. During reproduction,
+the protected confirmation was visibly present in the menu but the Confidence
+badge used only legacy flags. The badge now consumes the injected protected
+confirmation state, with primary/name/nil/attention regressions and no layout
+change. These results are shared-worktree evidence, not a clean candidate or
+production-readiness claim. Direct stale/imported UI, the full final native
+gate, and independent device/hosted qualification are not inferred from these
+tests.
+
+### Capability follow-up: recovered rejection Undo
+
+Backend checkpoint `13a3a1487` passed 2,947 tests, 114 fresh database catalogs
+with 1,874 assertions, four new real concurrency races, endpoint configurations,
+privilege/security gates and independent review. Native recovered eligibility,
+retained lookup/teardown, exact admission and selected-host routing subsequently
+passed 49 focused tests in nine suites. Independent review found no blocker.
+
+The full shared-worktree run reported **5,423 passed, one failed, zero skipped**
+(5,424 total), retained in
+`.artifacts/local-ios/a5de0f185f7f4f6f87023e707537e6f5.xcresult`. The failing
+`authFoundationHasFocusedOwnersAndRehomedTests` has two assertions against
+concurrent user-owned `SupabaseManager` changes: 3,800 facade lines versus the
+3,792 limit, and 13,703 aggregate versus 13,695. This slice leaves those edits
+and limits unchanged. The critical-result validator consequently rejects this
+full result; it is not a green full native gate. A separately removed concurrent
+Capture test also remains required by the critical manifest.
+
+The scoped candidate excludes those unrelated changes. Its generated project
+passes seven-target source membership, its Auth counts match both existing
+limits exactly, and the complete iOS tooling suite passes, including workflow
+and critical-selector contracts. These are clean source/tooling checks, not a
+clean runtime rerun. Current-candidate CI must establish the clean full runtime
+result. Failed evidence remains retained; no test guard was weakened.

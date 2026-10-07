@@ -125,7 +125,8 @@ production submission or public release.
   history access remains disabled; existing guided Debug profiles cover selected
   prepared workflows, not every implemented action. The
   [Undo verification matrix](./development-guides/08-testing-strategy.md#durable-confirmation-undo-verification)
-  explicitly retains direct-Undo UI and joined-presentation coverage gaps. See
+  records direct primary/name Undo UI and joined-presentation cancellation
+  coverage, with stale/imported UI and external qualification kept explicit. See
   the
   [current schema](./backend-and-data/04-database-schema.md#prepared-observation-analysis-history),
   [device checklist](./development-guides/24-identification-history-device-review.md)
