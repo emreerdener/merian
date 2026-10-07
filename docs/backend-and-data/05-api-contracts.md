@@ -10238,10 +10238,11 @@ requires `p_reader` 7, 8, 9 or 10 and
 entire history containing V2 or V3; protocol 8 accepts mixed V1/V2 snapshots but
 rejects any history containing V3. Protocol 9 additionally reads imported saved
 identifications. Backend protocol 10 also reads audio V4; protocols 7–9 refuse
-the whole history when audio is present. Native remains protocol 9 pending
-coordinated audio integration. All use the unchanged version-1 page envelope.
-The gate defaults false; this is not permission to enable it. Ordinary Identify
-and scan-history requests still advertise capability 6.
+the whole history when audio is present. Native history transports use protocol
+10 while V4 action admission and audio input execution remain held. All use the
+unchanged version-1 page envelope. The gate defaults false; this is not
+permission to enable it. Ordinary Identify and scan-history requests still
+advertise capability 6.
 
 `p_request` has exactly `schema_version: 1`, a lowercase UUID `observation_id`,
 nullable positive `before_ordinal`, and `limit` from 1 to 20. There is no
@@ -12504,7 +12505,7 @@ never as an uncertain-operation successor. Completion never changes selection.
 V2 input is additionally limited to five photos and 5 MiB combined before quota;
 storage's 32 MiB receipt allowance does not expand provider admission.
 
-`get_owned_observation_analysis_execution(p_request,p_reader:9)` is a separate
+`get_owned_observation_analysis_execution(p_request,p_reader:10)` is a separate
 owner-only, mutation-free execution read behind default-false
 `execution_status_api_enabled` plus `reader_enabled`. Its exact schema-1 request
 contains `observation_id`, `analysis_id`, explicit nullable
@@ -12525,7 +12526,7 @@ account lease; the read never supplies retirement proof or changes activation
 gates.
 
 The separately prepared service-only
-`retire_owned_observation_analysis_execution(p_owner,p_request,p_reader:9)`
+`retire_owned_observation_analysis_execution(p_owner,p_request,p_reader:10)`
 requires default-false `execution_retirement_api_enabled`. Prepared
 authenticated `POST retire-observation-analysis` derives `p_owner` from
 `withEdgeHandler`; native direct RPC access is denied. The HTTP boundary is
@@ -12769,19 +12770,19 @@ alone permits missing execution metadata; its exact manifest, ordinal and
 nullability are enforced together. Unknown versions fail closed. The aggregate
 one-MiB snapshot and four-MiB page caps still apply. Readers 7/8 refuse the
 entire history containing an import, including requests whose cursor would skip
-it. Protocol 9 is explicit to this owner history read; it does not alter
+it. Protocols 9/10 are explicit to this owner history read; they do not alter
 Identify, funded-input or photo-resolution protocols. Imported IDs cannot enter
 legacy scan ingestion, quota or settlement; deletion retains an ownerless
 child-ID fence without retaining the private snapshot.
 
 `savedIdentification.ts` owns the executable imported-result and enrollment
 acknowledgement validation; `result.ts`/`page.ts` own version negotiation and
-byte-preserving delivery. Native V56 advertises reader 9 and validates/stores V3
-with nil completion; import time stays separate and private photo resolution
-remains V2-only. State hydration, owner and community review synchronization,
-public/chat projections, explicit deletion, and the other RFC activation gates
-remain required. No enrollment backfill or live app call site is enabled by this
-slice.
+byte-preserving delivery. The original native V56 checkpoint advertised reader 9
+and validated/stored V3 with nil completion; import time stays separate and
+private photo resolution remains V2-only. State hydration, owner and community
+review synchronization, public/chat projections, explicit deletion, and the
+other RFC activation gates remain required. No enrollment backfill or live app
+call site is enabled by this slice.
 
 ### Prepared owner observation state read
 
@@ -12789,8 +12790,8 @@ slice.
 authenticated-only
 `get_owned_observation_analysis_state(p_request jsonb, p_reader integer)`. Both
 `reader_enabled` and the new `state_reader_enabled` must be true; all source
-rollout defaults remain false. Reader 9 or backend reader 10 is required; native
-callers remain reader 9. The exact request is
+rollout defaults remain false. Reader 9 or 10 is required; the current native
+caller uses 10. The exact request is
 `{schema_version:1, observation_id:<lowercase UUID>, analysis_id:null|<lowercase UUID>}`.
 An analysis cannot equal its observation. The owner is always derived from auth.
 
@@ -12800,9 +12801,9 @@ selecting it. The response contains exactly `schema_version`, `owner_id`,
 `observation_id`, `state_revision`, `selection_initialized:true`,
 `selected_analysis_id`, and `analysis`. The latter contains exactly `snapshot`,
 `review_revision`, and `review_snapshot`. Snapshot is the same immutable
-V1/V2/V3 text for reader 9 or additionally audio V4 for backend reader 10, as in
-the result-page reader, bounded to one MiB; the entire response is bounded to
-four MiB. Review is the separate seven-field saved authority, bounded to 32 KiB.
+V1/V2/V3 text for reader 9 or additionally audio V4 for reader 10, as in the
+result-page reader, bounded to one MiB; the entire response is bounded to four
+MiB. Review is the separate seven-field saved authority, bounded to 32 KiB.
 Neither active projection nor arbitrary scan columns are returned.
 
 The prepared native reanalysis recovery endpoint uses this same fixed RPC for an
@@ -12836,15 +12837,15 @@ Missing V3 display and ambiguous legacy intent still defer. Normal sync and
 enrollment remain disconnected. Selection transport and a separately injected
 history sheet are prepared behind closed gates; normal UI access is nil. The
 listing consumer retains the existing page revision and ordered analysis IDs
-without changing protocol 9 or its wire shape. V57 additionally caches exact
-per-analysis authority and review/observation revisions, separately from
-immutable result bytes, in the same transaction. Complete V1/V2 results produce
-immutable allowlisted display bytes. An eligible already-selected V3 can capture
-a versioned, provenance-labelled device-local display baseline; this does not
-change server snapshot bytes or protocol 9. Explicit native preview requires
-exactly the acknowledged observation revision and selected ID, never mutates
-parent selection/review, and returns display origin separately. A missing V3
-baseline remains unavailable on that device. Existing selected-review
+without changing the page wire shape. V57 additionally caches exact per-analysis
+authority and review/observation revisions, separately from immutable result
+bytes, in the same transaction. Complete V1/V2 results produce immutable
+allowlisted display bytes. An eligible already-selected V3 can capture a
+versioned, provenance-labelled device-local display baseline; this does not
+change server snapshot bytes or reader capability. Explicit native preview
+requires exactly the acknowledged observation revision and selected ID, never
+mutates parent selection/review, and returns display origin separately. A
+missing V3 baseline remains unavailable on that device. Existing selected-review
 representability and pending-intent guards still apply. The
 [native boundary](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md)
 owns the local admission rules.
@@ -12896,7 +12897,7 @@ current target authority. `ObservationHistorySelectionReceipt` checks the seven
 existing fields, including exact operation, observation, previous and selected
 IDs, the next observation revision, and the expected target review revision.
 `selection-v1.json` is shared by native tests and the Deno transition producer.
-The protocol-9 owner RPC below wraps the existing success shape and adds a
+The reader-9/10 owner RPC below wraps the existing success shape and adds a
 separate strict revision-conflict outcome.
 
 The prepared native owner persists the request before dispatch and reuses it
@@ -12908,11 +12909,11 @@ selection. Local selection remains pending until acknowledgment and awards no
 credit. The
 [native selection boundary](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-selection-and-undo)
 owns persistence, preview freshness, account/deletion checks and rollback.
-Protocol-9 mutation transport and definitive-conflict recovery are prepared;
+Protocol-10 mutation transport and definitive-conflict recovery are prepared;
 workers and UI remain disconnected and all gates remain closed.
 
 `select_owned_observation_analysis(p_request JSONB, p_reader INTEGER)` accepts
-exact reader 9 and the six-key request, bounded to 2,048 database JSON-text
+reader 9 or 10 and the six-key request, bounded to 2,048 database JSON-text
 bytes. Only `authenticated` has execute permission. The server derives ownership
 from `auth.uid()`; no owner parameter is accepted. The private implementation
 remains ungranted to API roles. Outer owner-row, observation advisory and
@@ -13083,10 +13084,10 @@ an obligation does not establish live credit revocation.
 Authenticated
 `get_owned_observation_confirmation_undo(p_request JSONB,
 p_reader INTEGER)` is
-a mutation-free, five-second lookup using reader 9. Its exact request has
-`schema_version: 1`, observation/analysis UUIDs and the two expected revisions.
-Its bounded response echoes those fields plus either `status: available`,
-`confirmation_operation_id`, `confirmation_action`
+a mutation-free, five-second lookup accepting readers 9/10 (native sends 10).
+Its exact request has `schema_version: 1`, observation/analysis UUIDs and the
+two expected revisions. Its bounded response echoes those fields plus either
+`status: available`, `confirmation_operation_id`, `confirmation_action`
 (`confirm_primary`/`confirm_name`), or `status: unavailable`, `reason`
 (`community_authority`, `not_confirmed`, `receipt_unavailable`,
 `confirmation_changed`, `revision_conflict`). It discloses no original name,
@@ -13235,7 +13236,7 @@ intent. Saved requests are bounded to 2 KiB, receipts to 4 KiB. Receipt decoding
 binds every field to the original request and admits only outcome-specific keys.
 
 The review overload of `ObservationHistoryMutationTransport` owns only the fixed
-owner RPC (reader 9) and confirmation Edge route, selected by the typed
+owner RPC (reader 10) and confirmation Edge route, selected by the typed
 decision. It composes the existing private authenticated dispatcher and disables
 transient transport replay and classified-401 recovery. A required
 durable-attempt validator runs after Auth preparation and before actual
@@ -15364,8 +15365,25 @@ selection is unavailable. Disk reopen preserves exact listing bytes, selection
 and correction. This foundation does not advance any network reader or activate
 audio.
 
-This checkpoint prepares backend execution/read compatibility only. Native
-reader-10 network wiring, selection/review/confirmation/status/retirement RPC
-reader compatibility and durable native audio input/upload remain required
-before activation. Existing mutation callers remain reader 9. All gates remain
-false; there is no deployment or activation authorization.
+Forward migration `20261007193516_prepare_audio_history_action_readers.sql`
+extends the closed action reader set to 9/10 for selection, review, both Undo
+lookups, confirmation, execution status and retirement. After canonical owner
+and parent locks, reader 9 refuses the whole observation if any completed audio
+result exists—even when replaying a receipt or targeting an older child. The
+private volatile compatibility helper sees changes committed while those locks
+were awaited. Execution status and retirement additionally refuse the exact
+input-3 intent for reader 9 before a result exists. Pending input is not result
+V4. Denial/absence never authorizes dispatch, replacement or retirement.
+
+Reader 10 preserves exact saved receipt replay before fresh rollout gates;
+existing ownership, deletion, revision, funding and immutable request checks are
+unchanged. Native fixed page/state/selection, review/Undo and recovery/status
+transports and the two Edge confirmation calls and retirement call now use 10.
+Enrollment stays 9; photo resolution stays 8. The existing photo completion
+matcher still requires exact V2 evidence. V4 UI/action holds above remain in
+place: reader compatibility does not authorize unsupported media actions or
+expand candidate membership. No public payload or persisted schema changes.
+
+Durable native audio input/upload/execution and their separate action admission
+remain required before activation. All gates remain false; there is no
+deployment or activation authorization.

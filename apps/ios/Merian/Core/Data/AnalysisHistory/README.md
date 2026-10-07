@@ -5,7 +5,7 @@ which hydrates the current scan projection. Ordinary history admission remains
 disconnected. The backend reader, enrollment and selection gates remain false.
 
 - `ObservationHistoryCloudClient` owns the existing Auth work lease and the
-  owner-only `get_owned_observation_analysis_page` RPC. Protocol 9 is explicit
+  owner-only `get_owned_observation_analysis_page` RPC. Protocol 10 is explicit
   to this RPC; it does not advance the app's general Identify reader header.
 - `ObservationHistoryPage` bounds bytes, versions, identities, ordinals,
   pagination and current media references. It reuses generated Identify/media
@@ -19,12 +19,12 @@ disconnected. The backend reader, enrollment and selection gates remain false.
   and Unicode bounds, and rejects private locator fields. `LocalAnalysisRecord`
   stores V4 in the existing V58 opaque snapshot fields with finite completion;
   disk reopening does not select the new child or change the parent's review.
-  This is a decoder/storage foundation: network callers still use reader 9. V4
+  Named history page/state/selection and review transports use reader 10. V4
   cannot create a review/publication ticket, enter photo loading, or become an
   empty legacy Capture source. Selection and selection Undo also reject V4 in
   fresh staging and persisted replay; Restore explains the unavailable format.
-  Coordinated reader-10 mutations and durable native audio execution remain
-  prerequisites.
+  Durable native audio execution and separate action admission remain
+  prerequisites. Enrollment remains reader 9 and photo resolution remains 8.
 - `ObservationHistorySyncService` owns page admission and the shared immutable
   child insertion helper. Every call reads one page and returns the server
   continuation only after the local transaction succeeds. It never assigns

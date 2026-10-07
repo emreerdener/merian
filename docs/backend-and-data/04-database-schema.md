@@ -7615,13 +7615,16 @@ seals with the same UUID also block merge; no winner is selected.
 Migration `20261007113127_prepare_owned_analysis_execution_status.sql` adds
 false-by-default `execution_status_api_enabled` and authenticated-only
 `get_owned_observation_analysis_execution(jsonb,integer)`. Reader 9 and the
-existing history reader gate are required. The closed schema-1 request binds
-parent, child, nullable original source and request digest; the response echoes
-those fields and the authenticated owner with a closed execution state. The
-owner/parent lock helper checks deletion before the exact intent read. Scope
-conflicts fail closed; missing intent is only an observation, never permission
-to admit, dispatch, refund or retire. No rows, claims, funding, provider usage,
-selection or review authority change. Completion recovery remains separate.
+existing history reader gate are required in the original migration. The forward
+audio action-reader migration accepts readers 9/10, denying reader 9 for a
+completed audio history or the exact pending input-3 operation. The closed
+schema-1 request binds parent, child, nullable original source and request
+digest; the response echoes those fields and the authenticated owner with a
+closed execution state. The owner/parent lock helper checks deletion before the
+exact intent read. Scope conflicts fail closed; missing intent is only an
+observation, never permission to admit, dispatch, refund or retire. No rows,
+claims, funding, provider usage, selection or review authority change.
+Completion recovery remains separate.
 
 ### Never-dispatched analysis retirement
 
@@ -7644,3 +7647,16 @@ created. Unknown provider execution, other terminal outcomes and inconsistent
 ledger rows fail closed. The prepared authenticated retirement HTTP wrapper
 derives the owner and invokes this service-only routine through bounded
 transport. The SQL gate remains false and no ordinary access is enabled.
+
+### Audio action reader compatibility
+
+`20261007193516_prepare_audio_history_action_readers.sql` adds a private,
+lock-preconditioned volatile compatibility helper and source-checked patches to
+seven action owners. Selection, review, confirmation and Undo lookups refuse
+reader 9 for any completed audio child. Execution status and retirement also
+check the exact pending input-3 intent separately. Current ownership and
+deletion checks precede compatibility; compatible reader-10 receipt replay
+precedes fresh rollout gates. No tables, grants to clients, persisted shapes,
+operation IDs, funding profiles or activation values change. Pending input is
+not a completed result, and compatibility is not execution or remediation
+authority.

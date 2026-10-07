@@ -43,3 +43,9 @@ reference. The private SQL resolver rejects rankless/imported or unsupported
 candidate evidence, and confirmation Undo recognizes the same correction.
 Schema-1 requests remain unchanged. Native candidate controls are a separate
 checkpoint; this adds no ordinary producer or UI layout change.
+
+Both fixed database calls advertise reader 10. Reader 9 is still accepted by SQL
+for compatible histories, but refuses a whole observation containing a completed
+audio result before receipt replay. Reader 10 preserves exact receipt replay
+before fresh gates. This does not extend candidate membership to audio or enable
+any native audio review/publication action.

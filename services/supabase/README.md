@@ -3122,10 +3122,11 @@ owner receipt resolution and an erasure worker seam. Its media gates remain
 closed; read adapter/endpoint source is prepared, with no deployed route or
 worker schedule, and result V1 append still accepts descriptions only. The
 separate gated V2 photo binder now joins ready receipts to funded completion;
-native protocol-9 history accepts V1/V2/V3 while private photo resolution
+native protocol-10 history accepts V1/V2/V3/V4 while private photo resolution
 remains V2-only on protocol 8. The separate default-off backend audio path binds
-input 3 to immutable WAV receipts and emits result 4 for backend reader 10.
-Native and mutation-reader compatibility remain pending; no audio activation is
+input 3 to immutable WAV receipts and emits result 4 for reader 10. Action RPCs
+accept readers 9/10 with whole-audio-history refusal for reader 9. Native V4
+action admission and audio input execution remain held; no audio activation is
 authorized. See the canonical
 [protected evidence lifecycle](../../docs/backend-and-data/05-api-contracts.md#prepared-protected-evidence-lifecycle).
 
@@ -3166,7 +3167,7 @@ observation revision. Its independent `state_reader_enabled` gate remains false.
 No local authority persistence or restore caller is connected. See the
 [state contract](../../docs/backend-and-data/05-api-contracts.md#prepared-owner-observation-state-read).
 
-Prepared protocol-9 selection now has an authenticated owner RPC,
+Prepared reader-9/10 selection now has an authenticated owner RPC,
 `select_owned_observation_analysis`, and native live adapter. The new
 `selection_api_enabled` gate remains false. Exact durable success and
 revision-conflict outcomes share one immutable ledger and replay after admission
@@ -3175,7 +3176,7 @@ a current-state read. No ordinary Restore/Undo caller or reconciliation worker
 is enabled. See the
 [selection contract](../../docs/backend-and-data/05-api-contracts.md#prepared-native-selection-requests-and-undo-receipts).
 
-Prepared protocol-9 owner review now includes
+Prepared reader-9/10 owner review now includes
 `review_owned_observation_analysis` for Reject/Undo, a private immutable outcome
 ledger, and a separate default-false `rejection_api_enabled` gate. Legacy review
 and community writers refuse enrolled observations rather than transferring

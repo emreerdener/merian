@@ -17,7 +17,7 @@ extension MerianNetworkClient {
         }
         struct Parameters: Encodable {
             let p_request: ObservationHistoryStateRequest
-            let p_reader = 9
+            let p_reader = 10
         }
         let request = ObservationHistoryStateRequest(observation_id: input.observationID.uuidString.lowercased(),
             analysis_id: input.analysisID.uuidString.lowercased())
@@ -56,7 +56,7 @@ extension MerianNetworkClient {
     }
 }
 
-/// Fixed reader-9 endpoint; does not expose arbitrary RPC or mutation access.
+/// Fixed reader-10 endpoint; does not expose arbitrary RPC or mutation access.
 struct ObservationReanalysisStatusTransport {
     let baseURL: String
     let dispatcher: AuthenticatedTransportDispatcher
@@ -66,7 +66,7 @@ struct ObservationReanalysisStatusTransport {
         try Task.checkCancellation()
         try await validateAttempt()
         guard let base = SecureTransportPolicy.httpsURL(from: baseURL) else { throw MerianError.invalidURL }
-        let body = try JSONSerialization.data(withJSONObject: ["p_request": input.object(), "p_reader": 9])
+        let body = try JSONSerialization.data(withJSONObject: ["p_request": input.object(), "p_reader": 10])
         var request = AuthenticatedRequestExecutor.Request(
             url: base.appendingPathComponent("rest/v1/rpc/get_owned_observation_analysis_execution"), method: "POST", body: body,
             timeoutInterval: 5, idempotencyKey: nil, allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false,

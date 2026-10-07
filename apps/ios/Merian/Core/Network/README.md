@@ -3917,12 +3917,13 @@ lease; this helper does not enable execution scheduling.
 ### Exact completed-child recovery
 
 `MerianNetworkClient+ReanalysisRecovery` requests only the saved child through
-`get_owned_observation_analysis_state` with reader 9. The fixed pinned transport
-binds the expected account and disables transient replay and response-driven 401
-recovery. Claim/account checks surround the read, including failures.
-Stored-result recovery requires no inference consent and must run before opening
-private files, uploading or authorizing a provider call. A completed child can
-therefore recover after temporary evidence expiry or consent withdrawal.
+`get_owned_observation_analysis_state` with reader 10. The fixed pinned
+transport binds the expected account and disables transient replay and
+response-driven 401 recovery. Claim/account checks surround the read, including
+failures. Stored-result recovery requires no inference consent and must run
+before opening private files, uploading or authorizing a provider call. A
+completed child can therefore recover after temporary evidence expiry or consent
+withdrawal.
 
 The endpoint admits the bounded owner state envelope, then verifies the exact
 source, request digest and complete ordered manifest with
@@ -3960,7 +3961,7 @@ inference.
 
 `Endpoints/MerianNetworkClient+ObservationAnalysisReview.swift` accepts the
 closed request in `Models/ObservationReview`. Reject/Undo use the fixed
-protocol-9 owner RPC; confirmation uses `confirm-observation-analysis`. The
+protocol-10 owner RPC; confirmation uses `confirm-observation-analysis`. The
 typed review overload in `ObservationHistoryMutationTransport` owns both exact
 routes, preserves the initiating account, and disables transient retry,
 gateway-route retry and classified-401 recovery. A required caller validator
@@ -4040,7 +4041,7 @@ required null fields before durable storage.
 `ObservationReanalysisStatusTransport` in the reanalysis recovery endpoint owns
 only `get_owned_observation_analysis_execution`. The client's narrow factory
 injects its existing authenticated dispatcher; no private transport visibility
-or generic RPC capability is widened. It sends reader 9 and the saved parent,
+or generic RPC capability is widened. It sends reader 10 and the saved parent,
 child, source and digest with a five-second timeout. The dispatcher validates
 the durable attempt after Auth and before bytes leave; the read validates again
 after suspension. Automatic transient, 401 and route retries are disabled.

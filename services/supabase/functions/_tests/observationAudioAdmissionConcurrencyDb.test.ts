@@ -22,6 +22,8 @@ for (
     "duplicate admission",
     "deletion before admission",
     "materialization before deletion",
+    "audio admission before reader9 status",
+    "audio admission before reader10 status",
   ]
 ) {
   Deno.test({
@@ -76,7 +78,7 @@ for (
           "UPDATE internal.entitlement_rollout_config SET entitlement_mode='complimentary',required_client_protocol=3 WHERE config_key='current'",
         );
         await observer.queryArray(
-          "UPDATE internal.observation_history_rollout SET orchestration_enabled=TRUE,admission_enabled=TRUE,dispatch_enabled=TRUE,append_enabled=TRUE,protected_analysis_enabled=TRUE,media_enabled=TRUE,prepared_audio_evidence_enabled=TRUE,audio_analysis_enabled=TRUE",
+          "UPDATE internal.observation_history_rollout SET orchestration_enabled=TRUE,admission_enabled=TRUE,dispatch_enabled=TRUE,append_enabled=TRUE,protected_analysis_enabled=TRUE,media_enabled=TRUE,prepared_audio_evidence_enabled=TRUE,audio_analysis_enabled=TRUE,reader_enabled=TRUE,execution_status_api_enabled=TRUE",
         );
         const receipt =
           (await observer.queryObject<{ value: { object_id: string } }>(
@@ -140,17 +142,48 @@ for (
             [owner, observation, analysis, work],
           );
         } else assertEquals((await begin(first)).rows[0].value.claimed, true);
+        const statusReader =
+          scenario === "audio admission before reader9 status"
+            ? 9
+            : scenario === "audio admission before reader10 status"
+            ? 10
+            : null;
+        if (statusReader !== null) {
+          await second.queryArray(
+            "SELECT set_config('request.jwt.claim.sub',$1,TRUE)",
+            [owner],
+          );
+        }
         const waiting = settle<unknown>(
-          work ? deletion(second) : begin(second),
+          statusReader !== null
+            ? second.queryArray(
+              "SELECT public.get_owned_observation_analysis_execution($1::jsonb,$2)",
+              [
+                JSON.stringify({
+                  schema_version: 1,
+                  observation_id: observation,
+                  analysis_id: analysis,
+                  source_analysis_id: null,
+                  request_digest: "a".repeat(64),
+                }),
+                statusReader,
+              ],
+            )
+            : work
+            ? deletion(second)
+            : begin(second),
         );
         await blocked(observer, pids[1], pids[0]);
         await first.queryArray("COMMIT");
         const result = await waiting;
-        assertEquals(result.ok, scenario !== "deletion before admission");
+        assertEquals(
+          result.ok,
+          scenario !== "deletion before admission" && statusReader !== 9,
+        );
         if (result.ok) {
           await second.queryArray("COMMIT");
         } else await second.queryArray("ROLLBACK");
-        if (scenario === "duplicate admission") {
+        if (scenario === "duplicate admission" || statusReader !== null) {
           assertEquals((await begin(observer)).rows[0].value.claimed, false);
           const counts = await observer.queryObject<{ n: number }>(
             "SELECT count(*)::int n FROM internal.complimentary_scan_usage WHERE client_scan_id=$1",
@@ -186,6 +219,8 @@ for (
                 "media_enabled",
                 "prepared_audio_evidence_enabled",
                 "audio_analysis_enabled",
+                "reader_enabled",
+                "execution_status_api_enabled",
               ]
             ) {
               await observer.queryArray(

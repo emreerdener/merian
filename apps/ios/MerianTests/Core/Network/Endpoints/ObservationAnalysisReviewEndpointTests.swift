@@ -129,7 +129,7 @@ struct ObservationAnalysisReviewEndpointTests {
                 #expect(try NetworkEndpointTestSupport.canonicalRequestJSON(body) == original)
             } else {
                 let row = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
-                #expect(Set(row.keys) == ["p_request", "p_reader"]); #expect(row["p_reader"] as? Int == 9)
+                #expect(Set(row.keys) == ["p_request", "p_reader"]); #expect(row["p_reader"] as? Int == 10)
                 #expect(try Self.data(#require(row["p_request"] as? [String: Any])) == original)
             }
             return try NetworkEndpointTestSupport.response(to: wire, json: response)

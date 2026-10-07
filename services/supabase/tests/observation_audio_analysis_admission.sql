@@ -52,6 +52,20 @@ SELECT pg_temp.seed_funded_history('00000000-0000-4000-8000-00000000a901','00000
 UPDATE internal.observation_history_rollout SET orchestration_enabled=TRUE,admission_enabled=TRUE,dispatch_enabled=TRUE,append_enabled=TRUE,protected_analysis_enabled=TRUE,media_enabled=TRUE,prepared_audio_evidence_enabled=TRUE,reader_enabled=TRUE,state_reader_enabled=TRUE;
 SELECT internal.append_observation_analysis('00000000-0000-4000-8000-00000000a901',pg_temp.history_append_request('00000000-0000-4000-8000-00000000a911','00000000-0000-4000-8000-00000000a920'));
 CREATE TEMP TABLE original_history AS SELECT selected_analysis_id,state_revision FROM internal.observation_histories WHERE observation_id='00000000-0000-4000-8000-00000000a911';
+-- Preserve exact old-client receipts before audio arrives; reader10 later
+-- recovers them even with fresh-action gates closed.
+SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a901',TRUE);
+UPDATE internal.observation_history_rollout SET selection_enabled=TRUE,selection_api_enabled=TRUE,rejection_api_enabled=TRUE,confirmation_api_enabled=TRUE,confirmation_undo_api_enabled=TRUE;
+CREATE FUNCTION pg_temp.action_request() RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT jsonb_build_object('schema_version',1,'observation_id','00000000-0000-4000-8000-00000000a911','analysis_id','00000000-0000-4000-8000-00000000a920','operation_id','00000000-0000-4000-8000-00000000a941','expected_observation_revision',0,'expected_review_revision',0);
+$$;
+CREATE FUNCTION pg_temp.select_action(reader INTEGER) RETURNS JSONB LANGUAGE SQL AS $$ SELECT public.select_owned_observation_analysis(pg_temp.action_request(),reader); $$;
+CREATE FUNCTION pg_temp.review_action(reader INTEGER) RETURNS JSONB LANGUAGE SQL AS $$ SELECT public.review_owned_observation_analysis(pg_temp.action_request() || '{"action":"reject","undo_operation_id":null}',reader); $$;
+CREATE FUNCTION pg_temp.confirm_action(reader INTEGER,complete BOOLEAN DEFAULT FALSE) RETURNS JSONB LANGUAGE SQL AS $$ SELECT internal.confirm_observation_analysis('00000000-0000-4000-8000-00000000a901',pg_temp.action_request() || '{"operation_id":"00000000-0000-4000-8000-00000000a942","action":"confirm_primary","scientific_name":null}',reader,complete,NULL,NULL); $$;
+CREATE TEMP TABLE old_actions AS SELECT pg_temp.select_action(9) selection,pg_temp.review_action(9) review,pg_temp.confirm_action(9) confirmation;
+SELECT extensions.is(pg_temp.select_action(10),(SELECT selection FROM old_actions),'reader10 preserves original selection receipt');
+SELECT extensions.is(pg_temp.review_action(10),(SELECT review FROM old_actions),'reader10 preserves original review receipt');
+SELECT extensions.is(pg_temp.confirm_action(10),(SELECT confirmation FROM old_actions),'reader10 preserves original confirmation receipt');
 CREATE TEMP TABLE audio_receipt AS SELECT public.reserve_owned_observation_audio_evidence_cohort('00000000-0000-4000-8000-00000000a901','00000000-0000-4000-8000-00000000a911','00000000-0000-4000-8000-00000000a921','00000000-0000-4000-8000-00000000a931',46,repeat('b',64)) value;
 CREATE FUNCTION pg_temp.audio_manifest() RETURNS JSONB LANGUAGE SQL AS $$ SELECT jsonb_build_object('schema_version',3,'items',jsonb_build_array(jsonb_build_object('kind','description','text','Before'),jsonb_build_object('kind','audio','media_id','00000000-0000-4000-8000-00000000a931','content_type','audio/wav','byte_count',46,'sha256',repeat('b',64)),jsonb_build_object('kind','description','text','After'))); $$;
 CREATE FUNCTION pg_temp.funded_input(observation UUID,analysis UUID) RETURNS JSONB LANGUAGE SQL AS $$ SELECT (pg_temp.history_append_request(observation,analysis,'00000000-0000-4000-8000-00000000a920')-'result_snapshot') || jsonb_build_object('schema_version',3,'evidence_manifest',pg_temp.audio_manifest(),'entitlement_protocol',3,'identification_protocol',6,'history_protocol',9,'expected_processor_permission','google_gemini'); $$;
@@ -79,6 +93,20 @@ ALTER TABLE internal.observation_audio_evidence_upload_cohorts ENABLE TRIGGER gu
 ALTER TABLE internal.observation_evidence_objects ENABLE TRIGGER guard_observation_evidence_update;
 CREATE TEMP TABLE claim AS SELECT pg_temp.begin_work() AS value;
 SELECT extensions.is((SELECT value->>'state' FROM claim),'admitted','first request claims admitted intent');
+UPDATE internal.observation_history_rollout SET execution_status_api_enabled=TRUE,execution_retirement_api_enabled=TRUE;
+CREATE FUNCTION pg_temp.execution_request() RETURNS JSONB LANGUAGE SQL AS $$ SELECT jsonb_build_object('schema_version',1,'observation_id','00000000-0000-4000-8000-00000000a911','analysis_id','00000000-0000-4000-8000-00000000a921','source_analysis_id','00000000-0000-4000-8000-00000000a920','request_digest',repeat('a',64)); $$;
+CREATE FUNCTION pg_temp.execution_status(reader INTEGER) RETURNS JSONB LANGUAGE SQL AS $$ SELECT public.get_owned_observation_analysis_execution(pg_temp.execution_request(),reader); $$;
+CREATE FUNCTION pg_temp.retire_action(reader INTEGER) RETURNS JSONB LANGUAGE SQL AS $$ SELECT public.retire_owned_observation_analysis_execution('00000000-0000-4000-8000-00000000a901',pg_temp.execution_request() || '{"operation_id":"00000000-0000-4000-8000-00000000a943"}',reader); $$;
+SELECT extensions.throws_ok('SELECT pg_temp.execution_status(9)','55000','analysis_history_reader_upgrade_required','pending input3 is incompatible before any audio result exists');
+SELECT extensions.is(pg_temp.execution_status(10)->>'state','admitted','reader10 observes exact pending audio without dispatch');
+SELECT extensions.throws_ok('SELECT pg_temp.retire_action(9)','55000','analysis_history_reader_upgrade_required','reader9 cannot retire pending audio');
+SAVEPOINT audio_retirement;
+CREATE TEMP TABLE audio_retired AS SELECT pg_temp.retire_action(10) value;
+UPDATE internal.observation_history_rollout SET execution_retirement_api_enabled=FALSE;
+SELECT extensions.is(pg_temp.retire_action(10),(SELECT value FROM audio_retired),'reader10 retirement receipt replay precedes closed gate');
+SELECT extensions.throws_ok('SELECT pg_temp.retire_action(9)','55000','analysis_history_reader_upgrade_required','reader9 cannot replay retired audio receipt');
+ROLLBACK TO SAVEPOINT audio_retirement;
+
 SELECT extensions.is(pg_temp.begin_work()->'claimed','false'::JSONB,'simultaneous retry cannot take active claim');
 CREATE FUNCTION pg_temp.advance(operation TEXT,payload JSONB DEFAULT '{}') RETURNS JSONB LANGUAGE SQL AS $$ SELECT public.advance_owned_observation_analysis('00000000-0000-4000-8000-00000000a901','00000000-0000-4000-8000-00000000a911','00000000-0000-4000-8000-00000000a921',(SELECT (value->>'work_token')::UUID FROM claim),operation,payload); $$;
 
@@ -127,6 +155,25 @@ SELECT extensions.throws_ok($$SELECT pg_temp.target_state(9,'00000000-0000-4000-
 SELECT extensions.is(jsonb_array_length(pg_temp.page(10)->'items'),2,'reader10 returns mixed original and audio history');
 SELECT extensions.is(((pg_temp.target_state(10)#>>'{analysis,snapshot}')::JSONB)->>'schema_version','4','reader10 returns exact audio state');
 SELECT extensions.is(pg_temp.target_state(10)->>'selected_analysis_id','00000000-0000-4000-8000-00000000a920','reader10 target state does not select audio');
+-- Whole-observation action refusal includes old targets and existing receipts.
+SELECT extensions.throws_ok('SELECT pg_temp.select_action(9)','55000','analysis_history_reader_upgrade_required','reader9 cannot replay selection after audio append');
+SELECT extensions.throws_ok('SELECT pg_temp.review_action(9)','55000','analysis_history_reader_upgrade_required','reader9 cannot replay review after audio append');
+SELECT extensions.throws_ok('SELECT pg_temp.confirm_action(9)','55000','analysis_history_reader_upgrade_required','reader9 cannot replay confirmation after audio append');
+SELECT extensions.throws_ok('SELECT pg_temp.execution_status(9)','55000','analysis_history_reader_upgrade_required','reader9 cannot observe completed audio execution');
+SELECT extensions.throws_ok('SELECT pg_temp.retire_action(9)','55000','analysis_history_reader_upgrade_required','reader9 cannot retire completed audio history');
+SELECT extensions.is(pg_temp.execution_status(10)->>'state','complete','reader10 recovers completed status without execution');
+SELECT extensions.throws_ok('SELECT pg_temp.retire_action(10)','22023','analysis_history_operation_conflict','completed execution remains nonretirable for reader10');
+SELECT extensions.throws_ok($$SELECT public.get_owned_observation_confirmation_undo(pg_temp.action_request()-'operation_id',9)$$,'55000','analysis_history_reader_upgrade_required','confirmation Undo lookup refuses whole audio history');
+SELECT extensions.throws_ok($$SELECT public.get_owned_observation_rejection_undo(pg_temp.action_request()-'operation_id',9)$$,'55000','analysis_history_reader_upgrade_required','rejection Undo lookup refuses whole audio history');
+SELECT extensions.is(public.get_owned_observation_confirmation_undo(pg_temp.action_request()-'operation_id',10)->>'reason','revision_conflict','reader10 confirmation lookup preserves exact revisions');
+SELECT extensions.is(public.get_owned_observation_rejection_undo(pg_temp.action_request()-'operation_id',10)->>'reason','revision_conflict','reader10 rejection lookup preserves exact revisions');
+UPDATE internal.observation_history_rollout SET selection_api_enabled=FALSE,rejection_api_enabled=FALSE,confirmation_api_enabled=FALSE;
+SELECT extensions.is(pg_temp.select_action(10),(SELECT selection FROM old_actions),'reader10 selection replay precedes fresh gate on mixed history');
+SELECT extensions.is(pg_temp.review_action(10),(SELECT review FROM old_actions),'reader10 review replay precedes fresh gate on mixed history');
+SELECT extensions.is(pg_temp.confirm_action(10),(SELECT confirmation FROM old_actions),'reader10 confirmation prepare replay precedes fresh gate on mixed history');
+SELECT extensions.is(pg_temp.confirm_action(10,TRUE),(SELECT confirmation FROM old_actions),'reader10 confirmation complete replay precedes fresh gate on mixed history');
+SELECT extensions.throws_ok('SELECT pg_temp.select_action(NULL)','22023','invalid_analysis_history','null reader is not compatible');
+SELECT extensions.throws_ok('SELECT pg_temp.review_action(11)','22023','invalid_analysis_history','unknown reader is not compatible');
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a909',TRUE);
 SELECT extensions.throws_ok('SELECT pg_temp.target_state(10)','P0002','analysis_history_not_found','foreign owner cannot read audio');
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a901',TRUE);

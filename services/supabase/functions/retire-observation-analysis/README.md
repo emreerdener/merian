@@ -3,7 +3,7 @@
 Prepared authenticated `POST retire-observation-analysis` retires one exact,
 never-dispatched admitted analysis. `withEdgeHandler` authenticates the owner;
 body-supplied owners are rejected. A scoped service client calls only
-`retire_owned_observation_analysis_execution` with reader 9. The SQL routine
+`retire_owned_observation_analysis_execution` with reader 10. The SQL routine
 owns canonical locks, current funding/execution predicates, atomic settlement,
 private-evidence erasure obligations and immutable receipt replay.
 

@@ -133,8 +133,9 @@ production submission or public release.
   separates that work from the remaining audio/video integration. The
   [prepared audio contract](./backend-and-data/05-api-contracts.md#prepared-audio-metadata-generation)
   now includes gated backend upload/admission/execution and a prepared native V4
-  decoder/cache. Native reader-10 mutation compatibility and durable audio
-  input/execution are still pending; all activation gates remain false. See the
+  decoder/cache. Reader-10 action compatibility is prepared; durable native
+  audio input/execution remains pending; all activation gates remain false. See
+  the
   [current schema](./backend-and-data/04-database-schema.md#prepared-observation-analysis-history),
   [device checklist](./development-guides/24-identification-history-device-review.md)
   and

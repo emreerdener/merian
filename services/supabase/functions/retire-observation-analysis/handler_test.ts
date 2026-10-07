@@ -95,7 +95,7 @@ Deno.test("retirement repository fixes reader/owner/identity and never retries f
       rpc(name: string, args: unknown) {
         calls++;
         assertEquals(name, "retire_owned_observation_analysis_execution");
-        assertEquals(args, { p_owner: id(4), p_request: input, p_reader: 9 });
+        assertEquals(args, { p_owner: id(4), p_request: input, p_reader: 10 });
         return {
           abortSignal(signal: AbortSignal) {
             assertEquals(signal.aborted, false);

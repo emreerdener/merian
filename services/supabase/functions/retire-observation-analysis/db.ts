@@ -25,7 +25,7 @@ export function analysisRetirementRepository(client: SupabaseClient) {
           {
             p_owner: ownerID,
             p_request: request,
-            p_reader: 9,
+            p_reader: 10,
           },
         ).abortSignal(signal);
         // Regain control even if cancellation acknowledgement stalls. A lost

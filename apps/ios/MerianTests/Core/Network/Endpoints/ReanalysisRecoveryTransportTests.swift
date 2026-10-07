@@ -26,7 +26,7 @@ struct ReanalysisRecoveryTransportTests {
             #expect(wire.httpMethod == "POST")
             let body = try #require(MockURLProtocol.bodyData(for: wire))
             let row = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
-            #expect(Set(row.keys) == ["p_request", "p_reader"] && row["p_reader"] as? Int == 9)
+            #expect(Set(row.keys) == ["p_request", "p_reader"] && row["p_reader"] as? Int == 10)
             let query = try #require(row["p_request"] as? [String: Any])
             #expect(Set(query.keys) == ["schema_version", "observation_id", "analysis_id"])
             #expect(query["schema_version"] as? Int == 1)
@@ -36,6 +36,31 @@ struct ReanalysisRecoveryTransportTests {
         }
         let result = try await network.client.recoverObservationAnalysis(input, expectedAuthUserID: owner, validateAttempt: {})
         #expect(result == reply.bytes)
+    }
+
+    @Test func validAudioStateCannotBecomePhotoRecoveryOrAbsence() async throws {
+        let network = NetworkEndpointFixture(); defer { network.close() }
+        let owner = try #require(network.client.overridingAuthUserID), (input, reply) = try fixture(owner: owner)
+        var state = try #require(JSONSerialization.jsonObject(with: Data(reply.body.utf8)) as? [String: Any])
+        var target = try #require(state["analysis"] as? [String: Any])
+        var snapshot = try #require(JSONSerialization.jsonObject(with: reply.bytes) as? [String: Any])
+        snapshot["schema_version"] = 4
+        snapshot["evidence_manifest"] = try ObservationHistorySyncTests().audioSnapshot()["evidence_manifest"]
+        target["snapshot"] = try #require(String(data: JSONSerialization.data(withJSONObject: snapshot), encoding: .utf8))
+        state["analysis"] = target
+        let bytes = try JSONSerialization.data(withJSONObject: state)
+        let request = ObservationHistoryStateRequest(observation_id: input.observationID.uuidString.lowercased(),
+                                                    analysis_id: input.analysisID.uuidString.lowercased())
+        #expect(try ObservationHistoryState.decode(bytes, request: request, ownerID: owner).result.version == 4)
+        let response = try #require(String(data: bytes, encoding: .utf8)), sends = OSAllocatedUnfairLock(initialState: 0)
+        network.transport.register(path: "/get_owned_observation_analysis_state") { wire in
+            sends.withLock { $0 += 1 }
+            return try NetworkEndpointTestSupport.response(to: wire, json: response)
+        }
+        await #expect(throws: ObservationHistoryError.resultConflict) {
+            try await network.client.recoverObservationAnalysis(input, expectedAuthUserID: owner, validateAttempt: {})
+        }
+        #expect(sends.withLock { $0 } == 1)
     }
 
     @Test(arguments: [400, 404, 500])
@@ -196,7 +221,7 @@ struct ObservationExecutionStatusTransportTests {
             #expect(wire.value(forHTTPHeaderField: "Idempotency-Key") == nil)
             let sentBody = try #require(MockURLProtocol.bodyData(for: wire))
             let row = try #require(JSONSerialization.jsonObject(with: sentBody) as? [String: Any])
-            #expect(Set(row.keys) == ["p_request", "p_reader"] && row["p_reader"] as? Int == 9)
+            #expect(Set(row.keys) == ["p_request", "p_reader"] && row["p_reader"] as? Int == 10)
             let sentRequest = try #require(row["p_request"] as? [String: Any])
             #expect(NSDictionary(dictionary: sentRequest) == NSDictionary(dictionary: input.object()))
             return try NetworkEndpointTestSupport.response(to: wire, status: status, json: body)

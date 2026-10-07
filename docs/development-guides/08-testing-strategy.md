@@ -424,7 +424,7 @@ separate slice-four and activation requirements.
 
 The
 [API contract](../backend-and-data/05-api-contracts.md#durable-undo-confirmation)
-owns exact receipt eligibility and reader-9 wire semantics. The
+owns exact receipt eligibility and reader-9/10 wire semantics. The
 [History owner](../../apps/ios/Merian/Features/Insights/History/README.md#durable-confirmation-undo)
 owns native presentation and recovery. Confirmation Undo is separate from
 rejection Undo and selection Undo; passing either older Undo flow does not prove
@@ -433,7 +433,7 @@ this one.
 | Boundary                               | Executable coverage                                                                                                                                                    | What it establishes                                                                                                                                                                                                                          |
 | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Eligibility and native admission       | `ConfirmationUndoEligibilityTests`                                                                                                                                     | Matching outer target-review revision despite an older confirmation parent revision or different nested AI counter; primary/name authority, second-device admission without a local receipt, and rejection of stale or foreign associations. |
-| Closed lookup and mutation transport   | `ConfirmationUndoLookupTests`, `ObservationAnalysisReviewEndpointTests`, `_shared/analysisHistory/confirmationUndo_test.ts`                                            | Exact bounded request/response shapes, reader 9, owner and attempt fences, timeout and no automatic transport/Auth/route replay.                                                                                                             |
+| Closed lookup and mutation transport   | `ConfirmationUndoLookupTests`, `ObservationAnalysisReviewEndpointTests`, `_shared/analysisHistory/confirmationUndo_test.ts`                                            | Exact bounded request/response shapes, reader 10, owner and attempt fences, timeout and no automatic transport/Auth/route replay.                                                                                                            |
 | Shared lookup ownership                | `ObservationConfirmationUndoOwnerTests`                                                                                                                                | Maximum four coalesced scopes, retention until actual lease exit, stale-dispatch denial, and cancellation/await during Auth drain.                                                                                                           |
 | Save uncertainty and restart           | `HistoryReviewSaveRecoveryTests`, `IdentificationHistoryReviewModelTests`, `SelectedAnalysisReviewHostTests`, `SelectedAnalysisNameConfirmationTests`                  | Commit-then-throw discovery, offline/reopen recovery, disk-reopened same UUID, failure-before-commit retry identity, explicit opening/save wakes and no render/held rearm.                                                                   |
 | Visible authority and retained actions | `ConfidenceReviewPresentationTests` plus the selected host/model tests                                                                                                 | Owner confirmation display is distinct from community authority; current-ticket actions and delayed callbacks remain fenced. These are not direct app UI taps.                                                                               |
@@ -11008,9 +11008,8 @@ duplicate admission, deletion before admission and materialization before
 deletion. Run fresh catalogs before database concurrency tests.
 
 These tests qualify the gated backend checkpoint, not native audio production,
-reader-10 mutation compatibility, device capture, hosted provider/storage or
-video support. Those remain separate acceptance work; all rollout gates remain
-false.
+device capture, hosted provider/storage or video support. Those remain separate
+acceptance work; all rollout gates remain false.
 
 ### Prepared native audio result verification
 
@@ -11019,12 +11018,32 @@ malformed/aliased evidence, ECMAScript whitespace parity, scalar and UTF-16 text
 bounds, exact replay, preserved parent selection/correction and actual sync →
 disk reopen → listing. Audio cannot enter the photo resolver or become an empty
 legacy reanalysis source. `ObservationAnalysisReviewTicketTests` denies V4
-review/publication tickets until coordinated reader-10 mutation support. The
+review/publication tickets until separate native audio action admission. The
 audio sync suite also denies selected-chat tickets and proves no save or
 selection dispatch for fresh Restore, selection Undo and persisted selection
 with V4 as either target or previous result; the detail explains the hold.
 `LocalAnalysisRecordTests` runs disk reopen and parent cascade for both V1 and
 V4 and requires finite audio completion. The opaque-storage constructor change
 does not alter the V58 schema; migration guardrails and `MigrationPlanTests`
-remain part of affected native validation. Network readers stay at 9, so these
-prepared decoder tests do not prove live audio history availability.
+remain part of affected native validation. These prepared decoder tests do not
+prove native V4 action admission or audio input execution.
+
+### Audio history action reader verification
+
+`observation_audio_analysis_admission.sql` verifies reader-9 whole-observation
+refusal before old selection/review/confirmation receipt replay, reader-10
+recovery before closed fresh gates, both Undo lookups, and exact pending input-3
+status/retirement independently of completed audio results.
+`observationAudioAdmissionConcurrencyDb.test.ts` additionally blocks readers 9
+and 10 behind real admission locks and verifies their post-wait decisions.
+Existing retirement-versus-dispatch/deletion concurrency remains required.
+
+`ObservationAnalysisReviewEndpointTests`, both Undo lookup suites,
+`ReanalysisRecoveryTransportTests` and
+`ObservationExecutionStatusTransportTests` assert fixed reader-10 bodies,
+unchanged identities and no automatic retries. Photo recovery retains its strict
+V2 matcher: a valid V4 response is a result conflict, never absence or
+permission to execute. V4 action-admission holds and saved-photo replay remain
+separate coverage. Run these with the complete backend
+catalogs/concurrency/security and affected native gates; this does not qualify
+native audio production, device or hosted rollout.

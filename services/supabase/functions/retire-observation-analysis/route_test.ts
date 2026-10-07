@@ -84,7 +84,7 @@ Deno.test("analysis retirement authenticated route scopes actual RPC and conceal
       assertEquals(JSON.parse(String(init?.body)), {
         p_owner: owner,
         p_request: request,
-        p_reader: 9,
+        p_reader: 10,
       });
       return Promise.resolve(
         new Response(

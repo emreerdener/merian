@@ -11,7 +11,7 @@ struct ObservationHistoryCloudClient {
         throw ObservationHistoryError.unavailable
     }
 
-    // Explicit protocol-9 mutation. Server rollout gates remain closed.
+    // Explicit protocol-10 mutation. Server rollout gates remain closed.
     var select: (ObservationHistorySelectionRequest) async throws -> Data = { _ in
         throw ObservationHistoryError.unavailable
     }
@@ -34,7 +34,7 @@ struct ObservationHistoryCloudClient {
             fetch: { request in
                 struct Parameters: Encodable {
                     let p_request: ObservationHistoryPageRequest
-                    let p_reader = 9
+                    let p_reader = 10
                 }
                 return try await manager.client
                     .rpc("get_owned_observation_analysis_page", params: Parameters(p_request: request))
@@ -43,7 +43,7 @@ struct ObservationHistoryCloudClient {
             fetchState: { request in
                 struct Parameters: Encodable {
                     let p_request: ObservationHistoryStateRequest
-                    let p_reader = 9
+                    let p_reader = 10
                 }
                 return try await manager.client
                     .rpc("get_owned_observation_analysis_state", params: Parameters(p_request: request))
@@ -52,7 +52,7 @@ struct ObservationHistoryCloudClient {
             select: { request in
                 struct Parameters: Encodable {
                     let p_request: ObservationHistorySelectionRequest
-                    let p_reader = 9
+                    let p_reader = 10
                 }
                 return try await manager.client
                     .rpc("select_owned_observation_analysis", params: Parameters(p_request: request))

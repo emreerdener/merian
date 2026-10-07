@@ -15,6 +15,9 @@ struct RejectionUndoLookupTests {
         fixture.transport.register(path: path) { request in
             #expect(request.timeoutInterval == 5 && request.httpMethod == "POST")
             #expect(request.value(forHTTPHeaderField: "Idempotency-Key") == nil)
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let parameters = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(Set(parameters.keys) == ["p_request", "p_reader"] && parameters["p_reader"] as? Int == 10)
             return try NetworkEndpointTestSupport.response(to: request, json: response)
         }
         var validated = 0

@@ -19,7 +19,7 @@ struct ObservationHistoryMutationTransport {
             body = try request.encoded()
             url = try EdgeFunctionRoutePolicy.endpointURL(baseURL: baseURL, function: "confirm-observation-analysis")
         } else {
-            body = try JSONSerialization.data(withJSONObject: ["p_request": payload, "p_reader": 9])
+            body = try JSONSerialization.data(withJSONObject: ["p_request": payload, "p_reader": 10])
             url = base.appendingPathComponent("rest/v1/rpc/review_owned_observation_analysis")
         }
         var transportRequest = AuthenticatedRequestExecutor.Request(
@@ -35,7 +35,7 @@ struct ObservationHistoryMutationTransport {
     func confirmationUndo(_ lookup: ObservationConfirmationUndoLookup, ownerID: UUID,
                           validateAttempt: @escaping @MainActor @Sendable () throws -> Void) async throws -> ObservationConfirmationUndoReply {
         guard let base = SecureTransportPolicy.httpsURL(from: baseURL) else { throw MerianError.invalidURL }
-        let body = try JSONSerialization.data(withJSONObject: ["p_request": lookup.object(), "p_reader": 9])
+        let body = try JSONSerialization.data(withJSONObject: ["p_request": lookup.object(), "p_reader": 10])
         var request = AuthenticatedRequestExecutor.Request(
             url: base.appendingPathComponent("rest/v1/rpc/get_owned_observation_confirmation_undo"), method: "POST", body: body,
             timeoutInterval: 5, idempotencyKey: nil, allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false,
@@ -48,7 +48,7 @@ struct ObservationHistoryMutationTransport {
     func rejectionUndo(_ lookup: ObservationRejectionUndoLookup, ownerID: UUID,
                        validateAttempt: @escaping @MainActor @Sendable () throws -> Void) async throws -> ObservationRejectionUndoReply {
         guard let base = SecureTransportPolicy.httpsURL(from: baseURL) else { throw MerianError.invalidURL }
-        let body = try JSONSerialization.data(withJSONObject: ["p_request": lookup.object(), "p_reader": 9])
+        let body = try JSONSerialization.data(withJSONObject: ["p_request": lookup.object(), "p_reader": 10])
         var request = AuthenticatedRequestExecutor.Request(
             url: base.appendingPathComponent("rest/v1/rpc/get_owned_observation_rejection_undo"), method: "POST", body: body,
             timeoutInterval: 5, idempotencyKey: nil, allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false,
