@@ -98,5 +98,5 @@ retry-free failures. `ObservationAudioReanalysisRequestTests` covers saved
 order/text/bytes, strict versions/processor, aliased identities, Unicode bounds,
 digest corruption and cross-generation refusal. These are wire-boundary tests;
 held durable audio preparation is owned by
-[AnalysisHistory](../../../Data/AnalysisHistory/README.md#held-native-audio-preparation).
+[AnalysisHistory](../../../Data/AnalysisHistory/README.md#native-audio-preparation-intent).
 Audio admission, execution, private historical restore and UI remain pending.

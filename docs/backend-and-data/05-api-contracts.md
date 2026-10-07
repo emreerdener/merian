@@ -15408,7 +15408,8 @@ expand candidate membership. No public payload or persisted schema changes.
 Native held audio preparation now persists exact child ownership and manifest
 before private WAV writes, with complete locked recovery even for ready replays.
 This separate local envelope cannot enter photo admission or execution; see the
-[V58 held audio contract](04-database-schema.md#held-audio-preparation-in-v58).
-Durable audio submission, consent binding, upload/execution delivery and
-separate action admission remain required before activation. All gates remain
-false; there is no deployment or activation authorization.
+[V58 audio preparation contract](04-database-schema.md#audio-preparation-intent-in-v58).
+The inert local audio submission primitive versions intent before file writes;
+old held preparations remain inert. Consent binding, upload/execution delivery
+and separate action admission remain required before activation. All gates
+remain false; there is no deployment or activation authorization.

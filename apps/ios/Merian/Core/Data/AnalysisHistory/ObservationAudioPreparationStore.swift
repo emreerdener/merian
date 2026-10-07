@@ -33,7 +33,7 @@ enum ObservationAudioPreparationStore {
                   try restore(preparation, row: row, job: job) == expectedPhase,
                   !makeReady || expectedPhase == .pending else { throw Persistence.IntegrityError.conflict }
             if makeReady {
-                guard let text = String(bytes: try preparation.storedData(phase: .ready), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
+                guard let text = String(bytes: try preparation.storedData(phase: preparation.preparedPhase), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
                 job.metadataJSON = text
             }
         }

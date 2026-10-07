@@ -27,16 +27,18 @@ actor ObservationReanalysisFileStore {
             validateBeforeWrite: validateBeforeWrite, commit: commit)
     }
 
-    /// WAV bytes remain separate from photo manifests and image paths.
+    /// WAV bytes remain separate from photo manifests and image paths. Durable ownership
+    /// already exists; retain verified files when promotion throws because its save may have committed.
     func persistAudio<T: Sendable>(preparation: ObservationAudioPreparation, bytes: Data,
                                    validateBeforeWrite: @MainActor @Sendable () throws -> Void,
                                    commit: @MainActor @Sendable () throws -> T) async throws -> T {
         guard ObservationAudioContainer.isValid(bytes) else { throw Failure.conflict }
         return try await persist(child: preparation.identity.analysisID, references: [audioReference(preparation)], bytes: [bytes],
-            validateBeforeWrite: validateBeforeWrite, commit: commit)
+            retainAfterCommitError: true, validateBeforeWrite: validateBeforeWrite, commit: commit)
     }
 
     private func persist<T: Sendable>(child: UUID, references: [FileReference], bytes: [Data],
+                                      retainAfterCommitError: Bool = false,
                                       validateBeforeWrite: @MainActor @Sendable () throws -> Void,
                                       commit: @MainActor @Sendable () throws -> T) async throws -> T {
         guard activeChildren.insert(child).inserted else { throw Failure.busy }
@@ -58,6 +60,7 @@ actor ObservationReanalysisFileStore {
         guard flock(directory, LOCK_EX | LOCK_NB) == 0 else { throw Failure.busy }
         defer { flock(directory, LOCK_UN) }
         var created: [CreatedFile] = []
+        var commitStarted = false
         // Retaining each inode prevents reuse after unlink until rollback finishes.
         defer { for file in created { close(file.descriptor) } }
         do {
@@ -81,8 +84,12 @@ actor ObservationReanalysisFileStore {
                   sameDirectory(queue, named: "ReanalysisQueue", inside: root),
                   sameDirectory(directory, named: child.uuidString.lowercased(), inside: queue) else { throw Failure.conflict }
             // Keep the filesystem lock and actor reservation across this one suspension.
+            commitStarted = true
             return try await commit()
         } catch {
+            // A durable pending/ready audio owner or its erasure receipt still owns these bytes.
+            // Recovery decides the saved phase; an uncertain save cannot destroy evidence.
+            if retainAfterCommitError, commitStarted { throw error }
             var cleaned = true
             for file in created.reversed() {
                 var info = stat()

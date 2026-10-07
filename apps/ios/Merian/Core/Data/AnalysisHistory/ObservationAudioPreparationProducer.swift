@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// Explicit held preparation/recovery. Uses the queue's shared owner; no automatic discovery or dispatch.
+/// Explicit preparation/recovery retaining the original submission intent. Uses the queue's shared owner; no automatic discovery or dispatch.
 @MainActor
 struct ObservationAudioPreparationProducer {
     let files: ObservationReanalysisFileStore
@@ -27,14 +27,14 @@ struct ObservationAudioPreparationProducer {
             let proof = try await DetachedWork.value(category: .inferenceRequestPreparation) { try preparation.verified(source: source) }
             try validate()
             let phase = try ObservationAudioPreparationStore.begin(proof, container: container, isCurrent: current)
-            if phase == .ready {
+            if phase == preparation.preparedPhase {
                 let validateReady: @MainActor @Sendable () throws -> Void = {
                     try validate()
-                    try ObservationAudioPreparationStore.validate(proof, container: container, isCurrent: current, expectedPhase: .ready)
+                    try ObservationAudioPreparationStore.validate(proof, container: container, isCurrent: current, expectedPhase: preparation.preparedPhase)
                 }
                 return try await files.recoverAudio(preparation: preparation, validateBeforeRead: validateReady) {
                     try validateReady()
-                    return ObservationAudioPreparation.Phase.ready
+                    return preparation.preparedPhase
                 }
             }
             let before: @MainActor @Sendable () throws -> Void = {
@@ -44,7 +44,7 @@ struct ObservationAudioPreparationProducer {
             let commit: @MainActor @Sendable () throws -> ObservationAudioPreparation.Phase = {
                 try validate()
                 try ObservationAudioPreparationStore.validate(proof, container: container, isCurrent: current, makeReady: true)
-                return .ready
+                return preparation.preparedPhase
             }
             if let bytes {
                 return try await files.persistAudio(preparation: preparation, bytes: bytes, validateBeforeWrite: before, commit: commit)

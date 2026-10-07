@@ -1477,13 +1477,18 @@ future stronger proof would require a separately versioned durable
 identity-registration contract; this feature does not retrofit one or release
 occupancy based on missing rows.
 
-### Held native audio preparation
+### Native audio preparation intent
 
-`ObservationAudioPreparation` is a separate version-1 `audio_preparation`
-envelope with exact owner/parent/source/child identity, ordered manifest 3 and
-frozen source SHA-256. Its only requested action is `hold`; `files_pending` and
-`files_ready` are local preparation phases, not inference admission. It contains
-no chosen recipient, funding reservation or dispatch authority.
+`ObservationAudioPreparation` is an inert, separately versioned
+`audio_preparation` envelope with exact owner/parent/source/child identity,
+ordered manifest 3 and frozen source SHA-256. Version 1 remains held-only:
+`files_pending` advances to `files_ready`. Its explicit submission primitive
+constructs version 2 with `requested_action: submit` before any private write;
+locked successful verification advances it to `admission_pending`. The
+version/action/phase combinations are closed. Reopening or replay cannot convert
+held work into submitted work or change the original child, source or evidence.
+Neither version contains a chosen recipient, funding reservation or dispatch
+authority.
 
 `ObservationAudioPreparationStore` uses the unchanged V58 qualified child and
 `observationReanalysisSync` job. The child keeps `inferenceImagePaths` nil and
@@ -1503,7 +1508,16 @@ finds audio by the persisted parent link even when job metadata is damaged.
 
 `ObservationAudioPreparationTests` covers disk reopen, exact bytes/order,
 photo/legacy exclusion, pending and ready file damage, failed promotion,
-malformed ownership, parent erasure and post-commit account loss. Existing photo
-file/recovery/producer tests remain the shared-storage regression gate. No audio
-Capture submission, automatic admission, provider execution or V4 historical
-source loader is connected by this checkpoint; all activation gates stay false.
+malformed ownership, parent erasure and post-commit account loss. Once a
+verified WAV enters the audio promotion callback, a thrown error retains its
+bytes: the save may already have committed. Fresh recovery validates the stored
+pending or completed phase; neither outcome destroys the only evidence. Earlier
+write or verification failure still rolls back newly created files. Photo
+callback and rollback behavior are unchanged. Both actions retain their original
+identity across disk restart and promotion failure. Commit-then-throw admission
+retains submitted `files_pending` before any WAV is written; a failure before
+commit creates no work, and explicit retry uses the same preparation. Existing
+photo file/recovery/producer tests remain the shared-storage regression gate. No
+audio Capture submission, automatic admission, provider execution or V4
+historical source loader is connected by this checkpoint; all activation gates
+stay false.

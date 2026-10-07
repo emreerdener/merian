@@ -11047,3 +11047,21 @@ permission to execute. V4 action-admission holds and saved-photo replay remain
 separate coverage. Run these with the complete backend
 catalogs/concurrency/security and affected native gates; this does not qualify
 native audio production, device or hosted rollout.
+
+### Audio preparation persistence regression gate
+
+`ObservationAudioPreparationTests` covers the inert V58 audio preparation
+primitive: original held-v1 byte compatibility, explicit submitted-v2 intent
+before private writes, closed action/phase decoding, scanner exclusion and
+immutable identity. Exercise both actions across promotion failure, committed
+save followed by an error, disk reopen, exact-file recovery, parent erasure and
+account loss. A promotion error retains the verified WAV because the database
+save may have committed. Initial-save uncertainty must precede any private
+write.
+
+Run this suite with `ObservationReanalysisFileStoreTests`,
+`ObservationReanalysisSubmissionTests`, `ObservationReanalysisOwnershipTests`
+and `OfflineSyncFoundationArchitectureTests` through `make ios-local-build`.
+These suites also run under the general native unit target; they are not a
+separate CI UI selector. This gate proves local persistence, not audio UI,
+provider execution or device/hosted qualification.
