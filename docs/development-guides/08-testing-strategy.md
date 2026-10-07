@@ -10918,3 +10918,14 @@ status reader. The corrected focused run passed all 28 tests in six suites,
 including both corrected tests and the runtime/owner/status coverage. This does
 not turn the earlier full run green or establish clean-candidate qualification.
 Retain both result bundles and use current-candidate CI separately.
+
+The prepared retirement-status controls passed an initial 35-test run, then an
+expanded 52-test run across eight suites with no failures or skips. Coverage
+includes admitted-only staging, absent/dispatched/terminal denial, stale claims
+and accounts, committed-save ambiguity and reopening with the same operation,
+pre-commit save failure, held same-operation rearm without another status read,
+Auth cancellation waiting for lease release, retained final-tap UUID and late
+presentation dismissal. Qualified actual-pass-exit refresh exposes the held
+recovery action without a library event, polling or mutation; wrong owner or
+context cannot advance its epoch. These focused results do not replace the
+separately recorded shared-worktree full result or device/hosted qualification.

@@ -902,5 +902,9 @@ before awaiting actual task and account-lease release. The queue bridge also
 checks the active Auth-transition flag. Only a typed retirement proof may settle
 after task cancellation; ordinary result completion stays
 cancellation-sensitive. Actual completion notifies existing observers and wakes
-receipt-bound cleanup. UI retirement admission/status remains unconnected and
-rollout gates stay false.
+receipt-bound cleanup. Actual pass exit separately advances the qualified
+reanalysis execution generation, allowing prepared status UI to expose held
+retirement recovery without polling or automatic rearm. The foreground status
+action reuses the Auth-drained preparation owner; it only reads exact status and
+stages/rearms the fixed retirement request. Delivery remains with this existing
+execution owner. Rollout gates stay false.

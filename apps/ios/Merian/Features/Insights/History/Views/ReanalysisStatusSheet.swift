@@ -16,8 +16,14 @@ struct ReanalysisStatusSheet: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(title(row.phase)).font(.headline)
                                 Text(detail(row.phase)).font(.callout).foregroundStyle(.secondary)
+                                if model.allowsRetirement, let action = row.retirement {
+                                    Button(action == .requestStop ? "Try to stop this reanalysis" : "Check this stop request again") {
+                                        model.requestRetirement(row)
+                                    }.disabled(model.isBusy)
+                                    .accessibilityIdentifier("ReanalysisRetirement_\(row.id.uuidString.lowercased())")
+                                }
                             }
-                            .accessibilityElement(children: .combine)
+                            .accessibilityElement(children: .contain)
                             .accessibilityIdentifier("ReanalysisStatus_\(row.id.uuidString.lowercased())")
                         }
                         if model.rows.isEmpty && !model.isBusy {
@@ -47,12 +53,15 @@ struct ReanalysisStatusSheet: View {
         .accessibilityIdentifier("ReanalysisStatusSheet")
         .presentationDetents([.medium, .large])
         .task { model.start() }
+        .onChange(of: model.deliveryGeneration) { _, _ in model.refreshForLibraryChange() }
         .onChange(of: model.isSessionCurrent, initial: true) { _, current in if !current { model.close() } }
         .onChange(of: scenePhase) { _, phase in if phase == .active { model.validate() } }
         .onDisappear { model.close() }
     }
     private func title(_ phase: ObservationReanalysisOperationStatus.Phase) -> String {
         switch phase {
+        case .stopping: "Checking stop request"
+        case .stopNeedsChecking: "Stop request needs checking"
         case .preparingEvidence: "Photo preparation pending"
         case .waitingToStart: "Waiting to continue"
         case .processing: "Result pending"
@@ -66,6 +75,8 @@ struct ReanalysisStatusSheet: View {
     }
     private func detail(_ phase: ObservationReanalysisOperationStatus.Phase) -> String {
         switch phase {
+        case .stopping: "The app is checking the original request. It will stop only if analysis has not started."
+        case .stopNeedsChecking: "The stop could not be confirmed. Checking this request will not start another analysis."
         case .preparingEvidence: "Saved photos are waiting to be prepared for this request."
         case .waitingToStart: "This request is saved and waiting for its requirements to be met."
         case .processing: "This saved request is awaiting processing or recovery. A result has not been confirmed yet."

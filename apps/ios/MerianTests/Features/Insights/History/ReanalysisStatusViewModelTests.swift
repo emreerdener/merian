@@ -150,4 +150,63 @@ struct ReanalysisStatusViewModelTests {
         await model.load(); #expect(model.message != nil && !model.isClosed && model.rows.isEmpty)
         await model.load(); #expect(model.message == nil && model.rows == [row] && reads == 2)
     }
+    @Test func ambiguousRetirementRetryRetainsFinalTapIdentity() async {
+        let row = ObservationReanalysisOperationStatus.Summary(id: UUID(), sourceAnalysisID: UUID(), phase: .processing, retirement: .requestStop)
+        var operations: [UUID] = []
+        let model = ReanalysisStatusViewModel(dependencies: .init(page: { _ in .init(items: [row], next: nil) },
+            validate: {}, isCurrent: { true }, close: {}, retire: { target, operation in
+                #expect(target == row); operations.append(operation)
+                throw ObservationHistoryError.unavailable
+            }))
+        await model.load()
+        model.requestRetirement(row)
+        while model.isBusy { await Task.yield() }
+        #expect(operations.count == 1 && model.message != nil)
+        model.requestRetirement(row)
+        while model.isBusy { await Task.yield() }
+        #expect(operations.count == 2 && operations[0] == operations[1])
+    }
+
+    @Test func closingPresentationCannotRestoreLateRetirementValues() async {
+        let row = ObservationReanalysisOperationStatus.Summary(id: UUID(), sourceAnalysisID: UUID(), phase: .stopNeedsChecking, retirement: .checkSameStop)
+        var resume: CheckedContinuation<ObservationReanalysisRetirementAction.Outcome, Never>?
+        let model = ReanalysisStatusViewModel(dependencies: .init(page: { _ in .init(items: [row], next: nil) },
+            validate: {}, isCurrent: { true }, close: {}, retire: { _, _ in
+                await withCheckedContinuation { resume = $0 }
+            }))
+        await model.load(); model.requestRetirement(row)
+        while resume == nil { await Task.yield() }
+        model.close(); resume?.resume(returning: .saved)
+        await Task.yield()
+        #expect(model.isClosed && model.rows.isEmpty && model.message == nil && !model.isBusy)
+    }
+
+    @Test func qualifiedPassExitExposesHeldRecoveryWithoutMutationOrPolling() async throws {
+        let seed = try fixture.seed(action: .submit); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let manager = OfflineQueueManager.shared, previous = manager.modelContext, context = ModelContext(seed.container)
+        manager.modelContext = context; defer { manager.modelContext = previous }
+        var held = false, reads = 0, mutations = 0
+        let row = ObservationReanalysisOperationStatus.Summary(id: UUID(), sourceAnalysisID: UUID(), phase: .stopping)
+        let model = ReanalysisStatusViewModel(dependencies: .init(page: { _ in
+            reads += 1
+            return .init(items: [held ? .init(id: row.id, sourceAnalysisID: row.sourceAnalysisID,
+                phase: .stopNeedsChecking, retirement: .checkSameStop) : row], next: nil)
+        }, validate: {}, isCurrent: { true }, close: {}, generation: { manager.reanalysisExecutionGeneration },
+        retire: { _, _ in mutations += 1; return .saved }))
+        await model.load(); let before = model.deliveryGeneration
+        manager.reanalysisExecutionDidFinish(ownerID: seed.source.ownerID, context: context, currentOwnerID: UUID())
+        #expect(model.deliveryGeneration == before && reads == 1)
+        held = true
+        manager.reanalysisExecutionDidFinish(ownerID: seed.source.ownerID, context: context, currentOwnerID: seed.source.ownerID)
+        #expect(model.deliveryGeneration == before &+ 1)
+        // The sheet's onChange performs this read-only refresh; no scanLibraryChanged is needed.
+        model.refreshForLibraryChange()
+        while reads < 2 || model.isBusy { await Task.yield() }
+        #expect(model.rows.first?.phase == .stopNeedsChecking && model.rows.first?.retirement == .checkSameStop)
+        #expect(reads == 2 && mutations == 0)
+        model.close()
+        manager.reanalysisExecutionDidFinish(ownerID: seed.source.ownerID, context: ModelContext(seed.container), currentOwnerID: seed.source.ownerID)
+        #expect(model.deliveryGeneration == before &+ 1)
+    }
+
 }

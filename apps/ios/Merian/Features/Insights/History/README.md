@@ -64,19 +64,33 @@ audit manifest registers the UI flow.
 `ReanalysisStatusAccess` is a separate optional Shell entry, independent of the
 history menu's multiple-result condition. It reuses
 `IdentificationHistorySession` for owner/session/generation checks but exposes
-only Core's bounded operation pages. A page with omitted rows and a continuation
-still offers access to later pages; it does not prove those unseen rows are
-active requests.
+Core's bounded operation pages and explicitly injected retirement actions. A
+page with omitted rows and a continuation still offers access to later pages; it
+does not prove those unseen rows are active requests.
 
 `ReanalysisStatusViewModel` retains only one page of closed status summaries and
 cancels and clears them on account, parent or presentation invalidation. The
 native `ReanalysisStatusSheet` offers refresh and bounded paging, with distinct
 consent, unavailable-evidence, reconciliation, retry-limit and terminal-failure
-copy. It has no admission, retry, discard, source-photo or provider action.
-Refresh reads status only. Completed identifications remain in history and
-current selection is unchanged. Ordinary `reanalysisStatusAccess` remains nil.
-`ReanalysisStatusViewModelTests` covers single-result availability, corrupt-page
-continuation, exact session reads, late-result rejection and
+copy. Typed affordances are derived from durable snapshots, not those labels.
+“Try to stop this reanalysis” freezes a UUID at the final tap, then uses the
+retained preparation owner for an exact read-only server check. Only a consumed
+or legacy-unknown running/waiting request with fresh admitted evidence can stage
+retirement under full-snapshot CAS. A held retirement offers only recovery of
+that same saved operation. Other holds and absent/dispatched outcomes cannot be
+retired through this control. The model retains its request after ambiguous
+saves; reopening discovers existing V8 work rather than replacing it.
+
+Actual execution-owner exit advances an
+account/context/Auth-generation-qualified observable generation. The presented
+model refreshes its local page on that change so a held stop becomes actionable
+without polling. Refresh never rearms work or invokes network/provider work.
+Closing clears presentation only; durable retirement remains recoverable. There
+is no normal inference retry, discard, source-photo substitution or provider
+action. Refresh reads status only. Completed identifications remain in history
+and current selection is unchanged. Ordinary `reanalysisStatusAccess` remains
+nil. `ReanalysisStatusViewModelTests` covers single-result availability,
+corrupt-page continuation, exact session reads, late-result rejection and
 account/parent/generation teardown. Core `ReanalysisOperationStatusTests` covers
 disk restart and distinct inert holds.
 

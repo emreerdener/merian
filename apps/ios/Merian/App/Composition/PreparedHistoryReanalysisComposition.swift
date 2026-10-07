@@ -34,6 +34,7 @@ struct PreparedHistoryReanalysisComposition {
          rejectionUndo: IdentificationHistoryReviewAccess.RejectionUndoConfiguration? = nil,
          publication: IdentificationHistoryPublicationAccess.Configuration? = nil,
          protectedChat: ProtectedInsightChatAccess.Configuration? = nil,
+         retirement: ReanalysisStatusAccess.RetirementConfiguration? = nil,
          documents: @escaping @MainActor () throws -> URL = {
              try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
          },
@@ -50,7 +51,7 @@ struct PreparedHistoryReanalysisComposition {
         self.history = history
         self.protectedChat = .prepared(cloud: cloud, configuration: protectedChat, session: session)
         selectedReview = .prepared(cloud: cloud, session: session)
-        status = .prepared(session: session)
+        status = .prepared(session: session, retirement: retirement)
         reanalyze = .prepared(cloud: cloud, enrollment: enrollmentOwner, currentOwner: currentOwner,
             generation: generation, sessionIsCurrent: sessionIsCurrent, containerIsCurrent: containerIsCurrent,
             dispatch: { routes.request(.historicalReanalysis($0), source: .internalUserAction) })
@@ -93,6 +94,9 @@ struct PreparedHistoryReanalysisComposition {
                 return queue.requestProtectedChatDelivery(intent, admission: admission,
                     service: .live(cloud: .live(manager: manager), client: MerianNetworkClient.shared),
                     currentOwnerID: { manager.currentUser?.id })
-            }, generation: { queue.protectedChatDeliveryGeneration }, refreshOwner: queue.protectedChatRefreshOwner))
+            }, generation: { queue.protectedChatDeliveryGeneration }, refreshOwner: queue.protectedChatRefreshOwner),
+            retirement: .init(ownership: queue.reanalysisPreparationOwner, fetch: { request, owner, validate in
+                try await MerianNetworkClient.shared.reanalysisStatusTransport().read(request, ownerID: owner, validateAttempt: validate)
+            }, wake: { queue.requestReanalysisExecutionRecovery() }, generation: { queue.reanalysisExecutionGeneration }))
     }
 }

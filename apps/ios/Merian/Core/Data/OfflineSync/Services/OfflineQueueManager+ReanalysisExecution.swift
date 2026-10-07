@@ -7,15 +7,15 @@ extension OfflineQueueManager {
         guard !TestExecutionCoordinator.isRunningTests, isOnline, !isCurrentNetworkConstrained,
               let context = modelContext, let owner = CloudDeletionAccountWork.currentAccountID else { return }
         let scheduler = OfflineJobScheduler.shared
+        let manager = SupabaseManager.shared, generation = manager.authSessionGeneration
         reanalysisExecutionOwner.start(operation: { [weak self] scope in
             guard let self else { return }
-            let manager = SupabaseManager.shared
             let settlementCurrent: @MainActor @Sendable () -> Bool = {
-                scope.maySettleKnownReceipt() && self.modelContext === context &&
+                scope.maySettleKnownReceipt() && manager.authSessionGeneration == generation && self.modelContext === context &&
                     CloudDeletionAccountWork.currentAccountID == owner && !manager.isAuthTransitionInProgress
             }
             let current: @MainActor @Sendable () -> Bool = {
-                scope.mayDispatch() && self.modelContext === context && self.isOnline && !self.isCurrentNetworkConstrained &&
+                scope.mayDispatch() && manager.authSessionGeneration == generation && self.modelContext === context && self.isOnline && !self.isCurrentNetworkConstrained &&
                     CloudDeletionAccountWork.currentAccountID == owner && !manager.isAuthTransitionInProgress
             }
             await ObservationReanalysisExecutionService(account: .live(manager: manager),
@@ -26,6 +26,9 @@ extension OfflineQueueManager {
                 didComplete: { AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged) })
         }, didFinish: { [weak self] in
             guard let self else { return }
+            if manager.authSessionGeneration == generation, !manager.isAuthTransitionInProgress {
+                self.reanalysisExecutionDidFinish(ownerID: owner, context: context, currentOwnerID: CloudDeletionAccountWork.currentAccountID)
+            }
             scheduler.scheduleNextPersistedWake(using: self)
         })
     }

@@ -5,13 +5,14 @@ import SwiftData
 @MainActor
 struct ObservationReanalysisOperationStatus {
     enum Phase: Equatable, Sendable {
-        case preparingEvidence, waitingToStart, processing, waitingToRetry
+        case preparingEvidence, waitingToStart, processing, waitingToRetry, stopping, stopNeedsChecking
         case consentRequired, evidenceUnavailable, reconciliationRequired, retryLimit, terminalFailure
     }
     struct Summary: Identifiable, Equatable, Sendable {
         let id: UUID
         let sourceAnalysisID: UUID
         let phase: Phase
+        var retirement: ObservationReanalysisRetirementAction.Affordance?
     }
     struct Cursor: Equatable, Sendable { fileprivate let childID: String }
     struct Page: Sendable {
@@ -43,7 +44,7 @@ struct ObservationReanalysisOperationStatus {
             guard valid() else { throw ObservationHistoryError.accountChanged }
             guard case let .reanalysis(identity) = work, identity.ownerID == ownerID, identity.observationID == observationID else { continue }
             if let phase = try phase(identity, container: container, isCurrent: valid) {
-                items.append(.init(id: identity.analysisID, sourceAnalysisID: identity.sourceAnalysisID, phase: phase))
+                items.append(.init(id: identity.analysisID, sourceAnalysisID: identity.sourceAnalysisID, phase: phase.phase, retirement: phase.retirement))
             }
         }
         try ConfirmedSpeciesReviewPersistence.transaction {
@@ -63,7 +64,12 @@ struct ObservationReanalysisOperationStatus {
               !(try ObservationHistoryEnrollmentIntent.holds(parent, context: context)) else { throw ObservationHistoryError.unavailable }
     }
 
-    private func phase(_ identity: OfflineQueueWork.Reanalysis, container: ModelContainer, isCurrent: () -> Bool) throws -> Phase? {
+    private struct Projection {
+        let phase: Phase
+        var retirement: ObservationReanalysisRetirementAction.Affordance?
+    }
+
+    private func phase(_ identity: OfflineQueueWork.Reanalysis, container: ModelContainer, isCurrent: () -> Bool) throws -> Projection? {
         // Completed results belong to history. A receipt alone can mean discard,
         // so neither receipts nor any result/transport collision imply completion here.
         let exists = try ConfirmedSpeciesReviewPersistence.transaction {
@@ -76,31 +82,98 @@ struct ObservationReanalysisOperationStatus {
         if let saved = try? ObservationReanalysisAdmissionStore.read(identity, container: container, isCurrent: isCurrent) {
             if let hold = saved.work.hold {
                 switch hold {
-                case .consentRequired: return .consentRequired
-                case .evidenceUnavailable: return .evidenceUnavailable
-                case .reconciliationRequired: return .reconciliationRequired
-                case .retryLimit: return .retryLimit
+                case .consentRequired: return .init(phase: .consentRequired)
+                case .evidenceUnavailable: return .init(phase: .evidenceUnavailable)
+                case .reconciliationRequired: return .init(phase: .reconciliationRequired)
+                case .retryLimit: return .init(phase: .retryLimit)
                 }
             }
-            if saved.work.state == .waiting { return .waitingToRetry }
-            return saved.work.phase == .filesPending ? .preparingEvidence : .waitingToStart
+            if saved.work.state == .waiting { return .init(phase: .waitingToRetry) }
+            return .init(phase: saved.work.phase == .filesPending ? .preparingEvidence : .waitingToStart)
         }
         guard isCurrent() else { throw ObservationHistoryError.accountChanged }
         guard let saved = try? ObservationReanalysisExecutionStore.read(identity, container: container, isCurrent: isCurrent) else { return nil }
+        let retirement = ObservationReanalysisRetirementAction.affordance(saved)
+        if saved.retirement != nil {
+            return .init(phase: saved.status == .needsAttention ? .stopNeedsChecking : .stopping, retirement: retirement)
+        }
         switch saved.status {
-        case .pending: return .waitingToStart
-        case .running: return .processing
-        case .waiting: return .waitingToRetry
+        case .pending: return .init(phase: .waitingToStart)
+        case .running: return .init(phase: .processing, retirement: retirement)
+        case .waiting: return .init(phase: .waitingToRetry, retirement: retirement)
         case .needsAttention:
             switch saved.hold {
-            case .consentRequired: return .consentRequired
-            case .evidenceUnavailable: return .evidenceUnavailable
-            case .terminalFailure: return .terminalFailure
-            case .reconciliationRequired: return .reconciliationRequired
-            case .retryLimit: return .retryLimit
+            case .consentRequired: return .init(phase: .consentRequired)
+            case .evidenceUnavailable: return .init(phase: .evidenceUnavailable)
+            case .terminalFailure: return .init(phase: .terminalFailure)
+            case .reconciliationRequired: return .init(phase: .reconciliationRequired)
+            case .retryLimit: return .init(phase: .retryLimit)
             case nil: return nil // Held legacy drafts have never been explicitly admitted.
             }
         default: return nil
+        }
+    }
+}
+
+/// Foreground explicit action. The preparation owner retains the account lease; delivery stays in the queue.
+@MainActor
+struct ObservationReanalysisRetirementAction {
+    typealias Store = ObservationReanalysisExecutionStore
+    typealias Validator = ObservationReanalysisExecutor.Validator
+    enum Affordance: Equatable, Sendable { case requestStop, checkSameStop }
+    enum Outcome: Equatable, Sendable { case saved, unavailable }
+    let ownership: ObservationReanalysisPreparationOwner
+    let account: ObservationHistoryCloudClient
+    let fetch: (ObservationAnalysisExecutionLookup, UUID, @escaping Validator) async throws -> ObservationAnalysisExecutionStatus
+    let wake: () -> Void
+    var now: () -> Date = Date.init
+    var save: (ModelContext) throws -> Void = { try $0.save() }
+
+    static func affordance(_ saved: Store.Snapshot) -> Affordance? {
+        guard saved.dispatch != .ready else { return nil }
+        if saved.retirement != nil {
+            return saved.status == .needsAttention && saved.hold == .reconciliationRequired && saved.server == .admitted
+                ? .checkSameStop : nil
+        }
+        guard saved.status == .waiting || saved.status == .running,
+              saved.server == nil || saved.server == .admitted else { return nil }
+        return .requestStop
+    }
+
+    func perform(_ identity: OfflineQueueWork.Reanalysis, operationID: UUID, container: ModelContainer,
+                 isCurrent: @escaping @MainActor @Sendable () -> Bool) async throws -> Outcome {
+        try await ownership.perform(identity) { owned in
+            let lease = try account.begin(identity.ownerID)
+            defer { account.finish(lease) }
+            let accountCurrent: @MainActor @Sendable () -> Bool = { isCurrent() && lease.session.userID == identity.ownerID && account.isCurrent(lease) }
+            let current: @MainActor @Sendable () -> Bool = { accountCurrent() && owned() }
+            let expected = try Store.read(identity, container: container, isCurrent: current)
+            if expected.retirement != nil {
+                if Self.affordance(expected) == .checkSameStop {
+                    // Wake discovery even if a save commits and then throws. It never restages or rearms on its own.
+                    defer { if accountCurrent() { wake() } }
+                    _ = try Store.rearmRetirement(expected, now: now(), container: container, isCurrent: current, save: save)
+                    return .saved
+                }
+                guard expected.status == .waiting || expected.status == .running else { return .unavailable }
+                if accountCurrent() { wake() }
+                return .saved
+            }
+            guard Self.affordance(expected) == .requestStop else { return .unavailable }
+            let validate: Validator = {
+                try Task.checkCancellation()
+                guard current(), try Store.read(identity, container: container, isCurrent: current) == expected else {
+                    throw ObservationHistoryError.resultConflict
+                }
+            }
+            try validate()
+            let status = try await fetch(.init(expected.intent.request), identity.ownerID, validate)
+            try validate()
+            guard status.state == .admitted else { return .unavailable }
+            defer { if accountCurrent() { wake() } }
+            _ = try Store.stageRetirement(expected, status: status, operationID: operationID, now: now(),
+                container: container, isCurrent: current, save: save)
+            return .saved
         }
     }
 }

@@ -154,6 +154,20 @@ enum ObservationReanalysisExecutionStore {
         }
     }
 
+    /// Explicit recovery of an already-staged retirement. Never rearm inference or replace its UUID.
+    static func rearmRetirement(_ expected: Snapshot, now: Date, container: ModelContainer,
+                                isCurrent: () -> Bool, save: (ModelContext) throws -> Void = { try $0.save() }) throws -> Snapshot {
+        guard expected.retirement != nil, expected.dispatch != .ready, expected.status == .needsAttention,
+              expected.hold == .reconciliationRequired, expected.server == .admitted,
+              now.timeIntervalSince1970.isFinite else { throw Persistence.IntegrityError.conflict }
+        return try Persistence.transaction(expected.intent.identity, container: container, isCurrent: isCurrent, save: save) { context in
+            let (row, job) = try matching(expected, context: context)
+            job.status = .waiting; job.nextRunAt = now; job.updatedAt = now; job.lastErrorCode = nil
+            mirror(job, into: row)
+            return try snapshot(row, job)
+        }
+    }
+
     enum RetirementAdmission { case initial, interrupted, explicitRetry }
     struct RetirementClaim: Sendable {
         let snapshot: Snapshot

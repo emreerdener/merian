@@ -12518,8 +12518,9 @@ Every state is observational: `absent` is not a no-admission seal, retirement
 receipt or permission to dispatch; `complete` still needs exact immutable result
 recovery. The native fixed RPC uses a five-second timeout, 4-KiB strict decoder,
 expected owner and post-Auth claim validation with no transient, 401 or missing
-route retry. It is prepared independently of action UI and retirement authority;
-this checkpoint does not install either or change activation gates.
+route retry. Prepared retirement UI consumes this observation under a retained
+account lease; the read never supplies retirement proof or changes activation
+gates.
 
 The separately prepared service-only
 `retire_owned_observation_analysis_execution(p_owner,p_request,p_reader:9)`
@@ -12527,8 +12528,8 @@ requires default-false `execution_retirement_api_enabled`. Prepared
 authenticated `POST retire-observation-analysis` derives `p_owner` from
 `withEdgeHandler`; native direct RPC access is denied. The HTTP boundary is
 implemented; native durable staging, proof settlement and retained delivery are
-prepared, while status and UI remain subsequent checkpoints. The closed schema-1
-request adds one retained `operation_id` to the original
+prepared, including narrowly scoped status actions in the inert App bundle. The
+closed schema-1 request adds one retained `operation_id` to the original
 parent/child/nullable-source/digest identity. The exact receipt echoes those six
 fields plus `state:"retired_before_dispatch"`.
 
@@ -12568,8 +12569,9 @@ separate same-account/container/claim settlement check. The pinned collector
 limits actual streamed responses to 4 KiB and rejects redirects. It never
 retries transient, 401 or missing-route failures. This transport does not itself
 stage retirement, acknowledge a job, clean files or release occupancy; those
-durable owners and user actions remain a later checkpoint. Unknown outcomes
-retain the original retirement UUID and require exact receipt recovery.
+effects belong to the prepared durable owners and explicit status actions.
+Unknown outcomes retain the original retirement UUID and require exact receipt
+recovery.
 
 Native version-eight bound metadata now stages that one retirement UUID with its
 unchanged request and dispatch provenance. The typed status retains its
@@ -12594,8 +12596,18 @@ authorizes redispatch. Retained delivery now performs only exact-result recovery
 and the fixed retirement request, holding unknown outcomes without a timer.
 Separate dispatch and known-receipt scopes preserve same-account proof
 settlement after network cancellation while invalidating both before Auth drain.
-Status/UI remain subsequent checkpoints; only server retirement can resolve a
-dispatch race.
+Prepared status controls use a separate typed affordance, never a phase label,
+and retain the final-tap UUID across ambiguous saves. The foreground owner reads
+exact server status and full-snapshot-CAS stages V8 only for running/waiting
+consumed or legacy-unknown work still admitted remotely. A held V8
+reconciliation state can explicitly rearm only that same retirement request.
+Other holds, ready/unbound work and absent or dispatched status cannot authorize
+this action. A qualified discovery wake follows stage/rearm attempts even when
+saving throws; it only discovers already-persisted runnable work. Reopening
+preserves the saved operation. An actual-owner-exit generation refreshes the
+local status page under current account/context/Auth scope, without polling,
+inference or automatic rearm. Only server retirement can resolve a dispatch
+race.
 
 The prepared native `analyzeObservation` transport preserves the complete saved
 request bytes, initiating account and 130-second timeout. It disables automatic

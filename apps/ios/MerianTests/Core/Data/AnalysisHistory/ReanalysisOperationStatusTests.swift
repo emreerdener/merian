@@ -170,3 +170,122 @@ struct ReanalysisOperationStatusTests {
         #expect(finishes == (reason == "limit" ? 0 : 1))
     }
 }
+
+@MainActor
+@Suite(.serialized, .sharedProcessState(.offlineQueueManager))
+struct ReanalysisRetirementActionTests {
+    typealias Store = ObservationReanalysisExecutionStore
+    typealias Action = ObservationReanalysisRetirementAction
+    let fixture = ReanalysisRetirementStagingTests()
+    enum Failure: Error { case saved }
+
+    @Test(arguments: ["admitted", "absent", "dispatched", "draft", "complete", "failed_terminal"])
+    func onlyExactAdmittedStatusCanStage(_ state: String) async throws {
+        let container = try fixture.execution.fixture.fixture.container(), claim = try fixture.consumed(container)
+        var reads = 0, wakes = 0, finishes = 0
+        let action = Action(ownership: .init(), account: ReanalysisOperationStatusTests().preparation.producerFixture.account(finish: { finishes += 1 }),
+            fetch: { request, owner, validate in
+                try validate(); reads += 1
+                #expect(request == ObservationAnalysisExecutionLookup(claim.intent.request) && owner == claim.intent.ownerID)
+                return try fixture.status(claim.intent, state: state)
+            }, wake: { wakes += 1 }, now: { fixture.execution.now })
+        let result = try await action.perform(claim.intent.identity, operationID: fixture.operation, container: container, isCurrent: { true })
+        let saved = try Store.read(claim.intent.identity, container: container, isCurrent: { true })
+        #expect(reads == 1 && finishes == 1)
+        if state == "admitted" {
+            #expect(result == .saved && saved.retirement == fixture.operation && wakes == 1)
+            #expect(try ReanalysisOperationStatusTests().page(claim.intent.identity, container).items.first?.phase == .stopping)
+        } else {
+            #expect(result == .unavailable && saved == claim.snapshot && wakes == 0)
+        }
+    }
+
+    @Test func committedSaveFailureWakesAndReopeningRetainsOriginalOperation() async throws {
+        let container = try fixture.execution.fixture.fixture.container(), claim = try fixture.consumed(container)
+        var reads = 0, wakes = 0
+        let action = Action(ownership: .init(), account: ReanalysisOperationStatusTests().preparation.producerFixture.account(),
+            fetch: { _, _, validate in try validate(); reads += 1; return try fixture.status(claim.intent) },
+            wake: { wakes += 1 }, now: { fixture.execution.now }, save: { try $0.save(); throw Failure.saved })
+        await #expect(throws: Failure.self) {
+            try await action.perform(claim.intent.identity, operationID: fixture.operation, container: container, isCurrent: { true })
+        }
+        #expect(wakes == 1)
+        let recovered = try await action.perform(claim.intent.identity, operationID: UUID(), container: container, isCurrent: { true })
+        let saved = try Store.read(claim.intent.identity, container: container, isCurrent: { true })
+        #expect(recovered == .saved && saved.retirement == fixture.operation && reads == 1 && wakes == 2)
+    }
+
+    @Test func explicitHeldRetirementRecoveryPreservesRequestWithoutStatusRead() async throws {
+        let container = try fixture.execution.fixture.fixture.container()
+        let claim = try ReanalysisRetirementSettlementTests().claim(container)
+        try Store.holdRetirement(claim, now: fixture.execution.now, container: container, isCurrent: { true })
+        let held = try Store.read(claim.snapshot.intent.identity, container: container, isCurrent: { true })
+        #expect(Action.affordance(held) == .checkSameStop)
+        #expect(try ReanalysisOperationStatusTests().page(held.intent.identity, container).items.first?.phase == .stopNeedsChecking)
+        var reads = 0, wakes = 0
+        let action = Action(ownership: .init(), account: ReanalysisOperationStatusTests().preparation.producerFixture.account(),
+            fetch: { _, _, _ in reads += 1; throw Failure.saved }, wake: { wakes += 1 }, now: { fixture.execution.now })
+        #expect(try await action.perform(held.intent.identity, operationID: UUID(), container: container, isCurrent: { true }) == .saved)
+        let saved = try Store.read(held.intent.identity, container: container, isCurrent: { true })
+        #expect(saved.retirement == held.retirement && saved.intent == held.intent && saved.dispatch == held.dispatch)
+        #expect(saved.status == .waiting && saved.attempt == held.attempt && reads == 0 && wakes == 1)
+        #expect(throws: (any Error).self) {
+            try Store.rearmRetirement(held, now: fixture.execution.now, container: container, isCurrent: { true })
+        }
+    }
+
+    @Test(arguments: ["ready", "held", "account", "replaced"])
+    func unavailableOrChangedWorkNeverStages(_ reason: String) async throws {
+        let container = try fixture.execution.fixture.fixture.container(), initial = try fixture.execution.claim(container)
+        let claim = reason == "ready" ? initial : try Store.consumeDispatch(initial, container: container, isCurrent: { true })
+        if reason == "held" { try Store.settle(claim, as: .held(.reconciliationRequired), now: fixture.execution.now, container: container, isCurrent: { true }) }
+        var current = true, reads = 0, wakes = 0
+        let action = Action(ownership: .init(), account: ReanalysisOperationStatusTests().preparation.producerFixture.account(),
+            fetch: { _, _, _ in
+                reads += 1
+                if reason == "account" { current = false }
+                if reason == "replaced" {
+                    try Store.settle(claim, as: .held(.retryLimit), now: fixture.execution.now, container: container, isCurrent: { true })
+                }
+                return try fixture.status(claim.intent)
+            }, wake: { wakes += 1 }, now: { fixture.execution.now })
+        do {
+            let result = try await action.perform(claim.intent.identity, operationID: fixture.operation, container: container, isCurrent: { current })
+            #expect((reason == "ready" || reason == "held") && result == .unavailable)
+        } catch { #expect(reason == "account" || reason == "replaced") }
+        let saved = try Store.read(claim.intent.identity, container: container, isCurrent: { true })
+        #expect(saved.retirement == nil && wakes == 0 && reads == ((reason == "ready" || reason == "held") ? 0 : 1))
+    }
+    @Test func saveFailureBeforeCommitOnlyWakesDiscoveryAndRetainsOriginalRequest() async throws {
+        let container = try fixture.execution.fixture.fixture.container(), claim = try fixture.consumed(container)
+        var wakes = 0
+        let action = Action(ownership: .init(), account: ReanalysisOperationStatusTests().preparation.producerFixture.account(),
+            fetch: { _, _, validate in try validate(); return try fixture.status(claim.intent) },
+            wake: { wakes += 1 }, now: { fixture.execution.now }, save: { _ in throw Failure.saved })
+        await #expect(throws: Failure.self) {
+            try await action.perform(claim.intent.identity, operationID: fixture.operation, container: container, isCurrent: { true })
+        }
+        #expect(try Store.read(claim.intent.identity, container: container, isCurrent: { true }) == claim.snapshot)
+        #expect(wakes == 1)
+    }
+
+    @Test func authDrainRetainsLookupUntilLeaseReleaseAndPreventsStaging() async throws {
+        let container = try fixture.execution.fixture.fixture.container(), claim = try fixture.consumed(container)
+        let ownership = ObservationReanalysisPreparationOwner()
+        var reply: CheckedContinuation<ObservationAnalysisExecutionStatus, Never>?
+        var finished = 0, wakes = 0, draining = false, drained = false
+        let action = Action(ownership: ownership, account: ReanalysisOperationStatusTests().preparation.producerFixture.account(finish: { finished += 1 }),
+            fetch: { _, _, _ in await withCheckedContinuation { reply = $0 } }, wake: { wakes += 1 })
+        let task = Task { try await action.perform(claim.intent.identity, operationID: fixture.operation, container: container, isCurrent: { true }) }
+        while reply == nil { await Task.yield() }
+        let drain = Task { draining = true; await ownership.cancelAndAwaitAll(); drained = true }
+        while !draining { await Task.yield() }
+        #expect(!drained && finished == 0 && ownership.contains(claim.intent.request.analysisID))
+        reply?.resume(returning: try fixture.status(claim.intent))
+        do { _ = try await task.value; Issue.record("Cancelled lookup must not stage") } catch {}
+        await drain.value
+        #expect(drained && finished == 1 && wakes == 0 && !ownership.contains(claim.intent.request.analysisID))
+        #expect(try Store.read(claim.intent.identity, container: container, isCurrent: { true }) == claim.snapshot)
+    }
+
+}

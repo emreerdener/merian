@@ -13,6 +13,9 @@ final class ReanalysisStatusViewModel {
     private var generation = 0
     private var work: Task<Void, Never>?
     private var libraryRefreshPending = false
+    private var retirementRequest: (child: UUID, operation: UUID)?
+    var allowsRetirement: Bool { dependencies.retire != nil }
+    var deliveryGeneration: UInt64 { dependencies.generation() }
     var isSessionCurrent: Bool { !isClosed && isPresented() && dependencies.isCurrent() }
 
     init(dependencies: ReanalysisStatusDependencies, isPresented: @escaping () -> Bool = { true }) {
@@ -43,6 +46,37 @@ final class ReanalysisStatusViewModel {
             message = "Status is unavailable right now. Refresh to check again."
         }
     }
+    func requestRetirement(_ row: ObservationReanalysisOperationStatus.Summary) {
+        guard work == nil, !isBusy, validate(), rows.contains(row), row.retirement != nil,
+              let retire = dependencies.retire else { return }
+        if let retained = retirementRequest, retained.child != row.id {
+            message = "Finish checking the previous request before choosing another."
+            return
+        }
+        // Freeze exactly once at the final tap, before scheduling asynchronous work.
+        let operation = retirementRequest?.operation ?? UUID()
+        retirementRequest = (row.id, operation)
+        let expected = generation
+        isBusy = true; message = nil
+        work = Task { [weak self] in
+            do {
+                let result = try await retire(row, operation)
+                guard let self, generation == expected, !Task.isCancelled, validate() else { return }
+                work = nil; isBusy = false
+                if result == .saved {
+                    retirementRequest = nil
+                    start()
+                } else {
+                    message = "This request cannot be safely stopped. Its original outcome is still being preserved."
+                }
+            } catch {
+                guard let self, generation == expected, !Task.isCancelled, validate() else { return }
+                work = nil; isBusy = false
+                message = "The stop request could not be confirmed. Try checking the same request again."
+            }
+        }
+    }
+
     func refreshForLibraryChange() {
         guard validate() else { return }
         libraryRefreshPending = true
@@ -60,7 +94,7 @@ final class ReanalysisStatusViewModel {
     func close() {
         guard !isClosed else { return }
         generation += 1; isClosed = true; work?.cancel(); work = nil
-        rows = []; next = nil; message = nil; isBusy = false
+        rows = []; next = nil; message = nil; isBusy = false; retirementRequest = nil
         dependencies.close()
     }
 }

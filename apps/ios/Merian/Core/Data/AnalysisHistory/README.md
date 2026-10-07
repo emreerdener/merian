@@ -1387,10 +1387,10 @@ claims. Normal claim, settlement and completion exclude retirement work.
 Dedicated retirement delivery consumes runnable waiting/running candidates. A
 save that commits and then throws leaves the same operation recoverable from
 persistence; reopening must not mint a replacement UUID. Original photos,
-selection and child identity remain unchanged. This checkpoint still has no
-action UI: retained delivery, dedicated claims and proof settlement are
-described below. All activation gates remain disabled. Status alone cannot
-release local occupancy or authorize erasure, refund or provider execution.
+selection and child identity remain unchanged. Prepared status actions now use
+the retained delivery, dedicated claims and proof settlement described below.
+All activation gates remain disabled. Status alone cannot release local
+occupancy or authorize erasure, refund or provider execution.
 
 ### Exact retirement claims and terminal proof
 
@@ -1423,6 +1423,15 @@ The retained execution pass routes retirement candidates to a dedicated executor
 with only exact-result recovery and retirement-RPC dependencies. It reads the
 original result first, then sends the saved retirement request. A failed request
 allows one more exact outcome read; unresolved work holds without a deadline.
-The normal upload/analyze executor is never used. Status projection and user
-actions remain a following checkpoint. No result recovery fabricates a
-successful retirement receipt or authorizes a provider call.
+The normal upload/analyze executor is never used. Prepared status actions reuse
+the retained preparation owner for foreground exact-status reads and persist the
+final-tap retirement UUID before mutation I/O. Only running/waiting consumed or
+legacy-unknown work is offered initial stopping, subject to fresh remote
+admitted state and full-snapshot CAS. Distinct stopping/checking phases do not
+imply retirement success. Explicit held V8 reconciliation rearm preserves the
+exact UUID, request, dispatch marker and attempt; every other hold stays inert.
+Discovery wakes after staging/rearming attempts, including commit-then-throw,
+without restaging or rearming anything on its own. Existing actual-pass-exit
+scheduler discovery covers work staged while a pass is already active. No result
+recovery fabricates a successful retirement receipt or authorizes a provider
+call.
