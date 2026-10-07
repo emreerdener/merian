@@ -67,7 +67,7 @@ struct ObservationAudioReanalysisRequest: Equatable, Sendable {
         self.body = savedBody; self.requestDigest = digest
     }
 
-    private static func manifest(_ evidence: [Evidence]) -> [String: Any] {
+    static func manifest(_ evidence: [Evidence]) -> [String: Any] {
         ["schema_version": 3, "items": evidence.map { item -> [String: Any] in
             switch item {
             case let .description(text): return ["kind": "description", "text": text]

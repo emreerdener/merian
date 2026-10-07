@@ -1476,3 +1476,34 @@ cannot prove that an old identity never executed. Such uncertainty stays held. A
 future stronger proof would require a separately versioned durable
 identity-registration contract; this feature does not retrofit one or release
 occupancy based on missing rows.
+
+### Held native audio preparation
+
+`ObservationAudioPreparation` is a separate version-1 `audio_preparation`
+envelope with exact owner/parent/source/child identity, ordered manifest 3 and
+frozen source SHA-256. Its only requested action is `hold`; `files_pending` and
+`files_ready` are local preparation phases, not inference admission. It contains
+no chosen recipient, funding reservation or dispatch authority.
+
+`ObservationAudioPreparationStore` uses the unchanged V58 qualified child and
+`observationReanalysisSync` job. The child keeps `inferenceImagePaths` nil and
+stores the same child-relative WAV in both captured-media representations.
+Strict photo admission/execution decoders ignore this envelope. The store saves
+ownership before file writes and promotes with a fresh source/account/deletion
+transaction while file locks remain held; it never recreates a deleted child.
+
+`ObservationAudioPreparationProducer` requires injected account, file store and
+shared preparation owner. It retains the caller's original identity, reserves
+ownership before proof work, and rechecks scope after awaits. Reopening ready
+work also re-verifies the complete cohort without rewriting metadata. A missing,
+changed, extra or symlinked file fails safely; recovery never repairs evidence.
+The file store shares private root/child locks and receipt-bound erasure across
+photo and WAV storage. WAV validation preserves exact bytes. Parent deletion
+finds audio by the persisted parent link even when job metadata is damaged.
+
+`ObservationAudioPreparationTests` covers disk reopen, exact bytes/order,
+photo/legacy exclusion, pending and ready file damage, failed promotion,
+malformed ownership, parent erasure and post-commit account loss. Existing photo
+file/recovery/producer tests remain the shared-storage regression gate. No audio
+Capture submission, automatic admission, provider execution or V4 historical
+source loader is connected by this checkpoint; all activation gates stay false.

@@ -6,6 +6,11 @@ import Foundation
 /// Directory descriptors keep deletion/recreation from redirecting cleanup.
 actor ObservationReanalysisFileStore {
     enum Failure: Error { case unavailable, conflict, busy, cleanupFailed, incomplete }
+    private struct FileReference: Sendable {
+        let name: String
+        let byteCount: Int
+        let sha256: String
+    }
     private struct CreatedFile { let name: String; let inode: ino_t; let descriptor: Int32 }
     private let documents: URL
     private var activeChildren = Set<UUID>()
@@ -17,14 +22,27 @@ actor ObservationReanalysisFileStore {
     func persist<T: Sendable>(draft: ObservationReanalysisDraft, photos: [Data],
                               validateBeforeWrite: @MainActor @Sendable () throws -> Void = {},
                               commit: @MainActor @Sendable () throws -> T) async throws -> T {
-        let child = draft.identity.analysisID
+        let references = photoReferences(draft)
+        return try await persist(child: draft.identity.analysisID, references: references, bytes: photos,
+            validateBeforeWrite: validateBeforeWrite, commit: commit)
+    }
+
+    /// WAV bytes remain separate from photo manifests and image paths.
+    func persistAudio<T: Sendable>(preparation: ObservationAudioPreparation, bytes: Data,
+                                   validateBeforeWrite: @MainActor @Sendable () throws -> Void,
+                                   commit: @MainActor @Sendable () throws -> T) async throws -> T {
+        guard ObservationAudioContainer.isValid(bytes) else { throw Failure.conflict }
+        return try await persist(child: preparation.identity.analysisID, references: [audioReference(preparation)], bytes: [bytes],
+            validateBeforeWrite: validateBeforeWrite, commit: commit)
+    }
+
+    private func persist<T: Sendable>(child: UUID, references: [FileReference], bytes: [Data],
+                                      validateBeforeWrite: @MainActor @Sendable () throws -> Void,
+                                      commit: @MainActor @Sendable () throws -> T) async throws -> T {
         guard activeChildren.insert(child).inserted else { throw Failure.busy }
         defer { activeChildren.remove(child) }
-        let references = draft.evidence.compactMap { item -> ObservationEvidenceUpload.Reference? in
-            if case let .image(photo) = item { return photo }; return nil
-        }
-        guard references.count == photos.count else { throw Failure.conflict }
-        for (photo, reference) in zip(photos, references) { try verify(photo, reference: reference) }
+        guard references.count == bytes.count else { throw Failure.conflict }
+        for (data, reference) in zip(bytes, references) { try verify(data, reference: reference) }
         try Task.checkCancellation()
         let root = open(documents.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard root >= 0 else { throw Failure.unavailable }
@@ -48,18 +66,20 @@ actor ObservationReanalysisFileStore {
             try Task.checkCancellation()
             for (index, reference) in references.enumerated() {
                 try Task.checkCancellation()
-                let suffix = reference.contentType == "image/png" ? "png" : "jpg"
-                let name = reference.mediaID.uuidString.lowercased() + "." + suffix
+                let name = reference.name
                 if let existing = try read(name, directory: directory, reference: reference) {
                     try verify(existing, reference: reference)
                 } else {
-                    created.append(try publish(photos[index], name: name, directory: directory))
+                    created.append(try publish(bytes[index], name: name, directory: directory))
                     guard let saved = try read(name, directory: directory, reference: reference) else { throw Failure.conflict }
                     try verify(saved, reference: reference)
                 }
             }
             guard fsync(directory) == 0, fsync(queue) == 0, fsync(root) == 0 else { throw Failure.unavailable }
             try Task.checkCancellation()
+            guard try names(in: directory) == references.map(\.name).sorted(),
+                  sameDirectory(queue, named: "ReanalysisQueue", inside: root),
+                  sameDirectory(directory, named: child.uuidString.lowercased(), inside: queue) else { throw Failure.conflict }
             // Keep the filesystem lock and actor reservation across this one suspension.
             return try await commit()
         } catch {
@@ -102,7 +122,33 @@ actor ObservationReanalysisFileStore {
     private func withVerifiedPhotos<T: Sendable>(draft: ObservationReanalysisDraft,
                                                  validateBeforeRead: @MainActor @Sendable () throws -> Void,
                                                  commit: @MainActor @Sendable ([ObservationEvidenceUpload.Photo]) throws -> T) async throws -> T {
-        let child = draft.identity.analysisID
+        let references = draft.evidence.compactMap { item -> ObservationEvidenceUpload.Reference? in
+            if case let .image(photo) = item { return photo }; return nil
+        }
+        return try await withVerifiedFiles(child: draft.identity.analysisID, references: photoReferences(draft),
+            validateBeforeRead: validateBeforeRead, verifyContainer: { index, bytes in
+                let reference = references[index]
+                _ = try ObservationReanalysisPhotoPreparation.prepare(bytes: bytes, mediaID: reference.mediaID,
+                    original: .init(mediaID: reference.mediaID, contentType: reference.contentType, byteCount: reference.byteCount, sha256: reference.sha256))
+            }) { bytes in
+                try commit(zip(references, bytes).map { .init(mediaID: $0.0.mediaID, contentType: $0.0.contentType, bytes: $0.1) })
+            }
+    }
+
+    /// Recovery verifies the complete exact WAV cohort and commits while both locks remain held.
+    func recoverAudio<T: Sendable>(preparation: ObservationAudioPreparation,
+                                   validateBeforeRead: @MainActor @Sendable () throws -> Void,
+                                   commit: @MainActor @Sendable () throws -> T) async throws -> T {
+        try await withVerifiedFiles(child: preparation.identity.analysisID, references: [audioReference(preparation)],
+            validateBeforeRead: validateBeforeRead, verifyContainer: { _, bytes in guard ObservationAudioContainer.isValid(bytes) else { throw Failure.conflict } }) { _ in
+            try commit()
+        }
+    }
+
+    private func withVerifiedFiles<T: Sendable>(child: UUID, references: [FileReference],
+                                                validateBeforeRead: @MainActor @Sendable () throws -> Void,
+                                                verifyContainer: @Sendable (Int, Data) throws -> Void,
+                                                commit: @MainActor @Sendable ([Data]) throws -> T) async throws -> T {
         guard activeChildren.insert(child).inserted else { throw Failure.busy }
         defer { activeChildren.remove(child) }
         try Task.checkCancellation()
@@ -118,26 +164,20 @@ actor ObservationReanalysisFileStore {
         guard flock(directory, LOCK_EX | LOCK_NB) == 0 else { throw Failure.busy }
         defer { flock(directory, LOCK_UN) }
         try await validateBeforeRead()
-        let references = draft.evidence.compactMap { item -> ObservationEvidenceUpload.Reference? in
-            if case let .image(photo) = item { return photo }; return nil
-        }
-        let expected = references.map { $0.mediaID.uuidString.lowercased() + ($0.contentType == "image/png" ? ".png" : ".jpg") }
-        guard try names(in: directory) == expected.sorted() else { throw Failure.incomplete }
-        // The validated draft caps the entire retained cohort at 5 MiB.
-        var photos: [ObservationEvidenceUpload.Photo] = []
-        for (reference, name) in zip(references, expected) {
+        guard try names(in: directory) == references.map(\.name).sorted() else { throw Failure.incomplete }
+        var retained: [Data] = []
+        for (index, reference) in references.enumerated() {
             try Task.checkCancellation()
-            guard let bytes = try read(name, directory: directory, reference: reference, synchronize: true) else { throw Failure.incomplete }
-            // The original-byte path verifies digest, length and actual one-frame JPEG/PNG type without re-encoding.
-            _ = try ObservationReanalysisPhotoPreparation.prepare(bytes: bytes, mediaID: reference.mediaID,
-                original: .init(mediaID: reference.mediaID, contentType: reference.contentType, byteCount: reference.byteCount, sha256: reference.sha256))
-            photos.append(.init(mediaID: reference.mediaID, contentType: reference.contentType, bytes: bytes))
+            guard let bytes = try read(reference.name, directory: directory, reference: reference, synchronize: true) else { throw Failure.incomplete }
+            try verify(bytes, reference: reference)
+            try verifyContainer(index, bytes)
+            retained.append(bytes)
         }
         guard fsync(directory) == 0, fsync(queue) == 0, fsync(root) == 0 else { throw Failure.unavailable }
         try Task.checkCancellation()
         guard sameDirectory(queue, named: "ReanalysisQueue", inside: root),
               sameDirectory(directory, named: child.uuidString.lowercased(), inside: queue) else { throw Failure.conflict }
-        return try await commit(photos)
+        return try await commit(retained)
     }
 
     /// Namespace authority comes from a committed receipt, never from caller-provided paths.
@@ -246,7 +286,20 @@ actor ObservationReanalysisFileStore {
         }
     }
 
-    private func verify(_ data: Data, reference: ObservationEvidenceUpload.Reference) throws {
+    private func photoReferences(_ draft: ObservationReanalysisDraft) -> [FileReference] {
+        draft.evidence.compactMap { item in
+            guard case let .image(photo) = item else { return nil }
+            return FileReference(name: photo.mediaID.uuidString.lowercased() + (photo.contentType == "image/png" ? ".png" : ".jpg"),
+                byteCount: photo.byteCount, sha256: photo.sha256)
+        }
+    }
+
+    private func audioReference(_ preparation: ObservationAudioPreparation) -> FileReference {
+        FileReference(name: preparation.audio.mediaID.uuidString.lowercased() + ".wav",
+            byteCount: preparation.audio.byteCount, sha256: preparation.audio.sha256)
+    }
+
+    private func verify(_ data: Data, reference: FileReference) throws {
         guard data.count == reference.byteCount,
               SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() == reference.sha256 else { throw Failure.conflict }
     }
@@ -268,7 +321,7 @@ actor ObservationReanalysisFileStore {
         return descriptor
     }
 
-    private func read(_ name: String, directory: Int32, reference: ObservationEvidenceUpload.Reference,
+    private func read(_ name: String, directory: Int32, reference: FileReference,
                       synchronize: Bool = false) throws -> Data? {
         let descriptor = openat(directory, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
         guard descriptor >= 0 else {

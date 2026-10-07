@@ -7379,6 +7379,28 @@ verifies queue-media cascade without deleting the parent observation.
 `QueueWorkQualificationTests` exercises malformed routing, direct legacy claims
 and late completion refusal. All activation gates remain disabled.
 
+### Held audio preparation in V58
+
+Native audio preparation reuses the qualified row identity and same-child
+`scan-ingestion` key with `observationReanalysisSync` kind; no SwiftData shape
+or frozen snapshot changes are needed. Its closed version-1 `audio_preparation`
+metadata retains owner, parent, source, child, ordered manifest 3 and source
+snapshot SHA-256. `requested_action` is only `hold`. `files_pending` is saved
+before writing the canonical child-owned WAV; `files_ready` requires complete
+locked file verification plus a fresh exact database comparison. Neither phase
+is upload, funding or execution authority, and existing photo selectors cannot
+interpret this envelope.
+
+The WAV lives at `ReanalysisQueue/<child>/<media>.wav`. Both captured-media JSON
+and entries name that Documents-relative file; `inferenceImagePaths` stays nil.
+Recovery, including already-ready replay, verifies exact names, length, digest
+and the supported WAV container without replacing bytes. Parent erasure and
+full-account purge reuse the existing namespace locks and permanent receipts.
+See the
+[native ownership contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#held-native-audio-preparation).
+Audio submission/admission/execution and historical V4 source loading remain
+held, separately from this local preparation checkpoint.
+
 ### Prepared immutable Insight Field Chat turn context
 
 `20261006084439_prepare_immutable_insight_chat_context.sql` adds private

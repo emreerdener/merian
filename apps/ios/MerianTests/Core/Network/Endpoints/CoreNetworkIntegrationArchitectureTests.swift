@@ -4187,6 +4187,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             containing: "DetachedWork.value(",
             in: sources,
             equal: ["Endpoints/MerianNetworkClient+Inference.swift",
+                    "Endpoints/MerianNetworkClient+ObservationAudioEvidence.swift",
                     "Endpoints/MerianNetworkClient+ObservationEvidence.swift"]
         )
         #expect(sources.values.allSatisfy { !$0.contains("Task.detached") })
@@ -4509,6 +4510,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "MerianNetworkClient+MediaStorage.swift",
         "MerianNetworkClient+Notifications.swift",
         "MerianNetworkClient+ObservationAnalysisReview.swift",
+        "MerianNetworkClient+ObservationAudioEvidence.swift",
         "MerianNetworkClient+ObservationEvidence.swift",
         "MerianNetworkClient+ObservationPublication.swift",
         "MerianNetworkClient+ProductFeedback.swift",

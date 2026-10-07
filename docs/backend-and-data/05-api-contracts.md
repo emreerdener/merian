@@ -15405,6 +15405,10 @@ matcher still requires exact V2 evidence. V4 UI/action holds above remain in
 place: reader compatibility does not authorize unsupported media actions or
 expand candidate membership. No public payload or persisted schema changes.
 
-Durable native audio input/upload/execution and their separate action admission
-remain required before activation. All gates remain false; there is no
-deployment or activation authorization.
+Native held audio preparation now persists exact child ownership and manifest
+before private WAV writes, with complete locked recovery even for ready replays.
+This separate local envelope cannot enter photo admission or execution; see the
+[V58 held audio contract](04-database-schema.md#held-audio-preparation-in-v58).
+Durable audio submission, consent binding, upload/execution delivery and
+separate action admission remain required before activation. All gates remain
+false; there is no deployment or activation authorization.

@@ -97,4 +97,6 @@ association, malformed WAV rejection before I/O, account/claim fences and
 retry-free failures. `ObservationAudioReanalysisRequestTests` covers saved
 order/text/bytes, strict versions/processor, aliased identities, Unicode bounds,
 digest corruption and cross-generation refusal. These are wire-boundary tests;
-durable audio preparation, execution, private restore and UI remain pending.
+held durable audio preparation is owned by
+[AnalysisHistory](../../../Data/AnalysisHistory/README.md#held-native-audio-preparation).
+Audio admission, execution, private historical restore and UI remain pending.
