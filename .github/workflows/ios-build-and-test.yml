@@ -932,6 +932,7 @@ jobs:
             "-seedPublicationConsentChooser" \
             "-seedSelectedNameConfirmation" \
             "-seedConfirmationUndo" \
+            "-seedCandidateConfirmation" \
             "-seedWhatsNewLaunch" \
             "ui_test_queued_audio_handoff" \
             "ui_test_queued_retry_attention" \
