@@ -17,17 +17,17 @@ analysis before using the existing effective-identification policy. Pure
 decision functions do not replace locked persistence, provider admission,
 entitlement settlement, or authorization.
 
-| Value                                    | Bound                                    |
-| ---------------------------------------- | ---------------------------------------- |
-| Snapshot schema versions                 | 1, 2 and imported saved-identification 3 |
-| Explicit history reader protocols        | 7 (V1), 8 (V1/V2), 9 (V1/V2/V3)          |
-| History page                             | 1–20 entries, descending ordinal cursor  |
-| Observation/review revision              | 0–2,147,483,646; exhaustion fails closed |
-| Result or evidence storage envelope      | 1 MiB each                               |
-| Review or active projection              | 32 KiB each                              |
-| Selection operation identity / receipt   | 2 KiB / 4 KiB                            |
-| Chat system input / assembled user input | 64 KiB / 128 KiB UTF-8                   |
-| Serialized chat admission context        | 256 KiB                                  |
+| Value                                    | Bound                                                 |
+| ---------------------------------------- | ----------------------------------------------------- |
+| Snapshot schema versions                 | 1, 2, imported saved-identification 3 and audio 4     |
+| Explicit history reader protocols        | 7 (V1), 8 (V1/V2), 9 (V1/V2/V3), backend 10 (also V4) |
+| History page                             | 1–20 entries, descending ordinal cursor               |
+| Observation/review revision              | 0–2,147,483,646; exhaustion fails closed              |
+| Result or evidence storage envelope      | 1 MiB each                                            |
+| Review or active projection              | 32 KiB each                                           |
+| Selection operation identity / receipt   | 2 KiB / 4 KiB                                         |
+| Chat system input / assembled user input | 64 KiB / 128 KiB UTF-8                                |
+| Serialized chat admission context        | 256 KiB                                               |
 
 All versioned request keys are exact. An owner UUID supplied in a request body
 is invalid; a future route must derive identity from its verified session.
@@ -82,8 +82,8 @@ Legacy deletion returns `legacy_observation_delete_requires_upgrade` without a
 tombstone. These protections do not enable explicit history deletion or prevent
 an old app from erasing its local cache. Native source now holds the exact
 server-refused legacy task durably without retrying. The prepared owner-only
-`get_owned_observation_analysis_page` RPC checks explicit protocol 7, 8 or 9,
-the reader gate, current owner, parent and deletion fence before returning a
+`get_owned_observation_analysis_page` RPC checks explicit protocol 7, 8, 9 or
+10, the reader gate, current owner, parent and deletion fence before returning a
 bounded page. Native `Core/Data/AnalysisHistory` decodes and admits these pages
 only for an already-enrolled matching local owner; ordinary app sync never calls
 it. Verified enrollment, live completion, held-task reconciliation (new native
@@ -709,40 +709,29 @@ Its scoped five-second/4-KiB transport is separate from ordinary clients. No
 HTTP failure supplies retirement proof or provider execution permission. Native
 durable retirement and activation remain separate.
 
-## Prepared audio manifest foundation
+## Gated audio admission and result readers
 
-`audioManifest.ts` validates a closed, immutable manifest-3 metadata value for
-one audio reference plus ordered descriptions. It does not verify WAV bytes,
-reserve storage, authorize inference or enter a current runtime route. Existing
-V2 photo admission and reader-9 contracts remain unchanged. The
-[versioned audio contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-audio-metadata-generation)
-records the coordinated upload, persistence, profile and reader work still
-required. `audioManifest_test.ts` covers closed keys, bounds, exact ordering,
-owned immutable values and rejection by current executable/photo paths.
+`audioManifest.ts` validates manifest-3 metadata for one WAV reference plus
+ordered descriptions. `audioContainer.ts` verifies the complete bounded PCM16
+mono 44.1 kHz container without transforming bytes. The separate default-off
+[`upload-observation-audio`](../../upload-observation-audio/README.md) route
+owns binary ingress, digest computation and immutable cohort readiness. Photo
+receipts and V2 request replay keep their existing contracts.
 
-`audioContainer.ts` is the separate bounded full-container verifier for PCM16
-mono 44.1 kHz, compact headers or one zero-filled Core Audio `FLLR` chunk. It
-rejects unexamined/trailing chunks and transforms no bytes. The separate
-default-off audio upload route now calls this verifier before reservation.
-Neither module authorizes provider execution.
+`audioAdmission.ts` owns closed input 3, history capability 9 and Gemini. The
+executable parser and gated SQL admission now accept it with the server-selected
+`multimodal_audio_v1` profile. `audioMaterialization.ts` binds the exact
+receipt, rechecks owned bytes/container/digest, and preserves description/audio
+ordering. Execution captures a durable outcome before taxonomy and append; saved
+outcome recovery never invokes the provider again. The new
+`audio_analysis_enabled` gate defaults false independently of upload readiness.
 
-The separate prepared audio cohort migration now reserves one immutable WAV
-receipt behind service-only RPCs and a default-false audio gate. It preserves
-photo replay and prevents expired/erased audio identities entering legacy
-admission. The
-[audio cohort API contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-audio-cohort-rpcs)
-owns tuple, expiry and cleanup rules. The separate
-[`upload-observation-audio`](../../upload-observation-audio/README.md) endpoint
-verifies owned bytes, hashes them and uses the strict audio receipt parser. The
-legacy receipt parser remains unchanged in its accepted types. Neither upload
-nor database readiness authorizes inference; native and versioned execution
-integration remain pending.
-
-`audioAdmission.ts` defines the isolated closed input-3 and canonical draft
-builders. It pins history capability 9 and Gemini, retains exact source/digest
-and ordered immutable evidence metadata, and rejects client-selected profile or
-storage authority. It is intentionally not imported by the executable parser,
-SQL admission or native consumers yet. The
-[request contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-audio-request-and-draft-contract)
-owns fields and bounds. Its tests preserve V2 serialization and prove current
-readers still reject audio/result-version substitution.
+Audio manifest 3 has `items`; imported manifest 3 has the saved-identification
+sentinel. Audio results use outer snapshot 4. TypeScript page/state reader 10
+accepts both, while SQL refuses the entire audio-containing history to readers
+7–9 even when a cursor or explicit target would otherwise hide the audio row.
+The
+[canonical API contract](../../../../../docs/backend-and-data/05-api-contracts.md#gated-audio-execution-and-reader-10)
+owns compatibility and expiry semantics. Native reader-10 types, mutation RPC
+compatibility and durable audio production/delivery remain subsequent work;
+current native readers remain 9. No ordinary route or rollout is enabled.

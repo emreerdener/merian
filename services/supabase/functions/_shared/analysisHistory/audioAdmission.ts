@@ -23,7 +23,7 @@ const inputKeys = [
   "expected_processor_permission",
 ] as const;
 
-/** Prepared metadata only. Not accepted by the executable parser or SQL.
+/** Closed audio metadata. SQL separately binds receipts and runtime gates.
  * Readiness, current consent and the audio quota profile remain server checks.
  */
 export function parsePreparedAudioAdmission(value: unknown) {

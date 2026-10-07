@@ -89,14 +89,16 @@ a real authorized nonproduction R2 race/HEAD/read-expiry test. No private bucket
 was provisioned or hosted policy verified in local validation.
 
 The later audio-cohort checkpoint `20261007154709` adds
-`prepared_audio_evidence_enabled`, also default false. Keep it closed: the two
-service-only audio reserve/complete RPCs do not constitute an audio upload
-endpoint or inference admission. Existing photo replay remains unchanged. The
-shared private-erasure worker can retire matching expired unbound audio receipts
-while retaining their cohort/object/deadline; this adds no schedule. Future
-audio activation requires coordinated binary validation, provider profile,
-native persistence and reader compatibility plus the same storage/erasure
-qualification. See the
+`prepared_audio_evidence_enabled`, also default false. Keep it closed. The
+separate binary upload endpoint and gated audio execution are now prepared;
+neither is deployed or activated. `20261007171421` adds the independent false
+`audio_analysis_enabled` gate. Keep it closed until native reader 10, mutation
+RPC compatibility and durable audio production/delivery are accepted. Existing
+photo replay remains unchanged. The shared private-erasure worker can retire
+matching expired unbound audio receipts while retaining their
+cohort/object/deadline; this adds no schedule. Future audio activation requires
+coordinated binary validation, provider profile, native persistence and reader
+compatibility plus the same storage/erasure qualification. See the
 [audio cohort contract](05-api-contracts.md#prepared-audio-cohort-rpcs).
 
 The seventh migration, `20261003054717`, prepares description-only funded child

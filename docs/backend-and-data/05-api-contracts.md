@@ -10216,13 +10216,13 @@ The
 [history contract owner](../../services/supabase/functions/_shared/analysisHistory/README.md)
 defines bounded version-1 identity, selection, pagination and chat-context
 parsers. These are private preparation contracts, not deployed routes or
-generated native DTOs. Explicit history reader protocols 7, 8 and 9 do not
-change the current Identify reader capability. Native advertises protocol 9 for
-history reads only; V56 admits saved imports with unknown completion dates.
-Enrollment still requires state/authority hydration. A separate owner-only
-history read RPC is prepared behind a default-false reader gate; no history
-selection/deletion RPC is exposed and no chat endpoint persists this context
-yet. The
+generated native DTOs. Explicit history reader protocols 7, 8, 9 and backend 10
+do not change the current Identify reader capability. Native advertises protocol
+9 for history reads only; V56 admits saved imports with unknown completion
+dates. Enrollment still requires state/authority hydration. A separate
+owner-only history read RPC is prepared behind a default-false reader gate; no
+history selection/deletion RPC is exposed and no chat endpoint persists this
+context yet. The
 [schema contract](./04-database-schema.md#prepared-observation-analysis-history)
 owns prepared storage and transaction behavior; connected API/DTO changes remain
 under the
@@ -10233,13 +10233,15 @@ The legacy deletion refusal below remains mandatory.
 
 `get_owned_observation_analysis_page(p_request jsonb, p_reader integer)` is
 callable only by `authenticated`. It derives the owner from `auth.uid()` and
-requires `p_reader` 7, 8 or 9 and
+requires `p_reader` 7, 8, 9 or 10 and
 `observation_history_rollout.reader_enabled = true`. Protocol 7 refuses an
 entire history containing V2 or V3; protocol 8 accepts mixed V1/V2 snapshots but
 rejects any history containing V3. Protocol 9 additionally reads imported saved
-identifications, with the unchanged version-1 page envelope. The gate defaults
-false; this is not permission to enable it. Ordinary Identify and scan-history
-requests still advertise capability 6.
+identifications. Backend protocol 10 also reads audio V4; protocols 7–9 refuse
+the whole history when audio is present. Native remains protocol 9 pending
+coordinated audio integration. All use the unchanged version-1 page envelope.
+The gate defaults false; this is not permission to enable it. Ordinary Identify
+and scan-history requests still advertise capability 6.
 
 `p_request` has exactly `schema_version: 1`, a lowercase UUID `observation_id`,
 nullable positive `before_ordinal`, and `limit` from 1 to 20. There is no
@@ -12787,7 +12789,8 @@ slice.
 authenticated-only
 `get_owned_observation_analysis_state(p_request jsonb, p_reader integer)`. Both
 `reader_enabled` and the new `state_reader_enabled` must be true; all source
-rollout defaults remain false. Reader 9 is required. The exact request is
+rollout defaults remain false. Reader 9 or backend reader 10 is required; native
+callers remain reader 9. The exact request is
 `{schema_version:1, observation_id:<lowercase UUID>, analysis_id:null|<lowercase UUID>}`.
 An analysis cannot equal its observation. The owner is always derived from auth.
 
@@ -12797,10 +12800,10 @@ selecting it. The response contains exactly `schema_version`, `owner_id`,
 `observation_id`, `state_revision`, `selection_initialized:true`,
 `selected_analysis_id`, and `analysis`. The latter contains exactly `snapshot`,
 `review_revision`, and `review_snapshot`. Snapshot is the same immutable
-V1/V2/V3 text as the result-page reader, bounded to one MiB; the entire response
-is bounded to four MiB. Review is the separate seven-field saved authority,
-bounded to 32 KiB. Neither active projection nor arbitrary scan columns are
-returned.
+V1/V2/V3 text for reader 9 or additionally audio V4 for backend reader 10, as in
+the result-page reader, bounded to one MiB; the entire response is bounded to
+four MiB. Review is the separate seven-field saved authority, bounded to 32 KiB.
+Neither active projection nor arbitrary scan columns are returned.
 
 The prepared native reanalysis recovery endpoint uses this same fixed RPC for an
 explicit saved child. It requires the expected owner and current durable claim,
@@ -15287,10 +15290,10 @@ a completion guarantee: SQL expiry remains authoritative. A PUT accepted before
 cancellation or a late rejected completion can leave private bytes for
 independent erasure. It never permits replacement or a new expiry.
 
-Native upload transport, durable audio production, provider-profile binding,
-input-3 execution and result-4/reader-10 remain subsequent checkpoints. This
-upload grants neither execution nor reader compatibility. Existing photo
-acceptance and saved replay remain unchanged.
+Native upload transport and durable audio production remain subsequent
+checkpoints. Gated backend execution and result-4/reader-10 are described below.
+Upload readiness alone grants neither execution nor reader compatibility.
+Existing photo acceptance and saved replay remain unchanged.
 
 ### Prepared audio request and draft contract
 
@@ -15307,7 +15310,7 @@ also cannot alias the source analysis.
 The manifest uses the existing strict manifest-3 parser. Ordered descriptions
 and audio descriptors are copied and frozen without normalization. No caller
 owner, profile, provider configuration, storage key or URL is accepted. The
-future server admission must reserve `multimodal_audio_v1`; its name is not a
+server admission reserves `multimodal_audio_v1`; its name is not a
 client-selected field. Valid metadata proves neither an uploaded WAV nor current
 consent, entitlement, quota or execution authority.
 
@@ -15319,8 +15322,38 @@ fields. Input and draft reserve 4 KiB below the existing 1 MiB history limit for
 server serialization and completion metadata. This draft is not a result-4
 snapshot or append receipt.
 
-This checkpoint exposes no new HTTP admission, SQL binding or native decoder.
-The executable input parser still rejects input 3; readers 7–9 still reject
-audio result 4 and cannot interpret it as imported result 3. Coordinated forward
-SQL, reader 10, native typed boundaries and verified provider materialization
-remain required before connecting this prepared contract. All gates stay false.
+### Gated audio execution and reader 10
+
+Forward migration `20261007171421_prepare_audio_analysis_admission.sql` binds
+input 3 through the existing service-owned begin/advance execution protocol. The
+independent `audio_analysis_enabled` gate defaults false. Existing
+orchestration, admission, dispatch, append, protected-analysis and media gates
+still apply. Exact saved request replay remains ahead of fresh admission.
+Funding reserves the original child under `multimodal_audio_v1` and Gemini;
+callers cannot select a provider profile. Unknown dispatch has no successor.
+
+Initial admission requires the exact ready, unexpired audio cohort and receipt.
+Once admitted, materialization, dispatch and completion permit that same ready
+receipt after its fixed five-minute expiry: they never renew its deadline,
+replace its object or accept changed bytes. Independent unbound expiry cleanup
+excludes intent/result-owned cohorts. Missing receipts, erasure markers and
+account/parent deletion deny access. Native callers must not interpret expiry as
+permission to create replacement evidence.
+
+The provider materializer checks the whole receipt tuple and revalidates the
+owned WAV bytes and SHA-256 after storage retrieval. Description/audio order is
+unchanged. The normal durable outcome/draft/completion protocol applies, and
+completion appends unreviewed authority without changing the current selection.
+Saved photo and audio outcomes recover without materialization or invocation.
+
+Audio's closed manifest-3 `items` shape is distinct from imported saved-result
+manifest 3. Its outer immutable result version is **4**. Page/state reader 10
+accepts V1, V2, imported V3 and audio V4. Readers 7–9 reject an entire history
+containing audio, including pages/cursors or explicit older targets that would
+otherwise omit it. A reader-9 native client is not audio-compatible.
+
+This checkpoint prepares backend execution/read compatibility only. Native
+reader-10 models, selection/review/confirmation/status/retirement RPC reader
+compatibility and durable native audio input/upload remain required before
+activation. Existing mutation callers remain reader 9. All gates remain false;
+there is no deployment or activation authorization.

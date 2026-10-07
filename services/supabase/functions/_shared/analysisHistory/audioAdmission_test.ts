@@ -153,9 +153,12 @@ Deno.test("prepared audio draft preserves exact input and removes mutable review
     buildPreparedAudioDraft(" ".repeat(1048577), snapshot.result, species)
   );
 });
-Deno.test("prepared audio cannot widen execution or imported result readers; V2 stays exact", () => {
+Deno.test("audio input is versioned; imported and old result readers remain distinct; V2 stays exact", () => {
   const input = request();
-  assertThrows(() => parseExecutableAnalysisInput(input));
+  assertEquals(
+    JSON.stringify(parseExecutableAnalysisInput(input)),
+    buildPreparedAudioAdmission(input),
+  );
   for (const reader of [7, 8, 9] as const) {
     assertThrows(() =>
       decodeAnalysisResultSnapshot(

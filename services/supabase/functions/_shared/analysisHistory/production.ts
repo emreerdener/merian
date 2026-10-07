@@ -1,3 +1,4 @@
+import { materializeAudioAnalysis } from "./audioMaterialization.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   assignmentMatchesModel,
@@ -123,6 +124,21 @@ export async function runOwnedAnalysis(
             text: item.description._0.freeText,
           });
         }
+      } else if (input.schema_version === 3) {
+        const authority = analysisAuthority(owner, work);
+        if (
+          authority.reservation.assignment?.inputProfile !==
+            "multimodal_audio_v1" ||
+          authority.permission !== "google_gemini"
+        ) return invalidHistory();
+        evidence.push(
+          ...await materializeAudioAnalysis(
+            input,
+            owner,
+            await advance("materialize", {}),
+            new PrivateHistoryEvidenceStorage(),
+          ),
+        );
       } else {
         const manifest = parseProtectedEvidenceManifest(
           input.evidence_manifest,

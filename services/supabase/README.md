@@ -3123,7 +3123,10 @@ closed; read adapter/endpoint source is prepared, with no deployed route or
 worker schedule, and result V1 append still accepts descriptions only. The
 separate gated V2 photo binder now joins ready receipts to funded completion;
 native protocol-9 history accepts V1/V2/V3 while private photo resolution
-remains V2-only on protocol 8. See the canonical
+remains V2-only on protocol 8. The separate default-off backend audio path binds
+input 3 to immutable WAV receipts and emits result 4 for backend reader 10.
+Native and mutation-reader compatibility remain pending; no audio activation is
+authorized. See the canonical
 [protected evidence lifecycle](../../docs/backend-and-data/05-api-contracts.md#prepared-protected-evidence-lifecycle).
 
 The prepared `analysisHistory/intent.ts` owner and funded-child migration now

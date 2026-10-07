@@ -117,7 +117,7 @@ Deno.test("prepared audio metadata bounds numbers, digests and Unicode text", ()
   assertThrows(() => parse([audio, part, part, part, part, description]));
 });
 
-Deno.test("prepared audio generation cannot enter current photo or executable routes", () => {
+Deno.test("audio generation requires its distinct execution claims and cannot enter photo routes", () => {
   const manifest = parse([audio]);
   assertThrows(() => parseProtectedEvidenceManifest(manifest));
   assertThrows(() =>
@@ -132,7 +132,7 @@ Deno.test("prepared audio generation cannot enter current photo or executable ro
       )
     );
   }
-  assertThrows(() =>
+  assertEquals(
     parseExecutableAnalysisInput({
       schema_version: 3,
       observation_id: observation,
@@ -144,7 +144,8 @@ Deno.test("prepared audio generation cannot enter current photo or executable ro
       identification_protocol: 6,
       history_protocol: 9,
       expected_processor_permission: "google_gemini",
-    })
+    }).schema_version,
+    3,
   );
   const photo = { ...audio, kind: "image", content_type: "image/jpeg" };
   const oldManifest = { schema_version: 2, items: [photo, description] };

@@ -10952,14 +10952,14 @@ contract.
 
 ### Prepared audio contract verification
 
-`analysisHistory/audioManifest_test.ts` verifies the future-only manifest-3
-metadata limits, exact order, detached immutable values, Unicode boundary and
-rejection by current executable/photo routes. `audioContainer_test.ts` covers
-compact and zero-padded Core Audio RIFF containers, full byte consumption,
-PCM-field consistency, private/unknown/trailing chunk rejection and raw bounds.
-The whole-tree backend test task discovers both suites. Neither module grants
-upload, readiness, inference or reader compatibility; no native/device or audio
-end-to-end acceptance is implied by these pure tests.
+`analysisHistory/audioManifest_test.ts` verifies the manifest-3 metadata limits,
+exact order, detached immutable values, Unicode boundary and rejection by legacy
+photo routes. `audioContainer_test.ts` covers compact and zero-padded Core Audio
+RIFF containers, full byte consumption, PCM-field consistency,
+private/unknown/trailing chunk rejection and raw bounds. The whole-tree backend
+test task discovers both suites. Neither module grants upload, readiness,
+inference or reader compatibility; no native/device or audio end-to-end
+acceptance is implied by these pure tests.
 
 `observation_audio_evidence_upload.sql` covers service privileges, default-off
 admission, immutable tuple/object/expiry, exact replay, changed bytes/digest,
@@ -10991,6 +10991,23 @@ producer, real R2/CDN or provider execution.
 immutable evidence metadata order and text, source/media identity isolation,
 closed metadata and bounds, canonical draft taxonomy and removal of mutable
 review/funding authority. It proves existing V2 serialization remains exact and
-input 3 cannot enter current execution or masquerade as imported result 3 in
-readers 7–9. This is prepared contract evidence; no SQL/native audio admission
-or result-4 reader support is claimed.
+audio cannot masquerade as imported result 3 in readers 7–9.
+
+### Gated audio runtime verification
+
+`audioMaterialization_test.ts` covers exact receipt scope/readiness, extra or
+missing objects, changed digest/length/container, owned bytes, ordered evidence
+and mixed reader-10 page/state decoding. `execution_test.ts` recovers saved V2
+photo and input-3 audio outcomes without another provider call or rewriting
+persisted input. `observation_audio_analysis_admission.sql` exercises the full
+funding/dispatch/interrupted-outcome/draft/completion flow, no automatic
+selection, unreviewed child authority, pre-admission expiry denial, bound replay
+after expiry, old-reader whole-history refusal and deletion/erasure ownership.
+`observationAudioAdmissionConcurrencyDb.test.ts` observes real lock blocking for
+duplicate admission, deletion before admission and materialization before
+deletion. Run fresh catalogs before database concurrency tests.
+
+These tests qualify the gated backend checkpoint, not native audio production,
+reader-10 mutation compatibility, device capture, hosted provider/storage or
+video support. Those remain separate acceptance work; all rollout gates remain
+false.

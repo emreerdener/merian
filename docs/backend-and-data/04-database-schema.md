@@ -7289,9 +7289,9 @@ open.
 Photo cohorts retain their original ordered JSON and replay. Photo and audio
 cohorts exclude each other under the same analysis lock, including another
 owner's attempt to reuse the child ID. Audio requires a cohort even through the
-private receipt primitive. Existing intent/result guards reject audio-held child
-identities, including after receipt cleanup; this checkpoint does not implement
-audio inference admission or widen current readers.
+private receipt primitive. Legacy intent/result paths reject audio-held child
+identities, including after receipt cleanup. The subsequent gated audio
+admission migration permits only exact input-3 intent/draft/cohort binding.
 
 The independent expiry worker discovers only matching, nonempty, unbound audio
 cohorts and rechecks their complete tuple under canonical locks. Receipt
@@ -7300,6 +7300,25 @@ retaining the cohort, original object and deadline. The legacy receipt branch
 excludes audio cohorts. Parent deletion removes private cohort data while opaque
 erasure work survives. No scheduler or rollout is enabled. See the
 [service contract](05-api-contracts.md#prepared-audio-cohort-rpcs).
+
+### Gated audio analysis admission
+
+`20261007171421_prepare_audio_analysis_admission.sql` adds the independent false
+`audio_analysis_enabled` rollout field and private audio assertion, admission
+and append owners. Existing service begin/advance RPCs select this path only for
+input 3. Canonical owner/observation and child evidence locks serialize
+admission, readiness, erasure and deletion. Only fresh admission requires
+unexpired evidence; already-bound replay retains the original ready receipt
+after expiry without renewal. Missing or erased evidence fails closed.
+
+Audio keeps manifest 3 with exact `items` shape, while imported saved-result
+manifest 3 retains its distinct sentinel. Origin constraints and snapshot
+mapping emit outer audio result 4. Reader 10 accepts mixed histories; older
+readers refuse the entire audio-containing history. Imported-baseline enrollment
+and tombstone/quota protections distinguish the sentinel from audio. No schema
+snapshot or existing photo request is rewritten. See the
+[execution/reader contract](05-api-contracts.md#gated-audio-execution-and-reader-10)
+for the still-required native and mutation-reader compatibility work.
 
 ### Prepared private-evidence cleanup admission
 

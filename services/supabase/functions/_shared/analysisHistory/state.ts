@@ -98,7 +98,9 @@ export function parseHistoryState(
   value: unknown,
   request: HistoryStateRequest,
   ownerID: string,
+  reader: 9 | 10 = 9,
 ) {
+  if (reader !== 9 && reader !== 10) return invalidHistory();
   const expected = parseHistoryStateRequest(request);
   const row = exactObject(value, [
     "schema_version",
@@ -126,7 +128,7 @@ export function parseHistoryState(
     "review_revision",
     "review_snapshot",
   ]);
-  const result = decodeAnalysisResultSnapshot(item.snapshot, 9);
+  const result = decodeAnalysisResultSnapshot(item.snapshot, reader);
   if (
     result.observation_id !== expected.observation_id ||
     result.analysis_id !== (expected.analysis_id ?? selected)

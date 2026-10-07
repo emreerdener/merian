@@ -1,3 +1,4 @@
+import { buildPreparedAudioDraft } from "./audioAdmission.ts";
 import type {
   AIExecutionOutcome,
   PreparedAIExecution,
@@ -72,7 +73,7 @@ export function captureAnalysisOutcome(
       } else {
         const normalized = normalizeIdentification(result.draft, {
           hasVisualEvidence: work.input?.schema_version === 2,
-          hasAudioEvidence: false,
+          hasAudioEvidence: work.input?.schema_version === 3,
           hasInvasiveLocationContext: false,
           confidencePolicy: policy.confidence,
         });
@@ -180,7 +181,9 @@ export async function executeObservationAnalysis(
         data: saved.outcome.result,
       }).data;
       const species = await deps.resolveSpecies(result);
-      const builder = work.input.schema_version === 2
+      const builder = work.input.schema_version === 3
+        ? buildPreparedAudioDraft
+        : work.input.schema_version === 2
         ? buildProtectedAnalysisDraft
         : buildAdmittedObservationDraft;
       const draft = builder(JSON.stringify(work.input), result, species);

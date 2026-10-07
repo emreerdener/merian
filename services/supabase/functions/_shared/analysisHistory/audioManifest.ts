@@ -12,7 +12,7 @@ export type PreparedAudioEvidence =
   | Readonly<{ kind: "description"; text: string }>;
 
 /** Metadata contract only. It proves neither WAV contents nor upload readiness.
- * No current admission, reader or provider route accepts this generation.
+ * Audio admission and reader 10 validate this generation; older photo readers reject it.
  */
 export function parsePreparedAudioManifest(
   value: unknown,
