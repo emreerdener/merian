@@ -28,7 +28,8 @@ struct ObservationAnalysisReviewTicket: Equatable {
 
     init(entry: ObservationHistoryListingService.Entry, context: ObservationHistoryListingService.Context,
          observationID: UUID) throws {
-        guard let authority = entry.authority, let reviewRevision = entry.reviewRevision,
+        // Audio actions await the coordinated reader-10 mutation contract.
+        guard [1, 2, 3].contains(entry.result.version), let authority = entry.authority, let reviewRevision = entry.reviewRevision,
               context.revision > 0, reviewRevision >= 0, reviewRevision <= context.revision else {
             throw ObservationHistoryError.unavailable
         }

@@ -15352,8 +15352,20 @@ accepts V1, V2, imported V3 and audio V4. Readers 7–9 reject an entire history
 containing audio, including pages/cursors or explicit older targets that would
 otherwise omit it. A reader-9 native client is not audio-compatible.
 
+The prepared Swift decoder/cache accepts exact V4 snapshots with one bounded WAV
+reference, matching manifest keys, scalar/UTF-16 limits and ECMAScript
+whitespace rules. It retains the original bytes and exposes no photo reference.
+V58 stores these opaque bytes without a schema-shape change. Local review,
+publication and selected-chat ticket construction and reanalysis source
+preparation deny V4 until the coordinated mutation/input integration is ready;
+photo loading remains V2 only. Selection staging (including Undo) and persisted
+selection replay reject V4 target/current results, and Restore explains why
+selection is unavailable. Disk reopen preserves exact listing bytes, selection
+and correction. This foundation does not advance any network reader or activate
+audio.
+
 This checkpoint prepares backend execution/read compatibility only. Native
-reader-10 models, selection/review/confirmation/status/retirement RPC reader
-compatibility and durable native audio input/upload remain required before
-activation. Existing mutation callers remain reader 9. All gates remain false;
-there is no deployment or activation authorization.
+reader-10 network wiring, selection/review/confirmation/status/retirement RPC
+reader compatibility and durable native audio input/upload remain required
+before activation. Existing mutation callers remain reader 9. All gates remain
+false; there is no deployment or activation authorization.

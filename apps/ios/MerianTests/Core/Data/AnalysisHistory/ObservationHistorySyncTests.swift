@@ -15,9 +15,11 @@ struct ObservationHistorySyncTests {
         return try #require(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
     }
     func bytes(_ page: [String: Any]) throws -> Data { try JSONSerialization.data(withJSONObject: page, options: [.sortedKeys]) }
-    func container(enrolled: Bool = true) throws -> ModelContainer {
+    func container(enrolled: Bool = true, url: URL? = nil) throws -> ModelContainer {
         let schema = Schema(versionedSchema: CurrentSchema.self)
-        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let configuration = url.map { ModelConfiguration(schema: schema, url: $0) }
+            ?? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
         let context = ModelContext(container)
         let scan = LocalScanRecord(id: observation.uppercased(), speciesId: "fixture", scientificName: "Preserved correction", commonName: "Preserved correction")
         scan.userIdentificationOverride = "Existing correction"
@@ -199,5 +201,194 @@ struct ObservationHistorySyncTests {
         #expect(result.deletedRecordCount == 0)
         #expect(result.committedErasureCount == 0)
         #expect(try ModelContext(container).fetchCount(FetchDescriptor<LocalScanRecord>()) == 1)
+    }
+}
+
+extension ObservationHistorySyncTests {
+    func audioSnapshot() throws -> [String: Any] {
+        let page = try fixture(), items = try #require(page["items"] as? [[String: Any]])
+        var row = try #require(JSONSerialization.jsonObject(with: Data((items[0]["snapshot"] as! String).utf8)) as? [String: Any])
+        row["schema_version"] = 4
+        row["evidence_manifest"] = ["schema_version": 3, "items": [
+            ["kind": "description", "text": "Before é"],
+            ["kind": "audio", "media_id": "00000000-0000-4000-8000-000000000070", "content_type": "audio/wav",
+             "byte_count": 46, "sha256": String(repeating: "b", count: 64)],
+            ["kind": "description", "text": "After e\u{301}"]
+        ]]
+        return row
+    }
+    func audioPage(_ snapshot: [String: Any]) throws -> Data {
+        var page = try fixture()
+        page["items"] = [["ordinal": 1, "snapshot": try #require(String(bytes: bytes(snapshot), encoding: .utf8))]]
+        return try bytes(page)
+    }
+    @Test func audioResultRetainsExactBytesWithSeparateReference() throws {
+        let snapshot = try audioSnapshot(), data = try bytes(snapshot)
+        let result = try ObservationHistoryPage.snapshot(data, observationID: observation, ordinal: 1)
+        #expect(result.version == 4)
+        #expect(result.bytes == data)
+        #expect(result.photos.isEmpty)
+        #expect(result.audio?.byteCount == 46)
+        #expect(result.audio?.contentType == "audio/wav")
+        #expect(result.audio?.sha256 == String(repeating: "b", count: 64))
+        #expect(result.importedAt == nil)
+        #expect(result.completedAt != nil)
+    }
+    @Test func audioResultRejectsMalformedOrAliasedEvidence() throws {
+        let original = try audioSnapshot()
+        let manifest = try #require(original["evidence_manifest"] as? [String: Any])
+        let items = try #require(manifest["items"] as? [[String: Any]])
+        for change: [String: Any] in [
+            ["kind": "image"], ["content_type": "audio/mp4"], ["byte_count": true], ["byte_count": 45],
+            ["byte_count": 2_700_001], ["sha256": String(repeating: "A", count: 64)],
+            ["object_id": UUID().uuidString], ["media_id": observation], ["media_id": original["analysis_id"]!]
+        ] {
+            var row = original
+            row["evidence_manifest"] = ["schema_version": 3, "items": [items[1].merging(change) { _, new in new }]]
+            #expect(throws: (any Error).self) { try ObservationHistoryPage.snapshot(bytes(row), observationID: observation, ordinal: 1) }
+        }
+        for invalid: [String: Any] in [
+            ["schema_version": 3, "items": []], ["schema_version": 3, "items": [items[0]]],
+            ["schema_version": 3, "items": [items[1], items[1]]], ["schema_version": 2, "items": items],
+            ["schema_version": 3, "items": items, "url": "https://example.invalid"]
+        ] {
+            var row = original; row["evidence_manifest"] = invalid
+            #expect(throws: (any Error).self) { try ObservationHistoryPage.snapshot(bytes(row), observationID: observation, ordinal: 1) }
+        }
+        var alias = original; alias["source_analysis_id"] = items[1]["media_id"]
+        #expect(try ObservationHistoryPage.snapshot(bytes(alias), observationID: observation, ordinal: 1).audio != nil)
+        var imported = original; imported["schema_version"] = 3
+        #expect(throws: (any Error).self) { try ObservationHistoryPage.snapshot(bytes(imported), observationID: observation, ordinal: 1) }
+    }
+    @Test func audioDescriptionBoundsPreserveUnicodeUnits() throws {
+        var row = try audioSnapshot()
+        let manifest = try #require(row["evidence_manifest"] as? [String: Any])
+        let audio = try #require((manifest["items"] as? [[String: Any]])?[1])
+        row["evidence_manifest"] = ["schema_version": 3, "items": [audio, ["kind": "description", "text": "\u{0085}"]]]
+        #expect(try ObservationHistoryPage.snapshot(bytes(row), observationID: observation, ordinal: 1).audio != nil)
+        let maximum = String(repeating: "😀", count: 8192)
+        row["evidence_manifest"] = ["schema_version": 3, "items": [audio, ["kind": "description", "text": maximum]]]
+        #expect(try ObservationHistoryPage.snapshot(bytes(row), observationID: observation, ordinal: 1).audio != nil)
+        for texts in [[maximum + "a"], [maximum, maximum], ["\n\t"], ["\u{FEFF}"], [String(repeating: "a", count: 8193)]] {
+            row["evidence_manifest"] = ["schema_version": 3, "items": [audio] + texts.map { ["kind": "description", "text": $0] }]
+            #expect(throws: (any Error).self) { try ObservationHistoryPage.snapshot(bytes(row), observationID: observation, ordinal: 1) }
+        }
+    }
+    @Test func audioAdmissionReplayPreservesSelectionAndCannotBecomeLegacySource() async throws {
+        let container = try container(), data = try audioPage(audioSnapshot())
+        let service = ObservationHistorySyncService(cloud: client(fetch: { _ in data }))
+        _ = try await service.syncPage(observationID: observation, container: container)
+        _ = try await service.syncPage(observationID: observation, container: container)
+        let context = ModelContext(container), record = try #require(context.fetch(FetchDescriptor<LocalAnalysisRecord>()).first)
+        #expect(record.snapshotVersion == 4)
+        #expect(try count(container) == 1)
+        let scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(scan.selectedAnalysisID == "00000000-0000-4000-8000-000000000009")
+        #expect(scan.userIdentificationOverride == "Existing correction")
+        #expect(throws: ObservationHistoryError.unavailable) {
+            try ObservationReanalysisSource.capture(observationID: UUID(uuidString: observation)!, analysisID: UUID(uuidString: record.id)!, ownerID: owner, container: container)
+        }
+        let loader = ObservationHistoryPhotoLoader(account: client(fetch: { _ in Data() }), resolve: { _ in
+            Issue.record("Audio reached photo resolver"); throw ObservationHistoryError.unavailable
+        }, download: { _ in Issue.record("Audio reached photo downloader"); return Data() })
+        await #expect(throws: (any Error).self) {
+            try await loader.load(observationID: observation, analysisID: UUID(uuidString: record.id)!,
+                mediaID: UUID(uuidString: "00000000-0000-4000-8000-000000000070")!, container: container)
+        }
+    }
+    @Test func audioSyncSurvivesDiskReopenWithExactListingBytes() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("audio-history-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("fixture.store"), snapshot = try audioSnapshot(), data = try audioPage(snapshot)
+        let analysis = try ObservationHistoryPage.uuid(snapshot["analysis_id"])
+        do {
+            let container = try container(url: url)
+            let service = ObservationHistorySyncService(cloud: client(fetch: { _ in data }))
+            _ = try await service.syncPage(observationID: observation, container: container)
+        }
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        let reopened = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+        let context = ModelContext(reopened), scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        let entry = try ObservationHistoryListingService.entry(analysis, scan: scan, context: context)
+        #expect(try entry.result.bytes == bytes(snapshot))
+        #expect(entry.result.version == 4 && entry.result.audio != nil && entry.result.photos.isEmpty)
+        #expect(scan.selectedAnalysisID == "00000000-0000-4000-8000-000000000009")
+        #expect(scan.userIdentificationOverride == "Existing correction")
+    }
+    @Test func audioSelectionAndChatRemainUnavailableBeforeReaderUpgrade() async throws {
+        let fixture = ObservationHistorySelectionIntentTests()
+        for mode in ["fresh", "pending", "undo", "outgoing"] {
+            let container = try await fixture.support.seeded()
+            var response = try #require(JSONSerialization.jsonObject(with: fixture.support.nativeResponse(revision: 10)) as? [String: Any])
+            var item = try #require(response["analysis"] as? [String: Any]), snapshot = try audioSnapshot()
+            snapshot["analysis_id"] = fixture.target.uuidString.lowercased(); snapshot["ordinal"] = 2
+            item["snapshot"] = try #require(String(bytes: bytes(snapshot), encoding: .utf8)); response["analysis"] = item
+            response["selected_analysis_id"] = fixture.support.support.analysisID
+            var cloud = client(fetch: { _ in Data() })
+            cloud.fetchState = { _ in try bytes(response) }
+            _ = try await ObservationHistoryPreviewService(cloud: cloud).preview(observationID: observation, analysisID: fixture.target, container: container)
+            let context = ModelContext(container), scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+            let entry = try ObservationHistoryListingService.entry(fixture.target, scan: scan, context: context)
+            let listingContext = ObservationHistoryListingService.Context(owner: owner,
+                selected: UUID(uuidString: fixture.support.support.analysisID)!, revision: 10, pendingOperation: nil, undoOperation: nil)
+            let detail = try IdentificationHistoryPresentation.detail(entry, context: listingContext, cached: true)
+            #expect(!detail.canRestore && detail.restoreUnavailableReason != nil)
+            #expect(throws: ObservationHistoryError.unavailable) {
+                try ProtectedInsightChatTicket(entry: entry, context: .init(owner: owner, selected: fixture.target,
+                    revision: 10, pendingOperation: nil, undoOperation: nil), observationID: UUID(uuidString: observation)!)
+            }
+            var service = fixture.service(duringSelect: { _ in Issue.record("Audio reached reader-9 selection") })
+            service.save = { _ in Issue.record("Audio staged a selection mutation") }
+            if mode == "outgoing" {
+                response["selected_analysis_id"] = fixture.target.uuidString.lowercased(); response["state_revision"] = 11
+                cloud.fetchState = { _ in try bytes(response) }
+                _ = try await ObservationHistoryStateSyncService(cloud: cloud).syncSelected(observationID: observation, container: container)
+                let request = ObservationHistorySelectionRequest(observation: UUID(uuidString: observation)!,
+                    analysis: listingContext.selected, revision: 11, review: 3)
+                let pending = ObservationHistorySelectionIntent.Entry(version: 1, owner: owner.uuidString.lowercased(),
+                    previous: fixture.target.uuidString.lowercased(), previousReview: try #require(entry.reviewRevision), request: request)
+                let fresh = ModelContext(container)
+                try ObservationHistorySelectionIntent.store(pending, context: fresh); try fresh.save()
+                await #expect(throws: ObservationHistoryError.unavailable) { try await service.sendPending(observationID: observation, container: container) }
+                #expect(try ObservationHistorySelectionIntent.load(observation, context: ModelContext(container)) == pending)
+            } else if mode == "fresh" {
+                #expect(throws: ObservationHistoryError.unavailable) { try fixture.prepare(container, service: service) }
+                #expect(try ObservationHistorySelectionIntent.load(observation, context: ModelContext(container)) == nil)
+            } else if mode == "pending" {
+                let request = ObservationHistorySelectionRequest(observation: UUID(uuidString: observation)!, analysis: fixture.target,
+                    revision: 10, review: try #require(entry.reviewRevision))
+                let pending = ObservationHistorySelectionIntent.Entry(version: 1, owner: owner.uuidString.lowercased(),
+                    previous: fixture.support.support.analysisID, previousReview: 3, request: request)
+                try ObservationHistorySelectionIntent.store(pending, context: context); try context.save()
+                await #expect(throws: ObservationHistoryError.unavailable) { try await service.sendPending(observationID: observation, container: container) }
+                #expect(try ObservationHistorySelectionIntent.load(observation, context: ModelContext(container)) == pending)
+            } else {
+                let request = ObservationHistorySelectionRequest(observation: UUID(uuidString: observation)!,
+                    analysis: listingContext.selected, revision: 9, review: 3)
+                let receipt = ObservationHistorySelectionReceipt(schema_version: 1, operation_id: request.operation_id,
+                    observation_id: observation, previous_analysis_id: fixture.target.uuidString.lowercased(),
+                    selected_analysis_id: request.analysis_id, observation_revision: 10, review_revision: 3)
+                let completed = ObservationHistorySelectionIntent.Entry(version: 1, owner: owner.uuidString.lowercased(),
+                    previous: fixture.target.uuidString.lowercased(), previousReview: try #require(entry.reviewRevision), request: request, receipt: receipt)
+                try ObservationHistorySelectionIntent.store(completed, context: context); try context.save()
+                #expect(throws: ObservationHistoryError.unavailable) {
+                    try service.prepareUndo(observationID: observation, operationID: UUID(uuidString: request.operation_id)!, ownerID: owner, container: container)
+                }
+                #expect(try ObservationHistorySelectionIntent.load(observation, context: ModelContext(container)) == completed)
+            }
+        }
+    }
+    @Test func audioTargetStateDoesNotSubstituteSelectedIdentity() throws {
+        let text = try DatabaseActorTestSupport.loadRepositorySource(at: "services/supabase/functions/_shared/analysisHistory/fixtures/state-v1.json")
+        var state = try #require(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+        var item = try #require(state["analysis"] as? [String: Any]), snapshot = try audioSnapshot()
+        let target = "00000000-0000-4000-8000-000000000071"
+        snapshot["analysis_id"] = target
+        item["snapshot"] = try #require(String(bytes: bytes(snapshot), encoding: .utf8)); state["analysis"] = item
+        let decoded = try ObservationHistoryState.decode(bytes(state), request: .init(observation_id: observation, analysis_id: target), ownerID: owner)
+        #expect(decoded.result.audio != nil)
+        #expect(decoded.result.analysisID.uuidString.lowercased() == target)
+        #expect(decoded.selectedAnalysisID.uuidString.lowercased() == "00000000-0000-4000-8000-000000000002")
+        #expect(throws: (any Error).self) { try ObservationHistoryState.decode(bytes(state), request: .init(observation_id: observation, analysis_id: nil), ownerID: owner) }
     }
 }

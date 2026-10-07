@@ -98,6 +98,7 @@ struct IdentificationHistorySheet: View {
                 Button("Use this identification") { model.start(.restore) }
                     .disabled(!detail.canRestore || model.pending)
                     .accessibilityIdentifier("HistoryRestore")
+                if let reason = detail.restoreUnavailableReason { Text(reason).font(.caption).foregroundStyle(.secondary) }
             }
         } footer: {
             Text("Choosing this entry keeps the entire history. It does not confirm a species, clear an incorrect mark, or update a shared post.")

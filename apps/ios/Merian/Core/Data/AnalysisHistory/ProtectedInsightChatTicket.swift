@@ -10,7 +10,7 @@ struct ProtectedInsightChatTicket: Equatable, Sendable {
     private let authorityDigest: Data
 
     init(entry: ObservationHistoryListingService.Entry, context: ObservationHistoryListingService.Context, observationID: UUID) throws {
-        guard context.pendingOperation == nil, context.selected == entry.result.analysisID,
+        guard [1, 2, 3].contains(entry.result.version), context.pendingOperation == nil, context.selected == entry.result.analysisID,
               let authority = entry.authority, let revision = entry.reviewRevision,
               let envelope = try JSONSerialization.jsonObject(with: entry.result.bytes) as? [String: Any],
               envelope["observation_id"] as? String == observationID.uuidString.lowercased(),

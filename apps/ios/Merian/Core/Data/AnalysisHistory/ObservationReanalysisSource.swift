@@ -11,6 +11,9 @@ struct ObservationReanalysisSource: Equatable, Sendable {
     let evidence: [ObservationHistoryPhotoReference.Evidence]
 
     private init(ownerID: UUID, observationID: UUID, result: ObservationHistoryPage.Result) throws {
+        // A decoded audio result is not an empty legacy source. Its durable audio
+        // producer and request matcher must exist before Capture can reuse it.
+        guard result.version != 4 else { throw ObservationHistoryError.unavailable }
         self.ownerID = ownerID; self.observationID = observationID; self.analysisID = result.analysisID
         self.snapshot = result.bytes; self.photos = result.photos
         if result.version == 2 {

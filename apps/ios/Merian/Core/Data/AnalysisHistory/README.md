@@ -13,6 +13,18 @@ disconnected. The backend reader, enrollment and selection gates remain false.
   server snapshot bytes. Observation, analysis and optional source-analysis IDs
   must be distinct, matching the shared backend identity parser. It does not
   treat a URL as proof of media ownership or availability.
+- The prepared result decoder also accepts audio result V4 with a closed
+  manifest-3 WAV reference, separate from photo references. It preserves exact
+  ordered description/audio bytes, matches the backend's ECMAScript whitespace
+  and Unicode bounds, and rejects private locator fields. `LocalAnalysisRecord`
+  stores V4 in the existing V58 opaque snapshot fields with finite completion;
+  disk reopening does not select the new child or change the parent's review.
+  This is a decoder/storage foundation: network callers still use reader 9. V4
+  cannot create a review/publication ticket, enter photo loading, or become an
+  empty legacy Capture source. Selection and selection Undo also reject V4 in
+  fresh staging and persisted replay; Restore explains the unavailable format.
+  Coordinated reader-10 mutations and durable native audio execution remain
+  prerequisites.
 - `ObservationHistorySyncService` owns page admission and the shared immutable
   child insertion helper. Every call reads one page and returns the server
   continuation only after the local transaction succeeds. It never assigns

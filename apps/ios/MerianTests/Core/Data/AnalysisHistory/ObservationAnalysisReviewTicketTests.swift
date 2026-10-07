@@ -18,12 +18,17 @@ struct ObservationAnalysisReviewTicketTests {
         envelope["result"] = result
         var authority = try #require(JSONSerialization.jsonObject(with: state.review.data) as? [String: Any])
         authority.merge(authorityPatch) { _, new in new }
-        let raw = ObservationHistoryPage.Result(version: version, photos: photos, analysisID: state.result.analysisID,
+        let raw = ObservationHistoryPage.Result(version: version, photos: photos, audio: nil, analysisID: state.result.analysisID,
             completedAt: nil, importedAt: state.result.importedAt, bytes: try JSONSerialization.data(withJSONObject: envelope))
         let entry = ObservationHistoryListingService.Entry(result: raw, display: nil,
             authority: try ObservationHistoryAuthority.decode(authority), reviewRevision: revision)
         return try .init(entry: entry, context: .init(owner: state.ownerID, selected: state.selectedAnalysisID,
             revision: state.revision, pendingOperation: nil, undoOperation: nil), observationID: state.observationID)
+    }
+
+    @Test func audioReviewRemainsUnavailableUntilMutationReaderUpgrade() throws {
+        let primary = try PrimaryIdentification.Snapshot(resolution: .species, scientificName: "Synthetic species", commonName: nil)
+        #expect(throws: ObservationHistoryError.unavailable) { try ticket(primary: primary, version: 4) }
     }
 
     @Test func confidenceUsesSavedProvenanceAndPhotoIdentity() throws {

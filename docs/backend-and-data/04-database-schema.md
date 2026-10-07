@@ -6757,12 +6757,16 @@ V56 changes only `LocalAnalysisRecord.completedAt` from `Date` to `Date?`. The
 frozen V55 model retains its required completion. The lightweight V55→V56 stage
 preserves old dates and bytes; it does not populate imports or select an
 identification. Current construction allows V3 only with nil completion and
-requires finite completion for V1/V2. Import time is decoded separately from the
-immutable V3 manifest, never substituted for execution time. All full/recent
-plans now append V57 and V58; V55 startup retains its isolated lane and safe
-mode stays plan-free. `MigrationPlanTests` covers disk migration, insertion of a
-nil-date import and a current-store reopen. Released-binary install-over remains
-separate from source-created migration fixtures.
+requires finite completion for V1/V2/V4. V4 audio uses the existing opaque
+snapshot bytes and integer version; accepting it changes constructor validation
+only, not persisted fields, defaults, relationships or schema checksums. V58
+remains current and retired schemas are unchanged. Disk reopen and parent
+cascade tests cover both original V1 and V4 storage. Import time is decoded
+separately from the immutable V3 manifest, never substituted for execution time.
+All full/recent plans now append V57 and V58; V55 startup retains its isolated
+lane and safe mode stays plan-free. `MigrationPlanTests` covers disk migration,
+insertion of a nil-date import and a current-store reopen. Released-binary
+install-over remains separate from source-created migration fixtures.
 
 ### Imported saved-identification baselines
 

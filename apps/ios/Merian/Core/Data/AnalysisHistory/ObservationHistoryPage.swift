@@ -26,6 +26,7 @@ struct ObservationHistoryPage {
     struct Result {
         let version: Int
         let photos: [ObservationHistoryPhotoReference]
+        let audio: ObservationHistoryAudioReference?
         let analysisID: UUID
         let completedAt: Date?
         let importedAt: Date?
@@ -85,7 +86,7 @@ struct ObservationHistoryPage {
         let analysisID = try uuid(row["analysis_id"])
         let observationUUID = try uuid(observationID)
         let version = try integer(row["schema_version"])
-        guard [1, 2, 3].contains(version), row["observation_id"] as? String == observationID,
+        guard [1, 2, 3, 4].contains(version), row["observation_id"] as? String == observationID,
               analysisID != observationUUID,
               try integer(row["ordinal"]) == ordinal else {
             throw ObservationHistoryError.invalidSnapshot
@@ -121,7 +122,11 @@ struct ObservationHistoryPage {
             throw ObservationHistoryError.invalidSnapshot
         }
         var photos: [ObservationHistoryPhotoReference] = []
-        if version == 2 {
+        var audio: ObservationHistoryAudioReference?
+        if version == 4 {
+            audio = try ObservationHistoryAudioReference.decodeManifest(row["evidence_manifest"], observationID: observationUUID,
+                analysisID: analysisID)
+        } else if version == 2 {
             photos = try ObservationHistoryPhotoReference.decodeManifest(row["evidence_manifest"], observationID: observationUUID, analysisID: analysisID)
         } else {
             let evidence = try object(row["evidence_manifest"], keys: ["schema_version", "captured_media"])
@@ -132,7 +137,7 @@ struct ObservationHistoryPage {
                 from: JSONSerialization.data(withJSONObject: mediaValue))
             guard !media.items.isEmpty else { throw ObservationHistoryError.invalidSnapshot }
         }
-        return Result(version: version, photos: photos, analysisID: analysisID,
+        return Result(version: version, photos: photos, audio: audio, analysisID: analysisID,
             completedAt: Date(timeIntervalSince1970: Double(milliseconds) / 1000), importedAt: nil, bytes: bytes)
     }
 
@@ -165,5 +170,48 @@ struct ObservationHistoryPage {
             throw ObservationHistoryError.invalidPage
         }
         return id
+    }
+}
+
+/// Closed manifest-3 audio metadata, separate from photo resolution and provider execution.
+struct ObservationHistoryAudioReference: Equatable, Sendable {
+    let mediaID: UUID
+    let contentType: String
+    let byteCount: Int
+    let sha256: String
+
+    // ECMAScript String.trim used by the shared manifest decoder; Foundation's
+    // whitespace set differs at U+0085 and U+FEFF. Never normalize saved text.
+    private static let descriptionWhitespace = CharacterSet(charactersIn:
+        "\u{0009}\u{000A}\u{000B}\u{000C}\u{000D}\u{0020}\u{00A0}\u{1680}\u{2000}\u{2001}\u{2002}\u{2003}\u{2004}\u{2005}\u{2006}\u{2007}\u{2008}\u{2009}\u{200A}\u{2028}\u{2029}\u{202F}\u{205F}\u{3000}\u{FEFF}")
+
+    static func decodeManifest(_ value: Any?, observationID: UUID, analysisID: UUID) throws -> Self {
+        let manifest = try ObservationHistoryPage.object(value, keys: ["schema_version", "items"])
+        guard try ObservationHistoryPage.integer(manifest["schema_version"]) == 3,
+              let items = manifest["items"] as? [[String: Any]], (1...64).contains(items.count) else {
+            throw ObservationHistoryError.invalidSnapshot
+        }
+        var audio: Self?, textUnits = 0
+        for item in items {
+            if item["kind"] as? String == "description" {
+                _ = try ObservationHistoryPage.object(item, keys: ["kind", "text"])
+                guard let text = item["text"] as? String, !text.trimmingCharacters(in: descriptionWhitespace).isEmpty,
+                      text.unicodeScalars.count <= 8192, text.utf16.count <= 16_384,
+                      text.utf16.count <= 32_000 - textUnits else { throw ObservationHistoryError.invalidSnapshot }
+                textUnits += text.utf16.count
+            } else {
+                _ = try ObservationHistoryPage.object(item, keys: ["kind", "media_id", "content_type", "byte_count", "sha256"])
+                let mediaID = try ObservationHistoryPage.uuid(item["media_id"])
+                let count = try ObservationHistoryPage.integer(item["byte_count"], maximum: 2_700_000)
+                guard audio == nil, item["kind"] as? String == "audio", item["content_type"] as? String == "audio/wav",
+                      mediaID != observationID, mediaID != analysisID, count >= 46,
+                      let hash = item["sha256"] as? String, hash.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil else {
+                    throw ObservationHistoryError.invalidSnapshot
+                }
+                audio = Self(mediaID: mediaID, contentType: "audio/wav", byteCount: count, sha256: hash)
+            }
+        }
+        guard let audio else { throw ObservationHistoryError.invalidSnapshot }
+        return audio
     }
 }

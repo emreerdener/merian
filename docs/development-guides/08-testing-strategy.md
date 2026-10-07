@@ -11011,3 +11011,20 @@ These tests qualify the gated backend checkpoint, not native audio production,
 reader-10 mutation compatibility, device capture, hosted provider/storage or
 video support. Those remain separate acceptance work; all rollout gates remain
 false.
+
+### Prepared native audio result verification
+
+`ObservationHistorySyncTests` exercises exact result-V4/manifest-3 decoding,
+malformed/aliased evidence, ECMAScript whitespace parity, scalar and UTF-16 text
+bounds, exact replay, preserved parent selection/correction and actual sync →
+disk reopen → listing. Audio cannot enter the photo resolver or become an empty
+legacy reanalysis source. `ObservationAnalysisReviewTicketTests` denies V4
+review/publication tickets until coordinated reader-10 mutation support. The
+audio sync suite also denies selected-chat tickets and proves no save or
+selection dispatch for fresh Restore, selection Undo and persisted selection
+with V4 as either target or previous result; the detail explains the hold.
+`LocalAnalysisRecordTests` runs disk reopen and parent cascade for both V1 and
+V4 and requires finite audio completion. The opaque-storage constructor change
+does not alter the V58 schema; migration guardrails and `MigrationPlanTests`
+remain part of affected native validation. Network readers stay at 9, so these
+prepared decoder tests do not prove live audio history availability.

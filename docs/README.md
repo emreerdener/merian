@@ -132,8 +132,9 @@ production submission or public release.
   [capability checkpoint](./rfcs/identification-history-integrated-review-results-2026-10-07.md#capability-checkpoint-through-e5bbb1783)
   separates that work from the remaining audio/video integration. The
   [prepared audio contract](./backend-and-data/05-api-contracts.md#prepared-audio-metadata-generation)
-  currently validates metadata and PCM containers only; it does not enable
-  upload, inference or native audio history. See the
+  now includes gated backend upload/admission/execution and a prepared native V4
+  decoder/cache. Native reader-10 mutation compatibility and durable audio
+  input/execution are still pending; all activation gates remain false. See the
   [current schema](./backend-and-data/04-database-schema.md#prepared-observation-analysis-history),
   [device checklist](./development-guides/24-identification-history-device-review.md)
   and

@@ -37,7 +37,7 @@ public final class LocalAnalysisRecord {
         snapshotVersion: Int = supportedSnapshotVersion,
         resultSnapshotData: Data
     ) throws {
-        guard [1, 2, 3].contains(snapshotVersion) else {
+        guard [1, 2, 3, 4].contains(snapshotVersion) else {
             throw StorageError.unsupportedVersion
         }
         guard !resultSnapshotData.isEmpty,

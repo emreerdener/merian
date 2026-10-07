@@ -38,7 +38,7 @@ struct LocalAnalysisRecordTests {
                 try record(scan: scan, data: Data(malformed.utf8))
             }
         }
-        for version in [0, 4, -1] {
+        for version in [0, 5, -1] {
             #expect(throws: LocalAnalysisRecord.StorageError.unsupportedVersion) {
                 try record(scan: scan, version: version)
             }
@@ -60,7 +60,7 @@ struct LocalAnalysisRecordTests {
         let imported = try LocalAnalysisRecord(analysisID: analysisID, observationID: scan.id,
             ownerAccountID: ownerID, completedAt: nil, snapshotVersion: 3, resultSnapshotData: Data("{}".utf8))
         #expect(imported.completedAt == nil)
-        for version in [1, 2] {
+        for version in [1, 2, 4] {
             #expect(throws: LocalAnalysisRecord.StorageError.invalidCompletionDate) {
                 try LocalAnalysisRecord(analysisID: analysisID, observationID: scan.id,
                     ownerAccountID: ownerID, completedAt: nil, snapshotVersion: version, resultSnapshotData: Data("{}".utf8))
@@ -91,7 +91,7 @@ struct LocalAnalysisRecordTests {
         // compare immutable bytes before any insert when production wiring lands.
     }
 
-    @Test func diskReopenPreservesPrivateBytesAndParentDeletionCascades() throws {
+    @Test(arguments: [1, 4]) func diskReopenPreservesPrivateBytesAndParentDeletionCascades(version: Int) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("analysis-storage-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         // SwiftData may retain SQLite handles for the process lifetime; use a unique
@@ -104,7 +104,7 @@ struct LocalAnalysisRecordTests {
             let context = ModelContext(container)
             let scan = scan()
             context.insert(scan)
-            let result = try record(scan: scan, data: bytes)
+            let result = try record(scan: scan, data: bytes, version: version)
             context.insert(result)
             scan.analysisRecords = [result]
             try context.save()
@@ -122,7 +122,7 @@ struct LocalAnalysisRecordTests {
             #expect(result.observationID == "legacy-exact-identity")
             #expect(result.ownerAccountID == ownerID.uuidString.lowercased())
             #expect(result.completedAt == completedAt)
-            #expect(result.snapshotVersion == 1)
+            #expect(result.snapshotVersion == version)
             #expect(result.resultSnapshotData == bytes)
             let scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
             #expect(scan.analysisRecords?.count == 1)
