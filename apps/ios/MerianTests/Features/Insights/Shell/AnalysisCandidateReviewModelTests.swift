@@ -1,6 +1,7 @@
 import Foundation
 @testable import Merian
 import Testing
+import UIKit
 
 @MainActor
 struct AnalysisCandidateReviewModelTests {
@@ -17,6 +18,44 @@ struct AnalysisCandidateReviewModelTests {
     func model(_ fixture: SelectedAnalysisReviewHostTests.Fixture, current: @escaping () -> Bool = { true }) throws -> AnalysisCandidateReviewModel {
         let token = try #require(fixture.host.token)
         return try #require(fixture.host.prepareCandidateConfirmation(token: token, isCurrent: current))
+    }
+
+    @Test(arguments: ["complete", "close", "scope"])
+    func exactPhotoLoadWithholdsLatePrivateEvidence(_ outcome: String) async throws {
+        let photo = ObservationHistoryPhotoReference(mediaID: UUID(), contentType: "image/jpeg", byteCount: 7, sha256: String(repeating: "a", count: 64))
+        let ticket = try ObservationAnalysisReviewTicketTests().ticket(version: 2, photos: [photo])
+        let fixture = try SelectedAnalysisReviewHostTests.Fixture(ticket: ticket)
+        try fixture.bind()
+        let review = try #require(fixture.host.model)
+        var current = true, calls = 0
+        var continuation: CheckedContinuation<UIImage, Never>?
+        let image = UIImage()
+        let model = AnalysisCandidateReviewModel(review: review, isCurrent: { current }, loadPhoto: { analysis, media in
+            #expect(analysis == ticket.analysisID && media == photo.mediaID)
+            calls += 1
+            return await withCheckedContinuation { continuation = $0 }
+        }, confirm: { _ in Issue.record("Photo loading cannot review a candidate") })
+        let first = Task { await model.loadEvidence() }
+        while continuation == nil { await Task.yield() }
+        let joined = Task { await model.loadEvidence() }
+        if outcome == "close" { model.close() }
+        if outcome == "scope" { current = false }
+        continuation?.resume(returning: image)
+        await first.value; await joined.value
+        #expect(calls == 1)
+        if outcome == "scope" { current = true } // Prove the late image was never installed.
+        #expect((model.evidencePhoto === image) == (outcome == "complete"))
+        #expect(model.photoMessage == nil && review.request == nil)
+    }
+
+    @Test func missingImmutablePhotoNeverCallsLoader() async throws {
+        let fixture = try fixture(), review = try #require(fixture.host.model)
+        let model = AnalysisCandidateReviewModel(review: review, isCurrent: { true }, loadPhoto: { _, _ in
+            Issue.record("Missing immutable evidence must not load another result's photo")
+            return UIImage()
+        }, confirm: { _ in })
+        await model.loadEvidence()
+        #expect(model.evidencePhoto == nil && model.photoMessage != nil)
     }
 
     @Test func duplicateNamesKeepTheirOriginalReferenceThroughNavigationAndSubmission() throws {

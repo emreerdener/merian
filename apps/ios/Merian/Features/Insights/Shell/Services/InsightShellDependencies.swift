@@ -13,6 +13,7 @@ struct InsightShellDependencies {
     var historyAccess: IdentificationHistoryAccess? = nil
     var reanalysisStatusAccess: ReanalysisStatusAccess?
     var savedReanalysisAccess: SavedIdentificationReanalysisAccess?
+    let candidateRendering: CandidateReviewRendering
     let appEvents: AnyPublisher<AppEvent, Never>
     let authenticationSnapshot: @MainActor () -> InsightAuthenticationSnapshot
     let defaultAppSettings: @MainActor () -> AppSettings
@@ -55,6 +56,7 @@ struct InsightShellDependencies {
     let presentMediaShare: @MainActor (_ payload: MediaSharePayload) -> Void
 
     init(
+        candidateRendering: CandidateReviewRendering = .init(),
         appEvents: AnyPublisher<AppEvent, Never> = Empty().eraseToAnyPublisher(),
         authenticationSnapshot: @escaping @MainActor () ->
             InsightAuthenticationSnapshot = {
@@ -108,6 +110,7 @@ struct InsightShellDependencies {
             _ payload: MediaSharePayload
         ) -> Void = { _ in }
     ) {
+        self.candidateRendering = candidateRendering
         self.appEvents = appEvents
         self.authenticationSnapshot = authenticationSnapshot
         self.defaultAppSettings = defaultAppSettings
@@ -140,6 +143,7 @@ struct InsightShellDependencies {
         let hapticManager = container.hapticManager
         let mediaExportService = MediaExportService.live
         var result = Self(
+            candidateRendering: .live,
             appEvents: container.appEventPublisher.publisher,
             authenticationSnapshot: {
                 #if DEBUG

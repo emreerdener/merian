@@ -486,8 +486,13 @@ cannot be rebound to another ordinal or a name-only request.
 an older parent revision and an independent nested AI counter.
 `AnalysisCandidateReviewModelTests` covers duplicate-name navigation, exact
 candidate submission, stale scope/token/authority, pending work, and dismissal
-with an uncertain save retained by the host. These foundation tests do not
-establish protected alternatives UI handoff or end-to-end acceptance.
+with an uncertain save retained by the host. Its photo tests verify exact
+analysis/media lookup, coalescing, unavailable evidence and withholding after
+closure or scope loss. Ticket tests distinguish absent legacy provenance from
+present invalid provenance. `IdentificationHistoryReviewLifecycleTests` checks
+exact historical candidate submission and denial after back, revision, account
+or pending-work changes. These tests do not establish nested Confidence handoff
+or end-to-end UI acceptance.
 
 ## In-Memory Database Containers (`SwiftData`)
 

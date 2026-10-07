@@ -8,7 +8,7 @@ struct IdentificationHistoryReviewLifecycleTests {
         let base = IdentificationHistoryViewModelTests.Fixture()
         let review: IdentificationHistoryReviewModelTests.Fixture
         var revision: Int
-        init() throws { review = try .init(); revision = review.ticket.observationRevision }
+        init(ticket: ObservationAnalysisReviewTicket? = nil) throws { review = try .init(ticket: ticket); revision = review.ticket.observationRevision }
         var dependencies: IdentificationHistoryDependencies {
             var result = base.dependencies
             let ticket = review.ticket
@@ -28,6 +28,27 @@ struct IdentificationHistoryReviewLifecycleTests {
             return model
         }
     }
+    @Test(arguments: ["submit", "back", "revision", "account", "pending"])
+    func candidateDeckRetainsExactHistoryTicketAndRejectsChangedScope(_ change: String) async throws {
+        let source = try AnalysisCandidateReviewModelTests().fixture()
+        let fixture = try Fixture(ticket: source.review.ticket), model = await fixture.open()
+        let deck = try #require(model.prepareCandidateReview())
+        let reference = try #require(deck.remaining.last?.reference)
+        switch change {
+        case "back": model.back()
+        case "revision": fixture.revision += 1; model.validate()
+        case "account": fixture.base.current = false; model.validate()
+        case "pending": fixture.review.pending = .init(operationID: UUID(), analysisID: reference.analysisID, phase: .pending)
+        default: break
+        }
+        deck.submit(reference)
+        if change == "submit" {
+            #expect(fixture.review.saved.count == 1 && fixture.review.saved.first?.decision == .confirmCandidate(reference))
+            deck.close()
+            #expect(model.review?.request == fixture.review.saved.first)
+        } else { #expect(fixture.review.saved.isEmpty) }
+    }
+
     @Test(arguments: ["back", "close", "page", "revision", "account"])
     func teardownInvalidatesRetainedNestedReview(action: String) async throws {
         let fixture = try Fixture(), model = await fixture.open()

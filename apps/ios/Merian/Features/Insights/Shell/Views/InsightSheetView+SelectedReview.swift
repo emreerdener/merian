@@ -15,6 +15,7 @@ extension InsightSheetView {
 
     func bindSelectedReview() {
         closeSelectedNameConfirmation()
+        closeSelectedCandidateReview()
         guard let key = selectedReviewKey, !permitsLegacyReview(key.baseline.observationID.uuidString),
               let access = dependencies.selectedReviewAccess else { selectedReviewHost.close(); return }
         let vm = viewModel
@@ -64,5 +65,33 @@ extension InsightSheetView {
     func closeSelectedNameConfirmation() {
         selectedNameConfirmation?.close(); selectedNameConfirmation = nil
         cancelOrDismissShellPresentation { if case .reviewName = $0 { true } else { false } }
+    }
+}
+
+extension InsightSheetView {
+    func candidateReviewAction(scanID: String, generation: UInt64) -> (() -> Void)? {
+        guard selectedReviewHost.model?.canSubmit == true,
+              selectedReviewHost.model?.ticket.candidateChoices.isEmpty == false,
+              let token = selectedReviewHost.token else { return nil }
+        let engineGeneration = inferenceEngine.scanPresentationGeneration
+        return {
+            guard selectedCandidateReview == nil, activeShellPresentation == nil,
+                  pendingShellPresentation == nil, dismissedShellPresentation == nil else { return }
+            let current = {
+                viewModel.isPresentingLocalRecord(scanId: scanID, generation: generation)
+                    && inferenceEngine.scanPresentationGeneration == engineGeneration
+                    && inferenceEngine.speciesData?.scanId?.caseInsensitiveCompare(scanID) == .orderedSame
+                    && !permitsLegacyReview(scanID)
+            }
+            guard let model = selectedReviewHost.prepareCandidateConfirmation(token: token, isCurrent: current) else { return }
+            selectedCandidateReview = model
+            guard requestShellPresentation(.reviewCandidates(formID: model.id, scanId: scanID, generation: generation)) else {
+                model.close(); selectedCandidateReview = nil; return
+            }
+        }
+    }
+    func closeSelectedCandidateReview() {
+        selectedCandidateReview?.close(); selectedCandidateReview = nil
+        cancelOrDismissShellPresentation { if case .reviewCandidates = $0 { true } else { false } }
     }
 }

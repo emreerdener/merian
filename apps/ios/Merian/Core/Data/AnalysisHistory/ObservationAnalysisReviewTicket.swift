@@ -16,6 +16,8 @@ struct ObservationAnalysisReviewTicket: Equatable {
     let canConfirmPrimary: Bool
     let canConfirmName: Bool
     let candidateChoices: [ObservationAnalysisCandidateChoice]
+    let candidateConfidenceQualified: Bool
+    let evidencePhotoID: UUID?
     let rejectionOperationID: UUID?
     let confirmationOperationID: UUID?
     let confirmationAction: ObservationConfirmationAction?
@@ -51,6 +53,13 @@ struct ObservationAnalysisReviewTicket: Equatable {
         canConfirmName = available && primary != nil
         candidateChoices = available && (try? ObservationAnalysisReviewWire.integer(envelope?["schema_version"])) == entry.result.version
             ? ObservationAnalysisCandidateChoice.extract(result: result, version: entry.result.version, analysisID: entry.result.analysisID) : []
+        evidencePhotoID = entry.result.photos.first?.mediaID
+        let provenance: IdentificationResultProvenance?
+        if let value = result["identification_provenance"] {
+            provenance = IdentificationResultProvenance(storedData: (try? JSONSerialization.data(withJSONObject: value, options: [.fragmentsAllowed])) ?? Data())
+        } else { provenance = nil }
+        candidateConfidenceQualified = InferenceConfidencePolicy.bands(forInferenceTier: result["inference_tier"] as? String,
+            provenance: provenance) != nil
         // Reuse the exact explicit-name wire validator, including UTF-16 bounds.
         canConfirmPrimary = available && primary?.resolution == .species && primary?.scientificName.map {
             (try? ObservationAnalysisReviewRequest(observationID: observationID, analysisID: entry.result.analysisID,

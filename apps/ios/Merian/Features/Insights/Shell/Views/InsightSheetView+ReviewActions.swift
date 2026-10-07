@@ -97,7 +97,9 @@ extension InsightSheetView {
     }
 
     func alternativesReviewAction(scanID: String?, generation: UInt64) -> (() -> Void)? {
-        guard let scanID, permitsLegacyReview(scanID), viewModel.canReviewAlternatives else { return nil }
+        guard let scanID else { return nil }
+        if !permitsLegacyReview(scanID) { return candidateReviewAction(scanID: scanID, generation: generation) }
+        guard viewModel.canReviewAlternatives else { return nil }
         return {
             guard permitsLegacyReview(scanID) else { return }
             viewModel.presentCandidateSwipe(expectedScanId: scanID, expectedGeneration: generation)

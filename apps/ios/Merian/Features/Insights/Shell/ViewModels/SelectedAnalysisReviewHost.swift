@@ -99,7 +99,7 @@ final class SelectedAnalysisReviewHost {
             guard let self else { return false }
             return isCurrent() && self.token == token && self.key == key && self.model === model
                 && self.scopeIsCurrent && session.matchesDisplayedTicket()
-        }, confirm: { [weak self] reference in self?.submit(.confirmCandidate(reference), token: token) })
+        }, loadPhoto: session.photo, confirm: { [weak self] reference in self?.submit(.confirmCandidate(reference), token: token) })
     }
 
     func submit(_ decision: ObservationAnalysisReviewRequest.Decision, token: UUID) {

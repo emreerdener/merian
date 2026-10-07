@@ -305,10 +305,9 @@ name-only request or different ordinal cannot replace that operation. Candidate
 corrections remain `confirm_name` authority for confirmation Undo, which
 restores the original AI identification without changing selection.
 
-This foundation does not yet connect the alternatives UI. The legacy swipe
-session uses scientific names as identity and cannot carry protected provenance.
-Its card design and layout remain unchanged; protected wiring must retain the
-exact choice through the existing review owner and final synchronous admission.
+The legacy swipe session uses scientific names as identity and cannot carry
+protected provenance. The alternatives card design and layout remain unchanged;
+protected choices use the retained review owner and final synchronous admission.
 
 The prepared `AnalysisCandidateReviewModel` borrows a retained review and keeps
 original candidate references through skip, local dismissal and restart. Local
@@ -316,5 +315,16 @@ deck actions never mark an analysis incorrect or exhaust saved alternatives.
 `SelectedAnalysisReviewHost.prepareCandidateConfirmation` captures the host key,
 token, model and displayed ticket, checks unfinished work, and revalidates scope
 at the final synchronous submission. Closing the deck leaves the host's
-uncertain request available for exact retry. The owner is prepared for UI
-integration; no alternatives control is connected by this checkpoint.
+uncertain request available for exact retry. The selected-result menu and
+History preview now open an `AnalysisCandidateReviewSheet` with that owner.
+Nested Confidence and Biological handoffs remain a separate integration
+checkpoint.
+
+`CandidateReviewRendering` injects species-reference imagery and feedback only.
+Original evidence comes from the admitted ticket’s exact analysis/photo pair
+through the existing owner-fenced private loader, never the mutable engine.
+Missing evidence remains unavailable. The retained image task coalesces reads
+and withholds late images after scope loss or closure. Saved provenance and tier
+govern confidence qualification; present malformed provenance never becomes a
+legacy omission. History back/page/account changes invalidate the borrowed
+review. Dismissing the candidate sheet preserves an uncertain durable request.

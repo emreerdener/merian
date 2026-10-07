@@ -2,6 +2,7 @@ import SwiftUI
 
 struct IdentificationHistorySheet: View {
     @Bindable var model: IdentificationHistoryViewModel
+    var candidateRendering = CandidateReviewRendering()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedPhoto: UUID?
@@ -95,7 +96,7 @@ struct IdentificationHistorySheet: View {
         } footer: {
             Text("Choosing this entry keeps the entire history. It does not confirm a species, clear an incorrect mark, or update a shared post.")
         }
-        if let review = model.review { IdentificationHistoryReviewSection(model: review).id(ObjectIdentifier(review)) }
+        if let review = model.review { IdentificationHistoryReviewSection(model: review, prepareCandidates: model.prepareCandidateReview, candidateRendering: candidateRendering).id(ObjectIdentifier(review)) }
         if let publication = model.publication {
             IdentificationPublicationSection(model: publication).id(ObjectIdentifier(publication))
         } else if model.canAskCommunity {

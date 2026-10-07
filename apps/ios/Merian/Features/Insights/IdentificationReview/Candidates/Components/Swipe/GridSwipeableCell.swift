@@ -7,6 +7,8 @@ struct GridSwipeableCell: View {
     let feedback: IdentificationReviewFeedbackDependencies
     let onConfirm: () -> Void
     let onReject: () -> Void
+    var protectedReview: AnalysisCandidateReviewModel?
+    var onImmediateConfirm: (() -> Void)?
 
     @State private var offset: CGSize = .zero
     @State private var isDragging = false
@@ -24,7 +26,7 @@ struct GridSwipeableCell: View {
             isSwipingRight: isSwipingRight,
             isSwipingLeft: isSwipingLeft,
             imageDependencies: imageDependencies,
-            feedback: feedback
+            feedback: feedback, protectedReview: protectedReview
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .offset(x: offset.width, y: 0)
@@ -51,6 +53,10 @@ struct GridSwipeableCell: View {
     }
 
     private func animateSwipe(direction: CandidateSwipeDirection) {
+        if direction == .right, let onImmediateConfirm {
+            // Protected admission happens at gesture end, before animation or dismissal.
+            offset = .zero; isDragging = false; onImmediateConfirm(); return
+        }
         let targetX: CGFloat = direction == .right ? 700 : -700
         withAnimation(.easeInOut(duration: 0.3)) {
             offset = CGSize(width: targetX, height: 60)

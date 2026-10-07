@@ -2707,6 +2707,21 @@ cannot install a new form. Dismissal clears only the name form; an uncertain
 saved request remains in the parent host for exact retry. A stale dismissal
 cannot clear a newer form. No legacy taxonomy override or fresh ticket is used.
 
+The prepared selected-result **Review alternatives** menu and History preview
+open a retained candidate review bound to that exact displayed ticket. Each
+choice retains its original immutable array ordinal and scientific name;
+duplicate names remain distinct. The final button or right-swipe stages the
+candidate synchronously before animation or dismissal. Local skipping and deck
+restart do not reject or exhaust an analysis. Closing the deck leaves an
+uncertain review request with its parent owner for exact retry.
+
+The candidate card uses saved provenance for confidence qualification and the
+exact historical photo loader for original evidence. Unavailable originals show
+an unavailable state, never a current-parent substitute. Species-reference
+imagery remains separately injected. The alternatives card design is unchanged.
+Nested Confidence/Biological handoffs and end-to-end UI qualification remain
+pending; ordinary access and activation gates stay disabled.
+
 Queue pass completion refreshes owner-bound receipt status. Applied completion
 refreshes the reconciled parent once; it never projects a child directly. A
 conflict or unsuccessful verification retires the old controls and requires an

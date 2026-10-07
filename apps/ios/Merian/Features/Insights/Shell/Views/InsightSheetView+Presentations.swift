@@ -20,6 +20,8 @@ extension InsightSheetView {
         switch presentation {
         case .protectedChat(let token, _, _):
             if let model = protectedChatModel, model.id == token { ProtectedInsightChatSheet(model: model) }
+        case .reviewCandidates(let formID, _, _):
+            if let model = selectedCandidateReview, model.id == formID { AnalysisCandidateReviewSheet(model: model, rendering: dependencies.candidateRendering) }
         case .reviewName(let formID, _, _):
             if let form = selectedNameConfirmation, form.id == formID { SelectedAnalysisNameConfirmationSheet(model: form) }
         case .publicationConsent:
@@ -27,7 +29,7 @@ extension InsightSheetView {
         case .reanalysisStatus:
             if let reanalysisStatusModel { ReanalysisStatusSheet(model: reanalysisStatusModel) }
         case .identificationHistory:
-            if let historyModel { IdentificationHistorySheet(model: historyModel) }
+            if let historyModel { IdentificationHistorySheet(model: historyModel, candidateRendering: dependencies.candidateRendering) }
         case .paywall:
             PaywallView()
         case .fieldTripAuthor(let route):
@@ -330,6 +332,8 @@ extension InsightSheetView {
             resumePendingInsightChatDismissalAction()
         case .explore:
             handleExploreSheetDismissed()
+        case .reviewCandidates(let formID, _, _):
+            if selectedCandidateReview?.id == formID { selectedCandidateReview?.close(); selectedCandidateReview = nil }
         case .reviewName(let formID, _, _):
             if selectedNameConfirmation?.id == formID { selectedNameConfirmation?.close(); selectedNameConfirmation = nil }
         case .publicationConsent:
@@ -360,6 +364,9 @@ extension InsightSheetView {
         switch presentation {
         case .protectedChat(let token, let scanId, let generation):
             protectedChatModel?.id == token && protectedChatModel?.isCurrent == true
+                && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
+        case .reviewCandidates(let formID, let scanId, let generation):
+            selectedCandidateReview?.id == formID && selectedCandidateReview?.isScopeCurrent == true
                 && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
         case .reviewName(let formID, let scanId, let generation):
             selectedNameConfirmation?.id == formID && selectedNameConfirmation?.isClosed == false
@@ -417,6 +424,11 @@ extension InsightSheetView {
             if protectedChatModel?.id == token {
                 protectedChatModel?.close()
                 if releasePayload { protectedChatModel = nil }
+            }
+        case .reviewCandidates(let formID, _, _):
+            if selectedCandidateReview?.id == formID {
+                selectedCandidateReview?.close()
+                if releasePayload { selectedCandidateReview = nil }
             }
         case .reviewName(let formID, _, _):
             if selectedNameConfirmation?.id == formID {

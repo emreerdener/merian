@@ -128,6 +128,20 @@ final class IdentificationHistoryViewModel {
         publication = model
         model.startRecovery()
     }
+    func prepareCandidateReview() -> AnalysisCandidateReviewModel? {
+        guard validate(), !pending, !isBusy, allowChoice(), let review,
+              review.canSubmit, !review.ticket.candidateChoices.isEmpty,
+              detail?.reviewTicket == review.ticket else { return nil }
+        let expected = generation
+        let ticket = review.ticket
+        return AnalysisCandidateReviewModel(review: review, isCurrent: { [weak self, weak review] in
+            guard let self, let review else { return false }
+            return self.generation == expected && self.review === review &&
+                self.detail?.reviewTicket == ticket && self.isSessionCurrent
+        }, loadPhoto: dependencies.photo, confirm: { [weak review] reference in
+            review?.submit(.confirmCandidate(reference))
+        })
+    }
     private func allowChoice() -> Bool {
         do {
             guard review?.hasUnresolvedRequest != true, try dependencies.pendingReview() == nil else {

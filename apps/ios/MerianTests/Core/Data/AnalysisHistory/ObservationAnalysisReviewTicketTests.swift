@@ -5,7 +5,7 @@ import Testing
 @MainActor
 struct ObservationAnalysisReviewTicketTests {
     func ticket(biological: Any = true, primary: PrimaryIdentification.Snapshot? = nil,
-                authorityPatch: [String: Any] = [:], revision: Int? = 0, resultPatch: [String: Any] = [:], version: Int = 3) throws -> ObservationAnalysisReviewTicket {
+                authorityPatch: [String: Any] = [:], revision: Int? = 0, resultPatch: [String: Any] = [:], version: Int = 3, photos: [ObservationHistoryPhotoReference] = [], omittedResultKeys: [String] = []) throws -> ObservationAnalysisReviewTicket {
         let fixture = try ObservationHistoryStateTests().fixture()
         let state = try ObservationHistoryStateTests().decode(fixture)
         var envelope = try #require(JSONSerialization.jsonObject(with: state.result.bytes) as? [String: Any])
@@ -13,16 +13,28 @@ struct ObservationAnalysisReviewTicketTests {
         result["is_biological_subject"] = biological
         result["primary_identification"] = try primary.map { try JSONSerialization.jsonObject(with: JSONEncoder().encode($0)) } ?? NSNull()
         result.merge(resultPatch) { _, next in next }
+        for key in omittedResultKeys { result.removeValue(forKey: key) }
         envelope["schema_version"] = version
         envelope["result"] = result
         var authority = try #require(JSONSerialization.jsonObject(with: state.review.data) as? [String: Any])
         authority.merge(authorityPatch) { _, new in new }
-        let raw = ObservationHistoryPage.Result(version: version, photos: [], analysisID: state.result.analysisID,
+        let raw = ObservationHistoryPage.Result(version: version, photos: photos, analysisID: state.result.analysisID,
             completedAt: nil, importedAt: state.result.importedAt, bytes: try JSONSerialization.data(withJSONObject: envelope))
         let entry = ObservationHistoryListingService.Entry(result: raw, display: nil,
             authority: try ObservationHistoryAuthority.decode(authority), reviewRevision: revision)
         return try .init(entry: entry, context: .init(owner: state.ownerID, selected: state.selectedAnalysisID,
             revision: state.revision, pendingOperation: nil, undoOperation: nil), observationID: state.observationID)
+    }
+
+    @Test func confidenceUsesSavedProvenanceAndPhotoIdentity() throws {
+        let photo = ObservationHistoryPhotoReference(mediaID: UUID(), contentType: "image/jpeg", byteCount: 7, sha256: String(repeating: "a", count: 64))
+        let saved = try ticket(resultPatch: ["inference_tier": "pro"], version: 2, photos: [photo], omittedResultKeys: ["identification_provenance"])
+        #expect(saved.candidateConfidenceQualified && saved.evidencePhotoID == photo.mediaID)
+        for malformed: Any in [NSNull(), "invalid", [:], ["provider": "unknown"]] {
+            let saved = try ticket(resultPatch: ["inference_tier": "pro", "identification_provenance": malformed])
+            #expect(!saved.candidateConfidenceQualified)
+        }
+        #expect(try ticket().evidencePhotoID == nil)
     }
 
     @Test func explicitBiologicalV3CanRejectWithoutManufacturingConfirmation() throws {

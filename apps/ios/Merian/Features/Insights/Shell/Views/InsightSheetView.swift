@@ -29,6 +29,7 @@ struct InsightSheetView: View {
     @State var protectedChatModel: ProtectedInsightChatModel?
     @State var protectedChatContinuation = ProtectedInsightChatContinuation()
     @State var pendingHistoryReanalysis: IdentificationHistoryReanalysisHandoff?
+    @State var selectedCandidateReview: AnalysisCandidateReviewModel?
     @State var selectedNameConfirmation: SelectedAnalysisNameConfirmation?
     @State var selectedReviewHost = SelectedAnalysisReviewHost()
     @State var historyAvailabilityRevision: UInt64 = 0
@@ -188,7 +189,7 @@ struct InsightSheetView: View {
                 closeProtectedChat(clearContinuation: true)
                 cancelSavedReanalysis()
                 closeSelectedPublication()
-                closeSelectedNameConfirmation()
+                closeSelectedNameConfirmation(); closeSelectedCandidateReview()
                 selectedReviewHost.close()
                 publicationContinuation.clear()
                 historyModel?.close(); historyModel = nil; pendingHistoryReanalysis = nil
@@ -214,12 +215,12 @@ struct InsightSheetView: View {
             pendingShellPresentation = nil
         }
 
-        .onChange(of: ObjectIdentifier(modelContext.container)) { _, _ in closeProtectedChat(clearContinuation: true); closeSelectedNameConfirmation(); closeSelectedPublication(); publicationContinuation.clear() }
-        .onChange(of: dependencies.authenticationSnapshot()) { _, _ in closeProtectedChat(clearContinuation: true); closeSelectedNameConfirmation(); closeSelectedPublication(); publicationContinuation.clear() }
+        .onChange(of: ObjectIdentifier(modelContext.container)) { _, _ in closeProtectedChat(clearContinuation: true); closeSelectedNameConfirmation(); closeSelectedCandidateReview(); closeSelectedPublication(); publicationContinuation.clear() }
+        .onChange(of: dependencies.authenticationSnapshot()) { _, _ in closeProtectedChat(clearContinuation: true); closeSelectedNameConfirmation(); closeSelectedCandidateReview(); closeSelectedPublication(); publicationContinuation.clear() }
         .onChange(of: viewModel.scanBoundActionGeneration) { _, _ in
             closeProtectedChat()
             cancelSavedReanalysis()
-            closeSelectedNameConfirmation()
+            closeSelectedNameConfirmation(); closeSelectedCandidateReview()
             closeSelectedPublication()
             historyModel?.close(); historyModel = nil; pendingHistoryReanalysis = nil
             reanalysisStatusModel?.close(); reanalysisStatusModel = nil
@@ -227,12 +228,12 @@ struct InsightSheetView: View {
             cancelOrDismissShellPresentation { if case .identificationHistory = $0 { true } else { false } }
         }
 
-        .onChange(of: inferenceEngine.scanPresentationGeneration) { _, _ in closeProtectedChat(); closeSelectedNameConfirmation() }
+        .onChange(of: inferenceEngine.scanPresentationGeneration) { _, _ in closeProtectedChat(); closeSelectedNameConfirmation(); closeSelectedCandidateReview() }
         .onChange(of: selectedReviewKey, initial: true) { _, _ in bindSelectedReview() }
         .onChange(of: selectedReviewHost.deliveryGeneration) { _, _ in refreshSelectedReview() }
         .onChange(of: selectedReviewHost.scopeIsCurrent) { _, current in
             if !current {
-                closeSelectedNameConfirmation()
+                closeSelectedNameConfirmation(); closeSelectedCandidateReview()
                 closeSelectedPublication()
                 if selectedReviewHost.model != nil { selectedReviewHost.invalidateScope() }
             }
