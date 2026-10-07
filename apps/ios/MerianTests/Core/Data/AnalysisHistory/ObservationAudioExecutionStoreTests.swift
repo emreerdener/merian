@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 @testable import Merian
 import SwiftData
@@ -19,6 +20,42 @@ struct ObservationAudioExecutionStoreTests {
     func bind(_ seed: ObservationAudioPreparationTests.Seed) throws -> Store.Snapshot {
         try Store.bind(.init(preparation: seed.preparation), proof: seed.proof, authorization: authorization,
             container: seed.container, isCurrent: { true })
+    }
+
+    @Test func lockedUploadReadReturnsOnlyExactWAV() async throws {
+        let seed = try await ready(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let store = ObservationReanalysisFileStore(documents: seed.root)
+        var checks = 0
+        let validate: @MainActor @Sendable () throws -> Void = {
+            checks += 1
+            for url in [seed.root, seed.file.deletingLastPathComponent()] {
+                let descriptor = open(url.path, O_RDONLY | O_DIRECTORY)
+                #expect(descriptor >= 0); defer { close(descriptor) }
+                #expect(flock(descriptor, LOCK_EX | LOCK_NB) != 0)
+            }
+        }
+        let bytes = try await store.readAudio(preparation: seed.preparation, validateBeforeRead: validate, validateBeforeReturn: validate)
+        #expect(bytes == seed.bytes && checks == 2)
+        let upload = try ObservationAudioEvidenceUpload(observationID: seed.source.observationID,
+            analysisID: seed.preparation.identity.analysisID, mediaID: seed.preparation.audio.mediaID, bytes: bytes).prepare()
+        #expect(upload.reference == seed.preparation.audio)
+    }
+
+    @Test(arguments: ["before", "after", "cancel", "changed", "extra"])
+    func lockedAudioReadWithholdsUntrustedOrStaleBytes(reason: String) async throws {
+        let seed = try await ready(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        if reason == "changed" { try Data("changed".utf8).write(to: seed.file) }
+        if reason == "extra" { try Data().write(to: seed.file.deletingLastPathComponent().appendingPathComponent("extra")) }
+        let store = ObservationReanalysisFileStore(documents: seed.root)
+        let task = Task {
+            try await store.readAudio(preparation: seed.preparation, validateBeforeRead: {
+                if reason == "before" { throw MerianError.invalidResponse }
+            }, validateBeforeReturn: {
+                if reason == "after" { throw MerianError.invalidResponse }
+                if reason == "cancel" { withUnsafeCurrentTask { $0?.cancel() } }
+            })
+        }
+        await #expect(throws: (any Error).self) { try await task.value }
     }
 
     @Test func exactBindingAndRecoveryNeverResetConsumedAuthority() async throws {

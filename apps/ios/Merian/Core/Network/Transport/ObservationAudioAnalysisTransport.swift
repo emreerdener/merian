@@ -1,0 +1,39 @@
+import Foundation
+
+/// One fixed potentially-dispatching endpoint. Recovery claims cannot enter this boundary.
+struct ObservationAudioAnalysisTransport {
+    static let requestSeconds: TimeInterval = 130
+    let baseURL: String
+    let dispatcher: AuthenticatedTransportDispatcher
+
+    func submit(_ permit: ObservationAudioExecutionStore.DispatchPermit, authorization: IdentificationDispatchAuthorization,
+                validateAttempt: @escaping @MainActor @Sendable () throws -> Void,
+                validateResponse: @escaping @MainActor @Sendable () throws -> Void) async throws -> ObservationAnalysisReceipt {
+        try Task.checkCancellation()
+        guard authorization.recipient == .gemini else { throw MerianError.aiConsentRequired }
+        let intent = permit.snapshot.work.intent
+        let url = try EdgeFunctionRoutePolicy.endpointURL(baseURL: baseURL, function: "analyze-observation")
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: Self.requestSeconds)
+        request.httpMethod = "POST"; request.httpBody = intent.request.body
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("3", forHTTPHeaderField: "X-Merian-Entitlement-Protocol")
+        request.setValue(String(authorization.identificationProtocol), forHTTPHeaderField: IdentificationDispatchAuthorization.protocolHeader)
+        request.setValue(authorization.recipient.rawValue, forHTTPHeaderField: IdentificationRecipientExpectation.header)
+        // Bypass the logical retry executor entirely; dispatcher retains its Auth lease through I/O.
+        let result = try await dispatcher.performAudioAnalysis(.init(request: request, body: intent.request.body,
+            onRequestBodySent: nil, authTransitionOwner: nil, expectedAuthUserID: intent.ownerID,
+            identificationAuthorization: authorization, validateAttempt: validateAttempt))
+        guard let response = result.response as? HTTPURLResponse else { throw MerianError.invalidResponse }
+        guard response.statusCode == 200 || response.statusCode == 202 else {
+            throw MerianError.httpError(statusCode: response.statusCode, message: "analysis_history_unavailable")
+        }
+        guard response.mimeType?.lowercased() == "application/json" else { throw MerianError.invalidResponse }
+        let receipt = try ObservationAnalysisReceipt.decode(result.data, audioRequest: intent.request)
+        let terminal = receipt.state == .complete || receipt.state == .failedTerminal
+        guard response.statusCode == (terminal ? 200 : 202) else { throw MerianError.invalidResponse }
+        // A validated answer survives dispatch cancellation; settlement still checks the original scope.
+        try await validateResponse()
+        return receipt
+    }
+}

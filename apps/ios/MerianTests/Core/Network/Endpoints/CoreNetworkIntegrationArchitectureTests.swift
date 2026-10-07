@@ -4533,6 +4533,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "EdgeFunctionErrorPolicy.swift",
         "EdgeFunctionRoutePolicy.swift",
         "IdentificationBenchmarkRecord.swift",
+        "ObservationAudioAnalysisTransport.swift",
         "ObservationHistoryMutationTransport.swift",
         "PinnedNetworkTransport.swift"
     ]

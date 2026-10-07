@@ -1549,3 +1549,23 @@ consumed-save ambiguity, stale claims, explicit resumption, denied scopes,
 malformed metadata and disk reopen. Private audio erasure remains parent-indexed
 and independent of the envelope. Saved photo request/claim behavior is
 unchanged.
+
+### Audio result settlement boundary
+
+`ObservationReanalysisFileStore.readAudio` returns only the saved complete WAV
+cohort under root/child locks, exact length/SHA/container checks and both caller
+validation callbacks. Its caller must check account/claim again after awaiting
+private bytes. The audio overload of `ObservationReanalysisResult.decode`
+requires V4, exact parent/child/source/request digest and the entire ordered
+manifest while retaining original snapshot bytes; photo matching remains V2.
+
+`ObservationAudioExecutionStore.complete` accepts only a consumed running claim
+or its outcome-recovery generation. Under the shared persistence lock it checks
+source proof, namespace, owner/deletion and the complete saved claim, then
+appends the immutable child, records the existing erasure receipt and deletes
+only its queue/job in one save. It never projects or selects the result. Exact
+committed replay checks result bytes and cleanup authority before returning.
+This dedicated settlement transaction intentionally ignores task cancellation
+for an already-known result; account loss and replaced claims still deny it.
+Failures roll back, while save-commits-then-throws recovers the same result.
+These primitives have no retained executor, scheduler or UI caller yet.

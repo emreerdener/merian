@@ -152,6 +152,25 @@ actor ObservationReanalysisFileStore {
         }
     }
 
+    /// Original WAV bytes only, under the same locks and complete-cohort verification as recovery.
+    /// The retained execution owner must revalidate its lease/claim after this await too.
+    func readAudio(preparation: ObservationAudioPreparation,
+                   validateBeforeRead: @MainActor @Sendable () throws -> Void,
+                   validateBeforeReturn: @MainActor @Sendable () throws -> Void) async throws -> Data {
+        let bytes = try await withVerifiedFiles(child: preparation.identity.analysisID, references: [audioReference(preparation)],
+            validateBeforeRead: validateBeforeRead, verifyContainer: { _, bytes in
+                guard ObservationAudioContainer.isValid(bytes) else { throw Failure.conflict }
+            }) { buffers in
+                try Task.checkCancellation()
+                try validateBeforeReturn()
+                try Task.checkCancellation()
+                guard buffers.count == 1, let bytes = buffers.first else { throw Failure.incomplete }
+                return bytes
+            }
+        try Task.checkCancellation()
+        return bytes
+    }
+
     private func withVerifiedFiles<T: Sendable>(child: UUID, references: [FileReference],
                                                 validateBeforeRead: @MainActor @Sendable () throws -> Void,
                                                 verifyContainer: @Sendable (Int, Data) throws -> Void,

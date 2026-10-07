@@ -4510,14 +4510,14 @@ import, and permission-denial UI require the physical-device checklist in
   exclusion; and the narrow provider-service framework boundary. It separately
   freezes the Core Security ghost-merge model/service/store and purchase-handoff
   model/store owners, exact persisted fields, device-only verified persistence,
-  sole live endpoint ownership, and 600-line boundaries. It also requires
-  exactly six Transport files: three stateless policies, one request-scoped
-  executor, one pinned session, and one authenticated dispatcher. The suite
-  freezes the disjoint safe-read and idempotency-aware ambiguous-replay sets,
-  requires exactly one endpoint owner for each classified route, and records the
-  exact owners allowed to acquire the pinned session, private transport, request
-  executor, consent/profile context, Auth manager, recovery Species Dictionary
-  query, or detached preparation bridge. That inventory records the Auth
+  sole live endpoint ownership, and 600-line boundaries. It also requires the
+  exact Transport owner inventory, including the scoped
+  `ObservationAudioAnalysisTransport`. The suite freezes the disjoint safe-read
+  and idempotency-aware ambiguous-replay sets, requires exactly one endpoint
+  owner for each classified route, and records the exact owners allowed to
+  acquire the pinned session, private transport, request executor,
+  consent/profile context, Auth manager, recovery Species Dictionary query, or
+  detached preparation bridge. That inventory records the Auth
   historical-session `+Live` adapter as one permitted `AppDIContainer.shared`
   owner, limited to offline-queue context and scan-repository composition, and
   rejects nullable live-dependency fallback in the Apple and Google
@@ -11072,3 +11072,21 @@ and `OfflineSyncFoundationArchitectureTests` through `make ios-local-build`.
 These suites also run under the general native unit target; they are not a
 separate CI UI selector. This gate proves local persistence, not audio UI,
 provider execution or device/hosted qualification.
+
+### Native audio transport and completion gate
+
+Run `ObservationAudioAnalysisTransportTests`, `ObservationAudioResultTests`,
+`ObservationAudioCompletionTests` and `ObservationAudioExecutionStoreTests`
+alongside photo result/file-store and protected-chat transport regressions.
+Verify exact persisted request bytes, fixed headers, one attempt on every
+HTTP/transport failure, post-Auth consent/claim denial, stale permit/account
+withholding, actual/declared receipt bounds and status/MIME validation. Ordinary
+90-second session limits and protected-chat budgets must remain unchanged.
+
+File reads prove root/child locks across both callbacks, exact WAV bytes and
+withholding on stale scope, cancellation or changed/incomplete cohorts. Result
+matching proves V4 provenance and ordered manifest equality without weakening
+photo V2 checks. Completion tests prove unconsumed/stale claim denial,
+selection/source preservation, cancellation-safe known-answer settlement, atomic
+rollback and save-commits-then-throws replay. These are inert boundaries; they
+do not qualify retained delivery, restart adoption, device or hosted use.

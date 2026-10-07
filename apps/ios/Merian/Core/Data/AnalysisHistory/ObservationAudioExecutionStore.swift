@@ -123,6 +123,63 @@ enum ObservationAudioExecutionStore {
         }
     }
 
+    /// Settlement only: a known exact outcome may survive task cancellation, never account or claim loss.
+    /// The raw result, queue retirement and cleanup receipt commit together; selection is untouched.
+    static func complete(_ claim: Claim, resultBytes: Data, proof: ObservationAudioPreparation.Verified,
+                         container: ModelContainer, isCurrent: () -> Bool,
+                         save: (ModelContext) throws -> Void = { try $0.save() }) throws -> ObservationReanalysisErasureReceipt {
+        let intent = claim.snapshot.work.intent, identity = intent.identity
+        guard claim.snapshot.work.state == .running, claim.snapshot.work.consumedAttempt != nil,
+              intent.matches(proof.preparation) else { throw Persistence.IntegrityError.conflict }
+        let result = try ObservationReanalysisResult.decode(resultBytes, matching: intent.request)
+        let receipt = ObservationReanalysisErasureReceipt(parentID: identity.observationID, childID: identity.analysisID)
+        // Do not use the generic dispatch transaction's cancellation check for a received outcome.
+        return try ConfirmedSpeciesReviewPersistence.transaction {
+            guard isCurrent() else { throw Persistence.IntegrityError.accountChanged }
+            let context = ModelContext(container); context.autosaveEnabled = false
+            do {
+                try proof.validate(context: context)
+                try completionNamespace(identity, context: context)
+                let parent = try ObservationHistorySyncService.enrolledScan(identity.observationID.uuidString, context: context)
+                if let erased = try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(identity.analysisID)) {
+                    guard try ObservationReanalysisErasureReceipt.restore(erased) == receipt,
+                          try Persistence.pair(identity, context: context) == nil else { throw Persistence.IntegrityError.conflict }
+                    let child = identity.analysisID.uuidString.lowercased()
+                    let records = try context.fetch(FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate { $0.id == child }))
+                    guard records.count == 1, let record = records.first, record.ownerAccountID == identity.ownerID.uuidString.lowercased(),
+                          record.observationID == parent.id, record.snapshotVersion == result.version,
+                          record.completedAt == result.completedAt, record.resultSnapshotData == result.bytes else {
+                        throw Persistence.IntegrityError.conflict
+                    }
+                } else {
+                    guard let (row, job) = try Persistence.pair(identity, context: context),
+                          try snapshot(proof, row: row, job: job) == claim.snapshot else { throw Persistence.IntegrityError.conflict }
+                    _ = try ObservationHistorySyncService.insert([result], into: parent, ownerID: identity.ownerID, context: context)
+                    try receipt.record(in: context)
+                    try context.deletePreferredGoalHint(scanId: row.id)
+                    context.delete(job); context.delete(row)
+                }
+                guard isCurrent() else { throw Persistence.IntegrityError.accountChanged }
+                if context.hasChanges { try save(context) }
+                return receipt
+            } catch { context.rollback(); throw error }
+        }
+    }
+
+    private static func completionNamespace(_ identity: OfflineQueueWork.Reanalysis, context: ModelContext) throws {
+        let lower = identity.analysisID.uuidString.lowercased(), upper = identity.analysisID.uuidString
+        guard try context.fetch(FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == lower || $0.id == upper })).isEmpty,
+              try context.fetch(FetchDescriptor<PendingCloudDeletionTask>(predicate: #Predicate { $0.scanId == lower || $0.scanId == upper })).isEmpty,
+              !(try ObservationHistoryEnrollmentIntent.holds(lower, context: context)) else { throw Persistence.IntegrityError.conflict }
+        if upper != lower {
+            guard try context.fetchOfflineJob(id: "reanalysis-erasure:" + upper) == nil,
+                  try context.fetchOfflineJob(id: OfflineQueueManager.scanIngestionJobId(scanId: upper)) == nil,
+                  try context.fetch(FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate { $0.id == upper })).isEmpty else {
+                throw Persistence.IntegrityError.conflict
+            }
+        }
+    }
+
     private static func existingBinding(_ proof: ObservationAudioPreparation.Verified, container: ModelContainer,
                                         isCurrent: () -> Bool) throws -> Snapshot? {
         try Persistence.transaction(proof.preparation.identity, container: container, isCurrent: isCurrent, save: { try $0.save() }) { context in

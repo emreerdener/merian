@@ -1232,38 +1232,37 @@ callback idempotently finishes its superseded token. A centralized aggregate
 purchase-handoff publication resumes retained revocation work when the fence
 becomes false. Clear diagnostics are emitted only after local cleanup completes.
 
-The suite freezes exactly six production Transport owners—three stateless
-policies, the request-scoped executor, the pinned session, and the authenticated
-dispatcher—the exact disjoint function-name sets used for safe-read and
-server-idempotency-aware ambiguous replay, and the requirement that every
-classified route have exactly one endpoint owner. It also prevents the executor
-from constructing a URLSession, another network client, a singleton instance, or
-detached task. Individual endpoint transport suites remain responsible for
-request identity at the feature bridge. This audit changes no request, response,
-retry, Auth, persistence, or backend contract.
+The suite freezes the production Transport owner inventory, including the scoped
+`ObservationAudioAnalysisTransport`, and the exact disjoint function-name sets
+used for safe-read and server-idempotency-aware ambiguous replay, and the
+requirement that every classified route have exactly one endpoint owner. It also
+prevents the executor from constructing a URLSession, another network client, a
+singleton instance, or detached task. Individual endpoint transport suites
+remain responsible for request identity at the feature bridge. This audit
+changes no request, response, retry, Auth, persistence, or backend contract.
 
-`MerianTests/Core/Network/Transport/` mirrors all six production owners. The
-eleven policy tests rehome route classification, ambiguous replay, retry-account
-binding, guest regeneration, and transition-owner refresh selection from the
-aggregate Network and Inference suites. Eleven executor tests directly cover
-exact body/account binding across replay, ordinary, transition-owned,
-durable-owner-deferred, and missing-guest Auth recovery, payment and consent
-effects, cancellation before dispatch and after a suspended unauthorized
-refresh, the bounded 1/2/4-second route schedule, failed-attempt upload release
-plus the successful-attempt response fallback. The body-release case
-intentionally receives two callbacks across one logical failure/retry chain: the
-failed attempt releases immediately, and the successful attempt invokes its
-response fallback. Callers therefore keep the callback idempotent across
-attempts; each upload delegate separately suppresses duplicate progress/fallback
-notification within its own attempt. Stateful endpoint transport tests continue
-to prove feature-bridge request identity without changing bodies, owners,
-attempt counts, or cancellation. Seven pinned-transport tests cover the
-production configuration, valid SHA-256 pins, exact Supabase hostname admission,
-concurrent single-session initialization, full-chain intermediate fallback,
-missing/empty/unmatched or platform-untrusted chain rejection, and
-injected-session dispatch. One dispatcher test covers value-only account
-resolution and exact authenticated JSON request construction without live Auth
-or network access. The architecture guard requires the Release
+`MerianTests/Core/Network/Transport/` mirrors the production transport owners.
+The eleven policy tests rehome route classification, ambiguous replay,
+retry-account binding, guest regeneration, and transition-owner refresh
+selection from the aggregate Network and Inference suites. Eleven executor tests
+directly cover exact body/account binding across replay, ordinary,
+transition-owned, durable-owner-deferred, and missing-guest Auth recovery,
+payment and consent effects, cancellation before dispatch and after a suspended
+unauthorized refresh, the bounded 1/2/4-second route schedule, failed-attempt
+upload release plus the successful-attempt response fallback. The body-release
+case intentionally receives two callbacks across one logical failure/retry
+chain: the failed attempt releases immediately, and the successful attempt
+invokes its response fallback. Callers therefore keep the callback idempotent
+across attempts; each upload delegate separately suppresses duplicate
+progress/fallback notification within its own attempt. Stateful endpoint
+transport tests continue to prove feature-bridge request identity without
+changing bodies, owners, attempt counts, or cancellation. Seven pinned-transport
+tests cover the production configuration, valid SHA-256 pins, exact Supabase
+hostname admission, concurrent single-session initialization, full-chain
+intermediate fallback, missing/empty/unmatched or platform-untrusted chain
+rejection, and injected-session dispatch. One dispatcher test covers value-only
+account resolution and exact authenticated JSON request construction without
+live Auth or network access. The architecture guard requires the Release
 `SecTrustEvaluateWithError` gate and both fail-closed cancellation paths. The
 unauthorized-refresh cancellation regression runs the production request in a
 child task, so cancelling that request does not cancel the owning Swift Testing
@@ -4083,3 +4082,17 @@ and pin the audio processor; they do not grant execution. See the
 and
 [API contract](../../../../../docs/backend-and-data/05-api-contracts.md#private-reanalysis-audio-upload).
 Durable audio production/delivery remains unconnected; gates stay false.
+
+`ObservationAudioAnalysisTransport` is a separate fixed `analyze-observation`
+owner accepting only a saved audio dispatch permit and current Gemini
+permission. Its caller supplies the durable permit validator; the dispatcher
+runs it and consent validation after Auth and retains the account lease through
+I/O. The request and scoped pinned session both use 130 seconds, covering the
+server's 120-second work claim plus response margin, without changing the
+ordinary 90-second session. The streamed receipt is capped at 4 KiB. There is no
+transient, unauthorized, route or idempotency retry. HTTP 200 accepts only
+complete/terminal-failure receipts; HTTP 202 accepts admitted/dispatched/draft.
+A receipt never substitutes for the immutable result: completion still requires
+an exact owner-reader V4 snapshot. Response validation is separate from dispatch
+cancellation so a known same-scope answer can be retained. No production audio
+executor or facade factory is connected yet.

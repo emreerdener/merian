@@ -15419,3 +15419,20 @@ permit. Unknown outcomes cannot acquire another permit. This kernel has no
 transport, scheduler or UI caller. Upload/execution delivery and separate action
 admission remain required before activation. All gates remain false; there is no
 deployment or activation authorization.
+
+The native audio analyze transport is a fixed, retry-free 130-second scoped
+pinned request, separate from the ordinary 90-second session. It requires the
+saved dispatch permit, fixed Gemini permission and a caller-supplied durable
+attempt fence checked after Auth. Responses are streamed with a 4-KiB bound and
+strict status/state pairing (200 complete/failed_terminal; 202 otherwise).
+Account-scoped response validation remains distinct from task cancellation.
+Execution receipts contain no result and grant no further invocation.
+
+Exact V4 settlement uses the saved schema-3 request's parent, child, source,
+digest and whole ordered manifest. Its local transaction appends the immutable
+result, retires only that queue/job and records receipt-bound erasure
+atomically, preserving selection and original evidence. A known result may
+settle after task cancellation but not owner/deletion/source/claim loss. Save
+uncertainty recovers identical bytes; it cannot dispatch. Retained execution,
+outcome-reader wiring and UI integration remain unconnected and all gates remain
+false.

@@ -1322,11 +1322,11 @@ only request/file inputs and response values, adding no Auth/retry policy.
 `CoreNetworkIntegrationArchitectureTests.swift` freezes the exact 18
 endpoint-owner inventory, prevents duplicate aggregate endpoint methods, applies
 the 600-line ceiling across the extracted Auth, Endpoint, Inference, Media,
-Recovery, and Transport owners plus the client façade, and requires exactly six
-Transport files: three stateless policies, the request-scoped executor, the
-pinned session, and the authenticated dispatcher. It also freezes the sixty-one
-Auth foundation paths and caps Auth, Purchase Identity, `SupabaseManager.swift`,
-and their combined production surface at 7,763, 2,016, 3,482, and 13,261 lines,
+Recovery, and Transport owners plus the client façade, and freezes the exact
+Transport owner inventory, including the scoped
+`ObservationAudioAnalysisTransport`. It also freezes the sixty-one Auth
+foundation paths and caps Auth, Purchase Identity, `SupabaseManager.swift`, and
+their combined production surface at 7,763, 2,016, 3,482, and 13,261 lines,
 respectively. The guard includes the effect-free observable owner for
 transition, generation, transition-analytics, exact-session lease/drain, and
 local sign-out state plus the focused listener/current-state adapter,

@@ -11,17 +11,25 @@ struct ObservationAnalysisReceipt: Sendable, Equatable {
     let state: State
 
     static func decode(_ data: Data, request: ObservationReanalysisRequest) throws -> Self {
+        try decode(data, observationID: request.observationID, analysisID: request.analysisID)
+    }
+
+    static func decode(_ data: Data, audioRequest: ObservationAudioReanalysisRequest) throws -> Self {
+        try decode(data, observationID: audioRequest.observationID, analysisID: audioRequest.analysisID)
+    }
+
+    private static func decode(_ data: Data, observationID: UUID, analysisID: UUID) throws -> Self {
         guard data.count <= 4096,
               let row = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               Set(row.keys) == ["schema_version", "observation_id", "analysis_id", "state"],
               let version = row["schema_version"] as? NSNumber,
               CFGetTypeID(version) != CFBooleanGetTypeID(), version.doubleValue == 1,
-              row["observation_id"] as? String == request.observationID.uuidString.lowercased(),
-              row["analysis_id"] as? String == request.analysisID.uuidString.lowercased(),
+              row["observation_id"] as? String == observationID.uuidString.lowercased(),
+              row["analysis_id"] as? String == analysisID.uuidString.lowercased(),
               let rawState = row["state"] as? String, let state = State(rawValue: rawState) else {
             throw MerianError.invalidResponse
         }
-        return Self(observationID: request.observationID, analysisID: request.analysisID, state: state)
+        return Self(observationID: observationID, analysisID: analysisID, state: state)
     }
 }
 

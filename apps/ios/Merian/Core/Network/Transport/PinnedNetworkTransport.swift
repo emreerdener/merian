@@ -220,20 +220,34 @@ final class PinnedNetworkTransport: @unchecked Sendable {
     /// A per-operation session cannot inherit the ordinary 90-second resource ceiling.
     /// Copy DEBUG configuration, never invalidate the caller-owned injected session.
     func protectedInsightChatData(for request: URLRequest, claimExpiresAt: Date) async throws -> (Data, URLResponse) {
+        let configuration = scopedConfiguration(timeout: ProtectedInsightChatBudget.requestSeconds)
+        let session = URLSession(configuration: configuration, delegate: MerianTLSDelegate(), delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        return try await ProtectedInsightChatDataTask().response(using: session, request: request, claimExpiresAt: claimExpiresAt)
+    }
+
+    private func scopedConfiguration(timeout: TimeInterval) -> URLSessionConfiguration {
         let configuration = Self.makeConfiguration()
         #if DEBUG
         let injected = withSessionLock { storedOverridingSession?.configuration }
         configuration.protocolClasses = injected?.protocolClasses ?? configuration.protocolClasses
         configuration.httpAdditionalHeaders = injected?.httpAdditionalHeaders
         #endif
-        configuration.timeoutIntervalForRequest = ProtectedInsightChatBudget.requestSeconds
-        configuration.timeoutIntervalForResource = ProtectedInsightChatBudget.requestSeconds
+        configuration.timeoutIntervalForRequest = timeout
+        configuration.timeoutIntervalForResource = timeout
         configuration.httpCookieStorage = nil
         configuration.urlCredentialStorage = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        let session = URLSession(configuration: configuration, delegate: MerianTLSDelegate(), delegateQueue: nil)
+        return configuration
+    }
+
+    /// Audio receipts have their own bounded session; ordinary requests retain the 90-second ceiling.
+    func audioAnalysisData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let session = URLSession(configuration: scopedConfiguration(timeout: ObservationAudioAnalysisTransport.requestSeconds),
+                                 delegate: MerianTLSDelegate(), delegateQueue: nil)
         defer { session.invalidateAndCancel() }
-        return try await ProtectedInsightChatDataTask().response(using: session, request: request, claimExpiresAt: claimExpiresAt)
+        return try await PinnedBoundedJSONDataTask(maximumBytes: 4096).response(using: session, request: request,
+            timeout: ObservationAudioAnalysisTransport.requestSeconds)
     }
 
     /// Fixed retirement response budget on the existing pinned session.
