@@ -1409,6 +1409,16 @@ version-one result/discard receipts remain distinct and cannot accept or
 overwrite retirement proof. Parent deletion alone can preserve a stronger
 existing proof under the same cleanup scope.
 
+The separate `completeRetirementOutcome` path recovers an original analysis when
+dispatch won the race. It validates the complete immutable result against the
+saved request, appends through existing history insertion without selecting it,
+and atomically records closed version-three `recovered_original_result` cleanup
+metadata. That metadata retains the owner and exact retirement request; the
+immutable result remains in its normal child record. Replay requires both the
+exact receipt and exact saved result bytes. Version three cannot be replayed as
+version-one completion or version-two retirement. Cancellation before this
+normal result save leaves version-eight work for another non-dispatching read.
+
 The executor, status projection and user actions remain inert pending delivery
-integration. A dispatch-winning race still needs exact original-result
-reconciliation; it must not fabricate a successful retirement receipt.
+integration. No result recovery fabricates a successful retirement receipt or
+authorizes a provider call.

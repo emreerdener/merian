@@ -7,20 +7,26 @@ struct ObservationReanalysisErasureReceipt: Equatable, Sendable {
     let childID: UUID
     let retirementOwnerID: UUID?
     let retirementProof: ObservationAnalysisRetirementReceipt?
+    let completedRetirementRequest: ObservationAnalysisRetirementRequest?
 
     init(parentID: UUID, childID: UUID) {
         self.parentID = parentID; self.childID = childID
-        retirementOwnerID = nil; retirementProof = nil
+        retirementOwnerID = nil; retirementProof = nil; completedRetirementRequest = nil
     }
 
     init(ownerID: UUID, retirement: ObservationAnalysisRetirementReceipt) {
         parentID = retirement.request.execution.observationID; childID = retirement.request.execution.analysisID
-        retirementOwnerID = ownerID; retirementProof = retirement
+        retirementOwnerID = ownerID; retirementProof = retirement; completedRetirementRequest = nil
+    }
+
+    init(ownerID: UUID, completedRetirement: ObservationAnalysisRetirementRequest) {
+        parentID = completedRetirement.execution.observationID; childID = completedRetirement.execution.analysisID
+        retirementOwnerID = ownerID; retirementProof = nil; completedRetirementRequest = completedRetirement
     }
 
     /// Only parent deletion may preserve a stronger terminal proof under the same cleanup namespace.
     func recordParentErasure(in context: ModelContext) throws {
-        guard retirementProof == nil else { throw MerianError.invalidResponse }
+        guard retirementProof == nil, completedRetirementRequest == nil else { throw MerianError.invalidResponse }
         if let existing = try context.fetchOfflineJob(id: Self.jobID(childID)) {
             let saved = try Self.restore(existing)
             guard saved.parentID == parentID, saved.childID == childID else { throw MerianError.invalidResponse }
@@ -43,6 +49,11 @@ struct ObservationReanalysisErasureReceipt: Equatable, Sendable {
             object["owner_id"] = retirementOwnerID.uuidString.lowercased()
             object["receipt_base64"] = retirementProof.data.base64EncodedString()
         }
+        if let completedRetirementRequest, let retirementOwnerID {
+            object["version"] = 3; object["kind"] = "recovered_original_result"
+            object["owner_id"] = retirementOwnerID.uuidString.lowercased()
+            object["request_base64"] = completedRetirementRequest.body.base64EncodedString()
+        }
         let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
         guard data.count <= 8192 else { throw MerianError.invalidResponse }
         guard parentID != childID, let text = String(bytes: data, encoding: .utf8) else { throw MerianError.invalidResponse }
@@ -63,6 +74,16 @@ struct ObservationReanalysisErasureReceipt: Equatable, Sendable {
         if version.doubleValue == 1 {
             guard text.utf8.count <= 512, Set(row.keys) == ["version", "parent_id", "child_id"] else { throw MerianError.invalidResponse }
             return Self(parentID: parentID, childID: childID)
+        }
+        if version.doubleValue == 3 {
+            guard Set(row.keys) == ["version", "kind", "parent_id", "child_id", "owner_id", "request_base64"],
+                  row["kind"] as? String == "recovered_original_result",
+                  let ownerText = row["owner_id"] as? String, let owner = UUID(uuidString: ownerText), owner.uuidString.lowercased() == ownerText,
+                  let encoded = row["request_base64"] as? String, let bytes = Data(base64Encoded: encoded),
+                  bytes.base64EncodedString() == encoded else { throw MerianError.invalidResponse }
+            let request = try ObservationAnalysisRetirementRequest(savedBody: bytes)
+            guard request.execution.observationID == parentID, request.execution.analysisID == childID else { throw MerianError.invalidResponse }
+            return Self(ownerID: owner, completedRetirement: request)
         }
         guard version.doubleValue == 2,
               Set(row.keys) == ["version", "kind", "parent_id", "child_id", "owner_id", "receipt_base64"],

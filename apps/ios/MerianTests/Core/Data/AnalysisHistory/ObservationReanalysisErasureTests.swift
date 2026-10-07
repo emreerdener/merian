@@ -252,6 +252,80 @@ struct ReanalysisRetirementSettlementTests {
         }
     }
 
+    @Test func dispatchWinningOutcomeAppendsWithoutSelectionOrRetirementProof() throws {
+        let container = try staging.execution.fixture.fixture.container(), active = try claim(container), bytes = try staging.execution.result()
+        let receipt = try Store.completeRetirementOutcome(active, resultBytes: bytes, container: container, isCurrent: { true })
+        #expect(receipt.retirementProof == nil && receipt.completedRetirementRequest == active.request)
+        #expect(receipt.retirementOwnerID == active.snapshot.intent.ownerID)
+        let context = ModelContext(container)
+        let parent = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(parent.selectedAnalysisID == staging.execution.fixture.fixture.analysis.uuidString.lowercased())
+        #expect(parent.observationStateRevision == 3 && parent.analysisRecords?.count == 2)
+        #expect(try context.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
+        #expect(try Store.completeRetirementOutcome(active, resultBytes: bytes, container: container, isCurrent: { true }) == receipt)
+        #expect(throws: (any Error).self) {
+            try Store.completeRetirement(active, proof: proof(active), container: container, isCurrent: { true })
+        }
+        #expect(try ObservationReanalysisErasurePersistence.validate(receipt, container: container, isCurrent: { true }, complete: true))
+        try ObservationReanalysisErasureReceipt(parentID: receipt.parentID, childID: receipt.childID).recordParentErasure(in: ModelContext(container))
+        #expect(try Store.completeRetirementOutcome(active, resultBytes: bytes, container: container, isCurrent: { true }) == receipt)
+    }
+
+    @Test(arguments: [false, true])
+    func recoveredOutcomeSaveRemainsAtomicAcrossLostLocalResponse(_ commits: Bool) throws {
+        let container = try staging.execution.fixture.fixture.container(), active = try claim(container), bytes = try staging.execution.result()
+        #expect(throws: (any Error).self) {
+            try Store.completeRetirementOutcome(active, resultBytes: bytes, container: container, isCurrent: { true }, save: { context in
+                if commits { try context.save() }
+                throw CocoaError(.fileWriteUnknown)
+            })
+        }
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<LocalAnalysisRecord>()) == (commits ? 2 : 1))
+        let receipt = try Store.completeRetirementOutcome(active, resultBytes: bytes, container: container, isCurrent: { true })
+        #expect(receipt.completedRetirementRequest == active.request)
+    }
+
+    @Test func recoveredOutcomeRequiresExactResultAndCurrentClaim() throws {
+        let container = try staging.execution.fixture.fixture.container(), first = try claim(container), bytes = try staging.execution.result()
+        var changed = try #require(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        changed["request_digest"] = String(repeating: "0", count: 64)
+        let wrong = try JSONSerialization.data(withJSONObject: changed)
+        #expect(throws: (any Error).self) {
+            try Store.completeRetirementOutcome(first, resultBytes: wrong, container: container, isCurrent: { true })
+        }
+        let second = try Store.claimRetirement(first.snapshot, admission: .interrupted, now: staging.execution.now,
+            container: container, isCurrent: { true })
+        #expect(throws: (any Error).self) {
+            try Store.completeRetirementOutcome(first, resultBytes: bytes, container: container, isCurrent: { true })
+        }
+        #expect(throws: (any Error).self) {
+            try Store.completeRetirementOutcome(second, resultBytes: bytes, container: container, isCurrent: { false })
+        }
+        _ = try Store.completeRetirementOutcome(second, resultBytes: bytes, container: container, isCurrent: { true })
+    }
+
+    @Test func recoveredOutcomeEnvelopeCannotMasqueradeAsRetirement() throws {
+        let container = try staging.execution.fixture.fixture.container(), active = try claim(container)
+        let receipt = try Store.completeRetirementOutcome(active, resultBytes: staging.execution.result(), container: container, isCurrent: { true })
+        let context = ModelContext(container)
+        let fetched = try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(receipt.childID))
+        let job = try #require(fetched), text = try #require(job.metadataJSON)
+        #expect(try ObservationReanalysisErasureReceipt.restore(job) == receipt)
+        let original = try #require(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+        for field in ["version", "kind", "request_base64", "receipt_base64"] {
+            var changed = original
+            switch field {
+            case "version": changed[field] = 2
+            case "kind": changed[field] = "retired_before_dispatch"
+            case "request_base64": changed[field] = Data("{}".utf8).base64EncodedString()
+            default: changed[field] = "unexpected"
+            }
+            job.metadataJSON = String(data: try JSONSerialization.data(withJSONObject: changed), encoding: .utf8)
+            #expect(throws: (any Error).self) { try ObservationReanalysisErasureReceipt.restore(job) }
+        }
+        context.rollback()
+    }
+
     @Test func terminalEnvelopeRejectsMalformedOrCrossChildProof() throws {
         let container = try staging.execution.fixture.fixture.container(), active = try claim(container)
         let receipt = try Store.completeRetirement(active, proof: proof(active), container: container, isCurrent: { true })

@@ -10890,3 +10890,10 @@ cleanup-proof retention, no downgrade by parent deletion and separation from
 normal result completion and version-one cleanup. This is persistence evidence;
 dedicated retirement delivery and dispatch-winning result reconciliation remain
 separate integration checkpoints.
+
+The same settlement suite also verifies dispatch-winning original-result
+recovery: exact request/result binding, unchanged selection, atomic append and
+queue removal, distinct version-three metadata, stale-claim denial and
+commit-then-throw replay. V1 cleanup, V2 retirement proof and V3
+recovered-result receipts cannot substitute for each other. These persistence
+tests do not yet qualify the dedicated runtime or action UI.

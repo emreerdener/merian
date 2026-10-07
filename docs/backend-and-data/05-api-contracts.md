@@ -12584,9 +12584,14 @@ metadata version two preserves the owner and exact bounded server proof in the
 same save that deletes the queued child/job. Unknown replies hold without a
 timer; replaced claims cannot settle. Cancellation alone cannot discard a known
 answer when account, deletion and claim checks still pass. Ordinary result
-cleanup remains a distinct version-one receipt. Delivery/status/UI and
-dispatch-winning original-result reconciliation remain subsequent checkpoints;
-only server retirement can resolve a dispatch race.
+cleanup remains a distinct version-one receipt. Original-result reconciliation
+after a dispatch-winning race uses distinct local version-three
+`recovered_original_result` cleanup metadata with the owner and exact retirement
+request. It requires validated immutable result bytes, appends without changing
+selection and verifies both receipt and saved result on replay. It never
+represents successful retirement or authorizes redispatch. Delivery/status/UI
+remain subsequent checkpoints; only server retirement can resolve a dispatch
+race.
 
 The prepared native `analyzeObservation` transport preserves the complete saved
 request bytes, initiating account and 130-second timeout. It disables automatic

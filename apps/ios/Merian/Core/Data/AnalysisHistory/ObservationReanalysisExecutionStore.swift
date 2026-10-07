@@ -230,6 +230,27 @@ enum ObservationReanalysisExecutionStore {
         }
     }
 
+    /// Dispatch may win the server retirement race. Recover only the original exact outcome.
+    /// This is a result completion, never a successful retirement or another provider invocation.
+    static func completeRetirementOutcome(_ claim: RetirementClaim, resultBytes: Data, container: ModelContainer,
+                                          isCurrent: () -> Bool, save: (ModelContext) throws -> Void = { try $0.save() }) throws
+        -> ObservationReanalysisErasureReceipt {
+        guard claim.snapshot.status == .running else { throw Persistence.IntegrityError.conflict }
+        let intent = claim.snapshot.intent
+        let result = try ObservationReanalysisResult.decode(resultBytes, matching: intent.request)
+        let receipt = ObservationReanalysisErasureReceipt(ownerID: intent.ownerID, completedRetirement: claim.request)
+        if try completedReplay(intent, result: result, receipt: receipt, container: container, isCurrent: isCurrent) { return receipt }
+        return try Persistence.transaction(intent.identity, container: container, isCurrent: isCurrent, save: save) { context in
+            let (row, job) = try matching(claim.snapshot, context: context)
+            let parent = try ObservationHistorySyncService.enrolledScan(intent.identity.observationID.uuidString, context: context)
+            _ = try ObservationHistorySyncService.insert([result], into: parent, ownerID: intent.ownerID, context: context)
+            try receipt.record(in: context)
+            try context.deletePreferredGoalHint(scanId: row.id)
+            context.delete(job); context.delete(row)
+            return receipt
+        }
+    }
+
     private static func retiredReplay(_ claim: RetirementClaim, receipt: ObservationReanalysisErasureReceipt,
                                       container: ModelContainer, isCurrent: () -> Bool) throws -> Bool {
         try ConfirmedSpeciesReviewPersistence.transaction {
