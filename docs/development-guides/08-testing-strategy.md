@@ -10960,3 +10960,15 @@ PCM-field consistency, private/unknown/trailing chunk rejection and raw bounds.
 The whole-tree backend test task discovers both suites. Neither module grants
 upload, readiness, inference or reader compatibility; no native/device or audio
 end-to-end acceptance is implied by these pure tests.
+
+`observation_audio_evidence_upload.sql` covers service privileges, default-off
+admission, immutable tuple/object/expiry, exact replay, changed bytes/digest,
+foreign owner, photo/primitive exclusion, unsupported intent/result admission,
+expired and prematurely erased receipts, retained identity and deletion erasure.
+`observationAudioEvidenceConcurrencyDb.test.ts` observes actual database
+blocking for duplicate reservation, both photo/audio race orders, deletion,
+expiry replay and cross-owner child collision.
+`observationAudioEvidenceMigrationContract.test.ts` keeps the separate cohort,
+gate, privilege and cleanup boundary explicit. Run the fresh full catalog before
+concurrency tests. These tests do not establish a binary audio upload endpoint,
+native audio execution or video support.

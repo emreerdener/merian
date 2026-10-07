@@ -7273,6 +7273,34 @@ admission compares the ordered image subsequence with the cohort; an intent
 insertion guard prevents cleaned photo identities becoming description-only
 requests.
 
+### Prepared audio upload cohorts
+
+`20261007154709_prepare_private_audio_evidence_cohorts.sql` adds the separate,
+RLS-denied `observation_audio_evidence_upload_cohorts` table. One immutable
+owner/observation/analysis tuple binds one WAV media ID, opaque object ID,
+46–2,700,000-byte length, SHA-256 and fixed five-minute expiry. The object ID is
+retained with the cohort so even a trusted primitive cannot allocate a successor
+after receipt deletion creates an erasure obligation. API roles have no direct
+table access; only two allowlisted service RPCs reserve and acknowledge the
+exact cohort under owner/observation then analysis locks. Both the existing
+media gate and new default-false `prepared_audio_evidence_enabled` gate must be
+open.
+
+Photo cohorts retain their original ordered JSON and replay. Photo and audio
+cohorts exclude each other under the same analysis lock, including another
+owner's attempt to reuse the child ID. Audio requires a cohort even through the
+private receipt primitive. Existing intent/result guards reject audio-held child
+identities, including after receipt cleanup; this checkpoint does not implement
+audio inference admission or widen current readers.
+
+The independent expiry worker discovers only matching, nonempty, unbound audio
+cohorts and rechecks their complete tuple under canonical locks. Receipt
+deletion atomically creates the existing opaque erasure obligation while
+retaining the cohort, original object and deadline. The legacy receipt branch
+excludes audio cohorts. Parent deletion removes private cohort data while opaque
+erasure work survives. No scheduler or rollout is enabled. See the
+[service contract](05-api-contracts.md#prepared-audio-cohort-rpcs).
+
 ### Prepared private-evidence cleanup admission
 
 `20261006222120_prepare_private_evidence_erasure_worker.sql` adds the

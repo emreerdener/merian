@@ -672,6 +672,17 @@ Inventory these controls and verify conditional-upload/marker races, HEAD
 metadata and read expiry against an explicitly authorized nonproduction bucket
 before opening any history gate. Local fixtures do not attest hosted policy.
 
+Prepared audio cohorts use the same private storage boundary. Their reserve and
+complete RPCs are exact-signature service-only grants; the private table and
+primitives remain inaccessible to API roles. The new default-false
+`prepared_audio_evidence_enabled` gate does not authorize client assertions of
+WAV readiness. A future uploader must verify the complete container and exact
+bytes before calling these routines. Frozen object IDs and permanent erasure
+markers prevent allocating replacement objects after cleanup. Audio identity
+remains excluded from existing photo/text inference until coordinated admission
+and reader support exists. See the
+[audio cohort contract](05-api-contracts.md#prepared-audio-cohort-rpcs).
+
 Private-evidence cleanup admission now has an independent default-false
 `private_evidence_erasure_enabled` SQL gate. Its service-only retirement call
 preserves expired cohort identity while enqueueing exact opaque objects, and

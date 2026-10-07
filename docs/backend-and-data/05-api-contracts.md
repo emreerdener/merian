@@ -15199,10 +15199,11 @@ writer produced `fmt` / 4,044-byte `FLLR` / `data`; fixed 44-byte headers alone
 would reject that output. This is format evidence, not iOS/device qualification.
 The verifier never transforms bytes or establishes their digest/readiness.
 
-The subsequent coordinated checkpoint must allocate immutable upload receipts
-with fixed expiry, verify exact digests and bind the existing audio provider
-profile before quota. Native sidecars are transient until exact durable
-persistence; retries must not transcode again.
+The separate prepared cohort RPCs below now allocate immutable receipts with
+fixed expiry. A subsequent binary route must verify exact bytes/digests, and
+coordinated admission must bind the audio provider profile before quota. Native
+sidecars are transient until exact durable persistence; retries must not
+transcode again.
 
 The coordinated audio generation will use input schema 3 / manifest 3 / history
 capability 9 and result schema 4 / reader 10. Result schema 3 already represents
@@ -15210,3 +15211,36 @@ imported saved identification and must not be repurposed. No current decoder is
 widened by this metadata checkpoint. Durable request canonicalization, native
 DTOs, upload/receipt authorization, SQL admission, result readers and execution
 must be reviewed together before this generation enters a runtime route.
+
+### Prepared audio cohort RPCs
+
+The prepared service-only database boundary comprises
+`reserve_owned_observation_audio_evidence_cohort(p_owner UUID, p_observation UUID,
+p_analysis UUID, p_media UUID, p_bytes INTEGER, p_sha256 TEXT)`
+and
+`complete_owned_observation_audio_evidence_upload(p_owner UUID, p_observation UUID,
+p_analysis UUID, p_media UUID, p_object UUID)`.
+They return the existing private evidence receipt shape to trusted
+orchestration, never directly to a client. MIME is fixed to `audio/wav`; length
+is 46–2,700,000 bytes and SHA-256 is 64 lowercase hexadecimal characters. Caller
+role, owner and deletion are checked; `media_enabled` and default-false
+`prepared_audio_evidence_enabled` are required.
+
+Reservation freezes one media/object identity and five-minute deadline. Exact
+replay returns that original receipt; changed metadata conflicts. Missing or
+expired receipts fail without replacement, including fully ready but unbound
+expired evidence. Completion accepts only the original unexpired cohort/object
+and acknowledges trusted byte verification; it is not evidence that a client
+uploaded valid bytes. A future binary route must verify the entire prepared WAV
+container and exact digest before reservation, write once, and verify storage
+before completion. This checkpoint adds no such route or client authorization.
+
+Audio and photo cohorts cannot share a child identity. Existing photo wire
+versions, descriptors and exact replay stay unchanged. Current protected
+admission and result readers still reject the new audio generation. Expiry
+cleanup retains the immutable cohort/object/deadline and enqueues opaque
+erasure; parent deletion removes private cohort data. Neither expiry, absence
+nor a successful upload permits provider dispatch, a successor operation or
+refund. Native integration, audio provider-profile binding and the coordinated
+input/result/reader generation remain later checkpoints. All activation gates
+remain false.
