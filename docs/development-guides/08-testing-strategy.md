@@ -11090,3 +11090,17 @@ photo V2 checks. Completion tests prove unconsumed/stale claim denial,
 selection/source preservation, cancellation-safe known-answer settlement, atomic
 rollback and save-commits-then-throws replay. These are inert boundaries; they
 do not qualify retained delivery, restart adoption, device or hosted use.
+
+### Native audio outcome recovery gate
+
+`ObservationAudioOutcomeTransportTests` proves exact reader-10 targeting of an
+unselected child, raw V4 preservation, no inference-consent dependency, and no
+automatic transport/Auth/route retry. It checks narrow missing-target semantics,
+malformed owner/source/digest/child authority, declared and streamed bounds,
+unconsumed/stale claim denial and account changes during I/O. Recovery
+generation reads cannot consume another dispatch permission. Known replies
+survive task cancellation into atomic completion, while replaced claims cannot
+settle and selection stays unchanged. Run it with the existing audio
+submit/completion, photo recovery, protected-chat and transport-owner
+architecture tests. This is prepared-boundary coverage, not retained-executor or
+hosted-runtime acceptance.

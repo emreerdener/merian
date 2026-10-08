@@ -4096,3 +4096,24 @@ A receipt never substitutes for the immutable result: completion still requires
 an exact owner-reader V4 snapshot. Response validation is separate from dispatch
 cancellation so a known same-scope answer can be retained. No production audio
 executor or facade factory is connected yet.
+
+### Prepared audio outcome recovery
+
+`ObservationAudioOutcomeTransport` reads only the exact consumed audio child via
+reader 10 `get_owned_observation_analysis_state`. The direct dispatcher checks
+owner and the injected durable claim after Auth; no inference consent or retry
+executor participates. A five-second streamed read is capped at 4 MiB. Only HTTP
+404 with the bounded PostgREST `P0002` / `analysis_history_not_found` envelope
+returns absence; malformed authority, other errors and generic 404 remain
+failures. Neither absence nor a complete execution-status receipt grants
+provider dispatch.
+
+The reader validates the full owner/target state envelope and exact V4 source,
+request digest and ordered evidence, returning original snapshot bytes without
+selection or review projection. Its response scope check does not discard a
+known answer because the task was cancelled. `ObservationAudioExecutionStore`
+completion remains the final atomic source/claim/account fence; its generic
+`validate` method is cancellation-bearing and must not be used as that known
+answer's sole settlement check. This transport remains inert: production
+factory, retained executor, restart adoption and UI wiring are separate
+checkpoints.

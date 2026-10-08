@@ -4534,6 +4534,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "EdgeFunctionRoutePolicy.swift",
         "IdentificationBenchmarkRecord.swift",
         "ObservationAudioAnalysisTransport.swift",
+        "ObservationAudioOutcomeTransport.swift",
         "ObservationHistoryMutationTransport.swift",
         "PinnedNetworkTransport.swift"
     ]

@@ -15436,3 +15436,21 @@ settle after task cancellation but not owner/deletion/source/claim loss. Save
 uncertainty recovers identical bytes; it cannot dispatch. Retained execution,
 outcome-reader wiring and UI integration remain unconnected and all gates remain
 false.
+
+### Native audio outcome reader
+
+The prepared native audio reader uses unchanged reader-10
+`get_owned_observation_analysis_state` for an explicit saved child. It accepts
+only a running consumed audio claim, validates that claim after Auth, and uses a
+five-second, 4 MiB streamed boundary without transient, 401 or route replay. It
+requires the exact owner/observation/child envelope and V4 source, request
+digest and complete ordered manifest before returning the original snapshot.
+Only HTTP 404 carrying the bounded PostgREST `P0002` and
+`analysis_history_not_found` pair means absence; no absence or status receipt
+authorizes inference. Reads require no fresh inference consent.
+
+Known-result settlement is independent of dispatch cancellation but retains
+account, deletion, source and full durable claim checks in atomic completion.
+The reader makes no selection/review changes and grants no new dispatch permit.
+No server wire/schema or activation gate changes; retained native audio delivery
+and its production factory remain unconnected.

@@ -250,6 +250,12 @@ final class PinnedNetworkTransport: @unchecked Sendable {
             timeout: ObservationAudioAnalysisTransport.requestSeconds)
     }
 
+    /// The immutable state envelope has a larger, still streamed and bounded, read-only budget.
+    func audioOutcomeData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await PinnedBoundedJSONDataTask(maximumBytes: ObservationHistoryPage.maximumPageBytes)
+            .response(using: activeSession, request: request, timeout: 5)
+    }
+
     /// Fixed retirement response budget on the existing pinned session.
     func analysisRetirementData(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await PinnedBoundedJSONDataTask(maximumBytes: 4096).response(using: activeSession, request: request, timeout: 5)
