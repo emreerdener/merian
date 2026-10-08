@@ -7793,3 +7793,22 @@ invocation replay remains first and never grants another dispatch. These are
 deny-only guards; no source-aware funding exception is installed. Quota request
 IDs remain independent idempotency keys and are never interpreted as child
 identities. Frozen transaction snapshots fail on fresh guarded paths.
+
+### Prepared exact source validation
+
+The private source-validation checkpoint
+`20261008191800_centralize_observation_source_binding_validation.sql`
+centralizes owner/deletion/enrollment and exact source membership under owner →
+parent → source locks. Storage inserts retain child-ingestion then
+child-evidence locks before namespace validation. The separate exact-binding
+helper recomputes the fingerprint from complete InputV2/V3, compares the full
+saved input and all scope IDs, and requires matching active occupancy. Missing,
+source-less, mismatched or unoccupied bindings fail closed; the source need not
+be selected. Frozen transaction snapshots are unavailable. Both helpers are
+private, revoked from all API roles, and grant no reservation, funding, release
+or dispatch authority.
+
+Existing terminal or legacy replay must precede this live-binding check. Current
+protected writers are not switched to it until their lock order, cohort binding,
+admission and narrow funding/dispatch exceptions change together. Cohort-only
+enforcement is not a supported activation boundary.

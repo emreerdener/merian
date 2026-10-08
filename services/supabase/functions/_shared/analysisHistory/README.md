@@ -781,3 +781,12 @@ The deny-only funding prerequisite also fences bound original analysis IDs at
 quota admission and fresh invocation commitment. Existing invocation replay is
 non-dispatching; quota request IDs remain separate idempotency identities. See
 [funding exclusion](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-bound-funding-exclusion).
+
+## Prepared exact source validation
+
+Private SQL helpers now share canonical source locking and validate complete
+saved input, recomputed fingerprint and live occupancy. They grant no admission
+or dispatch and are unavailable to API roles. Existing writers remain unchanged
+until coordinated cohort/admission/funding/execution cutover; terminal replay
+must precede live-binding validation. See the
+[exact validation contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-exact-source-validation).
