@@ -7759,6 +7759,21 @@ without relying on owner-prefixed indexes. This storage check alone does not
 fence competing legacy writers: the coordinated all-writer cutover remains
 required before any reservation RPC can be installed or enabled.
 
+The forward ingestion prerequisite
+`20261008181427_fence_reserved_analysis_child_identity.sql` serializes binding
+insertion with legacy scan, ingestion-job and ingestion-intent identity writes.
+Generic ingestion guards take the owner key-share lock before the canonical
+child advisory lock; they never acquire parent/source locks. Binding insertion
+uses owner/parent/source, then child ingestion and evidence locks. A committed
+binding rejects legacy reuse across owners even without occupancy. PostgreSQL
+UUID aliases in legacy text IDs are compared through a private immutable parser
+and indexed expressions; stored spellings and non-UUID legacy IDs remain intact.
+Frozen repeatable-read/serializable snapshots fail explicitly: post-lock absence
+checks require Read Committed visibility (PostgreSQL Read Uncommitted has the
+same visibility). No reservation API or funding exception is introduced.
+Funding, media, intent, execution and terminal release still need coordinated
+all-writer coverage.
+
 Updates and live-parent deletion are denied, including occupancy release. No
 expiry, completion, retirement or release operation is implemented here. Parent
 tombstones and parent cascade deletion erase both private tables. Source linkage

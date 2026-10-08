@@ -245,3 +245,13 @@ in for that fence. Existing unclaimed cohorts retain exact replay only; missing
 or unattributable parent evidence holds fresh reservation. No callable mutation
 or consumer opens until terminal-proof storage and all-writer coverage are
 independently reviewed together.
+
+## October 8 ingestion prerequisite
+
+The prepared binding now excludes legacy scans and ingestion jobs/intents under
+shared owner-before-child locks. Normalized UUID comparison also detects older
+uppercase, braced and unhyphenated text identities without rewriting their saved
+request identity. Real concurrency tests cover both winning orders and different
+owners. This checkpoint does not establish all-writer coverage: generic funding
+and invocation paths, protected media/admission/execution, and exact terminal
+retirement remain prerequisites before reservation can open.

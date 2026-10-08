@@ -770,3 +770,9 @@ The
 [storage boundary](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-binding-storage-boundary)
 distinguishes this groundwork from required all-writer reservation, terminal
 release and legacy replay coordination.
+
+Legacy scan/job/intent child-identity writes now reject bound UUID reuse under
+owner-before-child locks, including UUID aliases and cross-owner attempts. This
+storage-integrity prerequisite requires Read Committed visibility (including
+PostgreSQL's equivalent Read Uncommitted); frozen transaction snapshots fail
+explicitly. It does not open reservation, admission, funding or execution.

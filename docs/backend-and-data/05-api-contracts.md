@@ -15631,6 +15631,14 @@ constraints are not an admission receipt, proof of absence, upload permission,
 funding reservation or execution grant. Existing RPC payloads and saved-photo
 replay remain unchanged.
 
+A storage-integrity prerequisite now rejects legacy scan/job/intent insertion or
+identity changes that reuse any bound child UUID, including cross-owner and
+alternate UUID spellings. It takes owner-before-child locks and requires current
+statement snapshots; Repeatable Read and Serializable identity writes fail
+explicitly. Ordinary scan owner removal does not take a late child lock. This
+adds no reservation, admission or execution authority; the remaining funding and
+protected writers still require coordinated cutover.
+
 A future atomic reservation must write binding and occupancy together after
 complete scope coverage and exact replay checks. Missing occupancy for a
 retained binding remains held unless an exact durable terminal proof explains
