@@ -11431,3 +11431,35 @@ Native evidence is shared-worktree focused, not a full clean-candidate gate. The
 previous overlapping Auth architecture-size failure remains explicit. Rendered
 chooser UI evidence, full audio/restart journeys, video, device/runtime and
 external storage/erasure qualification remain separate requirements.
+
+### Rendered saved audio chooser gate
+
+`SavedAudioChooserUITests/testExplicitSelectionStatusAndRefreshNeverAutoContinue`
+is the runtime-manifest rendering smoke for the real saved-audio sheet and
+model. Its Debug-only domain fixture performs no persistence, account or
+provider work. It proves explicit selection, consumed-result action copy,
+unavailable feedback, refresh clearing selection and dismissal. Native
+integration coverage separately owns durable identity, consumed recovery and
+account cancellation.
+
+The 2026-10-08 checkpoint passed 30 focused native tests and this UI smoke. The
+final shared-worktree full run recorded 5,637 tests: 5,636 passed, one failed
+and none skipped; the exact chooser UI smoke passed. The failing Auth
+architecture size test reflects overlapping local `SupabaseManager` edits (3,800
+lines against 3,792; aggregate 13,703 against 13,695). Critical-result
+validation correctly failed; this is not a full-green milestone. The shared
+tooling run additionally found that an unrelated local edit removed the required
+`testLifecycleInterruptionCancelsVideoWaitingOnAdmission` declaration. Preserve
+those edits and compare scoped-candidate tooling separately. Retained evidence:
+`61d08bcbe96541298c3e4b3383f4ff41.xcresult` (full) and
+`3546ddabd6674691a756b9408e02e159.xcresult` (focused). The fixture does not
+qualify ordinary route activation, durable restart, device audio, video or
+hosted work.
+
+The eleven-file scoped export then passed full `make test-ios-ci-tooling`, all
+seven targets' generated source membership and 26 documentation contracts. It
+retains HEAD's required lifecycle regression and excludes the overlapping local
+Auth/test/generated/documentation edits. This isolates tooling evidence; it is
+not a clean-candidate full native execution. Strict lint, source guards, DTO21
+and changed-Markdown formatting also passed. Independent source and final
+contract/documentation review found no remaining blocker in this checkpoint.

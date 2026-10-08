@@ -243,6 +243,9 @@ struct MerianApp: App {
                             )
                         }
                     }
+                    #if DEBUG
+                    .modifier(SavedAudioChooserUITestPresentation())
+                    #endif
                     .modelContainer(container)
                     .injectAppDependencies(container: diContainer)
                     .modifier(LibraryTransitionPresentation(supabase: diContainer.supabaseManager))

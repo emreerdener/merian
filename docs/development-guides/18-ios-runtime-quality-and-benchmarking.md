@@ -282,3 +282,17 @@ identical. These are report-only measurements of that bounded flow, not
 sustained heap-retention, leak, real-provider or physical-device evidence. Keep
 raw XCResult samples and matching environment/workload identity; no timing or
 memory threshold is inferred from one local run.
+
+### Saved audio chooser rendering boundary
+
+The runtime manifest includes the explicit saved-audio chooser UI smoke. It uses
+the production sheet and presentation model with a Debug/UI-test-only domain
+fixture. The smoke proves disabled-until-selected actions, distinct consumed
+result-checking copy, unavailable feedback, refresh clearing selection and
+closing the sheet. It does not call a provider, authorize work, access media,
+open an account lease or mutate the database.
+
+Persistence and exact consumed-request handoff remain native integration tests.
+This rendering evidence does not substitute for durable restart, audio/device,
+video, hosted runtime, erasure or storage/CDN qualification. Ordinary App
+installation remains disabled; the alternatives card is unaffected.

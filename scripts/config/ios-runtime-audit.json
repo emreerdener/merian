@@ -476,6 +476,13 @@
         "PublicationConsentUITests"
       ],
       "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/SavedAudioChooserUITests/testExplicitSelectionStatusAndRefreshNeverAutoContinue",
+      "suite_names": [
+        "SavedAudioChooserUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/SavedAudioChooserUITests.swift"
     }
   ],
   "performance": [

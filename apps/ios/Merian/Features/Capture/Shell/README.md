@@ -684,3 +684,22 @@ not the retained status/preparation/execution owners or durable work. Started or
 coalesced admission reports only that checking began, never successful analysis.
 Refresh is explicit; there is no polling or automatic retry. Consumed requests
 remain outcome-only through the existing exact resume and queue boundaries.
+
+### Rendered saved audio chooser
+
+`CaptureAudioSavedRequestsSheet` renders the explicit-selection model. Rows use
+page-local numbering and advisory saved phases; they do not invent dates,
+species names or media previews. The final action stays disabled until a row is
+selected. Consumed phases display Check saved result; unconsumed phases display
+Continue saved request. These labels grant no authority: the model still opens
+the exact saved request through the existing resume/queue boundary.
+
+Refresh and paging clear selection. Omitted work has an explicit notice and is
+never treated as absence. Closing or losing account/presentation scope closes
+the model; no idle lease, polling or provider replay is added. Completion is not
+inferred from queue acceptance. The alternatives card is unchanged.
+
+The sheet is rendered only by an explicit Debug/UI-test fixture for now.
+Ordinary routes and the App installation gate remain disabled. Its fixture
+proves rendering and interaction, while native integration tests separately
+prove persistence, exact consumed recovery and account ownership.

@@ -183,3 +183,15 @@ to the retained exact-proof reader and preparation/binding service. A fresh
 matching snapshot and both common and presentation checks precede the injected
 queue handoff. Presentation never enters retained execution. Construction and
 opening start no queue; ordinary installation and automatic adoption remain off.
+
+### Saved audio chooser UI qualification
+
+`UITestSeedCoordinator+SavedAudio` supplies a Debug-only, UI-test-only chooser
+model under the explicit `-seedSavedAudioChooser` argument. A DEBUG-gated root
+modifier presents the real model and sheet with in-memory domain rows and an
+unavailable-only resume closure. It acquires no lease and touches no
+persistence, queue, media, consent or provider. `MerianApp` contains no raw
+launch argument; Release compiles out both modifier and fixture. The existing
+release-binary seed denylist includes the argument. Ordinary prepared-history
+installation remains disabled. This fixture is rendering evidence, not durable
+audio or backend qualification.

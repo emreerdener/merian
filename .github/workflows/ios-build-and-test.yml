@@ -926,6 +926,7 @@ jobs:
             "-seedNonBiologicalCollectionRoute" \
             "-seedPrivateScanMapFlow" \
             "-seedIdentificationHistory" \
+            "-seedSavedAudioChooser" \
             "-seedSavedReanalysisFailure" \
             "-seedProtectedInsightChat" \
             "-seedProtectedChatStale" \
