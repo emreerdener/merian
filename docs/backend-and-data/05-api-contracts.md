@@ -15644,3 +15644,70 @@ execution writers.
 Parent deletion removes the private storage. Until explicit ownership transfer
 is implemented, source bindings extend the existing guest-history merge hold. No
 automatic expiration, replacement, provider retry or refund is introduced.
+
+### Prepared source reservation and unfunded retirement wire
+
+`sourceReservation.ts` now defines an inert executable boundary for the future
+coordinated mutation. No SQL routine, HTTP route, native consumer, or grant uses
+it. Its action reader is **11**, distinct from read-only source discovery reader
+10; introducing the constant does not upgrade existing readers or activate a
+route. Future mutations must reject unsupported readers explicitly.
+
+The reservation request has exactly `schema_version: 1`, `input`,
+`fingerprint_version: 1`, and `fingerprint`. Input is the complete existing
+executable InputV2 photo or InputV3 audio, with a non-null immutable source. The
+1 MiB UTF-8 decoder validates the existing evidence bounds and recomputes the
+canonical SHA-256 fingerprint. It snapshots and deeply freezes validated input
+before the hash await. A supplied digest mismatch fails, and the original
+`request_digest` remains unchanged. The caller never supplies owner identity.
+Receipt decoding also requires the full saved candidate and recomputes its
+fingerprint; a caller-synthesized identity/digest tuple is not an accepted
+expected value. Response bytes and expected requests are snapshotted before that
+hash await. Retirement request construction uses the same verified full
+candidate, and retirement receipt decoding checks both that candidate and the
+original action. The server must repeat fingerprint validation under its future
+reservation transaction; successful decoding is not durable admission.
+
+Every response is bounded to 2 KiB and starts with exactly `schema_version: 1`,
+`owner_id`, `observation_id`, `source_analysis_id`, and `state`:
+
+- `reserved` additionally carries `analysis_id`, original `request_digest`,
+  `fingerprint_version: 1`, and `fingerprint`. Every field must match the saved
+  candidate and authenticated owner. It acknowledges the immutable binding and
+  occupancy, not the current execution phase or permission to upload or
+  dispatch.
+- `held` adds only `reason`: `source_occupied`, `ambiguous_occupancy`,
+  `coverage_incomplete`, `malformed_linkage`, or `terminal_unproven`. It never
+  exposes a competing child, digest, input, media, quota, token or capability.
+- `unavailable` has no additional fields. Neither advisory absence nor
+  history-only is a mutation response or permission to create a different child.
+
+The future SQL transaction must return exact same-candidate replay before fresh
+rollout gates, after owner/deletion validation. Same child with changed
+immutable input is the existing operation-conflict error, not success or a
+replacement. Binding without occupancy remains held unless an independently
+verified terminal rule applies. A reserved response after a lost reply does not
+authorize another provider invocation or prove that no admission occurred. All
+writers must revalidate their own durable phase and binding.
+
+Unfunded retirement is separate from existing funded execution retirement. Its
+exact request fields are `schema_version: 1`, distinct `operation_id`,
+`observation_id`, `source_analysis_id`, `analysis_id`, original
+`request_digest`, `fingerprint_version: 1`, and `fingerprint`. Both request and
+receipt are bounded to 2 KiB. The only successful receipt adds authenticated
+`owner_id` and `state: "retired_unfunded"`; it must match every original request
+field. The existing `retired_before_dispatch` receipt is not accepted at this
+boundary. Errors, held responses, missing data and cancellation never become a
+retirement receipt. Neither receipt fabricates a result or grants a new
+reservation.
+
+Before producing this receipt, the future transaction must establish exact
+binding and complete absence of any cohort, evidence, intent, funding,
+invocation, work, draft or result; atomically prevent all later writers; save
+the immutable operation receipt; and release only its occupancy. The receipt
+must survive occupancy deletion but follow parent deletion. Same operation
+replay returns the saved receipt; changed identity or a different retirement
+operation conflicts. Missing prunable accounting alone is never non-execution
+proof. These storage and all-writer obligations remain unimplemented at this
+wire-only checkpoint. Existing saved photo/audio and funded-retirement contracts
+are unchanged.

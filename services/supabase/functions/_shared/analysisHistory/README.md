@@ -25,6 +25,14 @@ native `ObservationSourceFingerprint` tests. Reservation integration remains
 separate; see the
 [fingerprint contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-reservation-fingerprint).
 
+`sourceReservation.ts` owns the prepared reader-11 reservation and explicit
+unfunded-retirement contracts. It recomputes the fingerprint, freezes input
+before await, and decodes exact owner-scoped receipts within 2 KiB. Held states
+never expose a competitor; `retired_unfunded` cannot be confused with funded
+execution retirement. There is no SQL/HTTP/native consumer. See the
+[mutation wire contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-reservation-and-unfunded-retirement-wire);
+all-writer fencing remains a prerequisite to connecting it.
+
 `contract.ts` owns exact request identities, errors and bounded primitive
 parsers. `transitions.ts` models selection and revision decisions; `result.ts`
 reuses the canonical Identify and captured-media validators; `page.ts` binds

@@ -226,3 +226,22 @@ cohorts must compare exact stored media projection, while old unclaimed cohorts
 retain only exact replay. The source lock belongs after parent locks and before
 child locks in every coordinated path. This is a required subsequent
 implementation boundary, not an active compatibility guarantee.
+
+## October 8 reservation wire checkpoint
+
+The executable prepared mutation boundary now fixes action reader 11, a complete
+InputV2/V3 reservation request with recomputed fingerprint, and bounded exact
+reservation receipts. Held responses disclose scope and a closed reason only,
+never competing child identity. Explicit unfunded retirement uses a separate
+operation UUID and `retired_unfunded` receipt; the existing intent-backed
+`retired_before_dispatch` proof is unchanged. See the
+[canonical wire contract](../backend-and-data/05-api-contracts.md#prepared-source-reservation-and-unfunded-retirement-wire).
+
+This is a decoder and contract checkpoint, not a reservation implementation. The
+next coordinated SQL change must use a source-aware sibling of the existing
+parent lock helper, before child evidence/intent/quota locks, and patch every
+writer. The generic parent helper lacks source identity and cannot safely stand
+in for that fence. Existing unclaimed cohorts retain exact replay only; missing
+or unattributable parent evidence holds fresh reservation. No callable mutation
+or consumer opens until terminal-proof storage and all-writer coverage are
+independently reviewed together.
