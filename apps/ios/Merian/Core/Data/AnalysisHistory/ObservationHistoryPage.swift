@@ -185,6 +185,10 @@ struct ObservationHistoryAudioReference: Equatable, Sendable {
     private static let descriptionWhitespace = CharacterSet(charactersIn:
         "\u{0009}\u{000A}\u{000B}\u{000C}\u{000D}\u{0020}\u{00A0}\u{1680}\u{2000}\u{2001}\u{2002}\u{2003}\u{2004}\u{2005}\u{2006}\u{2007}\u{2008}\u{2009}\u{200A}\u{2028}\u{2029}\u{202F}\u{205F}\u{3000}\u{FEFF}")
 
+    static func hasDescriptionContent(_ text: String) -> Bool {
+        !text.trimmingCharacters(in: descriptionWhitespace).isEmpty
+    }
+
     static func decodeManifest(_ value: Any?, observationID: UUID, analysisID: UUID) throws -> Self {
         let manifest = try ObservationHistoryPage.object(value, keys: ["schema_version", "items"])
         guard try ObservationHistoryPage.integer(manifest["schema_version"]) == 3,
@@ -195,7 +199,7 @@ struct ObservationHistoryAudioReference: Equatable, Sendable {
         for item in items {
             if item["kind"] as? String == "description" {
                 _ = try ObservationHistoryPage.object(item, keys: ["kind", "text"])
-                guard let text = item["text"] as? String, !text.trimmingCharacters(in: descriptionWhitespace).isEmpty,
+                guard let text = item["text"] as? String, hasDescriptionContent(text),
                       text.unicodeScalars.count <= 8192, text.utf16.count <= 16_384,
                       text.utf16.count <= 32_000 - textUnits else { throw ObservationHistoryError.invalidSnapshot }
                 textUnits += text.utf16.count

@@ -15485,8 +15485,9 @@ descriptor contract. The private SQL producer is now
 `get_owned_observation_analysis_source(uuid,jsonb,integer)`; no HTTP route,
 transport or native consumer is connected. It does not change the Identify
 generated DTO block, existing readers or saved request fingerprints. The SQL
-reader is exactly 10. Canonical reservation fingerprint parity, source claims
-and all-writer admission fencing remain pending.
+reader is exactly 10. Pure fingerprint encoders are prepared separately;
+reservation integration, source claims and all-writer admission fencing remain
+pending.
 
 The request has exactly `schema_version: 1`, `observation_id` and
 `source_analysis_id`, using distinct canonical lowercase UUIDs. Owner comes from
@@ -15564,15 +15565,16 @@ reinterpret errors/timeouts as absence.
 
 `_shared/analysisHistory/sourceFingerprint.ts` defines fingerprint version 1 as
 an inert pure contract. It has no RPC, durable reservation, upload
-authorization, HTTP caller or native consumer. SQL and Swift implementations
-must match the checked-in golden vectors before reservation or native
-integration is connected. Existing saved request bytes and `request_digest` are
-preserved verbatim; this fingerprint is additional binding, never a replacement
-for their replay rules. The existing server admission checks `request_digest`
-syntax and exact replay identity; it does not prove that native JSON bytes hash
-to that value. The new fingerprint binds the validated semantic fields
-independently. Do not add JSON digest reconstruction or rewriting to saved V2/V3
-requests.
+authorization, HTTP caller or runtime consumer. The ungranted internal SQL
+encoders and `ObservationSourceFingerprint` implement the same pure contract;
+all three languages share checked-in canonical-byte and hash vectors before
+reservation integration is connected. Existing saved request bytes and
+`request_digest` are preserved verbatim; this fingerprint is additional binding,
+never a replacement for their replay rules. The existing server admission checks
+`request_digest` syntax and exact replay identity; it does not prove that native
+JSON bytes hash to that value. The new fingerprint binds the validated semantic
+fields independently. Do not add JSON digest reconstruction or rewriting to
+saved V2/V3 requests.
 
 Only strictly validated fresh protected-photo input schema 2 and audio input
 schema 3 are supported. Source must be non-null, distinct from observation and
@@ -15611,7 +15613,11 @@ reservation transaction.
 for photo (both Gemini and OpenAI) and audio, with composed/decomposed Unicode,
 a supplementary character, newline and delimiter characters. Tests prove JSON
 key-order independence, ordered-item and field sensitivity, strict denials and
-byte snapshotting before the asynchronous hash. Cross-language parity is
-explicitly pending, not inferred from these TypeScript tests. SQL and Swift must
-compare both the canonical bytes and hashes and enforce the same 262,144-byte
-bound before integration.
+byte snapshotting before the asynchronous hash. SQL database tests and native
+parity tests consume those same vectors and compare both bytes and hashes. They
+also cover ECMAScript whitespace (including U+0085 and U+FEFF), numeric integer
+normalization, Unicode and media/description bounds. SQL functions are immutable
+invoker helpers with empty search paths and no API-role execution grants. Native
+parsing does not reconstruct the legacy JSON request digest or change
+saved-photo decoding. These helpers do not reserve work or authorize any network
+operation.

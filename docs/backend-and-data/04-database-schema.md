@@ -7720,3 +7720,20 @@ Existing cascade deletion owns these indexed rows and proofs; no new persistent
 private ledger survives intentional owner/parent erasure. Snapshot codec
 compatibility must preserve existing completion receipt bytes across versions
 1–4.
+
+### Prepared source fingerprint encoders
+
+`20261008164349_prepare_source_fingerprint_parity.sql` adds two pure internal
+helpers: `observation_source_fingerprint_bytes(jsonb)` and
+`observation_source_fingerprint(jsonb)`. They validate supported fresh
+photo/audio metadata and encode the versioned UTF-8 netstring contract,
+preserving the original request digest. Both are stable security-invoker
+routines with fixed empty search paths; PUBLIC and all API roles have no
+execution grant. They add no table, reservation, mutation path or execution
+authority. Shared vectors bind their bytes and SHA-256 to TypeScript and native
+implementations. Source reservation and all-writer coordination remain separate
+prerequisites.
+
+The helpers are STABLE because PostgreSQL UTF-8 conversion is STABLE. Future
+locked reservation transactions must persist the computed binding; these helpers
+cannot be used in an expression index or generated column.

@@ -17,9 +17,10 @@ below supersede that partial status; discovery was not activated.
 Subsequent October 8 implementation note: the default-false service-only SQL
 resolver now classifies bounded existing intents/results and terminal receipts,
 with nonunique source indexes. It never emits advisory absence; the durable
-reservation fingerprint, source claims, all-writer cutover and native recovery
-consumer are still pending. This read-only checkpoint does not authorize fresh
-entry or release activation holds. See the current API contract above.
+reservation binding, source claims, all-writer cutover and native recovery
+consumer are still pending. Pure fingerprint helpers are described below. This
+read-only checkpoint does not authorize fresh entry or release activation holds.
+See the current API contract above.
 
 ## Evidence and scope
 
@@ -202,6 +203,7 @@ The pure TypeScript
 [fingerprint contract](../backend-and-data/05-api-contracts.md#prepared-source-reservation-fingerprint)
 now defines versioned UTF-8 framing and fixed reviewed photo/audio vectors. It
 preserves existing saved request digests and excludes owner from immutable bytes
-while retaining owner as mandatory authorization scope. SQL/Swift parity,
-storage, reservation, retirement and all-writer cutover remain unimplemented.
+while retaining owner as mandatory authorization scope. The next checkpoint adds
+pure ungranted SQL and native encoders with shared byte/hash parity tests.
+Storage, reservation, retirement and all-writer cutover remain unimplemented.
 This is contract groundwork, not admission or activation.
