@@ -410,3 +410,28 @@ This is lock preparation, not execution authority. Source-bound invocation
 remains denied. Original-quota dispatch proof and atomic retirement/release
 remain separate coordinated checkpoints before source access opens. No public
 signature, grant, gate or provider successor is introduced.
+
+### Source-bound generic accounting holds
+
+Migration `20261008220335_hold_source_bound_generic_quota_cleanup.sql` closes
+inherited generic accounting paths before source execution opens. The public
+quota finalizer rejects bound children even with a matching provider context;
+generic expiry refund and terminal quota pruning skip bound children while
+continuing unrelated cleanup. No schedule is created, changed or enabled.
+Generic failure/cancellation and fresh funded retirement hold; exact existing
+terminal/retirement receipt replay remains before the new holds. Unbound
+finalization retains its existing isolation behavior.
+
+Parent deletion retains a separate private refund path only for the exact unused
+original reservation, owner, child, request, lease and attempt. A live-parent
+intent deletion is not that proof. Known invocation/outcome/result evidence
+prevents refund; deletion still erases the intent. The unused-work proof applies
+to all admitted intent erasure because source bindings may be removed earlier in
+the same deletion transaction. Other unbound accounting behavior remains
+unchanged under supported isolation. Immutable binding and occupancy are not
+released by generic accounting cleanup.
+
+Atomic source retirement/release and original-grant dispatch remain required.
+Until their reviewed durable proofs exist, bound quota records intentionally
+stay held instead of being expired, pruned or treated as permission for another
+provider call. Activation gates remain false and ordinary access remains nil.
