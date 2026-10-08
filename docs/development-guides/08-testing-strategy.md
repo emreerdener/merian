@@ -11216,3 +11216,29 @@ two preparation phases. The most recent full native milestone is the preceding
 `afd186919` composition run recorded above; it is not represented as a full run
 of this narrower checkpoint. Shared-worktree execution and scoped candidate
 validation remain distinct; no activation or external qualification is claimed.
+
+### Frozen Capture audio session gate
+
+`CaptureAudioReanalysisSessionTests` covers synchronous tap identity, exact WAV
+and description order, changed input/generation denial and invalid media without
+queue writes. Real producer/binder tests cover save-before-commit and
+save-commits-then-throws, no queue start on failure, bound retry despite removed
+local bytes, and unavailable queue admission retaining the same request.
+Account, source and presentation changes during authorization withhold queue
+handoff; presentation loss alone does not invalidate durable common-scope
+binding.
+
+Run with photo Capture session, audio binding/preparation/queue, frozen source
+and Offline Sync/Core architecture suites. These tests exercise prepared owners;
+ordinary Capture installation, complete restart journeys, V4 audio source proof,
+device and hosted qualification remain separate.
+
+The session checkpoint passed 48 tests across those eight exact suites, with
+zero failures or skips (XCResult `028c167c137e44738e4356e800fa5b48`). The
+initial compile failure was confined to a test attempting an immutable payload
+setter; the corrected fixture deletes the source through `ModelContext`. Failed
+XCResult `fd90fb8c2b1b4f7a86ac89ec6d80ed02` remains retained. Strict lint,
+affected source guards, DTO21, docs26 and scoped seven-target membership passed;
+independent source/documentation re-review was clear. This is focused
+shared-worktree verification, not a clean-candidate full run. The prior full
+milestone and its unrelated Auth-size failure remain recorded above.

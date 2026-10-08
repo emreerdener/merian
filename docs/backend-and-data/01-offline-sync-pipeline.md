@@ -2668,4 +2668,24 @@ consumed marker but grants no provider invocation. Fresh authorization is used
 only for verified `admission_pending` work. A throwing save returns no success,
 even if committed; a later explicit retry recovers the exact binding. File
 preparation and explicit queue start remain separate operations. This owner has
-no scheduler or Capture/UI caller, and all activation gates remain disabled.
+no scheduler or live Capture/UI caller, and all activation gates remain
+disabled.
+
+### Capture audio submission handoff
+
+The prepared `CaptureAudioReanalysisSession` freezes its source/container and
+presentation generation at entry, then freezes child/media IDs, exact WAV bytes
+and ordered descriptions synchronously at the explicit submit tap. Off-main
+verification uses only this plan. Every retry retains it; changed input fails
+instead of silently reminting a child.
+
+Strict admission recovery precedes file preparation. Bound work bypasses files
+and fresh consent; unbound work uses the existing producer and retained binder
+with common account scope. Presentation currentness separately gates post-await
+return and queue handoff. A bind that throws cannot start execution, even when
+its save committed; later explicit retry reads the same binding. A fresh exact
+snapshot read must match before invoking the injected queue entry. Queue
+unavailability retains the request. The queue's long-lived predicate must not
+capture presentation lifetime. No ordinary Capture route or scheduler is
+installed, V4 source reuse remains explicitly unsupported, and activation gates
+stay disabled.

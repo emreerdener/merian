@@ -528,3 +528,33 @@ explicit save creates only a held draft; execution and normal entry remain
 disabled. It bypasses ordinary admission and funding. The editor keeps its
 session after ambiguous save failures and uses the transactional discard
 boundary before allowing replacement. Legacy Capture submission is unchanged.
+
+### Frozen audio reanalysis submission
+
+`CaptureAudioReanalysisPlan` freezes one canonical WAV, ordered descriptions and
+new child/media IDs from an explicit historical source. The synchronous
+`CaptureAudioReanalysisSession.freeze` call belongs at the actual submit tap,
+before scheduling asynchronous work. Changed input or presentation generation
+cannot replace that plan. WAV container and coarse input bounds are checked at
+freeze; hashing and strict manifest validation run off-main from the retained
+bytes. No parent notes, media, selected-result lookup or new preprocessing is a
+fallback.
+
+The session keeps its original container, source, generation and verified proof.
+Submission requires producer and binder to share the retained preparation owner.
+A strict admission read precedes the file producer: exact bound work bypasses
+files and consent; unbound work prepares the original file, requires
+`admission_pending`, then uses retained binding. Account scope governs those
+durable operations. Presentation scope is checked separately after awaits and
+before handoff; losing it withholds UI/queue handoff without claiming that a
+committed binding was cancelled. A fresh exact snapshot comparison precedes the
+synchronous injected queue start. Queue lifetime must use common account scope,
+never the presentation predicate.
+
+A throwing bind save returns no start, including commit-then-throw. A later
+explicit retry preserves the plan and recovers its exact binding. Unavailable
+queue admission also retains the original plan and request. The session never
+discards work, remints an identity, selects the child or authorizes a second
+provider call. Source proof still explicitly excludes V4 audio sources; that
+remaining contract is separate. These owners are prepared only: no ordinary
+Capture dependency, router, editor or alternatives-card layout is changed.
