@@ -210,8 +210,12 @@ exact persisted snapshot and one queued row across explicit continuation.
 `AudioReanalysisSheetUITests` exercises the production sheet before and after
 submission, dismisses and reopens the same host, and verifies its saved UUID is
 unchanged. The seed is release-denylisted and its test belongs to the runtime
-manifest. This does not install ordinary Capture access or qualify the native
-file importer, device permissions, process restart or hosted execution.
+manifest. The Models integration architecture guard permits explicit bundle
+construction only in this named fixture, verifies its single enclosing Debug
+conditional and opt-in launch flag, and checks that the App presentation
+modifier is Debug-only. Every ordinary caller remains excluded. This does not
+install ordinary Capture access or qualify the native file importer, device
+permissions, process restart or hosted execution.
 
 The same audio fixture also opens the real
 `PreparedHistoryReanalysisComposition.openSavedAudioRequests` factory. An

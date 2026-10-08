@@ -188,15 +188,28 @@ struct ModelsIntegrationArchitectureTests {
         let sources = try DatabaseActorTestSupport.swiftSources(below: "apps/ios/Merian")
         for entry in sources {
             let code = codeLines(in: entry.contents)
+            let audioSheetFixture = entry.relativePath == "App/UITesting/UITestSeedCoordinator+AudioReanalysisSheet.swift"
+            if audioSheetFixture {
+                #expect(entry.contents.hasPrefix("#if DEBUG\n"))
+                #expect(entry.contents.hasSuffix("#endif\n"))
+                let directives = code.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { $0.hasPrefix("#if") || $0.hasPrefix("#else") || $0.hasPrefix("#endif") }
+                #expect(directives == ["#if DEBUG", "#endif"])
+                #expect(code.contains("isEnabled && ProcessInfo.processInfo.arguments.contains(\"-seedAudioReanalysisSheet\")"))
+                #expect(!code.contains("PreparedHistoryReanalysisComposition.prepared"))
+                #expect(!code.contains(".appInstallation"))
+            }
             if entry.relativePath != "App/Composition/PreparedHistoryReanalysisComposition.swift" {
                 #expect(!code.contains("IdentificationHistoryAccess.prepared"))
                 #expect(!code.contains("ReanalysisStatusAccess.prepared"))
                 #expect(!code.contains("CaptureReanalysisAccess.prepared"))
                 #expect(!code.contains("SavedIdentificationReanalysisAccess.prepared"))
             }
-            // Only the App root may reach the immutable, default-off installation boundary.
-            #expect(code.range(of: #"PreparedHistoryReanalysisComposition\s*(?:\(|\.prepared\b)"#,
-                               options: .regularExpression) == nil, "Prepared history has no ordinary caller: \(entry.relativePath)")
+            // Only this fully Debug-gated fixture may construct an explicit synthetic bundle.
+            if !audioSheetFixture {
+                #expect(code.range(of: #"PreparedHistoryReanalysisComposition\s*(?:\(|\.prepared\b)"#,
+                                   options: .regularExpression) == nil, "Prepared history has no ordinary caller: \(entry.relativePath)")
+            }
             if entry.relativePath != "App/MerianApp.swift" {
                 #expect(!code.contains(".appInstallation {"))
             }
@@ -205,6 +218,7 @@ struct ModelsIntegrationArchitectureTests {
         #expect(composition.contains("static let isAppInstallationQualified = false"))
         #expect(composition.contains("guard isAppInstallationQualified else { return nil }\n        return make()"))
         let app = try source(at: "apps/ios/Merian/App/MerianApp.swift")
+        #expect(app.contains("#if DEBUG\n                    .modifier(SavedAudioChooserUITestPresentation())\n                    .modifier(AudioReanalysisSheetUITestPresentation())\n                    #endif"))
         #expect(app.contains("preparedHistoryReanalysis = .appInstallation {\n            .prepared(in: dependencies)"))
         #expect(app.contains("reanalysisAccess: preparedHistoryReanalysis?.capture"))
         #expect(app.contains(".environment(\\.insightHistoryReanalysisAccesses, preparedHistoryReanalysis?.insightAccesses)"))
