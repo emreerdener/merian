@@ -11406,3 +11406,28 @@ Native evidence is from the shared worktree, not a full clean-candidate run. The
 previously documented overlapping Auth architecture-size failure remains
 separate. This inert access does not establish audio UI, runtime/device,
 external storage/erasure or activation acceptance.
+
+### Saved audio chooser model gate
+
+`CaptureAudioSavedRequestsModelTests` verifies no automatic selection/resume,
+exact current-row membership, synchronous final-tap opening before its Task,
+same identity after unavailable handoff, failed refresh clearing old actions,
+stale account/presentation/close callbacks, and late resume not reopening a
+closed presentation. Real 21-link paging exercises the opaque cursor and
+omission handling. A production inert-factory test resumes the exact consumed
+snapshot after removing local WAV bytes, without fresh authorization. Existing
+execution service tests prove consumed recovery never redispatches a provider.
+
+The checkpoint passed 55 tests across nine verified suites with zero failures or
+skips: chooser model, status access, audio reanalysis access, execution service,
+History Reanalysis Composition, App Root, Models Integration, Core-wide
+Integration and Offline Sync Foundation architecture. XCResult:
+`3496088a0b3d47f5b45b68984233a575`. Strict lint passed after a test import-order
+correction; source guards and DTO21 passed. Independent source review was clear.
+There was no native failure. This validates a presentation model and inert
+factory, not a rendered sheet or ordinary route.
+
+Native evidence is shared-worktree focused, not a full clean-candidate gate. The
+previous overlapping Auth architecture-size failure remains explicit. Rendered
+chooser UI evidence, full audio/restart journeys, video, device/runtime and
+external storage/erasure qualification remain separate requirements.

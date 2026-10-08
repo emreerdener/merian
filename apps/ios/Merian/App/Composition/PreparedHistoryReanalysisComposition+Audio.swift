@@ -1,6 +1,19 @@
 import Foundation
+import SwiftData
 
 extension PreparedHistoryReanalysisComposition {
+    /// Explicit presentation factory only; no route or ordinary installation invokes it.
+    @MainActor
+    func openSavedAudioRequests(ownerID: UUID, observationID: UUID, container: ModelContainer,
+                                isPresented: @escaping @MainActor () -> Bool) throws -> CaptureAudioSavedRequestsModel {
+        guard isPresented(), let audioStatus, let audioCapture else { throw ObservationHistoryError.unavailable }
+        let opened = try audioStatus.open(ownerID, observationID, container)
+        return CaptureAudioSavedRequestsModel(status: opened, openResume: { identity in
+            guard identity.ownerID == ownerID, identity.observationID == observationID else { throw ObservationHistoryError.unavailable }
+            return try audioCapture.openResume(identity, container)
+        }, isPresented: isPresented)
+    }
+
     /// App-owned assembly. This does not install access, start work or capture a presentation predicate.
     @MainActor
     static func audioConfiguration(in dependencies: AppDIContainer, cloud: ObservationHistoryCloudClient,

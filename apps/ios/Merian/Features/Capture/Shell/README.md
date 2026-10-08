@@ -662,3 +662,25 @@ waiter's shared read. Account loss, deletion and enrollment holds fail closed.
 The prepared App bundle supplies the queue's owner explicitly. Construction
 starts nothing, ordinary access stays nil, and no route or child-selection UI is
 installed. An advisory page never authorizes new work or redispatch.
+
+### Explicit saved audio chooser model
+
+`CaptureAudioSavedRequestsModel` is an inert presentation model. The App
+bundle's `openSavedAudioRequests` factory requires explicit
+owner/observation/container, opens the scoped status capability, and supplies
+exact-child resume separately. There is no sheet, ordinary route or automatic
+invocation in this checkpoint.
+
+An explicit load holds at most one 20-link page. Refresh/next clears previous
+rows, cursor, omissions and selection before awaiting. Failed pages expose no
+old action or absence claim. Choosing a row requires membership in the displayed
+page; loading never selects a child. The final Continue tap synchronously opens
+that exact four-ID resume before scheduling a waiter. It creates no operation,
+uses no phase as permission, and keeps the same selected identity after failure.
+
+Page and resume callbacks validate presentation generation and common scope.
+Closing clears private presentation state and cancels only the model's waiter,
+not the retained status/preparation/execution owners or durable work. Started or
+coalesced admission reports only that checking began, never successful analysis.
+Refresh is explicit; there is no polling or automatic retry. Consumed requests
+remain outcome-only through the existing exact resume and queue boundaries.

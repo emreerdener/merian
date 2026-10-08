@@ -2818,3 +2818,24 @@ page; it does not cancel a different joined waiter. The inert composition
 installs this optional capability separately from audio capture/resume, using
 the same injected cloud and account context. Ordinary App installation stays
 false. No UI route, selection, execution wake or automatic recovery is added.
+
+### Explicit saved audio presentation model
+
+The inert App factory connects `CaptureAudioSavedRequestsModel` to its scoped
+status capability and the separate exact four-ID resume access. It does not
+install a rendered chooser or ordinary route. Status pages remain advisory:
+loading, paging and reopening never select or resume a request.
+
+The model retains one bounded page, clears previous rows/selection before each
+load, and offers no stale action after errors. Only an explicit current-row
+selection followed by the final Continue tap opens resume, synchronously before
+creating its presentation task. No identity is minted or substituted; failure
+retains the selected saved identity. Existing preparation/binding and execution
+transactions remain the authority for every action, including consumed
+outcome-only recovery.
+
+Stale page/resume callbacks cannot restore a closed presentation. Closing
+cancels only its waiter; queue-retained tasks and durable work remain separately
+owned. Opening a model has no idle lease, timer, automatic rearm or dispatch.
+Account scope still comes from the injected access; the model never adopts a new
+account generation. All installation gates remain false.

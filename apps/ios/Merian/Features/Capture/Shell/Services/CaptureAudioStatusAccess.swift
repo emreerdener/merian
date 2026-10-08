@@ -5,6 +5,7 @@ import SwiftData
 @MainActor
 struct CaptureAudioStatusAccess {
     struct Opened {
+        let isCurrent: @MainActor () -> Bool
         let page: (ObservationAudioSavedStatus.Cursor?, Int, @escaping @MainActor @Sendable () -> Bool) async throws -> ObservationAudioSavedStatus.Page
     }
     let open: (UUID, UUID, ModelContainer) throws -> Opened
@@ -27,7 +28,7 @@ struct CaptureAudioStatusAccess {
             guard session.userID == ownerID, current(), account.isCurrent(lease) else { throw ObservationHistoryError.accountChanged }
             try reader.validateParentScope(ownerID: ownerID, observationID: observationID, container: container, isCurrent: current)
             guard current(), account.isCurrent(lease) else { throw ObservationHistoryError.accountChanged }
-            return Opened(page: { cursor, limit, presentationIsCurrent in
+            return Opened(isCurrent: current, page: { cursor, limit, presentationIsCurrent in
                 try Task.checkCancellation()
                 guard current(), presentationIsCurrent() else { throw ObservationHistoryError.accountChanged }
                 let page = try await owner.page(ownerID: ownerID, observationID: observationID, session: session,
