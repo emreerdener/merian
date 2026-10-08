@@ -3126,8 +3126,10 @@ native protocol-10 history accepts V1/V2/V3/V4 while private photo resolution
 remains V2-only on protocol 8. The separate default-off backend audio path binds
 input 3 to immutable WAV receipts and emits result 4 for reader 10. Action RPCs
 accept readers 9/10 with whole-audio-history refusal for reader 9. Native V4
-action admission and audio input execution remain held; no audio activation is
-authorized. See the canonical
+review and receipt-bound confirmation/rejection Undo use strict reader-10
+tickets. Selection/selection Undo, candidate selection, publication and selected
+chat remain unavailable for V4; prepared audio execution remains default-off. No
+audio activation is authorized. See the canonical
 [protected evidence lifecycle](../../docs/backend-and-data/05-api-contracts.md#prepared-protected-evidence-lifecycle).
 
 The prepared `analysisHistory/intent.ts` owner and funded-child migration now

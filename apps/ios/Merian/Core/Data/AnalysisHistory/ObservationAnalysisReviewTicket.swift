@@ -5,6 +5,8 @@ import Foundation
 /// Value captured when a preview is admitted. Display labels never authorize a
 /// review; immutable evidence and the separately acknowledged authority do.
 struct ObservationAnalysisReviewTicket: Equatable {
+    let resultVersion: Int
+    var supportsPhotoPublicationFormat: Bool { resultVersion != 4 }
     let ownerID: UUID
     let observationID: UUID
     let analysisID: UUID
@@ -28,8 +30,8 @@ struct ObservationAnalysisReviewTicket: Equatable {
 
     init(entry: ObservationHistoryListingService.Entry, context: ObservationHistoryListingService.Context,
          observationID: UUID) throws {
-        // Audio actions await the coordinated reader-10 mutation contract.
-        guard [1, 2, 3].contains(entry.result.version), let authority = entry.authority, let reviewRevision = entry.reviewRevision,
+        // Review transports use reader 10; other media actions retain their own format gates.
+        guard [1, 2, 3, 4].contains(entry.result.version), let authority = entry.authority, let reviewRevision = entry.reviewRevision,
               context.revision > 0, reviewRevision >= 0, reviewRevision <= context.revision else {
             throw ObservationHistoryError.unavailable
         }
@@ -37,6 +39,14 @@ struct ObservationAnalysisReviewTicket: Equatable {
         guard envelope?["observation_id"] as? String == observationID.uuidString.lowercased(),
               envelope?["analysis_id"] as? String == entry.result.analysisID.uuidString.lowercased(),
               let result = envelope?["result"] as? [String: Any] else { throw ObservationHistoryError.invalidSnapshot }
+        if entry.result.version == 4 {
+            let decoded = try ObservationHistoryPage.snapshot(entry.result.bytes, observationID: observationID.uuidString.lowercased(),
+                ordinal: ObservationHistoryPage.integer(envelope?["ordinal"]))
+            guard decoded.version == 4, decoded.audio != nil, decoded.audio == entry.result.audio,
+                  decoded.analysisID == entry.result.analysisID, decoded.completedAt == entry.result.completedAt,
+                  entry.result.photos.isEmpty, entry.result.importedAt == nil else { throw ObservationHistoryError.invalidSnapshot }
+        }
+        resultVersion = entry.result.version
         let biological = (result["is_biological_subject"] as? NSNumber).map {
             CFGetTypeID($0) == CFBooleanGetTypeID() && $0.boolValue
         } ?? false

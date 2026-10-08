@@ -11017,16 +11017,17 @@ acceptance work; all rollout gates remain false.
 malformed/aliased evidence, ECMAScript whitespace parity, scalar and UTF-16 text
 bounds, exact replay, preserved parent selection/correction and actual sync →
 disk reopen → listing. Audio cannot enter the photo resolver or become an empty
-legacy reanalysis source. `ObservationAnalysisReviewTicketTests` denies V4
-review/publication tickets until separate native audio action admission. The
-audio sync suite also denies selected-chat tickets and proves no save or
-selection dispatch for fresh Restore, selection Undo and persisted selection
-with V4 as either target or previous result; the detail explains the hold.
-`LocalAnalysisRecordTests` runs disk reopen and parent cascade for both V1 and
-V4 and requires finite audio completion. The opaque-storage constructor change
-does not alter the V58 schema; migration guardrails and `MigrationPlanTests`
-remain part of affected native validation. These prepared decoder tests do not
-prove native V4 action admission or audio input execution.
+legacy reanalysis source. `ObservationAnalysisReviewTicketTests` admits strict
+V4 review tickets while preserving explicit photo-publication and candidate
+format denials. The audio sync suite also denies selected-chat tickets and
+proves no save or selection dispatch for fresh Restore, selection Undo and
+persisted selection with V4 as either target or previous result; the detail
+explains the hold. `LocalAnalysisRecordTests` runs disk reopen and parent
+cascade for both V1 and V4 and requires finite audio completion. The
+opaque-storage constructor change does not alter the V58 schema; migration
+guardrails and `MigrationPlanTests` remain part of affected native validation.
+These decoder checks alone do not prove network review delivery, activated
+native runtime or audio input execution.
 
 ### Audio history action reader verification
 
@@ -11043,10 +11044,10 @@ Existing retirement-versus-dispatch/deletion concurrency remains required.
 `ObservationExecutionStatusTransportTests` assert fixed reader-10 bodies,
 unchanged identities and no automatic retries. Photo recovery retains its strict
 V2 matcher: a valid V4 response is a result conflict, never absence or
-permission to execute. V4 action-admission holds and saved-photo replay remain
-separate coverage. Run these with the complete backend
-catalogs/concurrency/security and affected native gates; this does not qualify
-native audio production, device or hosted rollout.
+permission to execute. V4 selection/publication/chat holds, native review
+admission and saved-photo replay remain separate coverage. Run these with the
+complete backend catalogs/concurrency/security and affected native gates; this
+does not qualify native audio production, device or hosted rollout.
 
 ### Audio preparation persistence regression gate
 
@@ -11488,3 +11489,28 @@ focused shared-worktree results, not a new full-native green milestone. This
 change adds no schema, wire or server operation and does not activate ordinary
 audio routes, V4 review/selection/publication, original-audio loading or video
 support.
+
+### V4 audio review admission qualification
+
+Strict audio tickets reuse reader-10 review and both receipt-bound Undo paths.
+`ObservationAnalysisReviewAdmissionTests` covers exact staging/replay, unchanged
+selection and owner/deletion/revision/legacy-review fences for photo/imported
+and V4 fixtures. `ConfirmationUndoEligibilityTests` covers recovered primary and
+named confirmation Undo without a local original receipt;
+`RejectionUndoEligibilityTests` covers the same V4 reinstall path and exact
+persisted replay after authority advances.
+
+`ObservationAnalysisReviewReconciliationTests` applies selected C before the
+nonselected V4 target A in the same transaction. Ticket tests retain community
+authority denial, and publication preparation rejects V4 before any account
+lease or network fetch. History and selected-host publication controls also
+check the explicit format permission. Selection/selection Undo, candidate
+selection, photo publication and selected chat remain unavailable for V4.
+
+The focused shared-worktree run passed 83 tests in nine verified suites,
+retained in `47cc6b72d4834ae9828205d9bdd8bbeb.xcresult`. Earlier nested-macro,
+fixture semantic and helper-name failures are retained separately; the final
+rerun passed without weakening strict decoding. This is focused evidence, not a
+new full-native green result. The earlier unrelated Auth architecture-size
+failure remains recorded. No gates or ordinary routes were enabled; no hosted,
+device or end-to-end audio selection qualification is claimed.

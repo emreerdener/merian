@@ -12,7 +12,7 @@ final class IdentificationHistoryViewModel {
     private(set) var review: IdentificationHistoryReviewModel?
     private(set) var publication: IdentificationPublicationModel?
     private let publicationContinuation: PublicationConsentContinuation?
-    var canAskCommunity: Bool { dependencies.publicationConsent != nil && detail?.reviewTicket.map { publicationContinuation?.matches($0) == true } == true && !pending && !isBusy && !isClosed }
+    var canAskCommunity: Bool { dependencies.publicationConsent != nil && detail?.reviewTicket.map { $0.supportsPhotoPublicationFormat && publicationContinuation?.matches($0) == true } == true && !pending && !isBusy && !isClosed }
     var reviewDeliveryGeneration: UInt64 { dependencies.review?.generation() ?? 0 }
     private(set) var photo: UIImage?
     private(set) var selected: UUID?

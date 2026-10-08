@@ -72,10 +72,10 @@ final class SelectedAnalysisReviewHost {
     }
 
     var hasPublicationAccess: Bool {
-        session?.publication != nil && session?.photo != nil && scopeIsCurrent && !terminal && model?.hasUnresolvedRequest != true
+        session?.ticket.supportsPhotoPublicationFormat == true && session?.publication != nil && session?.photo != nil && scopeIsCurrent && !terminal && model?.hasUnresolvedRequest != true
     }
     private func permitsPublication() -> Bool {
-        guard model?.hasUnresolvedRequest != true, let session else { return false }
+        guard model?.hasUnresolvedRequest != true, let session, session.ticket.supportsPhotoPublicationFormat else { return false }
         do { return try session.access.pending() == nil } catch { return false }
     }
 

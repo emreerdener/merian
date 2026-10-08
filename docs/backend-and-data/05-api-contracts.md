@@ -15377,14 +15377,17 @@ otherwise omit it. A reader-9 native client is not audio-compatible.
 The prepared Swift decoder/cache accepts exact V4 snapshots with one bounded WAV
 reference, matching manifest keys, scalar/UTF-16 limits and ECMAScript
 whitespace rules. It retains the original bytes and exposes no photo reference.
-V58 stores these opaque bytes without a schema-shape change. Local review,
-publication and selected-chat ticket construction and reanalysis source
-preparation deny V4 until the coordinated mutation/input integration is ready;
-photo loading remains V2 only. Selection staging (including Undo) and persisted
-selection replay reject V4 target/current results, and Restore explains why
-selection is unavailable. Disk reopen preserves exact listing bytes, selection
-and correction. This foundation does not advance any network reader or activate
-audio.
+V58 stores these opaque bytes without a schema-shape change. Native review now
+strictly decodes V4 before constructing its immutable ticket and uses the
+existing reader-10 review, confirmation and both Undo contracts. Recovered Undo
+admission does not require a local original receipt. Candidate selection,
+publication and selected chat remain unavailable for V4; photo loading remains
+V2 only. Explicit audio source preparation retains exact V4 provenance but never
+loads its original WAV; photo preparation still refuses V4. Selection staging
+(including Undo) and persisted selection replay reject V4 target/current
+results, and Restore explains why selection is unavailable. Disk reopen
+preserves exact listing bytes, selection and correction. This foundation does
+not advance any network reader or activate audio.
 
 Forward migration `20261007193516_prepare_audio_history_action_readers.sql`
 extends the closed action reader set to 9/10 for selection, review, both Undo
@@ -15401,9 +15404,11 @@ existing ownership, deletion, revision, funding and immutable request checks are
 unchanged. Native fixed page/state/selection, review/Undo and recovery/status
 transports and the two Edge confirmation calls and retirement call now use 10.
 Enrollment stays 9; photo resolution stays 8. The existing photo completion
-matcher still requires exact V2 evidence. V4 UI/action holds above remain in
-place: reader compatibility does not authorize unsupported media actions or
-expand candidate membership. No public payload or persisted schema changes.
+matcher still requires exact V2 evidence. Native V4 review is admitted through
+its strict ticket; selection/selection Undo, candidate selection, publication
+and selected-chat holds remain. Reader compatibility does not authorize
+unsupported media actions or expand candidate membership. No public payload or
+persisted schema changes.
 
 Native held audio preparation now persists exact child ownership and manifest
 before private WAV writes, with complete locked recovery even for ready replays.

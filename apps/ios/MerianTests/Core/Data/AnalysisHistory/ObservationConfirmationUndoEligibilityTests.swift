@@ -11,9 +11,9 @@ struct ConfirmationUndoEligibilityTests {
         let ticket: ObservationAnalysisReviewTicket
         let operation: UUID
     }
-    func seed(named: Bool = false) async throws -> Fixture {
+    func seed(named: Bool = false, audio: Bool = false) async throws -> Fixture {
         let support = ObservationAnalysisReviewAdmissionTests(), source = support.source
-        let (container, _) = try await support.seed()
+        let (container, _) = try await support.seed(audio: audio)
         let operation = UUID()
         try source.update(container) { scan, _ in
             let state = try #require(scan.analysisRecords?.first?.state)
@@ -48,9 +48,9 @@ struct ConfirmationUndoEligibilityTests {
         }
         return value
     }
-    @Test(arguments: [false, true])
-    func secondDeviceStagesWithoutOriginalReceipt(named: Bool) async throws {
-        let fixture = try await seed(named: named)
+    @Test(arguments: [false, true], [false, true])
+    func secondDeviceStagesWithoutOriginalReceipt(named: Bool, audio: Bool) async throws {
+        let fixture = try await seed(named: named, audio: audio)
         let container = fixture.container, ticket = fixture.ticket, operation = fixture.operation
         let eligibility = try recovered(ticket, operation: operation, named: named)
         #expect(try ObservationConfirmationUndoEligibility.local(ticket, context: ModelContext(container)) == nil)

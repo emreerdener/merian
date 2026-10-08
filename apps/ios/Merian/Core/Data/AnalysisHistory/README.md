@@ -20,13 +20,16 @@ disconnected. The backend reader, enrollment and selection gates remain false.
   stores V4 in the existing V58 opaque snapshot fields with finite completion;
   disk reopening does not select the new child or change the parent's review.
   Named history page/state/selection and review transports use reader 10. V4
-  cannot create a review/publication ticket, enter photo loading, or become an
-  empty legacy Capture source. Selection and selection Undo also reject V4 in
-  fresh staging and persisted replay; Restore explains the unavailable format.
+  review tickets strictly decode the WAV snapshot before admitting review and
+  receipt-bound confirmation/rejection Undo through the existing reader-10
+  owners. V4 cannot enter photo publication, photo loading, or become an empty
+  legacy Capture source. Selection and selection Undo also reject V4 in fresh
+  staging and persisted replay; Restore explains the unavailable format.
   Explicit `captureForAudio` can retain V4 as immutable source provenance for a
   new WAV with optional caller-supplied descriptions; it never loads the
-  original WAV. Separate review, selection and publication admission remains
-  held. Enrollment remains reader 9 and photo resolution remains 8.
+  original WAV. Selection, candidate selection, publication and selected chat
+  remain unavailable for V4. Enrollment remains reader 9 and photo resolution
+  remains 8.
 - `ObservationHistorySyncService` owns page admission and the shared immutable
   child insertion helper. Every call reads one page and returns the server
   continuation only after the local transaction succeeds. It never assigns

@@ -11,9 +11,9 @@ struct RejectionUndoEligibilityTests {
         let ticket: ObservationAnalysisReviewTicket
         let operation: UUID
     }
-    func seed() async throws -> Fixture {
+    func seed(audio: Bool = false) async throws -> Fixture {
         let support = ObservationAnalysisReviewAdmissionTests(), source = support.source
-        let (container, _) = try await support.seed()
+        let (container, _) = try await support.seed(audio: audio)
         let operation = UUID()
         try source.update(container) { scan, _ in
             let state = try #require(scan.analysisRecords?.first?.state)
@@ -63,8 +63,8 @@ struct RejectionUndoEligibilityTests {
             observationRevision: 2_147_483_647, reviewRevision: 2)
         #expect(throws: (any Error).self) { try unsupported.object() }
     }
-    @Test func secondDeviceStagesWithoutOriginalReceipt() async throws {
-        let fixture = try await seed()
+    @Test(arguments: [false, true]) func secondDeviceStagesWithoutOriginalReceipt(audio: Bool) async throws {
+        let fixture = try await seed(audio: audio)
         let container = fixture.container, ticket = fixture.ticket, operation = fixture.operation
         let eligibility = try recovered(ticket, operation: operation)
         #expect(try ObservationRejectionUndoEligibility.local(ticket, context: ModelContext(container)) == nil)

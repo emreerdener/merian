@@ -47,5 +47,7 @@ checkpoint; this adds no ordinary producer or UI layout change.
 Both fixed database calls advertise reader 10. Reader 9 is still accepted by SQL
 for compatible histories, but refuses a whole observation containing a completed
 audio result before receipt replay. Reader 10 preserves exact receipt replay
-before fresh gates. This does not extend candidate membership to audio or enable
-any native audio review/publication action.
+before fresh gates. Native V4 review now uses a strictly decoded immutable
+ticket with the existing confirmation and both Undo contracts. This does not
+extend candidate membership, photo publication or selection to audio; ordinary
+access and activation gates remain disabled.

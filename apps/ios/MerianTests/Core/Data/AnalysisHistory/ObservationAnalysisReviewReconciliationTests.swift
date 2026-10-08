@@ -11,10 +11,10 @@ struct ObservationAnalysisReviewReconciliationTests {
     let projection = ObservationHistorySelectionSyncTests()
     let date = Date(timeIntervalSince1970: 1_790_000_000)
 
-    @Test func outgoingTargetAndCurrentSelectionSettleTogetherWithoutAuthorityLeakage() async throws {
-        let (container, claim) = try await seeded(), before = try projection.caches(container)
+    @Test(arguments: [false, true]) func outgoingTargetAndCurrentSelectionSettleTogetherWithoutAuthorityLeakage(audio: Bool) async throws {
+        let (container, claim) = try await seeded(audio: audio), before = try projection.caches(container)
         var calls = 0, finishes = 0
-        let service = ObservationAnalysisReviewReconciliation(cloud: cloud(targetData: try targetData(), selectedData: try selectedData(),
+        let service = ObservationAnalysisReviewReconciliation(cloud: cloud(targetData: try audio ? ObservationAnalysisReviewAdmissionTests().audioState(targetData()) : targetData(), selectedData: try selectedData(),
             during: { calls = $0 }, finish: { finishes += 1 }), now: { date })
         let settled = try await service.reconcile(claim, container: container, isCurrent: { true })
         #expect(calls == 2 && finishes == 1 && settled.isComplete && settled.receipt == claim.intent.receipt)

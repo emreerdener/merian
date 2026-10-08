@@ -8,9 +8,16 @@ struct ObservationAnalysisReviewTicketTests {
                 authorityPatch: [String: Any] = [:], revision: Int? = 0, resultPatch: [String: Any] = [:], version: Int = 3, photos: [ObservationHistoryPhotoReference] = [], omittedResultKeys: [String] = []) throws -> ObservationAnalysisReviewTicket {
         let fixture = try ObservationHistoryStateTests().fixture()
         let state = try ObservationHistoryStateTests().decode(fixture)
-        var envelope = try #require(JSONSerialization.jsonObject(with: state.result.bytes) as? [String: Any])
+        var envelope = try version == 4 ? ObservationHistorySyncTests().audioSnapshot() : #require(JSONSerialization.jsonObject(with: state.result.bytes) as? [String: Any])
+        envelope["observation_id"] = state.observationID.uuidString.lowercased()
+        envelope["analysis_id"] = state.result.analysisID.uuidString.lowercased()
         var result = try #require(envelope["result"] as? [String: Any])
         result["is_biological_subject"] = biological
+        if version == 4, let primary {
+            result["scientific_name"] = primary.scientificName ?? NSNull()
+            result["common_name"] = primary.commonName ?? NSNull()
+            result["identification_provenance"] = VerifiedReviewFixtures.history()["identification_provenance"]
+        }
         result["primary_identification"] = try primary.map { try JSONSerialization.jsonObject(with: JSONEncoder().encode($0)) } ?? NSNull()
         result.merge(resultPatch) { _, next in next }
         for key in omittedResultKeys { result.removeValue(forKey: key) }
@@ -18,17 +25,23 @@ struct ObservationAnalysisReviewTicketTests {
         envelope["result"] = result
         var authority = try #require(JSONSerialization.jsonObject(with: state.review.data) as? [String: Any])
         authority.merge(authorityPatch) { _, new in new }
-        let raw = ObservationHistoryPage.Result(version: version, photos: photos, audio: nil, analysisID: state.result.analysisID,
-            completedAt: nil, importedAt: state.result.importedAt, bytes: try JSONSerialization.data(withJSONObject: envelope))
+        let encoded = try JSONSerialization.data(withJSONObject: envelope)
+        let raw = try version == 4 ? ObservationHistoryPage.snapshot(encoded, observationID: state.observationID.uuidString.lowercased(), ordinal: ObservationHistoryPage.integer(envelope["ordinal"])) : ObservationHistoryPage.Result(version: version, photos: photos, audio: nil, analysisID: state.result.analysisID,
+            completedAt: nil, importedAt: state.result.importedAt, bytes: encoded)
         let entry = ObservationHistoryListingService.Entry(result: raw, display: nil,
             authority: try ObservationHistoryAuthority.decode(authority), reviewRevision: revision)
         return try .init(entry: entry, context: .init(owner: state.ownerID, selected: state.selectedAnalysisID,
             revision: state.revision, pendingOperation: nil, undoOperation: nil), observationID: state.observationID)
     }
 
-    @Test func audioReviewRemainsUnavailableUntilMutationReaderUpgrade() throws {
+    @Test func audioReviewUsesExactReader10TicketWithoutPhotoOrCandidatePermission() throws {
         let primary = try PrimaryIdentification.Snapshot(resolution: .species, scientificName: "Synthetic species", commonName: nil)
-        #expect(throws: ObservationHistoryError.unavailable) { try ticket(primary: primary, version: 4) }
+        let saved = try ticket(primary: primary, version: 4)
+        #expect(saved.canReject && saved.canConfirmPrimary && saved.canConfirmName)
+        #expect(saved.evidencePhotoID == nil && saved.candidateChoices.isEmpty && !saved.supportsPhotoPublicationFormat)
+        #expect(try saved.request(.reject, operationID: UUID()).analysisID == saved.analysisID)
+        #expect(try saved.request(.confirmPrimary, operationID: UUID()).expectedReviewRevision == saved.reviewRevision)
+        #expect(try saved.request(.confirmName("Synthetic correction"), operationID: UUID()).analysisID == saved.analysisID)
     }
 
     @Test func confidenceUsesSavedProvenanceAndPhotoIdentity() throws {
@@ -103,13 +116,13 @@ struct ObservationAnalysisReviewTicketTests {
         #expect(!ticket.canConfirmPrimary && ticket.canConfirmName)
     }
 
-    @Test func communityAuthorityCannotAuthorizePrivateConfirmationOrRejection() throws {
+    @Test(arguments: [3, 4]) func communityAuthorityCannotAuthorizePrivateConfirmationOrRejection(version: Int) throws {
         let base = try ticket(), primary = try PrimaryIdentification.Snapshot(resolution: .species, scientificName: "Synthetic species", commonName: nil)
         let ai: [String: Any] = ["version": 1, "revision": 1, "state": "clear", "origin_scan_id": NSNull(),
             "origin_identification": NSNull(), "operation_id": NSNull(), "operation_digest": NSNull(),
             "community": ["request_id": UUID().uuidString.lowercased(), "rank": "genus", "scientific_name": "Synthetic",
                           "common_name": NSNull(), "species_id": NSNull()]]
-        let reviewed = try ticket(primary: primary, authorityPatch: ["ai_identification_review": ai])
+        let reviewed = try ticket(primary: primary, authorityPatch: ["ai_identification_review": ai], version: version)
         #expect(reviewed.ownerID == base.ownerID)
         #expect(!reviewed.canReject && !reviewed.canConfirmName && !reviewed.canConfirmPrimary && reviewed.rejectionOperationID == nil)
     }

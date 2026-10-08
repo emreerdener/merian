@@ -9,9 +9,9 @@ extension ObservationAnalysisReviewReconciliationTests {
     var target: UUID { UUID(uuidString: source.analysisID)! }
     var selected: UUID { UUID(uuidString: projection.otherID)! }
 
-    func seeded(outcome: String = "applied") async throws -> (ModelContainer, Store.Claim) {
+    func seeded(outcome: String = "applied", audio: Bool = false) async throws -> (ModelContainer, Store.Claim) {
         let container = try SavedIdentificationDisplayBaselineTests().container()
-        _ = try await source.service(data: source.fixture(revision: 10)).syncSelected(observationID: observation.uuidString, container: container)
+        _ = try await source.service(data: audio ? ObservationAnalysisReviewAdmissionTests().audioState(source.fixture(revision: 10)) : source.fixture(revision: 10)).syncSelected(observationID: observation.uuidString, container: container)
         let request = try ObservationAnalysisReviewRequest(observationID: observation, analysisID: target, operationID: UUID(),
             expectedObservationRevision: 10, expectedReviewRevision: 0, decision: outcome == "not_verified" ? .confirmPrimary : .reject)
         let pending = try Store.stage(request, ownerID: owner, container: container, isCurrent: { true }, validateNew: { _ in })

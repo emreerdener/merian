@@ -81,6 +81,7 @@ struct ObservationPublicationConsentService {
 
     private static func validate(ticket: ObservationAnalysisReviewTicket,
                                  snapshot: ObservationPublicationConsentSnapshot?, context: ModelContext) throws {
+        guard ticket.supportsPhotoPublicationFormat else { throw ObservationHistoryError.unavailable }
         let observationID = ticket.observationID, analysisID = ticket.analysisID, ownerID = ticket.ownerID
         let scan = try ObservationHistorySyncService.enrolledScan(observationID.uuidString, context: context)
         guard scan.analysisOwnerAccountID == ownerID.uuidString.lowercased(),
