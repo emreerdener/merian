@@ -832,3 +832,41 @@ This is closed bound-branch preparation, not all-writer cutover. Atomic source
 reservation, exact retirement and coordinated admission/funding/execution remain
 required before a new source API can open. No grant, rollout gate, wire field or
 ordinary route is added; existing activation holds remain.
+
+### Source-bound initial admission
+
+Migration `20261008210355_prepare_source_bound_initial_admission.sql` connects
+fresh bound V2/V3 admission to source-before-child/intent locking and narrows
+the quota exclusion for exactly one initial funding transaction. The admission
+context must match owner/child; operation, original child, request ID and
+protocol constants must match. The private intent must be admitted with no saved
+quota, work claim, outcome, invocation, draft, result, retirement or prior
+accounting. Exact live binding, input fingerprint, occupancy and linked media
+projection are mandatory. A context setting alone is insufficient.
+
+The current eleven-argument identification quota wrapper also compares its
+profile, processor permission and identification protocol with the immutable
+input. Mismatch rolls back the transaction. Older identification quota overloads
+and the eight-argument generic quota wrapper reject bound children before and
+after their core call; unbound callers retain their existing behavior. No new
+public signature or privilege is introduced.
+
+A recorded bound intent is recovered under owner/parent authorization before
+live occupancy, evidence expiry and fresh gates. Its original input and quota
+identity must validate. Even an admitted replay returns that saved quota; it
+never invokes generic quota reservation again. Expired, refunded or pruned quota
+therefore cannot mint another lease or attempt. Missing/malformed saved quota
+holds rather than funding. Deletion still wins. Recovery is not dispatch
+permission and does not select or alter an analysis.
+
+This is admission-only preparation. The source-bound invocation exclusion stays
+unconditional; no provider may start through this checkpoint. Atomic source
+reservation, terminal release/retirement and the coordinated execution cutover
+remain required before source access opens. All activation gates remain false.
+
+Admission, including saved receipt replay, requires read-committed or
+read-uncommitted isolation before any source existence lookup. Repeatable-read
+and serializable calls fail closed with
+`analysis_history_current_snapshot_required`; a frozen snapshot cannot hide a
+committed deletion. Saved quota replay does not assert that its original lease
+is still live.
