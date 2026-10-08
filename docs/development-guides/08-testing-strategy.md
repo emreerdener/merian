@@ -11060,6 +11060,14 @@ account loss. A promotion error retains the verified WAV because the database
 save may have committed. Initial-save uncertainty must precede any private
 write.
 
+The preparation suite also covers source occupancy before a fresh child is
+inserted: intact audio, damaged metadata, missing jobs, owner/parent/kind
+damage, uppercase/mixed-case/extra source text, and same-source photo drafts
+block a new audio UUID. A different source does not block, and exact original
+replay remains available. These checks do not prove absence of rowless jobs,
+missing source links or remote work, and do not qualify fresh audio UI
+admission.
+
 `ObservationAudioExecutionStoreTests` covers exact-byte one-time binding, replay
 before fresh consent, initial and explicitly resumed unconsumed claims,
 consumed-save uncertainty, stale claim/permit denial, malformed generic queue

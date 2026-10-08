@@ -1502,6 +1502,22 @@ Strict photo admission/execution decoders ignore this envelope. The store saves
 ownership before file writes and promotes with a fresh source/account/deletion
 transaction while file locks remain held; it never recreates a deleted child.
 
+Fresh audio preparation checks local source occupancy inside that same locked
+transaction, after exact child replay and before insertion. Any queued row whose
+raw source text matches the UUID blocks a new audio child, including photo work
+and malformed owner, parent, kind or job metadata. The one-row query matches
+source UUID text case-insensitively and also holds malformed text containing
+that UUID. This is a conservative corruption fence, not exact identity
+discovery. It does not inspect or reinterpret a sibling's execution status.
+Other sources are unaffected; existing exact audio replay remains available.
+
+This is a local safeguard, not complete fresh-entry authority. A job whose queue
+row is missing or whose source link is missing cannot be attributed by this
+query. An empty status page, empty local query, fresh composition or process
+restart does not establish remote absence or authorize replacement of uncertain
+execution. Ordinary audio entry remains disconnected until durable recovery and
+fresh-entry authority cover those cases.
+
 `ObservationAudioPreparationProducer` requires injected account, file store and
 shared preparation owner. It retains the caller's original identity, reserves
 ownership before proof work, and rechecks scope after awaits. Reopening ready

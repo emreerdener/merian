@@ -37,6 +37,62 @@ struct ObservationAudioPreparationTests {
         .init(files: .init(documents: seed.root), ownership: .init(), account: fixture.account())
     }
 
+    @Test(arguments: [false, true])
+    func photoSiblingHoldsFreshAudioOnlyForTheSameSource(sameSource: Bool) async throws {
+        let seed = try seed(action: .submit)
+        defer { try? FileManager.default.removeItem(at: seed.root) }
+        let plan = try ObservationReanalysisPreparationPlan(source: seed.source, choices: [.photo(.added(fixture.image()))])
+        let photoProducer = ObservationReanalysisProducer(files: .init(documents: seed.root), ownership: .init(), account: fixture.account())
+        _ = try await photoProducer.stage(plan, container: seed.container, isCurrent: { true })
+        if sameSource {
+            #expect(throws: (any Error).self) { try phase(seed) }
+        } else {
+            let context = ModelContext(seed.container)
+            let row = try #require(context.fetch(FetchDescriptor<OfflineQueuedScan>()).first)
+            row.sourceAnalysisID = UUID().uuidString.lowercased()
+            try context.save()
+            #expect(try phase(seed) == .pending)
+        }
+    }
+
+    @Test(arguments: ["intact", "metadata", "missingJob", "owner", "parent", "kind", "uppercase", "mixedCase", "extraText"])
+    func unresolvedSourceCannotMintAnotherAudioChildAfterReopening(damage: String) throws {
+        let seed = try seed(action: .submit)
+        defer { try? FileManager.default.removeItem(at: seed.root) }
+        #expect(try phase(seed) == .pending)
+        let child = UUID()
+        let upload = try ObservationAudioEvidenceUpload(observationID: seed.source.observationID,
+            analysisID: child, mediaID: UUID(), bytes: seed.bytes).prepare()
+        let replacement = try ObservationAudioPreparation(identity: .init(observationID: seed.source.observationID,
+            sourceAnalysisID: seed.source.analysisID, analysisID: child, ownerID: seed.source.ownerID),
+            evidence: [.audio(upload.reference)], source: seed.source, action: .submit)
+        let context = ModelContext(seed.container)
+        let row = try #require(context.fetch(FetchDescriptor<OfflineQueuedScan>()).first)
+        let job = try #require(context.fetch(FetchDescriptor<OfflineJobRecord>()).first)
+        switch damage {
+        case "metadata": job.metadataJSON = "damaged"
+        case "missingJob": context.delete(job)
+        case "owner": row.reanalysisOwnerAccountID = UUID().uuidString.lowercased()
+        case "parent": row.parentObservationID = UUID().uuidString.lowercased()
+        case "kind": row.workKindRaw = "damaged"
+        case "uppercase": row.sourceAnalysisID = seed.source.analysisID.uuidString.uppercased()
+        case "mixedCase":
+            row.sourceAnalysisID = seed.source.analysisID.uuidString.enumerated().map {
+                $0.offset.isMultiple(of: 2) ? String($0.element).uppercased() : String($0.element).lowercased()
+            }.joined()
+        case "extraText": row.sourceAnalysisID = "damaged-" + seed.source.analysisID.uuidString.lowercased()
+        default: break
+        }
+        try context.save()
+        #expect(throws: (any Error).self) {
+            try ObservationAudioPreparationStore.begin(replacement.verified(source: seed.source),
+                container: seed.container, isCurrent: { true })
+        }
+        let reopened = ModelContext(seed.container)
+        #expect(try reopened.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 1)
+        if damage == "intact" { #expect(try phase(seed) == .pending) }
+    }
+
     @Test(arguments: [ObservationAudioPreparation.Action.hold, .submit])
     func preparationOwnsExactWAVAndDoesNotEnterPhotoOrLegacyExecution(action: ObservationAudioPreparation.Action) async throws {
         let seed = try seed(action: action); defer { try? FileManager.default.removeItem(at: seed.root) }

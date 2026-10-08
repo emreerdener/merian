@@ -15,12 +15,26 @@ enum ObservationAudioPreparationStore {
             if let (row, job) = try Persistence.pair(preparation.identity, context: context) {
                 return try restore(preparation, row: row, job: job)
             }
+            try validateFreshSource(preparation.identity, context: context)
             try Persistence.insert(preparation.identity, paths: [], metadata: preparation.storedData(phase: .pending), context: context)
             guard let (row, _) = try Persistence.pair(preparation.identity, context: context) else { throw Persistence.IntegrityError.conflict }
             row.inferenceImagePaths = nil
             row.replaceCapturedMedia(with: preparation.media)
             return .pending
         }
+    }
+
+    /// Local attributable work only; never evidence of remote absence or an execution permit.
+    /// Runs under the caller's existing nonrecursive transaction lock, after exact replay.
+    private static func validateFreshSource(_ identity: OfflineQueueWork.Reanalysis, context: ModelContext) throws {
+        let source = identity.sourceAnalysisID.uuidString.lowercased()
+        var query = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate {
+            $0.sourceAnalysisID?.localizedStandardContains(source) == true
+        })
+        query.fetchLimit = 1
+        // Case-insensitive matching also holds malformed casing or extra source text.
+        // Do not filter by owner, parent, kind or metadata: damaged links must not disappear.
+        guard try context.fetch(query).isEmpty else { throw Persistence.IntegrityError.conflict }
     }
 
     /// Existing-only recovery. Missing work never authorizes insertion, even if old bytes remain.
