@@ -15384,10 +15384,13 @@ admission does not require a local original receipt. Candidate selection,
 publication and selected chat remain unavailable for V4; photo loading remains
 V2 only. Explicit audio source preparation retains exact V4 provenance but never
 loads its original WAV; photo preparation still refuses V4. Selection staging
-(including Undo) and persisted selection replay reject V4 target/current
-results, and Restore explains why selection is unavailable. Disk reopen
-preserves exact listing bytes, selection and correction. This foundation does
-not advance any network reader or activate audio.
+(including receipt-bound Undo) and persisted replay admit V4 target/current
+results through the same strict retained-evidence and authority checks. Restore
+is available only with an admitted display/authority and no pending selection.
+Acknowledged receipt and current selected state commit atomically; no completion
+automatically selects a new result. Disk reopen preserves exact listing bytes,
+selection and correction. This foundation does not advance any network reader or
+activate audio.
 
 Forward migration `20261007193516_prepare_audio_history_action_readers.sql`
 extends the closed action reader set to 9/10 for selection, review, both Undo
@@ -15405,10 +15408,11 @@ unchanged. Native fixed page/state/selection, review/Undo and recovery/status
 transports and the two Edge confirmation calls and retirement call now use 10.
 Enrollment stays 9; photo resolution stays 8. The existing photo completion
 matcher still requires exact V2 evidence. Native V4 review is admitted through
-its strict ticket; selection/selection Undo, candidate selection, publication
-and selected-chat holds remain. Reader compatibility does not authorize
-unsupported media actions or expand candidate membership. No public payload or
-persisted schema changes.
+its strict ticket, and explicit selection/selection Undo now use the existing
+strict projection transaction. Candidate selection, publication and
+selected-chat holds remain. Reader compatibility does not authorize unsupported
+media actions or expand candidate membership. No public payload or persisted
+schema changes.
 
 Native held audio preparation now persists exact child ownership and manifest
 before private WAV writes, with complete locked recovery even for ready replays.

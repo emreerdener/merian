@@ -70,8 +70,8 @@ enum IdentificationHistoryPresentation {
             alternatives: alternatives.prefix(10).map { String(($0.commonName ?? $0.scientificName).prefix(200)) },
             evidenceDescription: descriptions.isEmpty ? nil : String(descriptions.joined(separator: "\n").prefix(4_000)),
             photoIDs: entry.result.photos.map(\.mediaID),
-            canRestore: entry.result.version != 4 && entry.display != nil && entry.authority != nil && row.id != context.selected && context.pendingOperation == nil,
-            isCached: cached, restoreUnavailableReason: entry.result.version == 4 ? "Selecting audio identifications is not available in this version." : nil)
+            canRestore: entry.display != nil && entry.authority != nil && row.id != context.selected && context.pendingOperation == nil,
+            isCached: cached)
     }
 
     private static func nonempty(_ text: String?) -> String? {

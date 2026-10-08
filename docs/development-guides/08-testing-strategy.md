@@ -11019,15 +11019,15 @@ bounds, exact replay, preserved parent selection/correction and actual sync →
 disk reopen → listing. Audio cannot enter the photo resolver or become an empty
 legacy reanalysis source. `ObservationAnalysisReviewTicketTests` admits strict
 V4 review tickets while preserving explicit photo-publication and candidate
-format denials. The audio sync suite also denies selected-chat tickets and
-proves no save or selection dispatch for fresh Restore, selection Undo and
-persisted selection with V4 as either target or previous result; the detail
-explains the hold. `LocalAnalysisRecordTests` runs disk reopen and parent
-cascade for both V1 and V4 and requires finite audio completion. The
-opaque-storage constructor change does not alter the V58 schema; migration
-guardrails and `MigrationPlanTests` remain part of affected native validation.
-These decoder checks alone do not prove network review delivery, activated
-native runtime or audio input execution.
+format denials. The audio sync suite allows explicit Restore for a validated V4
+preview while still denying selected-chat tickets. The selection-intent matrix
+below qualifies V4 target/outgoing selection and receipt-bound Undo.
+`LocalAnalysisRecordTests` runs disk reopen and parent cascade for both V1 and
+V4 and requires finite audio completion. The opaque-storage constructor change
+does not alter the V58 schema; migration guardrails and `MigrationPlanTests`
+remain part of affected native validation. These decoder checks alone do not
+prove network review delivery, activated native runtime or audio input
+execution.
 
 ### Audio history action reader verification
 
@@ -11044,7 +11044,7 @@ Existing retirement-versus-dispatch/deletion concurrency remains required.
 `ObservationExecutionStatusTransportTests` assert fixed reader-10 bodies,
 unchanged identities and no automatic retries. Photo recovery retains its strict
 V2 matcher: a valid V4 response is a result conflict, never absence or
-permission to execute. V4 selection/publication/chat holds, native review
+permission to execute. V4 publication/chat holds, native review/selection
 admission and saved-photo replay remain separate coverage. Run these with the
 complete backend catalogs/concurrency/security and affected native gates; this
 does not qualify native audio production, device or hosted rollout.
@@ -11504,8 +11504,10 @@ persisted replay after authority advances.
 nonselected V4 target A in the same transaction. Ticket tests retain community
 authority denial, and publication preparation rejects V4 before any account
 lease or network fetch. History and selected-host publication controls also
-check the explicit format permission. Selection/selection Undo, candidate
-selection, photo publication and selected chat remain unavailable for V4.
+check the explicit format permission. At that review checkpoint, selection was
+still held; the following selection qualification supersedes that hold.
+Candidate selection, photo publication and selected chat remain unavailable for
+V4.
 
 The focused shared-worktree run passed 83 tests in nine verified suites,
 retained in `47cc6b72d4834ae9828205d9bdd8bbeb.xcresult`. Earlier nested-macro,
@@ -11514,3 +11516,30 @@ rerun passed without weakening strict decoding. This is focused evidence, not a
 new full-native green result. The earlier unrelated Auth architecture-size
 failure remains recorded. No gates or ordinary routes were enabled; no hosted,
 device or end-to-end audio selection qualification is claimed.
+
+### V4 explicit selection qualification
+
+`ObservationHistorySelectionIntentTests` runs V4 and existing-result matrices
+for explicit staging, exact-request replay after ambiguous replies,
+receipt-bound selection Undo, atomic rollback, account/legacy-review changes,
+deletion and invalid/older responses. Selecting unreviewed B uses B's authority;
+selection Undo returns to A's rejected presentation without changing either
+immutable snapshot. Both outgoing and target results pass the existing strict
+retained evidence/display checks at staging and before dispatch.
+
+`ObservationHistorySyncTests.audioPreviewAllowsExplicitSelectionButNotChat`
+checks Restore eligibility for the exact admitted V4 preview and preserves the
+selected-chat denial. The focused shared-worktree run passed 91 tests across six
+verified suites (`be3c6567eb694cc5a1d639741dcda781.xcresult`), with no failures
+or skips. This is local selection/reconciliation evidence, not a new full-native
+green gate or a complete audio capture/reanalysis/restart journey. The previous
+unrelated Auth architecture failure remains recorded. No ordinary route or
+activation gate changed; video, device and hosted qualification remain separate.
+
+Backend follow-up remains required before audio journey acceptance: existing
+audio catalog coverage proves reader-10 replay of a pre-audio selection receipt,
+not a fresh V4 selection. Add a fresh rejected/current A → unreviewed V4 B →
+select-back A pgTAP sequence, checking receipt revisions, active projection and
+each result's authority while retaining reader-9 whole-history refusal. Run
+fresh disposable catalogs and the relevant concurrency/security gates. The
+native-only checkpoint does not claim this backend qualification.

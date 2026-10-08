@@ -13,14 +13,19 @@ struct ObservationHistorySelectionIntentTests {
     typealias Intent = ObservationHistorySelectionIntent
     typealias Failure = ObservationHistoryStateSyncService.AdmissionError
 
-    func seeded() async throws -> ModelContainer {
+    func seeded(audio: Bool = false) async throws -> ModelContainer {
         let container = try await support.seeded()
-        var value = try JSONSerialization.jsonObject(with: support.nativeResponse(revision: 10)) as! [String: Any]
+        var value = try JSONSerialization.jsonObject(with: response(revision: 10, audio: audio)) as! [String: Any]
         value["selected_analysis_id"] = support.support.analysisID
         var cloud = support.support.support.client(fetch: { _ in Data() })
         cloud.fetchState = { _ in try support.support.support.bytes(value) }
         _ = try await ObservationHistoryPreviewService(cloud: cloud).preview(observationID: observation, analysisID: target, container: container)
         return container
+    }
+
+    func response(revision: Int = 11, audio: Bool = false) throws -> Data {
+        let data = try support.nativeResponse(revision: revision)
+        return try audio ? ObservationAnalysisReviewAdmissionTests().audioState(data) : data
     }
 
     func receipt(_ request: ObservationHistorySelectionRequest, previous: String? = nil) throws -> Data {
@@ -30,14 +35,14 @@ struct ObservationHistorySelectionIntentTests {
             review_revision: request.expected_review_revision))
     }
 
-    func service(state: Data? = nil, duringSelect: @escaping (ObservationHistorySelectionRequest) throws -> Void = { _ in },
+    func service(audio: Bool = false, state: Data? = nil, duringSelect: @escaping (ObservationHistorySelectionRequest) throws -> Void = { _ in },
                  duringRead: @escaping () throws -> Void = {}, current: @escaping () -> Bool = { true }) -> ObservationHistorySelectionService {
         var cloud = support.support.support.client(fetch: { _ in Data() }, current: current)
         cloud.select = { request in try duringSelect(request); return try receipt(request) }
         cloud.fetchState = { request in
             #expect(request.analysis_id == nil && request.observation_id == observation)
             try duringRead()
-            return try state ?? support.nativeResponse()
+            return try state ?? response(audio: audio)
         }
         return .init(cloud: cloud)
     }
@@ -65,15 +70,15 @@ struct ObservationHistorySelectionIntentTests {
         }
     }
 
-    @Test func stagingDoesNotSelectAndAmbiguousRetryReusesExactRequest() async throws {
-        let container = try await seeded(), request = try prepare(container)
+    @Test(arguments: [false, true]) func stagingDoesNotSelectAndAmbiguousRetryReusesExactRequest(audio: Bool) async throws {
+        let container = try await seeded(audio: audio), request = try prepare(container)
         #expect(try support.parent(container).selectedAnalysisID == support.support.analysisID)
         #expect(try entry(container).receipt == nil)
         var seen: [ObservationHistorySelectionRequest] = []
         await #expect(throws: ObservationHistoryError.unavailable) {
-            try await service(duringSelect: { seen.append($0); throw ObservationHistoryError.unavailable }).sendPending(observationID: observation, container: container)
+            try await service(audio: audio, duringSelect: { seen.append($0); throw ObservationHistoryError.unavailable }).sendPending(observationID: observation, container: container)
         }
-        _ = try await service(duringSelect: { seen.append($0) }).sendPending(observationID: observation, container: container)
+        _ = try await service(audio: audio, duringSelect: { seen.append($0) }).sendPending(observationID: observation, container: container)
         #expect(seen == [request, request])
         #expect(try entry(container).receipt?.operation_id == request.operation_id)
         #expect(try support.parent(container).selectedAnalysisID == support.otherID)
@@ -81,21 +86,26 @@ struct ObservationHistorySelectionIntentTests {
         #expect(try support.parent(container).fieldNotes == "Preserved private note")
     }
 
-    @Test func acknowledgedReceiptSupportsRevisionBoundUndoAndKeepsEachOwnAuthority() async throws {
-        let container = try await seeded(); try prepare(container)
-        _ = try await service().sendPending(observationID: observation, container: container)
+    @Test(arguments: [false, true]) func acknowledgedReceiptSupportsRevisionBoundUndoAndKeepsEachOwnAuthority(audio: Bool) async throws {
+        let container = try await seeded(audio: audio); try prepare(container)
+        let evidence = try ModelContext(container).fetch(FetchDescriptor<LocalAnalysisRecord>())
+            .map { $0.resultSnapshotData }
+        _ = try await service(audio: audio).sendPending(observationID: observation, container: container)
+        #expect(try support.parent(container).localAIIdentificationReview.authority == nil)
         let originalOperation = try entry(container).request.operation_id
-        let undo = try service().prepareUndo(observationID: observation, operationID: UUID(uuidString: try entry(container).request.operation_id)!, ownerID: owner, container: container)
+        let undo = try service(audio: audio).prepareUndo(observationID: observation, operationID: UUID(uuidString: try entry(container).request.operation_id)!, ownerID: owner, container: container)
         #expect(undo.analysis_id == support.support.analysisID && undo.expected_observation_revision == 11 && undo.expected_review_revision == 3)
-        var back = service(state: try support.savedResponse(revision: 12))
+        var back = service(audio: audio, state: try support.savedResponse(revision: 12))
         back.cloud.select = { request in try receipt(request, previous: support.otherID) }
         _ = try await back.sendPending(observationID: observation, container: container)
         #expect(try support.parent(container).scientificName == "Preserved correction")
         #expect(try support.parent(container).localAIIdentificationReview.authority?.state == .aiRejected)
         #expect(try support.parent(container).observationStateRevision == 12)
         #expect(try entry(container).receipt?.observation_revision == 12)
+        let after = try ModelContext(container).fetch(FetchDescriptor<LocalAnalysisRecord>()).map { $0.resultSnapshotData }
+        #expect(Set(after) == Set(evidence))
         #expect(throws: Intent.Failure.staleUndo) {
-            try service().prepareUndo(observationID: observation, operationID: UUID(uuidString: originalOperation)!, ownerID: owner, container: container)
+            try service(audio: audio).prepareUndo(observationID: observation, operationID: UUID(uuidString: originalOperation)!, ownerID: owner, container: container)
         }
     }
 
@@ -112,13 +122,13 @@ struct ObservationHistorySelectionIntentTests {
         }
     }
 
-    @Test func finalSaveFailureRollsBackProjectionAndReceiptTogether() async throws {
-        let container = try await seeded(); try prepare(container)
-        var failing = service(); failing.save = { _ in throw ObservationHistoryError.unavailable }
+    @Test(arguments: [false, true]) func finalSaveFailureRollsBackProjectionAndReceiptTogether(audio: Bool) async throws {
+        let container = try await seeded(audio: audio); try prepare(container)
+        var failing = service(audio: audio); failing.save = { _ in throw ObservationHistoryError.unavailable }
         await #expect(throws: ObservationHistoryError.unavailable) { try await failing.sendPending(observationID: observation, container: container) }
         #expect(try entry(container).receipt == nil)
         #expect(try support.parent(container).selectedAnalysisID == support.support.analysisID && support.parent(container).observationStateRevision == 10)
-        _ = try await service().sendPending(observationID: observation, container: container)
+        _ = try await service(audio: audio).sendPending(observationID: observation, container: container)
         #expect(try entry(container).receipt != nil)
     }
 
@@ -167,18 +177,18 @@ struct ObservationHistorySelectionIntentTests {
         #expect(try support.parent(container).observationStateRevision == 10)
     }
 
-    @Test func accountAndLocalReviewChangesAcrossSuspensionKeepPendingIntent() async throws {
+    @Test(arguments: [false, true]) func accountAndLocalReviewChangesAcrossSuspensionKeepPendingIntent(audio: Bool) async throws {
         for failedCheck in 1...5 {
-            let container = try await seeded(); try prepare(container)
+            let container = try await seeded(audio: audio); try prepare(container)
             var checks = 0
             await #expect(throws: ObservationHistoryError.accountChanged) {
-                try await service(current: { checks += 1; return checks != failedCheck }).sendPending(observationID: observation, container: container)
+                try await service(audio: audio, current: { checks += 1; return checks != failedCheck }).sendPending(observationID: observation, container: container)
             }
             #expect(try entry(container).receipt == nil && support.parent(container).observationStateRevision == 10)
         }
-        let container = try await seeded(); try prepare(container)
+        let container = try await seeded(audio: audio); try prepare(container)
         await #expect(throws: Failure.pendingReview) {
-            try await service(duringRead: {
+            try await service(audio: audio, duringRead: {
                 try support.support.update(container) { scan, context in
                     context.insert(OfflineJobRecord(id: "synthetic-review", kind: .identificationReviewSync, subjectId: scan.id))
                 }
@@ -187,10 +197,10 @@ struct ObservationHistorySelectionIntentTests {
         #expect(try entry(container).receipt == nil)
     }
 
-    @Test func explicitDeletionClearsSelectionPayloadAndRejectsLateReceipt() async throws {
-        let container = try await seeded(); try prepare(container)
+    @Test(arguments: [false, true]) func explicitDeletionClearsSelectionPayloadAndRejectsLateReceipt(audio: Bool) async throws {
+        let container = try await seeded(audio: audio); try prepare(container)
         await #expect(throws: (any Error).self) {
-            try await service(duringRead: {
+            try await service(audio: audio, duringRead: {
                 try ConfirmedSpeciesReviewPersistence.transaction {
                     let context = ModelContext(container)
                     let scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
@@ -263,10 +273,10 @@ struct ObservationHistorySelectionIntentTests {
         #expect(try verify.fetchCount(FetchDescriptor<LocalAnalysisRecord>()) == 0)
     }
 
-    @Test func invalidReceiptFailedReadAndOlderReadRetainPendingIdentity() async throws {
+    @Test(arguments: [false, true]) func invalidReceiptFailedReadAndOlderReadRetainPendingIdentity(audio: Bool) async throws {
         for failure in 0..<4 {
-            let container = try await seeded(), request = try prepare(container)
-            var failing = service()
+            let container = try await seeded(audio: audio), request = try prepare(container)
+            var failing = service(audio: audio)
             switch failure {
             case 0: failing.cloud.select = { _ in Data("{}".utf8) }
             case 1: failing.cloud.fetchState = { _ in throw ObservationHistoryError.unavailable }

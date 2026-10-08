@@ -315,67 +315,26 @@ extension ObservationHistorySyncTests {
         #expect(scan.selectedAnalysisID == "00000000-0000-4000-8000-000000000009")
         #expect(scan.userIdentificationOverride == "Existing correction")
     }
-    @Test func audioSelectionAndChatRemainUnavailableBeforeReaderUpgrade() async throws {
+    @Test func audioPreviewAllowsExplicitSelectionButNotChat() async throws {
         let fixture = ObservationHistorySelectionIntentTests()
-        for mode in ["fresh", "pending", "undo", "outgoing"] {
-            let container = try await fixture.support.seeded()
-            var response = try #require(JSONSerialization.jsonObject(with: fixture.support.nativeResponse(revision: 10)) as? [String: Any])
-            var item = try #require(response["analysis"] as? [String: Any]), snapshot = try audioSnapshot()
-            snapshot["analysis_id"] = fixture.target.uuidString.lowercased(); snapshot["ordinal"] = 2
-            item["snapshot"] = try #require(String(bytes: bytes(snapshot), encoding: .utf8)); response["analysis"] = item
-            response["selected_analysis_id"] = fixture.support.support.analysisID
-            var cloud = client(fetch: { _ in Data() })
-            cloud.fetchState = { _ in try bytes(response) }
-            _ = try await ObservationHistoryPreviewService(cloud: cloud).preview(observationID: observation, analysisID: fixture.target, container: container)
-            let context = ModelContext(container), scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
-            let entry = try ObservationHistoryListingService.entry(fixture.target, scan: scan, context: context)
-            let listingContext = ObservationHistoryListingService.Context(owner: owner,
-                selected: UUID(uuidString: fixture.support.support.analysisID)!, revision: 10, pendingOperation: nil, undoOperation: nil)
-            let detail = try IdentificationHistoryPresentation.detail(entry, context: listingContext, cached: true)
-            #expect(!detail.canRestore && detail.restoreUnavailableReason != nil)
-            #expect(throws: ObservationHistoryError.unavailable) {
-                try ProtectedInsightChatTicket(entry: entry, context: .init(owner: owner, selected: fixture.target,
-                    revision: 10, pendingOperation: nil, undoOperation: nil), observationID: UUID(uuidString: observation)!)
-            }
-            var service = fixture.service(duringSelect: { _ in Issue.record("Audio reached reader-9 selection") })
-            service.save = { _ in Issue.record("Audio staged a selection mutation") }
-            if mode == "outgoing" {
-                response["selected_analysis_id"] = fixture.target.uuidString.lowercased(); response["state_revision"] = 11
-                cloud.fetchState = { _ in try bytes(response) }
-                _ = try await ObservationHistoryStateSyncService(cloud: cloud).syncSelected(observationID: observation, container: container)
-                let request = ObservationHistorySelectionRequest(observation: UUID(uuidString: observation)!,
-                    analysis: listingContext.selected, revision: 11, review: 3)
-                let pending = ObservationHistorySelectionIntent.Entry(version: 1, owner: owner.uuidString.lowercased(),
-                    previous: fixture.target.uuidString.lowercased(), previousReview: try #require(entry.reviewRevision), request: request)
-                let fresh = ModelContext(container)
-                try ObservationHistorySelectionIntent.store(pending, context: fresh); try fresh.save()
-                await #expect(throws: ObservationHistoryError.unavailable) { try await service.sendPending(observationID: observation, container: container) }
-                #expect(try ObservationHistorySelectionIntent.load(observation, context: ModelContext(container)) == pending)
-            } else if mode == "fresh" {
-                #expect(throws: ObservationHistoryError.unavailable) { try fixture.prepare(container, service: service) }
-                #expect(try ObservationHistorySelectionIntent.load(observation, context: ModelContext(container)) == nil)
-            } else if mode == "pending" {
-                let request = ObservationHistorySelectionRequest(observation: UUID(uuidString: observation)!, analysis: fixture.target,
-                    revision: 10, review: try #require(entry.reviewRevision))
-                let pending = ObservationHistorySelectionIntent.Entry(version: 1, owner: owner.uuidString.lowercased(),
-                    previous: fixture.support.support.analysisID, previousReview: 3, request: request)
-                try ObservationHistorySelectionIntent.store(pending, context: context); try context.save()
-                await #expect(throws: ObservationHistoryError.unavailable) { try await service.sendPending(observationID: observation, container: container) }
-                #expect(try ObservationHistorySelectionIntent.load(observation, context: ModelContext(container)) == pending)
-            } else {
-                let request = ObservationHistorySelectionRequest(observation: UUID(uuidString: observation)!,
-                    analysis: listingContext.selected, revision: 9, review: 3)
-                let receipt = ObservationHistorySelectionReceipt(schema_version: 1, operation_id: request.operation_id,
-                    observation_id: observation, previous_analysis_id: fixture.target.uuidString.lowercased(),
-                    selected_analysis_id: request.analysis_id, observation_revision: 10, review_revision: 3)
-                let completed = ObservationHistorySelectionIntent.Entry(version: 1, owner: owner.uuidString.lowercased(),
-                    previous: fixture.target.uuidString.lowercased(), previousReview: try #require(entry.reviewRevision), request: request, receipt: receipt)
-                try ObservationHistorySelectionIntent.store(completed, context: context); try context.save()
-                #expect(throws: ObservationHistoryError.unavailable) {
-                    try service.prepareUndo(observationID: observation, operationID: UUID(uuidString: request.operation_id)!, ownerID: owner, container: container)
-                }
-                #expect(try ObservationHistorySelectionIntent.load(observation, context: ModelContext(container)) == completed)
-            }
+        let container = try await fixture.support.seeded()
+        var response = try #require(JSONSerialization.jsonObject(with: fixture.support.nativeResponse(revision: 10)) as? [String: Any])
+        var item = try #require(response["analysis"] as? [String: Any]), snapshot = try audioSnapshot()
+        snapshot["analysis_id"] = fixture.target.uuidString.lowercased(); snapshot["ordinal"] = 2
+        item["snapshot"] = try #require(String(bytes: bytes(snapshot), encoding: .utf8)); response["analysis"] = item
+        response["selected_analysis_id"] = fixture.support.support.analysisID
+        var cloud = client(fetch: { _ in Data() })
+        cloud.fetchState = { _ in try bytes(response) }
+        _ = try await ObservationHistoryPreviewService(cloud: cloud).preview(observationID: observation, analysisID: fixture.target, container: container)
+        let context = ModelContext(container), scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        let entry = try ObservationHistoryListingService.entry(fixture.target, scan: scan, context: context)
+        let listingContext = ObservationHistoryListingService.Context(owner: owner,
+            selected: UUID(uuidString: fixture.support.support.analysisID)!, revision: 10, pendingOperation: nil, undoOperation: nil)
+        let detail = try IdentificationHistoryPresentation.detail(entry, context: listingContext, cached: true)
+        #expect(detail.canRestore && detail.restoreUnavailableReason == nil)
+        #expect(throws: ObservationHistoryError.unavailable) {
+            try ProtectedInsightChatTicket(entry: entry, context: .init(owner: owner, selected: fixture.target,
+                revision: 10, pendingOperation: nil, undoOperation: nil), observationID: UUID(uuidString: observation)!)
         }
     }
     @Test func audioTargetStateDoesNotSubstituteSelectedIdentity() throws {

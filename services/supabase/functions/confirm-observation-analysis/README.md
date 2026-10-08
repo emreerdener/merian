@@ -49,5 +49,6 @@ for compatible histories, but refuses a whole observation containing a completed
 audio result before receipt replay. Reader 10 preserves exact receipt replay
 before fresh gates. Native V4 review now uses a strictly decoded immutable
 ticket with the existing confirmation and both Undo contracts. This does not
-extend candidate membership, photo publication or selection to audio; ordinary
-access and activation gates remain disabled.
+extend candidate membership or photo publication to audio. Explicit native
+selection uses its separate receipt/projection owner; ordinary access and
+activation gates remain disabled.
