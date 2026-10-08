@@ -790,3 +790,12 @@ or dispatch and are unavailable to API roles. Existing writers remain unchanged
 until coordinated cohort/admission/funding/execution cutover; terminal replay
 must precede live-binding validation. See the
 [exact validation contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-exact-source-validation).
+
+## Prepared immutable cohort source links
+
+Private photo/audio cohorts can retain a same-child source-binding link and an
+exact ordered media projection. Current RPCs still create legacy NULL links;
+there is no new upload/admission authority or backfill. Existing cohort update
+guards prohibit changing either form, and deletion cascades preserve the parent
+lifecycle. See the
+[source-link contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-immutable-cohort-source-links).

@@ -284,3 +284,23 @@ Existing terminal or legacy replay must precede this live-binding check. Current
 protected writers are not switched to it until their lock order, cohort binding,
 admission and narrow funding/dispatch exceptions change together. Cohort-only
 enforcement is not a supported activation boundary.
+
+### Prepared immutable cohort source links
+
+Migration `20261008194407_prepare_source_linked_evidence_cohorts.sql` adds
+nullable `binding_analysis_id` to photo and audio upload cohorts. A non-null
+link must name the same child and reference its immutable source binding. The
+private insert backstop checks owner, observation and exact media projection:
+photo order is preserved; audio metadata must match the single saved audio item.
+Descriptions remain in the complete binding and fingerprint, not the upload
+projection. Existing update guards make both links and legacy NULL values
+immutable. Parent deletion can cascade through either history or binding;
+receipt cleanup continues retaining the cohort and its fixed expiry.
+
+This is additive storage groundwork. Existing RPCs still create NULL-linked
+cohorts, with unchanged saved-request replay, receipts, gates and grants. No
+existing cohort is backfilled or upgraded. The validator acquires no late locks
+and grants no occupancy, upload receipt, admission or dispatch. A future linked
+writer must validate live occupancy under the canonical source-before-child
+locks as part of the coordinated reservation/cohort/admission/execution cutover.
+The source link alone never establishes that cutover is complete.
