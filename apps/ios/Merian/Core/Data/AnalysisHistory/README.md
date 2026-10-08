@@ -1638,3 +1638,25 @@ This boundary does not prepare files, start the queue, select a result or
 install Capture/UI access. Capture must classify the same frozen preparation
 before calling its producer; a bound request must never be rewritten as
 preparation.
+
+### Exact audio resume reader
+
+`ObservationAudioResumeStore.read` accepts the complete
+owner/observation/source/ child identity. It never enumerates jobs or infers the
+latest child. Exact source capture uses its own transaction; the bounded child
+metadata read uses a separate shared transaction, avoiding nested locks.
+Decoding and source-hash verification run off-main. The final existing strict
+`admissionState` transaction validates source, row/job linkage, namespace and
+current preparation/binding before return. An intervening valid phase or claim
+advancement returns the current matching state; changed immutable evidence or
+disappearance fails closed.
+
+Only submitted preparation is recoverable here. Held drafts, malformed/partial
+pairs, unsupported sources and wrong identities cannot become new work. The
+result contains source, verified preparation and phase or exact bound snapshot;
+it contains no dispatch permit. Reading neither touches files nor obtains
+consent, mutates jobs, claims work or starts execution. Therefore bound outcome
+recovery can precede missing/expired-file handling. Preparation file recovery
+must still use the locked producer with original bytes/digests, never assume
+this read proves file availability. UI selection of an exact child and retained
+resume orchestration remain separate uninstalled work.

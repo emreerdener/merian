@@ -11263,3 +11263,22 @@ passed; the correct `validate-edge-dto-contract` then passed. No native test
 failure occurred. This is focused shared-worktree verification, not a new full
 native milestone or clean-candidate full pass. Existing failed evidence and the
 prior full-run Auth-size limitation remain preserved.
+
+### Exact audio resume proof gate
+
+`ObservationAudioResumeStoreTests` covers original `files_pending` and
+`admission_pending` recovery without reading files or changing phase; exact
+idle/running/consumed/held binding recovery with absent local WAV; and wrong
+owner/parent/source/child, damaged metadata, partial pairs, old held drafts,
+account denial and damaged row state. The reader returns no provider capability
+and creates no replacement. Run with audio binding/preparation/execution-store,
+source and Offline Sync/Core architecture suites. Actual user reopening and
+retained resume delivery are not established by this read-only checkpoint.
+
+The reader checkpoint passed 46 tests across all seven exact suites, with zero
+failures or skips (XCResult `46125de1a0104080948a861b4df016a2`). Strict lint,
+affected source guards, DTO21, docs26, Markdown28 and scoped seven-target
+membership passed. Independent source/test/documentation review was clear. These
+are shared-worktree focused results; no new full-native or clean-candidate full
+pass is claimed. Prior failures and the overlapping Auth-size limitation remain
+recorded above. No wire, persistence schema or hosted behavior changed.

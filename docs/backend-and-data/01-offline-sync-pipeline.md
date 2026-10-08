@@ -2707,3 +2707,21 @@ closed presentation can leave durable work inert; an exact saved-child resume
 boundary and V4 source contract remain required before the complete audio UI
 journey is qualified. No opening, construction or ordinary scheduler dispatches
 that work.
+
+### Exact audio child recovery proof
+
+The read-only `ObservationAudioResumeStore` takes explicit owner, observation,
+source and child IDs. It recaptures that source's immutable local snapshot,
+reads only the exact child/job pair, and reconstructs the saved submitted
+preparation from its original manifest or bound request. Source digest and
+identity must match. Off-main reconstruction is followed by the shared strict
+admission validator, so current row shape, deletion/erasure namespace, source
+and account fences apply after suspension. Missing work is unavailable, never
+new preparation; malformed and held-draft metadata fail closed.
+
+The returned phase or exact execution snapshot preserves any consumed marker. It
+grants no claim or provider capability and performs no network, file, consent,
+scheduling or write operation. A valid in-flight phase advancement may be
+reflected only when immutable proof still matches. Explicit resume ownership,
+user-selected child presentation and locked missing/changed-file remediation
+remain separate. Ordinary access and activation stay disabled.
