@@ -11603,3 +11603,38 @@ relaunch, real provider or hosted execution, physical-device behavior, or live
 route activation. The cleanup callback is injected; separate erasure tests own
 physical file cleanup. Video and remaining integrated capability acceptance
 remain open. Alternatives-card layout and all activation gates are unchanged.
+
+### Prepared audio route coverage and remaining assembly
+
+Audio domain completion is not initial Capture-route completion. The current
+inert `PreparedHistoryReanalysisComposition` exposes `audioCapture`, but its
+`historicalReanalysis` route still enters `CaptureReanalysisAccess` and the
+photo editor. No ordinary workspace dependency installs audio access. The
+saved-audio chooser resumes an explicitly selected durable child; it is not a
+fresh audio editor.
+
+| Boundary                                                | Existing evidence                                                                | Limit                                                                        |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Exact source and account scope                          | `CaptureAudioReanalysisAccessTests`                                              | Injected start callback; no initial Capture editor                           |
+| Final-tap identity and ambiguous-save retry             | `CaptureAudioReanalysisSessionTests`                                             | Explicit caller-supplied canonical WAV and descriptions                      |
+| Queue lease, cancellation, settlement and local cleanup | `ObservationAudioQueueExecutionTests`                                            | Synthetic remote outcome; real local receipt-bound erasure                   |
+| Live outcome transport adapter                          | `ObservationAudioLiveDependenciesTests`, `ObservationAudioOutcomeTransportTests` | Injected HTTP response; no hosted request                                    |
+| Saved-child chooser                                     | `SavedAudioChooserUITests`                                                       | Debug fixture and explicit resume, not fresh capture                         |
+| Rejected A through recovered B, selection and Undo      | `ObservationAudioHistoryJourneyTests`                                            | Disk-container reopen and synthetic network boundaries, not process relaunch |
+
+The remaining native route checkpoint must connect explicit audio evidence to
+these existing owners. It must preserve the exact source captured at opening,
+freeze ordered input and child identity at the final tap, retain that session
+across uncertain submission, and route reopening to the same candidate or
+explicit saved-child recovery. Closing a presentation is not proof that no
+request was saved. A fresh editor must not silently replace unresolved work.
+Account/container scope remains independent of presentation cancellation, and
+completion must expose the appended result through History without selecting it.
+
+Qualify the assembled route with tests for initial submission, ambiguous save
+followed by dismissal/reopening, account loss, and completion-to-History
+handoff. Do not duplicate the already covered lower-level restart tests or
+substitute chooser rendering for this route evidence. Physical recording, actual
+process relaunch, hosted upload/provider/outcome behavior and storage/CDN
+erasure remain separate acceptance requirements. The App installation gate stays
+false, ordinary access remains nil, and the alternatives card remains unchanged.
