@@ -5,6 +5,14 @@ activated.** This extends the approved identification-history audio integration
 milestone; it does not authorize deployment, a new provider retry policy, or an
 ordinary Capture route. Existing saved-photo replay must remain unchanged.
 
+October 8 implementation note: the strict executable request/descriptor and 2
+KiB decoder are now prepared in `sourceDiscovery.ts`, with no live producer or
+consumer. The
+[current API contract](../backend-and-data/05-api-contracts.md#prepared-source-discovery-contract-resolver-still-planned)
+fixes their fieldsets. The SQL resolver, fingerprint parity, source index and
+proof storage remain unimplemented; this is partial progress within checkpoint
+1, not completion of that checkpoint or activation of discovery.
+
 ## Evidence and scope
 
 The prepared native audio path now persists exact input, binds execution and

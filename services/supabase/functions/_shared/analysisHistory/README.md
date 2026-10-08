@@ -8,6 +8,14 @@ history selection transaction.
 
 ## Owners and bounds
 
+`sourceDiscovery.ts` owns the prepared, non-wired source-discovery request and
+closed response decoder. Its 2 KiB byte boundary and exact owner/parent/source
+checks grant no admission or execution permission. The SQL resolver, namespace
+coverage, reservation fingerprint, proof storage and native consumer are still
+pending. See the
+[canonical prepared contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-discovery-contract-resolver-still-planned)
+and `sourceDiscovery_test.ts`; do not use existing funded admission as a lookup.
+
 `contract.ts` owns exact request identities, errors and bounded primitive
 parsers. `transitions.ts` models selection and revision decisions; `result.ts`
 reuses the canonical Identify and captured-media validators; `page.ts` binds

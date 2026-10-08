@@ -15464,7 +15464,7 @@ The reader makes no selection/review changes and grants no new dispatch permit.
 No server wire/schema or activation gate changes; retained native audio delivery
 and its production factory remain unconnected.
 
-### Planned source-occupancy recovery boundary
+### Prepared source discovery contract; resolver still planned
 
 The
 [source-occupancy design checkpoint](../rfcs/analysis-source-occupancy-contract-2026-10-08.md)
@@ -15478,3 +15478,45 @@ private linked records; exact terminal receipt replay remains allowed until
 deletion. Completed history must still allow later explicit reanalysis of the
 same source. Unknown execution remains outcome/status recovery only. Existing
 saved photo replay stays unchanged; all activation gates remain disabled.
+
+`_shared/analysisHistory/sourceDiscovery.ts` now owns the prepared executable
+descriptor contract. It has no RPC, HTTP route, transport, database producer or
+native consumer yet. It does not change the Identify generated DTO block,
+existing readers or saved request fingerprints. Reader negotiation, canonical
+reservation fingerprint parity and durable proof storage remain part of the
+source-resolver implementation milestone.
+
+The request has exactly `schema_version: 1`, `observation_id` and
+`source_analysis_id`, using distinct canonical lowercase UUIDs. Owner comes from
+verified authentication, outside the request. Every response has those three
+fields plus the exact `owner_id` and a closed `state`:
+
+| State              | Additional fields                        | Meaning                                                                       |
+| ------------------ | ---------------------------------------- | ----------------------------------------------------------------------------- |
+| `advisory_absence` | None                                     | Informational absence, never permission to reserve or mint another operation. |
+| `history_only`     | None                                     | Only conclusively settled history; no latest child or replacement permission. |
+| `existing`         | `analysis_id`, `request_digest`, `phase` | Exactly one unresolved attributable operation; no current recovery consumer.  |
+| `held`             | `reason`                                 | Ambiguous, damaged, incompletely covered or unproven terminal work.           |
+| `unavailable`      | None                                     | Generic unavailability without private error details.                         |
+
+Existing phases are only `reserved`, `admitted`, `dispatched` and `draft`; child
+must differ from parent and source, and digest is exactly 64 lowercase hex
+characters. This digest identifies the original request; it is not a new full
+reservation fingerprint or proof of execution permission. Held reasons are only
+`ambiguous_occupancy`, `malformed_linkage`, `coverage_incomplete` and
+`terminal_unproven`. No variant includes lists, names, media paths, original
+input, funding, provider output, tokens or a dispatch capability.
+
+The byte decoder rejects more than 2,048 actual UTF-8 bytes before parsing,
+invalid UTF-8/JSON and all unknown, missing or extra fields. Both decoding
+boundaries validate the expected owner/observation/source tuple and return
+frozen values. Object parsing is for already bounded transport results; the
+future transport must enforce the same ceiling while streaming. Errors never
+become absence. The future resolver must prove namespace coverage and unique
+occupancy itself; this decoder cannot establish those database facts.
+
+`sourceDiscovery_test.ts` covers all variants, exact scope, forbidden private or
+capability fields, child/digest/phase integrity, malformed envelopes and the
+actual byte limit. It does not prove role authorization, deletion/backfill
+coverage or concurrency; those require the unimplemented SQL resolver and its
+disposable-database gates.
