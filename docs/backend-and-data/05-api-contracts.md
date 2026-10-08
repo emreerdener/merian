@@ -15463,3 +15463,18 @@ account, deletion, source and full durable claim checks in atomic completion.
 The reader makes no selection/review changes and grants no new dispatch permit.
 No server wire/schema or activation gate changes; retained native audio delivery
 and its production factory remain unconnected.
+
+### Planned source-occupancy recovery boundary
+
+The
+[source-occupancy design checkpoint](../rfcs/analysis-source-occupancy-contract-2026-10-08.md)
+is required before ordinary fresh audio entry; it is not an implemented RPC or
+permission. Existing exact-child admission reserves quota and cannot be used as
+read-only discovery. Local missing work never proves remote absence. The planned
+resolver grants no execution authority; an independent atomic unfunded claim
+must fence every competing writer and retain durable retirement/completion proof
+while the owner observation remains live. Parent deletion intentionally erases
+private linked records; exact terminal receipt replay remains allowed until
+deletion. Completed history must still allow later explicit reanalysis of the
+same source. Unknown execution remains outcome/status recovery only. Existing
+saved photo replay stays unchanged; all activation gates remain disabled.
