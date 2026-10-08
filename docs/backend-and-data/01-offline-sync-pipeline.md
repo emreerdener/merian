@@ -2622,3 +2622,22 @@ it cannot use the failed call to authorize HTTP. Consumed held work permits only
 outcome recovery. Unconsumed held work still requires explicit fresh consent and
 the existing resume transaction. Runtime connection remains pending; no timer or
 automatic adoption was added.
+
+### Explicit audio execution ordering
+
+The prepared `ObservationAudioExecutionService` is dependency-injected and can
+run only with an exact-entry scope from the retained audio owner. It does not
+install live delivery or automatic queue admission. Explicit running recovery
+first persists a hold. Held consumed work advances a recovery claim and performs
+only exact outcome lookup; it never reads files, asks for inference consent,
+uploads or analyzes. Held unconsumed work needs fresh fixed-Gemini authorization
+before resuming. Initial idle work can claim its first invocation.
+
+For unconsumed claims, locked WAV verification and exact upload receipt checks
+precede a fresh authorization and consumed-marker save. A throwing save grants
+no dispatch capability, including commit-then-throw. Noncomplete dispatch
+receipts, missing/malformed outcomes and network uncertainty persist a hold.
+Complete receipts require exact V4 outcome recovery before append and cleanup.
+Ordinary cancellation can settle already received result bytes; account/claim
+loss cannot. No timer, successor, refund, selection change or legacy funding is
+introduced. Live factory and UI integration remain separate checkpoints.

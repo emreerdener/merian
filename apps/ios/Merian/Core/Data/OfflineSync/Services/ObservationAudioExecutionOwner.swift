@@ -31,6 +31,10 @@ final class ObservationAudioExecutionOwner {
             if let consumed = original.consumedAttempt { return work.consumedAttempt == consumed }
             return work.consumedAttempt == nil || work.consumedAttempt == work.attempt
         }
+
+        func matchesEntry(_ snapshot: ObservationAudioExecutionStore.Snapshot, container: ObjectIdentifier) -> Bool {
+            key.snapshot == snapshot && key.container == container
+        }
     }
     private struct Entry {
         let key: Key

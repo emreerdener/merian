@@ -11131,3 +11131,13 @@ resume without fresh consent. Run with audio execution store/owner, exact
 outcome and completion suites and Offline Sync architecture checks. This is
 local transaction acceptance; executor orchestration and disk restart journeys
 remain separate integration checks.
+
+### Explicit audio executor gate
+
+`ObservationAudioExecutionServiceTests` verifies initial, held and interrupted
+entry ordering, consumed recovery without files/upload/consent/analyze, exact
+append with unchanged selection, consumption save failure before/after commit,
+boundary failures, missing/malformed outcomes and cancellation/account/deletion
+settlement. Run with interruption, execution-store, retained-owner, outcome and
+completion suites and Offline Sync/Core architecture checks. These injected
+service tests do not qualify a live factory, UI entry, provider or disk restart.
