@@ -2599,3 +2599,26 @@ automatic scheduling or UI. The owner cannot grant a dispatch permit or reset a
 consumed attempt. Interrupted-running recovery and exact completion
 orchestration remain prerequisites for connecting its production operation. All
 gates remain disabled.
+
+### Exact audio interruption recovery
+
+The retained audio scope now gates `readForInterruption` and `interruptRunning`.
+These use a separate, narrow noncancelling persistence transaction for reads and
+safety holds; ordinary dispatch transactions still check cancellation. Scope
+construction remains private to the owner file. It binds the full original
+intent and container, current settlement authority, at most one claim
+advancement and preserved consumed-marker lineage. The original source, owner,
+parent including pending deletion, child namespace, erasure absence and
+queue/job shape are revalidated under the shared persistence lock. Current
+settlement scope is checked again before saving.
+
+The only mutation is exact running-to-held CAS. An exact duplicate can recover
+its corresponding held state after a lost save acknowledgement. A replaced
+snapshot, later generation, completed child, erasure receipt, changed source or
+invalidated owner fails closed. Request bytes, attempt and consumed marker are
+unchanged; no claim or dispatch capability is returned. After consumption
+commits then throws, the cancelled task can read the saved marker and hold it;
+it cannot use the failed call to authorize HTTP. Consumed held work permits only
+outcome recovery. Unconsumed held work still requires explicit fresh consent and
+the existing resume transaction. Runtime connection remains pending; no timer or
+automatic adoption was added.

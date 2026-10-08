@@ -11118,3 +11118,16 @@ generic scheduler remains unconnected. Run the focused suite with audio
 store/outcome tests and both Offline Sync and Core integration architecture
 suites. These tests establish retained ownership, not executor or provider
 qualification.
+
+### Audio interruption transaction gate
+
+`ObservationAudioInterruptionTests` exercises actual retained-task cancellation
+before/after consumed dispatch, exact held replay, consumption and hold saves
+that fail before commit or commit then throw, original request/marker retention,
+expired owner scope, later-generation rejection, account invalidation, changed
+container/source, parent deletion, erasure and malformed metadata. Recovered
+consumed work cannot obtain another dispatch permit; unconsumed holds cannot
+resume without fresh consent. Run with audio execution store/owner, exact
+outcome and completion suites and Offline Sync architecture checks. This is
+local transaction acceptance; executor orchestration and disk restart journeys
+remain separate integration checks.

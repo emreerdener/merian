@@ -123,6 +123,55 @@ enum ObservationAudioExecutionStore {
         }
     }
 
+    /// Read after a throwing save, even in a cancelled retained task. This grants no claim or permit.
+    static func readForInterruption(_ proof: ObservationAudioPreparation.Verified, container: ModelContainer,
+                                    scope: ObservationAudioExecutionOwner.Scope) throws -> Snapshot {
+        try interruptionTransaction(proof, container: container, scope: scope, save: { _ in throw Persistence.IntegrityError.conflict }) { _, _, saved in saved }
+    }
+
+    /// Explicit interruption only. The retained owner prevents adoption before the previous task exits.
+    /// Exact replay recovers the same held snapshot after save-commits-then-throws.
+    static func interruptRunning(_ expected: Snapshot, proof: ObservationAudioPreparation.Verified, container: ModelContainer,
+                                 scope: ObservationAudioExecutionOwner.Scope,
+                                 save: (ModelContext) throws -> Void = { try $0.save() }) throws -> Snapshot {
+        guard expected.work.state == .running, scope.permitsInterruption(expected, container: ObjectIdentifier(container)) else {
+            throw Persistence.IntegrityError.conflict
+        }
+        let work = try Work(intent: expected.work.intent, state: .held, attempt: expected.work.attempt,
+                            consumedAttempt: expected.work.consumedAttempt)
+        guard let metadata = String(data: try work.data(), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
+        let held = Snapshot(work: work, metadata: metadata)
+        return try interruptionTransaction(proof, container: container, scope: scope, save: save) { row, job, saved in
+            if saved == held { return held }
+            guard saved == expected else { throw Persistence.IntegrityError.conflict }
+            return try write(work, proof: proof, row: row, job: job)
+        }
+    }
+
+    /// Separate from dispatch transactions: cancellation may not erase a safety hold.
+    private static func interruptionTransaction(_ proof: ObservationAudioPreparation.Verified, container: ModelContainer,
+                                                scope: ObservationAudioExecutionOwner.Scope, save: (ModelContext) throws -> Void,
+                                                body: (OfflineQueuedScan, OfflineJobRecord, Snapshot) throws -> Snapshot) throws -> Snapshot {
+        try ConfirmedSpeciesReviewPersistence.transaction {
+            guard scope.maySettleKnownReceipt() else { throw Persistence.IntegrityError.accountChanged }
+            let context = ModelContext(container); context.autosaveEnabled = false
+            do {
+                let identity = proof.preparation.identity, child = identity.analysisID.uuidString.lowercased()
+                try proof.validate(context: context)
+                try completionNamespace(identity, context: context)
+                guard try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(identity.analysisID)) == nil,
+                      try context.fetch(FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate { $0.id == child })).isEmpty,
+                      let (row, job) = try Persistence.pair(identity, context: context) else { throw Persistence.IntegrityError.unavailable }
+                let saved = try snapshot(proof, row: row, job: job)
+                guard scope.permitsInterruption(saved, container: ObjectIdentifier(container)) else { throw Persistence.IntegrityError.conflict }
+                let result = try body(row, job, saved)
+                guard scope.permitsInterruption(result, container: ObjectIdentifier(container)) else { throw Persistence.IntegrityError.accountChanged }
+                if context.hasChanges { try save(context) }
+                return result
+            } catch { context.rollback(); throw error }
+        }
+    }
+
     /// Settlement only: a known exact outcome may survive task cancellation, never account or claim loss.
     /// The raw result, queue retirement and cleanup receipt commit together; selection is untouched.
     static func complete(_ claim: Claim, resultBytes: Data, proof: ObservationAudioPreparation.Verified,

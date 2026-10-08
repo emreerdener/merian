@@ -11,8 +11,26 @@ final class ObservationAudioExecutionOwner {
         let container: ObjectIdentifier
     }
     struct Scope {
+        fileprivate let key: Key
         let mayDispatch: @MainActor @Sendable () -> Bool
         let maySettleKnownReceipt: @MainActor @Sendable () -> Bool
+
+        fileprivate init(key: Key, mayDispatch: @escaping @MainActor @Sendable () -> Bool,
+                         maySettleKnownReceipt: @escaping @MainActor @Sendable () -> Bool) {
+            self.key = key
+            self.mayDispatch = mayDispatch
+            self.maySettleKnownReceipt = maySettleKnownReceipt
+        }
+
+        /// Settlement only: the original work and at most one claim advancement, never provider permission.
+        @MainActor
+        func permitsInterruption(_ snapshot: ObservationAudioExecutionStore.Snapshot, container: ObjectIdentifier) -> Bool {
+            let original = key.snapshot.work, work = snapshot.work
+            guard maySettleKnownReceipt(), container == key.container, work.intent == original.intent,
+                  work.attempt >= original.attempt, work.attempt <= min(2_147_483_647, original.attempt + 1) else { return false }
+            if let consumed = original.consumedAttempt { return work.consumedAttempt == consumed }
+            return work.consumedAttempt == nil || work.consumedAttempt == work.attempt
+        }
     }
     private struct Entry {
         let key: Key
@@ -51,7 +69,7 @@ final class ObservationAudioExecutionOwner {
                     lease.session == key.session && account.isCurrent(lease)
             }
             guard settlement(), !Task.isCancelled, entry?.cancelled == false else { return }
-            await operation(Scope(mayDispatch: { [self] in
+            await operation(Scope(key: key, mayDispatch: { [self] in
                 settlement() && entry?.cancelled == false && !Task.isCancelled
             }, maySettleKnownReceipt: settlement))
         }

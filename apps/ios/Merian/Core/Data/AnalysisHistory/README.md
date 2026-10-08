@@ -1569,3 +1569,22 @@ This dedicated settlement transaction intentionally ignores task cancellation
 for an already-known result; account loss and replaced claims still deny it.
 Failures roll back, while save-commits-then-throws recovers the same result.
 These primitives have no retained executor, scheduler or UI caller yet.
+
+### Audio interruption settlement
+
+The audio execution store has a narrow cancellation-safe read and
+running-to-held transition. It requires a scope constructed only by the retained
+audio owner, tied to the original intent, container and live account lease.
+Scope permits at most one claim advancement from its starting snapshot and
+cannot replace an existing consumed marker. The fresh locked transaction
+validates the original source, parent/deletion authority, child namespace,
+absence of erasure/completed child, and exact queue/job metadata before
+comparing the complete snapshot.
+
+Interruption changes only running to held. It preserves the request, attempt and
+consumed marker and returns no Claim or DispatchPermit. Duplicate calls accept
+only the exact corresponding held snapshot; other generations fail. A cancelled
+task may recover a consumption save that committed before throwing, then hold
+the consumed work without obtaining dispatch permission. Auth invalidation still
+denies settlement. Generic dispatch transactions retain cancellation checks.
+This store boundary remains unconnected to automatic scheduling or audio UI.
