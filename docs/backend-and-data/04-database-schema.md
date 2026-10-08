@@ -7832,3 +7832,24 @@ and grants no occupancy, upload receipt, admission or dispatch. A future linked
 writer must validate live occupancy under the canonical source-before-child
 locks as part of the coordinated reservation/cohort/admission/execution cutover.
 The source link alone never establishes that cutover is complete.
+
+### Prepared source-bound intent fence
+
+`20261008200418_fence_source_bound_analysis_intents.sql` adds a deny-only insert
+backstop for source-bound analysis intents. After owner/parent authorization and
+child-ingestion then child-evidence locks, a bound child requires the exact
+immutable input/fingerprint, owner/parent association, live source occupancy and
+one matching linked photo or audio cohort. NULL-linked legacy cohorts, opposite
+or mixed cohort types, and changed media or descriptions cannot establish this
+chain. Existing ready-evidence checks still apply. The private chain check takes
+no late locks and grants no quota or provider authority.
+
+Fresh insert guards require current statement snapshots (read committed/read
+uncommitted); frozen snapshots cannot prove post-wait namespace absence. A
+legacy unbound insert retains its existing behavior under supported isolation.
+This closes binding-versus-direct-intent races in both commit orders. Existing
+bound-child funding and invocation exclusions remain unconditional. No GUC,
+metadata validation success or raw intent row opens a funding exception. The
+future coordinated writer change must move source proof before child and intent
+locks, retain exact replay before fresh gates, and additionally prove intent
+state/context and original quota when opening the narrow funding/dispatch path.

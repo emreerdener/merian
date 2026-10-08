@@ -799,3 +799,12 @@ there is no new upload/admission authority or backfill. Existing cohort update
 guards prohibit changing either form, and deletion cascades preserve the parent
 lifecycle. See the
 [source-link contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-immutable-cohort-source-links).
+
+## Prepared source-bound intent fence
+
+A private intent insert backstop now requires the exact binding/input/occupancy/
+linked-cohort chain for source-bound children. It runs before existing evidence
+checks, with child-ingestion before child-evidence locks and current statement
+snapshots. Unbound legacy behavior remains; source-bound funding and dispatch
+still deny unconditionally. See the
+[intent fence contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-bound-intent-fence).
