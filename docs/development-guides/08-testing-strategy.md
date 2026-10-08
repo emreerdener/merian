@@ -11576,3 +11576,30 @@ capture/review/selection/Undo orchestration, device audio or hosted
 qualification. No runtime, persistence schema, ordinary route, activation gate
 or alternatives-card change is included. The previous unrelated full-native Auth
 architecture failure remains separate from this focused qualification.
+
+### Integrated native audio history journey
+
+`ObservationAudioHistoryJourneyTests.rejectedOriginalAudioRecoverySelectionAndUndoRemainIndependent`
+composes actual review admission/reconciliation, WAV preparation, consumed-work
+persistence, disk-store reopening, retained outcome recovery, history preview,
+selection and receipt-bound review Undo. It rejects selected A before preparing
+B, preserves the exact consumed request through reopening, and permits only
+outcome recovery and cleanup. Completion leaves B without a local authority
+cache; the test obtains that authority through the real preview service before
+explicitly selecting B. Selection Undo returns to rejected A, then review Undo
+clears only A's original rejection. B remains unreviewed and both immutable
+result snapshots and the original rejection receipt remain unchanged.
+
+Injected server responses preserve owner identity, exact operation associations,
+outer review revisions and separate nested AI/species-review counters. The final
+focused run passed 32 tests in four suites, including completion, selection and
+review admission. Initial synthetic-owner, digest-shape and
+unacknowledged-baseline failures were corrected without weakening production
+checks; failed evidence remains retained.
+
+This is native domain integration with synthetic network responses and an actual
+reopened disk store. It does not establish microphone capture, full app
+relaunch, real provider or hosted execution, physical-device behavior, or live
+route activation. The cleanup callback is injected; separate erasure tests own
+physical file cleanup. Video and remaining integrated capability acceptance
+remain open. Alternatives-card layout and all activation gates are unchanged.
