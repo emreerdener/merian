@@ -15791,3 +15791,27 @@ metadata validation success or raw intent row opens a funding exception. The
 future coordinated writer change must move source proof before child and intent
 locks, retain exact replay before fresh gates, and additionally prove intent
 state/context and original quota when opening the narrow funding/dispatch path.
+
+### Source-aware evidence writers
+
+Migration `20261008203348_bind_source_evidence_writers.sql` connects existing
+photo/audio cohort reservation and raw receipt reservation/completion to the
+private source entry helper. A bound child requires exact live binding and
+occupancy under owner/parent → source → child ingestion → child evidence locks.
+New cohorts preserve the binding link and exact ordered photo or single-audio
+projection. Existing NULL-linked cohorts never upgrade. Receipt allocation and
+completion also validate the linked chain; existing expiry, readiness and object
+identity rules remain unchanged. No quota, intent or provider grant is created.
+
+An apparently unbound caller takes child locks then rereads the binding table.
+If a binding appeared while waiting, it fails instead of acquiring a source lock
+late. Conversely, a committed legacy cohort makes a later binding fail its
+existing no-retrofit namespace check. These writers require read committed/read
+uncommitted isolation; repeatable-read and serializable snapshots fail closed,
+including for unbound requests. Legacy saved photo/audio replay retains its
+original receipt, object and deadline under supported isolation.
+
+This is closed bound-branch preparation, not all-writer cutover. Atomic source
+reservation, exact retirement and coordinated admission/funding/execution remain
+required before a new source API can open. No grant, rollout gate, wire field or
+ordinary route is added; existing activation holds remain.
