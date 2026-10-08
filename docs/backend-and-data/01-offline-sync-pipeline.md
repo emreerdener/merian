@@ -2594,11 +2594,10 @@ session, generation and container; presentation dismissal and connectivity must
 not be folded into the known-answer predicate. Durable claim/source/deletion
 checks remain mandatory in the execution store.
 
-This ownership checkpoint does not connect audio execution, claim adoption,
-automatic scheduling or UI. The owner cannot grant a dispatch permit or reset a
-consumed attempt. Interrupted-running recovery and exact completion
-orchestration remain prerequisites for connecting its production operation. All
-gates remain disabled.
+The owner cannot grant a dispatch permit or reset a consumed attempt. The
+explicit queue entry and execution ordering below connect injected service work
+to this owner; App/UI callers and automatic scheduling remain absent. All gates
+remain disabled.
 
 ### Exact audio interruption recovery
 
@@ -2640,4 +2639,13 @@ receipts, missing/malformed outcomes and network uncertainty persist a hold.
 Complete receipts require exact V4 outcome recovery before append and cleanup.
 Ordinary cancellation can settle already received result bytes; account/claim
 loss cannot. No timer, successor, refund, selection change or legacy funding is
-introduced. Live factory and UI integration remain separate checkpoints.
+introduced. `ObservationAudioExecutionDependencies.live` binds an explicit
+client and file store to the closed audio boundaries. `requestAudioExecution`
+requires the original snapshot and verified preparation, current account context
+and eligible connectivity. Its retained task awaits a single exact receipt erase
+through the injected erasure owner, then checks settlement scope before its
+completion notification. This bounded cleanup never joins the backlog loop.
+Cancellation, purge suspension or I/O failure preserves a pending erasure
+receipt without changing successful result completion. Auth teardown awaits
+actual lease exit. App/UI invocation and automatic scheduling remain separate,
+disabled work.

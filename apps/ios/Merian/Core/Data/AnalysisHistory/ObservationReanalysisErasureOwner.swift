@@ -30,6 +30,23 @@ final class ObservationReanalysisErasureOwner {
         await active.value
     }
 
+    /// One exact receipt attempt, awaited by an existing retained task. Never joins the backlog loop.
+    func erase(_ receipt: ObservationReanalysisErasureReceipt, container: ModelContainer,
+               isCurrent: @escaping @MainActor @Sendable () -> Bool) async {
+        guard suspensionCount == 0, isCurrent(), !Task.isCancelled else { return }
+        let current: @MainActor @Sendable () -> Bool = { [self] in suspensionCount == 0 && isCurrent() }
+        do {
+            try await files.erase(child: receipt.childID, authorize: {
+                try ObservationReanalysisErasurePersistence.validate(receipt, container: container, isCurrent: current)
+            }, acknowledge: {
+                _ = try ObservationReanalysisErasurePersistence.validate(receipt, container: container, isCurrent: current, complete: true)
+            })
+        } catch {
+            // Busy, cancelled or failed cleanup retains its durable receipt for independent recovery.
+            MerianLog.data.error("Reanalysis cleanup remains pending for a later local recovery opportunity.")
+        }
+    }
+
     /// Full-library erasure keeps local receipt work quiescent until its durable boundary completes.
     func suspendForLibraryPurge() async {
         suspensionCount += 1
@@ -61,16 +78,7 @@ final class ObservationReanalysisErasureOwner {
                 afterID = id
                 guard request.isCurrent(), !Task.isCancelled else { return }
                 guard let receipt else { continue }
-                do {
-                    try await files.erase(child: receipt.childID, authorize: {
-                        try ObservationReanalysisErasurePersistence.validate(receipt, container: request.container, isCurrent: request.isCurrent)
-                    }, acknowledge: {
-                        _ = try ObservationReanalysisErasurePersistence.validate(receipt, container: request.container,
-                            isCurrent: request.isCurrent, complete: true)
-                    })
-                } catch {
-                    MerianLog.data.error("Reanalysis cleanup remains pending for a later local recovery opportunity.")
-                }
+                await erase(receipt, container: request.container, isCurrent: request.isCurrent)
             }
             await Task.yield()
         }

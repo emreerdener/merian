@@ -11164,3 +11164,30 @@ Independent re-review was clear. Evidence remains under
 execution is separate from the scoped candidate export and its seven-target
 project validation. No backend wire, schema or deployment behavior changed. Live
 audio delivery remains unconnected.
+
+### Explicit audio live composition gate
+
+`ObservationAudioLiveDependenciesTests` exercises the actual injected client
+outcome transport for consumed recovery, with no file upload or inference
+consent. `ObservationAudioQueueExecutionTests` covers exact coalescing,
+connectivity versus account/container/generation invalidation, receipt-bound
+cleanup, completion notification before lease exit, and Auth drain awaiting a
+blocked completion callback. Run both with execution-service/owner,
+interruption, erasure and Offline Sync/Core integration architecture suites.
+
+This is explicit injected queue-entry coverage. There is no App/UI invocation,
+automatic audio scheduler, hosted provider or device acceptance claim. Known
+answers can settle after connectivity cancellation; failed cleanup retains the
+durable receipt and cannot turn a completed analysis back into a hold.
+
+This checkpoint's focused run passed 41 tests in eight exact suites with no
+failures or skips. Full shared-worktree validation executed 5,593 tests: 5,592
+passed, one failed, none skipped. The sole failure is the previously recorded
+`authFoundationHasFocusedOwnersAndRehomedTests` Auth size guard in overlapping
+workspace edits (3,800 versus 3,792 lines; aggregate 13,703 versus 13,695). The
+critical validator correctly rejects full green. No clean-candidate full-unit
+pass is claimed. Focused XCResult: `0c771d6492954b94aee2b673a2c5099a`; full:
+`a68e9f5a8cfe48138177f7c21188d6ee`. Failed compile logs remain retained under
+`/private/tmp/audio-live-*`; callback escaping, a source-inventory typo and
+nested Testing macros were corrected before final execution. Source review,
+strict lint, affected guards, DTO and documentation checks passed.

@@ -180,6 +180,7 @@ The canonical behavioral contract is the
 | `OfflineJobScheduler.swift`                                                       | Persisted wake restoration and the ordered foreground drain.                                                                                                                                                               |
 | `OfflineQueueManager.swift`                                                       | Observable queue facade, connectivity/lifecycle state, background-session setup, and retained transfer state.                                                                                                              |
 | `OfflineQueueManager+AudioQueue.swift`                                            | Single-audio convenience admission into the shared nonvisual queue path.                                                                                                                                                   |
+| `Services/OfflineQueueManager+AudioExecution.swift`                               | Explicit injected audio admission and awaited exact receipt cleanup within the retained account lease; no automatic scheduling.                                                                                            |
 | `Policies/CloudDeletionIntent.swift`                                              | Versioned requesting-account and origin metadata; invalid/legacy intent never becomes automatic delete authority.                                                                                                          |
 | `Services/CloudDeletion/CloudDeletionAccountWork.swift`                           | Account lease for deletion admission/acknowledgement and stable requester capture.                                                                                                                                         |
 | `Services/CloudDeletion/OfflineQueueManager+CloudDeletionSync.swift`              | Durable cloud-deletion drain, explicit confirmation, job recovery, and bounded retry persistence.                                                                                                                          |
@@ -923,6 +924,12 @@ the final account-lease drain.
 
 The owner has no timer, scanner, provider call or durable claim authority. Its
 operation must use the existing exact claim/consume/completion transactions and
-validate scope around every await. The audio executor and production start entry
-remain unconnected; interrupted-running adoption must be defined before runtime
-connection. Closing a presentation does not cancel or erase durable audio work.
+validate scope around every await.
+`Services/OfflineQueueManager+AudioExecution.swift` owns an explicit injected
+start entry for the exact saved snapshot and verified preparation. It validates
+account/session/generation/container separately from online/unconstrained
+dispatch permission. Completion awaits one receipt-bound erasure attempt and
+rechecks settlement scope before notifying its caller, all inside the retained
+lease. It creates no unretained cleanup task and never joins the backlog loop.
+App/UI callers, automatic adoption and scheduler integration remain absent.
+Closing a presentation does not cancel or erase durable audio work.

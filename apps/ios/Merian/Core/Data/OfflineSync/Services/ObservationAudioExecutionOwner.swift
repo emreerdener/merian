@@ -53,9 +53,10 @@ final class ObservationAudioExecutionOwner {
     @discardableResult
     func start(_ key: Key, account: ObservationHistoryCloudClient,
                isCurrent: @escaping @MainActor @Sendable () -> Bool,
+               permitsDispatch: @escaping @MainActor @Sendable () -> Bool = { true },
                operation: @escaping @MainActor (Scope) async -> Void,
                didFinish: @escaping @MainActor () -> Void) -> Admission {
-        guard drains == 0, !authInvalidationPending, !Task.isCancelled, isCurrent(),
+        guard drains == 0, !authInvalidationPending, !Task.isCancelled, isCurrent(), permitsDispatch(),
               key.session.userID == key.snapshot.work.intent.ownerID else { return .unavailable }
         if let entry {
             return entry.key == key && !entry.cancelled && !entry.invalidated ? .coalesced : .unavailable
@@ -63,7 +64,7 @@ final class ObservationAudioExecutionOwner {
         let token = UUID()
         let task = Task { @MainActor [self] in
             defer { if entry?.token == token { entry = nil; didFinish() } }
-            guard !Task.isCancelled, isCurrent(), entry?.token == token,
+            guard !Task.isCancelled, isCurrent(), permitsDispatch(), entry?.token == token,
                   entry?.cancelled == false, entry?.invalidated == false,
                   let lease = try? account.begin(key.session.userID) else { return }
             // Finish the lease before clearing the slot or publishing actual-exit notification.
@@ -74,7 +75,7 @@ final class ObservationAudioExecutionOwner {
             }
             guard settlement(), !Task.isCancelled, entry?.cancelled == false else { return }
             await operation(Scope(key: key, mayDispatch: { [self] in
-                settlement() && entry?.cancelled == false && !Task.isCancelled
+                settlement() && entry?.cancelled == false && !Task.isCancelled && permitsDispatch()
             }, maySettleKnownReceipt: settlement))
         }
         entry = Entry(key: key, token: token, task: task)

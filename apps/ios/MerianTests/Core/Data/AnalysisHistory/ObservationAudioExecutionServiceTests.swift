@@ -39,10 +39,11 @@ struct ObservationAudioExecutionServiceTests {
             }, outcome: { [self] claim, before, after in
                 try before(); #expect(claim.snapshot.work.consumedAttempt != nil)
                 try hit("outcome"); try after(); return bytes
-            }, cleanup: { [self] receipt in
-                #expect(receipt.childID == seed.preparation.identity.analysisID)
-                events.append("cleanup")
             }))
+        }
+        func cleanup(_ receipt: ObservationReanalysisErasureReceipt) async {
+            #expect(receipt.childID == seed.preparation.identity.analysisID)
+            events.append("cleanup")
         }
     }
 
@@ -63,7 +64,7 @@ struct ObservationAudioExecutionServiceTests {
         let saved = try entry(seed, mode: mode), boundary = try Boundary(seed), proof = try seed.proof
         let before = try ModelContext(seed.container).fetch(FetchDescriptor<LocalScanRecord>()).first?.selectedAnalysisID
         try await ObservationAudioInterruptionTests().owned(saved, seed: seed) { scope, _ in
-            let outcome = await boundary.service.run(saved, proof: proof, container: seed.container, scope: scope)
+            let outcome = await boundary.service.run(saved, proof: proof, container: seed.container, scope: scope, cleanup: boundary.cleanup)
             #expect(outcome == .completed)
         }
         let expected = saved.work.consumedAttempt != nil ? ["outcome", "cleanup"]
@@ -82,7 +83,7 @@ struct ObservationAudioExecutionServiceTests {
         service.consumeSave = { if committed { try $0.save() }; throw CocoaError(.fileWriteUnknown) }
         let executor = service
         try await ObservationAudioInterruptionTests().owned(saved, seed: seed) { scope, owner in
-            let outcome = await executor.run(saved, proof: proof, container: seed.container, scope: scope)
+            let outcome = await executor.run(saved, proof: proof, container: seed.container, scope: scope, cleanup: boundary.cleanup)
             #expect(outcome == .held); owner.cancel()
         }
         #expect(boundary.events == ["read", "upload", "authorize"])
@@ -97,7 +98,7 @@ struct ObservationAudioExecutionServiceTests {
         let saved = try entry(seed, mode: "initial"), boundary = try Boundary(seed), proof = try seed.proof
         boundary.hook = { if $0 == phase { throw URLError(.timedOut) } }
         try await ObservationAudioInterruptionTests().owned(saved, seed: seed) { scope, _ in
-            let outcome = await boundary.service.run(saved, proof: proof, container: seed.container, scope: scope)
+            let outcome = await boundary.service.run(saved, proof: proof, container: seed.container, scope: scope, cleanup: boundary.cleanup)
             #expect(outcome == .held)
         }
         let held = try Store.read(proof, container: seed.container, isCurrent: { true })
@@ -122,7 +123,7 @@ struct ObservationAudioExecutionServiceTests {
                     context.delete(try #require(rows.first)); try context.save()
                 }
             }
-            let outcome = await boundary.service.run(saved, proof: proof, container: seed.container, scope: scope)
+            let outcome = await boundary.service.run(saved, proof: proof, container: seed.container, scope: scope, cleanup: boundary.cleanup)
             #expect(outcome == (reason == "cancel" ? .completed : (reason == "account" || reason == "deleted" ? .unavailable : .held)))
         }
         #expect(boundary.events == (reason == "cancel" ? ["outcome", "cleanup"] : ["outcome"]))
@@ -134,7 +135,7 @@ struct ObservationAudioExecutionServiceTests {
         let saved = try entry(seed, mode: "initial"), boundary = try Boundary(seed), proof = try seed.proof
         boundary.reply = state; boundary.bytes = nil
         try await ObservationAudioInterruptionTests().owned(saved, seed: seed) { scope, _ in
-            let outcome = await boundary.service.run(saved, proof: proof, container: seed.container, scope: scope)
+            let outcome = await boundary.service.run(saved, proof: proof, container: seed.container, scope: scope, cleanup: boundary.cleanup)
             #expect(outcome == .held)
         }
         #expect(boundary.events.filter { $0 == "analyze" }.count == 1)
@@ -147,13 +148,13 @@ struct ObservationAudioExecutionServiceTests {
         let saved = try entry(seed, mode: "held"), boundary = try Boundary(seed), proof = try seed.proof
         try await ObservationAudioInterruptionTests().owned(saved, seed: seed) { scope, _ in
             boundary.hook = { _ in throw MerianError.aiConsentRequired }
-            let outcome = await boundary.service.run(saved, proof: proof, container: seed.container, scope: scope)
+            let outcome = await boundary.service.run(saved, proof: proof, container: seed.container, scope: scope, cleanup: boundary.cleanup)
             #expect(outcome == .held && boundary.events == ["authorize"])
             let later = try Store.resumeUndispatched(saved, proof: proof, authorization: fixture.authorization,
                 container: seed.container, isCurrent: { true })
             boundary.events = []
-            let stale = await boundary.service.run(saved, proof: proof, container: seed.container, scope: scope)
-            let mismatched = await boundary.service.run(later.snapshot, proof: proof, container: seed.container, scope: scope)
+            let stale = await boundary.service.run(saved, proof: proof, container: seed.container, scope: scope, cleanup: boundary.cleanup)
+            let mismatched = await boundary.service.run(later.snapshot, proof: proof, container: seed.container, scope: scope, cleanup: boundary.cleanup)
             #expect(stale == .unavailable && mismatched == .unavailable && boundary.events.isEmpty)
         }
     }
@@ -163,7 +164,7 @@ struct ObservationAudioExecutionServiceTests {
         let saved = try entry(seed, mode: "initial"), boundary = try Boundary(seed), proof = try seed.proof
         try await ObservationAudioInterruptionTests().owned(saved, seed: seed) { scope, owner in
             boundary.hook = { if $0 == "analyze" { owner.cancel() } }
-            let outcome = await boundary.service.run(saved, proof: proof, container: seed.container, scope: scope)
+            let outcome = await boundary.service.run(saved, proof: proof, container: seed.container, scope: scope, cleanup: boundary.cleanup)
             #expect(outcome == .held)
         }
         #expect(boundary.events == ["read", "upload", "authorize", "analyze"])

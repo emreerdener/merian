@@ -6,21 +6,21 @@ import SwiftData
 struct ObservationAudioExecutionService {
     typealias Store = ObservationAudioExecutionStore
     typealias Validate = @MainActor @Sendable () throws -> Void
+    typealias Cleanup = @MainActor (ObservationReanalysisErasureReceipt) async -> Void
     enum Outcome: Equatable { case completed, held, unavailable }
     struct Dependencies {
-        let read: (ObservationAudioPreparation, Validate, Validate) async throws -> Data
-        let upload: (ObservationAudioEvidenceUpload, UUID, Validate) async throws -> ObservationAudioEvidenceUploadReceipt
-        let authorize: (UUID, Validate) async throws -> IdentificationDispatchAuthorization
-        let analyze: (Store.DispatchPermit, IdentificationDispatchAuthorization, Validate, Validate) async throws -> ObservationAnalysisReceipt
-        let outcome: (Store.Claim, Validate, Validate) async throws -> Data?
-        let cleanup: (ObservationReanalysisErasureReceipt) -> Void
+        let read: (ObservationAudioPreparation, @escaping Validate, @escaping Validate) async throws -> Data
+        let upload: (ObservationAudioEvidenceUpload, UUID, @escaping Validate) async throws -> ObservationAudioEvidenceUploadReceipt
+        let authorize: (UUID, @escaping Validate) async throws -> IdentificationDispatchAuthorization
+        let analyze: (Store.DispatchPermit, IdentificationDispatchAuthorization, @escaping Validate, @escaping Validate) async throws -> ObservationAnalysisReceipt
+        let outcome: (Store.Claim, @escaping Validate, @escaping Validate) async throws -> Data?
     }
     let dependencies: Dependencies
     /// A throwing consumption save never produces a provider capability, even when committed.
     var consumeSave: (ModelContext) throws -> Void = { try $0.save() }
 
     func run(_ entry: Store.Snapshot, proof: ObservationAudioPreparation.Verified,
-             container: ModelContainer, scope: ObservationAudioExecutionOwner.Scope) async -> Outcome {
+             container: ModelContainer, scope: ObservationAudioExecutionOwner.Scope, cleanup: Cleanup) async -> Outcome {
         guard scope.matchesEntry(entry, container: ObjectIdentifier(container)) else { return .unavailable }
         do {
             try requireDispatch(scope)
@@ -32,7 +32,7 @@ struct ObservationAudioExecutionService {
             let claim: Store.Claim
             if saved.work.consumedAttempt != nil {
                 claim = try Store.claim(saved, purpose: .recovery, proof: proof, container: container, isCurrent: scope.mayDispatch)
-                return try await recover(claim, proof: proof, container: container, scope: scope)
+                return try await recover(claim, proof: proof, container: container, scope: scope, cleanup: cleanup)
             }
             if saved.work.state == .held {
                 let expected = saved
@@ -50,14 +50,14 @@ struct ObservationAudioExecutionService {
             } else {
                 claim = try Store.claim(saved, purpose: .initial, proof: proof, container: container, isCurrent: scope.mayDispatch)
             }
-            return try await dispatch(claim, proof: proof, container: container, scope: scope)
+            return try await dispatch(claim, proof: proof, container: container, scope: scope, cleanup: cleanup)
         } catch {
             return interrupt(proof, container: container, scope: scope)
         }
     }
 
     private func dispatch(_ claim: Store.Claim, proof: ObservationAudioPreparation.Verified,
-                          container: ModelContainer, scope: ObservationAudioExecutionOwner.Scope) async throws -> Outcome {
+                          container: ModelContainer, scope: ObservationAudioExecutionOwner.Scope, cleanup: Cleanup) async throws -> Outcome {
         let validate = dispatchValidation(claim, proof: proof, container: container, scope: scope)
         try validate()
         let preparation = proof.preparation, identity = preparation.identity
@@ -83,18 +83,18 @@ struct ObservationAudioExecutionService {
         try settlementValidation(scope)()
         guard result.observationID == identity.observationID, result.analysisID == identity.analysisID else { throw MerianError.invalidResponse }
         guard result.state == .complete else { return interrupt(proof, container: container, scope: scope) }
-        return try await recover(permit.claim, proof: proof, container: container, scope: scope)
+        return try await recover(permit.claim, proof: proof, container: container, scope: scope, cleanup: cleanup)
     }
 
     private func recover(_ claim: Store.Claim, proof: ObservationAudioPreparation.Verified,
-                         container: ModelContainer, scope: ObservationAudioExecutionOwner.Scope) async throws -> Outcome {
+                         container: ModelContainer, scope: ObservationAudioExecutionOwner.Scope, cleanup: Cleanup) async throws -> Outcome {
         let before = dispatchValidation(claim, proof: proof, container: container, scope: scope)
         try before()
         let bytes = try await dependencies.outcome(claim, before, settlementValidation(scope))
         try settlementValidation(scope)()
         guard let bytes else { return interrupt(proof, container: container, scope: scope) }
         let receipt = try Store.complete(claim, resultBytes: bytes, proof: proof, container: container, isCurrent: scope.maySettleKnownReceipt)
-        dependencies.cleanup(receipt)
+        await cleanup(receipt)
         return .completed
     }
 

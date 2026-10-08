@@ -1593,17 +1593,23 @@ This store boundary remains unconnected to automatic scheduling or audio UI.
 
 `ObservationAudioExecutionService` runs only inside an opaque retained audio
 owner scope matching its exact entry snapshot and container. It has injected
-file, upload, authorization, analysis, outcome and cleanup boundaries; no live
-factory, UI caller or scheduler is installed yet. Running work is first held
-under the interruption CAS. Unconsumed held work requires fresh fixed-Gemini
-authorization before resume; initial work claims once. Verified WAV reads and
-exact upload receipts precede fresh authorization and consumption. Only a
-successfully returned consumption permit reaches analyze.
+file, upload, authorization, analysis and outcome boundaries.
+`ObservationAudioExecutionDependencies.live` binds those boundaries to the
+explicit file store and client, including their closed audio transports. The
+queue supplies an awaited cleanup callback; no App/UI caller or scheduler is
+installed yet. Running work is first held under the interruption CAS. Unconsumed
+held work requires fresh fixed-Gemini authorization before resume; initial work
+claims once. Verified WAV reads and exact upload receipts precede fresh
+authorization and consumption. Only a successfully returned consumption permit
+reaches analyze.
 
 Consumed work claims recovery and reads its exact outcome without files, upload
 or inference consent. A complete dispatch receipt still requires the original V4
 result. Unknown, absent or malformed outcomes hold without timers or another
 provider call. A received result may complete after ordinary cancellation, but
-account, source, deletion and exact claim checks still apply. Cleanup is woken
-only after atomic completion returns its erasure receipt. A throwing consumption
-save triggers a scope-bound read/hold and never creates a permit.
+account, source, deletion and exact claim checks still apply. Cleanup is awaited
+only after atomic completion returns its erasure receipt. The exact child erase
+reuses `ObservationReanalysisErasureOwner` without joining its backlog pass.
+Cancellation, suspension or failed cleanup leaves the durable receipt pending;
+it cannot downgrade the committed result. A throwing consumption save triggers a
+scope-bound read/hold and never creates a permit.
