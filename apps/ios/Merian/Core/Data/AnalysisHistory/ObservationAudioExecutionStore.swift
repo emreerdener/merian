@@ -22,6 +22,29 @@ enum ObservationAudioExecutionStore {
     }
     enum Purpose { case initial, recovery }
 
+    enum AdmissionState {
+        case unprepared
+        case preparation(ObservationAudioPreparation.Phase)
+        case bound(Snapshot)
+    }
+
+    /// Strict local recovery before preparation/consent. Absence is never inferred from a decode failure.
+    static func admissionState(_ proof: ObservationAudioPreparation.Verified, container: ModelContainer,
+                               isCurrent: () -> Bool) throws -> AdmissionState {
+        guard proof.preparation.action == .submit else { throw Persistence.IntegrityError.conflict }
+        return try Persistence.transaction(proof.preparation.identity, container: container, isCurrent: isCurrent,
+                                           save: { _ in throw Persistence.IntegrityError.conflict }) { context in
+            try proof.validate(context: context)
+            try completionNamespace(proof.preparation.identity, context: context)
+            let child = proof.preparation.identity.analysisID.uuidString.lowercased()
+            guard try context.fetch(FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate { $0.id == child })).isEmpty else {
+                throw Persistence.IntegrityError.unavailable
+            }
+            guard let (row, job) = try Persistence.pair(proof.preparation.identity, context: context) else { return .unprepared }
+            return try restoreAdmission(proof, row: row, job: job)
+        }
+    }
+
     /// The caller prepares the candidate off-main and synchronizes current fixed-Gemini consent.
     /// Authorization may itself read durable state, so it runs before taking the persistence lock.
     static func bind(_ candidate: ObservationAudioExecutionIntent, proof: ObservationAudioPreparation.Verified,
@@ -36,16 +59,15 @@ enum ObservationAudioExecutionStore {
         try authorization.validate()
         return try Persistence.transaction(candidate.identity, container: container, isCurrent: isCurrent, save: save) { context in
             try proof.validate(context: context)
-            guard let (row, job) = try Persistence.pair(candidate.identity, context: context), let metadata = job.metadataJSON else {
+            guard let (row, job) = try Persistence.pair(candidate.identity, context: context) else {
                 throw Persistence.IntegrityError.unavailable
             }
-            if (try? Work.decode(Data(metadata.utf8))) != nil {
-                let saved = try snapshot(proof, row: row, job: job)
+            switch try restoreAdmission(proof, row: row, job: job) {
+            case let .bound(saved):
                 guard saved.work.intent == candidate else { throw Persistence.IntegrityError.conflict }
                 return saved
-            }
-            guard try ObservationAudioPreparationStore.restore(proof.preparation, row: row, job: job) == .admissionPending else {
-                throw Persistence.IntegrityError.conflict
+            case .preparation(.admissionPending): break
+            default: throw Persistence.IntegrityError.conflict
             }
             return try write(Work(intent: candidate), proof: proof, row: row, job: job)
         }
@@ -229,15 +251,28 @@ enum ObservationAudioExecutionStore {
         }
     }
 
+    private static func restoreAdmission(_ proof: ObservationAudioPreparation.Verified, row: OfflineQueuedScan,
+                                         job: OfflineJobRecord) throws -> AdmissionState {
+        guard let text = job.metadataJSON, text.utf8.count <= 1_400_000,
+              let object = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] else {
+            throw Persistence.IntegrityError.conflict
+        }
+        switch object["kind"] as? String {
+        case "audio_preparation": return .preparation(try ObservationAudioPreparationStore.restore(proof.preparation, row: row, job: job))
+        case "audio_execution": return .bound(try snapshot(proof, row: row, job: job))
+        default: throw Persistence.IntegrityError.conflict
+        }
+    }
+
     private static func existingBinding(_ proof: ObservationAudioPreparation.Verified, container: ModelContainer,
                                         isCurrent: () -> Bool) throws -> Snapshot? {
         try Persistence.transaction(proof.preparation.identity, container: container, isCurrent: isCurrent, save: { try $0.save() }) { context in
             try proof.validate(context: context)
-            guard let (row, job) = try Persistence.pair(proof.preparation.identity, context: context), let metadata = job.metadataJSON else {
+            guard let (row, job) = try Persistence.pair(proof.preparation.identity, context: context) else {
                 throw Persistence.IntegrityError.unavailable
             }
-            guard (try? Work.decode(Data(metadata.utf8))) != nil else { return nil }
-            return try snapshot(proof, row: row, job: job)
+            if case let .bound(saved) = try restoreAdmission(proof, row: row, job: job) { return saved }
+            return nil
         }
     }
 

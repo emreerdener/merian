@@ -1613,3 +1613,28 @@ reuses `ObservationReanalysisErasureOwner` without joining its backlog pass.
 Cancellation, suspension or failed cleanup leaves the durable receipt pending;
 it cannot downgrade the committed result. A throwing consumption save triggers a
 scope-bound read/hold and never creates a permit.
+
+### Explicit audio submission binding
+
+Before retrying audio preparation,
+`ObservationAudioExecutionStore.admissionState` performs a read-only,
+owner/source-qualified transaction. It distinguishes exact absence, an exact
+preparation phase (`files_pending` or `admission_pending`) and the original
+bound execution snapshot. A missing row/job partner, unknown or malformed
+envelope, completed child, erasure receipt or changed scope throws; decode
+failure never means new work. The same discriminator validates pre-consent
+binding recovery and the final binding transaction.
+
+`ObservationAudioSubmissionBinding` runs under the injected shared preparation
+owner. It begins and finishes its account lease inside that retained task, so
+existing Auth drains await authorization work. Exact bound replay returns before
+fresh consent, retaining any consumed marker without producing a dispatch
+permit. Only `admission_pending` may obtain fresh fixed-Gemini authorization and
+bind; file preparation is a separate prerequisite. A save that commits then
+throws still throws to this caller; a later explicit retry recovers the same
+request. Post-await source/account/cancellation fences withhold stale results.
+
+This boundary does not prepare files, start the queue, select a result or
+install Capture/UI access. Capture must classify the same frozen preparation
+before calling its producer; a bound request must never be rewritten as
+preparation.

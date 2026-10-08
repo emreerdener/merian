@@ -11191,3 +11191,28 @@ pass is claimed. Focused XCResult: `0c771d6492954b94aee2b673a2c5099a`; full:
 `/private/tmp/audio-live-*`; callback escaping, a source-inventory typo and
 nested Testing macros were corrected before final execution. Source review,
 strict lint, affected guards, DTO and documentation checks passed.
+
+### Audio submission binding recovery gate
+
+`ObservationAudioSubmissionBindingTests` covers exact absent/pending/submitted/
+bound classification, damaged or incomplete queue/job pairs, unknown and
+malformed execution envelopes, and stale account denial. Save-before-commit and
+save-commits-then-throws cases retain the original request; only the latter
+skips consent on a later explicit retry. Bound consumed-state recovery preserves
+its marker and returns no dispatch permit. The authorization test waits for an
+explicit cancellation signal and proves that Auth drain retains the slot and
+lease until actual exit, while account/cancellation changes cannot bind.
+
+Run with audio preparation, execution-store/service, queue integration and both
+Offline Sync/Core architecture suites. These are prerequisite binding checks;
+they do not establish Capture UI installation, restart discovery, provider or
+physical-device qualification.
+
+The focused binding checkpoint passed 50 tests across seven exact suites, with
+zero failures or skips (XCResult `0fd84b7404cf4bec80f1d8f3c4950f7c`). Strict
+lint, affected source guards, DTO21, docs26 and seven-target membership passed.
+Independent source and documentation re-review was clear after clarifying the
+two preparation phases. The most recent full native milestone is the preceding
+`afd186919` composition run recorded above; it is not represented as a full run
+of this narrower checkpoint. Shared-worktree execution and scoped candidate
+validation remain distinct; no activation or external qualification is claimed.

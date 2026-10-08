@@ -2649,3 +2649,23 @@ Cancellation, purge suspension or I/O failure preserves a pending erasure
 receipt without changing successful result completion. Auth teardown awaits
 actual lease exit. App/UI invocation and automatic scheduling remain separate,
 disabled work.
+
+### Audio submission recovery before binding
+
+The typed `ObservationAudioExecutionStore.admissionState` read is the
+prerequisite for explicit Capture submission retry. Under the shared transaction
+it validates the frozen source and namespace, then returns only exact absence,
+an exact preparation phase (`files_pending` or `admission_pending`) or the saved
+execution snapshot. Damaged, mixed or unknown state fails closed. Both binding
+replay and the final binding CAS use that same strict discriminator; decoding
+errors cannot authorize another preparation.
+
+`ObservationAudioSubmissionBinding` retains authorization through the shared
+preparation owner, acquiring and releasing its account lease inside the task.
+Existing Auth drains cancel and await it. Exact saved binding is recovered
+before current inference consent; this preserves the original request and
+consumed marker but grants no provider invocation. Fresh authorization is used
+only for verified `admission_pending` work. A throwing save returns no success,
+even if committed; a later explicit retry recovers the exact binding. File
+preparation and explicit queue start remain separate operations. This owner has
+no scheduler or Capture/UI caller, and all activation gates remain disabled.
