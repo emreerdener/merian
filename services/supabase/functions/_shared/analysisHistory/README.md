@@ -12,10 +12,17 @@ history selection transaction.
 closed response decoder. Its 2 KiB byte boundary and exact owner/parent/source
 checks grant no admission or execution permission. The gated service-only SQL
 resolver now classifies bounded existing records; source reservation, all-writer
-coverage, fingerprint and native consumer remain pending. The initial resolver
-never returns advisory absence. See the
+coverage and native consumer remain pending. The initial resolver never returns
+advisory absence. See the
 [canonical prepared contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-discovery-contract)
 and `sourceDiscovery_test.ts`; do not use existing funded admission as a lookup.
+
+`sourceFingerprint.ts` prepares a versioned UTF-8 framing and SHA-256 contract
+for fresh photo/audio source reservations, preserving the original request
+digest and saved bytes. It grants no authority and has no connected consumer.
+The fixed golden vectors must be matched by SQL and Swift before their
+reservation integration; see the
+[fingerprint contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-reservation-fingerprint).
 
 `contract.ts` owns exact request identities, errors and bounded primitive
 parsers. `transitions.ts` models selection and revision decisions; `result.ts`

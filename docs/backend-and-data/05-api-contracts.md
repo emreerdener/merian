@@ -15559,3 +15559,59 @@ snapshot versions 1–4 is regression-tested; future codec changes must preserve
 historical receipt bytes. `history_only` remains informational, never
 replacement permission. Five-second SQL timeout bounds reads; callers must not
 reinterpret errors/timeouts as absence.
+
+### Prepared source reservation fingerprint
+
+`_shared/analysisHistory/sourceFingerprint.ts` defines fingerprint version 1 as
+an inert pure contract. It has no RPC, durable reservation, upload
+authorization, HTTP caller or native consumer. SQL and Swift implementations
+must match the checked-in golden vectors before reservation or native
+integration is connected. Existing saved request bytes and `request_digest` are
+preserved verbatim; this fingerprint is additional binding, never a replacement
+for their replay rules. The existing server admission checks `request_digest`
+syntax and exact replay identity; it does not prove that native JSON bytes hash
+to that value. The new fingerprint binds the validated semantic fields
+independently. Do not add JSON digest reconstruction or rewriting to saved V2/V3
+requests.
+
+Only strictly validated fresh protected-photo input schema 2 and audio input
+schema 3 are supported. Source must be non-null, distinct from observation and
+child, and cannot alias a media ID. V1 saved-photo replay remains on its
+existing path; unsupported fresh representations cannot silently upgrade. The
+profile is derived from the validated schema (`multimodal_photo_v1` or
+`multimodal_audio_v1`), never accepted as another caller field. Existing
+processor, protocol, image/audio count, byte and description bounds apply.
+
+Canonical bytes are concatenated UTF-8 netstrings: each field is its decimal
+UTF-8 byte count, ASCII colon, exact UTF-8 value, then ASCII comma. Counts and
+integers use unsigned minimal decimal ASCII. There is no JSON serialization,
+whitespace normalization or Unicode normalization. NUL and unpaired UTF-16
+surrogates are rejected, since PostgreSQL text cannot preserve them. Framing is
+bounded to 262,144 bytes. SHA-256 of these bytes is 64 lowercase hexadecimal
+characters. The fixed field order is:
+
+1. `merian.analysis-source-reservation`, fingerprint version `1`;
+2. input schema version, observation UUID, child UUID, source UUID, original
+   `request_digest`;
+3. entitlement protocol, identification protocol, history protocol, expected
+   processor permission, derived input profile;
+4. evidence schema version and item count;
+5. each evidence item in original order: `description`, exact text; or media
+   kind, media UUID, content type, byte count, SHA-256.
+
+Owner is excluded from these bytes to preserve immutable request identity across
+an authorized account merge. Owner remains mandatory in authenticated storage,
+lookup and mutation scope; a matching digest never establishes ownership or
+merge permission. Merge conflicts must still abort atomically. Fingerprinting
+proves neither source membership, upload readiness, consent, funding nor
+execution authority. No new request may bypass the future locked all-writer
+reservation transaction.
+
+`fixtures/source-fingerprint-v1.json` contains fixed reviewed byte/hash vectors
+for photo (both Gemini and OpenAI) and audio, with composed/decomposed Unicode,
+a supplementary character, newline and delimiter characters. Tests prove JSON
+key-order independence, ordered-item and field sensitivity, strict denials and
+byte snapshotting before the asynchronous hash. Cross-language parity is
+explicitly pending, not inferred from these TypeScript tests. SQL and Swift must
+compare both the canonical bytes and hashes and enforce the same 262,144-byte
+bound before integration.

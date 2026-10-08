@@ -1,17 +1,18 @@
 # Analysis source occupancy and recovery contract
 
-Status: required design checkpoint, October 8, 2026. **Not implemented or
-activated.** This extends the approved identification-history audio integration
-milestone; it does not authorize deployment, a new provider retry policy, or an
-ordinary Capture route. Existing saved-photo replay must remain unchanged.
+Status: required design checkpoint, October 8, 2026. **Partially implemented;
+not activated.** This extends the approved identification-history audio
+integration milestone; it does not authorize deployment, a new provider retry
+policy, or an ordinary Capture route. Existing saved-photo replay must remain
+unchanged.
 
-October 8 implementation note: the strict executable request/descriptor and 2
-KiB decoder are now prepared in `sourceDiscovery.ts`, with no live producer or
-consumer. The
+Initial October 8 descriptor checkpoint (historical): the strict executable
+request/descriptor and 2 KiB decoder are now prepared in `sourceDiscovery.ts`,
+with no live producer or consumer. The
 [current API contract](../backend-and-data/05-api-contracts.md#prepared-source-discovery-contract)
-fixes their fieldsets. The SQL resolver, fingerprint parity, source index and
-proof storage remain unimplemented; this is partial progress within checkpoint
-1, not completion of that checkpoint or activation of discovery.
+fixes their fieldsets. At that checkpoint, the SQL resolver, fingerprint parity,
+source index and proof storage remained unimplemented. The subsequent notes
+below supersede that partial status; discovery was not activated.
 
 Subsequent October 8 implementation note: the default-false service-only SQL
 resolver now classifies bounded existing intents/results and terminal receipts,
@@ -194,3 +195,13 @@ configuration validation. Native consumers need exact selectors and affected
 native gates. Preserve failed evidence and separate shared-worktree results from
 clean-candidate CI. Real device, hosted runtime/storage/erasure and Field Trip
 qualification remain separately held. This design does not close slice 5 or 7.
+
+## October 8 fingerprint preparation checkpoint
+
+The pure TypeScript
+[fingerprint contract](../backend-and-data/05-api-contracts.md#prepared-source-reservation-fingerprint)
+now defines versioned UTF-8 framing and fixed reviewed photo/audio vectors. It
+preserves existing saved request digests and excludes owner from immutable bytes
+while retaining owner as mandatory authorization scope. SQL/Swift parity,
+storage, reservation, retirement and all-writer cutover remain unimplemented.
+This is contract groundwork, not admission or activation.
