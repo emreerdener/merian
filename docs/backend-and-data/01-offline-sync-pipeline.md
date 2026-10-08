@@ -2575,3 +2575,27 @@ until the service releases its lease, including cancellation-ignoring responses.
 Overlapping drains block admission until all captured work exits. A cancelled
 waiter does not cancel another caller's shared read. This adds no durable
 intent, automatic replay, timer, idle lease or ordinary UI activation.
+
+### Prepared native audio task lifetime
+
+`ObservationAudioExecutionOwner` is queue-retained independently of the photo
+scheduler. It admits at most one explicit operation and coalesces only an exact
+saved snapshot/session/generation/container key. The task owns an injected
+account lease through actual operation exit; lease release precedes clearing the
+slot and its sole completion callback. A duplicate caller neither starts another
+operation nor emits a completion notification.
+
+Offline or constrained connectivity cancels dispatch but retains the slot and
+same-account known-answer settlement. Auth invalidation immediately revokes both
+predicates, closes admission even before awaiting, and overlapping drains keep
+admission closed until retained work exits. Both existing queue Auth quiescence
+seams invalidate and await the audio owner. Common scope must fence account,
+session, generation and container; presentation dismissal and connectivity must
+not be folded into the known-answer predicate. Durable claim/source/deletion
+checks remain mandatory in the execution store.
+
+This ownership checkpoint does not connect audio execution, claim adoption,
+automatic scheduling or UI. The owner cannot grant a dispatch permit or reset a
+consumed attempt. Interrupted-running recovery and exact completion
+orchestration remain prerequisites for connecting its production operation. All
+gates remain disabled.

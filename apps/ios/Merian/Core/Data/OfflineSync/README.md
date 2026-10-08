@@ -908,3 +908,21 @@ retirement recovery without polling or automatic rearm. The foreground status
 action reuses the Auth-drained preparation owner; it only reads exact status and
 stages/rearms the fixed retirement request. Delivery remains with this existing
 execution owner. Rollout gates stay false.
+
+### Prepared audio execution ownership
+
+`audioExecutionOwner` retains one explicit audio operation, keyed by the
+complete saved execution snapshot, account session, generation and container
+identity. Only an exact active key coalesces; another child or changed scope
+cannot replace it. The injected account lease starts inside the retained task
+and finishes before its slot clears or actual-exit notification fires.
+Connectivity cancellation closes dispatch while preserving same-scope
+known-result settlement; Auth invalidation closes both and blocks admission
+through overlapping drains. Both queue Auth quiescence seams await it, before
+the final account-lease drain.
+
+The owner has no timer, scanner, provider call or durable claim authority. Its
+operation must use the existing exact claim/consume/completion transactions and
+validate scope around every await. The audio executor and production start entry
+remain unconnected; interrupted-running adoption must be defined before runtime
+connection. Closing a presentation does not cancel or erase durable audio work.

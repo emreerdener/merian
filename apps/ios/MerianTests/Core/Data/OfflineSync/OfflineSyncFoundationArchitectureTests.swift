@@ -328,6 +328,8 @@ struct OfflineSyncFoundationArchitectureTests {
             "Services/OfflineQueueManager+ReanalysisAdmission.swift",
         "struct ObservationReanalysisExecutionService":
             "Services/ObservationReanalysisExecutionService.swift",
+        "final class ObservationAudioExecutionOwner":
+            "Services/ObservationAudioExecutionOwner.swift",
         "final class ObservationReanalysisExecutionOwner":
             "Services/ObservationReanalysisExecutionOwner.swift",
         "func requestReanalysisExecutionRecovery":
@@ -346,6 +348,7 @@ struct OfflineSyncFoundationArchitectureTests {
 
     private static let extractedOwnerPaths: Set<String> = [
         "Services/ProtectedInsightChatDeliveryService.swift",
+        "Services/ObservationAudioExecutionOwner.swift",
         "Services/ProtectedInsightChatDeliveryOwner.swift",
         "Services/OfflineQueueManager+ProtectedChat.swift",
         "Services/OfflineQueueManager+AnalysisReview.swift",
@@ -410,6 +413,7 @@ struct OfflineSyncFoundationArchitectureTests {
 
     private static let expectedImportsByPath: [String: Set<String>] = [
         "Services/ProtectedInsightChatDeliveryService.swift": ["import Foundation", "import SwiftData"],
+        "Services/ObservationAudioExecutionOwner.swift": ["import Foundation"],
         "Services/ProtectedInsightChatDeliveryOwner.swift": ["import Foundation"],
         "Services/OfflineQueueManager+ProtectedChat.swift": ["import Foundation", "import SwiftData"],
         "Services/OfflineQueueManager+AnalysisReview.swift": ["import Foundation", "import SwiftData"],

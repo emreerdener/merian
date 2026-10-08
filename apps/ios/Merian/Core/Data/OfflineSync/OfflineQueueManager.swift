@@ -120,6 +120,7 @@ import SwiftData
     @ObservationIgnored let publicationTargetRecoveryOwner = ObservationPublicationRecoveryOwner()
     @ObservationIgnored lazy var reanalysisAdmissionRuntime = makeReanalysisAdmissionRuntime()
     @ObservationIgnored let reanalysisExecutionOwner = ObservationReanalysisExecutionOwner()
+    @ObservationIgnored let audioExecutionOwner = ObservationAudioExecutionOwner()
     private(set) var reanalysisExecutionGeneration: UInt64 = 0
     func reanalysisExecutionDidFinish(ownerID: UUID, context: ModelContext, currentOwnerID: UUID?) {
         guard currentOwnerID == ownerID, modelContext === context else { return }
@@ -525,6 +526,7 @@ import SwiftData
                     self.reconnectDebounceTask = nil
                     guard !newIsConstrained else {
                         self.protectedChatDeliveryOwner.cancel()
+                        self.audioExecutionOwner.cancel()
                         self.analysisReviewDeliveryOwner.cancel()
                         self.reanalysisExecutionOwner.cancel()
                         OfflineJobScheduler.shared.cancelScheduledWake(
@@ -560,6 +562,7 @@ import SwiftData
                     self.identificationReviewSyncTask?.cancel()
                     self.publicationDeliveryOwner.cancel()
                     self.protectedChatDeliveryOwner.cancel()
+                    self.audioExecutionOwner.cancel()
                     self.analysisReviewDeliveryOwner.cancel()
                     self.reanalysisExecutionOwner.cancel()
                     self.collectionSyncTask?.cancel()

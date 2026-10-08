@@ -11104,3 +11104,17 @@ settle and selection stays unchanged. Run it with the existing audio
 submit/completion, photo recovery, protected-chat and transport-owner
 architecture tests. This is prepared-boundary coverage, not retained-executor or
 hosted-runtime acceptance.
+
+### Prepared audio retained-owner gate
+
+`ObservationAudioExecutionOwnerTests` covers exact coalescing, changed request,
+claim, session, generation and container denial, one-slot resource bounds, lease
+release before actual-exit notification, and connectivity cancellation
+preserving known-answer scope. Auth invalidation closes settlement immediately;
+overlapping drains and the invalidate-before-await gap deny replacement work.
+Failed lease admission and stale account scope never invoke the operation. Both
+Auth teardown seams and offline/constrained cancellation are checked; the
+generic scheduler remains unconnected. Run the focused suite with audio
+store/outcome tests and both Offline Sync and Core integration architecture
+suites. These tests establish retained ownership, not executor or provider
+qualification.

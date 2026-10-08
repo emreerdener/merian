@@ -36,6 +36,7 @@ extension OfflineQueueManager {
     func awaitRetainedSyncQuiescenceForAuthTransition() async {
         protectedChatRefreshOwner.cancelAll()
         protectedChatDeliveryOwner.invalidate()
+        audioExecutionOwner.invalidate()
         confirmationUndoOwner.cancelAll()
         rejectionUndoOwner.cancelAll()
         analysisReviewDeliveryOwner.cancel()
@@ -57,5 +58,6 @@ extension OfflineQueueManager {
         await rejectionUndoOwner.cancelAndAwaitAll()
         await analysisReviewDeliveryOwner.cancelAndAwait()
         await protectedChatDeliveryOwner.invalidateAndAwait()
+        await audioExecutionOwner.invalidateAndAwait()
     }
 }
