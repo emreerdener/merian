@@ -11,6 +11,40 @@ final class CaptureAudioReanalysisHost {
     private(set) var isPreparingInput = false
     private(set) var preparedInput: Data?
     private var inputWork: Task<Void, Never>?
+    private var picker: UUID?
+    struct Presentation: Equatable { fileprivate let id: UUID }
+    struct InputSelection: Equatable { fileprivate let presentation: UUID; fileprivate let id: UUID }
+
+    var presentedScope: Presentation? { isPresented ? Presentation(id: presentation) : nil }
+    func matches(_ scope: Presentation?) -> Bool {
+        scope?.id == presentation && isPresented && isCurrent
+    }
+    func close(_ scope: Presentation?) { if scope?.id == presentation { close() } }
+    func validatePresentation() { _ = validate() }
+
+    func beginInputSelection(_ scope: Presentation?) -> InputSelection? {
+        guard matches(scope), !isFrozen, work == nil, inputWork == nil, picker == nil else { return nil }
+        let id = UUID(); picker = id
+        return InputSelection(presentation: presentation, id: id)
+    }
+
+    func cancelInputSelection(_ selection: InputSelection) {
+        guard selection.presentation == presentation, picker == selection.id else { return }
+        picker = nil
+    }
+
+    func finishInputSelection(_ selection: InputSelection, result: Result<URL, Error>, using preparer: CaptureAudioInputPreparer) {
+        guard selection.presentation == presentation, picker == selection.id else { return }
+        picker = nil
+        guard isPresented, validate() else { return }
+        switch result {
+        case let .success(url): prepareInput(from: url, using: preparer)
+        case let .failure(error):
+            if (error as NSError).domain != NSCocoaErrorDomain || (error as NSError).code != CocoaError.userCancelled.rawValue {
+                message = "This audio could not be opened. Choose the file again."
+            }
+        }
+    }
     private var opened: CaptureAudioReanalysisAccess.Opened?
     private var presentation = UUID()
     private var work: Task<Void, Never>?
@@ -25,13 +59,14 @@ final class CaptureAudioReanalysisHost {
     /// Reopening uses the original source and candidate, never a fresh access.open call.
     @discardableResult func present() -> Bool {
         guard validate(), work == nil, inputWork == nil else { return false }
+        if isPresented { return true }
         presentation = UUID(); isPresented = true; message = nil
         return true
     }
 
     /// Preparation holds no account lease and cannot create a durable request.
     func prepareInput(from url: URL, using preparer: CaptureAudioInputPreparer) {
-        guard isPresented, work == nil, inputWork == nil, !isFrozen, validate() else { return }
+        guard isPresented, work == nil, inputWork == nil, picker == nil, !isFrozen, validate() else { return }
         let expected = presentation
         preparedInput = nil; message = nil; isPreparingInput = true
         inputWork = Task { [weak self] in
@@ -55,7 +90,7 @@ final class CaptureAudioReanalysisHost {
     }
 
     func submit(_ choices: [CaptureAudioReanalysisPlan.Choice]) {
-        guard isPresented, work == nil, inputWork == nil, validate(), let opened else { return }
+        guard isPresented, work == nil, inputWork == nil, picker == nil, validate(), let opened else { return }
         do {
             // The final tap fixes identity and input before any asynchronous work is scheduled.
             try opened.session.freeze(choices, generation: opened.session.generation)
@@ -92,7 +127,7 @@ final class CaptureAudioReanalysisHost {
     }
 
     func close() {
-        presentation = UUID(); isPresented = false; message = nil
+        presentation = UUID(); isPresented = false; message = nil; picker = nil
         work?.cancel()
         inputWork?.cancel(); preparedInput = nil
         // Keep both candidate and waiter until its actual exit. Never cancel the queue owner.

@@ -108,6 +108,7 @@
 		0AA89CCC36A1FE77FD47C5C7 /* SwipeableCandidateCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF760013A2E12BD5DF6C9F4 /* SwipeableCandidateCard.swift */; };
 		0AAE67BBAA90B553243495EB /* AdmissionRPCRequestPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110DE9C5376A3586EF5C6CFA /* AdmissionRPCRequestPolicy.swift */; };
 		0AEB4379D6CA75FA8D22F9F4 /* AuthSessionLifecycleCoordinatorTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F26A91D67E4C7D799DF577BC /* AuthSessionLifecycleCoordinatorTestSupport.swift */; };
+		0B1A3FD016353FE45A70B42B /* CaptureAudioReanalysisSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD9400356A19DA864504692 /* CaptureAudioReanalysisSheet.swift */; };
 		0B3D05F8F030DB955640E9C0 /* FieldChatPresentationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EE4FCFC917B35A5359F55B5 /* FieldChatPresentationModels.swift */; };
 		0B6184F3AC47963C4893854C /* AppIconBadgeCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9A3E6CD422DF4CEFEBDC47 /* AppIconBadgeCoordinator.swift */; };
 		0B6EFB210474A54E377DC4FA /* CameraSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8FAA31E73BED03E5BFD5998 /* CameraSettingsView.swift */; };
@@ -4903,6 +4904,7 @@
 		DD75BE46E98AFEC449DC2EA5 /* SpeciesSearchEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesSearchEntry.swift; sourceTree = "<group>"; };
 		DDA4B414E4B9A828E09EA2BA /* CandidateReviewVisibilityPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateReviewVisibilityPolicyTests.swift; sourceTree = "<group>"; };
 		DDCDA628ADE3FF6B0C9FE69D /* StagedVideoUploadPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StagedVideoUploadPlanTests.swift; sourceTree = "<group>"; };
+		DDD9400356A19DA864504692 /* CaptureAudioReanalysisSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureAudioReanalysisSheet.swift; sourceTree = "<group>"; };
 		DDDA1BE5179731AC251DB5A5 /* ProtectedInsightChatRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtectedInsightChatRequest.swift; sourceTree = "<group>"; };
 		DDEEE5780DFA6C9DC9C66719 /* SupabaseAuthSessionService+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseAuthSessionService+Live.swift"; sourceTree = "<group>"; };
 		DDFF32C2A5F5DAE24AB90BFC /* FieldNotesEditorViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldNotesEditorViewModelTests.swift; sourceTree = "<group>"; };
@@ -11202,6 +11204,7 @@
 		BB6796A3A9BC3FBB957DB3D2 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				DDD9400356A19DA864504692 /* CaptureAudioReanalysisSheet.swift */,
 				BE180173F05D7D2FBA1473AC /* CaptureAudioSavedRequestsSheet.swift */,
 				217E2C2A256AFD9ACFDE2136 /* CaptureWorkspaceView.swift */,
 				0BB5987B48AB449B750FDD15 /* Reanalysis */,
@@ -14828,6 +14831,7 @@
 				1D3C672D2A13A663EA77BAFE /* CaptureAudioReanalysisHost.swift in Sources */,
 				A7A4837BA1F166E261770DC0 /* CaptureAudioReanalysisPlan.swift in Sources */,
 				73FEAF74564E054D1C299B23 /* CaptureAudioReanalysisSession.swift in Sources */,
+				0B1A3FD016353FE45A70B42B /* CaptureAudioReanalysisSheet.swift in Sources */,
 				B4B6AA6CDE8F0DEA9BC4B5C5 /* CaptureAudioSavedRequestsModel.swift in Sources */,
 				966EA7D30C2444FFA02DB76B /* CaptureAudioSavedRequestsSheet.swift in Sources */,
 				487F81AD8DF89C51F138E0D4 /* CaptureAudioStatusAccess.swift in Sources */,

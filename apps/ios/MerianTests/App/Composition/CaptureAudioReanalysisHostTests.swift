@@ -7,6 +7,40 @@ import Testing
 struct CaptureAudioReanalysisHostTests {
     let fixture = ObservationAudioPreparationTests()
 
+    @Test func pickerAndDismissalCallbacksCannotCrossPresentationLifetime() throws {
+        let seed = try fixture.seed(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let session = CaptureAudioReanalysisSession(source: seed.source, generation: UUID(), container: seed.container)
+        let host = CaptureAudioReanalysisHost(opened: .init(session: session, isCurrent: { true }, submit: { _ in .unavailable }))
+        let preparer = CaptureAudioInputPreparer(directory: seed.root, transcode: { _, _ in
+            Issue.record("Stale picker must not prepare bytes"); throw MerianError.invalidResponse
+        })
+        #expect(host.present())
+        let oldScope = try #require(host.presentedScope), old = try #require(host.beginInputSelection(host.presentedScope))
+        #expect(host.present() && host.presentedScope == oldScope)
+        host.close(oldScope); #expect(host.present())
+        let currentScope = try #require(host.presentedScope), current = try #require(host.beginInputSelection(currentScope))
+        host.close(oldScope)
+        host.cancelInputSelection(old)
+        host.finishInputSelection(old, result: .success(seed.root.appendingPathComponent("old.wav")), using: preparer)
+        #expect(host.matches(currentScope) && !host.isPreparingInput && host.analysisID == nil)
+        #expect(host.beginInputSelection(currentScope) == nil)
+        host.cancelInputSelection(current)
+        #expect(host.beginInputSelection(currentScope) != nil)
+    }
+
+    @Test func activePickerBlocksFinalTapAndFrozenRequestBlocksNewPicker() throws {
+        let seed = try fixture.seed(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let session = CaptureAudioReanalysisSession(source: seed.source, generation: UUID(), container: seed.container)
+        let host = CaptureAudioReanalysisHost(opened: .init(session: session, isCurrent: { true }, submit: { _ in .unavailable }))
+        #expect(host.present())
+        let selection = try #require(host.beginInputSelection(host.presentedScope))
+        host.submit([.audio(seed.bytes)])
+        #expect(host.analysisID == nil && !host.isBusy)
+        host.cancelInputSelection(selection)
+        try session.freeze([.audio(seed.bytes)], generation: session.generation)
+        #expect(host.beginInputSelection(host.presentedScope) == nil)
+    }
+
     @Test func preparedInputFreezesOnlyAtFinalTapAndRetainsExactOrder() async throws {
         let seed = try fixture.seed(); defer { try? FileManager.default.removeItem(at: seed.root) }
         let source = seed.root.appendingPathComponent("input.wav"); try seed.bytes.write(to: source)

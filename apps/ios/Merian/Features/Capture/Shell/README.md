@@ -767,3 +767,24 @@ then uses the existing synchronous final-tap freeze. Input preparation cannot
 replace a frozen plan. Closing clears the input preview but preserves any frozen
 request; explicit retry uses its original bytes and identity. No file picker,
 ordinary route or fresh-entry authority is installed by these methods.
+
+### Inert audio submission sheet
+
+`CaptureAudioReanalysisSheet` requires an explicitly supplied, already-presented
+host and input preparer. It is not installed in an ordinary route. Its file
+importer accepts one audio file, with an opaque host-issued token captured by
+value for completion and cancellation. Tokens belong to the original
+presentation; delayed callbacks cannot prepare input, cancel a newer picker or
+close a reopened host. The sheet retains its presentation snapshot in SwiftUI
+state across body reconstruction. Repeated `present` on the same open, idle host
+does not silently create a new presentation generation.
+
+Before submission, optional descriptions remain editable presentation state and
+are ordered before/after the canonical recording at the final tap. Choosing a
+file does not create an analysis or media identity. Picker/preparation work
+blocks submission. Once a plan is frozen, the sheet only offers continuation of
+that original request and does not import or apply changed descriptions. Closing
+uses the exact presentation scope and preserves any durable request. The sheet
+creates no Task, account lease, status lookup, automatic retry or selection
+change. Fresh-entry/recovery authority and runtime UI qualification remain
+separate requirements.

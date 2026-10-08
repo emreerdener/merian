@@ -11710,3 +11710,19 @@ withholding late bytes until preparation cleanup exits.
 This is local caller-file and host evidence. It does not establish file-picker
 installation, security-scoped third-party file-provider behavior on a device,
 fresh admission after missing local work, or hosted inference qualification.
+
+### Audio sheet presentation fences
+
+`CaptureAudioReanalysisHostTests` covers picker completion/cancellation and old
+sheet dismissal after close/reopen, repeated presentation without changing its
+ticket, active-picker submission denial, and frozen-request replacement denial.
+Run it with `CaptureAudioInputPreparerTests`,
+`CaptureAudioReanalysisAccessTests` and both Core/OfflineSync architecture
+suites. The compiled `CaptureAudioReanalysisSheet` consumes those exact scopes
+and contains no asynchronous task or ordinary route installation. It captures
+descriptions only at the explicit submit action and continues frozen requests
+through `retry`.
+
+These tests establish host lifecycle behavior and compile the new view; they do
+not constitute rendered sheet/file-picker UI automation. A qualified UI fixture
+and the full affected native gate remain required at the audio UI milestone.
