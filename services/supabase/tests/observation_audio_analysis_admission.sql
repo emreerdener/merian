@@ -50,7 +50,9 @@ SELECT extensions.ok(NOT audio_analysis_enabled,'audio execution disabled by def
 UPDATE internal.entitlement_rollout_config SET entitlement_mode='complimentary',required_client_protocol=3 WHERE config_key='current';
 SELECT pg_temp.seed_funded_history('00000000-0000-4000-8000-00000000a901','00000000-0000-4000-8000-00000000a911');
 UPDATE internal.observation_history_rollout SET orchestration_enabled=TRUE,admission_enabled=TRUE,dispatch_enabled=TRUE,append_enabled=TRUE,protected_analysis_enabled=TRUE,media_enabled=TRUE,prepared_audio_evidence_enabled=TRUE,reader_enabled=TRUE,state_reader_enabled=TRUE;
-SELECT internal.append_observation_analysis('00000000-0000-4000-8000-00000000a901',pg_temp.history_append_request('00000000-0000-4000-8000-00000000a911','00000000-0000-4000-8000-00000000a920'));
+SELECT internal.append_observation_analysis('00000000-0000-4000-8000-00000000a901',
+    jsonb_set(pg_temp.history_append_request('00000000-0000-4000-8000-00000000a911','00000000-0000-4000-8000-00000000a920'),
+        '{result_snapshot,is_biological_subject}','true'::JSONB));
 CREATE TEMP TABLE original_history AS SELECT selected_analysis_id,state_revision FROM internal.observation_histories WHERE observation_id='00000000-0000-4000-8000-00000000a911';
 -- Preserve exact old-client receipts before audio arrives; reader10 later
 -- recovers them even with fresh-action gates closed.
@@ -66,6 +68,14 @@ CREATE TEMP TABLE old_actions AS SELECT pg_temp.select_action(9) selection,pg_te
 SELECT extensions.is(pg_temp.select_action(10),(SELECT selection FROM old_actions),'reader10 preserves original selection receipt');
 SELECT extensions.is(pg_temp.review_action(10),(SELECT review FROM old_actions),'reader10 preserves original review receipt');
 SELECT extensions.is(pg_temp.confirm_action(10),(SELECT confirmation FROM old_actions),'reader10 preserves original confirmation receipt');
+-- Reject A through the real public action before B is admitted or completed.
+CREATE TEMP TABLE original_rejection AS
+SELECT public.review_owned_observation_analysis(pg_temp.action_request() || jsonb_build_object(
+    'operation_id','00000000-0000-4000-8000-00000000a944','action','reject','undo_operation_id',NULL,
+    'expected_observation_revision',h.state_revision,'expected_review_revision',a.review_revision),10) value
+FROM internal.observation_histories h JOIN internal.observation_analysis_authorities a
+ON a.analysis_id=h.selected_analysis_id WHERE h.observation_id='00000000-0000-4000-8000-00000000a911';
+SELECT extensions.is((SELECT value->>'outcome' FROM original_rejection),'applied','A is rejected before audio reanalysis');
 CREATE TEMP TABLE audio_receipt AS SELECT public.reserve_owned_observation_audio_evidence_cohort('00000000-0000-4000-8000-00000000a901','00000000-0000-4000-8000-00000000a911','00000000-0000-4000-8000-00000000a921','00000000-0000-4000-8000-00000000a931',46,repeat('b',64)) value;
 CREATE FUNCTION pg_temp.audio_manifest() RETURNS JSONB LANGUAGE SQL AS $$ SELECT jsonb_build_object('schema_version',3,'items',jsonb_build_array(jsonb_build_object('kind','description','text','Before'),jsonb_build_object('kind','audio','media_id','00000000-0000-4000-8000-00000000a931','content_type','audio/wav','byte_count',46,'sha256',repeat('b',64)),jsonb_build_object('kind','description','text','After'))); $$;
 CREATE FUNCTION pg_temp.funded_input(observation UUID,analysis UUID) RETURNS JSONB LANGUAGE SQL AS $$ SELECT (pg_temp.history_append_request(observation,analysis,'00000000-0000-4000-8000-00000000a920')-'result_snapshot') || jsonb_build_object('schema_version',3,'evidence_manifest',pg_temp.audio_manifest(),'entitlement_protocol',3,'identification_protocol',6,'history_protocol',9,'expected_processor_permission','google_gemini'); $$;
@@ -167,7 +177,80 @@ SELECT extensions.throws_ok($$SELECT public.get_owned_observation_confirmation_u
 SELECT extensions.throws_ok($$SELECT public.get_owned_observation_rejection_undo(pg_temp.action_request()-'operation_id',9)$$,'55000','analysis_history_reader_upgrade_required','rejection Undo lookup refuses whole audio history');
 SELECT extensions.is(public.get_owned_observation_confirmation_undo(pg_temp.action_request()-'operation_id',10)->>'reason','revision_conflict','reader10 confirmation lookup preserves exact revisions');
 SELECT extensions.is(public.get_owned_observation_rejection_undo(pg_temp.action_request()-'operation_id',10)->>'reason','revision_conflict','reader10 rejection lookup preserves exact revisions');
+-- Fresh reader-10 selection, not recovery of a pre-audio receipt.
+CREATE TEMP TABLE preserved_results AS SELECT jsonb_agg(to_jsonb(r) ORDER BY analysis_id) value
+FROM internal.observation_analysis_results r WHERE observation_id='00000000-0000-4000-8000-00000000a911';
+CREATE TEMP TABLE preserved_authorities AS SELECT analysis_id,review_revision,review_snapshot
+FROM internal.observation_analysis_authorities WHERE observation_id='00000000-0000-4000-8000-00000000a911';
+CREATE TEMP TABLE select_audio_request AS SELECT jsonb_build_object('schema_version',1,
+    'observation_id',h.observation_id,'analysis_id',a.analysis_id,
+    'operation_id','00000000-0000-4000-8000-00000000a945',
+    'expected_observation_revision',h.state_revision,'expected_review_revision',a.review_revision) value
+FROM internal.observation_histories h JOIN internal.observation_analysis_authorities a ON a.observation_id=h.observation_id
+WHERE a.analysis_id='00000000-0000-4000-8000-00000000a921';
+SELECT extensions.throws_ok($$SELECT public.select_owned_observation_analysis((SELECT value FROM select_audio_request),9)$$,
+    '55000','analysis_history_reader_upgrade_required','reader9 cannot freshly select V4 B');
+CREATE TEMP TABLE select_audio_receipt AS SELECT public.select_owned_observation_analysis((SELECT value FROM select_audio_request),10) value;
+SELECT extensions.is((SELECT value FROM select_audio_receipt),
+    (SELECT jsonb_build_object('schema_version',1,'operation_id',value->'operation_id','observation_id',value->'observation_id',
+        'previous_analysis_id','00000000-0000-4000-8000-00000000a920','selected_analysis_id',value->'analysis_id',
+        'observation_revision',(value->>'expected_observation_revision')::INTEGER+1,'review_revision',value->'expected_review_revision')
+    FROM select_audio_request),'fresh audio selection receipt binds exact target and revisions');
+SELECT extensions.is((SELECT selected_analysis_id::TEXT FROM internal.observation_histories WHERE observation_id='00000000-0000-4000-8000-00000000a911'),
+    '00000000-0000-4000-8000-00000000a921','explicit selection makes B current');
+SELECT extensions.is((SELECT active_projection FROM internal.observation_histories WHERE observation_id='00000000-0000-4000-8000-00000000a911'),
+    (SELECT internal.observation_analysis_projection(r.result_snapshot,a.review_snapshot) FROM internal.observation_analysis_results r
+    JOIN internal.observation_analysis_authorities a USING(analysis_id) WHERE r.analysis_id='00000000-0000-4000-8000-00000000a921'),
+    'selected B projects its own unreviewed authority');
+UPDATE internal.observation_history_rollout SET selection_api_enabled=FALSE;
+SELECT extensions.is(public.select_owned_observation_analysis((SELECT value FROM select_audio_request),10),
+    (SELECT value FROM select_audio_receipt),'lost fresh audio selection reply replays exactly with gate closed');
+UPDATE internal.observation_history_rollout SET selection_api_enabled=TRUE;
+CREATE TEMP TABLE select_back_request AS SELECT jsonb_build_object('schema_version',1,
+    'observation_id','00000000-0000-4000-8000-00000000a911','analysis_id',a.analysis_id,
+    'operation_id','00000000-0000-4000-8000-00000000a946',
+    'expected_observation_revision',r.value->'observation_revision','expected_review_revision',a.review_revision) value
+FROM select_audio_receipt r CROSS JOIN preserved_authorities a WHERE a.analysis_id='00000000-0000-4000-8000-00000000a920';
+CREATE TEMP TABLE select_back_receipt AS SELECT public.select_owned_observation_analysis((SELECT value FROM select_back_request),10) value;
+SELECT extensions.is((SELECT value FROM select_back_receipt),
+    (SELECT jsonb_build_object('schema_version',1,'operation_id',value->'operation_id','observation_id',value->'observation_id',
+        'previous_analysis_id','00000000-0000-4000-8000-00000000a921','selected_analysis_id',value->'analysis_id',
+        'observation_revision',(value->>'expected_observation_revision')::INTEGER+1,'review_revision',value->'expected_review_revision')
+    FROM select_back_request),'select-back receipt binds A with its original review revision');
+SELECT extensions.is((SELECT selected_analysis_id::TEXT FROM internal.observation_histories WHERE observation_id='00000000-0000-4000-8000-00000000a911'),
+    '00000000-0000-4000-8000-00000000a920','explicit select-back makes A current');
+SELECT extensions.is((SELECT review_snapshot#>>'{ai_identification_review,state}' FROM internal.observation_analysis_authorities
+    WHERE analysis_id='00000000-0000-4000-8000-00000000a920'),'ai_rejected','returning to A preserves its rejection');
+SELECT extensions.is((SELECT active_projection->>'rank' FROM internal.observation_histories
+    WHERE observation_id='00000000-0000-4000-8000-00000000a911'),'unresolved_biological','selected rejected A projects unresolved identity');
+SELECT extensions.is((SELECT active_projection->'pending_review' FROM internal.observation_histories
+    WHERE observation_id='00000000-0000-4000-8000-00000000a911'),'true'::JSONB,'selected rejected A retains review attention');
+SELECT extensions.is((SELECT active_projection FROM internal.observation_histories WHERE observation_id='00000000-0000-4000-8000-00000000a911'),
+    (SELECT internal.observation_analysis_projection(r.result_snapshot,a.review_snapshot) FROM internal.observation_analysis_results r
+    JOIN internal.observation_analysis_authorities a USING(analysis_id) WHERE r.analysis_id='00000000-0000-4000-8000-00000000a920'),
+    'A projects only its original result and authority');
+SELECT extensions.is(public.select_owned_observation_analysis((SELECT value FROM select_audio_request),10),
+    (SELECT value FROM select_audio_receipt),'old B receipt still replays after returning to A');
+SELECT extensions.is((SELECT state_revision FROM internal.observation_histories WHERE observation_id='00000000-0000-4000-8000-00000000a911'),
+    (SELECT (value->>'observation_revision')::INTEGER FROM select_back_receipt),'old replay cannot advance or replace current projection');
+SELECT extensions.is((SELECT jsonb_agg(to_jsonb(r) ORDER BY analysis_id) FROM internal.observation_analysis_results r
+    WHERE observation_id='00000000-0000-4000-8000-00000000a911'),(SELECT value FROM preserved_results),'selection and replay preserve all immutable result and evidence fields');
+SELECT extensions.is((SELECT jsonb_agg(jsonb_build_array(analysis_id,review_revision,review_snapshot) ORDER BY analysis_id)
+    FROM internal.observation_analysis_authorities WHERE observation_id='00000000-0000-4000-8000-00000000a911'),
+    (SELECT jsonb_agg(jsonb_build_array(analysis_id,review_revision,review_snapshot) ORDER BY analysis_id) FROM preserved_authorities),
+    'selection does not change A rejection or B unreviewed authority');
+SELECT extensions.is((SELECT count(*) FROM internal.identification_invocations WHERE scan_id='00000000-0000-4000-8000-00000000a921'),
+    1::BIGINT,'selection and response recovery never invoke another provider');
 UPDATE internal.observation_history_rollout SET selection_api_enabled=FALSE,rejection_api_enabled=FALSE,confirmation_api_enabled=FALSE;
+SELECT extensions.is(public.select_owned_observation_analysis((SELECT value FROM select_back_request),10),
+    (SELECT value FROM select_back_receipt),'lost select-back reply replays exactly with gate closed');
+SELECT extensions.is((SELECT state_revision FROM internal.observation_histories WHERE observation_id='00000000-0000-4000-8000-00000000a911'),
+    (SELECT (value->>'observation_revision')::INTEGER FROM select_back_receipt),'select-back recovery cannot advance the current revision');
+SELECT extensions.is((SELECT active_projection FROM internal.observation_histories WHERE observation_id='00000000-0000-4000-8000-00000000a911'),
+    (SELECT internal.observation_analysis_projection(r.result_snapshot,a.review_snapshot) FROM internal.observation_analysis_results r
+    JOIN internal.observation_analysis_authorities a USING(analysis_id) WHERE r.analysis_id='00000000-0000-4000-8000-00000000a920'),
+    'select-back recovery preserves the rejected A projection');
+
 SELECT extensions.is(pg_temp.select_action(10),(SELECT selection FROM old_actions),'reader10 selection replay precedes fresh gate on mixed history');
 SELECT extensions.is(pg_temp.review_action(10),(SELECT review FROM old_actions),'reader10 review replay precedes fresh gate on mixed history');
 SELECT extensions.is(pg_temp.confirm_action(10),(SELECT confirmation FROM old_actions),'reader10 confirmation prepare replay precedes fresh gate on mixed history');

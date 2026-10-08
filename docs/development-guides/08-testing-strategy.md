@@ -11536,10 +11536,23 @@ green gate or a complete audio capture/reanalysis/restart journey. The previous
 unrelated Auth architecture failure remains recorded. No ordinary route or
 activation gate changed; video, device and hosted qualification remain separate.
 
-Backend follow-up remains required before audio journey acceptance: existing
-audio catalog coverage proves reader-10 replay of a pre-audio selection receipt,
-not a fresh V4 selection. Add a fresh rejected/current A → unreviewed V4 B →
-select-back A pgTAP sequence, checking receipt revisions, active projection and
-each result's authority while retaining reader-9 whole-history refusal. Run
-fresh disposable catalogs and the relevant concurrency/security gates. The
-native-only checkpoint does not claim this backend qualification.
+### V4 backend selection qualification
+
+`services/supabase/tests/observation_audio_analysis_admission.sql` now rejects
+current A before completing unreviewed V4 B, explicitly selects B with reader
+10, and selects back to A. It checks exact receipt revisions and projections,
+preserves A's rejected authority and B's unreviewed authority, and compares all
+immutable result/evidence fields before and after selection. Reader 9 still
+refuses the entire mixed history, including fresh V4 selection.
+
+Lost replies for both selections recover their original receipts with the
+selection gate closed. Replaying B after returning to A cannot replace the
+current projection or advance its revision. Neither selection nor receipt
+recovery adds a provider invocation. This test extends the existing audio
+admission catalog; it changes no runtime, wire or schema contract.
+
+This closes the fresh backend select/select-back coverage gap identified at the
+native selection checkpoint. Complete audio entry, interruption/restart and A →
+B → A → Undo A journey acceptance remain separate, as do video and external
+qualification. Gates remain disabled; the earlier full-native failure is not
+superseded by backend qualification.
