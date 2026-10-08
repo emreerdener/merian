@@ -51,9 +51,8 @@ struct MerianNetworkArchitectureTests {
             encoding: .utf8
         )
         for declaration in [
-            "private let supabaseUrl", "private let supabaseAnonKey",
-            "private let sessionTransport: PinnedNetworkTransport",
-            "private let authenticatedTransport: AuthenticatedTransportDispatcher",
+            "private let supabaseUrl",
+            "private let transport: NetworkTransportAssembly",
             "private func endpointURL(", "private func makeExploreDecoder()",
             "private func performAuthenticatedRequest("
         ] {
@@ -452,7 +451,7 @@ struct MerianNetworkArchitectureTests {
         #expect(client.contains("private let speciesDictionaryResponses = SpeciesDictionaryResponseCache()"))
         #expect(client.contains("speciesDictionaryResponses.resetForTesting()"))
         #expect(client.contains("var overridingSession: URLSession?"))
-        #expect(client.contains("sessionTransport.overridingSession = newValue"))
+        #expect(client.contains("transport.overridingSession = newValue"))
         for token in ["speciesDictionaryCacheLock", "speciesObservationStatsCacheLock", "SpeciesDictionaryCacheEntry"] {
             #expect(!client.contains(token), "Raw Dictionary cache state must not remain in the client")
         }

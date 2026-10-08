@@ -3,8 +3,11 @@ import Foundation
 /// One fixed potentially-dispatching endpoint. Recovery claims cannot enter this boundary.
 struct ObservationAudioAnalysisTransport {
     static let requestSeconds: TimeInterval = 130
-    let baseURL: String
-    let dispatcher: AuthenticatedTransportDispatcher
+    private let baseURL: String
+    private let dispatcher: AuthenticatedTransportDispatcher
+    init(baseURL: String, dispatcher: AuthenticatedTransportDispatcher) {
+        self.baseURL = baseURL; self.dispatcher = dispatcher
+    }
 
     func submit(_ permit: ObservationAudioExecutionStore.DispatchPermit, authorization: IdentificationDispatchAuthorization,
                 validateAttempt: @escaping @MainActor @Sendable () throws -> Void,

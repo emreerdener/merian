@@ -68,8 +68,7 @@ struct InferenceNetworkArchitectureTests {
             "Transport/AuthenticatedTransportDispatcher.swift"
         )
         for declaration in [
-            "private let sessionTransport: PinnedNetworkTransport",
-            "private let authenticatedTransport: AuthenticatedTransportDispatcher",
+            "private let transport: NetworkTransportAssembly",
             "private func endpointURL(",
             "private func performAuthenticatedRequest("
         ] {
@@ -89,15 +88,15 @@ struct InferenceNetworkArchitectureTests {
 
         let bridges = [
             "authenticatedUserIDForInferenceRequest": [
-                "authenticatedTransport.requestPayloadAuthUserID()"
+                "transport.requestPayloadAuthUserID()"
             ],
             "performInferenceTransportPrewarm": [
                 "endpointURL(\"identify-multimodal\")",
-                "sessionTransport.data(for: request)"
+                "transport.data(for: request)"
             ],
             "makeAuthenticatedInferenceURLRequest": [
                 "endpointURL(function)",
-                "authenticatedTransport.makeAuthenticatedJSONRequest("
+                "transport.makeAuthenticatedJSONRequest("
             ],
             "performAuthenticatedInferenceJSONPost": [
                 "endpointURL(function)", "performAuthenticatedRequest("

@@ -278,15 +278,18 @@ either check fails or the certificate chain cannot be read. Unrelated hosts and
 non-server-trust challenges keep the platform's default handling.
 `AuthenticatedTransportDispatcher` owns per-attempt Auth leases and headers,
 transition validation, the constrained-network header, and its file-local upload
-delegate. `MerianNetworkClient.swift` retains configuration diagnostics and
-injects both stateful transport owners behind narrow bridges. Endpoint
-extensions use those bridges to construct the endpoint, serialize the payload,
-and invoke the existing authenticated POST. Typed calls decode with the existing
-snake-case decoder; body-ignoring calls preserve HTTP-only success without
-decoding. The typed bridge can forward an existing idempotency key and replace
-decoding failures with a caller-specified `MerianError`; both options default to
-nil. Error replacement surrounds only decoding, never request construction,
-transport, auth, or cancellation.
+delegate. The file-private `NetworkTransportAssembly` in
+`MerianNetworkClient.swift` constructs and retains both stateful transport
+owners behind narrow bridges. Its raw request methods cannot be used outside
+that file. Typed audio factories share that dispatcher without widening
+history/review transport responsibilities. Endpoint extensions use those bridges
+to construct the endpoint, serialize the payload, and invoke the existing
+authenticated POST. Typed calls decode with the existing snake-case decoder;
+body-ignoring calls preserve HTTP-only success without decoding. The typed
+bridge can forward an existing idempotency key and replace decoding failures
+with a caller-specified `MerianError`; both options default to nil. Error
+replacement surrounds only decoding, never request construction, transport,
+auth, or cancellation.
 
 `ScanAdmissionManager` and identification recipient preflight use distinct,
 fixed non-Edge PostgREST routes through the facade. The allowance bridge accepts
@@ -1054,8 +1057,10 @@ HTTP status. `performAccountDeletionJSONPost` resolves configuration before
 building the body and forwards the exact optional transition owner to private
 authenticated transport. Legacy proof validation remains inside that builder; v2
 preparation/commit validate before calling it, preserving failure precedence.
-`performAccountDeletionRecoveryJSONPost` delegates to the unchanged private
-capability-only transport: publishable `apikey`, no user Bearer token, 20-second
+`performAccountDeletionRecoveryJSONPost` delegates to
+`Transport/AccountDeletionRecoveryTransport.swift`. This fixed-route owner
+validates configuration before URL/body construction and preserves the existing
+capability-only policy: publishable `apikey`, no user Bearer token, 20-second
 timeout, and at most one two-second retry for the existing transient URL errors
 or 5xx responses. Its 64 KiB response check occurs after URLSession has read the
 data, before status handling; it is not a streaming memory bound. No new Auth
@@ -1155,8 +1160,9 @@ The audit also makes the remaining live-dependency exceptions explicit:
   `URLSession`, owns certificate pins/TLS validation and bounded no-cache
   dispatch, and exposes the DEBUG replacement seam;
 - only `MerianNetworkClient.swift` applies endpoint-configuration diagnostics,
-  stores and injects the two transport owners, invokes the private logical
-  request core, and exposes the exact-route scan-admission PostgREST bridge;
+  contains the private assembly that stores and injects the two transport
+  owners, invokes the private logical request core, and exposes the exact-route
+  scan-admission PostgREST bridge;
 - only `Transport/EdgeFunctionRoutePolicy.swift` constructs validated Edge
   endpoint URLs and classifies unavailable-route evidence;
 - only `Transport/AuthenticatedRequestRetryPolicy.swift` owns the safe-read and
@@ -2355,7 +2361,7 @@ and task-owned versus independent transport cancellation.
 `AccountDeletionResponseDecoderTests` use a fixed clock for syntax, expiry,
 phase/status/version, operation-specific recovery status, acknowledgement-state,
 and terminal replay checks. `AccountDeletionBoundaryTests` guards ownership,
-validation/bridge ordering, private public-recovery policy, private request
+validation/bridge ordering, fixed-route public-recovery policy, private request
 DTOs, the eight endpoint rehomes, and exact-session fencing across immediate and
 recovered deletion. The existing shared-auth tests and protected critical
 selector remain in `MerianNetworkClientTests`; no CI selector or protected-case
@@ -4117,3 +4123,22 @@ completion remains the final atomic source/claim/account fence; its generic
 answer's sole settlement check. This transport remains inert: production
 factory, retained executor, restart adoption and UI wiring are separate
 checkpoints.
+
+### Shared closed audio transport assembly
+
+`NetworkTransportAssemblyTests` exercises factories created before DEBUG session
+and account overrides, replacement of that session, shared ordinary Auth
+identity, account mismatch rejection and one-attempt 401 handling. The
+`ObservationAudioAnalysisTransport` and `ObservationAudioOutcomeTransport`
+retain private dispatcher/configuration fields; returned values expose only
+their fixed operations. Analysis keeps its existing 130-second request budget;
+exact outcome lookup keeps five seconds. Neither gains automatic Auth or
+transient replay. No live audio executor caller, scheduler or UI is installed by
+this assembly change.
+
+The file-private assembly alone forwards generic requests.
+`AccountDeletionRecoveryTransport` is intentionally module-visible but accepts
+only a body for its fixed public recovery route, checks configuration before
+body evaluation and never acquires user Auth. It shares the client's pinned
+session and DEBUG override. Its established recovery transport tests remain the
+behavioral authority for retry, response-bound and cancellation behavior.

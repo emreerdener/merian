@@ -4329,20 +4329,19 @@ struct CoreNetworkIntegrationArchitectureTests {
             ).count == 3
         )
         #expect(pinnedTransport.contains("private final class MerianTLSDelegate"))
-        #expect(client.contains("private let sessionTransport: PinnedNetworkTransport"))
-        #expect(
-            client.contains(
-                "private let authenticatedTransport: AuthenticatedTransportDispatcher"
-            )
-        )
-        #expect(client.contains("AuthenticatedRequestExecutor.live(using: authenticatedTransport)"))
+        let assembly = client
+        #expect(assembly.contains("private final class NetworkTransportAssembly"))
+        #expect(client.contains("private let transport: NetworkTransportAssembly"))
+        #expect(assembly.contains("private let sessionTransport: PinnedNetworkTransport"))
+        #expect(assembly.contains("private let authenticatedTransport: AuthenticatedTransportDispatcher"))
+        #expect(assembly.contains("private let baseURL: String"))
+        #expect(assembly.contains("AuthenticatedRequestExecutor.live(using: authenticatedTransport)"))
+        #expect(client.contains("transport.execute("))
         #expect(executor.contains("Self(dependencies: .live("))
-        #expect(
-            client.components(separatedBy: "PinnedNetworkTransport()").count
-                == 2
-        )
-        #expect(client.contains("self.sessionTransport = sessionTransport"))
-        #expect(client.contains("sessionTransport: sessionTransport"))
+        #expect(assembly.components(separatedBy: "PinnedNetworkTransport()").count == 2)
+        #expect(assembly.components(separatedBy: "AuthenticatedTransportDispatcher(sessionTransport:").count == 2)
+        #expect(assembly.contains("self.sessionTransport = sessionTransport"))
+        #expect(assembly.contains("sessionTransport: sessionTransport"))
         #expect(!dispatcher.contains("PinnedNetworkTransport()"))
         #expect(!pinnedTransport.contains("SupabaseManager"))
         for forbiddenToken in [
@@ -4536,7 +4535,8 @@ struct CoreNetworkIntegrationArchitectureTests {
         "ObservationAudioAnalysisTransport.swift",
         "ObservationAudioOutcomeTransport.swift",
         "ObservationHistoryMutationTransport.swift",
-        "PinnedNetworkTransport.swift"
+        "PinnedNetworkTransport.swift",
+        "AccountDeletionRecoveryTransport.swift"
     ]
 
     private static let authFoundationPaths: Set<String> = [

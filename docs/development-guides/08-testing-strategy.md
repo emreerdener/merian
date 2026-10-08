@@ -11141,3 +11141,26 @@ boundary failures, missing/malformed outcomes and cancellation/account/deletion
 settlement. Run with interruption, execution-store, retained-owner, outcome and
 completion suites and Offline Sync/Core architecture checks. These injected
 service tests do not qualify a live factory, UI entry, provider or disk restart.
+
+### Private audio transport assembly checkpoint
+
+`NetworkTransportAssemblyTests` verifies late and replaced DEBUG session/account
+injection through the actual client factories, exact audio/outcome timeouts,
+account-mismatch denial and no 401 replay. `AccountDeletionBoundaryTests` and
+`AccountDeletionRecoveryTransportTests` preserve the extracted fixed public
+recovery route's configuration-before-body ordering, no-Auth policy, response
+bound, cancellation and existing retry behavior. The private assembly remains in
+`MerianNetworkClient.swift`; module callers cannot use its generic executor.
+
+The shared-worktree full run executed 5,588 tests: 5,585 passed, three failed,
+none skipped. One failure was the previously recorded overlapping Auth-facade
+size violation. Two Media Storage architecture assertions still named direct
+transport members; they were corrected without changing production behavior. The
+final focused run executed 87 tests in 12 exact suites: 86 passed, only that
+Auth-size test failed, none skipped. The critical full-result validator
+correctly rejected the full run; neither run is represented as wholly green.
+Independent re-review was clear. Evidence remains under
+`/private/tmp/audio-assembly-*` and `.artifacts/local-ios`; shared-worktree
+execution is separate from the scoped candidate export and its seven-target
+project validation. No backend wire, schema or deployment behavior changed. Live
+audio delivery remains unconnected.

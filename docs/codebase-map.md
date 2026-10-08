@@ -1297,10 +1297,15 @@ first-use initialization, exact Supabase host/subdomain policy, required
 platform trust plus pin validation, fail-closed unreadable/unmatched-chain
 handling, TLS delegate, raw and caller-deadline dispatch, and DEBUG override;
 `AuthenticatedTransportDispatcher` owns each attempt's Auth/session fence and
-upload delegate. `MerianNetworkClient.swift` retains configuration diagnostics
-and injects both owners behind typed-response, body-ignoring, encoded-body, and
-raw-response JSON POST bridges. Its only non-Edge PostgREST bridge admits the
-exact authenticated scan-admission RPC and applies the caller's two-second,
+upload delegate. The file-private `NetworkTransportAssembly` in
+`MerianNetworkClient.swift` retains and injects both owners behind
+typed-response, body-ignoring, encoded-body, and raw-response JSON POST bridges.
+Its generic request methods remain inaccessible outside that file. Fixed audio
+factories share its dispatcher.
+`Transport/AccountDeletionRecoveryTransport.swift` owns the public
+capability-only recovery policy and configuration-before-body check, using the
+same pinned session without user Auth. Its only non-Edge PostgREST bridge admits
+the exact authenticated scan-admission RPC and applies the caller's two-second,
 no-cache/no-retry policy through that same pinned transport. Fixed-result
 Dictionary/stats bridges exclusively access the client's private cache instance,
 validating each loaded response before insertion; their typed GET helper remains

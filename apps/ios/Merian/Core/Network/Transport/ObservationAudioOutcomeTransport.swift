@@ -2,8 +2,11 @@ import Foundation
 
 /// Fixed read-only recovery. Neither absence nor a returned snapshot authorizes provider dispatch.
 struct ObservationAudioOutcomeTransport {
-    let baseURL: String
-    let dispatcher: AuthenticatedTransportDispatcher
+    private let baseURL: String
+    private let dispatcher: AuthenticatedTransportDispatcher
+    init(baseURL: String, dispatcher: AuthenticatedTransportDispatcher) {
+        self.baseURL = baseURL; self.dispatcher = dispatcher
+    }
 
     func read(_ claim: ObservationAudioExecutionStore.Claim,
               validateAttempt: @escaping @MainActor @Sendable () throws -> Void,
