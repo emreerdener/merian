@@ -8,6 +8,9 @@ final class CaptureAudioReanalysisHost {
     private(set) var isPresented = false
     private(set) var isBusy = false
     private(set) var message: String?
+    private(set) var isPreparingInput = false
+    private(set) var preparedInput: Data?
+    private var inputWork: Task<Void, Never>?
     private var opened: CaptureAudioReanalysisAccess.Opened?
     private var presentation = UUID()
     private var work: Task<Void, Never>?
@@ -21,13 +24,38 @@ final class CaptureAudioReanalysisHost {
 
     /// Reopening uses the original source and candidate, never a fresh access.open call.
     @discardableResult func present() -> Bool {
-        guard validate(), work == nil else { return false }
+        guard validate(), work == nil, inputWork == nil else { return false }
         presentation = UUID(); isPresented = true; message = nil
         return true
     }
 
+    /// Preparation holds no account lease and cannot create a durable request.
+    func prepareInput(from url: URL, using preparer: CaptureAudioInputPreparer) {
+        guard isPresented, work == nil, inputWork == nil, !isFrozen, validate() else { return }
+        let expected = presentation
+        preparedInput = nil; message = nil; isPreparingInput = true
+        inputWork = Task { [weak self] in
+            guard let self else { return }
+            defer { inputWork = nil; isPreparingInput = false }
+            do {
+                let bytes = try await preparer.prepare(url)
+                guard !Task.isCancelled, presentation == expected, isPresented, validate() else { return }
+                preparedInput = bytes
+            } catch {
+                guard !Task.isCancelled, presentation == expected, isPresented, validate() else { return }
+                message = "This audio could not be prepared. Choose the file again."
+            }
+        }
+    }
+
+    func submitPrepared(descriptionsBefore: [String] = [], descriptionsAfter: [String] = []) {
+        guard let preparedInput else { return }
+        submit(descriptionsBefore.map(CaptureAudioReanalysisPlan.Choice.description) + [.audio(preparedInput)] +
+            descriptionsAfter.map(CaptureAudioReanalysisPlan.Choice.description))
+    }
+
     func submit(_ choices: [CaptureAudioReanalysisPlan.Choice]) {
-        guard isPresented, work == nil, validate(), let opened else { return }
+        guard isPresented, work == nil, inputWork == nil, validate(), let opened else { return }
         do {
             // The final tap fixes identity and input before any asynchronous work is scheduled.
             try opened.session.freeze(choices, generation: opened.session.generation)
@@ -66,6 +94,7 @@ final class CaptureAudioReanalysisHost {
     func close() {
         presentation = UUID(); isPresented = false; message = nil
         work?.cancel()
+        inputWork?.cancel(); preparedInput = nil
         // Keep both candidate and waiter until its actual exit. Never cancel the queue owner.
     }
 

@@ -11692,3 +11692,21 @@ and permanent common-scope/reentrant invalidation. These are domain tests.
 Rendered initial input, parent lifetime wiring, and the assembled
 Capture-to-History UI route remain open. The installation gate remains false and
 ordinary access nil.
+
+### Explicit caller-file audio preparation gate
+
+Run `CaptureAudioInputPreparerTests`, `CaptureAudioReanalysisHostTests`,
+`InferenceAudioPreparerTests`, `CoreIntegrationArchitectureTests` and
+`OfflineSyncFoundationArchitectureTests` through the managed native wrapper. The
+preparer tests use actual local WAV conversion and strict injected failure
+boundaries for malformed/oversized output, external output paths, symlinks and
+conversion errors. Injected security-scope tests verify start/conversion/stop
+ordering, cleanup before release, and no release when access was not acquired,
+across success, failure and cancellation. Source bytes remain intact and owned
+temporary directories are removed. Host tests check no request identity before
+final tap, ordered input freezing, retained retry identity, and cancellation
+withholding late bytes until preparation cleanup exits.
+
+This is local caller-file and host evidence. It does not establish file-picker
+installation, security-scoped third-party file-provider behavior on a device,
+fresh admission after missing local work, or hosted inference qualification.

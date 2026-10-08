@@ -561,3 +561,20 @@ WAV or descriptions; the plan requires explicit input. Photo source capture and
 photo preparation continue to reject V4. These owners are prepared only: no
 ordinary Capture dependency, router, editor or alternatives-card layout is
 changed.
+
+### Explicit caller-file audio input
+
+`CaptureAudioInputPreparer` accepts an explicitly supplied local URL and an
+injected temporary directory. It holds any acquired security scope through
+normalization, bounded reading and cleanup, using only
+`InferenceAudioPreparer.prepareLocalFile`. It never resolves historical media or
+reads parent notes. The output must be a regular, nonsymlink file inside its
+unique owned directory. Reading is capped at the inference limit plus one byte,
+requires EOF and passes `ObservationAudioContainer` validation. Success includes
+removal of the temporary directory before returning canonical bytes. Errors and
+cancellation attempt the same cleanup and return no input.
+
+The adapter creates no analysis/media identity, account lease, queue record or
+execution authority. Its random temporary directory identifies only local
+scratch storage. Caller files are preserved. A filesystem cleanup failure
+withholds success; it does not qualify device file-provider behavior.

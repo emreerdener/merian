@@ -362,6 +362,7 @@
 		2443E501C1ADE8821CDC6E04 /* ExplorePostManagementEndpointResponses.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D6EE3EAA8BDA81A7245F4D /* ExplorePostManagementEndpointResponses.swift */; };
 		244631C810FAD69CDE1245C1 /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3DCE30834B8A50A93B34781 /* ImageCache.swift */; };
 		244C513F3A63146DA6F062FE /* QueuedContentView+Previews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94AE8F5614936D94525A7E3A /* QueuedContentView+Previews.swift */; };
+		24849620CEB5B8EB0C9BDB19 /* CaptureAudioInputPreparerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2BE86A84FB7CB062B5A1125 /* CaptureAudioInputPreparerTests.swift */; };
 		248B43009C58F323F88145AC /* merianUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7632D341D69E2026F92E61C /* merianUITests.swift */; };
 		24920FD01D0AB173BFBED2E1 /* MilestoneFeedbackTestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55DBE824CB57CEC7DC1E79EF /* MilestoneFeedbackTestFixtures.swift */; };
 		24A0096001036ABAF9B367D8 /* CaptureSecondaryControlButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6D83A44E8902E8E6625C60A /* CaptureSecondaryControlButtons.swift */; };
@@ -1188,6 +1189,7 @@
 		75F307A3DCCC93A821668D85 /* CaptureShellPresentationPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D32BBFBF37243FDBD200D93 /* CaptureShellPresentationPolicyTests.swift */; };
 		7636C99415172BF788149FF8 /* SchemaV57QueueSnapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF77FD3AA18E6F0CAF122AD /* SchemaV57QueueSnapshots.swift */; };
 		7644DF99E3D6F64F1827E9A8 /* HapticFeedbackPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00C5062766D685F8687F649A /* HapticFeedbackPolicyTests.swift */; };
+		7649C9C9ECDA44992BC7C4B2 /* CaptureAudioInputPreparer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04A4678171FC423FEC817F62 /* CaptureAudioInputPreparer.swift */; };
 		764D540CBC0665CA1BC9A93F /* PostHogManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D22FAD4B1F64631D1A66029 /* PostHogManagerTests.swift */; };
 		76C3CFB5C81C89C45CF2F28C /* FieldChatAPIModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60542016486A729CB0A5FA57 /* FieldChatAPIModelsTests.swift */; };
 		76E592D769E761D326FEE059 /* SpeciesDictionarySharedArchitectureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BAA0467C5D7EBBABCF7AC90 /* SpeciesDictionarySharedArchitectureTests.swift */; };
@@ -2725,6 +2727,7 @@
 		043F325F5C06A304F6432AD6 /* SchemaV53ScanSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV53ScanSnapshots.swift; sourceTree = "<group>"; };
 		0481771C41C383D2737DDEC7 /* MerianWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MerianWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		049EAFC1B7E155C47109EC16 /* ExploreMapViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreMapViewModelTests.swift; sourceTree = "<group>"; };
+		04A4678171FC423FEC817F62 /* CaptureAudioInputPreparer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureAudioInputPreparer.swift; sourceTree = "<group>"; };
 		04D37A327ECA81753213845B /* ConfidencePresentationViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfidencePresentationViewModel.swift; sourceTree = "<group>"; };
 		04D6F430EBD2843C33432602 /* AudioSpectrogramRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSpectrogramRendererTests.swift; sourceTree = "<group>"; };
 		04E5796B520C08EA97DB9B1B /* ExploreFieldChatMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreFieldChatMedia.swift; sourceTree = "<group>"; };
@@ -4947,6 +4950,7 @@
 		E27C3CEBA04378051256826D /* PublicBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicBrand.swift; sourceTree = "<group>"; };
 		E28D5EBA05208BD58DFC8B69 /* FieldNotesEditorDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldNotesEditorDependencies.swift; sourceTree = "<group>"; };
 		E29BEB02348DD7D560BD700C /* UITestSeedCoordinator+IdentificationHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UITestSeedCoordinator+IdentificationHistory.swift"; sourceTree = "<group>"; };
+		E2BE86A84FB7CB062B5A1125 /* CaptureAudioInputPreparerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureAudioInputPreparerTests.swift; sourceTree = "<group>"; };
 		E3293982DC60CB04A1E097F4 /* ProfileAvatarImagePreparer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileAvatarImagePreparer.swift; sourceTree = "<group>"; };
 		E32F65359C409F55BC9CADD1 /* TestExecutionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestExecutionCoordinator.swift; sourceTree = "<group>"; };
 		E3305E067188F3145B0B33DB /* PurchasePrincipalTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchasePrincipalTestSupport.swift; sourceTree = "<group>"; };
@@ -11780,6 +11784,7 @@
 		CEE7A620E3AC40CB78580A3D /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				04A4678171FC423FEC817F62 /* CaptureAudioInputPreparer.swift */,
 				112E048B989229381B4AA4A6 /* CaptureReanalysisEvidenceLoader.swift */,
 				51BA99CCDFDC32535CBB7FCE /* CaptureSubmissionDeferredContextService.swift */,
 				B45ED858B66341D85BAC6FF1 /* CaptureSubmissionDependencies.swift */,
@@ -11914,6 +11919,7 @@
 		D1A739DB80764C816CB7F5E5 /* Submission */ = {
 			isa = PBXGroup;
 			children = (
+				E2BE86A84FB7CB062B5A1125 /* CaptureAudioInputPreparerTests.swift */,
 				22793E55FB8D791444C8B097 /* CaptureAudioReanalysisSessionTests.swift */,
 				F79EB022550B4E0C4EB7308D /* CaptureRefinementReplayTests.swift */,
 				ED0B236A085DABED8C6268D8 /* CaptureSubmissionArchitectureTests.swift */,
@@ -13836,6 +13842,7 @@
 				339FEE9A79A2A8E095B9219F /* CandidateSwipeSessionTests.swift in Sources */,
 				5DB264AFB754EE9D2ECA59B3 /* CaptureAdmissionNoteTests.swift in Sources */,
 				ACCB73ECE6FAD67D2B0A4DF2 /* CaptureAdmissionTests.swift in Sources */,
+				24849620CEB5B8EB0C9BDB19 /* CaptureAudioInputPreparerTests.swift in Sources */,
 				94D61C2B6F7BD6602E6EB5C1 /* CaptureAudioReanalysisAccessTests.swift in Sources */,
 				6C0572CDEB96729F11A2E60E /* CaptureAudioReanalysisHostTests.swift in Sources */,
 				CDDDFA5612D36219515E274E /* CaptureAudioReanalysisSessionTests.swift in Sources */,
@@ -14816,6 +14823,7 @@
 				52666D8DCAB17FE624DE5593 /* CandidateVerificationView.swift in Sources */,
 				8050EAB2DEC1BCE95CDA31FD /* CandidatesCard.swift in Sources */,
 				D4B73B9007851589E294DB93 /* CaptureActionCoordinator.swift in Sources */,
+				7649C9C9ECDA44992BC7C4B2 /* CaptureAudioInputPreparer.swift in Sources */,
 				93960329757549B1786D6FAF /* CaptureAudioReanalysisAccess.swift in Sources */,
 				1D3C672D2A13A663EA77BAFE /* CaptureAudioReanalysisHost.swift in Sources */,
 				A7A4837BA1F166E261770DC0 /* CaptureAudioReanalysisPlan.swift in Sources */,

@@ -752,3 +752,18 @@ and permanent common-scope/reentrant invalidation. These are domain tests.
 Rendered initial input, parent lifetime wiring, and the assembled
 Capture-to-History UI route remain open. The installation gate remains false and
 ordinary access nil.
+
+### Prepared caller-file audio lifecycle
+
+The inert `CaptureAudioReanalysisHost.prepareInput` accepts an explicitly
+injected `CaptureAudioInputPreparer`. Its separate retained task returns only
+canonical bytes after temporary-file cleanup. Presentation and common scope are
+checked around preparation; closing clears ephemeral input and cancels the task,
+but reopening remains denied until actual exit. Late results cannot populate a
+closed or replaced presentation. This task holds no account lease.
+
+`submitPrepared` preserves explicit description order before and after that WAV,
+then uses the existing synchronous final-tap freeze. Input preparation cannot
+replace a frozen plan. Closing clears the input preview but preserves any frozen
+request; explicit retry uses its original bytes and identity. No file picker,
+ordinary route or fresh-entry authority is installed by these methods.

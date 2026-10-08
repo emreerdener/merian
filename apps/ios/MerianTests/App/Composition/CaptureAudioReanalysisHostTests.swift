@@ -7,6 +7,55 @@ import Testing
 struct CaptureAudioReanalysisHostTests {
     let fixture = ObservationAudioPreparationTests()
 
+    @Test func preparedInputFreezesOnlyAtFinalTapAndRetainsExactOrder() async throws {
+        let seed = try fixture.seed(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let source = seed.root.appendingPathComponent("input.wav"); try seed.bytes.write(to: source)
+        let output = seed.root.appendingPathComponent("prepared")
+        let session = CaptureAudioReanalysisSession(source: seed.source, generation: UUID(), container: seed.container)
+        let host = CaptureAudioReanalysisHost(opened: .init(session: session, isCurrent: { true }, submit: { _ in .unavailable }))
+        #expect(host.present())
+        host.prepareInput(from: source, using: .init(directory: output))
+        #expect(host.analysisID == nil && host.isPreparingInput)
+        while host.isPreparingInput { await Task.yield() }
+        #expect(host.preparedInput != nil && host.analysisID == nil)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: output.path).isEmpty)
+        host.submitPrepared(descriptionsBefore: ["Before"], descriptionsAfter: ["After"])
+        let id = try #require(host.analysisID)
+        let prepared = try #require(host.preparedInput)
+        #expect(session.plan?.choices == [.description("Before"), .audio(prepared), .description("After")])
+        while host.isBusy { await Task.yield() }
+        host.close(); #expect(host.preparedInput == nil && host.analysisID == id)
+        #expect(host.present()); host.retry()
+        while host.isBusy { await Task.yield() }
+        #expect(host.analysisID == id)
+    }
+
+    @Test func inputCancellationRetainsTaskUntilCleanupAndWithholdsLateBytes() async throws {
+        let seed = try fixture.seed(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let session = CaptureAudioReanalysisSession(source: seed.source, generation: UUID(), container: seed.container)
+        let host = CaptureAudioReanalysisHost(opened: .init(session: session, isCurrent: { true }, submit: { _ in
+            Issue.record("Input preparation cannot submit"); return .unavailable
+        }))
+        let entered = AsyncStream<Void>.makeStream(), release = AsyncStream<Void>.makeStream()
+        defer { entered.continuation.finish(); release.continuation.finish() }
+        let output = seed.root.appendingPathComponent("prepared"), bytes = seed.bytes
+        let preparer = CaptureAudioInputPreparer(directory: output, transcode: { _, directory in
+            let file = directory.appendingPathComponent("output.wav"); try bytes.write(to: file)
+            entered.continuation.yield(())
+            for await _ in release.stream { break }
+            return file
+        })
+        #expect(host.present()); host.prepareInput(from: seed.root.appendingPathComponent("input.wav"), using: preparer)
+        var iterator = entered.stream.makeAsyncIterator(); _ = await iterator.next()
+        host.close()
+        #expect(host.isPreparingInput && !host.present() && host.analysisID == nil)
+        release.continuation.yield(())
+        while host.isPreparingInput { await Task.yield() }
+        #expect(host.preparedInput == nil && host.message == nil && host.analysisID == nil)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: output.path).isEmpty)
+        #expect(host.present())
+    }
+
     @Test(arguments: [false, true])
     func ambiguousBindingReopensSameCandidateAndRequest(committed: Bool) async throws {
         let seed = try fixture.seed(); defer { try? FileManager.default.removeItem(at: seed.root) }
