@@ -11745,3 +11745,22 @@ and ambiguous-save cases. This rendered-sheet test does not automate the native
 file importer, prove file-provider permissions or process-restart recovery, or
 qualify ordinary fresh admission and live provider execution. Full affected
 native validation and separate device/hosted qualification remain necessary.
+
+### Durable saved audio chooser UI acceptance
+
+`AudioReanalysisSheetUITests/testConsumedSavedRequestReopensWithoutFilesConsentOrReplacement`
+uses the same Debug seed and actual prepared composition. After real durable
+binding, an explicit fixture action claims/consumes the request and deletes its
+owned local WAV. The rendered chooser must show the persisted child without
+starting it, discard selection on reopening, and continue only the explicitly
+selected original result. Two reopen/continue cycles must preserve the exact
+snapshot, four-ID identity and single queued row without another authorization
+or reading the missing audio. Losing synthetic account scope removes the action
+without another start. Closing the chooser before continuing must not start
+work.
+
+The runtime manifest includes this selector. This is a local consumed-state
+simulation with an unavailable-only execution boundary, not evidence of actual
+provider execution, hosted outcome recovery or process restart. Existing domain
+tests own delayed-await presentation/account cancellation. Ordinary access and
+activation remain disabled.

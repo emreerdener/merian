@@ -212,3 +212,13 @@ submission, dismisses and reopens the same host, and verifies its saved UUID is
 unchanged. The seed is release-denylisted and its test belongs to the runtime
 manifest. This does not install ordinary Capture access or qualify the native
 file importer, device permissions, process restart or hosted execution.
+
+The same audio fixture also opens the real
+`PreparedHistoryReanalysisComposition.openSavedAudioRequests` factory. An
+explicit Debug control marks its actual bound request consumed through the
+production claim/consume transaction, then removes only its owned WAV to model
+an interrupted attempt. This simulates execution evidence without invoking any
+provider. Reopening creates a new presentation model over that same durable
+child. The fixture compares exact snapshots, requires one queued row, counts
+start/authorization calls, and can invalidate its synthetic account. No
+production recovery or admission behavior is changed by these controls.

@@ -20,6 +20,13 @@ final class AudioReanalysisSheetUIFixture {
     let preparer: CaptureAudioInputPreparer
     private(set) var host: CaptureAudioReanalysisHost?
     private(set) var savedIdentity = "No request"
+    private(set) var authorizations = 0
+    private(set) var starts = 0
+    private var accountCurrent = true
+    private var bundle: PreparedHistoryReanalysisComposition?
+    private var proof: ObservationAudioPreparation.Verified?
+    private(set) var savedModel: CaptureAudioSavedRequestsModel?
+    private var savedScope: UUID?
     private var original: ObservationAudioExecutionStore.Snapshot?
 
     init(container: ModelContainer) throws {
@@ -40,9 +47,9 @@ final class AudioReanalysisSheetUIFixture {
         guard let observation = UUID(uuidString: PublicationConsentUIFixture.observation),
               let analysis = UUID(uuidString: PublicationConsentUIFixture.selected) else { throw MerianError.invalidResponse }
         let owner = PublicationConsentUIFixture.owner, container = container, root = root
-        let access = CaptureAudioReanalysisAccess.prepared(account: seed.cloud, ownership: .init(),
-            configuration: .init(authorize: { _, validate in
-                try validate(); return .init(recipient: .gemini, validate: validate)
+        let configuration = CaptureAudioReanalysisAccess.Configuration(authorize: { [weak self] _, validate in
+                try validate(); self?.authorizations += 1
+                return .init(recipient: .gemini, validate: validate)
             }, start: { [weak self] key, proof, candidate, _ in
                 guard let self, candidate === container else { return .unavailable }
                 do {
@@ -51,17 +58,46 @@ final class AudioReanalysisSheetUIFixture {
                           try ModelContext(candidate).fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 1 else {
                         savedIdentity = "Persistence mismatch"; return .unavailable
                     }
-                    original = saved
+                    original = saved; self.proof = proof; starts += 1
                     savedIdentity = saved.work.intent.request.analysisID.uuidString.lowercased()
                 } catch { savedIdentity = "Persistence failure" }
                 // No provider, upload, receipt fabrication or consumption; the exact bound request stays durable.
                 return .unavailable
-            }), currentOwner: { owner }, generation: { 1 },
-            sessionIsCurrent: { $0.userID == owner && !$0.isAnonymous },
-            containerIsCurrent: { $0 === container }, documents: { root })
-        host = try CaptureAudioReanalysisHost(opened: access.open(
-            .init(observationID: observation, analysisID: analysis, ownerID: owner), container, UUID()))
+            })
+        let bundle = PreparedHistoryReanalysisComposition(routes: AppRouteCoordinator(), cloud: seed.cloud,
+            currentOwner: { [weak self] in self?.accountCurrent == true ? owner : nil }, generation: { 1 },
+            sessionIsCurrent: { [weak self] in self?.accountCurrent == true && $0.userID == owner && !$0.isAnonymous },
+            preparationOwner: .init(), enrollmentOwner: .init(), containerIsCurrent: { $0 === container },
+            submitted: { _ in }, cleanup: {}, audio: configuration, audioStatusOwner: .init(), documents: { root })
+        self.bundle = bundle
+        host = try bundle.openAudioHost(target: .init(observationID: observation, analysisID: analysis, ownerID: owner), container: container)
     }
+
+    /// Explicit test transition only: emulate an interrupted consumed attempt, then remove its owned WAV.
+    func prepareConsumedRecovery() {
+        guard accountCurrent, let proof, let original else { return }
+        do {
+            let claim = try ObservationAudioExecutionStore.claim(original, purpose: .initial, proof: proof,
+                container: container, isCurrent: { self.accountCurrent })
+            let permit = try ObservationAudioExecutionStore.consume(claim, proof: proof, container: container,
+                isCurrent: { self.accountCurrent })
+            self.original = permit.snapshot
+            try FileManager.default.removeItem(at: root.appendingPathComponent(proof.preparation.path))
+        } catch { savedIdentity = "Recovery setup failure" }
+    }
+
+    func openSaved() {
+        guard savedModel == nil, let bundle, let proof else { return }
+        let scope = UUID(); savedScope = scope
+        do {
+            savedModel = try bundle.openSavedAudioRequests(ownerID: proof.preparation.identity.ownerID,
+                observationID: proof.preparation.identity.observationID, container: container,
+                isPresented: { [weak self] in self?.savedScope == scope })
+        } catch { savedScope = nil; savedIdentity = "Saved presentation failure" }
+    }
+
+    func closeSaved() { savedScope = nil; savedModel?.close(); savedModel = nil }
+    func loseAccount() { accountCurrent = false }
 
     func open() {
         guard let host, host.present() else { return }
@@ -77,8 +113,18 @@ struct AudioReanalysisSheetUITestPresentation: ViewModifier {
                 VStack {
                     Button("Open audio submission") { fixture.open() }.accessibilityIdentifier("AudioFixtureOpen")
                     Text(fixture.savedIdentity).accessibilityIdentifier("AudioFixtureSavedIdentity")
+                    Button("Prepare consumed recovery") { fixture.prepareConsumedRecovery() }.accessibilityIdentifier("AudioFixtureConsume")
+                    Button("Open saved requests") { fixture.openSaved() }.accessibilityIdentifier("AudioFixtureSavedOpen")
+                    Text("\(fixture.starts):\(fixture.authorizations)").accessibilityIdentifier("AudioFixtureCounts")
                 }
                 .padding().background(.regularMaterial)
+            }
+        }
+        .sheet(isPresented: Binding(get: { fixture?.savedModel != nil }, set: { if !$0 { fixture?.closeSaved() } })) {
+            if let fixture, let model = fixture.savedModel {
+                CaptureAudioSavedRequestsSheet(model: model).overlay(alignment: .bottom) {
+                    Button("End synthetic account") { fixture.loseAccount() }.accessibilityIdentifier("AudioFixtureLoseAccount")
+                }
             }
         }
         .sheet(isPresented: Binding(get: { fixture?.host?.isPresented == true }, set: { if !$0 { fixture?.host?.close() } })) {
