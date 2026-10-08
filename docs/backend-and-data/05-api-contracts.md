@@ -15616,8 +15616,31 @@ key-order independence, ordered-item and field sensitivity, strict denials and
 byte snapshotting before the asynchronous hash. SQL database tests and native
 parity tests consume those same vectors and compare both bytes and hashes. They
 also cover ECMAScript whitespace (including U+0085 and U+FEFF), numeric integer
-normalization, Unicode and media/description bounds. SQL functions are immutable
+normalization, Unicode and media/description bounds. SQL functions are stable
 invoker helpers with empty search paths and no API-role execution grants. Native
 parsing does not reconstruct the legacy JSON request digest or change
 saved-photo decoding. These helpers do not reserve work or authorize any network
 operation.
+
+### Prepared source binding storage boundary
+
+Private source binding and unresolved-occupancy tables now retain validated
+metadata and its version-1 canonical fingerprint. They have no API-role grants,
+callable reservation/release routine or TypeScript/native consumer. Their
+constraints are not an admission receipt, proof of absence, upload permission,
+funding reservation or execution grant. Existing RPC payloads and saved-photo
+replay remain unchanged.
+
+A future atomic reservation must write binding and occupancy together after
+complete scope coverage and exact replay checks. Missing occupancy for a
+retained binding remains held unless an exact durable terminal proof explains
+it. Fresh cohort creation can preserve existing RPC signatures by finding the
+authoritative binding for the exact owner/parent/child and validating its
+ordered media projection. Existing unclaimed cohorts are replay-only
+compatibility data, never fresh admission authority. This behavior is a
+remaining coordinated cutover requirement, not yet connected to the upload or
+execution writers.
+
+Parent deletion removes the private storage. Until explicit ownership transfer
+is implemented, source bindings extend the existing guest-history merge hold. No
+automatic expiration, replacement, provider retry or refund is introduced.

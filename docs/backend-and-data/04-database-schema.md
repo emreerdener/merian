@@ -7737,3 +7737,34 @@ prerequisites.
 The helpers are STABLE because PostgreSQL UTF-8 conversion is STABLE. Future
 locked reservation transactions must persist the computed binding; these helpers
 cannot be used in an expression index or generated column.
+
+### Prepared private source binding storage
+
+`20261008171734_prepare_analysis_source_binding_storage.sql` prepares two
+private, RLS-enabled tables without API-role table access or a callable
+reservation routine. `observation_analysis_source_bindings` retains the exact
+validated input, version-1 fingerprint and immutable
+owner/observation/source/child association. A separate
+`observation_analysis_source_occupancy` enforces one unresolved child per
+owner/observation/source tuple. The binding table itself does not make a source
+unique across history; an unoccupied binding is not terminal proof or permission
+for replacement.
+
+Insert triggers acquire existing owner/parent locks, then source coordination,
+and validate the source, identity and canonical fingerprint. Existing child
+intent, media, funding, invocation, result, ingestion or tombstone namespaces
+cannot be retrofitted into a fresh binding. Global child indexes on quota,
+complimentary usage and ingestion intents support cross-owner collision checks
+without relying on owner-prefixed indexes. This storage check alone does not
+fence competing legacy writers: the coordinated all-writer cutover remains
+required before any reservation RPC can be installed or enabled.
+
+Updates and live-parent deletion are denied, including occupancy release. No
+expiry, completion, retirement or release operation is implemented here. Parent
+tombstones and parent cascade deletion erase both private tables. Source linkage
+is a deferred foreign key to the exact immutable result; owner and source
+indexes support the lifecycle checks. The existing conservative guest-history
+merge hold also covers these explicit owner bindings, preventing generic
+reparenting from stranding them. Ownership transfer and exact terminal release
+require separately reviewed transactions; neither may be inferred from an empty
+occupancy table.

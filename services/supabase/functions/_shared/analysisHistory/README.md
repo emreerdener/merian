@@ -752,3 +752,13 @@ The
 owns compatibility and expiry semantics. Native reader-10 types, mutation RPC
 compatibility and durable audio production/delivery remain subsequent work;
 current native readers remain 9. No ordinary route or rollout is enabled.
+
+## Prepared source binding storage
+
+Private SQL binding/occupancy tables now prepare durable source coordination. No
+callable reservation or release routine, HTTP transport or native consumer is
+connected. Their metadata does not grant upload, funding or execution authority.
+The
+[storage boundary](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-binding-storage-boundary)
+distinguishes this groundwork from required all-writer reservation, terminal
+release and legacy replay coordination.

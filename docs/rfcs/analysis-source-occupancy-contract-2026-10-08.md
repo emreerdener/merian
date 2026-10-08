@@ -207,3 +207,22 @@ while retaining owner as mandatory authorization scope. The next checkpoint adds
 pure ungranted SQL and native encoders with shared byte/hash parity tests.
 Storage, reservation, retirement and all-writer cutover remain unimplemented.
 This is contract groundwork, not admission or activation.
+
+## October 8 private storage checkpoint
+
+The pure SQL/native encoders now match the TypeScript fixed vectors. Private
+immutable source bindings and a separate unresolved-occupancy table are prepared
+with ownership, source/fingerprint validation, API-role denial and
+parent-erasure constraints. No callable reservation or release routine exists.
+The existing prepared-history merge hold extends to retained bindings; generic
+reparenting cannot change their explicit owner identity.
+
+This completes storage groundwork only. Atomic reservation, exact retirement,
+terminal proof release, complete namespace coverage and coordinated all-writer
+fencing remain unimplemented. An unoccupied binding is held, not absence. The
+writer audit confirms that existing photo/audio cohort RPC signatures can remain
+if a prior authoritative child binding supplies source and immutable input; new
+cohorts must compare exact stored media projection, while old unclaimed cohorts
+retain only exact replay. The source lock belongs after parent locks and before
+child locks in every coordinated path. This is a required subsequent
+implementation boundary, not an active compatibility guarantee.
