@@ -4,8 +4,8 @@ import SwiftData
 /// Read-only exact-child recovery. No discovery, files, consent, claim or provider capability.
 @MainActor
 enum ObservationAudioResumeStore {
-    enum State { case preparation(ObservationAudioPreparation.Phase), bound(ObservationAudioExecutionStore.Snapshot) }
-    struct Saved {
+    enum State: Sendable { case preparation(ObservationAudioPreparation.Phase), bound(ObservationAudioExecutionStore.Snapshot) }
+    struct Saved: Sendable {
         let source: ObservationReanalysisSource
         let proof: ObservationAudioPreparation.Verified
         let state: State

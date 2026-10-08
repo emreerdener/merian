@@ -12,30 +12,32 @@ struct ObservationAudioPreparationProducer {
     /// The caller retains the original preparation/child identity across every attempt.
     func prepare(_ preparation: ObservationAudioPreparation, source: ObservationReanalysisSource, bytes: Data?,
                  container: ModelContainer, isCurrent: @escaping @MainActor @Sendable () -> Bool) async throws -> ObservationAudioPreparation.Phase {
-        let lease = try account.begin(preparation.identity.ownerID)
-        defer { account.finish(lease) }
-        let validate: @MainActor @Sendable () throws -> Void = {
-            try Task.checkCancellation()
-            guard account.isCurrent(lease), isCurrent() else { throw ObservationHistoryError.accountChanged }
-            try source.validate(container: container)
-        }
-        try validate()
         let result = try await ownership.perform(preparation.identity) { tokenCurrent in
-            try validate()
-            guard tokenCurrent() else { throw ObservationHistoryError.accountChanged }
+            let lease = try account.begin(preparation.identity.ownerID)
+            defer { account.finish(lease) }
             let current: @MainActor @Sendable () -> Bool = { tokenCurrent() && account.isCurrent(lease) && isCurrent() }
+            let validate: @MainActor @Sendable () throws -> Void = {
+                try Task.checkCancellation()
+                guard current() else { throw ObservationHistoryError.accountChanged }
+                try source.validate(container: container)
+            }
+            try validate()
             let proof = try await DetachedWork.value(category: .inferenceRequestPreparation) { try preparation.verified(source: source) }
             try validate()
-            let phase = try ObservationAudioPreparationStore.begin(proof, container: container, isCurrent: current)
+            let phase = try bytes == nil
+                ? ObservationAudioPreparationStore.read(proof, container: container, isCurrent: current)
+                : ObservationAudioPreparationStore.begin(proof, container: container, isCurrent: current)
             if phase == preparation.preparedPhase {
                 let validateReady: @MainActor @Sendable () throws -> Void = {
                     try validate()
                     try ObservationAudioPreparationStore.validate(proof, container: container, isCurrent: current, expectedPhase: preparation.preparedPhase)
                 }
-                return try await files.recoverAudio(preparation: preparation, validateBeforeRead: validateReady) {
+                let ready = try await files.recoverAudio(preparation: preparation, validateBeforeRead: validateReady) {
                     try validateReady()
                     return preparation.preparedPhase
                 }
+                try validate()
+                return ready
             }
             let before: @MainActor @Sendable () throws -> Void = {
                 try validate()
@@ -46,13 +48,19 @@ struct ObservationAudioPreparationProducer {
                 try ObservationAudioPreparationStore.validate(proof, container: container, isCurrent: current, makeReady: true)
                 return preparation.preparedPhase
             }
+            let prepared: ObservationAudioPreparation.Phase
             if let bytes {
-                return try await files.persistAudio(preparation: preparation, bytes: bytes, validateBeforeWrite: before, commit: commit)
+                prepared = try await files.persistAudio(preparation: preparation, bytes: bytes, validateBeforeWrite: before, commit: commit)
+            } else {
+                prepared = try await files.recoverAudio(preparation: preparation, validateBeforeRead: before, commit: commit)
             }
-            return try await files.recoverAudio(preparation: preparation, validateBeforeRead: before, commit: commit)
+            try validate()
+            return prepared
         }
         // Durable success survives; private presentation does not cross an account/generation transition.
-        try validate()
+        try Task.checkCancellation()
+        guard isCurrent() else { throw ObservationHistoryError.accountChanged }
+        try source.validate(container: container)
         return result
     }
 }

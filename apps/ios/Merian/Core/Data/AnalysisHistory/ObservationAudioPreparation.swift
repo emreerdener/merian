@@ -43,6 +43,7 @@ struct ObservationAudioPreparation: Equatable, Sendable {
         fileprivate init(_ preparation: ObservationAudioPreparation, source: ObservationReanalysisSource) {
             self.preparation = preparation; self.source = source
         }
+        @MainActor func validate(container: ModelContainer) throws { try source.validate(container: container) }
         @MainActor func validate(context: ModelContext) throws { try source.validate(context: context) }
     }
 

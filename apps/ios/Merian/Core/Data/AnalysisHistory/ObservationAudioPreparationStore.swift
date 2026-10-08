@@ -23,6 +23,25 @@ enum ObservationAudioPreparationStore {
         }
     }
 
+    /// Existing-only recovery. Missing work never authorizes insertion, even if old bytes remain.
+    static func read(_ proof: ObservationAudioPreparation.Verified, container: ModelContainer,
+                     isCurrent: () -> Bool) throws -> Phase {
+        if proof.preparation.action == .submit {
+            guard case let .preparation(phase) = try ObservationAudioExecutionStore.admissionState(proof, container: container, isCurrent: isCurrent) else {
+                throw Persistence.IntegrityError.unavailable
+            }
+            return phase
+        }
+        return try Persistence.transaction(proof.preparation.identity, container: container, isCurrent: isCurrent,
+            save: { _ in throw Persistence.IntegrityError.conflict }) { context in
+                try proof.validate(context: context)
+                guard let (row, job) = try Persistence.pair(proof.preparation.identity, context: context) else {
+                    throw Persistence.IntegrityError.unavailable
+                }
+                return try restore(proof.preparation, row: row, job: job)
+            }
+    }
+
     /// Called only from the file owner's locked boundaries; never recreates deleted work.
     static func validate(_ proof: ObservationAudioPreparation.Verified, container: ModelContainer, isCurrent: () -> Bool,
                          expectedPhase: Phase = .pending, makeReady: Bool = false, save: (ModelContext) throws -> Void = { try $0.save() }) throws {

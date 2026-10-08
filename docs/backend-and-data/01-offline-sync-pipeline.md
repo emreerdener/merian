@@ -2725,3 +2725,22 @@ scheduling or write operation. A valid in-flight phase advancement may be
 reflected only when immutable proof still matches. Explicit resume ownership,
 user-selected child presentation and locked missing/changed-file remediation
 remain separate. Ordinary access and activation stay disabled.
+
+### Retained explicit audio resume phases
+
+`ObservationAudioResumeSubmission` uses the shared preparation owner
+sequentially for exact proof lookup, existing-only file recovery and binding.
+Account leases begin and finish inside each retained task, so Auth quiescence
+includes actual lease release. It never holds an owner slot while invoking
+another phase that requires that slot. Suspended callers revalidate account and
+the frozen source through the lock-owning boundary before returning private
+state.
+
+A nil-byte audio producer is now a recovery operation only: missing saved work
+fails instead of inserting a child. Bound resume bypasses files and binding
+consent and preserves original request and consumed marker. The returned ready
+value contains proof and snapshot, not provider authority. Unbound recovery
+verifies the exact saved file under the filesystem lock, then uses current
+consent for binding. Concurrent binding may require another explicit same-ID
+retry; there is no automatic replacement, timer or provider replay. UI and queue
+handoff remain uninstalled, and activation stays disabled.

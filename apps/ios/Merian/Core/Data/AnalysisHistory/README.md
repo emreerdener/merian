@@ -1660,3 +1660,29 @@ recovery can precede missing/expired-file handling. Preparation file recovery
 must still use the locked producer with original bytes/digests, never assume
 this read proves file availability. UI selection of an exact child and retained
 resume orchestration remain separate uninstalled work.
+
+### Retained explicit audio resume submission
+
+`ObservationAudioResumeSubmission` sequences exact-child proof recovery,
+optional existing-file recovery, and binding through separate entries in the
+same preparation owner. Each phase acquires its account lease inside its
+retained task and releases it before the slot exits. It never nests that owner's
+entries. Post-await source checks use the container-scoped lock-owning
+validator; the context overload is reserved for callers inside the shared
+transaction.
+
+`ObservationAudioPreparationProducer.prepare(bytes: nil)` is existing-only: it
+reads the exact saved phase and never calls `begin` to recreate a vanished
+child. Submitted work uses the execution store's strict admission validator.
+Locked file verification alone may promote pending evidence. Missing or changed
+bytes cannot be repaired, substituted or bound. Non-nil first preparation still
+uses the durable begin path.
+
+Bound resume returns the exact current snapshot before files or fresh binding
+consent, including any consumed marker. It returns no dispatch capability and
+starts no queue. A binding race after the initial re-read may fail this attempt;
+a later explicit same-identity retry recovers the binding without rewriting it.
+Throwing saves withhold success even when committed; reopening uses the same
+four IDs and durable request. No presentation predicate participates in these
+common account phases. UI/current-presentation handoff, saved-child selection
+and App resume installation remain separate.

@@ -11282,3 +11282,32 @@ membership passed. Independent source/test/documentation review was clear. These
 are shared-worktree focused results; no new full-native or clean-candidate full
 pass is claimed. Prior failures and the overlapping Auth-size limitation remain
 recorded above. No wire, persistence schema or hosted behavior changed.
+
+### Retained audio resume submission gate
+
+`ObservationAudioResumeSubmissionTests` verifies binding save failures before
+and after commit, exact reopening retry, lease release while the preparation
+owner still retains the child, original consumed binding recovery without WAV or
+fresh consent, pending complete-cohort verification, and missing/changed files
+remaining pending. It removes or binds a child between proof read and recovery
+to prove existing-only recovery cannot recreate or overwrite work. An explicitly
+signaled Auth-drain test holds authorization and requires lease exit before
+drain completion with no stale binding.
+
+Run with resume-reader, preparation, binding, Capture session,
+`ObservationReanalysisOwnershipTests` and Offline Sync/Core architecture suites.
+Use exact selectors: there is no `ObservationReanalysisPreparationOwnerTests`
+suite. A concurrent bind rejected by file recovery is safely retried only by an
+explicit call retaining the same identity; no automatic retry is implied.
+
+Checkpoint validation: 47 tests across the eight exact suites above passed with
+zero failures/skips (XCResult `877893bb9375416caf6754716c4873a1`). The initial
+42-test/seven-suite run failed the two account-loss preparation cases after
+lease ownership moved; the final post-file account fence was restored inside
+retained work before the successful rerun. Failed evidence remains at
+`ccc717476e2f43b8b33cbeca409b64db`. The initial nonexistent ownership selector
+was corrected in the final run. Independent re-review also verified lock-owning
+source validation at all external proof checks. Strict lint, affected source
+guards, DTO21 and documentation26 passed. Native tests used the shared worktree;
+this does not establish a clean-candidate full-suite pass or clear the
+previously recorded overlapping Auth architecture-size failure.

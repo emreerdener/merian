@@ -21,7 +21,7 @@ struct ObservationAudioSubmissionBinding {
             let validate: Validate = {
                 try Task.checkCancellation()
                 guard current() else { throw ObservationHistoryError.accountChanged }
-                try proof.validate(context: ModelContext(container))
+                try proof.validate(container: container)
             }
             try validate()
             switch try ObservationAudioExecutionStore.admissionState(proof, container: container, isCurrent: current) {
@@ -42,7 +42,7 @@ struct ObservationAudioSubmissionBinding {
         }
         try Task.checkCancellation()
         guard isCurrent() else { throw ObservationHistoryError.accountChanged }
-        try proof.validate(context: ModelContext(container))
+        try proof.validate(container: container)
         return result
     }
 }
