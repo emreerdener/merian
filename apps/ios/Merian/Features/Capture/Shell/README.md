@@ -706,3 +706,38 @@ The sheet is rendered only by an explicit Debug/UI-test fixture for now.
 Ordinary routes and the App installation gate remain disabled. Its fixture
 proves rendering and interaction, while native integration tests separately
 prove persistence, exact consumed recovery and account ownership.
+
+### Retained initial audio candidate host
+
+`CaptureAudioReanalysisHost` is an inert parent-retained presentation owner,
+constructed explicitly by `PreparedHistoryReanalysisComposition.openAudioHost`.
+It does not install a workspace route or sheet. Before a route can use this
+factory, its parent must retain/index one host for the exact owner, observation,
+source analysis and container, and refuse replacement while a candidate or
+waiter exists. Construction of another host is not request recovery. That parent
+retention contract still needs implementation and tests; the inert factory alone
+does not enforce it. The opened access supplies its original common
+account/session/generation/container predicate without retaining an idle lease.
+
+The final submit tap freezes canonical audio, ordered descriptions and
+child/media identity synchronously before launching the host waiter. Failed or
+ambiguous saves keep that session and plan. Explicit retry invokes the same
+session's strict admission read: already-bound work skips preparation and
+consent, and consumed work remains outcome-only through the queue. An
+unavailable or completed request never resets the host into a fresh candidate.
+
+Closing hides presentation and cancels only its waiter. The host keeps both the
+candidate and task until the waiter actually exits, and refuses reopening while
+that waiter is running. Late completion cannot repopulate a closed presentation.
+Account-scope validation invalidates the host; it never falls back to legacy
+submission. Queue admission reports checking only, not a completed result or a
+selection change. Durable recovery after process restart remains owned by the
+existing saved-child status/resume boundaries.
+
+`CaptureAudioReanalysisHostTests` covers committed and uncommitted bind-save
+failure followed by dismissal/reopening with the original UUID, exact input,
+single durable job and no repeated authorization for an existing binding;
+delayed waiter exit; changed-input rejection; and current-account loss through
+prepared access. These are domain tests. Rendered initial input, parent lifetime
+wiring, and the assembled Capture-to-History UI route remain open. The
+installation gate remains false and ordinary access nil.

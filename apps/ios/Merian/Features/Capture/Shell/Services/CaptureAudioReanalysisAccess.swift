@@ -11,6 +11,7 @@ struct CaptureAudioReanalysisAccess {
     }
     struct Opened {
         let session: CaptureAudioReanalysisSession
+        let isCurrent: @MainActor () -> Bool
         let submit: (@escaping @MainActor @Sendable () -> Bool) async throws -> ObservationAudioExecutionOwner.Admission
     }
     struct Resumed {
@@ -45,7 +46,7 @@ struct CaptureAudioReanalysisAccess {
             let session = CaptureAudioReanalysisSession(source: source, generation: presentationGeneration, container: container)
             let producer = ObservationAudioPreparationProducer(files: files, ownership: ownership, account: account)
             let binding = ObservationAudioSubmissionBinding(ownership: ownership, account: account, authorize: configuration.authorize)
-            return Opened(session: session, submit: { presentationIsCurrent in
+            return Opened(session: session, isCurrent: current, submit: { presentationIsCurrent in
                 try await session.submit(generation: presentationGeneration, producer: producer, binding: binding,
                     isCurrentAccount: current, isCurrentPresentation: presentationIsCurrent, start: { snapshot, proof in
                         guard current() else { return .unavailable }

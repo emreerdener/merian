@@ -2,6 +2,13 @@ import Foundation
 import SwiftData
 
 extension PreparedHistoryReanalysisComposition {
+    /// Parent retains this candidate across sheet dismissal; ordinary routes remain uninstalled.
+    @MainActor
+    func openAudioHost(target: HistoricalReanalysisTarget, container: ModelContainer) throws -> CaptureAudioReanalysisHost {
+        guard let audioCapture else { throw ObservationHistoryError.unavailable }
+        return try CaptureAudioReanalysisHost(opened: audioCapture.open(target, container, UUID()))
+    }
+
     /// Explicit presentation factory only; no route or ordinary installation invokes it.
     @MainActor
     func openSavedAudioRequests(ownerID: UUID, observationID: UUID, container: ModelContainer,
