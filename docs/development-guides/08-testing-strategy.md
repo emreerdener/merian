@@ -11556,3 +11556,23 @@ native selection checkpoint. Complete audio entry, interruption/restart and A �
 B → A → Undo A journey acceptance remain separate, as do video and external
 qualification. Gates remain disabled; the earlier full-native failure is not
 superseded by backend qualification.
+
+### Audio completion-save restart qualification
+
+`ObservationAudioCompletionTests.diskRestartAfterCompletionSaveAmbiguityRecoversOutcomeOnly`
+closes the disk-backed completion-save boundary for both outcomes of an
+ambiguous local save. The original container is released before reopening the
+same store. A committed completion retains the exact child result and permanent
+cleanup receipt, and cannot be reopened as runnable audio work. An uncommitted
+completion preserves the original consumed request; the new retained owner runs
+only exact outcome recovery and cleanup, with no media read, upload, consent
+request or provider invocation. Both paths preserve the original source bytes,
+selection and parent revision and retire the queued child.
+
+This uses the production resume store, execution service and completion
+transaction with synthetic network boundaries. It complements the preparation
+and consumed-request disk tests; it does not establish actual app relaunch, full
+capture/review/selection/Undo orchestration, device audio or hosted
+qualification. No runtime, persistence schema, ordinary route, activation gate
+or alternatives-card change is included. The previous unrelated full-native Auth
+architecture failure remains separate from this focused qualification.
