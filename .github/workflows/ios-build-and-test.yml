@@ -927,6 +927,7 @@ jobs:
             "-seedPrivateScanMapFlow" \
             "-seedIdentificationHistory" \
             "-seedSavedAudioChooser" \
+            "-seedAudioReanalysisSheet" \
             "-seedSavedReanalysisFailure" \
             "-seedProtectedInsightChat" \
             "-seedProtectedChatStale" \

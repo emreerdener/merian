@@ -245,6 +245,7 @@ struct MerianApp: App {
                     }
                     #if DEBUG
                     .modifier(SavedAudioChooserUITestPresentation())
+                    .modifier(AudioReanalysisSheetUITestPresentation())
                     #endif
                     .modelContainer(container)
                     .injectAppDependencies(container: diContainer)

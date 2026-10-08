@@ -195,3 +195,20 @@ launch argument; Release compiles out both modifier and fixture. The existing
 release-binary seed denylist includes the argument. Ordinary prepared-history
 installation remains disabled. This fixture is rendering evidence, not durable
 audio or backend qualification.
+
+### Prepared audio sheet fixture
+
+`-seedAudioReanalysisSheet` installs the Debug-only
+`AudioReanalysisSheetUIFixture` through the synchronous seed coordinator. It
+reuses the immutable V2 enrollment fixture and saves it before opening
+`CaptureAudioReanalysisAccess` in a fresh context. The actual host and input
+preparer convert a local WAV; the actual submission path persists and binds the
+request. Synthetic account and unavailable-only start boundaries perform no
+provider dispatch, upload or receipt fabrication. The retained fixture checks an
+exact persisted snapshot and one queued row across explicit continuation.
+
+`AudioReanalysisSheetUITests` exercises the production sheet before and after
+submission, dismisses and reopens the same host, and verifies its saved UUID is
+unchanged. The seed is release-denylisted and its test belongs to the runtime
+manifest. This does not install ordinary Capture access or qualify the native
+file importer, device permissions, process restart or hosted execution.

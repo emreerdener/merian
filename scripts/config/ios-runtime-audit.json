@@ -483,6 +483,11 @@
         "SavedAudioChooserUITests"
       ],
       "owner": "apps/ios/MerianUITests/SavedAudioChooserUITests.swift"
+    },
+    {
+      "selector": "merianUITests/AudioReanalysisSheetUITests/testPreparedInputAndDurableRequestSurviveReopening",
+      "suite_names": ["AudioReanalysisSheetUITests"],
+      "owner": "apps/ios/MerianUITests/AudioReanalysisSheetUITests.swift"
     }
   ],
   "performance": [

@@ -11723,6 +11723,25 @@ and contains no asynchronous task or ordinary route installation. It captures
 descriptions only at the explicit submit action and continues frozen requests
 through `retry`.
 
-These tests establish host lifecycle behavior and compile the new view; they do
-not constitute rendered sheet/file-picker UI automation. A qualified UI fixture
-and the full affected native gate remain required at the audio UI milestone.
+These host tests establish lifecycle behavior and compile the view. The rendered
+sheet fixture below adds UI coverage; native file-picker automation and the full
+affected native gate remain separate requirements.
+
+### Prepared audio sheet UI acceptance
+
+Run
+`merianUITests/AudioReanalysisSheetUITests/testPreparedInputAndDurableRequestSurviveReopening`
+with the managed wrapper. Its `-seedAudioReanalysisSheet` fixture persists real
+V2 enrollment before opening the production access object, then uses real local
+WAV conversion, preparation and durable binding. Only account and unavailable
+execution-start boundaries are synthetic. The test opens, dismisses and reopens
+before submission; it then submits, reopens and explicitly continues the same
+request. The fixture rereads the exact saved snapshot and requires one queued
+row, while the UI verifies the original UUID survives.
+
+The runtime manifest registers this selector and the Release denylist includes
+its seed. Host unit tests continue to own delayed picker callbacks, cancellation
+and ambiguous-save cases. This rendered-sheet test does not automate the native
+file importer, prove file-provider permissions or process-restart recovery, or
+qualify ordinary fresh admission and live provider execution. Full affected
+native validation and separate device/hosted qualification remain necessary.

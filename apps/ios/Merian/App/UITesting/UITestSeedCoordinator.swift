@@ -215,7 +215,7 @@ enum UITestSeedCoordinator {
     static func prepareIfNeeded(container: ModelContainer) {
         guard isEnabled else { return }
         let arguments = ProcessInfo.processInfo.arguments
-        guard publicationConsentEnabled ||
+        guard audioReanalysisSheetEnabled || publicationConsentEnabled ||
                 arguments.contains("-seedAchievementDetailFlow") ||
                 arguments.contains(achievementDeletionRefreshArgument) ||
                 arguments.contains(queuedAudioHandoffArgument) ||
@@ -235,7 +235,15 @@ enum UITestSeedCoordinator {
             try context.delete(model: ActiveOfflineQueuedScanGoalHint.self)
             try context.delete(model: PendingCloudDeletionTask.self)
 
-            if publicationConsentEnabled {
+            if audioReanalysisSheetEnabled {
+                try context.delete(model: OfflineJobRecord.self)
+                try context.delete(model: LocalAnalysisRecord.self)
+                try context.delete(model: LocalAnalysisStateRecord.self)
+                let fixture = try AudioReanalysisSheetUIFixture(container: container)
+                try fixture.seed()
+                audioReanalysisSheetFixture = fixture
+                OfflineQueueManager.shared.unsyncedItemsCount = 0
+            } else if publicationConsentEnabled {
                 try context.delete(model: OfflineJobRecord.self)
                 try context.delete(model: LocalAnalysisRecord.self)
                 try context.delete(model: LocalAnalysisStateRecord.self)
@@ -628,7 +636,7 @@ enum UITestSeedCoordinator {
         try queuedAudioHandoffWAVData().write(to: audioURL, options: .atomic)
     }
 
-    private static func queuedAudioHandoffWAVData() -> Data {
+    static func queuedAudioHandoffWAVData() -> Data {
         let sampleRate: UInt32 = 8_000
         let sampleCount = Int(sampleRate)
         let bytesPerSample: UInt16 = 2
