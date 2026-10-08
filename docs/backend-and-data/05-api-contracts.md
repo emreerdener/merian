@@ -15720,6 +15720,76 @@ proof. These storage and all-writer obligations remain unimplemented at this
 wire-only checkpoint. Existing saved photo/audio and funded-retirement contracts
 are unchanged.
 
+### Source reservation terminal replay and successor admission
+
+This October 8 contract decision precedes the paired
+reservation/unfunded-retirement SQL implementation. It adds no response variant,
+reader, producer or consumer. The wire above remains authoritative. `reserved`
+requires both the exact immutable binding and its matching live occupancy;
+acknowledging a binding alone is not sufficient. It conveys no admission,
+execution or retry permission.
+
+After owner/deletion and exact immutable identity checks, classify an existing
+candidate before fresh rollout gates:
+
+| Existing candidate evidence                                              | Reservation response                                   | Permitted client behavior                                                                                         |
+| ------------------------------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Exact binding and matching occupancy                                     | Exact `reserved` receipt                               | Continue only through independently authorized upload/admission/recovery paths.                                   |
+| Exact binding, occupancy absent, independently proven terminal release   | Existing `analysis_history_operation_conflict` error   | Keep the original request; recover its endpoint-specific terminal outcome. Never recreate this child's occupancy. |
+| Exact binding, occupancy absent, missing or inconsistent terminal proof  | `held` with `terminal_unproven` or `malformed_linkage` | Retain the original identity and resolve the existing operation; no replacement.                                  |
+| Same child with changed input, fingerprint, owner, observation or source | Existing `analysis_history_operation_conflict` error   | No mutation or new identity inferred from the error.                                                              |
+
+An operation-conflict error is not a retirement receipt, proof of non-execution
+or permission to remint a UUID. A later explicit new tap may propose a different
+child only after the appropriate durable terminal-proof path has settled the
+original child operation (a funded intent or an unfunded reservation).
+Reopening, retry, timeout, cancellation and generic errors retain the same
+candidate. Exact funded or unfunded retirement receipt replay remains owned by
+its original operation-specific endpoint, with its original operation ID.
+
+A different-child reservation requires one atomic, complete inventory under
+owner/parent/source locks before writing binding and occupancy. Do not pick the
+latest predecessor. Use the existing conservative ceiling of 64 independently
+examined rows per relevant namespace, detecting a 65th row before treating a
+result as complete; an exceeded ceiling returns `coverage_incomplete`, never
+partial-page absence. Inventory retained same-source bindings, occupancy and
+terminal-release receipts, as well as same-source results, parent intents, and
+parent media linkage. Every media row must have validated attribution;
+unattributed cohorts/objects and unbound or malformed history cannot establish
+vacancy. Validate the proposed child's complete legacy, evidence, funding,
+invocation, result and tombstone namespace under child locks as well.
+
+The first paired SQL checkpoint may admit a successor only after all released
+bound predecessors have an exact immutable `retired_unfunded` receipt, or an
+exact `retired_before_dispatch` receipt with matching permanent terminal intent.
+These proofs must agree with retained binding/input/fingerprint and contain no
+execution contradictions; an absent prunable quota or invocation row is never
+the proof. Unfunded proof requires no cohort, evidence, intent, quota, usage,
+invocation, witness, work, draft or result, including absence of legacy child
+scans, ingestion jobs/intents and child tombstones. Funded proof requires the
+exact refunded original quota and no invocation, witness, outcome, draft, result
+or live work. The unfunded receipt is immutable and unique per bound child,
+retains the original retirement operation ID, and follows binding/parent
+deletion. Duplicate or orphan release records hold rather than selecting one.
+Each predecessor's occupancy must already have been released by its atomic
+terminal owner. A conflicting live occupancy returns `source_occupied`; multiple
+unresolved or contradictory records hold without disclosing their identities.
+
+Completed execution remains a supported future predecessor class in the broader
+feature contract, but current completion does not atomically release source
+occupancy. The first paired SQL checkpoint must therefore hold that source. It
+must not infer release from `state=complete`, a result row or a discovery
+`history_only` response. A separately reviewed completion/settlement release
+transaction is required before successors after completion are enabled. This is
+an explicit remaining implementation requirement, not a change to the user's
+ability to request later reanalysis once the complete feature is qualified.
+
+Fresh reservation and unfunded retirement remain default-false, service-only
+preparation with no HTTP/native consumer. Their paired implementation must add
+permanent unfunded receipt storage and all-writer fences, then prove
+reservation, retirement, upload/admission and deletion races. This contract
+decision does not claim those routines or completion release exist.
+
 ### Prepared source-bound funding exclusion
 
 The authoritative quota core now denies bound `original_analysis_id` before

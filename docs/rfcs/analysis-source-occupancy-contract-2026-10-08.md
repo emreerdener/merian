@@ -501,3 +501,21 @@ This is a closed funded-retirement capability, not source API activation. Source
 reservation, unfunded retirement, native consumption and remaining media
 acceptance remain separate. No new public signature, privilege, provider retry
 or uncertain refund is introduced. All activation gates stay disabled.
+
+### October 8 terminal reservation replay decision
+
+The
+[canonical API contract](../backend-and-data/05-api-contracts.md#source-reservation-terminal-replay-and-successor-admission)
+now fixes the remaining pre-implementation decision: exact terminal children
+with released occupancy return the existing operation-conflict error, never a
+replayed `reserved` receipt or recreated occupancy. Conflict is not terminal
+proof and never authorizes a new UUID. Original operation-specific terminal
+recovery and a later explicit new tap remain required. Missing terminal proof
+holds.
+
+A new child requires complete bounded predecessor and namespace inventory under
+canonical locks. The first paired reservation/unfunded-retirement implementation
+may accept only proven funded/unfunded retirement predecessors. Completed-source
+release remains separate, unimplemented work; the broader feature still requires
+later reanalysis after qualified completion. No new response variant, reader,
+RPC, native consumer or gate activation is introduced by this decision.

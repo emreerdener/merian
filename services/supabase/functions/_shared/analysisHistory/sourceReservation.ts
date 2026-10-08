@@ -128,7 +128,10 @@ const scopeKeys = [
   "state",
 ] as const;
 
-/** Reserved acknowledges an immutable binding, not current admission/execution phase. */
+/**
+ * Reserved acknowledges exact binding and live occupancy when returned.
+ * It grants no admission/dispatch authority and does not promise occupancy persists.
+ */
 export async function decodeSourceReservationReceipt(
   bytes: Uint8Array,
   expected: unknown,

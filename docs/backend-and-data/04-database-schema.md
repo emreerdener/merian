@@ -8029,3 +8029,16 @@ This is a closed funded-retirement capability, not source API activation. Source
 reservation, unfunded retirement, native consumption and remaining media
 acceptance remain separate. No new public signature, privilege, provider retry
 or uncertain refund is introduced. All activation gates stay disabled.
+
+### Source reservation terminal replay contract
+
+The
+[canonical terminal replay and successor contract](05-api-contracts.md#source-reservation-terminal-replay-and-successor-admission)
+requires binding plus live occupancy for `reserved`. An exact terminal child
+with proven release conflicts; it never recreates occupancy. Errors cannot
+substitute for durable terminal proof or authorize a new UUID. A new child needs
+complete bounded predecessor/namespace verification. The first paired SQL
+implementation will support only exact funded/unfunded retirement predecessors;
+completion-based occupancy release remains an explicit separate implementation
+requirement. This contract-only clarification introduces no writer, wire field,
+reader or activation.
