@@ -1688,3 +1688,27 @@ four IDs and durable request. No presentation predicate participates in these
 common account phases. The inert Capture audio access now owns
 current-presentation handoff with a fresh exact snapshot before queue start.
 Saved-child selection and ordinary App installation remain separate.
+
+### Read-only saved audio status
+
+`ObservationAudioSavedStatus` is a local advisory reader, separate from resume
+and execution. It scans at most 20 canonical owner/observation-qualified
+reanalysis links plus one look-ahead under the shared persistence lock. Its
+opaque lexical child cursor is scoped to that owner and observation. Every
+inspected link advances paging, including omitted links; ordering is not time or
+priority. The lock is released before sequential exact `ResumeStore.read`
+awaits, and current scope and the enrolled parent are revalidated before return.
+
+Only strict submitted audio proofs yield summaries: files pending, admission
+pending, bound idle, and running/held distinguished by consumed state. Summaries
+contain identity and state only, never requests, claims, capabilities or
+actions. `omittedCount` covers inspected non-audio, held-only and classified
+invalid work. It is not proof of absence; neither an empty nor a partial page
+authorizes a new operation. Cancellation, account loss and unclassified
+storage/parser errors fail the whole page. No broad error suppression is used.
+
+The reader acquires no account lease and performs no file, network or mutation
+work. Its caller must supply current common owner/generation/container scope.
+Per-child facts can advance between reads; any later explicit action must use
+the exact resume boundary and its fresh validation. No status access, UI route
+or automatic dispatch consumer is installed by this foundation.

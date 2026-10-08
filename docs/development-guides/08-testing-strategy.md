@@ -11333,3 +11333,25 @@ distinguishes source-freezing fresh entry from scope-only resume opening. Tests
 ran in the shared worktree; no clean-candidate full-suite pass or resolution of
 the prior overlapping Auth size failure is claimed. No media/UI activation or
 external qualification follows from this adapter.
+
+### Saved audio status paging gate
+
+`ObservationAudioSavedStatusTests` covers all seven preparation/bound phases,
+unchanged job metadata/files/selection, 21-link pagination across 20 malformed
+records, scoped owner/parent cursors, invalid raw linkage, missing jobs, held
+drafts and missing sources. Injected read failures prove storage errors,
+cancellation, account loss and parent deletion do not become successful empty
+pages. Reading produces no action or execution capability.
+
+The corrected checkpoint passed 34 tests across six verified suites: saved
+status, `ObservationAudioResumeStoreTests`,
+`ObservationAudioResumeSubmissionTests`, `ReanalysisOperationStatusTests`,
+`OfflineSyncFoundationArchitectureTests` and `CoreIntegrationArchitectureTests`;
+zero failures/skips, XCResult `2dea45b0fa654c95973fb9045a3e20a0`. The initial
+paging fixture reused IDs belonging to its existing observation/source and
+failed with an identity conflict. Moving only synthetic child IDs to a separate
+range fixed setup; failed evidence `9e2bb4fc1ae24b1490e4a48e98c39125` is
+retained. Independent source and fixture re-review was clear; source
+guards/DTO21 and strict lint passed. Native tests used the shared worktree, not
+a clean-candidate full gate. Prior overlapping Auth architecture-size failure
+and external qualification remain separate.

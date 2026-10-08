@@ -2761,3 +2761,23 @@ later explicit same-ID resume; account loss prevents stale binding/handoff.
 Consumed requests retain outcome-only recovery, never a provider successor. The
 ordinary installer remains false. Bounded saved-child selection/status UI and
 automatic adoption are not introduced by this adapter.
+
+### Saved audio status is not execution authority
+
+The local `ObservationAudioSavedStatus` reader uses owner/parent-scoped lexical
+child pagination with a 1–20 limit and one look-ahead. It releases the shared
+persistence lock before exact asynchronous proof reads, and rechecks common
+scope and enrolled parent before return. A cursor cannot cross owner or parent.
+
+Each accepted summary contains the exact four-ID child identity and persisted
+phase only. Running/held states retain the distinction between consumed and
+unconsumed attempts. Reading never rearms, binds, claims or dispatches work,
+reads files, requests consent, or acquires an Auth lease. Omitted records are
+counted without exposing their metadata. Expected validation failures can be
+omitted; cancellation, account changes and unclassified store/parser failures
+abort the page. Cursor advancement includes omitted links, not the look-ahead.
+
+Pages are advisory per-child reads, not an atomic execution snapshot or proof
+that new work is admissible. A later explicit action revalidates through exact
+resume and queue admission. Retained account-scoped presentation, saved-child
+selection UI and ordinary App installation remain separate work.
