@@ -950,3 +950,36 @@ Fresh invocation also checks the permanent child deletion tombstone after its
 child lock. Once deletion erases binding, intent and witness, a held reservation
 cannot fall through to generic dispatch. Existing invocation replay remains
 non-dispatching.
+
+### Atomic source-bound funded retirement
+
+Migration `20261008223804_prepare_atomic_source_execution_retirement.sql` adds
+default-false `source_retirement_enabled` alongside the existing retirement API
+gate. The existing request, receipt and reader9/10 compatibility are unchanged.
+Read-committed/read-uncommitted isolation is required before ownership locks or
+receipt replay; frozen snapshots fail closed. Owner/deletion and reader checks
+still precede exact receipt recovery. That recovery needs neither live occupancy
+nor the original quota row and does not create another operation.
+
+Fresh retirement uses the live source-before-child lock helper before intent and
+quota locks. Apparently unbound callers reread binding absence after child
+locks. The bound input/source must match the saved intent, and a dispatch
+witness blocks retirement even if accounting still appears reserved. Existing
+exact unused-work, original reservation/lease/attempt and complimentary-credit
+proofs remain. A live worker claim is revoked atomically; it is not itself
+evidence of provider dispatch. Expired original leases may retire only when
+those unused-work proofs hold.
+
+Application atomically refunds through the private quota core, settles the held
+complimentary allocation, writes terminal `retired_before_dispatch` state and
+its permanent receipt, then deletes only the matching occupancy. The storage
+trigger requires the complete binding/input/fingerprint, terminal intent, exact
+receipt, refunded original quota and absence of witness/invocation/result before
+permitting that live-parent occupancy deletion. Any failure rolls back all of
+these changes. Immutable binding and dispatch-witness deletion rules remain
+unchanged. Generic quota cleanup is still held and cannot release occupancy.
+
+This is a closed funded-retirement capability, not source API activation. Source
+reservation, unfunded retirement, native consumption and remaining media
+acceptance remain separate. No new public signature, privilege, provider retry
+or uncertain refund is introduced. All activation gates stay disabled.
