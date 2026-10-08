@@ -15901,3 +15901,36 @@ Atomic source retirement/release and original-grant dispatch remain required.
 Until their reviewed durable proofs exist, bound quota records intentionally
 stay held instead of being expired, pruned or treated as permission for another
 provider call. Activation gates remain false and ordinary access remains nil.
+
+### Source dispatch witness preparation
+
+Migration `20261008222349_prepare_source_dispatch_witness.sql` adds
+default-false `source_dispatch_enabled`. Fresh bound dispatch requires the
+existing modality, admission, append and dispatch gates, current consent, exact
+live source/input/ occupancy/media chain and the original reserved quota,
+request, child, lease and attempt. The assigned input profile must match the
+immutable input and saved quota. Canonical owner/parent/source/child/intent
+locks precede quota locking.
+
+A private immutable intent-owned witness records original reservation, lease
+digest, attempt, source fingerprint, provenance and creating transaction. The
+invocation writer accepts it only in that transaction; finalization and
+invocation insertion are atomic with the witness and intent transition. A
+retained witness is audit evidence, never reusable dispatch authority. Exact
+invocation replay continues to return `may_dispatch=false` before fresh gates.
+Generic quota finalization remains held. No new public signature or grant is
+introduced.
+
+Witnesses have no quota foreign key and cannot disappear through quota pruning.
+They cascade with intent deletion; the unused-reservation erasure proof rejects
+any witness before that cascade, including an interrupted/tampered partial
+state. Binding deletion therefore cannot hide dispatch evidence and permit a
+refund. Account merge remains held by the existing bound-source guard. Atomic
+retirement and source release remain separate work before source access opens.
+All activation gates remain disabled; uncertain execution permits recovery and
+reconciliation only, never a successor provider invocation.
+
+Fresh invocation also checks the permanent child deletion tombstone after its
+child lock. Once deletion erases binding, intent and witness, a held reservation
+cannot fall through to generic dispatch. Existing invocation replay remains
+non-dispatching.
