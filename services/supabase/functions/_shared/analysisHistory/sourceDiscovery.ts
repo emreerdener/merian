@@ -1,6 +1,6 @@
 import { exactObject, historyUUID, invalidHistory } from "./contract.ts";
 
-/** Prepared contract only: no RPC, route, reservation or execution authority. */
+/** Informational private resolver contract: no route, reservation or execution authority. */
 export const SOURCE_DISCOVERY_MAX_BYTES = 2_048;
 
 export interface SourceDiscoveryRequest {

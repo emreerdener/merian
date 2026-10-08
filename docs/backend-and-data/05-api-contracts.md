@@ -15464,27 +15464,29 @@ The reader makes no selection/review changes and grants no new dispatch permit.
 No server wire/schema or activation gate changes; retained native audio delivery
 and its production factory remain unconnected.
 
-### Prepared source discovery contract; resolver still planned
+### Prepared source discovery contract
 
 The
 [source-occupancy design checkpoint](../rfcs/analysis-source-occupancy-contract-2026-10-08.md)
-is required before ordinary fresh audio entry; it is not an implemented RPC or
-permission. Existing exact-child admission reserves quota and cannot be used as
-read-only discovery. Local missing work never proves remote absence. The planned
-resolver grants no execution authority; an independent atomic unfunded claim
-must fence every competing writer and retain durable retirement/completion proof
-while the owner observation remains live. Parent deletion intentionally erases
-private linked records; exact terminal receipt replay remains allowed until
-deletion. Completed history must still allow later explicit reanalysis of the
-same source. Unknown execution remains outcome/status recovery only. Existing
-saved photo replay stays unchanged; all activation gates remain disabled.
+is required before ordinary fresh audio entry; the first read-only SQL resolver
+is prepared, while reservation and ordinary entry remain unimplemented. Existing
+exact-child admission reserves quota and cannot be used as read-only discovery.
+Local missing work never proves remote absence. The planned resolver grants no
+execution authority; an independent atomic unfunded claim must fence every
+competing writer and retain durable retirement/completion proof while the owner
+observation remains live. Parent deletion intentionally erases private linked
+records; exact terminal receipt replay remains allowed until deletion. Completed
+history must still allow later explicit reanalysis of the same source. Unknown
+execution remains outcome/status recovery only. Existing saved photo replay
+stays unchanged; all activation gates remain disabled.
 
 `_shared/analysisHistory/sourceDiscovery.ts` now owns the prepared executable
-descriptor contract. It has no RPC, HTTP route, transport, database producer or
-native consumer yet. It does not change the Identify generated DTO block,
-existing readers or saved request fingerprints. Reader negotiation, canonical
-reservation fingerprint parity and durable proof storage remain part of the
-source-resolver implementation milestone.
+descriptor contract. The private SQL producer is now
+`get_owned_observation_analysis_source(uuid,jsonb,integer)`; no HTTP route,
+transport or native consumer is connected. It does not change the Identify
+generated DTO block, existing readers or saved request fingerprints. The SQL
+reader is exactly 10. Canonical reservation fingerprint parity, source claims
+and all-writer admission fencing remain pending.
 
 The request has exactly `schema_version: 1`, `observation_id` and
 `source_analysis_id`, using distinct canonical lowercase UUIDs. Owner comes from
@@ -15512,11 +15514,48 @@ invalid UTF-8/JSON and all unknown, missing or extra fields. Both decoding
 boundaries validate the expected owner/observation/source tuple and return
 frozen values. Object parsing is for already bounded transport results; the
 future transport must enforce the same ceiling while streaming. Errors never
-become absence. The future resolver must prove namespace coverage and unique
-occupancy itself; this decoder cannot establish those database facts.
+become absence. The SQL resolver owns bounded namespace classification; this
+decoder cannot establish those database facts.
 
 `sourceDiscovery_test.ts` covers all variants, exact scope, forbidden private or
 capability fields, child/digest/phase integrity, malformed envelopes and the
-actual byte limit. It does not prove role authorization, deletion/backfill
-coverage or concurrency; those require the unimplemented SQL resolver and its
-disposable-database gates.
+actual byte limit. The SQL catalog and concurrency tests separately exercise
+authorization, parent locking, deletion, incomplete coverage and exact terminal
+associations.
+
+The service-only SQL RPC takes `p_owner` from a future authenticated Edge owner,
+`p_request` with the exact three request fields above, and `p_reader: 10`.
+Direct `anon`/`authenticated` execution is denied. `source_discovery_enabled`
+defaults false independently of other history gates. Owner → parent-generation →
+scan → history locks precede classification, preserving deletion/account
+ordering. Missing owner, parent or source and a closed gate return generic
+`unavailable`. Malformed requests and unsupported readers retain the existing
+typed errors. No inference-consent, quota reservation, work claim or mutation is
+performed.
+
+This initial resolver **never emits `advisory_absence` or `reserved`**. Empty
+coverage returns `held/coverage_incomplete` until the coordinated source
+reservation and all-writer cutover exist. Nonunique source indexes cover
+existing intent/result rows without making a lifetime one-child-per-source
+constraint or creating new claims. It bounds classification to 64 parent intents
+and 64 source-linked child results, using 65-row sentinels under the parent
+lock; overflow holds, and no partial page authorizes a decision. Parent evidence
+or upload cohorts lacking an attributable intent/result hold the whole parent.
+Malformed parent intent identity, including a bad source before filtering,
+holds. Persisted schema/protocol/provider combinations retain V1/7 and V2/8
+photo Gemini/OpenAI compatibility and V3/9 audio Gemini compatibility.
+
+Exactly one unresolved admitted/dispatched/draft child returns `existing`;
+multiple blockers return `held/ambiguous_occupancy`. Completed classification
+requires the exact intent, retained draft/usage, immutable result, and canonical
+completion snapshot/receipt association. The completion transaction originally
+appends and settles before saving its receipt; a surviving quota row is not
+required. This is source-occupancy classification, not a post-pruning audit of
+all provider accounting. Exact pre-dispatch retirement requires its immutable
+receipt and matching terminal intent with no result, invocation, draft, outcome
+or live work claim. Other failed states remain held. Source-linked results
+without matching complete intent/receipt are held. Canonical receipt framing for
+snapshot versions 1–4 is regression-tested; future codec changes must preserve
+historical receipt bytes. `history_only` remains informational, never
+replacement permission. Five-second SQL timeout bounds reads; callers must not
+reinterpret errors/timeouts as absence.

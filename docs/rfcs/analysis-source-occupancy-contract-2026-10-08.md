@@ -8,10 +8,17 @@ ordinary Capture route. Existing saved-photo replay must remain unchanged.
 October 8 implementation note: the strict executable request/descriptor and 2
 KiB decoder are now prepared in `sourceDiscovery.ts`, with no live producer or
 consumer. The
-[current API contract](../backend-and-data/05-api-contracts.md#prepared-source-discovery-contract-resolver-still-planned)
+[current API contract](../backend-and-data/05-api-contracts.md#prepared-source-discovery-contract)
 fixes their fieldsets. The SQL resolver, fingerprint parity, source index and
 proof storage remain unimplemented; this is partial progress within checkpoint
 1, not completion of that checkpoint or activation of discovery.
+
+Subsequent October 8 implementation note: the default-false service-only SQL
+resolver now classifies bounded existing intents/results and terminal receipts,
+with nonunique source indexes. It never emits advisory absence; the durable
+reservation fingerprint, source claims, all-writer cutover and native recovery
+consumer are still pending. This read-only checkpoint does not authorize fresh
+entry or release activation holds. See the current API contract above.
 
 ## Evidence and scope
 

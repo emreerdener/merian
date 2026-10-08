@@ -7699,3 +7699,24 @@ precedes fresh rollout gates. No tables, grants to clients, persisted shapes,
 operation IDs, funding profiles or activation values change. Pending input is
 not a completed result, and compatibility is not execution or remediation
 authority.
+
+### Prepared bounded analysis-source discovery
+
+`20261008153538_prepare_analysis_source_discovery.sql` adds nonunique
+`observation_analysis_results_source` and `observation_analysis_intents_source`
+indexes over existing durable rows. It adds no source claim table or lifetime
+source uniqueness. `source_discovery_enabled` is independent and default false.
+The exact-signature allowlisted service-only
+`get_owned_observation_analysis_source(uuid,jsonb,integer)` performs bounded
+classification under existing owner/parent locks and grants no mutation,
+funding, upload or dispatch authority. No client role receives direct access.
+
+See the
+[source discovery API contract](05-api-contracts.md#prepared-source-discovery-contract)
+for reader 10, 65-row sentinels, conservative orphan/ambiguous handling and
+exact completion/retirement associations. This initial resolver never emits
+absence; all-writer coordination and source reservations remain unimplemented.
+Existing cascade deletion owns these indexed rows and proofs; no new persistent
+private ledger survives intentional owner/parent erasure. Snapshot codec
+compatibility must preserve existing completion receipt bytes across versions
+1–4.
