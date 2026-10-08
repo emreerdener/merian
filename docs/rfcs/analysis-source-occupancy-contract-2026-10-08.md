@@ -255,3 +255,13 @@ request identity. Real concurrency tests cover both winning orders and different
 owners. This checkpoint does not establish all-writer coverage: generic funding
 and invocation paths, protected media/admission/execution, and exact terminal
 retirement remain prerequisites before reservation can open.
+
+## October 8 funding prerequisite
+
+Generic quota admission and fresh invocation commitment now reject bound
+original analysis identities under their shared child advisory lock. Exact
+invocation replay remains before the fresh gate. Quota request UUIDs are scoped
+idempotency keys, not child references; guarding them would reject valid
+distinct requests and introduce opposing multi-child lock orders. No
+source-aware funding grant or reservation API opens in this checkpoint.
+Protected writer cutover remains.

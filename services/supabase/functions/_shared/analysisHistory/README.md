@@ -776,3 +776,8 @@ owner-before-child locks, including UUID aliases and cross-owner attempts. This
 storage-integrity prerequisite requires Read Committed visibility (including
 PostgreSQL's equivalent Read Uncommitted); frozen transaction snapshots fail
 explicitly. It does not open reservation, admission, funding or execution.
+
+The deny-only funding prerequisite also fences bound original analysis IDs at
+quota admission and fresh invocation commitment. Existing invocation replay is
+non-dispatching; quota request IDs remain separate idempotency identities. See
+[funding exclusion](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-bound-funding-exclusion).

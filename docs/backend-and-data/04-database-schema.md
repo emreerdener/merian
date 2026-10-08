@@ -7783,3 +7783,13 @@ merge hold also covers these explicit owner bindings, preventing generic
 reparenting from stranding them. Ownership transfer and exact terminal release
 require separately reviewed transactions; neither may be inferred from an empty
 occupancy table.
+
+The forward funding prerequisite
+`20261008184228_fence_source_bound_analysis_funding.sql` denies source-bound
+original analysis IDs in the authoritative quota core before complimentary holds
+or quota writes. Fresh invocation commitment takes that child lock and checks
+the binding before quota finalization or invocation insertion. Exact recorded
+invocation replay remains first and never grants another dispatch. These are
+deny-only guards; no source-aware funding exception is installed. Quota request
+IDs remain independent idempotency keys and are never interpreted as child
+identities. Frozen transaction snapshots fail on fresh guarded paths.

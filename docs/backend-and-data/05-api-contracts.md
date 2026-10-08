@@ -15719,3 +15719,15 @@ operation conflicts. Missing prunable accounting alone is never non-execution
 proof. These storage and all-writer obligations remain unimplemented at this
 wire-only checkpoint. Existing saved photo/audio and funded-retirement contracts
 are unchanged.
+
+### Prepared source-bound funding exclusion
+
+The authoritative quota core now denies bound `original_analysis_id` before
+creating complimentary usage or funding. Fresh invocation commitment similarly
+denies a bound original before committing quota or recording dispatch. Exact
+existing invocation replay still returns its saved non-dispatching result first.
+The guard does not treat quota `request_id` as a child: distinct idempotency
+keys for one original analysis remain valid. Fresh guarded work requires current
+statement snapshots. No signature, grant, reservation API, source-aware funding
+exception, provider successor or refund is introduced. Protected writer cutover
+and terminal reservation/retirement remain separate prerequisites.
