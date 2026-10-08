@@ -2689,3 +2689,21 @@ unavailability retains the request. The queue's long-lived predicate must not
 capture presentation lifetime. No ordinary Capture route or scheduler is
 installed, V4 source reuse remains explicitly unsupported, and activation gates
 stay disabled.
+
+### Inert audio Capture access
+
+`CaptureAudioReanalysisAccess` binds the prepared session to explicit App-owned
+cloud, preparation, authorization and queue dependencies. Opening checks owner,
+auth session/generation and container, captures the exact historical source, and
+releases its short lease before returning. Submit retains the frozen common
+scope independently of its caller's presentation predicate. The queue adapter
+receives only the saved snapshot, proof, frozen auth/session generation,
+container and file store. It uses the existing retained audio execution and
+receipt-bound erasure owners. Connectivity controls dispatch, while known-result
+settlement remains account scoped.
+
+The App installer stays false and ordinary Capture routing is unchanged. A
+closed presentation can leave durable work inert; an exact saved-child resume
+boundary and V4 source contract remain required before the complete audio UI
+journey is qualified. No opening, construction or ordinary scheduler dispatches
+that work.

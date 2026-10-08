@@ -610,3 +610,20 @@ original target. Completed legacy results also check fresh protection before
 copying source tags, collections or notes; the existing deletion fence remains
 independent. This does not cancel or refund an already dispatched legacy child,
 and legacy requests do not carry a server-verifiable parent association.
+
+### Prepared audio access
+
+`CaptureAudioReanalysisAccess` opens only an explicit historical target in the
+current container. A short account lease validates and freezes its source,
+authentication session and generation; opening retains no idle lease. The
+returned session freezes input at the actual tap. Its submit closure supplies
+the common account/container checks to the producer and binder and accepts a
+separate presentation predicate for foreground handoff only. No hidden account,
+file or network fallback is created.
+
+This access exists only in the inert App composition. It is not installed in
+ordinary workspace dependencies, routing or the photo editor. Presentation loss
+after durable preparation/binding leaves that work intact and inert; explicit
+reopening/resume by exact saved child and proof remains unimplemented. Opening a
+new session is not recovery of that work. No scheduler, automatic adoption or
+replacement is authorized. V4 source reuse remains unsupported.

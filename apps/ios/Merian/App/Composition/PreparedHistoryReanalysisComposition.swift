@@ -14,6 +14,7 @@ struct PreparedHistoryReanalysisComposition {
 
     let history: IdentificationHistoryAccess
     let status: ReanalysisStatusAccess
+    let audioCapture: CaptureAudioReanalysisAccess?
     let capture: CaptureReanalysisAccess
     let reanalyze: SavedIdentificationReanalysisAccess
     let protectedChat: ProtectedInsightChatAccess
@@ -24,10 +25,10 @@ struct PreparedHistoryReanalysisComposition {
     }
 
     init(routes: any AppRouteRequesting, cloud: ObservationHistoryCloudClient,
-         currentOwner: @escaping @MainActor () -> UUID?, generation: @escaping @MainActor () -> UInt64,
-         sessionIsCurrent: @escaping @MainActor (AuthTransitionSession) -> Bool,
+         currentOwner: @escaping @MainActor @Sendable () -> UUID?, generation: @escaping @MainActor @Sendable () -> UInt64,
+         sessionIsCurrent: @escaping @MainActor @Sendable (AuthTransitionSession) -> Bool,
          preparationOwner: ObservationReanalysisPreparationOwner,
-         enrollmentOwner: ObservationHistoryEnrollmentOwner, containerIsCurrent: @escaping @MainActor (ModelContainer) -> Bool,
+         enrollmentOwner: ObservationHistoryEnrollmentOwner, containerIsCurrent: @escaping @MainActor @Sendable (ModelContainer) -> Bool,
          submitted: @escaping @MainActor (UUID) -> Void, cleanup: @escaping @MainActor () -> Void,
          reviewWake: (() -> Void)? = nil, reviewGeneration: @escaping () -> UInt64 = { 0 },
          confirmationUndo: IdentificationHistoryReviewAccess.ConfirmationUndoConfiguration? = nil,
@@ -35,6 +36,7 @@ struct PreparedHistoryReanalysisComposition {
          publication: IdentificationHistoryPublicationAccess.Configuration? = nil,
          protectedChat: ProtectedInsightChatAccess.Configuration? = nil,
          retirement: ReanalysisStatusAccess.RetirementConfiguration? = nil,
+         audio: CaptureAudioReanalysisAccess.Configuration? = nil,
          documents: @escaping @MainActor () throws -> URL = {
              try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
          },
@@ -55,6 +57,11 @@ struct PreparedHistoryReanalysisComposition {
         reanalyze = .prepared(cloud: cloud, enrollment: enrollmentOwner, currentOwner: currentOwner,
             generation: generation, sessionIsCurrent: sessionIsCurrent, containerIsCurrent: containerIsCurrent,
             dispatch: { routes.request(.historicalReanalysis($0), source: .internalUserAction) })
+        audioCapture = audio.map { configuration in
+            .prepared(account: cloud, ownership: preparationOwner, configuration: configuration,
+                currentOwner: currentOwner, generation: generation, sessionIsCurrent: sessionIsCurrent,
+                containerIsCurrent: containerIsCurrent, documents: documents)
+        }
         capture = .prepared(ownership: preparationOwner, account: cloud, photos: photos, documents: documents,
             isCurrentOwner: currentOwner, generation: generation, sessionIsCurrent: sessionIsCurrent, requestSubmitted: submitted, requestCleanup: cleanup)
     }
@@ -63,7 +70,8 @@ struct PreparedHistoryReanalysisComposition {
     static func prepared(in dependencies: AppDIContainer) -> Self {
         let manager = dependencies.supabaseManager
         let queue = dependencies.offlineQueueManager
-        return Self(routes: dependencies.appRouteCoordinator, cloud: .live(manager: manager),
+        let cloud = ObservationHistoryCloudClient.live(manager: manager)
+        return Self(routes: dependencies.appRouteCoordinator, cloud: cloud,
             currentOwner: { manager.currentUser?.id }, generation: { manager.authSessionGeneration },
             sessionIsCurrent: { session in
                 manager.allowsUnownedAccountBoundWork
@@ -104,6 +112,6 @@ struct PreparedHistoryReanalysisComposition {
                 }, completionAttempted: {
                     queue.requestReanalysisErasureRecovery()
                     dependencies.appEventPublisher.send(.scanLibraryChanged)
-                }))
+                }), audio: audioConfiguration(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared))
     }
 }

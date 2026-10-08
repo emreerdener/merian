@@ -162,3 +162,15 @@ is created and supplies a feature-owned grouped Insight environment value across
 the complete workspace, including navigation and modal hosts. It never installs
 individual global optional services. Explicit injected feature dependencies take
 precedence.
+
+### Prepared audio Capture assembly
+
+`PreparedHistoryReanalysisComposition+Audio` supplies an optional audio access
+inside the inert bundle. It uses the same cloud account and queue preparation
+owner. The adapter explicitly receives the network client, builds closed audio
+execution dependencies from the opened file store, and starts only the exact
+saved key/proof through `requestAudioExecution`. Cleanup uses the queue's
+existing erasure owner and completion publishes through the injected App event
+publisher. Account/session/generation and container validity govern retained
+work; no presentation predicate reaches the queue. Construction performs no I/O.
+The fixed-false App installer remains unchanged.

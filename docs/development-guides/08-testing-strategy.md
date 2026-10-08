@@ -11242,3 +11242,24 @@ affected source guards, DTO21, docs26 and scoped seven-target membership passed;
 independent source/documentation re-review was clear. This is focused
 shared-worktree verification, not a clean-candidate full run. The prior full
 milestone and its unrelated Auth-size failure remain recorded above.
+
+### Prepared audio access gate
+
+`CaptureAudioReanalysisAccessTests` exercises the inert bundle with real
+preparation/binding and injected authorization/queue boundaries. It checks the
+short opening lease, exact source/key/proof and generation, same-request retry
+after queue unavailability, and owner/session/generation/container/presentation
+invalidation before submission. Construction causes no authorization or work;
+ordinary App installation remains nil. Run alongside composition, frozen audio
+session, queue/owner and Offline Sync/Core architecture suites. These checks do
+not establish live UI or exact saved-child reopening/restart recovery.
+
+This access checkpoint passed 36 tests across all seven exact suites, with zero
+failures or skips (XCResult `9a70ddbefb474942932f8d150fe1258e`). Strict lint,
+source guards, DTO21, docs26, Markdown28 and scoped seven-target membership
+passed; independent source and documentation review was clear. The initial
+verification command used a nonexistent DTO Make target after the source guards
+passed; the correct `validate-edge-dto-contract` then passed. No native test
+failure occurred. This is focused shared-worktree verification, not a new full
+native milestone or clean-candidate full pass. Existing failed evidence and the
+prior full-run Auth-size limitation remain preserved.
