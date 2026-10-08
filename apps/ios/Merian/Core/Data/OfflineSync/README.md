@@ -933,3 +933,20 @@ rechecks settlement scope before notifying its caller, all inside the retained
 lease. It creates no unretained cleanup task and never joins the backlog loop.
 App/UI callers, automatic adoption and scheduler integration remain absent.
 Closing a presentation does not cancel or erase durable audio work.
+
+### Retained audio status ownership
+
+`audioStatusOwner` retains the bounded local
+`AnalysisHistory/ObservationAudioStatusOwner`, separately from the one-operation
+`audioExecutionOwner`. Four exact account/parent/page scopes can run; equal
+scopes coalesce. The account lease belongs to the retained read task, not a
+presentation waiter, and finishes before its slot is removed.
+
+Both `awaitRetainedSyncQuiescenceForAuthTransition` and
+`quiesceBackgroundAccountWorkForAuthTransition` invalidate status reads before
+awaiting other owners, then await actual status task exit before Auth drains
+leases. Overlapping drains and newer invalidations cannot reopen admission
+early. Local reads do not depend on network availability or inference consent;
+the owner is absent from the scheduler and creates no execution wake. See the
+[offline pipeline](../../../../../../docs/backend-and-data/01-offline-sync-pipeline.md#retained-audio-status-account-lifetime)
+for account versus waiter cancellation. Status access and UI remain uninstalled.

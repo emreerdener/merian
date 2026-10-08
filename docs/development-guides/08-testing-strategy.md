@@ -11355,3 +11355,29 @@ retained. Independent source and fixture re-review was clear; source
 guards/DTO21 and strict lint passed. Native tests used the shared worktree, not
 a clean-candidate full gate. Prior overlapping Auth architecture-size failure
 and external qualification remain separate.
+
+### Retained audio status owner gate
+
+`ObservationAudioStatusOwnerTests` proves exact-page coalescing, four-read
+capacity, cancellation of one joined waiter without cancelling shared work,
+lease release before slot removal, invalid account/session/environment denial,
+overlapping drains, and a later invalidation surviving an earlier drain. Both
+actual queue Auth quiescence seams are exercised with a read deliberately
+retained until released. Source checks keep the owner out of generic scheduling.
+No UI, polling or provider execution is installed by this checkpoint.
+
+The final focused run passed 52 tests across nine verified suites, with zero
+failures/skips: status owner, saved status, audio execution owner, publication
+recovery owner, background transfer architecture/ownership, Offline Sync
+Foundation, Core-wide Integration and Models Integration architecture. XCResult:
+`5ca2578b49cd4fc290d42bf18e50c458`. The initial run failed compilation before
+any tests because a default argument constructed a MainActor-isolated reader;
+the owner now requires explicit injection and the test helper constructs its
+default inside MainActor. Failed evidence `fc162b0076974c99925731b05f2169f6` is
+retained. Strict lint and affected source and DTO guards passed. Independent
+ownership review was clear.
+
+These tests ran in the shared worktree, not a clean-candidate full suite. The
+previous full-native milestone's unrelated Auth architecture-size failure is not
+resolved or relabelled by this focused pass. Device, runtime, external
+storage/erasure and activation acceptance remain separate.

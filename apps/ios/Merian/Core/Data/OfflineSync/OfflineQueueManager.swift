@@ -121,6 +121,7 @@ import SwiftData
     @ObservationIgnored lazy var reanalysisAdmissionRuntime = makeReanalysisAdmissionRuntime()
     @ObservationIgnored let reanalysisExecutionOwner = ObservationReanalysisExecutionOwner()
     @ObservationIgnored let audioExecutionOwner = ObservationAudioExecutionOwner()
+    @ObservationIgnored let audioStatusOwner = ObservationAudioStatusOwner()
     private(set) var reanalysisExecutionGeneration: UInt64 = 0
     func reanalysisExecutionDidFinish(ownerID: UUID, context: ModelContext, currentOwnerID: UUID?) {
         guard currentOwnerID == ownerID, modelContext === context else { return }

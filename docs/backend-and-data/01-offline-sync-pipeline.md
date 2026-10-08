@@ -2781,3 +2781,24 @@ Pages are advisory per-child reads, not an atomic execution snapshot or proof
 that new work is admissible. A later explicit action revalidates through exact
 resume and queue admission. Retained account-scoped presentation, saved-child
 selection UI and ordinary App installation remain separate work.
+
+### Retained audio status account lifetime
+
+The queue's `audioStatusOwner` retains up to four local status reads. Coalescing
+requires the same owner, observation, account session, generation, container,
+cursor and page limit. The injected reader remains responsible for locked
+identity/proof validation; the owner checks the captured account lease around
+the await. Lease release precedes slot removal, including failure and
+cancellation. The owner has no idle lease, polling or connectivity requirement.
+
+Cancelling one joined waiter only withholds that page. Its presentation must be
+checked separately after return; it cannot cancel another waiter or substitute
+for the common account predicate. Exact common-scope cancellation and Auth
+invalidation cancel retained work. Both queue Auth quiescence seams close
+admission immediately, then await actual read exit before account-lease drain. A
+drain count and invalidation token preserve closure across overlapping drains
+and a later invalidation; cancellation alone never releases a live read's slot.
+
+No status access or selection UI is installed by this owner. Reading neither
+starts execution nor authorizes retry or replacement. Every explicit saved-child
+action still requires exact resume and execution admission. Gates remain false.

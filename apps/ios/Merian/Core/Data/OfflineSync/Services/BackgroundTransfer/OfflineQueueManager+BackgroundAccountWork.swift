@@ -110,6 +110,7 @@ extension OfflineQueueManager {
     ) async -> Bool {
         protectedChatDeliveryOwner.invalidate()
         audioExecutionOwner.invalidate()
+        audioStatusOwner.invalidate()
         confirmationUndoOwner.cancelAll()
         rejectionUndoOwner.cancelAll()
         analysisReviewDeliveryOwner.cancel()
@@ -119,6 +120,7 @@ extension OfflineQueueManager {
         await analysisReviewDeliveryOwner.cancelAndAwait()
         await protectedChatDeliveryOwner.invalidateAndAwait()
         await audioExecutionOwner.invalidateAndAwait()
+        await audioStatusOwner.invalidateAndAwait()
         syncTask?.cancel()
         retryBackoffTask?.cancel()
         let clock = ContinuousClock()

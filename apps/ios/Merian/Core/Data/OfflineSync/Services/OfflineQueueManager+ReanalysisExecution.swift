@@ -37,6 +37,7 @@ extension OfflineQueueManager {
         protectedChatRefreshOwner.cancelAll()
         protectedChatDeliveryOwner.invalidate()
         audioExecutionOwner.invalidate()
+        audioStatusOwner.invalidate()
         confirmationUndoOwner.cancelAll()
         rejectionUndoOwner.cancelAll()
         analysisReviewDeliveryOwner.cancel()
@@ -59,5 +60,6 @@ extension OfflineQueueManager {
         await analysisReviewDeliveryOwner.cancelAndAwait()
         await protectedChatDeliveryOwner.invalidateAndAwait()
         await audioExecutionOwner.invalidateAndAwait()
+        await audioStatusOwner.invalidateAndAwait()
     }
 }

@@ -1712,3 +1712,21 @@ work. Its caller must supply current common owner/generation/container scope.
 Per-child facts can advance between reads; any later explicit action must use
 the exact resume boundary and its fresh validation. No status access, UI route
 or automatic dispatch consumer is installed by this foundation.
+
+### Retained saved audio status reads
+
+`ObservationAudioStatusOwner` is retained by `OfflineQueueManager` and accepts
+an explicitly injected reader and account client. It coalesces exact
+owner/observation/session/generation/container/cursor/limit scopes, with at most
+four active reads. Its task acquires the account lease and releases it before
+removing the entry. Scope and cancellation are checked around the reader await;
+no lease survives as idle presentation state.
+
+A joined waiter's cancellation withholds only that waiter's result. Callers must
+check their own presentation after return and must not put presentation
+currentness in the shared account predicate. Exact common-scope cancellation and
+Auth invalidation cancel retained reads. An invalidation token prevents an older
+drain from reopening a newer invalidation; a separate drain count blocks
+admission throughout overlapping drains. Both queue Auth teardown seams await
+actual reader exit and lease release. Pages remain advisory: this owner adds no
+status access/UI, polling, scheduler, file access or execution authority.
