@@ -14,6 +14,7 @@ struct PreparedHistoryReanalysisComposition {
 
     let history: IdentificationHistoryAccess
     let status: ReanalysisStatusAccess
+    let audioHostOwner: CaptureAudioReanalysisHostOwner?
     let audioCapture: CaptureAudioReanalysisAccess?
     let audioStatus: CaptureAudioStatusAccess?
     let capture: CaptureReanalysisAccess
@@ -39,12 +40,14 @@ struct PreparedHistoryReanalysisComposition {
          retirement: ReanalysisStatusAccess.RetirementConfiguration? = nil,
          audio: CaptureAudioReanalysisAccess.Configuration? = nil,
          audioStatusOwner: ObservationAudioStatusOwner? = nil,
+         audioHostOwner: CaptureAudioReanalysisHostOwner? = nil,
          documents: @escaping @MainActor () throws -> URL = {
              try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
          },
          downloadPhoto: @escaping @Sendable (ObservationHistoryPhotoTicket) async throws -> Data = { ticket in
              try await PrivateHistoryPhotoTransport.download(ticket)
          }) {
+        self.audioHostOwner = audio.map { _ in audioHostOwner ?? CaptureAudioReanalysisHostOwner() }
         let photos = ObservationHistoryPhotoLoader(account: cloud, resolve: cloud.resolvePhoto, download: downloadPhoto)
         let session: (String, ModelContainer) throws -> IdentificationHistorySession = { id, container in
             try IdentificationHistorySession(observation: id, container: container, cloud: cloud, photos: photos,

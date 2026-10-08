@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftData
 
 /// Parent-retained candidate. Closing its presentation never releases uncertain request occupancy.
 @MainActor @Observable
@@ -10,6 +11,7 @@ final class CaptureAudioReanalysisHost {
     private var opened: CaptureAudioReanalysisAccess.Opened?
     private var presentation = UUID()
     private var work: Task<Void, Never>?
+    private var invalidationHandler: (() -> Void)?
 
     init(opened: CaptureAudioReanalysisAccess.Opened) { self.opened = opened }
 
@@ -68,11 +70,54 @@ final class CaptureAudioReanalysisHost {
     }
 
     func invalidate() {
+        guard opened != nil else { return }
         close(); opened = nil
+        invalidationHandler?()
     }
+
+    func onInvalidation(_ action: @escaping () -> Void) { invalidationHandler = action }
 
     @discardableResult private func validate() -> Bool {
         guard isCurrent else { invalidate(); return false }
         return true
+    }
+}
+
+/// One parent lifetime. Capacity never evicts a candidate or grants replacement authority.
+@MainActor
+final class CaptureAudioReanalysisHostOwner {
+    private struct Key: Hashable {
+        let owner: UUID
+        let observation: UUID
+        let source: UUID
+        let container: ObjectIdentifier
+    }
+    private var hosts: [Key: CaptureAudioReanalysisHost] = [:]
+    private var isInvalidated = false
+
+    func open(target: HistoricalReanalysisTarget, container: ModelContainer,
+              make: () throws -> CaptureAudioReanalysisHost) throws -> CaptureAudioReanalysisHost {
+        guard !isInvalidated else { throw ObservationHistoryError.accountChanged }
+        // Do not discard a stale entry and silently authorize a replacement in a newer account scope.
+        guard hosts.values.allSatisfy(\.isCurrent) else {
+            invalidate(); throw ObservationHistoryError.accountChanged
+        }
+        let key = Key(owner: target.ownerID, observation: target.observationID,
+            source: target.analysisID, container: ObjectIdentifier(container))
+        if let host = hosts[key] { return host }
+        guard hosts.count < 4 else { throw ObservationHistoryError.unavailable }
+        let host = try make()
+        guard !isInvalidated, host.isCurrent else { host.invalidate(); throw ObservationHistoryError.accountChanged }
+        host.onInvalidation { [weak self] in self?.invalidate() }
+        hosts[key] = host
+        return host
+    }
+
+    func invalidate() {
+        guard !isInvalidated else { return }
+        isInvalidated = true
+        for host in hosts.values { host.invalidate() }
+        hosts.removeAll()
+        // A closed owner cannot become a fresh-admission capability, even after waiters exit.
     }
 }

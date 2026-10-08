@@ -17,7 +17,11 @@ struct CaptureAudioReanalysisHostTests {
         let binding = ObservationAudioSubmissionBinding(ownership: owner, account: account, authorize: { _, validate in
             try validate(); authorizations += 1; return .init(recipient: .gemini, validate: validate)
         })
-        let host = CaptureAudioReanalysisHost(opened: .init(session: session, isCurrent: { true }, submit: { current in
+        let parent = CaptureAudioReanalysisHostOwner()
+        let target = HistoricalReanalysisTarget(observationID: seed.source.observationID,
+            analysisID: seed.source.analysisID, ownerID: seed.source.ownerID)
+        let host = try parent.open(target: target, container: seed.container) {
+            CaptureAudioReanalysisHost(opened: .init(session: session, isCurrent: { true }, submit: { current in
             try await session.submit(generation: session.generation, producer: producer, binding: binding,
                 isCurrentAccount: { true }, isCurrentPresentation: current, save: { context in
                     if fail {
@@ -26,7 +30,8 @@ struct CaptureAudioReanalysisHostTests {
                     }
                     try context.save()
                 }, start: { snapshot, _ in starts.append(snapshot.work.intent.request.analysisID); return .unavailable })
-        }))
+            }))
+        }
         #expect(host.present())
         host.submit([.description("Before"), .audio(seed.bytes), .description("After")])
         let id = try #require(host.analysisID), plan = try #require(session.plan)
@@ -35,6 +40,9 @@ struct CaptureAudioReanalysisHostTests {
         #expect(host.message != nil && starts.isEmpty)
         host.close(); #expect(!host.isPresented && host.analysisID == id)
         fail = false
+        #expect(try parent.open(target: target, container: seed.container, make: {
+            Issue.record("Uncertain candidate was replaced"); throw MerianError.invalidResponse
+        }) === host)
         #expect(host.present()); host.retry()
         while host.isBusy { await Task.yield() }
         #expect(host.analysisID == id && session.plan?.choices == plan.choices && starts == [id])
@@ -102,11 +110,63 @@ struct CaptureAudioReanalysisHostTests {
             start: { _, _, _, _ in Issue.record("Opening started execution"); return .started }))
         #expect(leases == 0)
         let host = try prepared.openAudioHost(target: target, container: seed.container)
+        let copied = prepared
+        #expect(try copied.openAudioHost(target: target, container: seed.container) === host)
         #expect(leases == 0 && host.analysisID == nil && !host.isPresented)
         #expect(host.present()); host.close(); #expect(host.present())
         current = false
         #expect(!host.present() && !host.isCurrent && leases == 0)
         #expect(try ModelContext(seed.container).fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
+    }
+
+    @Test func parentOwnerNeverEvictsAndInvalidationNeverReopensAdmission() throws {
+        let seed = try fixture.seed(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let owner = CaptureAudioReanalysisHostOwner()
+        var created = 0, current = true
+        func target(_ source: UUID) -> HistoricalReanalysisTarget {
+            .init(observationID: seed.source.observationID, analysisID: source, ownerID: seed.source.ownerID)
+        }
+        func make() -> CaptureAudioReanalysisHost {
+            created += 1
+            return .init(opened: .init(session: .init(source: seed.source, generation: UUID(), container: seed.container),
+                isCurrent: { current }, submit: { _ in Issue.record("Unexpected execution"); return .unavailable }))
+        }
+        let original = target(seed.source.analysisID)
+        let first = try owner.open(target: original, container: seed.container, make: make)
+        #expect(first.present()); first.close()
+        #expect(try owner.open(target: original, container: seed.container, make: make) === first)
+        var cached = [first]
+        for _ in 0..<3 { cached.append(try owner.open(target: target(UUID()), container: seed.container, make: make)) }
+        #expect(cached[1].present())
+        #expect(created == 4)
+        #expect(throws: (any Error).self) { try owner.open(target: target(UUID()), container: seed.container, make: make) }
+        #expect(try owner.open(target: original, container: seed.container, make: make) === first)
+        current = false
+        #expect(!first.present())
+        #expect(!cached[1].isCurrent && !cached[1].isPresented)
+        #expect(throws: (any Error).self) { try owner.open(target: original, container: seed.container, make: make) }
+        current = true
+        #expect(throws: (any Error).self) { try owner.open(target: original, container: seed.container, make: make) }
+        #expect(created == 4 && !first.isCurrent && !first.isPresented)
+    }
+
+    @Test func parentOwnerFailedOpeningDoesNotConsumeCapacityAndReentrantInvalidationWins() throws {
+        let seed = try fixture.seed(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let owner = CaptureAudioReanalysisHostOwner()
+        let target = HistoricalReanalysisTarget(observationID: seed.source.observationID,
+            analysisID: seed.source.analysisID, ownerID: seed.source.ownerID)
+        for _ in 0..<5 {
+            #expect(throws: (any Error).self) {
+                try owner.open(target: target, container: seed.container, make: { throw MerianError.invalidResponse })
+            }
+        }
+        let host = CaptureAudioReanalysisHost(opened: .init(session: .init(source: seed.source,
+            generation: UUID(), container: seed.container), isCurrent: { true }, submit: { _ in .unavailable }))
+        #expect(throws: (any Error).self) {
+            try owner.open(target: target, container: seed.container, make: { owner.invalidate(); return host })
+        }
+        #expect(!host.isCurrent)
+        #expect(throws: (any Error).self) { try owner.open(target: target, container: seed.container, make: { host }) }
     }
 
 }

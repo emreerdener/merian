@@ -711,13 +711,21 @@ prove persistence, exact consumed recovery and account ownership.
 
 `CaptureAudioReanalysisHost` is an inert parent-retained presentation owner,
 constructed explicitly by `PreparedHistoryReanalysisComposition.openAudioHost`.
-It does not install a workspace route or sheet. Before a route can use this
-factory, its parent must retain/index one host for the exact owner, observation,
-source analysis and container, and refuse replacement while a candidate or
-waiter exists. Construction of another host is not request recovery. That parent
-retention contract still needs implementation and tests; the inert factory alone
-does not enforce it. The opened access supplies its original common
-account/session/generation/container predicate without retaining an idle lease.
+It does not install a workspace route or sheet. The composition retains an
+injected or locally constructed `CaptureAudioReanalysisHostOwner` when audio
+access exists. Copies share this reference. The owner indexes at most four hosts
+by exact owner, observation, source analysis and container. Opening the same key
+returns the same host without another access opening or lease. Capacity denies
+new keys before opening access; it never evicts a retained candidate.
+
+Errors, closure, task exit and apparent completion do not release entries.
+Common scope loss invalidates the host and, through a weak callback, the whole
+parent. Parent invalidation closes every host and permanently denies further
+opens, including after waiters exit. A new composition is not evidence that
+durable work is absent: startup/new-account UI admission still must use
+saved-child recovery before offering a new request. This checkpoint adds no
+release or replacement authority. The opened access retains its original
+account/session/generation/ container predicate without an idle lease.
 
 The final submit tap freezes canonical audio, ordered descriptions and
 child/media identity synchronously before launching the host waiter. Failed or
@@ -738,6 +746,9 @@ existing saved-child status/resume boundaries.
 failure followed by dismissal/reopening with the original UUID, exact input,
 single durable job and no repeated authorization for an existing binding;
 delayed waiter exit; changed-input rejection; and current-account loss through
-prepared access. These are domain tests. Rendered initial input, parent lifetime
-wiring, and the assembled Capture-to-History UI route remain open. The
-installation gate remains false and ordinary access nil.
+prepared access. Parent tests additionally cover exact reuse across composition
+copies, four-entry capacity without eviction, failed opening without admission,
+and permanent common-scope/reentrant invalidation. These are domain tests.
+Rendered initial input, parent lifetime wiring, and the assembled
+Capture-to-History UI route remain open. The installation gate remains false and
+ordinary access nil.
