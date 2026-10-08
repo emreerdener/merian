@@ -1658,8 +1658,9 @@ it contains no dispatch permit. Reading neither touches files nor obtains
 consent, mutates jobs, claims work or starts execution. Therefore bound outcome
 recovery can precede missing/expired-file handling. Preparation file recovery
 must still use the locked producer with original bytes/digests, never assume
-this read proves file availability. UI selection of an exact child and retained
-resume orchestration remain separate uninstalled work.
+this read proves file availability. Retained resume orchestration is described
+below; user selection of an exact saved child and ordinary App installation
+remain uninstalled.
 
 ### Retained explicit audio resume submission
 
@@ -1684,5 +1685,6 @@ starts no queue. A binding race after the initial re-read may fail this attempt;
 a later explicit same-identity retry recovers the binding without rewriting it.
 Throwing saves withhold success even when committed; reopening uses the same
 four IDs and durable request. No presentation predicate participates in these
-common account phases. UI/current-presentation handoff, saved-child selection
-and App resume installation remain separate.
+common account phases. The inert Capture audio access now owns
+current-presentation handoff with a fresh exact snapshot before queue start.
+Saved-child selection and ordinary App installation remain separate.

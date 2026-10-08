@@ -174,3 +174,12 @@ existing erasure owner and completion publishes through the injected App event
 publisher. Account/session/generation and container validity govern retained
 work; no presentation predicate reaches the queue. Construction performs no I/O.
 The fixed-false App installer remains unchanged.
+
+The same optional access now exposes explicit saved-child `openResume`. It
+accepts owner/observation/source/child IDs, freezes the current account session,
+generation and container through a short opening lease, then releases it. No
+source lookup or new Capture plan occurs at opening. Explicit resume delegates
+to the retained exact-proof reader and preparation/binding service. A fresh
+matching snapshot and both common and presentation checks precede the injected
+queue handoff. Presentation never enters retained execution. Construction and
+opening start no queue; ordinary installation and automatic adoption remain off.

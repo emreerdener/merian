@@ -70,4 +70,77 @@ struct CaptureAudioReanalysisAccessTests {
         #expect(bundle.audioCapture != nil)
         #expect(PreparedHistoryReanalysisComposition.appInstallation { bundle } == nil)
     }
+
+    @Test func explicitResumeHandsOffConsumedOriginalWithoutFilesConsentOrIdleLease() async throws {
+        let execution = ObservationAudioExecutionStoreTests()
+        let seed = try await execution.ready(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let initial = try execution.bind(seed)
+        let claim = try ObservationAudioExecutionStore.claim(initial, purpose: .initial, proof: seed.proof,
+            container: seed.container, isCurrent: { true })
+        let consumed = try ObservationAudioExecutionStore.consume(claim, proof: seed.proof, container: seed.container, isCurrent: { true })
+        try FileManager.default.removeItem(at: seed.file)
+        var leases = 0, starts = 0
+        var account = fixture.fixture.account(finish: { leases -= 1 })
+        account.begin = { owner in leases += 1; return .init(id: UUID(), session: .init(userID: owner, isAnonymous: false)) }
+        let access = CaptureAudioReanalysisAccess.prepared(account: account, ownership: .init(),
+            configuration: .init(authorize: { _, _ in Issue.record("Recovered binding requested consent"); throw MerianError.aiConsentRequired },
+                start: { key, proof, container, _ in
+                    starts += 1
+                    #expect(leases == 0 && key.snapshot == consumed.snapshot && proof.preparation == seed.preparation)
+                    #expect(key.generation == 12 && key.session.userID == seed.source.ownerID)
+                    #expect(key.container == ObjectIdentifier(seed.container) && container === seed.container)
+                    return .unavailable
+                }), currentOwner: { seed.source.ownerID }, generation: { 12 }, sessionIsCurrent: { _ in true },
+            containerIsCurrent: { $0 === seed.container }, documents: { seed.root })
+        let opened = try access.openResume(seed.preparation.identity, seed.container)
+        #expect(leases == 0 && starts == 0)
+        let first = try await opened.resume { true }
+        let second = try await opened.resume { true }
+        #expect(first == .unavailable && second == .unavailable && starts == 2 && leases == 0)
+    }
+
+    @Test(arguments: ["owner", "generation", "session", "container", "presentation"])
+    func resumeScopeLossDuringAuthorizationNeverHandsOff(_ change: String) async throws {
+        let execution = ObservationAudioExecutionStoreTests()
+        let seed = try await execution.ready(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        var owner = seed.source.ownerID, generation: UInt64 = 1, session = true, container = true, presentation = true, starts = 0
+        let access = CaptureAudioReanalysisAccess.prepared(account: fixture.fixture.account(), ownership: .init(),
+            configuration: .init(authorize: { _, validate in
+                switch change {
+                case "owner": owner = UUID()
+                case "generation": generation += 1
+                case "session": session = false
+                case "container": container = false
+                default: presentation = false
+                }
+                return .init(recipient: .gemini, validate: validate)
+            }, start: { _, _, _, _ in starts += 1; return .started }), currentOwner: { owner }, generation: { generation },
+            sessionIsCurrent: { _ in session }, containerIsCurrent: { _ in container }, documents: { seed.root })
+        let opened = try access.openResume(seed.preparation.identity, seed.container)
+        await #expect(throws: (any Error).self) { try await opened.resume { presentation } }
+        #expect(starts == 0)
+        let state = try ObservationAudioExecutionStore.admissionState(seed.proof, container: seed.container, isCurrent: { true })
+        if change == "presentation" {
+            guard case .bound = state else { Issue.record("Presentation loss discarded durable binding"); return }
+            let reopened = try access.openResume(seed.preparation.identity, seed.container)
+            let result = try await reopened.resume { true }
+            #expect(result == .started && starts == 1)
+        } else {
+            guard case .preparation(.admissionPending) = state else { Issue.record("Stale account bound work"); return }
+        }
+    }
+
+    @Test func closedResumePresentationDoesNotPrepareOrAuthorize() async throws {
+        let execution = ObservationAudioExecutionStoreTests()
+        let seed = try await execution.ready(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let access = CaptureAudioReanalysisAccess.prepared(account: fixture.fixture.account(), ownership: .init(),
+            configuration: .init(authorize: { _, _ in Issue.record("Closed presentation authorized"); throw MerianError.aiConsentRequired },
+                start: { _, _, _, _ in Issue.record("Closed presentation started"); return .started }), currentOwner: { seed.source.ownerID },
+            generation: { 1 }, sessionIsCurrent: { _ in true }, containerIsCurrent: { _ in true }, documents: { seed.root })
+        let opened = try access.openResume(seed.preparation.identity, seed.container)
+        await #expect(throws: (any Error).self) { try await opened.resume { false } }
+        guard case .preparation(.admissionPending) = try ObservationAudioExecutionStore.admissionState(seed.proof,
+            container: seed.container, isCurrent: { true }) else { Issue.record("Closed presentation changed admission"); return }
+    }
+
 }

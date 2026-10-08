@@ -623,7 +623,25 @@ file or network fallback is created.
 
 This access exists only in the inert App composition. It is not installed in
 ordinary workspace dependencies, routing or the photo editor. Presentation loss
-after durable preparation/binding leaves that work intact and inert; explicit
-reopening/resume by exact saved child and proof remains unimplemented. Opening a
-new session is not recovery of that work. No scheduler, automatic adoption or
-replacement is authorized. V4 source reuse remains unsupported.
+after durable preparation/binding leaves that work intact. A fresh session is
+not recovery of that work: the separate explicit saved-child access below
+recovers its original proof. No user-selected resume UI route is installed. No
+scheduler, automatic adoption or replacement is authorized. V4 source reuse
+remains unsupported.
+
+### Explicit saved audio resume access
+
+`CaptureAudioReanalysisAccess.openResume` accepts an explicit saved four-ID
+child scope. Unlike fresh `open`, it creates no source/plan or child/media UUID
+and defers source validation to the retained resume reader. Its short opening
+lease ends before returning the closure. The closure checks current presentation
+before work and after awaits, while retained preparation uses only common
+account/session/generation/container scope. Closing presentation can withhold
+queue handoff without cancelling a committed binding. Reopening with the same
+identity recovers that binding without new consent or local files.
+
+A fresh exact snapshot read precedes handoff to the existing App-injected queue
+entry. Consumed work preserves its outcome-only marker; resume grants no second
+provider invocation. No latest-child choice, automatic discovery or ordinary UI
+route is installed. A bounded user-selected saved-child surface remains
+required.

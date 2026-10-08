@@ -2619,8 +2619,8 @@ unchanged; no claim or dispatch capability is returned. After consumption
 commits then throws, the cancelled task can read the saved marker and hold it;
 it cannot use the failed call to authorize HTTP. Consumed held work permits only
 outcome recovery. Unconsumed held work still requires explicit fresh consent and
-the existing resume transaction. Runtime connection remains pending; no timer or
-automatic adoption was added.
+the existing resume transaction. The explicit retained queue connection
+preserves these fences; no timer or automatic adoption was added.
 
 ### Explicit audio execution ordering
 
@@ -2703,10 +2703,11 @@ receipt-bound erasure owners. Connectivity controls dispatch, while known-result
 settlement remains account scoped.
 
 The App installer stays false and ordinary Capture routing is unchanged. A
-closed presentation can leave durable work inert; an exact saved-child resume
-boundary and V4 source contract remain required before the complete audio UI
-journey is qualified. No opening, construction or ordinary scheduler dispatches
-that work.
+closed presentation can leave durable work inert. The explicit resume adapter
+below supplies the saved-child boundary; bounded child-selection UI, ordinary
+installation and the V4 source contract remain required before the complete
+audio journey is qualified. No opening, construction or ordinary scheduler
+dispatches that work.
 
 ### Exact audio child recovery proof
 
@@ -2744,3 +2745,19 @@ verifies the exact saved file under the filesystem lock, then uses current
 consent for binding. Concurrent binding may require another explicit same-ID
 retry; there is no automatic replacement, timer or provider replay. UI and queue
 handoff remain uninstalled, and activation stays disabled.
+
+### Inert explicit audio resume handoff
+
+The prepared audio access accepts an explicit owner/observation/source/child
+identity and freezes common account/session/generation/container scope with a
+short opening lease. It creates no new Capture plan and defers proof recovery to
+`ObservationAudioResumeSubmission`. No lease remains idle in the presentation.
+
+The returned closure gates entry and handoff on presentation currentness, but
+passes only common account scope to retained preparation and the execution
+queue. After recovery it requires a fresh exact saved snapshot before starting
+the existing queue owner. Presentation loss preserves committed binding for a
+later explicit same-ID resume; account loss prevents stale binding/handoff.
+Consumed requests retain outcome-only recovery, never a provider successor. The
+ordinary installer remains false. Bounded saved-child selection/status UI and
+automatic adoption are not introduced by this adapter.

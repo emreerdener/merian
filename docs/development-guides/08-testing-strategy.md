@@ -11311,3 +11311,25 @@ source validation at all external proof checks. Strict lint, affected source
 guards, DTO21 and documentation26 passed. Native tests used the shared worktree;
 this does not establish a clean-candidate full-suite pass or clear the
 previously recorded overlapping Auth architecture-size failure.
+
+### Explicit audio resume access gate
+
+`CaptureAudioReanalysisAccessTests` covers short opening leases, exact consumed
+request handoff without WAV or fresh consent, retry after queue unavailability,
+owner/generation/session/container changes during authorization, preclosed
+presentation, and presentation loss after durable binding followed by explicit
+reopening. The request/child and consumed marker remain exact; no queue start
+occurs from stale scope. Lower resume-store tests retain malformed/cross-scope
+identity coverage.
+
+The focused access checkpoint passed 37 tests across seven exact suites with
+zero failures/skips: access, `ObservationAudioResumeSubmissionTests`,
+`CaptureAudioReanalysisSessionTests`, `ObservationAudioQueueExecutionTests`,
+`ObservationAudioExecutionOwnerTests`, `OfflineSyncFoundationArchitectureTests`
+and `CoreIntegrationArchitectureTests`. Evidence:
+`ce07e0d389cc4b9a8cb6b24a5fe03518.xcresult`. Source guards and DTO21 passed.
+Independent source review found no safety blocker; its comment correction
+distinguishes source-freezing fresh entry from scope-only resume opening. Tests
+ran in the shared worktree; no clean-candidate full-suite pass or resolution of
+the prior overlapping Auth size failure is claimed. No media/UI activation or
+external qualification follows from this adapter.
