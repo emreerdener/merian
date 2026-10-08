@@ -2802,3 +2802,19 @@ and a later invalidation; cancellation alone never releases a live read's slot.
 No status access or selection UI is installed by this owner. Reading neither
 starts execution nor authorizes retry or replacement. Every explicit saved-child
 action still requires exact resume and execution admission. Gates remain false.
+
+### Inert audio status presentation boundary
+
+`CaptureAudioStatusAccess` captures exact owner/observation/session/generation/
+container scope during a short leased opening. The reader's shared-lock parent
+validator checks current enrollment without enumerating children. The lease ends
+before the page closure escapes. The injected queue status owner retains only
+active page reads, repeating parent/proof validation and accounting for all
+cursor and page-limit checks.
+
+Presentation currentness is checked before and after each awaited page and is
+never part of shared account ownership. A cancelled or stale waiter receives no
+page; it does not cancel a different joined waiter. The inert composition
+installs this optional capability separately from audio capture/resume, using
+the same injected cloud and account context. Ordinary App installation stays
+false. No UI route, selection, execution wake or automatic recovery is added.

@@ -1730,3 +1730,13 @@ drain from reopening a newer invalidation; a separate drain count blocks
 admission throughout overlapping drains. Both queue Auth teardown seams await
 actual reader exit and lease release. Pages remain advisory: this owner adds no
 status access/UI, polling, scheduler, file access or execution authority.
+
+### Inert audio status access
+
+The prepared App bundle now injects the queue's status owner into
+`CaptureAudioStatusAccess`. Its synchronous opening uses the reader's
+`validateParentScope` shared-lock validator without enumerating work, and
+releases its short account lease before returning. Actual pages still repeat
+parent and proof validation. This early opening fence adds no admission or
+execution authority. The access keeps presentation checks outside the retained
+owner; ordinary routes and saved-child selection UI remain absent.

@@ -645,3 +645,20 @@ entry. Consumed work preserves its outcome-only marker; resume grants no second
 provider invocation. No latest-child choice, automatic discovery or ordinary UI
 route is installed. A bounded user-selected saved-child surface remains
 required.
+
+### Inert saved audio status access
+
+`CaptureAudioStatusAccess` is separate from submission and resume. Opening
+requires explicit owner/observation/container, captures the account session and
+generation, validates the enrolled parent through the status reader's shared
+lock, and releases the opening lease. The returned page closure delegates
+cursor/limit handling to the injected retained `ObservationAudioStatusOwner`. It
+acquires no idle lease and exposes no execution action.
+
+Only common owner/session/generation/container checks reach the retained owner.
+The waiter checks its own cancellation and presentation before and after the
+await; a stale presentation cannot receive a private page or cancel another
+waiter's shared read. Account loss, deletion and enrollment holds fail closed.
+The prepared App bundle supplies the queue's owner explicitly. Construction
+starts nothing, ordinary access stays nil, and no route or child-selection UI is
+installed. An advisory page never authorizes new work or redispatch.

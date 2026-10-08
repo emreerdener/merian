@@ -11381,3 +11381,28 @@ These tests ran in the shared worktree, not a clean-candidate full suite. The
 previous full-native milestone's unrelated Auth architecture-size failure is not
 resolved or relabelled by this focused pass. Device, runtime, external
 storage/erasure and activation acceptance remain separate.
+
+### Inert audio status access gate
+
+`CaptureAudioStatusAccessTests` covers inert composition, opening without an
+idle lease, original child identity, owner/generation/session/container and
+presentation loss after opening, account/presentation/deletion during reads, and
+wrong-owner or missing-parent opening. Actual pages reuse the retained owner;
+opening reuses the reader's shared-lock parent validator. Existing owner tests
+cover joined-waiter cancellation and both Auth drains. No UI or execution action
+is installed.
+
+The checkpoint passed 32 focused tests across six verified suites (access, audio
+reanalysis access, saved status, status owner, Core-wide Integration and Offline
+Sync Foundation), then 20 tests across History Reanalysis Composition, App Root
+Architecture and Models Integration. Both runs had zero failures or skips.
+XCResults: `1b001ed4061b465cb8f598ca6d83060c` and
+`d8b7d99726b147e19a4de05bf35b6efa`. Strict lint passed without cache after the
+first invocation encountered a sandbox cache-write permission error; no source
+or test failure occurred. Affected source guards and DTO21 passed. Independent
+source review was clear.
+
+Native evidence is from the shared worktree, not a full clean-candidate run. The
+previously documented overlapping Auth architecture-size failure remains
+separate. This inert access does not establish audio UI, runtime/device,
+external storage/erasure or activation acceptance.

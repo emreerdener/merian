@@ -15,6 +15,7 @@ struct PreparedHistoryReanalysisComposition {
     let history: IdentificationHistoryAccess
     let status: ReanalysisStatusAccess
     let audioCapture: CaptureAudioReanalysisAccess?
+    let audioStatus: CaptureAudioStatusAccess?
     let capture: CaptureReanalysisAccess
     let reanalyze: SavedIdentificationReanalysisAccess
     let protectedChat: ProtectedInsightChatAccess
@@ -37,6 +38,7 @@ struct PreparedHistoryReanalysisComposition {
          protectedChat: ProtectedInsightChatAccess.Configuration? = nil,
          retirement: ReanalysisStatusAccess.RetirementConfiguration? = nil,
          audio: CaptureAudioReanalysisAccess.Configuration? = nil,
+         audioStatusOwner: ObservationAudioStatusOwner? = nil,
          documents: @escaping @MainActor () throws -> URL = {
              try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
          },
@@ -57,6 +59,10 @@ struct PreparedHistoryReanalysisComposition {
         reanalyze = .prepared(cloud: cloud, enrollment: enrollmentOwner, currentOwner: currentOwner,
             generation: generation, sessionIsCurrent: sessionIsCurrent, containerIsCurrent: containerIsCurrent,
             dispatch: { routes.request(.historicalReanalysis($0), source: .internalUserAction) })
+        audioStatus = audioStatusOwner.map { owner in
+            .prepared(account: cloud, owner: owner, reader: .init(), currentOwner: currentOwner,
+                generation: generation, sessionIsCurrent: sessionIsCurrent, containerIsCurrent: containerIsCurrent)
+        }
         audioCapture = audio.map { configuration in
             .prepared(account: cloud, ownership: preparationOwner, configuration: configuration,
                 currentOwner: currentOwner, generation: generation, sessionIsCurrent: sessionIsCurrent,
@@ -112,6 +118,7 @@ struct PreparedHistoryReanalysisComposition {
                 }, completionAttempted: {
                     queue.requestReanalysisErasureRecovery()
                     dependencies.appEventPublisher.send(.scanLibraryChanged)
-                }), audio: audioConfiguration(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared))
+                }), audio: audioConfiguration(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared),
+                audioStatusOwner: queue.audioStatusOwner)
     }
 }

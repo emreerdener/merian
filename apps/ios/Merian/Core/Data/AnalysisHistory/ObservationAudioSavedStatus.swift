@@ -66,6 +66,14 @@ struct ObservationAudioSavedStatus {
             omittedCount: min(limit, links.count) - items.count)
     }
 
+    /// Opening fence only: no enumeration, lease, file read or admission authority.
+    func validateParentScope(ownerID: UUID, observationID: UUID, container: ModelContainer, isCurrent: () -> Bool) throws {
+        try ConfirmedSpeciesReviewPersistence.transaction {
+            try validate(owner: ownerID.uuidString.lowercased(), parent: observationID.uuidString.lowercased(),
+                container: container, isCurrent: isCurrent)
+        }
+    }
+
     /// Caller holds the shared lock; never nest it.
     private func validate(owner: String, parent: String, container: ModelContainer, isCurrent: () -> Bool) throws {
         try Task.checkCancellation()
