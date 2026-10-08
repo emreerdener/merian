@@ -388,3 +388,25 @@ and serializable calls fail closed with
 `analysis_history_current_snapshot_required`; a frozen snapshot cannot hide a
 committed deletion. Saved quota replay does not assert that its original lease
 is still live.
+
+### Source execution lock preparation
+
+Migration `20261008213302_prepare_source_execution_lock_order.sql` installs a
+private entry helper before intent row locks in claim/recovery, dispatch, draft
+recording, completion, failure and the public work-advance owner. V2/V3 append
+uses the same ordering before its own result/child locks. Supported isolation is
+read committed/read uncommitted. Owner/deletion authorization precedes binding
+inspection; bound work takes source, child ingestion and child evidence locks,
+then verifies immutable saved-intent input/fingerprint association.
+
+This helper establishes identity and lock order without requiring live
+occupancy, media rows or unexpired uploads. Existing operation-specific token,
+payload and receipt checks still apply. Apparently unbound calls take child
+locks and reread binding absence; a binding committed during the wait holds
+instead of acquiring a source lock late. Unbound behavior is preserved under
+supported isolation.
+
+This is lock preparation, not execution authority. Source-bound invocation
+remains denied. Original-quota dispatch proof and atomic retirement/release
+remain separate coordinated checkpoints before source access opens. No public
+signature, grant, gate or provider successor is introduced.
