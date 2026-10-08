@@ -23,8 +23,10 @@ disconnected. The backend reader, enrollment and selection gates remain false.
   cannot create a review/publication ticket, enter photo loading, or become an
   empty legacy Capture source. Selection and selection Undo also reject V4 in
   fresh staging and persisted replay; Restore explains the unavailable format.
-  Durable native audio execution and separate action admission remain
-  prerequisites. Enrollment remains reader 9 and photo resolution remains 8.
+  Explicit `captureForAudio` can retain V4 as immutable source provenance for a
+  new WAV with optional caller-supplied descriptions; it never loads the
+  original WAV. Separate review, selection and publication admission remains
+  held. Enrollment remains reader 9 and photo resolution remains 8.
 - `ObservationHistorySyncService` owns page admission and the shared immutable
   child insertion helper. Every call reads one page and returns the server
   continuation only after the local transaction succeeds. It never assigns
@@ -1517,10 +1519,14 @@ callback and rollback behavior are unchanged. Both actions retain their original
 identity across disk restart and promotion failure. Commit-then-throw admission
 retains submitted `files_pending` before any WAV is written; a failure before
 commit creates no work, and explicit retry uses the same preparation. Existing
-photo file/recovery/producer tests remain the shared-storage regression gate. No
-audio Capture submission, automatic admission, provider execution or V4
-historical source loader is connected by this checkpoint; all activation gates
-stay false.
+photo file/recovery/producer tests remain the shared-storage regression gate.
+Later prepared audio submission and execution owners retain this proof. The
+explicit `captureForAudio` source entry accepts a strictly decoded V4 snapshot
+and its audio reference, preserving exact source bytes through validation and
+reopening. Default source capture and photo preparation/selection still deny V4.
+New audio evidence must use a distinct media ID and explicit input bytes; there
+is no historical WAV loader or implicit media/description reuse. All activation
+gates stay false.
 
 ### Inert audio request binding and claims
 

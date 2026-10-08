@@ -11,8 +11,8 @@ struct ObservationAudioExecutionStoreTests {
     let fixture = ObservationAudioPreparationTests()
     let authorization = IdentificationDispatchAuthorization(recipient: .gemini, validate: {})
 
-    func ready() async throws -> ObservationAudioPreparationTests.Seed {
-        let seed = try fixture.seed(action: .submit)
+    func ready(sourceVersion: Int = 3) async throws -> ObservationAudioPreparationTests.Seed {
+        let seed = try fixture.seed(action: .submit, sourceVersion: sourceVersion)
         _ = try await fixture.producer(seed).prepare(seed.preparation, source: seed.source, bytes: seed.bytes,
             container: seed.container, isCurrent: { true })
         return seed

@@ -11230,8 +11230,9 @@ binding.
 
 Run with photo Capture session, audio binding/preparation/queue, frozen source
 and Offline Sync/Core architecture suites. These tests exercise prepared owners;
-ordinary Capture installation, complete restart journeys, V4 audio source proof,
-device and hosted qualification remain separate.
+ordinary Capture installation, complete restart journeys, device and hosted
+qualification remain separate. The later audio-only V4 source qualification
+below covers its exact source and resume boundary.
 
 The session checkpoint passed 48 tests across those eight exact suites, with
 zero failures or skips (XCResult `028c167c137e44738e4356e800fa5b48`). The
@@ -11463,3 +11464,27 @@ Auth/test/generated/documentation edits. This isolates tooling evidence; it is
 not a clean-candidate full native execution. Strict lint, source guards, DTO21
 and changed-Markdown formatting also passed. Independent source and final
 contract/documentation review found no remaining blocker in this checkpoint.
+
+### Audio-only V4 source qualification
+
+`ObservationReanalysisSourceTests` proves explicit audio capture retains V4
+bytes/reference while ordinary photo capture, photo selection and preparation
+deny it. Selection/review advancement does not replace the source; owner,
+deletion, enrollment and byte changes invalidate it. The plan requires an
+explicit new WAV, accepts optional caller-supplied descriptions and rejects the
+source media ID. A disk-reopened pending proof retains its original source and
+child identity without loading media. `ObservationAudioResumeStoreTests` covers
+V3/V4 pending, ready, bound, running, consumed and held states;
+`CaptureAudioReanalysisAccessTests` proves exact V4 opening, no idle lease,
+final input freeze and repeated binding handoff.
+
+The 2026-10-08 source checkpoint passed 64 tests across eight verified suites,
+zero failures/skips (XCResult `784c72e98b884048abdc45e935e780d7`). Existing
+history sync, photo producer/ownership and audio execution-store suites are
+included. The first test build failed on an optional revision increment in a new
+fixture; it was corrected before this pass. The initially requested nonexistent
+plan suite was replaced by its actual producer/ownership suites. These are
+focused shared-worktree results, not a new full-native green milestone. This
+change adds no schema, wire or server operation and does not activate ordinary
+audio routes, V4 review/selection/publication, original-audio loading or video
+support.

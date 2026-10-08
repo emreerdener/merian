@@ -555,6 +555,9 @@ A throwing bind save returns no start, including commit-then-throw. A later
 explicit retry preserves the plan and recovers its exact binding. Unavailable
 queue admission also retains the original plan and request. The session never
 discards work, remints an identity, selects the child or authorizes a second
-provider call. Source proof still explicitly excludes V4 audio sources; that
-remaining contract is separate. These owners are prepared only: no ordinary
-Capture dependency, router, editor or alternatives-card layout is changed.
+provider call. The audio-only source proof accepts exact V4 authority and
+rejects reuse of its media ID in the new evidence. It never inherits the source
+WAV or descriptions; the plan requires explicit input. Photo source capture and
+photo preparation continue to reject V4. These owners are prepared only: no
+ordinary Capture dependency, router, editor or alternatives-card layout is
+changed.

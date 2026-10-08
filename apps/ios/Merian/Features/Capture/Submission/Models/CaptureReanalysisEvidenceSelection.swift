@@ -7,7 +7,7 @@ struct CaptureReanalysisEvidenceSelection: Sendable {
     static let maximumPhotos = 5
 
     init(source: ObservationReanalysisSource, selectedPhotoIDs: Set<UUID>) throws {
-        guard selectedPhotoIDs.isSubset(of: Set(source.photos.map(\.mediaID))),
+        guard source.audio == nil, selectedPhotoIDs.isSubset(of: Set(source.photos.map(\.mediaID))),
               selectedPhotoIDs.count <= Self.maximumPhotos else { throw ObservationHistoryError.invalidSnapshot }
         var bytes = 0, textUnits = 0
         self.source = source

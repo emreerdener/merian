@@ -626,8 +626,11 @@ ordinary workspace dependencies, routing or the photo editor. Presentation loss
 after durable preparation/binding leaves that work intact. A fresh session is
 not recovery of that work: the separate explicit saved-child access below
 recovers its original proof. No user-selected resume UI route is installed. No
-scheduler, automatic adoption or replacement is authorized. V4 source reuse
-remains unsupported.
+scheduler, automatic adoption or replacement is authorized. Fresh audio opening
+and exact saved-child recovery use `captureForAudio`, which retains V4 source
+authority without loading its WAV. New submission still requires explicit new
+audio bytes; descriptions are optional and caller-supplied. Photo entry remains
+closed to V4.
 
 ### Explicit saved audio resume access
 

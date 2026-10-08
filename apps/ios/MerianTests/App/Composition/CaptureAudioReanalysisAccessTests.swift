@@ -7,8 +7,8 @@ import Testing
 struct CaptureAudioReanalysisAccessTests {
     let fixture = ObservationAudioPreparationTests()
 
-    @Test func inertCompositionOpensExactSourceWithoutIdleLeaseAndHandsOffOriginalScope() async throws {
-        let seed = try fixture.seed(); defer { try? FileManager.default.removeItem(at: seed.root) }
+    @Test(arguments: [3, 4]) func inertCompositionOpensExactSourceWithoutIdleLeaseAndHandsOffOriginalScope(sourceVersion: Int) async throws {
+        let seed = try fixture.seed(sourceVersion: sourceVersion); defer { try? FileManager.default.removeItem(at: seed.root) }
         var begins = 0, finishes = 0, authorizations = 0, starts = 0
         var account = fixture.fixture.account(finish: { finishes += 1 })
         account.begin = { owner in begins += 1; return .init(id: UUID(), session: .init(userID: owner, isAnonymous: false)) }

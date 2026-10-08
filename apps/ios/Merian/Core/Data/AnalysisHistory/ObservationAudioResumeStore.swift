@@ -16,7 +16,7 @@ enum ObservationAudioResumeStore {
         try Task.checkCancellation()
         guard isCurrent() else { throw ObservationHistoryError.accountChanged }
         // capture owns its own transaction; never nest the shared persistence lock.
-        let source = try ObservationReanalysisSource.capture(observationID: identity.observationID,
+        let source = try ObservationReanalysisSource.captureForAudio(observationID: identity.observationID,
             analysisID: identity.sourceAnalysisID, ownerID: identity.ownerID, container: container)
         let metadata = try ObservationReanalysisPersistence.transaction(identity, container: container, isCurrent: isCurrent,
             save: { _ in throw ObservationHistoryError.resultConflict }) { context in

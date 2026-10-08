@@ -7,9 +7,9 @@ import Testing
 struct ObservationAudioResumeStoreTests {
     let fixture = ObservationAudioExecutionStoreTests()
 
-    @Test(arguments: [false, true])
-    func originalPreparationRecoversWithoutFilesOrChangingPhase(ready: Bool) async throws {
-        let seed = try fixture.fixture.seed(action: .submit); defer { try? FileManager.default.removeItem(at: seed.root) }
+    @Test(arguments: [false, true], [3, 4])
+    func originalPreparationRecoversWithoutFilesOrChangingPhase(ready: Bool, sourceVersion: Int) async throws {
+        let seed = try fixture.fixture.seed(action: .submit, sourceVersion: sourceVersion); defer { try? FileManager.default.removeItem(at: seed.root) }
         _ = try fixture.fixture.phase(seed)
         if ready {
             _ = try await fixture.fixture.producer(seed).prepare(seed.preparation, source: seed.source, bytes: seed.bytes,
@@ -26,9 +26,9 @@ struct ObservationAudioResumeStoreTests {
         #expect(!FileManager.default.fileExists(atPath: seed.file.path))
     }
 
-    @Test(arguments: ["idle", "running", "consumed", "held"])
-    func boundRecoveryPreservesExactRequestAndConsumedMarker(_ mode: String) async throws {
-        let seed = try await fixture.ready(); defer { try? FileManager.default.removeItem(at: seed.root) }
+    @Test(arguments: ["idle", "running", "consumed", "held"], [3, 4])
+    func boundRecoveryPreservesExactRequestAndConsumedMarker(_ mode: String, sourceVersion: Int) async throws {
+        let seed = try await fixture.ready(sourceVersion: sourceVersion); defer { try? FileManager.default.removeItem(at: seed.root) }
         var expected = try fixture.bind(seed)
         if mode != "idle" {
             let claim = try ObservationAudioExecutionStore.claim(expected, purpose: .initial, proof: seed.proof,

@@ -38,7 +38,7 @@ struct CaptureAudioReanalysisAccess {
                 currentOwner() == target.ownerID && generation() == expectedGeneration &&
                     sessionIsCurrent(authSession) && containerIsCurrent(container)
             }
-            let source = try ObservationReanalysisSource.capture(observationID: target.observationID,
+            let source = try ObservationReanalysisSource.captureForAudio(observationID: target.observationID,
                 analysisID: target.analysisID, ownerID: target.ownerID, container: container)
             let files = try ObservationReanalysisFileStore(documents: documents())
             guard current(), account.isCurrent(lease) else { throw ObservationHistoryError.accountChanged }

@@ -17,8 +17,10 @@ struct ObservationAudioPreparationTests {
         var file: URL { root.appendingPathComponent(preparation.path) }
         var proof: ObservationAudioPreparation.Verified { get throws { try preparation.verified(source: source) } }
     }
-    func seed(action: ObservationAudioPreparation.Action = .hold) throws -> Seed {
-        let original = try fixture.fixture.seed(version: 3), source = try fixture.source(original)
+    func seed(action: ObservationAudioPreparation.Action = .hold, sourceVersion: Int = 3) throws -> Seed {
+        let original = try fixture.fixture.seed(version: sourceVersion)
+        let source = try ObservationReanalysisSource.captureForAudio(observationID: original.observationID,
+            ownerID: fixture.fixture.fixture.owner, container: original.container)
         let bytes = makeInferenceTestPCM16WAVData(sampleRate: 44_100, frameCount: 16, sampleAt: { Int16($0) })
         let child = UUID(), media = UUID()
         let uploaded = try ObservationAudioEvidenceUpload(observationID: source.observationID, analysisID: child, mediaID: media, bytes: bytes).prepare()

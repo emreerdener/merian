@@ -14,7 +14,7 @@ struct ObservationReanalysisPreparationPlan: Sendable {
     let items: [Item]
 
     init(source: ObservationReanalysisSource, choices: [Choice], analysisID: UUID = UUID(), makeMediaID: () -> UUID = UUID.init) throws {
-        guard (1...64).contains(choices.count), analysisID != source.observationID, analysisID != source.analysisID else {
+        guard source.audio == nil, (1...64).contains(choices.count), analysisID != source.observationID, analysisID != source.analysisID else {
             throw MerianError.invalidResponse
         }
         var used = Set(source.photos.map(\.mediaID) + [source.observationID, source.analysisID, analysisID, source.ownerID])

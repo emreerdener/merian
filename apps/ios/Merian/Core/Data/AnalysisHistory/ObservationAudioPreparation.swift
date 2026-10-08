@@ -20,7 +20,7 @@ struct ObservationAudioPreparation: Equatable, Sendable {
         guard identity.ownerID == source.ownerID, identity.observationID == source.observationID,
               identity.sourceAnalysisID == source.analysisID,
               !evidence.contains(where: { item in
-                  if case let .audio(audio) = item { return source.photos.contains { $0.mediaID == audio.mediaID } }
+                  if case let .audio(audio) = item { return source.audio?.mediaID == audio.mediaID || source.photos.contains { $0.mediaID == audio.mediaID } }
                   return false
               }) else { throw MerianError.invalidResponse }
         try self.init(identity: identity, evidence: evidence,
