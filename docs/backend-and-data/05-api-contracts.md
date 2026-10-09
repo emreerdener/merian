@@ -16539,6 +16539,32 @@ open. The verifier is not installed in upload or execution; bounded MP4
 verification, immutable cohort receipts and coordinated source/profile/reader
 integration remain prerequisites.
 
+### Retained video envelope inspection
+
+`retainedVideoEnvelope.inspectRetainedVideoEnvelope` is private groundwork for
+bounded ISO-BMFF top-level inspection. It accepts at most the existing 12 MiB
+video cap and 32 boxes, requires complete 8-byte or extended 16-byte headers,
+rejects zero-to-EOF lengths, undersized/overflowing/out-of-range extents and
+partial trailing bytes, and bounds 64-bit sizes before number conversion. The
+retained-output shape requires `ftyp` first and exactly one nonempty `ftyp`,
+`moov` and `mdat`; only optional `free`/`wide` boxes are otherwise allowed. It
+returns frozen type/start/payload-start/end records, with no input byte
+references. Input inspection is synchronous.
+
+Payloads, including `ftyp` brands and the entire `moov` tree, remain opaque.
+Success does not establish self-contained references, track/codec/sample-table
+validity, timing, metadata absence, decodability or source derivation. There is
+no manifest/hash verification wrapper or live caller. A deliberately invalid
+media payload passes the envelope-only unit test to freeze this limitation.
+Nested `moov`/`trak`/sample descriptions, `dref`, sample extents and metadata
+policy remain a required subsequent validator checkpoint before video admission.
+Actual synthetic iOS 27 simulator silent/audio outputs are imported unchanged
+from native test attachments; both contain extended-size `mdat` boxes. These
+fixtures establish envelope compatibility, not device or complete MP4 security
+qualification. The
+[Apple atom format](https://developer.apple.com/documentation/quicktime-file-format/atoms)
+is a format reference, not an expansion of this closed accepted envelope.
+
 ### Prepared native retained clip creation
 
 `ObservationRetainedVideoClipProducer` now prepares an owned local MP4 using the

@@ -11967,6 +11967,23 @@ not establish native ImageIO WebP compatibility or pixel-decodability of every
 accepted bitstream. Device, source-derivation and live video admission
 qualification remain separate.
 
+### Retained MP4 envelope groundwork
+
+`ObservationRetainedVideoTests` attaches silent/audio synthetic producer
+outputs; those bytes are imported unchanged into
+`fixtures/retained-video-envelopes.json`. `retainedVideoEnvelope_test.ts` checks
+their exact top-level ranges (including extended-size `mdat`), nonzero
+input-view offsets, immutable range results, 32/64-bit size failures, truncated
+headers/payloads, partial trailing data, box/count/byte bounds and unique
+nonempty required boxes. CI checks and runs this suite;
+`workflowSecurity.test.ts` guards both registrations. No live endpoint imports
+this inspector.
+
+The payload-opacity regression intentionally accepts non-media bytes inside
+otherwise valid top-level boxes. Envelope inspection therefore cannot satisfy
+nested track/reference/sample/metadata, codec/decode, source-derivation or
+device qualification. Those remain required before retained MP4 admission.
+
 ### Prepared retained video encoding
 
 `ObservationRetainedVideoTests` uses the shared synthetic `VideoAudioFixture`

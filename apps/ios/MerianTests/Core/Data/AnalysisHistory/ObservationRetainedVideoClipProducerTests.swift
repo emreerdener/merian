@@ -19,6 +19,7 @@ struct ObservationRetainedVideoTests {
         #expect(entries == ["retained.mp4"])
         let bytes = try Data(contentsOf: lease.url)
         #expect(!bytes.isEmpty && bytes.count <= ScanMediaPayloadPolicy.maxSavedVideoBytes)
+        Attachment.record(bytes, named: audio ? "retained-audio.mp4" : "retained-silent.mp4")
         let boxes = try topLevelBoxes(bytes)
         #expect(boxes.filter { $0 == "ftyp" }.count == 1)
         #expect(boxes.filter { $0 == "moov" }.count == 1)

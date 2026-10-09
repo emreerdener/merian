@@ -1110,3 +1110,12 @@ still-image chunks without animation or metadata. The extracted
 validation; public-photo metadata policy is unchanged. This is not pixel
 decoding, source derivation proof, sanitization or live admission. See the
 [frame byte contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-frame-byte-verification).
+
+`retainedVideoEnvelope.inspectRetainedVideoEnvelope` is a bounded ISO-BMFF
+**top-level envelope inspector**, not a media/container validator. It returns
+immutable box ranges only, checks complete bounded headers/extents and the
+retained-output shape, and has no manifest/hash/admission call site. Native
+silent/audio fixtures exercise actual extended-size `mdat` headers. Nested
+track/sample/reference/metadata validation remains required before source bytes
+can qualify for admission. See the
+[canonical envelope boundary](../../../../../docs/backend-and-data/05-api-contracts.md#retained-video-envelope-inspection).
