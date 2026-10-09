@@ -164,6 +164,7 @@ jobs:
             supabase/functions/_shared/analysisHistory/intent_test.ts \
             supabase/functions/_shared/analysisHistory/sourceReservation_test.ts \
             supabase/functions/_shared/analysisHistory/sourceReservationRepository_test.ts \
+            supabase/functions/reserve-observation-analysis-source/route_test.ts \
             supabase/functions/_shared/analysisHistory/execution_test.ts \
             supabase/functions/_shared/analysisHistory/photoCopyExecution_test.ts \
             supabase/functions/_shared/analysisHistory/publicationModerationRepository_test.ts \
@@ -358,6 +359,7 @@ jobs:
             supabase/functions/_shared/analysisHistory/intent_test.ts \
             supabase/functions/_shared/analysisHistory/sourceReservation_test.ts \
             supabase/functions/_shared/analysisHistory/sourceReservationRepository_test.ts \
+            supabase/functions/reserve-observation-analysis-source/route_test.ts \
             supabase/functions/_shared/analysisHistory/execution_test.ts \
             supabase/functions/_shared/analysisHistory/photoCopyExecution_test.ts \
             supabase/functions/_shared/analysisHistory/publicationModerationRepository_test.ts \

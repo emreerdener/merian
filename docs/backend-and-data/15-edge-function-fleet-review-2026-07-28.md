@@ -47,6 +47,15 @@ retirement racing a later dispatch. It is prepared source, not deployed or
 installed into native UI. See the
 [endpoint contract](../../services/supabase/functions/retire-observation-analysis/README.md).
 
+**2026-10-09 source-reservation addendum:**
+`reserve-observation-analysis-source` adds an authenticated wrapper for reader11
+source occupancy reservation. The scoped five-second/2-KiB transport returns
+only exact reserved/held/unavailable observations. Definite immutable-operation
+conflict returns409; errors never prove vacancy or execution permission. The SQL
+gate remains false. No native caller, deployment or scheduling is included. See
+the
+[endpoint contract](../../services/supabase/functions/reserve-observation-analysis-source/README.md).
+
 ## Scope
 
 This review inventories every configured deployable Supabase Edge Function
@@ -316,6 +325,7 @@ copy-publication-photos
 request-export-dwca
 resolve-purchase-principal
 restore-community-identification
+reserve-observation-analysis-source
 retire-observation-analysis
 revenuecat-webhook
 safe-delete

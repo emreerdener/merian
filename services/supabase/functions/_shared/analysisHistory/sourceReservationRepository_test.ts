@@ -120,7 +120,7 @@ for (const method of ["reserve", "retire"] as const) {
         () =>
           Promise.resolve({
             data: null,
-            error: { message: "analysis_history_operation_conflict" },
+            error: { message: "private database error" },
           }),
         () =>
           Promise.resolve({
@@ -148,6 +148,20 @@ for (const method of ["reserve", "retire"] as const) {
       );
       assertEquals(f.calls.length, 1);
     }
+  });
+  Deno.test(`source RPC ${method} preserves a definite operation conflict once`, async () => {
+    const f = fixture(() =>
+      Promise.resolve({
+        data: null,
+        error: { message: "analysis_history_operation_conflict" },
+      })
+    );
+    await assertRejects(
+      () => invoke(f),
+      HistoryError,
+      "analysis_history_operation_conflict",
+    );
+    assertEquals(f.calls.length, 1);
   });
   Deno.test(`source RPC ${method} cancellation before dispatch makes no call`, async () => {
     const f = fixture(() => Promise.resolve({ data: retired, error: null }));

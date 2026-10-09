@@ -3037,6 +3037,14 @@ outcomes/drafts. Their false orchestration gate and SQL work claims are separate
 from native history reads, selection and legacy scan replacement. Neither
 endpoint is deployed or scheduled by this implementation.
 
+`reserve-observation-analysis-source` wraps the reader11 source reservation RPC
+with authenticated owner scope, a1MiB request bound and a scoped5s/2KiB service
+transport. `_shared/analysisHistory/sourceReservation{,Repository}.ts` own the
+exact candidate fingerprint and receipt boundary. This prepared route grants no
+upload, inference admission or dispatch authority; native and
+unfunded-retirement HTTP consumers remain separate and the SQL reservation gate
+remains false.
+
 `retire-observation-analysis` separately authenticates explicit retirement of an
 exact admitted, never-dispatched operation. Its service-only SQL routine
 atomically prevents dispatch and saves a permanent receipt. The endpoint owns a

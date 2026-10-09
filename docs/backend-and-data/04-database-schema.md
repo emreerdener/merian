@@ -8045,7 +8045,9 @@ described below. Migration `20261009000303` implements the paired service-only
 reader-11 reservation and unfunded-retirement routines behind independent
 default-false gates. The immutable unfunded receipt is unique per child and
 follows binding/parent deletion; terminal replay never recreates occupancy. No
-HTTP/native consumer or activation is introduced.
+HTTP/native consumer or activation was introduced by that migration. The later
+prepared `reserve-observation-analysis-source` HTTP route wraps reservation
+only; native and unfunded-retirement HTTP consumers remain separate.
 
 ### Atomic source completion release
 

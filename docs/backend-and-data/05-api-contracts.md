@@ -15566,16 +15566,17 @@ reinterpret errors/timeouts as absence.
 
 `_shared/analysisHistory/sourceFingerprint.ts` defines fingerprint version 1 as
 a pure contract consumed by the gated source-reservation SQL. It grants no
-upload or execution authority and has no HTTP/native mutation consumer. The
-ungranted internal SQL encoders and `ObservationSourceFingerprint` implement the
-same pure contract; all three languages share checked-in canonical-byte and hash
-vectors before reservation integration is connected. Existing saved request
-bytes and `request_digest` are preserved verbatim; this fingerprint is
-additional binding, never a replacement for their replay rules. The existing
-server admission checks `request_digest` syntax and exact replay identity; it
-does not prove that native JSON bytes hash to that value. The new fingerprint
-binds the validated semantic fields independently. Do not add JSON digest
-reconstruction or rewriting to saved V2/V3 requests.
+upload or execution authority. The prepared reservation HTTP route consumes it;
+no native mutation consumer is connected. The ungranted internal SQL encoders
+and `ObservationSourceFingerprint` implement the same pure contract; all three
+languages share checked-in canonical-byte and hash vectors before reservation
+integration is connected. Existing saved request bytes and `request_digest` are
+preserved verbatim; this fingerprint is additional binding, never a replacement
+for their replay rules. The existing server admission checks `request_digest`
+syntax and exact replay identity; it does not prove that native JSON bytes hash
+to that value. The new fingerprint binds the validated semantic fields
+independently. Do not add JSON digest reconstruction or rewriting to saved V2/V3
+requests.
 
 Only strictly validated fresh protected-photo input schema 2 and audio input
 schema 3 are supported. Source must be non-null, distinct from observation and
@@ -15664,23 +15665,50 @@ owner, request and reader arguments. Both authorize `service_role`, reject
 unsupported readers and frozen snapshots, and have five-second statement
 timeouts. Only service-role execution is granted; private storage/helpers are
 revoked from API roles. Independent `source_reservation_enabled` and
-`source_unfunded_retirement_enabled` gates default false. No HTTP or native
-consumer is connected. Read-only discovery remains reader 10.
+`source_unfunded_retirement_enabled` gates default false. The prepared
+reservation HTTP boundary is described below; no native consumer is connected.
+Read-only discovery remains reader 10.
 
 `sourceReservationRepository` is the server-only one-call transport for these
 routines. It accepts trusted owner scope and the full original candidate; an
 unfunded retirement additionally requires the caller's stable operation UUID. It
 validates and snapshots before I/O, always passes reader 11, applies a
 five-second abort deadline, and strictly decodes the bounded 2 KiB receipt
-against those original identities. Cancellation, RPC/network errors, lost
+against those original identities. Cancellation, other RPC/network errors, lost
 replies and malformed responses throw `analysis_history_unavailable`; they do
 not fabricate an unavailable/retired receipt. Even a transport that stalls
 cancellation cannot keep the caller waiting beyond the deadline. It performs no
 automatic retry, token refresh, route fallback, UUID generation, refund or
 successor admission. An explicitly returned reserved/held/unavailable receipt is
 an observation, never execution permission. Later explicit recovery must reuse
-the original candidate and retirement operation. The adapter has no HTTP/native
-caller and does not change funded execution retirement.
+the original candidate and retirement operation. The prepared reservation route
+uses this adapter; unfunded retirement has no HTTP/native caller. Neither
+changes funded execution retirement.
+
+Prepared authenticated `POST reserve-observation-analysis-source` accepts the
+same four-field candidate, never a caller-selected owner. `withEdgeHandler`
+authenticates before body parsing; the route passes only `user.id` to the
+service-only adapter. Actual request bytes are capped at 1 MiB and actual
+streamed upstream responses at 2 KiB, with a five-second RPC timeout. The
+existing default-false SQL reservation gate and owner/deletion checks remain
+mutation authority. This route performs no inference, admission, upload,
+retirement, quota reservation or provider invocation.
+
+Exact reserved/held/unavailable observations return 200, private/no-store.
+Invalid candidate or malformed JSON returns 400, oversized input 413,
+unsupported content type 415, wrong method 405 and unauthenticated calls 401. A
+received `unavailable` observation may conceal foreign/deleted/missing scope.
+Genuine RPC errors, invalid upstream receipts, timeouts and cancellation return
+sanitized 503, never a fabricated vacancy or release receipt. No automatic retry
+or fallback occurs. A lost reply may conceal committed source occupancy:
+recovery must retain the identical candidate; it cannot create a successor. The
+endpoint is prepared source only, with no native caller, deployment or
+activation. Unfunded-retirement HTTP/native admission is a separate checkpoint.
+
+A received exact `analysis_history_operation_conflict` from the source RPC is
+preserved as a typed conflict (HTTP409 for reservation). It is not a vacancy or
+release receipt and never permits replacement or dispatch. Other RPC failures
+remain sanitized unavailable errors.
 
 The reservation request has exactly `schema_version: 1`, `input`,
 `fingerprint_version: 1`, and `fingerprint`. Input is the complete existing
@@ -15748,10 +15776,11 @@ contracts are unchanged.
 
 This October 8 contract decision is implemented by the October 9 paired
 reservation/unfunded-retirement SQL migration. The implementation preserves the
-prepared response variants and reader; HTTP/native consumers remain absent. The
-wire above remains authoritative. `reserved` requires both the exact immutable
-binding and its matching live occupancy; acknowledging a binding alone is not
-sufficient. It conveys no admission, execution or retry permission.
+prepared response variants and reader. The later prepared reservation HTTP
+wrapper is described above; native and unfunded-retirement HTTP consumers remain
+absent. The wire above remains authoritative. `reserved` requires both the exact
+immutable binding and its matching live occupancy; acknowledging a binding alone
+is not sufficient. It conveys no admission, execution or retry permission.
 
 After owner/deletion and exact immutable identity checks, classify an existing
 candidate before fresh rollout gates:
@@ -15808,15 +15837,16 @@ transaction is required before successors after completion are enabled. This is
 an explicit remaining implementation requirement, not a change to the user's
 ability to request later reanalysis once the complete feature is qualified.
 
-Fresh reservation and unfunded retirement remain default-false, service-only
-preparation with no HTTP/native consumer. Migration `20261009000303` implements
-permanent unfunded receipts and guarded occupancy release. Every parent media
-namespace has an independent 65th-row sentinel alongside intents, same-source
-bindings/releases and results. Unbound parent intents or unattributed media hold
-conservatively. Migration `20261009032643` adds qualified completion release as
-described below. Reservation catalog tests live in
-`observation_source_reservation.sql`; two-connection photo/audio races live in
-`observationSourceReservationConcurrencyDb.test.ts`.
+Fresh reservation and unfunded retirement remain default-false service-only SQL
+routines. The prepared reservation HTTP wrapper is described above; native and
+unfunded-retirement HTTP consumers remain separate. Migration `20261009000303`
+implements permanent unfunded receipts and guarded occupancy release. Every
+parent media namespace has an independent 65th-row sentinel alongside intents,
+same-source bindings/releases and results. Unbound parent intents or
+unattributed media hold conservatively. Migration `20261009032643` adds
+qualified completion release as described below. Reservation catalog tests live
+in `observation_source_reservation.sql`; two-connection photo/audio races live
+in `observationSourceReservationConcurrencyDb.test.ts`.
 
 ### Atomic completion release
 

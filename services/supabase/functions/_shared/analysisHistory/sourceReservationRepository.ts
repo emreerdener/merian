@@ -8,7 +8,7 @@ import {
   SOURCE_RESERVATION_READER,
 } from "./sourceReservation.ts";
 
-/** Service-only observations; no admission, dispatch, HTTP or native wiring. */
+/** Service-only RPC observations; no inference admission or dispatch. */
 export function sourceReservationRepository(client: SupabaseClient) {
   async function call<T>(
     routine:
@@ -36,15 +36,26 @@ export function sourceReservationRepository(client: SupabaseClient) {
       // A transport that delays cancellation cannot hold this owner forever.
       // Late answers cannot become another call or fabricated terminal proof.
       const decoded = Promise.resolve(result).then(async ({ data, error }) => {
-        if (error) throw new HistoryError("analysis_history_unavailable");
+        if (error) {
+          throw new HistoryError(
+            error.message === "analysis_history_operation_conflict"
+              ? "analysis_history_operation_conflict"
+              : "analysis_history_unavailable",
+          );
+        }
         signal.throwIfAborted();
         return await decode(new TextEncoder().encode(JSON.stringify(data)));
       });
       const receipt = await Promise.race([decoded, aborted]);
       signal.throwIfAborted();
       return receipt;
-    } catch {
-      // A database conflict/error is not a receipt proving vacancy or release.
+    } catch (error) {
+      // A definite conflict is still not proof of vacancy or release.
+      if (
+        error instanceof HistoryError &&
+        error.code === "analysis_history_operation_conflict"
+      ) throw error;
+      // All other upstream errors conceal scope and preserve uncertainty.
       throw new HistoryError("analysis_history_unavailable");
     } finally {
       signal.removeEventListener("abort", onAbort);

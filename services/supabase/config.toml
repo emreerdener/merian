@@ -795,3 +795,7 @@ verify_jwt = false
 
 [functions.upload-observation-audio]
 verify_jwt = false
+
+# Owner-authenticated source occupancy only; default-off SQL gate, no inference.
+[functions.reserve-observation-analysis-source]
+verify_jwt = false
