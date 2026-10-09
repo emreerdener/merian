@@ -16609,5 +16609,22 @@ namespace and type-derived suffix, with no caller path or URL accepted. Owner
 aliases with observation, child, historical source or any artifact are rejected.
 A decoded digest or ready phase is not ownership, byte verification or execution
 authority. No consumer stages this envelope yet: atomic metadata/file ownership,
-legacy-reader exclusion, source/account/deletion checks, promotion and restart
-recovery remain required before durable video staging can open.
+legacy-reader exclusion, transactional source/account/deletion checks, promotion
+and restart recovery remain required before durable video staging can open.
+
+### Native video preparation source proof
+
+The local envelope can now be reconstructed into a typed `Verified` value only
+against an `ObservationReanalysisSource` with matching parent, historical
+source, owner and exact source-snapshot SHA-256. The future child and all new
+artifacts must not reuse any historical photo/audio media ID. A caller-supplied
+digest or `files_ready` metadata cannot independently establish this
+association.
+
+`captureForVideo` is an explicit entry to the current V1–V4 immutable result
+reader; V5/video-result admission remains pending. Fresh proof validation uses
+existing owner, enrolled-parent, pending-deletion, source-record and exact-byte
+checks. Selection and review revision changes do not retarget or invalidate the
+frozen historical source. Account/session leases, coordinated file ownership,
+legacy-reader exclusion and actual persistence/restart recovery are separate
+requirements. No wire, schema, provider, funding or activation behavior changes.

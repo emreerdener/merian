@@ -1,4 +1,6 @@
+import CryptoKit
 import Foundation
+import SwiftData
 
 /// Closed local metadata only. Neither decoding nor files_ready proves storage or admission.
 struct ObservationVideoPreparation: Equatable, Sendable {
@@ -37,6 +39,36 @@ struct ObservationVideoPreparation: Equatable, Sendable {
             return File(artifact: artifact, path: "ReanalysisQueue/" + identity.analysisID.uuidString.lowercased()
                         + "/" + artifact.mediaID.uuidString.lowercased() + "." + suffix)
         }
+    }
+
+    /// Explicit new video evidence is bound to the immutable result the user opened.
+    /// This does not establish current account authority until the owner validates its lease.
+    init(request: ObservationVideoReanalysisRequest, source: ObservationReanalysisSource) throws {
+        guard request.observationID == source.observationID, request.sourceAnalysisID == source.analysisID else {
+            throw MerianError.invalidResponse
+        }
+        try self.init(ownerID: source.ownerID, request: request,
+                      sourceSnapshotSHA256: SHA256.hash(data: source.snapshot).map { String(format: "%02x", $0) }.joined())
+        let historicalMedia = Set(source.photos.map(\.mediaID) + (source.audio.map { [$0.mediaID] } ?? []))
+        guard !historicalMedia.contains(request.analysisID),
+              files.allSatisfy({ !historicalMedia.contains($0.artifact.mediaID) }) else { throw MerianError.invalidResponse }
+    }
+
+    struct Verified: Sendable {
+        let preparation: ObservationVideoPreparation
+        private let source: ObservationReanalysisSource
+        fileprivate init(_ preparation: ObservationVideoPreparation, source: ObservationReanalysisSource) {
+            self.preparation = preparation; self.source = source
+        }
+        /// Caller owns the shared persistence lock; do not acquire it recursively.
+        @MainActor func validate(context: ModelContext) throws { try source.validate(context: context) }
+        @MainActor func validate(container: ModelContainer) throws { try source.validate(container: container) }
+    }
+
+    /// Reconstruct from the frozen source, not the persisted digest alone. No database writes.
+    func verified(source: ObservationReanalysisSource) throws -> Verified {
+        guard try Self(request: request, source: source) == self else { throw MerianError.invalidResponse }
+        return Verified(self, source: source)
     }
 
     func storedData(phase: Phase) throws -> Data {

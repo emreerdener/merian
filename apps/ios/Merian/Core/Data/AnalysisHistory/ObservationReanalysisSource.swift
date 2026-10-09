@@ -43,6 +43,15 @@ struct ObservationReanalysisSource: Equatable, Sendable {
         }
     }
 
+    /// New video input may target any currently supported immutable source (V1–V4).
+    /// This does not admit future video-result versions or reinterpret media as photos.
+    @MainActor
+    static func captureForVideo(observationID: UUID, analysisID: UUID? = nil, ownerID: UUID, container: ModelContainer) throws -> Self {
+        try ConfirmedSpeciesReviewPersistence.transaction {
+            try read(observationID: observationID, analysisID: analysisID, ownerID: ownerID, permitsAudio: true, context: ModelContext(container))
+        }
+    }
+
     @MainActor
     private static func read(observationID: UUID, analysisID: UUID?, ownerID: UUID, permitsAudio: Bool, context: ModelContext) throws -> Self {
         let scan = try ObservationHistorySyncService.enrolledScan(observationID.uuidString, context: context)

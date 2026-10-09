@@ -12021,3 +12021,14 @@ absolute-path substitution, duplicate/omitted/reordered artifacts, and rejection
 by existing audio preparation and photo/audio request decoders. Run with video
 manifest/request selectors. These are metadata checks only: no persisted job,
 file transfer, current-account proof or restart delivery is established here.
+
+### Video source-proof checks
+
+`merianTests/ObservationVideoSourceBindingTests` covers supported V1–V4 source
+capture, historical target stability after selection/revision changes, fresh
+owner/deletion/enrollment/snapshot validation, historical-media reuse by every
+new artifact and child, and forged digest/owner/parent/source metadata. Run with
+`ObservationReanalysisSourceTests` and `ObservationVideoPreparationTests` to
+retain photo/audio source and exact envelope regression coverage. These tests
+prove source association only; no queue insertion, account lease, durable file
+transfer or restart recovery is claimed.

@@ -2015,3 +2015,21 @@ validate the current source/account/deletion association in its transaction,
 exclude video from legacy recovery/discard readers before staging any row, and
 verify the whole file cohort before promotion. No durable transfer or restart
 recovery is installed by the codec alone.
+
+### Verified video source binding
+
+`ObservationReanalysisSource.captureForVideo` explicitly captures an owned
+immutable source supported by the current V1–V4 result decoder, including audio;
+it does not enable future video-result versions or weaken photo admission.
+`ObservationVideoPreparation(request:source:)` binds parent/source identity,
+owner and the exact frozen snapshot digest. Every new artifact and child ID must
+also differ from historical photo/audio media IDs. Decoded metadata must be
+reconstructed against that source to produce `Verified`.
+
+The proof revalidates through the existing source reader in a fresh persistence
+context, so parent/source deletion, pending deletion, enrollment, changed owner
+or changed snapshot bytes fail. Selection/review revisions may advance without
+invalidating the immutable historical target. This is still not an account lease
+or a file/staging capability: the future durable owner must hold the account
+lease and revalidate inside file locks and its transaction. No queue writer or
+recovery route is installed by source binding.
