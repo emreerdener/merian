@@ -11826,3 +11826,18 @@ non-reserved states, commit-then-throw versus pre-commit failure, revoked
 consent, account/container changes and a source CAS change during consent
 validation. These tests do not qualify installed composition, provider
 execution, device behavior or activation.
+
+### Retained audio source submission regressions
+
+`ObservationAudioSourceSubmissionTests` covers each durable source state, exact
+candidate persistence before reservation, reserved recovery without HTTP,
+held/unavailable/uncertain replies, cancelled known-answer settlement without
+binding, throwing saves before and after commit, and consent-time account,
+deletion and CAS changes. The real queue handoff test asserts source lease exit
+before audio lease admission, coalescing, no launch after cancel/save
+uncertainty, and network/Auth/container refusal at the owner boundary. Its
+successful path uses existing execution settlement and local erasure, verifying
+receipt completion and file removal before audio lease exit. Existing
+owner/drain and cleanup tests remain applicable. These synthetic tests do not
+establish ordinary Capture installation, actual hosted admission or device
+qualification.

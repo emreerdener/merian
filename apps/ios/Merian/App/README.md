@@ -226,3 +226,9 @@ provider. Reopening creates a new presentation model over that same durable
 child. The fixture compares exact snapshots, requires one queued row, counts
 start/authorization calls, and can invalidate its synthetic account. No
 production recovery or admission behavior is changed by these controls.
+
+`PreparedHistoryReanalysisComposition.audioSourceStart` assembles the source
+reservation/consent/binding service and existing audio execution/erasure owners
+through the queue coordinator. It shares the same account/session/generation
+predicate as the prepared audio execution factory. The closure is not installed
+in Capture yet; ordinary access and the App installation gate remain disabled.

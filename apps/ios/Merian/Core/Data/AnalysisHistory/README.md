@@ -1845,3 +1845,24 @@ original V3 request bytes/evidence/profile through explicit recovery and uses
 the same retained service/owner; no composition caller is installed. Existing
 audio resume/execution decoders reject source work rather than silently
 rebinding it.
+
+### Retained reserved-audio submission
+
+`ObservationAudioSourceSubmissionService` coordinates reservation and fresh
+consent/binding inside the existing source owner's lease. It reads the exact
+stored snapshot before work, classifies only validated audio states and skips
+reservation HTTP for observed-reserved recovery. Other recoverable states use
+one explicit same-candidate attempt; conflict is unavailable. Only an exact
+observed-reserved reply can bind, and dispatch scope plus source CAS are checked
+around every await. Known reservation settlement after cancellation does not
+advance. A throwing binding save returns no handoff, even if it committed.
+
+`OfflineQueueManager.requestAudioSourceSubmission` retains only a normally
+returned binding and starts the existing audio owner after source lease and slot
+exit. The execution owner rechecks account, container, network and Auth
+admission. Its existing result settlement awaits receipt-bound erasure. Source
+exit emits a context-qualified refresh; successful audio completion emits its
+existing refresh after cleanup. Neither callback rereads durable work to grant
+execution. Both existing Auth drains and connectivity cancellation apply; no new
+owner, timer or automatic retry is added. The App-owned `audioSourceStart`
+factory assembles live dependencies but remains uninstalled in Capture.

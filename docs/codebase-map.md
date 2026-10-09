@@ -3135,3 +3135,11 @@ settlement) and
 (retained account lease, coalescing and Auth drain). The queue's
 source-reservation extension exposes only explicit injected admission; no
 ordinary UI or automatic scheduler is connected.
+
+`ObservationAudioSourceSubmissionService` and the queue's
+`+AudioSourceSubmission` extension coordinate those existing source and audio
+owners in sequence. Exact reservation/consent/binding stays under the source
+lease; a normally returned binding can start audio only after source exit.
+`PreparedHistoryReanalysisComposition.audioSourceStart` is the inert live
+factory. Capture and V10 saved-request presentation remain separate integration
+work; this boundary adds no owner or scheduler.

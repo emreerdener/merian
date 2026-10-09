@@ -16292,3 +16292,22 @@ This is a closed funded-retirement capability, not source API activation. Source
 reservation, unfunded retirement, native consumption and remaining media
 acceptance remain separate. No new public signature, privilege, provider retry
 or uncertain refund is introduced. All activation gates stay disabled.
+
+### Prepared retained audio source-to-execution coordination
+
+The native `ObservationAudioSourceSubmissionService` uses the existing source
+owner for an explicit reservation attempt followed by fresh Gemini consent and
+exact reserved-source binding. Observed-reserved recovery skips the reservation
+RPC. Held, unavailable and unknown source work may only explicitly recover the
+original candidate; conflict cannot rearm. A known reply saved after dispatch
+cancellation cannot bind. Every await revalidates the exact source snapshot,
+account and container; consent does not substitute for source CAS.
+
+The queue starts the existing audio execution owner only after actual source
+lease exit and only from a binding returned normally. Save-commits-then-throws
+requires explicit later resume; the completion callback never rereads the
+binding to authorize work. Existing upload-cohort admission and analyze funded
+admission/dispatch remain authoritative. The audio owner awaits its existing
+receipt-bound cleanup. The prepared App factory does not install Capture,
+status/resume presentation, ordinary access or scheduling. No wire, reader,
+SwiftData schema or rollout gate changes are included.

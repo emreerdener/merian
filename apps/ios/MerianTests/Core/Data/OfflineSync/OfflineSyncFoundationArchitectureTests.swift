@@ -332,6 +332,8 @@ struct OfflineSyncFoundationArchitectureTests {
             "Services/OfflineQueueManager+SourceReservation.swift",
         "final class ObservationSourceReservationOwner":
             "Services/ObservationSourceReservationOwner.swift",
+        "func requestAudioSourceSubmission":
+            "Services/OfflineQueueManager+AudioSourceSubmission.swift",
         "func requestAudioExecution":
             "Services/OfflineQueueManager+AudioExecution.swift",
         "final class ObservationAudioExecutionOwner":
@@ -358,6 +360,7 @@ struct OfflineSyncFoundationArchitectureTests {
         "Services/OfflineQueueManager+SourceReservation.swift",
         "Services/ObservationAudioExecutionOwner.swift",
         "Services/OfflineQueueManager+AudioExecution.swift",
+        "Services/OfflineQueueManager+AudioSourceSubmission.swift",
         "Services/ProtectedInsightChatDeliveryOwner.swift",
         "Services/OfflineQueueManager+ProtectedChat.swift",
         "Services/OfflineQueueManager+AnalysisReview.swift",
@@ -426,6 +429,7 @@ struct OfflineSyncFoundationArchitectureTests {
         "Services/OfflineQueueManager+SourceReservation.swift": ["import Foundation", "import SwiftData"],
         "Services/ObservationAudioExecutionOwner.swift": ["import Foundation"],
         "Services/OfflineQueueManager+AudioExecution.swift": ["import Foundation", "import SwiftData"],
+        "Services/OfflineQueueManager+AudioSourceSubmission.swift": ["import Foundation", "import SwiftData"],
         "Services/ProtectedInsightChatDeliveryOwner.swift": ["import Foundation"],
         "Services/OfflineQueueManager+ProtectedChat.swift": ["import Foundation", "import SwiftData"],
         "Services/OfflineQueueManager+AnalysisReview.swift": ["import Foundation", "import SwiftData"],
