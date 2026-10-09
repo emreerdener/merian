@@ -11871,4 +11871,22 @@ commit followed by dismissal/reopening of the same candidate, delayed replies
 after closing, cross-route host-occupancy refusal, wrong factory rejection and a
 source-only inert composition. Existing legacy host and source-access suites
 remain compatibility controls. Host-level tests use the existing sheet model;
-source status discovery and end-to-end runtime UI qualification remain separate.
+source status regressions are described below; end-to-end runtime UI
+qualification remains separate.
+
+### Saved source status regressions
+
+`ObservationAudioSourceStatusTests` covers seven source states without local
+media, strict legacy separation, unsupported/malformed rows, bounded paging and
+route/owner cursor fencing. Read failures propagate rather than becoming empty
+success. `ObservationAudioSourceStatusOwnerTests` checks combined source/legacy
+capacity, distinct coalescing scopes, cancellation of one joined waiter and
+account draining through actual task exit.
+
+`CaptureAudioSourceSavedModelTests` covers exact selection, synchronous
+final-tap opening, stale page/continuation callbacks and failed refresh. Its
+real inert composition test discovers an unknown source without files and
+continues only that source; reading cannot invoke source admission or execution
+fallback. The legacy saved-status, owner, access and model suites remain
+compatibility controls. These tests do not qualify an installed source sheet,
+real provider execution or any separate device/hosted activation requirement.

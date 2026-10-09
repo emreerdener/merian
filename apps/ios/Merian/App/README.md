@@ -236,8 +236,8 @@ in Capture yet; ordinary access and the App installation gate remain disabled.
 `audioSourceConfiguration` now assembles a distinct
 `CaptureAudioSourceReanalysisAccess.Configuration` with required source and
 existing execution handoffs. It does not replace the legacy audio configuration
-or install a source status list or ordinary route. The explicit source host
-factory is described below.
+or install an ordinary route. The explicit source host factory is described
+below.
 
 The prepared bundle now exposes `openAudioSourceHost` using separate typed
 source access and the shared bounded audio host owner. Legacy and source
@@ -246,9 +246,18 @@ cannot open a legacy host. When both are present, a target already retained by
 one route cannot create a second host through the other route. The existing
 sheet consumes either explicitly constructed host without duplicating picker,
 freeze or dismissal rules. No ordinary route is installed; source saved-request
-status integration is still pending.
+status is available through the explicit factory below.
 
 `prepared(in:)` intentionally assembles both inert audio entry points to retain
 legacy execution recovery and Debug-fixture compatibility. It is not a
 source-only installation. Both use one target-occupancy owner; the global
 installation boundary still returns nil.
+
+### Explicit saved audio source composition
+
+`audioSourceStatus` and `openSavedAudioSources` assemble a separately typed
+source list over the same retained status owner used by legacy execution pages.
+Opening or refreshing only reads evidence. The final selected-source tap uses
+`openSourceResume`; execution records remain in `openSavedAudioRequests`. No
+source page grants admission or dispatch authority. Both factories remain inert
+until explicitly injected; ordinary installation stays nil.

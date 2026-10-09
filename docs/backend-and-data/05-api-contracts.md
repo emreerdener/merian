@@ -16337,8 +16337,7 @@ legacy admission. A save that throws cannot hand off; later explicit recovery
 reads the same child. Source admission remains distinct from execution
 authority. No endpoint, payload, reader version or schema changes are
 introduced. Legacy access/readers remain strict, ordinary routes remain
-uninstalled, and source status integration is still pending; explicit host
-assembly is described below.
+uninstalled; explicit host and source status assembly are described below.
 
 The prepared source Capture factory can now construct the existing host through
 a distinct source constructor. Host presentation shares only session/currentness
@@ -16346,4 +16345,20 @@ and a neutral submission outcome via an exhaustive route switch. It cannot
 convert a source capability into a legacy binding capability. A common bounded
 host owner rejects route changes for an occupied target tuple, preserving one
 frozen candidate across dismissal and reopening. No API or persistence change is
-involved, and source status discovery remains uninstalled.
+involved. Source status discovery is available through a separate explicit
+factory; ordinary installation remains disabled.
+
+### Prepared saved audio source status contract
+
+Native source status discovery reads exact V10 work without endpoint calls, file
+preparation, reservation, execution binding or dispatch. Source and legacy
+execution pages share bounded indexing and a four-slot retained owner, but
+route-bound cursors, coalescing scopes and typed results keep their decoders
+separate. Source status is advisory durable evidence. Omitted rows or an empty
+page never authorize replacement, inference or refund.
+
+Only an explicit selected-source continuation opens the existing strict source
+resume admission path. Bound execution stays on its existing recovery path;
+unknown execution permits exact outcome recovery and reconciliation only. No
+wire, reader-version, persistence, activation or ordinary installation changes
+are introduced by the prepared status UI.

@@ -1881,8 +1881,9 @@ saved evidence, including reserved, held, unknown and conflict states.
 account lease through the actual read task. Cancellation retains ownership until
 exit; a final currentness/proof/snapshot check rejects changes during lease
 release. No idle lease or polling is introduced. Legacy audio resume and saved
-status readers remain closed to V10. Capture source resume/status installation
-remains a subsequent checkpoint; this reader alone does not resume execution.
+status readers remain closed to V10. Explicit prepared Capture source
+resume/status access is available; ordinary installation remains disabled. This
+reader alone does not resume execution.
 
 ### Explicit audio source preparation
 
@@ -1895,3 +1896,20 @@ Each preparation/staging phase retains the shared preparation owner and account
 lease; source/proof and exact metadata are rechecked before handoff. A throwing
 save never rereads or starts work, even when it committed. Explicit later
 recovery uses the original child.
+
+### Route-bound saved audio status pages
+
+`ObservationAudioStatusIndex` owns the common bounded query, parent checks and
+omission policy. Its opaque cursor includes the legacy/source route in addition
+to owner, observation and child. `ObservationAudioSavedStatus` retains strict
+legacy decoding; `ObservationAudioSourceSavedStatus` uses only the mutation-free
+V10 source store. Malformed or unsupported rows may be omitted; account,
+cancellation and storage failures propagate. An empty page is not authority to
+replace durable work.
+
+`ObservationAudioStatusOwner` retains both routes under one four-slot limit and
+Auth drain. Route is part of coalescing identity, and a closed page enum
+prevents returning a page from the other reader. Each actual read retains its
+account lease until exit, including after cancellation. Source paging needs no
+separate preparation slot, makes no admission call and never grants execution
+authority.

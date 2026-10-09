@@ -3,11 +3,8 @@ import SwiftData
 
 /// Advisory local facts only. Reading never creates an execution capability or proves safe new admission.
 @MainActor
-struct ObservationAudioSavedStatus {
-    enum Phase: Equatable, Sendable {
-        case filesPending, admissionPending, boundIdle
-        case runningUnconsumed, runningConsumed, heldUnconsumed, heldConsumed
-    }
+struct ObservationAudioSourceSavedStatus {
+    enum Phase: Equatable, Sendable { case staged, checking, unknown, reserved, held, unavailable, conflict }
     struct Summary: Equatable, Sendable {
         let identity: OfflineQueueWork.Reanalysis
         let phase: Phase
@@ -19,15 +16,15 @@ struct ObservationAudioSavedStatus {
         /// Includes unsupported/photo/held drafts and invalid links; never interpret omissions as absence.
         let omittedCount: Int
     }
-    typealias Read = @MainActor (OfflineQueueWork.Reanalysis, ModelContainer, @escaping @MainActor @Sendable () -> Bool) async throws -> ObservationAudioResumeStore.Saved
-    var read: Read = { try await ObservationAudioResumeStore.read($0, container: $1, isCurrent: $2) }
+    typealias Read = @MainActor (OfflineQueueWork.Reanalysis, ModelContainer, @escaping @MainActor @Sendable () -> Bool) async throws -> ObservationAudioSourceResumeStore.Saved
+    var read: Read = { try await ObservationAudioSourceResumeStore().read($0, container: $1, isCurrent: $2) }
 
     /// Caller supplies current common owner/generation/container scope; this local reader acquires no account lease.
     func page(ownerID: UUID, observationID: UUID, after cursor: Cursor? = nil, limit: Int = 20,
               container: ModelContainer, isCurrent: @escaping @MainActor @Sendable () -> Bool) async throws -> Page {
         let index = ObservationAudioStatusIndex()
         let links = try index.page(ownerID: ownerID, observationID: observationID, after: cursor,
-            limit: limit, route: .legacy, container: container, isCurrent: isCurrent)
+            limit: limit, route: .source, container: container, isCurrent: isCurrent)
         var items: [Summary] = []
         for (_, work) in links.values {
             try Task.checkCancellation()
@@ -38,7 +35,7 @@ struct ObservationAudioSavedStatus {
                 try Task.checkCancellation()
                 guard isCurrent() else { throw ObservationHistoryError.accountChanged }
                 guard saved.proof.preparation.identity == identity else { throw ObservationHistoryError.resultConflict }
-                items.append(.init(identity: identity, phase: try phase(saved.state)))
+                items.append(.init(identity: identity, phase: try phase(saved.snapshot.work)))
             } catch {
                 // Only classified immutable validation failures are omissions. Store/I/O/account failures propagate.
                 guard index.canOmit(error) else { throw error }
@@ -53,18 +50,19 @@ struct ObservationAudioSavedStatus {
             container: container, isCurrent: isCurrent)
     }
 
-    private func phase(_ state: ObservationAudioResumeStore.State) throws -> Phase {
-        switch state {
-        case .preparation(.pending): return .filesPending
-        case .preparation(.admissionPending): return .admissionPending
-        case .preparation(.ready): throw ObservationHistoryError.unavailable
-        case let .bound(snapshot):
-            switch snapshot.work.state {
-            case .idle: return .boundIdle
-            case .running: return snapshot.work.consumedAttempt == nil ? .runningUnconsumed : .runningConsumed
-            case .held: return snapshot.work.consumedAttempt == nil ? .heldUnconsumed : .heldConsumed
+    private func phase(_ work: ObservationSourceReservationWork) throws -> Phase {
+        switch work.state {
+        case .staged: return .staged
+        case .running: return .checking
+        case .unknown: return .unknown
+        case .conflict: return .conflict
+        case .observed:
+            guard let reply = work.reply else { throw MerianError.invalidResponse }
+            switch reply.state {
+            case .reserved: return .reserved
+            case .held: return .held
+            case .unavailable: return .unavailable
             }
         }
     }
-
 }

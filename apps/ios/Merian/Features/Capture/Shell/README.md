@@ -802,8 +802,8 @@ both paths freeze and recheck owner/session/generation/container around awaits,
 and check presentation separately before synchronous handoff.
 
 This boundary is available through the explicit source host factory described
-below. Source saved-request status integration remains a separate checkpoint.
-Ordinary access remains nil and alternatives-card layout is unchanged.
+below. Source saved-request status uses the separate typed factory described
+below. Ordinary access remains nil and alternatives-card layout is unchanged.
 
 ### Explicit source host presentation
 
@@ -818,4 +818,20 @@ frozen plan, cancels only its waiter, and retains it until actual exit.
 
 `openAudioSourceHost` is an explicit prepared factory using the required source
 access. The ordinary installation gate stays false. Source status-list routing
-remains pending; the legacy status reader is unchanged.
+is explicit; the legacy status decoder remains unchanged.
+
+### Explicit saved audio source presentation
+
+`CaptureAudioSourceStatusAccess`, `CaptureAudioSourceSavedRequestsModel` and
+`CaptureAudioSourceSavedRequestsSheet` expose bounded source-only discovery.
+Selection retains the exact owner, observation and child. Only the final “Check
+saved source” action opens source resume, synchronously before launching its
+waiter. Closing or changing account/presentation fences late page and
+continuation callbacks. Refresh failure clears stale selection; page omission
+never establishes safe absence or permission to replace a request.
+
+The list cannot fall back to execution recovery, reserve a source, bind
+execution or dispatch while reading. Bound execution remains in the existing
+saved-audio list. Both page routes share four retained slots and account drains.
+The new sheet is explicitly injectable, not installed in ordinary Capture.
+Existing identification and alternatives cards are unchanged.

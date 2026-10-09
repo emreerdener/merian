@@ -14,10 +14,15 @@ final class ObservationAudioStatusOwner {
         let container: ObjectIdentifier
         let cursor: ObservationAudioSavedStatus.Cursor?
         let limit: Int
+        let route: ObservationAudioStatusIndex.Route
+    }
+    private enum Page: Sendable {
+        case legacy(ObservationAudioSavedStatus.Page)
+        case source(ObservationAudioSourceSavedStatus.Page)
     }
     private struct Entry {
         let scope: Scope
-        let task: Task<ObservationAudioSavedStatus.Page, Error>
+        let task: Task<Page, Error>
         var cancelled = false
     }
     private var entries: [UUID: Entry] = [:]
@@ -30,13 +35,42 @@ final class ObservationAudioStatusOwner {
               after cursor: ObservationAudioSavedStatus.Cursor? = nil, limit: Int = 20, container: ModelContainer,
               reader: ObservationAudioSavedStatus, account: ObservationHistoryCloudClient,
               isCurrent: @escaping @MainActor @Sendable () -> Bool) async throws -> ObservationAudioSavedStatus.Page {
+        let result = try await retainedPage(ownerID: ownerID, observationID: observationID, session: session,
+            generation: generation, cursor: cursor, limit: limit, route: .legacy, container: container,
+            account: account, isCurrent: isCurrent) { current in
+                .legacy(try await reader.page(ownerID: ownerID, observationID: observationID, after: cursor,
+                    limit: limit, container: container, isCurrent: current))
+            }
+        guard case let .legacy(page) = result else { throw ObservationHistoryError.resultConflict }
+        return page
+    }
+
+    func sourcePage(ownerID: UUID, observationID: UUID, session: AuthTransitionSession, generation: UInt64,
+                    after cursor: ObservationAudioSourceSavedStatus.Cursor? = nil, limit: Int = 20, container: ModelContainer,
+                    reader: ObservationAudioSourceSavedStatus, account: ObservationHistoryCloudClient,
+                    isCurrent: @escaping @MainActor @Sendable () -> Bool) async throws -> ObservationAudioSourceSavedStatus.Page {
+        let result = try await retainedPage(ownerID: ownerID, observationID: observationID, session: session,
+            generation: generation, cursor: cursor, limit: limit, route: .source, container: container,
+            account: account, isCurrent: isCurrent) { current in
+                .source(try await reader.page(ownerID: ownerID, observationID: observationID, after: cursor,
+                    limit: limit, container: container, isCurrent: current))
+            }
+        guard case let .source(page) = result else { throw ObservationHistoryError.resultConflict }
+        return page
+    }
+
+    private func retainedPage(ownerID: UUID, observationID: UUID, session: AuthTransitionSession, generation: UInt64,
+                              cursor: ObservationAudioStatusIndex.Cursor?, limit: Int, route: ObservationAudioStatusIndex.Route,
+                              container: ModelContainer, account: ObservationHistoryCloudClient,
+                              isCurrent: @escaping @MainActor @Sendable () -> Bool,
+                              read: @escaping @MainActor @Sendable (@escaping @MainActor @Sendable () -> Bool) async throws -> Page) async throws -> Page {
         try Task.checkCancellation()
         guard drains == 0, invalidation == nil else { throw Failure.draining }
         guard (1...20).contains(limit) else { throw ObservationHistoryError.invalidPage }
         guard ownerID == session.userID, isCurrent() else { throw ObservationHistoryError.accountChanged }
         let scope = Scope(owner: ownerID, observation: observationID, session: session, generation: generation,
-            container: ObjectIdentifier(container), cursor: cursor, limit: limit)
-        let task: Task<ObservationAudioSavedStatus.Page, Error>
+            container: ObjectIdentifier(container), cursor: cursor, limit: limit, route: route)
+        let task: Task<Page, Error>
         if let existing = entries.values.first(where: { $0.scope == scope }) {
             guard !existing.cancelled else { throw Failure.busy }
             task = existing.task
@@ -53,8 +87,7 @@ final class ObservationAudioStatusOwner {
                     entries[token]?.cancelled == false && invalidation == nil && isCurrent() && lease.session == session && account.isCurrent(lease)
                 }
                 guard current() else { throw ObservationHistoryError.accountChanged }
-                let page = try await reader.page(ownerID: ownerID, observationID: observationID, after: cursor,
-                    limit: limit, container: container, isCurrent: current)
+                let page = try await read(current)
                 try Task.checkCancellation()
                 guard current() else { throw ObservationHistoryError.accountChanged }
                 return page

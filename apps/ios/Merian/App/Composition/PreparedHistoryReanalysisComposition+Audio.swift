@@ -32,6 +32,18 @@ extension PreparedHistoryReanalysisComposition {
         }, isPresented: isPresented)
     }
 
+    /// Source-only discovery; records that became execution work stay in the existing execution list.
+    @MainActor
+    func openSavedAudioSources(ownerID: UUID, observationID: UUID, container: ModelContainer,
+                               isPresented: @escaping @MainActor () -> Bool) throws -> CaptureAudioSourceSavedRequestsModel {
+        guard isPresented(), let audioSourceStatus, let audioSourceCapture else { throw ObservationHistoryError.unavailable }
+        let opened = try audioSourceStatus.open(ownerID, observationID, container)
+        return CaptureAudioSourceSavedRequestsModel(status: opened, openResume: { identity in
+            guard identity.ownerID == ownerID, identity.observationID == observationID else { throw ObservationHistoryError.unavailable }
+            return try audioSourceCapture.openSourceResume(identity, container)
+        }, isPresented: isPresented)
+    }
+
     /// App-owned assembly. This does not install access, start work or capture a presentation predicate.
     @MainActor
     static func audioConfiguration(in dependencies: AppDIContainer, cloud: ObservationHistoryCloudClient,

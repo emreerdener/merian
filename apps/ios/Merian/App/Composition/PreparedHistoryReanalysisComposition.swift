@@ -18,6 +18,7 @@ struct PreparedHistoryReanalysisComposition {
     let audioCapture: CaptureAudioReanalysisAccess?
     let audioSourceCapture: CaptureAudioSourceReanalysisAccess?
     let audioStatus: CaptureAudioStatusAccess?
+    let audioSourceStatus: CaptureAudioSourceStatusAccess?
     let capture: CaptureReanalysisAccess
     let reanalyze: SavedIdentificationReanalysisAccess
     let protectedChat: ProtectedInsightChatAccess
@@ -65,6 +66,10 @@ struct PreparedHistoryReanalysisComposition {
             generation: generation, sessionIsCurrent: sessionIsCurrent, containerIsCurrent: containerIsCurrent,
             dispatch: { routes.request(.historicalReanalysis($0), source: .internalUserAction) })
         audioStatus = audioStatusOwner.map { owner in
+            .prepared(account: cloud, owner: owner, reader: .init(), currentOwner: currentOwner,
+                generation: generation, sessionIsCurrent: sessionIsCurrent, containerIsCurrent: containerIsCurrent)
+        }
+        audioSourceStatus = audioSource == nil ? nil : audioStatusOwner.map { owner in
             .prepared(account: cloud, owner: owner, reader: .init(), currentOwner: currentOwner,
                 generation: generation, sessionIsCurrent: sessionIsCurrent, containerIsCurrent: containerIsCurrent)
         }
