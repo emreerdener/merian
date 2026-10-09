@@ -48,6 +48,11 @@ struct ObservationVideoFrameDeriverTests {
             let width = try #require(properties[kCGImagePropertyPixelWidth as String] as? Int)
             let height = try #require(properties[kCGImagePropertyPixelHeight as String] as? Int)
             #expect(width == edge && height == edge)
+            if frame.index == 0 {
+                // Synthetic encoder evidence for the separate server container-policy tests.
+                let suffix = frame.artifact.contentType == "image/webp" ? "webp" : "jpg"
+                Attachment.record(bytes, named: "retained-frame-\(edge).\(suffix)")
+            }
         }
         #expect(output.frames.contains { $0.actualTimeTicks != $0.requestedTimeTicks })
     }

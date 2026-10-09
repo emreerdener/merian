@@ -11949,6 +11949,24 @@ Candidate CI explicitly checks and runs the companion suite, with registration
 guarded by `workflowSecurity.test.ts`. These tests prove byte/metadata binding
 only, not source derivation, durable video admission or installed video support.
 
+### Video frame container byte binding
+
+`videoFrameContainer_test.ts` checks exact copied bytes, length/digest, MIME,
+index and manifest identifier separation, square dimensions, malformed JPEG
+segments, APP0/APP1/APP13 mutation and duplicate metadata, plus WebP bounds,
+animation/metadata/duplicate-image rejection and mutation across hashing awaits.
+`publicPhotoContainer_test.ts` protects the unchanged public metadata policy
+after JPEG structure inspection was extracted. Candidate CI checks and runs the
+frame suite; `workflowSecurity.test.ts` guards both registrations.
+
+`ObservationVideoFrameDeriverTests` attaches the first synthetic native frame at
+768 and 1024 pixels. Those simulator-produced JPEG bytes are imported unchanged
+into `fixtures/video-frame-containers.json` and consumed by the Edge tests.
+Separately labeled reference-encoder WebP and synthetic structural vectors do
+not establish native ImageIO WebP compatibility or pixel-decodability of every
+accepted bitstream. Device, source-derivation and live video admission
+qualification remain separate.
+
 ### Prepared retained video encoding
 
 `ObservationRetainedVideoTests` uses the shared synthetic `VideoAudioFixture`

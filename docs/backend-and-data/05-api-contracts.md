@@ -16508,9 +16508,36 @@ and `dataOffset` for that closed PCM profile. The existing
 `validatePreparedAudioContainer` remains a validation-only wrapper returning
 void; accepted audio bytes and limits are unchanged. Inspection returns no
 reference into the input buffer. The prepared video verifier remains absent from
-live upload/admission/execution paths. MP4/frame verification, scoped cohort
-receipts, source/reader coordination and retained-source production remain
-required before video can execute.
+live upload/admission/execution paths. MP4 verification, scoped cohort receipts,
+source/reader coordination and retained-source production remain required before
+video can execute.
+
+### Prepared video frame byte verification
+
+`videoFrameContainer.verifyPreparedVideoFrame` parses the closed V4 manifest,
+selects an integer frame index 0–4, bounds and copies the supplied bytes before
+awaiting hashing, then checks exact length, SHA-256, declared MIME and square
+768/1024 dimensions. Returned bytes are owned. Manifest scope separation is not
+ownership authorization; the future authenticated admission owner must establish
+that independently.
+
+`jpegContainer.inspectJpegContainer` supplies bounded JPEG marker, table and
+scan structure inspection. Private video allows at most one each of APP0 JFIF
+with unit or 72 density, the exact dimension-only ImageIO EXIF APP1, and the
+exact empty Photoshop IPTC APP13, all before the frame. Other metadata is
+rejected. The public photo wrapper retains its stricter existing exact minimal
+JFIF policy. WebP requires exact RIFF length and padding, one opaque VP8/VP8L
+still image, optionally preceded by a matching metadata-free VP8X header.
+Animation, alpha, unknown or duplicate chunks, trailing bytes and mismatched
+dimensions fail closed.
+
+This inspection does not decode entropy/pixels, prove clip-to-frame derivation,
+or sanitize images for publication. Fixtures include actual synthetic iOS 27
+simulator ImageIO JPEG output at both supported edges and a separately labeled
+reference-encoder WebP. Native ImageIO WebP and real-device qualification remain
+open. The verifier is not installed in upload or execution; bounded MP4
+verification, immutable cohort receipts and coordinated source/profile/reader
+integration remain prerequisites.
 
 ### Prepared native retained clip creation
 

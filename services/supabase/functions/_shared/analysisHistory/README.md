@@ -1101,3 +1101,12 @@ keeping the existing void validator and audio acceptance profile unchanged. The
 verifier is a prerequisite for the coordinated video path, not an installed
 upload or materializer. It does not prove clip-to-audio derivation or source
 timing.
+
+`videoFrameContainer.ts` verifies each frozen frame's owned bytes, length,
+digest, MIME and exact square dimensions. Its private JPEG metadata policy
+accepts only bounded dimension-only ImageIO headers; WebP accepts opaque
+still-image chunks without animation or metadata. The extracted
+`jpegContainer.ts` owns structural JPEG inspection shared with public-photo
+validation; public-photo metadata policy is unchanged. This is not pixel
+decoding, source derivation proof, sanitization or live admission. See the
+[frame byte contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-frame-byte-verification).
