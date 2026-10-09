@@ -1936,3 +1936,25 @@ unaccepted. Acceptance transfers that directory with the file. The eventual
 durable preparation owner must retain that lease through derivation and persist
 the complete cohort before transfer. This producer alone does not stage, upload
 or execute V4, or derive its five frames and companion WAV.
+
+## Prepared retained-source video frames
+
+`ObservationVideoFrameDeriver` accepts a retained-clip lease and creates all
+five frames from that exact file. Its private decoder records actual sample
+times, applies the track transform and 2,048-pixel decode cap, then uses the
+shared square crop and an exact 768/1,024 square resize followed by one
+WebP/JPEG encode. Frames have distinct IDs, ordered requested/actual ticks, byte
+counts and SHA-256. Source size/hash are checked before and after sampling. The
+temporary result retains the source lease and owns cleanup of its separate
+operation directory. Cancellation joins the worker and cancels decoding;
+incomplete generations never escape.
+
+There is deliberately no ownership-transfer or durable-admission API for this
+partial frame cohort. Measured WAV derivation, complete-cohort staging and
+coordinated server byte/profile/reader validation remain required. Ordinary
+access and legacy video behavior are unchanged.
+
+An exclusive source-use token blocks clip transfer during derivation and while
+the frame result is retained. Dropping the result synchronously releases that
+use; an already-transferred clip cannot begin derivation. No source identity
+becomes authoritative for server admission through this temporary token.

@@ -16527,3 +16527,23 @@ whole provenance graph and pass a coordinated server byte/cohort/profile/reader
 contract. Current synthetic top-level topology and track checks are not a server
 ISO-BMFF allowlist or device qualification. Legacy video preparation remains
 unchanged.
+
+### Prepared native retained-source frames
+
+`ObservationVideoFrameDeriver` now implements the five-frame portion of
+`direct_inference_v1` against the retained MP4: requested ticks and actual
+decoder times remain separate, frames are transformed/cropped, explicitly
+resized to the declared square edge and encoded once, and each saved file has a
+distinct ID, actual MIME, length and SHA-256. The retained source hash is
+verified before and after generation. Its temporary result retains source
+ownership and cleans the entire frame directory on drop.
+
+This does not make a V4 manifest executable: measured companion WAV, complete
+durable cohort, server byte validation, source/profile admission and reader
+coordination remain required. No upload, request, schema or activation gate is
+changed by this private native producer.
+
+An exclusive source-use token blocks clip transfer during derivation and while
+the frame result is retained. Dropping the result synchronously releases that
+use; an already-transferred clip cannot begin derivation. No source identity
+becomes authoritative for server admission through this temporary token.

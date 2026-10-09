@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import os
 
 enum ObservationRetainedVideoClipError: Error {
     case busy, invalidSource, unsupportedProfile, failed, timedOut, oversized
@@ -10,7 +11,8 @@ enum ObservationRetainedVideoClipError: Error {
 actor ObservationRetainedVideoClip {
     nonisolated let url: URL
     private let ownedDirectory: URL
-    private var retained = false
+    private enum Ownership: Equatable { case owned, deriving(UUID), transferred }
+    private nonisolated let ownership = OSAllocatedUnfairLock(initialState: Ownership.owned)
 
     init(url: URL, ownedDirectory: URL) {
         self.url = url
@@ -20,13 +22,45 @@ actor ObservationRetainedVideoClip {
     /// Transfers the file and its containing operation directory to the caller.
     func relinquishOwnership() throws -> URL {
         try Task.checkCancellation()
-        retained = true
+        try ownership.withLock { state in
+            guard state == .owned else { throw ObservationRetainedVideoClipError.busy }
+            state = .transferred
+        }
         return url
     }
 
-    deinit {
-        if !retained { try? FileManager.default.removeItem(at: ownedDirectory) }
+    func beginDerivation() throws -> ObservationRetainedVideoUse {
+        try Task.checkCancellation()
+        let id = UUID()
+        try ownership.withLock { state in
+            guard state == .owned else { throw ObservationRetainedVideoClipError.busy }
+            state = .deriving(id)
+        }
+        return ObservationRetainedVideoUse(source: self, id: id)
     }
+
+    fileprivate nonisolated func endDerivation(_ id: UUID) {
+        ownership.withLock { state in
+            if state == .deriving(id) { state = .owned }
+        }
+    }
+
+    deinit {
+        if ownership.withLock({ $0 != .transferred }) { try? FileManager.default.removeItem(at: ownedDirectory) }
+    }
+}
+
+/// The token keeps the clip alive and releases its exclusive use synchronously on drop.
+final class ObservationRetainedVideoUse: Sendable {
+    let url: URL
+    private let source: ObservationRetainedVideoClip
+    private let id: UUID
+
+    fileprivate init(source: ObservationRetainedVideoClip, id: UUID) {
+        self.source = source; self.id = id; url = source.url
+    }
+
+    deinit { source.endDerivation(id) }
 }
 
 /// Inert preparation boundary: never installed into legacy capture or history admission.

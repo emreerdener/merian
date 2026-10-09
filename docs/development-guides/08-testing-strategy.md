@@ -11959,3 +11959,19 @@ unrelated sibling file survives cancellation. Profile tests check mono 44.1 kHz
 AAC, empty asset metadata and supported transforms. This is simulator encoder
 evidence, not a complete ISO-BMFF security validator, real-camera qualification
 or proof of frame/WAV derivation from the retained clip.
+
+### Prepared retained-source frame tests
+
+`ObservationVideoFrameDeriverTests` creates synthetic silent/audio clips and
+trims their duration so requested sample times differ from actual 30fps samples.
+It independently queries the retained clip's decoder times and checks five
+ordered artifacts, source/frame digests, source preservation, exact square
+inference dimensions. Cancellation after a saved frame, interrupted validation,
+producer reuse and dropped-generation directory cleanup verify that partial
+frames do not escape and the retained source survives. These focused tests do
+not qualify measured WAV extraction, durable cohort replay or device resources.
+
+An exclusive source-use token blocks clip transfer during derivation and while
+the frame result is retained. Dropping the result synchronously releases that
+use; an already-transferred clip cannot begin derivation. No source identity
+becomes authoritative for server admission through this temporary token.

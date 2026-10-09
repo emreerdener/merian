@@ -1385,3 +1385,26 @@ cached URL resource values. Input ownership remains with the caller. No ordinary
 capture path uses this producer; actual V4 frame/WAV derivation, measured
 timestamps, complete-cohort durability, server byte validation and device
 resource qualification remain required.
+
+### Prepared retained-source frame derivation
+
+The uninstalled `ObservationVideoFrameDeriver` consumes the retained MP4 lease,
+never the legacy recording or playback export. It samples five interior times in
+the fixed 600-Hz timebase and records the decoder-returned actual times
+separately. One private decoder applies the preferred transform and 2,048-pixel
+cap; each frame is square-cropped at the recorded center and encoded once at
+quality 85 after an explicit resize to the requested 768/1,024 square
+dimensions. The actual encoded WebP/JPEG MIME is retained. Five outputs are
+required and total at most 5 MiB.
+
+The result binds each artifact's ID, size and digest to the retained source ID;
+the source hash is rechecked before returning. Generation owns a private output
+directory, a 30-second cancellation watchdog and a joined worker. Drop/error
+cleanup removes only that directory, while the result retains the source lease.
+No partial result transfers into the queue. Measured audio extraction and whole
+cohort persistence remain separate unfinished parts of video integration.
+
+An exclusive source-use token blocks clip transfer during derivation and while
+the frame result is retained. Dropping the result synchronously releases that
+use; an already-transferred clip cannot begin derivation. No source identity
+becomes authoritative for server admission through this temporary token.
