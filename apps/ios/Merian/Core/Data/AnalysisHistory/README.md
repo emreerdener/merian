@@ -1913,3 +1913,12 @@ prevents returning a page from the other reader. Each actual read retains its
 account lease until exit, including after cancellation. Source paging needs no
 separate preparation slot, makes no admission call and never grants execution
 authority.
+
+## Private video metadata
+
+`ObservationVideoManifest` strictly decodes the prepared manifest V4 and keeps
+its original JSON bytes; `ObservationVideoProvenance` retains typed source,
+parameters, frames and optional audio. These values confer no admission,
+persistence, upload or execution authority. Existing audio/photo readers and
+requests remain separate. Shared backend/native golden vectors qualify metadata
+parity; real retained-clip preparation and queue integration remain pending.

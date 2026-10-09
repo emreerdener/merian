@@ -16370,9 +16370,10 @@ sub-envelope with `schema_version:1` and
 `preprocessing_version:"retained_clip_v1"`. It is not an evidence manifest,
 result snapshot, executable request or public reader capability. No current
 admission, upload, reader, native queue or provider path accepts this envelope.
-Photo/audio generations and their saved bytes remain unchanged. Result/manifest/
-request versions and the next public reader must be coordinated in subsequent
-checkpoints; service-only reader 11 cannot be reused as a public capability.
+Photo/audio generations and their saved bytes remain unchanged.
+Result/executable request versions and the next public reader must be
+coordinated in subsequent checkpoints; service-only reader 11 cannot be reused
+as a public capability.
 
 The exact top-level keys are `schema_version`, `preprocessing_version`,
 `source`, `parameters`, `frames` and `audio`. Every artifact has exactly
@@ -16430,3 +16431,27 @@ another provider invocation while the original outcome is unknown. Interrupted
 preprocessing, durable native replay, source-and-derivative erasure and public
 reader rejection require their later integration tests. This checkpoint changes
 no database, captured-media display wire, generated DTO, gate or installation.
+
+### Prepared private video manifest V4
+
+`videoManifest.ts` and native `ObservationVideoManifest` define an exact private
+metadata envelope: `schema_version:4`, `provenance` (the closed video provenance
+schema 1 above), and `descriptions` (an ordered array of zero to 64 strings).
+Descriptions preserve all text and ordering; each must contain content under
+ECMAScript trim, be valid Unicode scalar text, and contain at most 8,192 scalars
+and 16,384 UTF-16 units. Combined descriptions are limited to 32,000 UTF-16
+units. The native byte decoder accepts at most 1,044,480 bytes. Its typed
+provenance values preserve source/artifact identity and requested/actual timing
+separately; fixed derivation parameters are validated before construction.
+Original JSON bytes remain available unchanged, without assigning an operation,
+request digest or persistence authority. No generic captured-media or audio type
+substitutes for this graph.
+
+V4 is not an executable input, result snapshot, upload authorization, installed
+queue format or public reader capability. Existing photo/audio and source
+reservation parsers reject it. Source media identity is not a historical source
+analysis ID. The independently supplied observation/analysis IDs fence artifact
+aliases but do not establish owner authorization. Membership and byte/storage
+verification, dedicated production, persistence, server profile selection,
+forward database admission and coordinated reader/result contracts remain later
+checkpoints. No activation gate changes.

@@ -11904,3 +11904,19 @@ subsequent video checkpoints; no new public history reader is enabled here.
 Candidate CI explicitly includes the video provenance test in both its
 type-check and helper-test commands; `workflowSecurity.test.ts` guards that
 registration.
+
+### Private video manifest parity
+
+`videoManifest_test.ts` and `ObservationVideoManifestTests` consume the same 40
+synthetic manifest vectors: optional/offset audio, exact description ordering,
+Unicode and aggregate limits, numeric/Boolean separation, closed fields, source
+links, alias rejection and timing. Native tests separately cover bounded byte
+decoding and retaining original whitespace without re-encoding. Backend checks
+prove existing executable and source-reservation admission rejects V4. Candidate
+CI lists the manifest test explicitly for type-check and helper tests; its
+registration is guarded by `workflowSecurity.test.ts`.
+
+This coverage is metadata validation only. It does not establish real video
+preprocessing, persisted queue recovery, database admission, reader support or
+hosted/device qualification. Old photo/audio formats are compatibility controls;
+no public reader or runtime gate is enabled by accepting this private manifest.

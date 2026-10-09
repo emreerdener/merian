@@ -205,6 +205,13 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
     2,
     "Video provenance must be included in both candidate type-check and helper-test lists",
   );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoManifest_test.ts",
+    ).length - 1,
+    2,
+    "Video manifest must be included in both candidate type-check and helper-test lists",
+  );
   assertStringIncludes(candidateWorkflow, "  merge_group:");
   assertStringIncludes(candidateWorkflow, "  workflow_dispatch:");
   assertStringIncludes(candidateWorkflow, "  workflow_call:");

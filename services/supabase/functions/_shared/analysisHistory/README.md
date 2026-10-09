@@ -1073,9 +1073,16 @@ remain sanitized unavailable errors.
 retained derivation clip, five ordered frame artifacts and optional companion
 WAV. It freezes source relationships, requested/actual times, preprocessing
 version, crop/size/encoding parameters and each artifact's digest. It grants no
-byte-verification, admission or provider authority and is not yet consumed by a
-request, manifest, result or reader. The legacy parallel video preparer cannot
-be relabelled as this generation. Existing photo/audio formats are unchanged.
-See the
+byte-verification, admission or provider authority and is consumed only by the
+private V4 manifest. No executable request, result or reader accepts it. The
+legacy parallel video preparer cannot be relabelled as this generation. Existing
+photo/audio formats are unchanged. See the
 [canonical provenance contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-private-video-derivation-provenance)
 for bounds and the remaining producer/storage/reader integration requirements.
+
+`videoManifest.ts` wraps that graph with ordered, bounded descriptions. Native
+`ObservationVideoManifest`/`ObservationVideoProvenance` decode the same closed
+metadata shape and retain original JSON bytes. Shared synthetic
+`fixtures/video-manifest-v4.json` vectors cover both implementations. These are
+prepared contracts, not admission or persistence owners; existing photo/audio
+and source reservation parsers remain unchanged.
