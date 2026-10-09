@@ -13,10 +13,10 @@ closed response decoder. Its 2 KiB byte boundary and exact owner/parent/source
 checks grant no admission or execution permission. The gated service-only SQL
 resolver classifies bounded existing records. Separate default-false
 service-only reader-11 routines own source reservation and unfunded retirement;
-prepared HTTP wrappers and a native photo V2 durable handoff/retained injected
-reservation service exist. No composition caller is installed. Audio handoff,
-native unfunded retirement and ordinary activation remain pending. The initial
-resolver never returns advisory absence. See the
+prepared HTTP wrappers and a native photo V2/audio V3 durable handoff/retained
+injected reservation service exist. No composition caller is installed. Native
+unfunded retirement and ordinary activation remain pending. The initial resolver
+never returns advisory absence. See the
 [canonical prepared contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-discovery-contract)
 and `sourceDiscovery_test.ts`; do not use existing funded admission as a lookup.
 
@@ -26,8 +26,8 @@ digest and saved bytes. It grants no authority; the gated SQL reservation
 validates the same fingerprint. The fixed golden vectors are shared with the
 pure ungranted SQL encoders and native `ObservationSourceFingerprint` tests. The
 prepared reservation HTTP route and inert native codec/transport consume this
-contract. Photo V2 has durable injected delivery; installed composition and
-audio handoff remain separate. See the
+contract. Photo V2/audio V3 have durable injected delivery; installed
+composition remains separate. See the
 [fingerprint contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-reservation-fingerprint).
 
 `sourceReservation.ts` owns the prepared reader-11 reservation and explicit
@@ -36,9 +36,9 @@ before await, and decodes exact owner-scoped receipts within 2 KiB. Held states
 never expose a competitor; `retired_unfunded` cannot be confused with funded
 execution retirement. Default-false service-only SQL routines implement the
 contract. The prepared reservation and unfunded-retirement HTTP routes are
-connected; native photo V2 has durable injected delivery with no installed
-composition caller. Audio handoff and native unfunded retirement remain
-separate. See the
+connected; native photo V2/audio V3 have durable injected delivery with no
+installed composition caller. Native unfunded retirement remain separate. See
+the
 [mutation wire contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-reservation-and-unfunded-retirement-wire);
 retained bindings continue enforcing writer fences after terminal release.
 
@@ -774,10 +774,10 @@ current native readers remain 9. No ordinary route or rollout is enabled.
 
 Private SQL binding/occupancy tables provide durable source coordination. Later
 gated service-only reader-11 reservation/release routines and authenticated HTTP
-wrappers consume them. Native photo V2 has a durable handoff and retained
-injected delivery owner but no installed composition caller; unfunded retirement
-has no native caller. Their metadata does not grant upload, funding or execution
-authority. The
+wrappers consume them. Native photo V2/audio V3 have a durable handoff and
+retained injected delivery owner but no installed composition caller; unfunded
+retirement has no native caller. Their metadata does not grant upload, funding
+or execution authority. The
 [storage boundary](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-binding-storage-boundary)
 distinguishes this groundwork from required all-writer reservation, terminal
 release and legacy replay coordination.
@@ -1012,9 +1012,9 @@ follows binding/parent deletion; terminal replay never recreates occupancy. No
 HTTP/native consumer or activation was introduced by that migration. The later
 prepared `reserve-observation-analysis-source` and
 `retire-observation-analysis-source` routes wrap these routines. An inert native
-reservation bridge now has photo V2 durable storage and an explicitly injected
-retained owner. No composition caller is installed; native unfunded retirement
-remains separate.
+reservation bridge now has photo V2/audio V3 durable storage and an explicitly
+injected retained owner. No composition caller is installed; native unfunded
+retirement remains separate.
 
 Source-admission database concurrency fixtures derive a stable synthetic IP hash
 from each synthetic owner. Duplicate calls for that owner retain the same
@@ -1056,7 +1056,7 @@ Reserved and held observations confer no execution authority. The prepared
 `reserve-observation-analysis-source` route consumes `reserve` through a scoped
 service client; `retire-observation-analysis-source` uses `retireUnfunded` with
 a full-candidate public envelope and stable operation. Reservation has a native
-photo V2 durable handoff and retained injected owner, with no installed
+photo V2/audio V3 durable handoff and retained injected owner, with no installed
 composition caller. Retirement still has no native handoff. Adapter tests cover
 exact arguments, snapshot mutation, all closed observations, retirement
 identity, cancellation, stalled transport, late replies and malformed or

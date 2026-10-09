@@ -35,7 +35,7 @@ struct ObservationSourceStoreTests {
     @Test(arguments: ["staged", "running", "unknown", "conflict", "reserved", "held", "unavailable"])
     func allSourcePhasesStayOutsideAdmissionExecutionAndDiscard(_ phase: String) async throws {
         let seed = try fixture.seed(action: .submit); defer { try? FileManager.default.removeItem(at: seed.root) }
-        let admission = try await prepare(seed), proof = try seed.pending.verified(source: seed.source)
+        let admission = try await prepare(seed), proof = try ObservationSourceReservationStore.Proof.photo(seed.pending.verified(source: seed.source))
         let saved = try Store.stage(admission, request: request(seed), proof: proof, container: seed.container, isCurrent: { true })
         if phase != "staged" {
             let claim = try Store.claim(saved, admission: .initial, proof: proof, container: seed.container, isCurrent: { true })
@@ -54,7 +54,7 @@ struct ObservationSourceStoreTests {
             container: seed.container, isCurrent: { true }).isEmpty)
         #expect(throws: (any Error).self) {
             try ObservationReanalysisExecutionStore.bindAndAdmit(seed.pending.draft, processor: .gemini, now: now,
-                container: seed.container, isCurrent: { true }, submissionProof: proof, admissionClaim: admission)
+                container: seed.container, isCurrent: { true }, submissionProof: seed.pending.verified(source: seed.source), admissionClaim: admission)
         }
         #expect(throws: (any Error).self) {
             try ObservationReanalysisPersistence.discardPreparation(source: seed.source, analysisID: saved.identity.analysisID,
@@ -69,7 +69,7 @@ struct ObservationSourceStoreTests {
 
     @Test func exactRecoveryAdvancesOnlyLocalGenerationAndRejectsStaleClaims() async throws {
         let seed = try fixture.seed(action: .submit); defer { try? FileManager.default.removeItem(at: seed.root) }
-        let admission = try await prepare(seed), proof = try seed.pending.verified(source: seed.source)
+        let admission = try await prepare(seed), proof = try ObservationSourceReservationStore.Proof.photo(seed.pending.verified(source: seed.source))
         let saved = try Store.stage(admission, request: request(seed), proof: proof, container: seed.container, isCurrent: { true })
         let first = try Store.claim(saved, admission: .initial, proof: proof, container: seed.container, isCurrent: { true })
         let second = try Store.claim(first.snapshot, admission: .explicitRecovery, proof: proof, container: seed.container, isCurrent: { true })
@@ -83,7 +83,7 @@ struct ObservationSourceStoreTests {
     @Test(arguments: [false, true])
     func uncertainStageSaveRetainsExactCandidateAndNeverCreatesExecution(committed: Bool) async throws {
         let seed = try fixture.seed(action: .submit); defer { try? FileManager.default.removeItem(at: seed.root) }
-        let admission = try await prepare(seed), proof = try seed.pending.verified(source: seed.source), candidate = try request(seed)
+        let admission = try await prepare(seed), proof = try ObservationSourceReservationStore.Proof.photo(seed.pending.verified(source: seed.source)), candidate = try request(seed)
         #expect(throws: (any Error).self) {
             try Store.stage(admission, request: candidate, proof: proof, container: seed.container, isCurrent: { true }, save: {
                 if committed { try $0.save() }; throw CocoaError(.fileWriteUnknown)
@@ -138,7 +138,7 @@ struct ObservationSourceStoreTests {
 
     @Test func sourceStagingRejectsUnverifiedPhaseAndChangedRequest() async throws {
         let seed = try fixture.seed(action: .submit); defer { try? FileManager.default.removeItem(at: seed.root) }
-        let proof = try seed.pending.verified(source: seed.source)
+        let proof = try ObservationSourceReservationStore.Proof.photo(seed.pending.verified(source: seed.source))
         let pending = try Admission.read(seed.pending.draft.identity, container: seed.container, isCurrent: { true })
         let filesClaim = try Admission.claim(pending, admission: .initial, now: now, container: seed.container, isCurrent: { true })
         #expect(throws: (any Error).self) { try Store.stage(filesClaim, request: request(seed), proof: proof, container: seed.container, isCurrent: { true }) }
@@ -146,9 +146,9 @@ struct ObservationSourceStoreTests {
         try await fixture.publish(seed)
         let files = ObservationReanalysisFileStore(documents: seed.root)
         let ready = try await files.recover(draft: seed.pending.draft, validateBeforeRead: {
-            try Admission.validate(filesClaim, container: seed.container, isCurrent: { true }, proof: proof)
+            try Admission.validate(filesClaim, container: seed.container, isCurrent: { true }, proof: seed.pending.verified(source: seed.source))
         }, commit: {
-            try Admission.promoteVerifiedFiles(filesClaim, proof: proof, container: seed.container, isCurrent: { true })
+            try Admission.promoteVerifiedFiles(filesClaim, proof: seed.pending.verified(source: seed.source), container: seed.container, isCurrent: { true })
         })
         let claim = try Admission.claim(ready, admission: .initial, now: now, container: seed.container, isCurrent: { true })
         let saved = try Store.stage(claim, request: request(seed), proof: proof, container: seed.container, isCurrent: { true })
@@ -160,7 +160,7 @@ struct ObservationSourceStoreTests {
     @Test(arguments: ["account", "parentDeletion", "childDeletion", "source", "queueResidue", "container"])
     func staleScopeAndMalformedPairCannotAcknowledge(_ change: String) async throws {
         let seed = try fixture.seed(action: .submit); defer { try? FileManager.default.removeItem(at: seed.root) }
-        let admission = try await prepare(seed), proof = try seed.pending.verified(source: seed.source)
+        let admission = try await prepare(seed), proof = try ObservationSourceReservationStore.Proof.photo(seed.pending.verified(source: seed.source))
         let saved = try Store.stage(admission, request: request(seed), proof: proof, container: seed.container, isCurrent: { true })
         let claim = try Store.claim(saved, admission: .initial, proof: proof, container: seed.container, isCurrent: { true })
         let context = ModelContext(seed.container)
@@ -180,7 +180,7 @@ struct ObservationSourceStoreTests {
 
     @Test func knownReplySurvivesCancellationOnlyForTheUnchangedClaim() async throws {
         let seed = try fixture.seed(action: .submit); defer { try? FileManager.default.removeItem(at: seed.root) }
-        let admission = try await prepare(seed), proof = try seed.pending.verified(source: seed.source)
+        let admission = try await prepare(seed), proof = try ObservationSourceReservationStore.Proof.photo(seed.pending.verified(source: seed.source))
         let saved = try Store.stage(admission, request: request(seed), proof: proof, container: seed.container, isCurrent: { true })
         let claim = try Store.claim(saved, admission: .initial, proof: proof, container: seed.container, isCurrent: { true })
         let response = try reply(saved)
@@ -194,7 +194,7 @@ struct ObservationSourceStoreTests {
     @Test(arguments: [false, true])
     func parentErasureRetainsItsOwnDurableDeletionAuthority(committed: Bool) async throws {
         let seed = try fixture.seed(action: .submit); defer { try? FileManager.default.removeItem(at: seed.root) }
-        let admission = try await prepare(seed), proof = try seed.pending.verified(source: seed.source)
+        let admission = try await prepare(seed), proof = try ObservationSourceReservationStore.Proof.photo(seed.pending.verified(source: seed.source))
         let saved = try Store.stage(admission, request: request(seed), proof: proof, container: seed.container, isCurrent: { true })
         let claim = try Store.claim(saved, admission: .initial, proof: proof, container: seed.container, isCurrent: { true })
         let observed = try Store.settle(claim, reply: reply(saved), proof: proof, container: seed.container, isCurrent: { true })
@@ -224,7 +224,7 @@ struct ObservationSourceStoreTests {
         let retained: Work
         do {
             let seed = try fixture.seed(action: .submit, url: url); defer { try? FileManager.default.removeItem(at: seed.root) }
-            let admission = try await prepare(seed), proof = try seed.pending.verified(source: seed.source)
+            let admission = try await prepare(seed), proof = try ObservationSourceReservationStore.Proof.photo(seed.pending.verified(source: seed.source))
             let saved = try Store.stage(admission, request: request(seed), proof: proof, container: seed.container, isCurrent: { true })
             retained = try Store.claim(saved, admission: .initial, proof: proof, container: seed.container, isCurrent: { true }).snapshot.work
         }

@@ -74,6 +74,8 @@ assert_scope true pull_request "apps/ios/Merian/Core/Network/Transport/Observati
 assert_scope true pull_request "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationSourceReservationService.swift"
 assert_scope true pull_request "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationSourceReservationStore.swift"
 assert_scope true pull_request "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationSourceReservationWork.swift"
+assert_scope true pull_request "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationSourceReservationPreparation.swift"
+assert_scope true pull_request "apps/ios/MerianTests/Core/Data/AnalysisHistory/ObservationAudioSourceStoreTests.swift"
 assert_scope true pull_request "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationReanalysisPersistence.swift"
 assert_scope true pull_request "apps/ios/Merian/Core/Data/OfflineSync/Services/ObservationSourceReservationOwner.swift"
 assert_scope true pull_request "apps/ios/Merian/Core/Data/OfflineSync/Services/OfflineQueueManager+SourceReservation.swift"

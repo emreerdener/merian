@@ -4163,12 +4163,12 @@ can survive dispatch cancellation while owner/container/claim settlement remains
 valid. Exact public conflict409 becomes a scoped typed conflict; other HTTP
 errors, malformed replies, timeout or cancellation never become receipts.
 
-Photo V2 now has durable candidate staging/CAS and an explicitly injected,
-queue-retained `ObservationSourceReservationService` /
+Photo V2/audio V3 now have durable candidate staging/CAS and an explicitly
+injected, queue-retained `ObservationSourceReservationService` /
 `ObservationSourceReservationOwner` delivery path. Exact typed conflicts settle
 under the same owner/request/claim fences even after dispatch cancellation. No
 composition caller is installed. Ordinary UI, scheduler, upload and execution
-remain disconnected; audio V3 persistence and unfunded retirement are separate
+remain disconnected; installed composition and unfunded retirement are separate
 checkpoints. Tests are `ObservationSourceReservationTests`,
 `ObservationSourceTransportTests`, `ObservationSourceStoreTests`,
 `ObservationSourceReservationOwnerTests` and

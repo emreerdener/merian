@@ -12,7 +12,7 @@ struct ObservationSourceReservationOwnerTests {
         let fixture = ObservationSourceStoreTests()
         let admission = try await fixture.prepare(seed)
         let saved = try ObservationSourceReservationStore.stage(admission, request: fixture.request(seed),
-            proof: seed.pending.verified(source: seed.source), container: seed.container, isCurrent: { true })
+            proof: .photo(seed.pending.verified(source: seed.source)), container: seed.container, isCurrent: { true })
         return .init(snapshot: saved, admission: .initial,
             session: .init(userID: saved.identity.ownerID, isAnonymous: false), generation: 1, container: ObjectIdentifier(seed.container))
     }

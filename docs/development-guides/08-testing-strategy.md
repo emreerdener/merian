@@ -11810,3 +11810,15 @@ including the retained source owner, service, durable store/work, shared
 persistence and queue/Auth teardown seams. The detector regression pins these
 paths and their service/owner/store tests; this selects candidate validation and
 grants no deployment authorization.
+
+### Tagged audio source handoff regressions
+
+`ObservationAudioSourceStoreTests` covers exact ready-only V3 staging, all
+source states staying outside execution/preparation, commit-then-throw recovery,
+strict variant/evidence decoding, stale
+account/source/parent/child/container/claim settlement denial, cancelled
+known-answer settlement and durable SQLite restart with the original candidate.
+It pins byte-for-byte compatibility of the v9 photo envelope. Existing photo
+store and retained owner/service regressions continue to run with tagged proofs.
+These tests do not qualify installed composition, provider execution, device
+behavior or activation.

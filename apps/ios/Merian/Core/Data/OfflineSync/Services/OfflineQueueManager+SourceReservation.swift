@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 extension OfflineQueueManager {
-    /// Explicit staged photo work only; no discovery, timer or automatic replay.
+    /// Explicit staged photo/audio work only; no discovery, timer or automatic replay.
     @discardableResult
     func requestSourceReservation(_ key: ObservationSourceReservationOwner.Key,
                                   proof: ObservationSourceReservationStore.Proof,

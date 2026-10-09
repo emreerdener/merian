@@ -1,11 +1,11 @@
 import Foundation
 import SwiftData
 
-/// Exact local photo handoff. No discovery, network, timers or execution admission.
+/// Exact local photo/audio handoff. No discovery, network, timers or execution admission.
 @MainActor
 enum ObservationSourceReservationStore {
     typealias Work = ObservationSourceReservationWork
-    typealias Proof = ObservationReanalysisPreparationIntent.Verified
+    typealias Proof = ObservationSourceReservationPreparation.Verified
     private typealias Persistence = ObservationReanalysisPersistence
     enum Admission: Equatable { case initial, explicitRecovery }
     struct Snapshot: Equatable, Sendable {
@@ -23,9 +23,9 @@ enum ObservationSourceReservationStore {
     static func stage(_ admission: ObservationReanalysisAdmissionStore.Claim, request: ObservationSourceReservationRequest,
                       proof: Proof, container: ModelContainer, isCurrent: () -> Bool,
                       save: (ModelContext) throws -> Void = { try $0.save() }) throws -> Snapshot {
-        guard admission.snapshot.work.phase == .admissionPending,
-              admission.snapshot.work.preparation == proof.pending else { throw Persistence.IntegrityError.conflict }
-        let work = try Work(preparation: proof.pending, request: request)
+        guard case let .photo(photoProof) = proof, admission.snapshot.work.phase == .admissionPending,
+              admission.snapshot.work.preparation == photoProof.pending else { throw Persistence.IntegrityError.conflict }
+        let work = try Work(preparation: proof.preparation, request: request)
         return try Persistence.transaction(work.identity, container: container, isCurrent: isCurrent, save: save) { context in
             try proof.validate(context: context)
             if let (_, job) = try Persistence.pair(work.identity, context: context), let metadata = job.metadataJSON,
@@ -34,8 +34,29 @@ enum ObservationSourceReservationStore {
                 guard saved.work.preparation == work.preparation, saved.work.request == request else { throw Persistence.IntegrityError.conflict }
                 return saved
             }
-            let original = try ObservationReanalysisAdmissionStore.matching(admission, proof: proof, context: context)
+            let original = try ObservationReanalysisAdmissionStore.matching(admission, proof: photoProof, context: context)
             return try write(work, job: original.job, container: container)
+        }
+    }
+
+    /// Consumes an exact ready audio preparation only; existing execution bindings can never enter.
+    static func stageAudio(request: ObservationSourceReservationRequest, proof: Proof, container: ModelContainer,
+                           isCurrent: () -> Bool, save: (ModelContext) throws -> Void = { try $0.save() }) throws -> Snapshot {
+        guard case let .audio(audioProof) = proof else { throw Persistence.IntegrityError.conflict }
+        let work = try Work(preparation: proof.preparation, request: request)
+        return try Persistence.transaction(work.identity, container: container, isCurrent: isCurrent, save: save) { context in
+            try proof.validate(context: context)
+            try Persistence.requireNoResultCollision(work.identity, context: context)
+            guard let (row, job) = try Persistence.pair(work.identity, context: context) else { throw Persistence.IntegrityError.unavailable }
+            if let metadata = job.metadataJSON, (try? Work.decode(Data(metadata.utf8))) != nil {
+                let saved = try pair(work.identity, container: container, context: context).snapshot
+                guard saved.work.preparation == work.preparation, saved.work.request == request else { throw Persistence.IntegrityError.conflict }
+                return saved
+            }
+            guard try ObservationAudioPreparationStore.restore(audioProof.preparation, row: row, job: job) == .admissionPending else {
+                throw Persistence.IntegrityError.conflict
+            }
+            return try write(work, job: job, container: container)
         }
     }
 
@@ -103,7 +124,7 @@ enum ObservationSourceReservationStore {
     }
 
     private static func matching(_ expected: Snapshot, proof: Proof, container: ModelContainer, context: ModelContext) throws -> OfflineJobRecord {
-        guard expected.containerID == ObjectIdentifier(container), proof.pending == expected.work.preparation else {
+        guard expected.containerID == ObjectIdentifier(container), proof.preparation == expected.work.preparation else {
             throw Persistence.IntegrityError.conflict
         }
         try proof.validate(context: context)
@@ -126,7 +147,7 @@ enum ObservationSourceReservationStore {
             throw Persistence.IntegrityError.unavailable
         }
         let work = try Work.decode(Data(metadata.utf8))
-        try ObservationReanalysisAdmissionStore.validatePristinePair(identity, preparation: work.preparation, row: row, job: job)
+        try work.preparation.validateRow(row, job: job)
         return (.init(work: work, metadata: metadata, containerID: ObjectIdentifier(container)), job)
     }
 }

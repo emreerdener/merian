@@ -945,14 +945,15 @@ final Capture action and all activation gates remain disabled.
 filtering, stale claims, retry/hold transitions, failed-save rollback, locked
 promotion, account loss, binding and discard fences.
 
-### Inert photo source-reservation storage
+### Inert source-reservation storage
 
-`ObservationSourceReservationWork` owns a closed version-9 local envelope for
-photo V2 only. It preserves the submitted source proof, original input and
-candidate bytes, local claim generation and exact raw observation. Its 4 MiB
-metadata cap includes base64 expansion of the separately bounded preparation,
-input, candidate and 2 KiB reply. Audio V3 remains with its separate owner; no
-SwiftData field or frozen schema changes.
+`ObservationSourceReservationWork` retains the unchanged version-9 photo V2
+envelope and adds a version-10 audio V3 envelope through the tagged
+`ObservationSourceReservationPreparation`. It preserves the submitted source
+proof, original input and candidate bytes, local claim generation and exact raw
+observation. Its 4 MiB metadata cap includes base64 expansion of the separately
+bounded preparation, input, candidate and 2 KiB reply. The tagged proof shares
+CAS/settlement rules; no SwiftData field or frozen schema changes.
 
 `ObservationSourceReservationStore.stage` consumes only an exact running,
 files-verified admission-pending claim. It saves the immutable candidate before
@@ -972,17 +973,17 @@ saved after cancellation only under the unchanged claim and account/container
 scope; cancellation without a known reply may retain running work for explicit
 recovery. This store has no timer, scheduler, transport or presentation caller.
 
-Old preparation/admission/execution decoders reject version 9. Source work
-cannot appear in their candidate sets, bind execution, or use local preparation
-discard. Parent erasure still uses independent parent linkage and records its
-child cleanup receipt regardless of metadata. The same transaction retains the
-owner-bound parent-deletion task; server parent deletion cascades through source
-bindings and occupancy. No source state authorizes upload, funding, a new UUID,
-inference, refund or release. The explicit retained delivery service below is
-the only new consumer; a separate exact unfunded-retirement action remains
-required before release.
+Old preparation/admission/execution decoders reject source-reservation envelopes
+(versions 9 and 10). Source work cannot appear in their candidate sets, bind
+execution, or use local preparation discard. Parent erasure still uses
+independent parent linkage and records its child cleanup receipt regardless of
+metadata. The same transaction retains the owner-bound parent-deletion task;
+server parent deletion cascades through source bindings and occupancy. No source
+state authorizes upload, funding, a new UUID, inference, refund or release. The
+explicit retained delivery service below is the only new consumer; a separate
+exact unfunded-retirement action remains required before release.
 
-### Explicit photo source reservation delivery
+### Explicit source reservation delivery
 
 `ObservationSourceReservationService` performs one attempt under the queue's
 `ObservationSourceReservationOwner`. It requires the owner's exact snapshot,
@@ -995,8 +996,8 @@ Errors remain held or leave the original interrupted running claim if
 cancellation prevents a save. Only a later explicit action after actual owner
 exit may claim the same candidate again. There is no timer, candidate discovery,
 upload, funding, inference or automatic rearm. Exact conflicts never release
-occupancy. The photo-only store and service are not connected to ordinary
-presentation; audio V3 persistence and source retirement remain separate
+occupancy. The photo/audio store and service are not connected to ordinary
+presentation; installed composition and source retirement remain separate
 contracts.
 
 ### Shared preparation ownership
@@ -1819,3 +1820,11 @@ releases its short account lease before returning. Actual pages still repeat
 parent and proof validation. This early opening fence adds no admission or
 execution authority. The access keeps presentation checks outside the retained
 owner; ordinary routes and saved-child selection UI remain absent.
+
+Audio staging consumes only exact submitted `admission_pending` preparation,
+validated by the existing audio row/source proof, with no result collision. It
+never consumes an audio execution binding. The shared v10 source metadata keeps
+original V3 request bytes/evidence/profile through explicit recovery and uses
+the same retained service/owner; no composition caller is installed. Existing
+audio resume/execution decoders reject source work rather than silently
+rebinding it.

@@ -14,7 +14,7 @@ struct ObservationSourceReservationServiceTests {
 
     func run(_ key: Owner.Key, seed: ObservationReanalysisRecoveryTests.Seed,
              owner: Owner, service: Service, isCurrent: @escaping @MainActor @Sendable () -> Bool = { true }) async throws -> Service.Outcome {
-        let proof = try seed.pending.verified(source: seed.source)
+        let proof = try ObservationSourceReservationStore.Proof.photo(seed.pending.verified(source: seed.source))
         var leaseExited = false
         let account = owners.account(key) { leaseExited = true }
         return await withCheckedContinuation { continuation in
@@ -64,7 +64,7 @@ struct ObservationSourceReservationServiceTests {
     @Test(arguments: ["auth", "claim", "deletion", "afterAuth"])
     func changedAuthorityCannotAcknowledgeOrDispatch(change: String) async throws {
         let seed = try fixture.fixture.seed(action: .submit); defer { try? FileManager.default.removeItem(at: seed.root) }
-        let key = try await owners.key(seed), owner = Owner(), proof = try seed.pending.verified(source: seed.source)
+        let key = try await owners.key(seed), owner = Owner(), proof = try ObservationSourceReservationStore.Proof.photo(seed.pending.verified(source: seed.source))
         var current = true, dispatched = false
         let outcome = try await run(key, seed: seed, owner: owner, service: .init(reserve: { _, _, before, after in
             if change == "afterAuth" { current = false }

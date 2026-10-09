@@ -55,8 +55,8 @@ conflict returns409; errors never prove vacancy or execution permission. The SQL
 gate remains false. That backend checkpoint included no native caller,
 deployment or scheduling. Later native photo V2 work adds a durable queue
 handoff and retained injected delivery service. No composition/UI/scheduler
-caller is installed; audio handoff and native retirement remain separate. See
-the
+caller is installed; installed composition and native retirement remain
+separate. See the
 [endpoint contract](../../services/supabase/functions/reserve-observation-analysis-source/README.md).
 
 **2026-10-09 unfunded-retirement source addendum:**

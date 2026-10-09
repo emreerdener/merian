@@ -953,13 +953,14 @@ for account versus waiter cancellation. Status access and UI remain uninstalled.
 
 ### Explicit source reservation ownership
 
-`ObservationSourceReservationOwner` retains one explicit photo reservation task,
-coalescing only the exact snapshot, admission mode, Auth session/generation and
-container. Its account lease exits before the slot clears and before the
-owner-qualified completion callback. Connectivity cancellation stops dispatch
-but permits unchanged-scope known-answer settlement. Both Auth quiescence seams
-invalidate settlement immediately, close admission and await actual lease exit;
-overlapping drains cannot reopen admission early. `requestSourceReservation`
-injects the account client, service and current-account predicate. It has no
-scheduler, automatic wake, idle lease, presentation caller or execution handoff.
-The service cannot authorize upload, funding, inference, replacement or refund.
+`ObservationSourceReservationOwner` retains one explicit photo/audio reservation
+task, coalescing only the exact snapshot, admission mode, Auth
+session/generation and container. Its account lease exits before the slot clears
+and before the owner-qualified completion callback. Connectivity cancellation
+stops dispatch but permits unchanged-scope known-answer settlement. Both Auth
+quiescence seams invalidate settlement immediately, close admission and await
+actual lease exit; overlapping drains cannot reopen admission early.
+`requestSourceReservation` injects the account client, service and
+current-account predicate. It has no scheduler, automatic wake, idle lease,
+presentation caller or execution handoff. The service cannot authorize upload,
+funding, inference, replacement or refund.
