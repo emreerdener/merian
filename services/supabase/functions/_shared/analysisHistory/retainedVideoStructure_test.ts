@@ -157,3 +157,46 @@ Deno.test("nested retained profile rejects opaque-envelope-only fixtures and exc
   new DataView(enlarged.buffer).setUint32(28, 1607 + extra.length);
   assertThrows(() => inspectRetainedVideoStructure(enlarged));
 });
+
+Deno.test("nested retained profile accepts unchanged native transformed duration-boundary corpus", async (t) => {
+  const variants = JSON.parse(
+    await Deno.readTextFile(
+      new URL("./fixtures/retained-video-variants.json", import.meta.url),
+    ),
+  );
+  assertEquals(variants.length, 4);
+  for (const fixture of variants) {
+    await t.step(fixture.name, async () => {
+      const bytes = Uint8Array.from(
+        atob(fixture.base64),
+        (c) => c.charCodeAt(0),
+      );
+      assertEquals(bytes.length, fixture.byteCount);
+      const digest = new Uint8Array(
+        await crypto.subtle.digest("SHA-256", bytes),
+      );
+      assertEquals(
+        Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join(""),
+        fixture.sha256,
+      );
+      assertEquals(inspectRetainedVideoStructure(bytes), {
+        width: fixture.width,
+        height: fixture.height,
+        durationTicks: fixture.durationTicks,
+        hasAudio: fixture.hasAudio,
+      });
+      // Fixed native tkhd matrix offset, independent of the production inspector.
+      const view = new DataView(bytes.buffer);
+      const matrix = Array.from(
+        { length: 9 },
+        (_, i) => view.getInt32(200 + i * 4),
+      );
+      assertEquals(
+        matrix,
+        fixture.transform === "rotation"
+          ? [0, 65536, 0, -65536, 0, 0, 64 * 65536, 0, 1073741824]
+          : [-65536, 0, 0, 0, 65536, 0, 96 * 65536, 0, 1073741824],
+      );
+    });
+  }
+});

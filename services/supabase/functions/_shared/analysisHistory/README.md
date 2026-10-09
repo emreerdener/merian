@@ -1126,7 +1126,9 @@ references, track/description/edit declarations, bounded sample tables and
 contiguous exact `mdat` coverage across tracks. It returns frozen
 dimensions/duration/audio facts, not bytes or admission authority. Its initial
 AAC descriptor and container profile are tied to the imported simulator output;
-wider producer compatibility is unqualified. It does not decode compressed media
-or SPS semantics, bind a manifest/hash, or prove derivation. The
+the imported corpus now also covers 96×64 rotated silent and reflected audio
+clips at 0.1/5 seconds. Dimension extremes and other device/OS compatibility
+remain unqualified. It does not decode compressed media or SPS semantics, bind a
+manifest/hash, or prove derivation. The
 [nested structure contract](../../../../../docs/backend-and-data/05-api-contracts.md#retained-video-nested-structure-profile)
 records the required compatibility and admission work.

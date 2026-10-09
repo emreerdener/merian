@@ -12023,9 +12023,12 @@ preservation, output bounds, duration within one movie tick and mono 44.1 kHz
 audio normalization. Each output is attached to XCResult for subsequent
 byte-level compatibility checks. `VideoAudioFixture` keeps its existing
 64×64/one-second/identity defaults and bounds configurable dimensions and frame
-counts. These additional attachments do not establish Edge parser compatibility
-until imported and tested there. Minimum/maximum dimension encoder coverage and
-real-device/OS qualification remain separate requirements.
+counts. The four unchanged attachments are imported into
+`fixtures/retained-video-variants.json`; the existing Edge structural suite
+checks their digest/length, declared facts and independently read fixed-offset
+`tkhd` matrices. They pass the existing profile without a parser-policy change.
+Minimum/maximum dimension encoder coverage and real-device/OS qualification
+remain separate requirements.
 
 ### Prepared retained-source frame tests
 

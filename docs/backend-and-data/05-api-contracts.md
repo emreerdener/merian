@@ -16604,11 +16604,13 @@ inspection does not prove actual codec decodability, decoded dimensions,
 no-reordering, frame/WAV derivation, producer identity, or ownership. Manifest
 length/digest/duration binding, immutable cohort receipts and coordinated
 source, profile, materialization and reader admission remain separate. The
-initial fixture corpus covers only silent/audio one-second 64×64 iOS 27
-simulator output; non-square/transformed/boundary-duration/resampling and
-device/OS variants require qualification before activation. Unsupported output
-fails closed rather than falling back to envelope-only acceptance. Existing
-executable V4 routes remain closed.
+fixture corpus covers silent/audio one-second 64×64 iOS 27 simulator output and
+four unchanged 96×64 native outputs: rotated silent and reflected stereo-source
+clips at 0.1 and 5 seconds, with retained audio normalized to 44.1-kHz mono. All
+pass the existing structural profile without relaxing it. Minimum/maximum
+dimension encoders and other device/OS variants still require qualification
+before activation. Unsupported output fails closed rather than falling back to
+envelope-only acceptance. Existing executable V4 routes remain closed.
 
 ### Prepared native retained clip creation
 
