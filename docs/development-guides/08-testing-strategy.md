@@ -11890,3 +11890,17 @@ continues only that source; reading cannot invoke source admission or execution
 fallback. The legacy saved-status, owner, access and model suites remain
 compatibility controls. These tests do not qualify an installed source sheet,
 real provider execution or any separate device/hosted activation requirement.
+
+### Private video provenance groundwork tests
+
+`analysisHistory/videoProvenance_test.ts` validates immutable round trips, exact
+frame order, independent requested/actual timing, source links, unique artifact
+identities, byte budgets, fixed derivation parameters, closed keys and rejection
+by existing photo/audio manifest parsers. This is pure metadata coverage: it
+neither proves a real clip-to-output derivation nor exercises a native durable
+restart, upload, provider, database or installed UI. Those remain explicit
+subsequent video checkpoints; no new public history reader is enabled here.
+
+Candidate CI explicitly includes the video provenance test in both its
+type-check and helper-test commands; `workflowSecurity.test.ts` guards that
+registration.

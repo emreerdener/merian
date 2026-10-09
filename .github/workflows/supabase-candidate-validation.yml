@@ -175,6 +175,7 @@ jobs:
             supabase/functions/_shared/analysisHistory/publicationDeadline_test.ts \
             supabase/functions/_shared/analysisHistory/photoCohortPreflight_test.ts \
             supabase/functions/_shared/analysisHistory/protectedManifest_test.ts \
+            supabase/functions/_shared/analysisHistory/videoProvenance_test.ts \
             supabase/functions/resolve-history-photo/handler_test.ts \
             supabase/functions/analyze-observation/handler_test.ts \
             supabase/functions/recover-observation-analyses/handler_test.ts \
@@ -372,6 +373,7 @@ jobs:
             supabase/functions/_shared/analysisHistory/publicationDeadline_test.ts \
             supabase/functions/_shared/analysisHistory/photoCohortPreflight_test.ts \
             supabase/functions/_shared/analysisHistory/protectedManifest_test.ts \
+            supabase/functions/_shared/analysisHistory/videoProvenance_test.ts \
             supabase/functions/resolve-history-photo/handler_test.ts \
             supabase/functions/analyze-observation/handler_test.ts \
             supabase/functions/recover-observation-analyses/handler_test.ts \

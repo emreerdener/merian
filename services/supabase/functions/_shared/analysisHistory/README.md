@@ -1066,3 +1066,16 @@ A received exact `analysis_history_operation_conflict` from the source RPC is
 preserved as a typed conflict (HTTP409 for reservation). It is not a vacancy or
 release receipt and never permits replacement or dispatch. Other RPC failures
 remain sanitized unavailable errors.
+
+## Prepared video provenance groundwork
+
+`videoProvenance.ts` owns a separate closed metadata sub-envelope for one actual
+retained derivation clip, five ordered frame artifacts and optional companion
+WAV. It freezes source relationships, requested/actual times, preprocessing
+version, crop/size/encoding parameters and each artifact's digest. It grants no
+byte-verification, admission or provider authority and is not yet consumed by a
+request, manifest, result or reader. The legacy parallel video preparer cannot
+be relabelled as this generation. Existing photo/audio formats are unchanged.
+See the
+[canonical provenance contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-private-video-derivation-provenance)
+for bounds and the remaining producer/storage/reader integration requirements.

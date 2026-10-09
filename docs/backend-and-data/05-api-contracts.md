@@ -16362,3 +16362,71 @@ resume admission path. Bound execution stays on its existing recovery path;
 unknown execution permits exact outcome recovery and reconciliation only. No
 wire, reader-version, persistence, activation or ordinary installation changes
 are introduced by the prepared status UI.
+
+### Prepared private video derivation provenance
+
+`analysisHistory/videoProvenance.ts` defines a private, metadata-only
+sub-envelope with `schema_version:1` and
+`preprocessing_version:"retained_clip_v1"`. It is not an evidence manifest,
+result snapshot, executable request or public reader capability. No current
+admission, upload, reader, native queue or provider path accepts this envelope.
+Photo/audio generations and their saved bytes remain unchanged. Result/manifest/
+request versions and the next public reader must be coordinated in subsequent
+checkpoints; service-only reader 11 cannot be reused as a public capability.
+
+The exact top-level keys are `schema_version`, `preprocessing_version`,
+`source`, `parameters`, `frames` and `audio`. Every artifact has exactly
+`media_id`, `content_type`, `byte_count` and lowercase `sha256`. IDs are unique
+across all artifacts and distinct from the observation and analysis. No owner,
+URL, object key, local path, provider, model or input profile is accepted. All
+returned objects and arrays are immutable copies.
+
+- `source` is one retained `video/mp4`, at most 12 MiB, and **must be the actual
+  input from which every saved derivative was made**. It serves playback and
+  provenance, never provider inference. Preparing a separate compressed playback
+  clip while sampling the original recording does not establish this contract.
+- `parameters` contains exactly `timescale:600`,
+  `frame_pipeline:"direct_inference_v1"`, `decode_long_edge:2048`,
+  `duration_ticks` (60–3,000), `sampling:"five_interior_v1"`,
+  `preferred_track_transform:true`, `crop:"square_v1"`,
+  `crop_center_basis_points` (0–10,000), `inference_long_edge` (768 or 1,024),
+  and `encoding_quality_percent:85`. The closed `direct_inference_v1` sequence
+  is: preferred track transform → 2,048-pixel decode long-edge cap → square crop
+  at the recorded normalized vertical center → inference resize → one final
+  WebP/JPEG encode at quality 85. The parser validates the sequence token, not
+  whether bytes were actually produced by that sequence. It is not the legacy
+  multi-encode display-image pipeline.
+- `frames` has exactly five entries in index order 0–4. Each entry has exactly
+  `index`, `source_media_id`, `requested_time_ticks`, `actual_time_ticks` and
+  `artifact`. Requested times are the duration multiplied by 10/30/50/70/90
+  percent, rounded half up to integer ticks and clamped to
+  `[30,duration_ticks-30]`. Actual times independently record the decoder's
+  returned time in the same timebase, rounded to ticks and bounded to
+  `[0,duration_ticks-1]`. Actual times are nondecreasing in frame order and must
+  never be fabricated from requested times. Outputs are WebP or JPEG, with their
+  actual MIME type retained, and at most 5 MiB combined. A failed sample
+  prevents publishing this generation; legacy partial-frame results cannot be
+  relabelled. Repeated actual times/digests can occur for short clips, but
+  artifact IDs remain distinct.
+- `audio` is null or exactly `source_media_id`, `track:"first_audio_track"`,
+  `start_ticks`, `end_ticks`, `sample_rate:44100`, `sample_count`, `channels:1`,
+  `bits_per_sample:16`, `encoding:"pcm_s16le"` and `artifact`. Its saved WAV is
+  at least `44 + 2*sample_count` and at most 2,700,000 bytes. The measured
+  source interval is nonempty and within the clip; it may start after zero or
+  end before the clip. The exact output sample count is 1–220,500 and its
+  duration may differ from the rounded source interval by at most one 600-Hz
+  tick. A future dedicated extractor must measure this interval and verify PCM
+  sample count rather than assume full-clip coverage. Null freezes the absence
+  of an accepted companion; later retry cannot add one or extract another track.
+
+Parsing validates claimed structure and relationships, not actual derivation,
+MIME, duration, hash correctness, ownership or storage readiness. A future
+producer must retain and verify the source before deriving outputs, capture
+actual timing, validate every output's bytes, and persist the whole closed graph
+before admission. Server byte/storage verification and server-owned video
+profile selection remain required. Retry must load the saved outputs and exact
+provenance; neither replay nor reopening permits resampling, re-extraction or
+another provider invocation while the original outcome is unknown. Interrupted
+preprocessing, durable native replay, source-and-derivative erasure and public
+reader rejection require their later integration tests. This checkpoint changes
+no database, captured-media display wire, generated DTO, gate or installation.
