@@ -178,6 +178,7 @@ jobs:
             supabase/functions/_shared/analysisHistory/videoProvenance_test.ts \
             supabase/functions/_shared/analysisHistory/videoManifest_test.ts \
             supabase/functions/_shared/analysisHistory/videoAdmission_test.ts \
+            supabase/functions/_shared/analysisHistory/videoAudioContainer_test.ts \
             supabase/functions/resolve-history-photo/handler_test.ts \
             supabase/functions/analyze-observation/handler_test.ts \
             supabase/functions/recover-observation-analyses/handler_test.ts \
@@ -378,6 +379,7 @@ jobs:
             supabase/functions/_shared/analysisHistory/videoProvenance_test.ts \
             supabase/functions/_shared/analysisHistory/videoManifest_test.ts \
             supabase/functions/_shared/analysisHistory/videoAdmission_test.ts \
+            supabase/functions/_shared/analysisHistory/videoAudioContainer_test.ts \
             supabase/functions/resolve-history-photo/handler_test.ts \
             supabase/functions/analyze-observation/handler_test.ts \
             supabase/functions/recover-observation-analyses/handler_test.ts \

@@ -5,7 +5,7 @@ import { invalidHistory } from "./contract.ts";
  * Accepts the compact header and Core Audio's zero-filled FLLR before data.
  * No trimming, resampling, decoding or metadata rewriting occurs here.
  */
-export function validatePreparedAudioContainer(bytes: Uint8Array): void {
+export function inspectPreparedAudioContainer(bytes: Uint8Array) {
   if (bytes.length < 46 || bytes.length > MEDIA_BUDGETS.maxAudioRawBytes) {
     return invalidHistory();
   }
@@ -38,4 +38,10 @@ export function validatePreparedAudioContainer(bytes: Uint8Array): void {
   if (count < 2 || count % 2 !== 0 || offset + 8 + count !== bytes.length) {
     return invalidHistory();
   }
+  return Object.freeze({ sampleCount: count / 2, dataOffset: offset + 8 });
+}
+
+/** Existing audio callers retain the same validation-only contract. */
+export function validatePreparedAudioContainer(bytes: Uint8Array): void {
+  inspectPreparedAudioContainer(bytes);
 }

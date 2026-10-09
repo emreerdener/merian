@@ -1093,3 +1093,11 @@ constants. It is not imported into executable admission, source reservation or
 handlers. The replay digest retains its existing identifier semantics; native
 fresh/saved hashing is independently covered by shared request goldens. Future
 live video must coordinate upload, SQL, result, reader and provider boundaries.
+
+`videoAudioContainer.ts` owns private companion WAV byte verification for a
+validated V4 manifest: copied bytes, exact length/hash and actual PCM frame
+count. `audioContainer.ts` exposes immutable frame-count/offset inspection while
+keeping the existing void validator and audio acceptance profile unchanged. The
+verifier is a prerequisite for the coordinated video path, not an installed
+upload or materializer. It does not prove clip-to-audio derivation or source
+timing.

@@ -11934,3 +11934,15 @@ fingerprint tests remain compatibility controls; all executable/source routes
 must still reject V4. Candidate CI explicitly registers the prepared request
 suite for type-check and helper tests. No runtime, database or device
 qualification is implied by this codec coverage.
+
+### Video companion PCM byte binding
+
+`videoAudioContainer_test.ts` verifies compact/padded WAV byte ownership, exact
+length/digest, PCM sample-count mismatch despite otherwise plausible metadata,
+malformed containers, absent companion rejection and mutation across the digest
+await. `audioContainer_test.ts` checks inspection with nonzero view offsets and
+padding, preserving existing validation-only return behavior and all closed
+profile checks. `audioMaterialization_test.ts` remains a compatibility control.
+Candidate CI explicitly checks and runs the companion suite, with registration
+guarded by `workflowSecurity.test.ts`. These tests prove byte/metadata binding
+only, not source derivation, durable video admission or installed video support.

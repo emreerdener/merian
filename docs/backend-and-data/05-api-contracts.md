@@ -16489,3 +16489,24 @@ reservation, queue/transport callers and all Edge handlers. No result version,
 public reader, upload cohort or SQL admission is added here. Live integration
 requires those coordinated server/native contracts together, with default-false
 gates and old photo/audio replay unchanged.
+
+### Prepared video companion byte verification
+
+`videoAudioContainer.verifyPreparedVideoAudio` validates a private V4 manifest
+for the supplied observation/analysis scope and requires its optional audio to
+be present. It bounds and owns a copy of the supplied bytes before any await,
+checks the closed PCM WAV container, compares the actual data-frame count with
+`sample_count`, and verifies exact byte length and SHA-256 against the frozen
+artifact metadata. It returns the owned verified bytes. RIFF or Core Audio FLLR
+padding is never counted as PCM frames. This inspection does not verify the
+claimed source interval or prove that audio was extracted from the retained
+clip.
+
+`audioContainer.inspectPreparedAudioContainer` returns immutable `sampleCount`
+and `dataOffset` for that closed PCM profile. The existing
+`validatePreparedAudioContainer` remains a validation-only wrapper returning
+void; accepted audio bytes and limits are unchanged. Inspection returns no
+reference into the input buffer. The prepared video verifier remains absent from
+live upload/admission/execution paths. MP4/frame verification, scoped cohort
+receipts, source/reader coordination and retained-source production remain
+required before video can execute.

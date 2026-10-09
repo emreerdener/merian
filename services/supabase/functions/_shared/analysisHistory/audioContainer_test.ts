@@ -1,5 +1,8 @@
 import { assertEquals, assertThrows } from "@std/assert";
-import { validatePreparedAudioContainer } from "./audioContainer.ts";
+import {
+  inspectPreparedAudioContainer,
+  validatePreparedAudioContainer,
+} from "./audioContainer.ts";
 
 function wav(padding = 0, frames = 128): Uint8Array {
   const bytes = new Uint8Array(
@@ -82,4 +85,19 @@ Deno.test("prepared WAV profile enforces the exact raw-byte limit and nonempty f
   assertThrows(() =>
     validatePreparedAudioContainer(wav(0, (2_700_002 - 44) / 2))
   );
+});
+
+Deno.test("prepared WAV inspection counts PCM frames independently of padding and view offsets", () => {
+  for (const padding of [0, 1, 4044, 4096]) {
+    const bytes = wav(padding, 73);
+    const framed = new Uint8Array(bytes.length + 7);
+    framed.set(bytes, 3);
+    const inspected = inspectPreparedAudioContainer(
+      framed.subarray(3, 3 + bytes.length),
+    );
+    assertEquals(inspected.sampleCount, 73);
+    assertEquals(inspected.dataOffset, bytes.length - 146);
+    assertEquals(Object.isFrozen(inspected), true);
+    assertEquals(validatePreparedAudioContainer(bytes), undefined);
+  }
 });
