@@ -4535,6 +4535,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "ObservationAudioAnalysisTransport.swift",
         "ObservationAudioOutcomeTransport.swift",
         "ObservationHistoryMutationTransport.swift",
+        "ObservationSourceReservationTransport.swift",
         "PinnedNetworkTransport.swift",
         "AccountDeletionRecoveryTransport.swift"
     ]

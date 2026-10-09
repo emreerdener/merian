@@ -140,8 +140,15 @@ final class AuthenticatedTransportDispatcher {
         return try await perform(attempt, protectedChatExpiry: nil, audioOutcome: true)
     }
 
+    func performSourceReservation(_ attempt: AuthenticatedRequestExecutor.TransportAttempt) async throws -> AuthenticatedRequestExecutor.TransportResult {
+        guard attempt.expectedAuthUserID != nil, attempt.validateAttempt != nil,
+              attempt.identificationAuthorization == nil,
+              attempt.authTransitionOwner == nil else { throw MerianError.invalidResponse }
+        return try await perform(attempt, protectedChatExpiry: nil, sourceReservation: true)
+    }
+
     private func perform(
-        _ attempt: AuthenticatedRequestExecutor.TransportAttempt, protectedChatExpiry: Date?, retirement: Bool = false, audioAnalysis: Bool = false, audioOutcome: Bool = false
+        _ attempt: AuthenticatedRequestExecutor.TransportAttempt, protectedChatExpiry: Date?, retirement: Bool = false, audioAnalysis: Bool = false, audioOutcome: Bool = false, sourceReservation: Bool = false
     ) async throws -> AuthenticatedRequestExecutor.TransportResult {
         let accountWorkLease: AccountBoundWorkLease?
         if attempt.authTransitionOwner == nil {
@@ -184,7 +191,7 @@ final class AuthenticatedTransportDispatcher {
             try await attempt.identificationAuthorization?.validate()
             try await attempt.validateAttempt?()
             #if DEBUG
-            if retirement || audioAnalysis || audioOutcome, sessionTransport.isUsingOverridingSession, overridingAuthUserID != attempt.expectedAuthUserID {
+            if retirement || audioAnalysis || audioOutcome || sourceReservation, sessionTransport.isUsingOverridingSession, overridingAuthUserID != attempt.expectedAuthUserID {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
             #endif
@@ -203,11 +210,11 @@ final class AuthenticatedTransportDispatcher {
                 request: request,
                 body: attempt.body,
                 onRequestBodySent: attempt.onRequestBodySent,
-                protectedChatExpiry: protectedChatExpiry, retirement: retirement, audioAnalysis: audioAnalysis, audioOutcome: audioOutcome
+                protectedChatExpiry: protectedChatExpiry, retirement: retirement, audioAnalysis: audioAnalysis, audioOutcome: audioOutcome, sourceReservation: sourceReservation
             )
 
             #if DEBUG
-            if protectedChatExpiry != nil || retirement || audioAnalysis || audioOutcome, sessionTransport.isUsingOverridingSession,
+            if protectedChatExpiry != nil || retirement || audioAnalysis || audioOutcome || sourceReservation, sessionTransport.isUsingOverridingSession,
                overridingAuthUserID != attempt.expectedAuthUserID {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
@@ -299,8 +306,12 @@ final class AuthenticatedTransportDispatcher {
     private func dispatch(
         request: URLRequest,
         body: Data?,
-        onRequestBodySent: (@Sendable () -> Void)?, protectedChatExpiry: Date?, retirement: Bool, audioAnalysis: Bool, audioOutcome: Bool
+        onRequestBodySent: (@Sendable () -> Void)?, protectedChatExpiry: Date?, retirement: Bool, audioAnalysis: Bool, audioOutcome: Bool, sourceReservation: Bool
     ) async throws -> TransportDispatchResult {
+        if sourceReservation {
+            let (data, response) = try await sessionTransport.sourceReservationData(for: request)
+            return TransportDispatchResult(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
+        }
         if audioOutcome {
             let (data, response) = try await sessionTransport.audioOutcomeData(for: request)
             return TransportDispatchResult(data: data, response: response, notifyRequestBodySentIfNeeded: nil)

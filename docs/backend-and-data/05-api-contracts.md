@@ -15488,8 +15488,9 @@ transport or native consumer is connected. It does not change the Identify
 generated DTO block, existing readers or saved request fingerprints. The SQL
 reader is exactly 10. Separate default-false service-only reader-11 routines use
 the fingerprint encoders for source reservation and unfunded retirement.
-Prepared HTTP wrappers exist for those mutations; native integration and
-ordinary activation remain pending.
+Prepared HTTP wrappers and an inert native reservation bridge exist for those
+mutations. Durable native queue handoff, native unfunded retirement and ordinary
+activation remain pending.
 
 The request has exactly `schema_version: 1`, `observation_id` and
 `source_analysis_id`, using distinct canonical lowercase UUIDs. Owner comes from
@@ -15568,16 +15569,17 @@ reinterpret errors/timeouts as absence.
 `_shared/analysisHistory/sourceFingerprint.ts` defines fingerprint version 1 as
 a pure contract consumed by the gated source-reservation SQL. It grants no
 upload or execution authority. The prepared reservation HTTP route consumes it;
-no native mutation consumer is connected. The ungranted internal SQL encoders
-and `ObservationSourceFingerprint` implement the same pure contract; all three
-languages share checked-in canonical-byte and hash vectors before reservation
-integration is connected. Existing saved request bytes and `request_digest` are
-preserved verbatim; this fingerprint is additional binding, never a replacement
-for their replay rules. The existing server admission checks `request_digest`
-syntax and exact replay identity; it does not prove that native JSON bytes hash
-to that value. The new fingerprint binds the validated semantic fields
-independently. Do not add JSON digest reconstruction or rewriting to saved V2/V3
-requests.
+the native codec/transport is inert and no durable mutation consumer is
+connected. The ungranted internal SQL encoders and
+`ObservationSourceFingerprint` implement the same pure contract; all three
+languages share checked-in canonical-byte and hash vectors before durable
+reservation integration is connected. Existing saved request bytes and
+`request_digest` are preserved verbatim; this fingerprint is additional binding,
+never a replacement for their replay rules. The existing server admission checks
+`request_digest` syntax and exact replay identity; it does not prove that native
+JSON bytes hash to that value. The new fingerprint binds the validated semantic
+fields independently. Do not add JSON digest reconstruction or rewriting to
+saved V2/V3 requests.
 
 Only strictly validated fresh protected-photo input schema 2 and audio input
 schema 3 are supported. Source must be non-null, distinct from observation and
@@ -15628,11 +15630,12 @@ operation.
 ### Prepared source binding storage boundary
 
 Private source binding and unresolved-occupancy tables now retain validated
-metadata and its version-1 canonical fingerprint. They have no API-role grants,
-callable reservation/release routine or TypeScript/native consumer. Their
-constraints are not an admission receipt, proof of absence, upload permission,
-funding reservation or execution grant. Existing RPC payloads and saved-photo
-replay remain unchanged.
+metadata and its version-1 canonical fingerprint. The private tables have no
+API-role grants. Gated service-only reader-11 routines and authenticated HTTP
+wrappers now consume this storage; the native reservation bridge remains inert
+pending durable queue handoff. Their constraints are not an admission receipt,
+proof of absence, upload permission, funding reservation or execution grant.
+Existing RPC payloads and saved-photo replay remain unchanged.
 
 A storage-integrity prerequisite now rejects legacy scan/job/intent insertion or
 identity changes that reuse any bound child UUID, including cross-owner and
@@ -15667,8 +15670,8 @@ unsupported readers and frozen snapshots, and have five-second statement
 timeouts. Only service-role execution is granted; private storage/helpers are
 revoked from API roles. Independent `source_reservation_enabled` and
 `source_unfunded_retirement_enabled` gates default false. The prepared
-reservation HTTP boundary is described below; no native consumer is connected.
-Read-only discovery remains reader 10.
+reservation HTTP boundary is described below; its native bridge is inert and no
+durable native consumer is connected. Read-only discovery remains reader 10.
 
 `sourceReservationRepository` is the server-only one-call transport for these
 routines. It accepts trusted owner scope and the full original candidate; an
@@ -15683,8 +15686,9 @@ automatic retry, token refresh, route fallback, UUID generation, refund or
 successor admission. An explicitly returned reserved/held/unavailable receipt is
 an observation, never execution permission. Later explicit recovery must reuse
 the original candidate and retirement operation. The prepared reservation and
-unfunded-retirement routes use this adapter; neither has a native caller.
-Neither changes funded execution retirement.
+unfunded-retirement routes use this adapter; the native reservation bridge is
+inert, and unfunded retirement has no native caller. Neither changes funded
+execution retirement.
 
 Prepared authenticated `POST reserve-observation-analysis-source` accepts the
 same four-field candidate, never a caller-selected owner. `withEdgeHandler`
@@ -15703,8 +15707,9 @@ Genuine RPC errors, invalid upstream receipts, timeouts and cancellation return
 sanitized 503, never a fabricated vacancy or release receipt. No automatic retry
 or fallback occurs. A lost reply may conceal committed source occupancy:
 recovery must retain the identical candidate; it cannot create a successor. The
-endpoint is prepared source only, with no native caller, deployment or
-activation. Native durable retirement admission remains a separate checkpoint.
+endpoint has an inert native reservation bridge, with no durable queue handoff,
+deployment or activation. Native durable retirement admission remains a separate
+checkpoint.
 
 A received exact `analysis_history_operation_conflict` from the source RPC is
 preserved as a typed conflict (HTTP409 for reservation). It is not a vacancy or
@@ -15739,6 +15744,26 @@ result proves release; the route never remints, refunds, creates a successor or
 dispatches. It is separate from reader10 funded `retire-observation-analysis`.
 The independent SQL gate remains false; no native caller, deployment or
 activation is included.
+
+The prepared native `ObservationSourceReservationRequest` accepts only saved
+photo V2 or audio V3 requests. It embeds their original input bytes verbatim,
+preserves the original digest and computes the shared source fingerprint once.
+Restoration requires those saved input bytes and the identical outer candidate;
+it never uses a fresh selection or reserializes the input. The handwritten reply
+retains authenticated owner, full candidate and raw bytes alongside the closed
+observation state. No generated Identify DTO changes.
+
+The native `ObservationSourceReservationTransport` exposes only the fixed
+reservation route, five-second attempt and actual 2 KiB streamed cap. It uses
+the private pinned dispatcher directly with no transient, Auth, route or
+idempotency retry. After Auth, the caller validates dispatch scope; after a
+strict reply, a separate caller fence validates known-answer settlement. An
+exact bounded public409 error with the operation-conflict code preserves a typed
+conflict bound to that candidate and owner, never a receipt. Other errors remain
+uncertain. These types and factories are inert: durable source staging, CAS,
+retained delivery/recovery and unfunded retirement admission are not yet
+connected. They cannot wake preflight, upload or inference, and all gates stay
+false.
 
 The reservation request has exactly `schema_version: 1`, `input`,
 `fingerprint_version: 1`, and `fingerprint`. Input is the complete existing
@@ -15807,10 +15832,11 @@ contracts are unchanged.
 This October 8 contract decision is implemented by the October 9 paired
 reservation/unfunded-retirement SQL migration. The implementation preserves the
 prepared response variants and reader. The later prepared reservation HTTP and
-unfunded-retirement wrappers are described above; native consumers remain
-absent. The wire above remains authoritative. `reserved` requires both the exact
-immutable binding and its matching live occupancy; acknowledging a binding alone
-is not sufficient. It conveys no admission, execution or retry permission.
+unfunded-retirement wrappers are described above. The native reservation bridge
+exists, while durable delivery and native unfunded retirement remain absent. The
+wire above remains authoritative. `reserved` requires both the exact immutable
+binding and its matching live occupancy; acknowledging a binding alone is not
+sufficient. It conveys no admission, execution or retry permission.
 
 After owner/deletion and exact immutable identity checks, classify an existing
 candidate before fresh rollout gates:
@@ -15869,7 +15895,8 @@ ability to request later reanalysis once the complete feature is qualified.
 
 Fresh reservation and unfunded retirement remain default-false service-only SQL
 routines. The prepared reservation and unfunded-retirement HTTP wrappers are
-described above; native consumers remain separate. Migration `20261009000303`
+described above; the native reservation bridge is inert, while durable handoff
+and native unfunded retirement remain separate. Migration `20261009000303`
 implements permanent unfunded receipts and guarded occupancy release. Every
 parent media namespace has an independent 65th-row sentinel alongside intents,
 same-source bindings/releases and results. Unbound parent intents or

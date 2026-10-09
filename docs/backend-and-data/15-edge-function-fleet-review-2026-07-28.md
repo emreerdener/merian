@@ -52,8 +52,9 @@ installed into native UI. See the
 source occupancy reservation. The scoped five-second/2-KiB transport returns
 only exact reserved/held/unavailable observations. Definite immutable-operation
 conflict returns409; errors never prove vacancy or execution permission. The SQL
-gate remains false. No native caller, deployment or scheduling is included. See
-the
+gate remains false. That backend checkpoint included no native caller,
+deployment or scheduling. A later native reservation codec/transport now exists
+but remains inert pending durable queue handoff. See the
 [endpoint contract](../../services/supabase/functions/reserve-observation-analysis-source/README.md).
 
 **2026-10-09 unfunded-retirement source addendum:**

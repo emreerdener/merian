@@ -256,6 +256,12 @@ final class PinnedNetworkTransport: @unchecked Sendable {
             .response(using: activeSession, request: request, timeout: 5)
     }
 
+    /// Reservation observations have a separate 2 KiB streamed cap and five-second deadline.
+    func sourceReservationData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await PinnedBoundedJSONDataTask(maximumBytes: ObservationSourceReservationReply.maximumBytes)
+            .response(using: activeSession, request: request, timeout: 5)
+    }
+
     /// Fixed retirement response budget on the existing pinned session.
     func analysisRetirementData(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await PinnedBoundedJSONDataTask(maximumBytes: 4096).response(using: activeSession, request: request, timeout: 5)

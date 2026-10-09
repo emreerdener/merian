@@ -161,7 +161,10 @@ model-quality measurements.
 The production workflow's cumulative undeployed-source scope separately includes
 the generated inference DTO contract, `Core/Network/SupabaseManager.swift`, the
 exact scan- admission bridge in `Core/Network/MerianNetworkClient.swift`, its
-`Core/Network/Transport/PinnedNetworkTransport.swift` transport, all extracted
+`Core/Network/Transport/PinnedNetworkTransport.swift` transport, its
+`AuthenticatedTransportDispatcher.swift`, the source-reservation model and
+transport (`ObservationSourceReservation.swift` and
+`ObservationSourceReservationTransport.swift`), all extracted
 `Core/Network/Auth` owners, and all `Core/Security` owners. The
 workflow-security suite freezes that inventory, while
 `scripts/test-ci-detect-supabase-candidate-source-changes.sh` proves
@@ -4512,10 +4515,11 @@ import, and permission-denial UI require the physical-device checklist in
   model/store owners, exact persisted fields, device-only verified persistence,
   sole live endpoint ownership, and 600-line boundaries. It also requires the
   exact Transport owner inventory, including the scoped
-  `ObservationAudioAnalysisTransport`. The suite freezes the disjoint safe-read
-  and idempotency-aware ambiguous-replay sets, requires exactly one endpoint
-  owner for each classified route, and records the exact owners allowed to
-  acquire the pinned session, private transport, request executor,
+  `ObservationAudioAnalysisTransport` and
+  `ObservationSourceReservationTransport`. The suite freezes the disjoint
+  safe-read and idempotency-aware ambiguous-replay sets, requires exactly one
+  endpoint owner for each classified route, and records the exact owners allowed
+  to acquire the pinned session, private transport, request executor,
   consent/profile context, Auth manager, recovery Species Dictionary query, or
   detached preparation bridge. That inventory records the Auth
   historical-session `+Live` adapter as one permitted `AppDIContainer.shared`

@@ -631,6 +631,9 @@ Deno.test("production uses the candidate tooling gate and cumulative deployment 
       "apps/ios/Merian/Core/Network/SupabaseManager.swift",
       "apps/ios/Merian/Core/Network/MerianNetworkClient.swift",
       "apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift",
+      "apps/ios/Merian/Core/Network/Transport/AuthenticatedTransportDispatcher.swift",
+      "apps/ios/Merian/Core/Network/Models/ObservationAnalysis/ObservationSourceReservation.swift",
+      "apps/ios/Merian/Core/Network/Transport/ObservationSourceReservationTransport.swift",
       "apps/ios/Merian/Core/Network/Auth/**",
       "apps/ios/Merian/Core/Security/**",
     ]

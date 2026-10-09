@@ -1239,13 +1239,14 @@ purchase-handoff publication resumes retained revocation work when the fence
 becomes false. Clear diagnostics are emitted only after local cleanup completes.
 
 The suite freezes the production Transport owner inventory, including the scoped
-`ObservationAudioAnalysisTransport`, and the exact disjoint function-name sets
-used for safe-read and server-idempotency-aware ambiguous replay, and the
-requirement that every classified route have exactly one endpoint owner. It also
-prevents the executor from constructing a URLSession, another network client, a
-singleton instance, or detached task. Individual endpoint transport suites
-remain responsible for request identity at the feature bridge. This audit
-changes no request, response, retry, Auth, persistence, or backend contract.
+`ObservationAudioAnalysisTransport` and `ObservationSourceReservationTransport`,
+and the exact disjoint function-name sets used for safe-read and
+server-idempotency-aware ambiguous replay, and the requirement that every
+classified route have exactly one endpoint owner. It also prevents the executor
+from constructing a URLSession, another network client, a singleton instance, or
+detached task. Individual endpoint transport suites remain responsible for
+request identity at the feature bridge. This audit changes no request, response,
+retry, Auth, persistence, or backend contract.
 
 `MerianTests/Core/Network/Transport/` mirrors the production transport owners.
 The eleven policy tests rehome route classification, ambiguous replay,
@@ -4142,3 +4143,28 @@ only a body for its fixed public recovery route, checks configuration before
 body evaluation and never acquires user Auth. It shares the client's pinned
 session and DEBUG override. Its established recovery transport tests remain the
 behavioral authority for retry, response-bound and cancellation behavior.
+
+### Prepared source reservation boundary
+
+`ObservationSourceReservationRequest` embeds the exact saved photo V2 or audio
+V3 input bytes, original digest and canonical source fingerprint. Restoration
+requires the original input and exact candidate body; no current selection can
+reconstruct or replace them. `ObservationSourceReservationReply` retains the
+validated owner, full candidate, raw bytes and closed reserved/held/unavailable
+state. None is upload, funding, successor or provider authority.
+
+`ObservationSourceReservationTransport` uses one fixed authenticated
+`reserve-observation-analysis-source` POST, a five-second deadline and an actual
+2 KiB streamed response cap. The private assembly exposes only this closed
+transport; ordinary 90-second limits are unchanged. It bypasses logical retry,
+Auth refresh, route fallback and idempotency replay. The caller validates the
+attempt after Auth and the exact settlement scope after decoding. A known answer
+can survive dispatch cancellation while owner/container/claim settlement remains
+valid. Exact public conflict409 becomes a scoped typed conflict; other HTTP
+errors, malformed replies, timeout or cancellation never become receipts.
+
+This is an inert transport boundary. Durable candidate staging/CAS, retained
+source delivery, explicit recovery and unfunded retirement remain separate;
+there is no queue, UI, upload or execution connection. Tests are
+`ObservationSourceReservationTests` and `ObservationSourceTransportTests`. See
+[the source reservation contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-reservation-and-unfunded-retirement-wire).

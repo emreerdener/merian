@@ -1329,25 +1329,26 @@ endpoint-owner inventory, prevents duplicate aggregate endpoint methods, applies
 the 600-line ceiling across the extracted Auth, Endpoint, Inference, Media,
 Recovery, and Transport owners plus the client façade, and freezes the exact
 Transport owner inventory, including the scoped
-`ObservationAudioAnalysisTransport`. It also freezes the sixty-one Auth
-foundation paths and caps Auth, Purchase Identity, `SupabaseManager.swift`, and
-their combined production surface at 7,763, 2,016, 3,482, and 13,261 lines,
-respectively. The guard includes the effect-free observable owner for
-transition, generation, transition-analytics, exact-session lease/drain, and
-local sign-out state plus the focused listener/current-state adapter,
-historical-sync task owner, lifecycle diagnostics, and live listener's
-generation/context/transition-observation order; the bootstrap dependency/
-coordinator pair plus focused SDK service/live adapter and diagnostics owner;
-the recovery dependency/coordinator and local-sign-out coordinator with its
-colocated dependency boundaries; one shared task-free Supabase Auth service/live
-adapter and diagnostics owner for OAuth, recovery, and local sign-out; bootstrap
-and local-sign-out single-flights, missing-session, cancellation, exact-refresh,
-anonymous-readiness, local-clear, and final-session rules; the lifecycle event
-model, dependency boundaries, coordinator, and replay owner; the OAuth model,
-identity-token policy, workflow, completion dependency package/coordinator,
-provider-admission dependency package/coordinator, live-provider Services, and
-the typed Apple credential-registration service and sole Supabase live adapter,
-including exactly one Function invocation per service call and no retry policy,
+`ObservationAudioAnalysisTransport` and `ObservationSourceReservationTransport`.
+It also freezes the sixty-one Auth foundation paths and caps Auth, Purchase
+Identity, `SupabaseManager.swift`, and their combined production surface at
+7,763, 2,016, 3,482, and 13,261 lines, respectively. The guard includes the
+effect-free observable owner for transition, generation, transition-analytics,
+exact-session lease/drain, and local sign-out state plus the focused
+listener/current-state adapter, historical-sync task owner, lifecycle
+diagnostics, and live listener's generation/context/transition-observation
+order; the bootstrap dependency/ coordinator pair plus focused SDK service/live
+adapter and diagnostics owner; the recovery dependency/coordinator and
+local-sign-out coordinator with its colocated dependency boundaries; one shared
+task-free Supabase Auth service/live adapter and diagnostics owner for OAuth,
+recovery, and local sign-out; bootstrap and local-sign-out single-flights,
+missing-session, cancellation, exact-refresh, anonymous-readiness, local-clear,
+and final-session rules; the lifecycle event model, dependency boundaries,
+coordinator, and replay owner; the OAuth model, identity-token policy, workflow,
+completion dependency package/coordinator, provider-admission dependency
+package/coordinator, live-provider Services, and the typed Apple
+credential-registration service and sole Supabase live adapter, including
+exactly one Function invocation per service call and no retry policy,
 asynchronous task, facade, or alternate transport ownership in that adapter; the
 live SDK-install mutation marker before post-install cancellation plus
 exact-target transition adoption before recovery, explicit teardown of retained
@@ -3041,8 +3042,16 @@ endpoint is deployed or scheduled by this implementation.
 with authenticated owner scope, a1MiB request bound and a scoped5s/2KiB service
 transport. `_shared/analysisHistory/sourceReservation{,Repository}.ts` own the
 exact candidate fingerprint and receipt boundary. This prepared route grants no
-upload, inference admission or dispatch authority; native consumers remain
-separate and the SQL reservation gate remains false.
+upload, inference admission or dispatch authority; durable native consumers
+remain separate and the SQL reservation gate remains false.
+
+Native
+`Core/Network/Models/ObservationAnalysis/ObservationSourceReservation.swift`
+owns the immutable saved-input wrapper and strict owner/candidate-bound reply.
+`Transport/ObservationSourceReservationTransport.swift` owns the fixed
+five-second reservation bridge through the private pinned dispatcher. The codec
+and bridge remain inert until a separate durable queue handoff is implemented;
+no receipt state grants execution permission.
 
 `retire-observation-analysis-source` separately wraps unfunded reader11
 retirement. Its endpoint-owned `request.ts` snapshots the full original

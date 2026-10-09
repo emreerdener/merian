@@ -17,6 +17,7 @@ final class MerianNetworkClient {
     func analysisRetirementTransport() -> ObservationAnalysisRetirementTransport { transport.retirement() }
     func audioAnalysisTransport() -> ObservationAudioAnalysisTransport { transport.audioAnalysis() }
     func audioOutcomeTransport() -> ObservationAudioOutcomeTransport { transport.audioOutcome() }
+    func sourceReservationTransport() -> ObservationSourceReservationTransport { transport.sourceReservation() }
 
     init() { transport = NetworkTransportAssembly(baseURL: supabaseUrl, publishableKey: MerianEnvironment.supabaseAnonKey) }
 
@@ -539,6 +540,7 @@ private final class NetworkTransportAssembly {
     func retirement() -> ObservationAnalysisRetirementTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
     func audioAnalysis() -> ObservationAudioAnalysisTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
     func audioOutcome() -> ObservationAudioOutcomeTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
+    func sourceReservation() -> ObservationSourceReservationTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
 
     func execute(_ request: AuthenticatedRequestExecutor.Request) async throws -> (Data, HTTPURLResponse) {
         try await AuthenticatedRequestExecutor.live(using: authenticatedTransport).execute(request)

@@ -13,8 +13,9 @@ closed response decoder. Its 2 KiB byte boundary and exact owner/parent/source
 checks grant no admission or execution permission. The gated service-only SQL
 resolver classifies bounded existing records. Separate default-false
 service-only reader-11 routines own source reservation and unfunded retirement;
-prepared HTTP wrappers exist, while native integration and ordinary activation
-remain pending. The initial resolver never returns advisory absence. See the
+prepared HTTP wrappers and an inert native reservation bridge exist. Durable
+queue handoff, native unfunded retirement and ordinary activation remain
+pending. The initial resolver never returns advisory absence. See the
 [canonical prepared contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-discovery-contract)
 and `sourceDiscovery_test.ts`; do not use existing funded admission as a lookup.
 
@@ -23,8 +24,8 @@ for fresh photo/audio source reservations, preserving the original request
 digest and saved bytes. It grants no authority; the gated SQL reservation
 validates the same fingerprint. The fixed golden vectors are shared with the
 pure ungranted SQL encoders and native `ObservationSourceFingerprint` tests. The
-prepared reservation HTTP route consumes this contract; native integration
-remains separate. See the
+prepared reservation HTTP route and inert native codec/transport consume this
+contract; durable native integration remains separate. See the
 [fingerprint contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-reservation-fingerprint).
 
 `sourceReservation.ts` owns the prepared reader-11 reservation and explicit
@@ -33,7 +34,8 @@ before await, and decodes exact owner-scoped receipts within 2 KiB. Held states
 never expose a competitor; `retired_unfunded` cannot be confused with funded
 execution retirement. Default-false service-only SQL routines implement the
 contract. The prepared reservation and unfunded-retirement HTTP routes are
-connected; native consumers remain separate. See the
+connected; an inert native reservation bridge exists, while durable consumers
+and native unfunded retirement remain separate. See the
 [mutation wire contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-reservation-and-unfunded-retirement-wire);
 retained bindings continue enforcing writer fences after terminal release.
 
@@ -767,10 +769,11 @@ current native readers remain 9. No ordinary route or rollout is enabled.
 
 ## Prepared source binding storage
 
-Private SQL binding/occupancy tables now prepare durable source coordination. No
-callable reservation or release routine, HTTP transport or native consumer is
-connected. Their metadata does not grant upload, funding or execution authority.
-The
+Private SQL binding/occupancy tables provide durable source coordination. Later
+gated service-only reader-11 reservation/release routines and authenticated HTTP
+wrappers consume them. The native reservation bridge is inert pending durable
+queue handoff; unfunded retirement has no native caller. Their metadata does not
+grant upload, funding or execution authority. The
 [storage boundary](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-binding-storage-boundary)
 distinguishes this groundwork from required all-writer reservation, terminal
 release and legacy replay coordination.
@@ -1004,8 +1007,9 @@ default-false gates. The immutable unfunded receipt is unique per child and
 follows binding/parent deletion; terminal replay never recreates occupancy. No
 HTTP/native consumer or activation was introduced by that migration. The later
 prepared `reserve-observation-analysis-source` and
-`retire-observation-analysis-source` routes wrap these routines; native
-consumers remain separate.
+`retire-observation-analysis-source` routes wrap these routines. An inert native
+reservation bridge now exists; durable queue handoff and native unfunded
+retirement remain separate.
 
 Source-admission database concurrency fixtures derive a stable synthetic IP hash
 from each synthetic owner. Duplicate calls for that owner retain the same
@@ -1046,11 +1050,11 @@ there is no automatic retry, auth/route fallback, refund or new identity.
 Reserved and held observations confer no execution authority. The prepared
 `reserve-observation-analysis-source` route consumes `reserve` through a scoped
 service client; `retire-observation-analysis-source` uses `retireUnfunded` with
-a full-candidate public envelope and stable operation. Neither has a native
-consumer. Adapter tests cover exact arguments, snapshot mutation, all closed
-observations, retirement identity, cancellation, stalled transport, late replies
-and malformed or oversized payloads. The SQL producers and activation gates are
-unchanged.
+a full-candidate public envelope and stable operation. Reservation has an inert
+native bridge; neither route has a durable native handoff. Adapter tests cover
+exact arguments, snapshot mutation, all closed observations, retirement
+identity, cancellation, stalled transport, late replies and malformed or
+oversized payloads. The SQL producers and activation gates are unchanged.
 
 A received exact `analysis_history_operation_conflict` from the source RPC is
 preserved as a typed conflict (HTTP409 for reservation). It is not a vacancy or
