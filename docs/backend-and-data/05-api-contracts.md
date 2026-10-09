@@ -16510,3 +16510,20 @@ reference into the input buffer. The prepared video verifier remains absent from
 live upload/admission/execution paths. MP4/frame verification, scoped cohort
 receipts, source/reader coordination and retained-source production remain
 required before video can execute.
+
+### Prepared native retained clip creation
+
+`ObservationRetainedVideoClipProducer` now prepares an owned local MP4 using the
+explicit encoding and admission limits documented in the camera contract. It
+joins its worker before releasing the producer slot on cancellation. An injected
+asynchronous checkpoint after the first append supports explicit owner
+revalidation; it transfers no AVFoundation state. The successful output lease
+stays temporary until a caller explicitly accepts it. Ordinary access remains
+absent.
+
+This is only retained-clip creation. The complete V4 producer still must derive
+all five frames and measured audio from that exact retained file, persist the
+whole provenance graph and pass a coordinated server byte/cohort/profile/reader
+contract. Current synthetic top-level topology and track checks are not a server
+ISO-BMFF allowlist or device qualification. Legacy video preparation remains
+unchanged.

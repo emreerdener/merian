@@ -1921,4 +1921,18 @@ its original JSON bytes; `ObservationVideoProvenance` retains typed source,
 parameters, frames and optional audio. These values confer no admission,
 persistence, upload or execution authority. Existing audio/photo readers and
 requests remain separate. Shared backend/native golden vectors qualify metadata
-parity; real retained-clip preparation and queue integration remain pending.
+parity. Native retained-clip creation is prepared below; complete V4 frame/WAV
+derivation and durable queue integration remain pending.
+
+## Prepared retained video clip
+
+`ObservationRetainedVideoClipProducer` is an uninstalled native preparation
+boundary for a dedicated retained MP4. It serializes work per instance and keeps
+AVFoundation objects inside the owned worker. It encodes H.264 Main without
+frame reordering and, when present, mono 44.1 kHz AAC; it never substitutes the
+legacy playback export or deletes the input. The returned temporary lease
+removes its operation directory, including writer scratch files, when
+unaccepted. Acceptance transfers that directory with the file. The eventual
+durable preparation owner must retain that lease through derivation and persist
+the complete cohort before transfer. This producer alone does not stage, upload
+or execute V4, or derive its five frames and companion WAV.

@@ -1354,3 +1354,34 @@ owners while preserving the battery-bounded camera lifecycle.
 - **Prompt policy**: eager and async authorization entry points use the same
   pure prompt policy. Passive location-name and region resolution never asks for
   permission; it returns `nil` unless Core Location is already authorized.
+
+### Prepared history retained-clip producer
+
+The uninstalled `ObservationRetainedVideoClipProducer` creates a separate
+retained MP4 before future V4 frame/audio derivation. It accepts one local
+regular file under the saved-video byte cap, one video track, at most one audio
+track, 0.1–5 seconds and even coded dimensions from 2 through 2,048 pixels.
+Asset reference restrictions forbid resolving other local or remote media from
+that file. Preferred transforms are restricted to finite orthogonal
+quarter-turn/reflection matrices and bounded translation. Unsupported input is
+rejected without a fallback to the original or the independently exported legacy
+playback file.
+
+The writer uses H.264 Main, 4 Mbps, no frame reordering and a maximum keyframe
+interval of 30; optional audio is mono 44.1 kHz AAC at 64 kbps. It writes an MP4
+with a 600-Hz movie timescale, no copied metadata and network optimization.
+Streaming append is bounded to 600 video and 1,024 audio buffers, one copied
+buffer at a time, with cancellation, byte-cap and progress deadline checks.
+Those settings do not freeze OS-specific container brands or all box layouts.
+Synthetic topology evidence must be extended into an exact producer/server
+compatibility contract before live upload admission.
+
+Each transcode owns a unique directory. Failure/cancellation removes that
+directory after canceling the writer, including any writer scratch files,
+without touching sibling work. The temporary retained-file lease owns that
+directory until explicitly accepted; acceptance transfers directory ownership
+with the file. Output size checks use fresh filesystem attributes rather than
+cached URL resource values. Input ownership remains with the caller. No ordinary
+capture path uses this producer; actual V4 frame/WAV derivation, measured
+timestamps, complete-cohort durability, server byte validation and device
+resource qualification remain required.

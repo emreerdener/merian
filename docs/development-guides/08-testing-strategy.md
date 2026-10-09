@@ -11946,3 +11946,16 @@ profile checks. `audioMaterialization_test.ts` remains a compatibility control.
 Candidate CI explicitly checks and runs the companion suite, with registration
 guarded by `workflowSecurity.test.ts`. These tests prove byte/metadata binding
 only, not source derivation, durable video admission or installed video support.
+
+### Prepared retained video encoding
+
+`ObservationRetainedVideoTests` uses the shared synthetic `VideoAudioFixture`
+for silent and stereo-audio source clips, then exercises the dedicated retained
+producer. It checks source preservation, distinct bounded output, H.264/AAC
+tracks, dimensions/duration and bounded top-level MP4 topology. Malformed-input,
+pre-cancellation, actual-append cancellation/slot reuse and unaccepted-lease
+cleanup tests check no retained output or writer scratch is left, while an
+unrelated sibling file survives cancellation. Profile tests check mono 44.1 kHz
+AAC, empty asset metadata and supported transforms. This is simulator encoder
+evidence, not a complete ISO-BMFF security validator, real-camera qualification
+or proof of frame/WAV derivation from the retained clip.
