@@ -37,6 +37,30 @@ actor ObservationReanalysisFileStore {
             retainAfterCommitError: true, validateBeforeWrite: validateBeforeWrite, commit: commit)
     }
 
+    /// Only the private complete-cohort owner can construct this payload. Exact bytes,
+    /// never regenerated frames/audio, survive an uncertain metadata promotion save.
+    func persistVideo<T: Sendable>(preparation: ObservationVideoPreparation, payload: ObservationVideoCohort.Payload,
+                                   validateBeforeWrite: @MainActor @Sendable () throws -> Void,
+                                   commit: @MainActor @Sendable () throws -> T) async throws -> T {
+        guard payload.request == preparation.request else { throw Failure.conflict }
+        return try await persist(child: preparation.identity.analysisID, references: videoReferences(preparation), bytes: payload.bytes,
+                                 retainAfterCommitError: true, validateBeforeWrite: validateBeforeWrite, commit: commit)
+    }
+
+    /// Byte-exact recovery only. Complete inventory, size, hash and stable directory
+    /// fences are checked; this never creates files or reruns media preprocessing.
+    func recoverVideo<T: Sendable>(preparation: ObservationVideoPreparation,
+                                   validateBeforeRead: @MainActor @Sendable () throws -> Void,
+                                   commit: @MainActor @Sendable () throws -> T) async throws -> T {
+        try await withVerifiedFiles(child: preparation.identity.analysisID, references: videoReferences(preparation),
+                                    validateBeforeRead: validateBeforeRead, verifyContainer: { _, _ in }) { _ in try commit() }
+    }
+
+    private func videoReferences(_ preparation: ObservationVideoPreparation) -> [FileReference] {
+        preparation.files.map { FileReference(name: URL(fileURLWithPath: $0.path).lastPathComponent,
+                                              byteCount: $0.artifact.byteCount, sha256: $0.artifact.sha256) }
+    }
+
     private func persist<T: Sendable>(child: UUID, references: [FileReference], bytes: [Data],
                                       retainAfterCommitError: Bool = false,
                                       validateBeforeWrite: @MainActor @Sendable () throws -> Void,
@@ -87,7 +111,7 @@ actor ObservationReanalysisFileStore {
             commitStarted = true
             return try await commit()
         } catch {
-            // A durable pending/ready audio owner or its erasure receipt still owns these bytes.
+            // A durable pending/ready media owner or its erasure receipt still owns these bytes.
             // Recovery decides the saved phase; an uncertain save cannot destroy evidence.
             if retainAfterCommitError, commitStarted { throw error }
             var cleaned = true

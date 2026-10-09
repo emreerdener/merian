@@ -19,6 +19,7 @@ extension ObservationReanalysisPersistence {
             }
             guard let (row, job) = try pair(identity, context: context), let text = job.metadataJSON else { throw IntegrityError.unavailable }
             let data = Data(text.utf8)
+            try ObservationVideoPreparation.requireNonVideo(data)
             if let pending = try? ObservationReanalysisPreparationIntent.decode(data) {
                 guard pending.draft.identity == identity else { throw IntegrityError.conflict }
                 try validatePending(pending, row: row, job: job, context: context)

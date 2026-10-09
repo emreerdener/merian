@@ -16523,11 +16523,11 @@ stays temporary until a caller explicitly accepts it. Ordinary access remains
 absent.
 
 This boundary owns retained-clip creation. The prepared frame and audio derivers
-below are coordinated by the temporary cohort preparer; persistence of the whole
-provenance graph and a coordinated server byte/cohort/profile/reader contract
-remain pending. Current synthetic top-level topology and track checks are not a
-server ISO-BMFF allowlist or device qualification. Legacy video preparation
-remains unchanged.
+below are coordinated by the temporary cohort preparer; the held persistence
+owner below retains the whole provenance graph. A coordinated server
+byte/cohort/profile/reader contract remains pending. Current synthetic top-level
+topology and track checks are not a server ISO-BMFF allowlist or device
+qualification. Legacy video preparation remains unchanged.
 
 ### Prepared native retained-source frames
 
@@ -16539,10 +16539,10 @@ distinct ID, actual MIME, length and SHA-256. The retained source hash is
 verified before and after generation. Its temporary result retains source
 ownership and cleans the entire frame directory on drop.
 
-This does not make a V4 manifest executable: a complete durable cohort, server
-byte validation, source/profile admission and reader coordination remain
-required. No upload, request, schema or activation gate is changed by this
-private native producer.
+This does not make a V4 manifest executable: server byte validation,
+source/profile admission and reader coordination remain required. Complete
+held-cohort storage is defined below. No upload, request, schema or activation
+gate is changed by this private native producer.
 
 An exclusive source-use token blocks clip transfer during derivation and while
 the frame result is retained. Dropping the result synchronously releases that
@@ -16565,8 +16565,9 @@ another transcode or synthetic leading/trailing samples. Native
 retaining the existing compact/FLLR closed-format rules and `isValid` behavior.
 Final inspected count must equal accumulated decoded samples. Source and output
 size/digests accompany the temporary result, which holds exclusive source use.
-This adds no wire version, reader, grant, schema or activation change. Durable
-whole-cohort staging and coordinated server byte admission remain pending.
+This adds no wire version, reader, grant, schema or activation change. Held
+whole-cohort storage is defined below; coordinated server byte admission remains
+pending.
 
 ### Prepared complete native video cohort
 
@@ -16587,10 +16588,10 @@ this local graph.
 
 The source snapshot precedes callbacks, and all files undergo bounded size/hash
 checks after the last callback. Failure/cancellation/drop removes the entire
-owned temporary root; caller input is preserved. No per-file transfer or durable
-staging API exists. A later closed video-preparation persistence contract must
-exclude legacy readers, preserve exact bytes across restart, and coordinate
-server byte/profile/admission validation before any execution route can open.
+owned temporary root; caller input is preserved. No per-file transfer exists.
+The prepared held persistence owner below preserves exact bytes across restart
+and excludes legacy readers. Coordinated server byte/profile/admission
+validation remains required before execution can open.
 
 ### Closed local video-preparation envelope
 
@@ -16608,9 +16609,9 @@ frames and optional companion. Paths must exactly equal the child/media-ID
 namespace and type-derived suffix, with no caller path or URL accepted. Owner
 aliases with observation, child, historical source or any artifact are rejected.
 A decoded digest or ready phase is not ownership, byte verification or execution
-authority. No consumer stages this envelope yet: atomic metadata/file ownership,
-legacy-reader exclusion, transactional source/account/deletion checks, promotion
-and restart recovery remain required before durable video staging can open.
+authority. The prepared local producer below stages this envelope with
+metadata/file ownership and existing-only recovery. Coordinated remote admission
+remains unavailable.
 
 ### Native video preparation source proof
 
@@ -16628,3 +16629,38 @@ checks. Selection and review revision changes do not retarget or invalidate the
 frozen historical source. Account/session leases, coordinated file ownership,
 legacy-reader exclusion and actual persistence/restart recovery are separate
 requirements. No wire, schema, provider, funding or activation behavior changes.
+
+### Prepared held video durability
+
+The uninstalled native video producer now pairs version-1 preparation metadata
+with the unchanged V58 qualified reanalysis row and observationReanalysisSync
+job. Both phases remain held with zero attempts. Captured-media parity records
+the retained clip, ordered derived images and optional companion; no legacy
+inferenceImagePaths or transport fields are populated. Source occupancy blocks
+new siblings even when their owner/job links are damaged. Exact replay precedes
+fresh occupancy admission, and erasure receipts prevent reinsertion.
+
+Metadata is saved before any private copy. A complete temporary cohort supplies
+the exact request and byte buffers; individual paths never escape. One
+successful copy consumes it. A failed attempt retains the same bytes for
+explicit retry while the owner lives; dropping it removes temporary files.
+Incomplete restart recovery stays held and cannot regenerate evidence; parent
+erasure remains available. Stable root/child filesystem locks surround fresh
+source/account/deletion checks, exclusive byte publication and final metadata
+promotion. A thrown promotion save retains the verified cohort because the save
+may have committed. Existing-only recovery verifies the full ordered inventory
+and original digests; it never creates missing work, repairs files, transcodes
+or invokes a provider. Source container/profile qualification is inherited from
+the preparation producers; this local hash-preserving store is not server
+byte-validation evidence.
+
+Photo preparation/admission/restoration/discard paths reject video metadata;
+ordinary inference remains closed to all qualified reanalysis children. Parent
+linked erasure owns the entire namespace, including frames. Prepared durability
+does not install Capture, automatic discovery, video-specific discard, remote
+binding/admission, V5 result support or execution. Activation remains disabled.
+
+The held video captured-media projection stores the optional WAV as a separate
+audio entry after all five frames. V58 media entities store only the video path;
+embedding the companion in that entity would lose it on restore. The immutable
+manifest, rather than the display projection, retains its source relationship.

@@ -76,6 +76,7 @@ enum ObservationReanalysisPersistence {
 
     static func restoreDraft(_ expected: ObservationReanalysisDraft, row: OfflineQueuedScan, job: OfflineJobRecord) throws -> DraftState {
         guard let text = job.metadataJSON else { throw IntegrityError.conflict }
+        try ObservationVideoPreparation.requireNonVideo(Data(text.utf8))
         // Bound versions retain a full request; strict decoding rejects unbound/unknown envelopes.
         if let bound = try? ObservationReanalysisIntent.decode(Data(text.utf8)) {
             let stored = try restore(row: row, job: job)
@@ -176,6 +177,7 @@ enum ObservationReanalysisPersistence {
     }
 
     static func restore(row: OfflineQueuedScan, job: OfflineJobRecord) throws -> Stored {
+        if let text = job.metadataJSON { try ObservationVideoPreparation.requireNonVideo(Data(text.utf8)) }
         guard let metadata = job.metadataJSON,
               job.kindRaw == OfflineJobKind.observationReanalysisSync.rawValue,
               let status = OfflineJobStatus(rawValue: job.statusRaw) else { throw IntegrityError.conflict }

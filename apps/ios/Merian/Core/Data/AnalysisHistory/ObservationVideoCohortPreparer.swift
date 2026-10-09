@@ -1,13 +1,19 @@
 import CryptoKit
 import Foundation
 
-/// One temporary ownership unit. No per-file or durable transfer API exists.
+/// One temporary ownership unit. Only complete-cohort durable copying is permitted.
 actor ObservationVideoCohort {
     fileprivate struct File: Sendable {
         let artifact: ObservationVideoProvenance.Artifact
         let url: URL
     }
     nonisolated let request: ObservationVideoReanalysisRequest
+    struct Payload: Sendable {
+        let request: ObservationVideoReanalysisRequest
+        let bytes: [Data]
+        fileprivate init(request: ObservationVideoReanalysisRequest, bytes: [Data]) { self.request = request; self.bytes = bytes }
+    }
+    private var consumed = false
     private let files: [File]
     private let directory: URL
     private let clip: ObservationRetainedVideoClip
@@ -18,6 +24,40 @@ actor ObservationVideoCohort {
                      clip: ObservationRetainedVideoClip, frames: ObservationVideoFrameDerivation, audio: ObservationVideoAudioDerivation?) {
         self.request = request; self.files = files; self.directory = directory
         self.clip = clip; self.frames = frames; self.audio = audio
+    }
+
+    /// One successful joined copy consumes the owner. Failed attempts retain the
+    /// exact temporary bytes for explicit retry; no file URL or regeneration escapes.
+    /// Durable metadata must already own the child before this method is entered.
+    func persist<T: Sendable>(preparation: ObservationVideoPreparation, store: ObservationReanalysisFileStore,
+                              validateBeforeWrite: @MainActor @Sendable () throws -> Void,
+                              commit: @MainActor @Sendable () throws -> T) async throws -> T {
+        guard !consumed, preparation.request == request,
+              preparation.files.map(\.artifact) == files.map(\.artifact) else { throw ObservationVideoCohortError.invalidScope }
+        consumed = true
+        var completed = false
+        defer {
+            if completed { try? FileManager.default.removeItem(at: directory) } else { consumed = false }
+        }
+        var buffers: [Data] = []
+        for file in files {
+            try Task.checkCancellation()
+            let attributes = try FileManager.default.attributesOfItem(atPath: file.url.path)
+            guard attributes[.type] as? FileAttributeType == .typeRegular,
+                  (attributes[.size] as? NSNumber)?.intValue == file.artifact.byteCount else { throw ObservationVideoCohortError.changedArtifact }
+            let handle = try FileHandle(forReadingFrom: file.url)
+            defer { try? handle.close() }
+            let bytes = try handle.read(upToCount: file.artifact.byteCount + 1) ?? Data()
+            guard bytes.count == file.artifact.byteCount,
+                  SHA256.hash(data: bytes).map({ String(format: "%02x", $0) }).joined() == file.artifact.sha256 else {
+                throw ObservationVideoCohortError.changedArtifact
+            }
+            buffers.append(bytes)
+        }
+        let result = try await store.persistVideo(preparation: preparation, payload: .init(request: request, bytes: buffers),
+                                                 validateBeforeWrite: validateBeforeWrite, commit: commit)
+        completed = true
+        return result
     }
 
     deinit { try? FileManager.default.removeItem(at: directory) }

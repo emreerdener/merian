@@ -51,6 +51,7 @@ struct ObservationReanalysisAdmissionWork: Equatable, Sendable {
     }
 
     static func decode(_ data: Data) throws -> Self {
+        try ObservationVideoPreparation.requireNonVideo(data)
         if let preparation = try? ObservationReanalysisPreparationIntent.decode(data), preparation.action == .submit {
             return try .init(preparation: preparation, phase: .filesPending)
         }

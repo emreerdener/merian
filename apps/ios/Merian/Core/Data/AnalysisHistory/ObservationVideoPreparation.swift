@@ -13,6 +13,14 @@ struct ObservationVideoPreparation: Equatable, Sendable {
     let request: ObservationVideoReanalysisRequest
     let sourceSnapshotSHA256: String
     let files: [File]
+    /// Retained clip plus ordered derived frames; no legacy inferenceImagePaths.
+    var media: [SerializedMediaItem] {
+        let source = StoredMediaReference.documents(files[0].path)
+        let audio = request.manifest.provenance.audio == nil ? nil : StoredMediaReference.documents(files[files.count - 1].path)
+        // V58 entries store a video path only; preserve the companion as its own entry.
+        // The immutable manifest retains the source-to-audio relationship.
+        return [.video(.init(video: source))] + files[1...5].map { .image(.documents($0.path)) } + (audio.map { [.audio($0)] } ?? [])
+    }
     static let maximumStoredBytes = 2_097_152
 
     init(ownerID: UUID, request: ObservationVideoReanalysisRequest, sourceSnapshotSHA256: String) throws {
@@ -80,6 +88,15 @@ struct ObservationVideoPreparation: Equatable, Sendable {
         ], options: [.sortedKeys, .withoutEscapingSlashes])
         guard data.count <= Self.maximumStoredBytes else { throw MerianError.invalidResponse }
         return data
+    }
+
+    /// Routing fence only, never video eligibility. Reject even an unsupported or
+    /// damaged video phase before a legacy photo reader can attempt restoration.
+    static func requireNonVideo(_ data: Data) throws {
+        guard data.count <= maximumStoredBytes else { throw MerianError.invalidResponse }
+        if let row = try? JSONSerialization.jsonObject(with: data) as? [String: Any], row["kind"] as? String == "video_preparation" {
+            throw MerianError.invalidResponse
+        }
     }
 
     static func decode(_ data: Data) throws -> (preparation: Self, phase: Phase) {

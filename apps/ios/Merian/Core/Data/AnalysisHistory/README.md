@@ -1992,10 +1992,10 @@ the same without deleting the caller's original input.
 The cohort constructs a canonical V4 manifest through the existing closed
 decoder and constructs/restores the exact request bytes. All artifact and scope
 identities must remain distinct. File paths and child leases remain private;
-phase callbacks expose no media paths. This is temporary composition only: it
-exposes no partial transfer, persisted row, queue route, account capability or
-admission. The later durable owner must verify files again and reject incomplete
-cohorts.
+phase callbacks expose no media paths. The result exposes only a complete cohort
+copy into the qualified FileStore; no per-file path or partial handoff escapes.
+The prepared durable owner below supplies account and persistence authority; no
+inference admission follows from the cohort.
 
 ## Closed video preparation metadata
 
@@ -2010,11 +2010,12 @@ the embedded request retains its existing stricter bound.
 
 Only `files_pending` and `files_ready` are representable. These are held local
 metadata states, not proof that bytes exist or authority to submit. This value
-performs no filesystem or SwiftData writes. The next persistence owner must
+performs no filesystem or SwiftData writes. The prepared persistence owner must
 validate the current source/account/deletion association in its transaction,
 exclude video from legacy recovery/discard readers before staging any row, and
-verify the whole file cohort before promotion. No durable transfer or restart
-recovery is installed by the codec alone.
+verify the whole file cohort before promotion. The codec alone performs no
+durable transfer or restart recovery; those belong to the separate prepared
+owner below.
 
 ### Verified video source binding
 
@@ -2030,6 +2031,44 @@ The proof revalidates through the existing source reader in a fresh persistence
 context, so parent/source deletion, pending deletion, enrollment, changed owner
 or changed snapshot bytes fail. Selection/review revisions may advance without
 invalidating the immutable historical target. This is still not an account lease
-or a file/staging capability: the future durable owner must hold the account
+or a file/staging capability: the durable owner below must hold the account
 lease and revalidate inside file locks and its transaction. No queue writer or
 recovery route is installed by source binding.
+
+## Held durable video preparation
+
+`ObservationVideoPreparationProducer` uses the shared preparation owner and
+account lease, validates the frozen source around awaits and inside fresh
+transactions, and stages the existing V58 reanalysis child/job before file I/O.
+`ObservationVideoPreparationStore` checks exact row/job and captured-media
+parity, source occupancy and erasure fences. The clip, ordered frame references
+and optional WAV stay in the child namespace; legacy inference image paths stay
+nil. The job remains needsAttention with zero attempts in both pending and
+ready.
+
+The private cohort permits one successful copy into
+`ObservationReanalysisFileStore`; it rechecks all hashes/sizes and removes its
+temporary root after success. Failed attempts retain the exact temporary bytes
+for explicit same-child retry while the owner lives; dropping the owner cleans
+its temporary root. An incomplete pending cohort after restart remains held
+without regeneration; parent erasure remains available. FileStore owns stable
+root/child locks, no-follow bounded reads, exclusive writes, directory
+synchronization and complete-inventory checks. Promotion retains verified files
+if save throws, including commit-then-throw. Explicit reopening uses existing
+metadata and saved bytes only; missing, changed, extra or symlinked files fail
+without repair or another preprocessing pass. Container/profile validation
+originates in the retained-source producers; exact recovery proves byte
+identity, not new server/provider admission.
+
+Photo preparation, restore, admission and discard readers explicitly reject
+video_preparation, including unsupported phases. Ordinary inference already
+excludes qualified reanalysis work. Parent erasure indexes every artifact
+through captured media plus the whole child namespace. No video-specific discard
+or remote source/admission/execution path is installed. These prepared APIs
+remain uninstalled in Capture and automatic queue delivery; ordinary access
+stays nil.
+
+The held video captured-media projection stores the optional WAV as a separate
+audio entry after all five frames. V58 media entities store only the video path;
+embedding the companion in that entity would lose it on restore. The immutable
+manifest, rather than the display projection, retains its source relationship.

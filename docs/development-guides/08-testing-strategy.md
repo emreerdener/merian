@@ -12032,3 +12032,16 @@ new artifact and child, and forged digest/owner/parent/source metadata. Run with
 retain photo/audio source and exact envelope regression coverage. These tests
 prove source association only; no queue insertion, account lease, durable file
 transfer or restart recovery is claimed.
+
+### Held video durability checks
+
+`merianTests/ObservationVideoDurabilityTests` exercises real silent/audio
+cohorts, exact file inventory/digests, disk reopening with the same child, nil
+legacy inference paths and no photo/ordinary dispatch, failed first save,
+uncertain promotion saves before/after commit, missing/changed/extra/symlink
+recovery, account fencing, deletion during locked validation and full parent
+erasure indexing. Run with audio preparation, generic FileStore, cohort and
+source-proof suites. Explicit recovery must retain identity and never rerun
+preprocessing. These are local held-durability checks; remote video
+profiles/admission, provider execution, device and hosted storage/erasure
+qualification remain open.

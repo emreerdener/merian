@@ -34,6 +34,7 @@ extension ObservationReanalysisPersistence {
                           job.serverStatus == nil, job.serverStage == nil, job.serverRetryAfter == nil,
                           let text = job.metadataJSON, text.utf8.count <= 1_048_576 else { throw IntegrityError.conflict }
                     let bytes = Data(text.utf8)
+                    try ObservationVideoPreparation.requireNonVideo(bytes)
                     if let pending = try? ObservationReanalysisPreparationIntent.decode(bytes) {
                         guard pending.draft.identity == identity else { throw IntegrityError.conflict }
                         try validatePending(pending, row: row, job: job, context: context)

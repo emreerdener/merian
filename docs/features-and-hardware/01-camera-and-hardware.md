@@ -1444,7 +1444,21 @@ removes the root and preserves the original caller-owned capture. There is no
 partial transfer. The existing cooperative codec cancellation limits still
 apply, and the worker is joined before its slot reopens.
 
-This preparer is uninstalled. Complete-cohort durable staging, account/deletion
-fences, server validation, exact saved-media recovery and device resource
-qualification remain required. Ordinary capture and alternatives layout are
-unchanged.
+This preparer is uninstalled. The held storage owner below supplies durable
+staging, account/deletion fences and exact saved-media recovery. Server
+validation and device resource qualification remain required. Ordinary capture
+and alternatives layout are unchanged.
+
+### Prepared held video storage
+
+The protected video cohort permits one successful complete copy into the private
+reanalysis FileStore, coordinated by ObservationVideoPreparationProducer and
+Store. Exact source/frame/WAV bytes and the original request survive disk
+reopen; incomplete recovery fails without resampling. Failed copies retain the
+exact temporary cohort for explicit retry while its owner lives. Metadata owns
+the child before copying, and current source/account/deletion checks surround
+locked promotion. A thrown promotion save retains owned verified bytes for exact
+recovery. This prepared boundary is not installed into ordinary Capture or queue
+dispatch. The earlier temporary producers feed this owner; remaining integration
+work is server source/profile/byte admission, V5 readers, execution and
+device/hosted qualification. Alternatives-card design and layout are unchanged.
