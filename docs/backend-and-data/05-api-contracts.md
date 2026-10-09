@@ -16521,12 +16521,11 @@ revalidation; it transfers no AVFoundation state. The successful output lease
 stays temporary until a caller explicitly accepts it. Ordinary access remains
 absent.
 
-This is only retained-clip creation. The complete V4 producer still must derive
-all five frames and measured audio from that exact retained file, persist the
-whole provenance graph and pass a coordinated server byte/cohort/profile/reader
-contract. Current synthetic top-level topology and track checks are not a server
-ISO-BMFF allowlist or device qualification. Legacy video preparation remains
-unchanged.
+This boundary owns retained-clip creation. The prepared frame and audio derivers
+below still need shared orchestration, persistence of the whole provenance graph
+and a coordinated server byte/cohort/profile/reader contract. Current synthetic
+top-level topology and track checks are not a server ISO-BMFF allowlist or
+device qualification. Legacy video preparation remains unchanged.
 
 ### Prepared native retained-source frames
 
@@ -16538,12 +16537,31 @@ distinct ID, actual MIME, length and SHA-256. The retained source hash is
 verified before and after generation. Its temporary result retains source
 ownership and cleans the entire frame directory on drop.
 
-This does not make a V4 manifest executable: measured companion WAV, complete
-durable cohort, server byte validation, source/profile admission and reader
-coordination remain required. No upload, request, schema or activation gate is
-changed by this private native producer.
+This does not make a V4 manifest executable: shared frame/WAV orchestration,
+complete durable cohort, server byte validation, source/profile admission and
+reader coordination remain required. No upload, request, schema or activation
+gate is changed by this private native producer.
 
 An exclusive source-use token blocks clip transfer during derivation and while
 the frame result is retained. Dropping the result synchronously releases that
 use; an already-transferred clip cannot begin derivation. No source identity
 becomes authoritative for server admission through this temporary token.
+
+### Prepared native video companion WAV derivation
+
+The inert `ObservationVideoAudioDeriver` now derives the optional companion from
+the exact retained MP4. It validates every decoded buffer as mono, signed packed
+16-bit little-endian PCM at 44.1 kHz, rejects discontinuous timing, and bounds
+output to 220,500 samples. Start/end are measured from reader presentation
+timestamps plus decoded sample duration, converted to the existing 600-Hz
+timebase. Asset duration only bounds the measured interval. No-track nil is
+distinct from an existing-track failure.
+
+Decoded bytes are wrapped directly in the accepted compact WAV header, without
+another transcode or synthetic leading/trailing samples. Native
+`ObservationAudioContainer.inspect` returns sample count and PCM offset while
+retaining the existing compact/FLLR closed-format rules and `isValid` behavior.
+Final inspected count must equal accumulated decoded samples. Source and output
+size/digests accompany the temporary result, which holds exclusive source use.
+This adds no wire version, reader, grant, schema or activation change. Durable
+whole-cohort composition and coordinated server byte admission remain pending.

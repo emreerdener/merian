@@ -1921,8 +1921,8 @@ its original JSON bytes; `ObservationVideoProvenance` retains typed source,
 parameters, frames and optional audio. These values confer no admission,
 persistence, upload or execution authority. Existing audio/photo readers and
 requests remain separate. Shared backend/native golden vectors qualify metadata
-parity. Native retained-clip creation is prepared below; complete V4 frame/WAV
-derivation and durable queue integration remain pending.
+parity. Native retained-clip, frame and WAV producers are prepared below;
+complete-cohort orchestration and durable queue integration remain pending.
 
 ## Prepared retained video clip
 
@@ -1950,11 +1950,30 @@ operation directory. Cancellation joins the worker and cancels decoding;
 incomplete generations never escape.
 
 There is deliberately no ownership-transfer or durable-admission API for this
-partial frame cohort. Measured WAV derivation, complete-cohort staging and
-coordinated server byte/profile/reader validation remain required. Ordinary
+partial frame cohort. Shared frame/WAV orchestration, complete-cohort staging
+and coordinated server byte/profile/reader validation remain required. Ordinary
 access and legacy video behavior are unchanged.
 
 An exclusive source-use token blocks clip transfer during derivation and while
 the frame result is retained. Dropping the result synchronously releases that
 use; an already-transferred clip cannot begin derivation. No source identity
 becomes authoritative for server admission through this temporary token.
+
+## Prepared retained-source video audio
+
+`ObservationVideoAudioDeriver` is an uninstalled, single-slot producer of the
+optional companion WAV from an exclusively borrowed retained clip. Zero audio
+tracks returns nil; an existing but failed, empty or malformed track throws.
+Reader output must be contiguous, signed packed mono Int16 PCM at 44.1 kHz. The
+producer copies bounded PCM bytes directly into a compact WAV, avoiding a second
+conversion or writer-added padding. Actual first/last sample timestamps define
+the interval; inspected final WAV bytes define its sample count.
+
+The source digest is checked before reading and again after writing.
+Cancellation and the processing deadline are observed between synchronous sample
+reads; the SDK forbids concurrent reader cancellation during a read. An
+in-flight read may delay cleanup and slot release. Cancellation always joins the
+worker. The temporary result owns its directory and retains exclusive source
+use; dropping it removes only that directory. Complete frame/audio composition
+must share one source-use session and persist the whole cohort before transfer.
+No partial audio transfer or live queue route exists.

@@ -11975,3 +11975,25 @@ An exclusive source-use token blocks clip transfer during derivation and while
 the frame result is retained. Dropping the result synchronously releases that
 use; an already-transferred clip cannot begin derivation. No source identity
 becomes authoritative for server admission through this temporary token.
+
+### Retained-source companion WAV checks
+
+`merianTests/ObservationVideoAudioDeriverTests` covers retained mono/stereo PCM
+conversion, compact WAV count/hash binding, no-track nil, offset/short audio
+intervals against an independent reader, cancellation and slot reuse, source
+mutation, transfer exclusion and result-directory cleanup.
+`merianTests/ObservationAudioContainerTests` additionally asserts exact sample
+count/data offset for compact and zero-filled FLLR containers while preserving
+existing malformed/trailing-byte bounds. These focused selectors accompany
+retained-clip, frame, manifest and request tests. They do not qualify
+real-device codec/resource behavior, complete-cohort persistence or hosted byte
+admission.
+
+The offset test exercises both a synthetic leased composition and the real
+retained-encoder path. Both can decode the leading gap into PCM silence;
+independent reader bytes, counts and timestamps are the oracle, with the shorter
+audio endpoint required in both cases. Direct `ObservationVideoAudioTimeline`
+tests cover nonzero first timestamps, adjoining samples, gaps/overlap, invalid
+times, empty buffers, count overflow and endpoint bounds. This same timing value
+is used by the production deriver. Raw-composition offsets are not assumed to
+survive decoding or retained transcoding.

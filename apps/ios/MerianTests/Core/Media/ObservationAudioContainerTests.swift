@@ -8,6 +8,7 @@ struct ObservationAudioContainerTests {
     func acceptsCompactAndZeroFilledCoreAudioPadding(padding: Int) {
         let data = fixture(padding: padding)
         #expect(ObservationAudioContainer.isValid(data))
+        #expect(ObservationAudioContainer.inspect(data) == .init(sampleCount: 1, dataOffset: padding == 0 ? 44 : 52 + padding + padding % 2))
         // Data slices need not have a zero startIndex.
         var prefixed = Data([0xFF])
         prefixed.append(data)

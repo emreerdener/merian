@@ -1382,9 +1382,9 @@ without touching sibling work. The temporary retained-file lease owns that
 directory until explicitly accepted; acceptance transfers directory ownership
 with the file. Output size checks use fresh filesystem attributes rather than
 cached URL resource values. Input ownership remains with the caller. No ordinary
-capture path uses this producer; actual V4 frame/WAV derivation, measured
-timestamps, complete-cohort durability, server byte validation and device
-resource qualification remain required.
+capture path uses this producer; shared frame/WAV orchestration, complete-cohort
+durability, server byte validation and device resource qualification remain
+required.
 
 ### Prepared retained-source frame derivation
 
@@ -1401,10 +1401,35 @@ The result binds each artifact's ID, size and digest to the retained source ID;
 the source hash is rechecked before returning. Generation owns a private output
 directory, a 30-second cancellation watchdog and a joined worker. Drop/error
 cleanup removes only that directory, while the result retains the source lease.
-No partial result transfers into the queue. Measured audio extraction and whole
-cohort persistence remain separate unfinished parts of video integration.
+No partial result transfers into the queue. Shared frame/audio orchestration and
+whole-cohort persistence remain unfinished parts of video integration.
 
 An exclusive source-use token blocks clip transfer during derivation and while
 the frame result is retained. Dropping the result synchronously releases that
 use; an already-transferred clip cannot begin derivation. No source identity
 becomes authoritative for server admission through this temporary token.
+
+### Prepared retained-source companion WAV
+
+`ObservationVideoAudioDeriver` consumes the exact retained clip through an
+exclusive source-use token. It reads mono 44.1 kHz signed packed Int16 PCM,
+checks each buffer's format and contiguous presentation timing, and copies at
+most 220,500 samples into a compact WAV. This path does not use the legacy
+Capture extractor, a second encoder, or a fabricated full-clip audio interval.
+Only an absent track produces nil; malformed or failed audio throws.
+
+The worker bounds buffer count to 1,024 and checks a 30-second processing
+deadline around reads. These checks are cooperative: the SDK forbids concurrent
+reader cancellation during a synchronous sample read. Cancellation joins that
+read and cleanup before the producer reopens its slot; this is not a hard codec
+timeout. The final sample count comes from the closed WAV inspector; the source
+digest is rechecked before handing back a temporary directory-owning result.
+Source transfer remains blocked until that result is dropped. Whole-cohort
+composition, durable staging, live integration and device resource qualification
+remain outstanding; ordinary capture and the alternatives card are unchanged.
+
+Timing belongs to the retained clip, not the original capture composition. The
+reader can materialize a leading audio gap as PCM silence, including for an
+untranscoded composition. Extraction preserves those decoded samples and records
+their actual start, including zero; it does not claim the original pre-transcode
+offset survived.
