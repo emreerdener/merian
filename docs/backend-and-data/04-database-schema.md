@@ -7715,7 +7715,7 @@ See the
 [source discovery API contract](05-api-contracts.md#prepared-source-discovery-contract)
 for reader 10, 65-row sentinels, conservative orphan/ambiguous handling and
 exact completion/retirement associations. This initial resolver never emits
-absence; all-writer coordination and source reservations remain unimplemented.
+absence; the separate reader-11 gated mutation owns source reservations.
 Existing cascade deletion owns these indexed rows and proofs; no new persistent
 private ledger survives intentional owner/parent erasure. Snapshot codec
 compatibility must preserve existing completion receipt bytes across versions
@@ -7731,12 +7731,13 @@ preserving the original request digest. Both are stable security-invoker
 routines with fixed empty search paths; PUBLIC and all API roles have no
 execution grant. They add no table, reservation, mutation path or execution
 authority. Shared vectors bind their bytes and SHA-256 to TypeScript and native
-implementations. Source reservation and all-writer coordination remain separate
+implementations. Default-false reader-11 SQL now uses these helpers for source
+reservation; HTTP/native integration and ordinary activation remain separate
 prerequisites.
 
-The helpers are STABLE because PostgreSQL UTF-8 conversion is STABLE. Future
-locked reservation transactions must persist the computed binding; these helpers
-cannot be used in an expression index or generated column.
+The helpers are STABLE because PostgreSQL UTF-8 conversion is STABLE. The locked
+reservation transaction persists the computed binding; these helpers cannot be
+used in an expression index or generated column.
 
 ### Prepared private source binding storage
 
@@ -8038,7 +8039,10 @@ requires binding plus live occupancy for `reserved`. An exact terminal child
 with proven release conflicts; it never recreates occupancy. Errors cannot
 substitute for durable terminal proof or authorize a new UUID. A new child needs
 complete bounded predecessor/namespace verification. The first paired SQL
-implementation will support only exact funded/unfunded retirement predecessors;
+implementation supports only exact funded/unfunded retirement predecessors;
 completion-based occupancy release remains an explicit separate implementation
-requirement. This contract-only clarification introduces no writer, wire field,
-reader or activation.
+requirement. Migration `20261009000303` implements the paired service-only
+reader-11 reservation and unfunded-retirement routines behind independent
+default-false gates. The immutable unfunded receipt is unique per child and
+follows binding/parent deletion; terminal replay never recreates occupancy. No
+HTTP/native consumer or activation is introduced.

@@ -11,27 +11,29 @@ history selection transaction.
 `sourceDiscovery.ts` owns the prepared, non-wired source-discovery request and
 closed response decoder. Its 2 KiB byte boundary and exact owner/parent/source
 checks grant no admission or execution permission. The gated service-only SQL
-resolver now classifies bounded existing records; source reservation, all-writer
-coverage and native consumer remain pending. The initial resolver never returns
-advisory absence. See the
+resolver classifies bounded existing records. Separate default-false
+service-only reader-11 routines own source reservation and unfunded retirement;
+HTTP/native integration and ordinary activation remain pending. The initial
+resolver never returns advisory absence. See the
 [canonical prepared contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-discovery-contract)
 and `sourceDiscovery_test.ts`; do not use existing funded admission as a lookup.
 
 `sourceFingerprint.ts` prepares a versioned UTF-8 framing and SHA-256 contract
 for fresh photo/audio source reservations, preserving the original request
-digest and saved bytes. It grants no authority and has no connected consumer.
-The fixed golden vectors are shared with the pure ungranted SQL encoders and
-native `ObservationSourceFingerprint` tests. Reservation integration remains
-separate; see the
+digest and saved bytes. It grants no authority; the gated SQL reservation
+validates the same fingerprint. The fixed golden vectors are shared with the
+pure ungranted SQL encoders and native `ObservationSourceFingerprint` tests.
+HTTP/native reservation integration remains separate; see the
 [fingerprint contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-reservation-fingerprint).
 
 `sourceReservation.ts` owns the prepared reader-11 reservation and explicit
 unfunded-retirement contracts. It recomputes the fingerprint, freezes input
 before await, and decodes exact owner-scoped receipts within 2 KiB. Held states
 never expose a competitor; `retired_unfunded` cannot be confused with funded
-execution retirement. There is no SQL/HTTP/native consumer. See the
+execution retirement. Default-false service-only SQL routines implement the
+contract; no HTTP/native consumer is connected. See the
 [mutation wire contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-reservation-and-unfunded-retirement-wire);
-all-writer fencing remains a prerequisite to connecting it.
+retained bindings continue enforcing writer fences after terminal release.
 
 `contract.ts` owns exact request identities, errors and bounded primitive
 parsers. `transitions.ts` models selection and revision decisions; `result.ts`
@@ -992,7 +994,10 @@ requires binding plus live occupancy for `reserved`. An exact terminal child
 with proven release conflicts; it never recreates occupancy. Errors cannot
 substitute for durable terminal proof or authorize a new UUID. A new child needs
 complete bounded predecessor/namespace verification. The first paired SQL
-implementation will support only exact funded/unfunded retirement predecessors;
+implementation supports only exact funded/unfunded retirement predecessors;
 completion-based occupancy release remains an explicit separate implementation
-requirement. This contract-only clarification introduces no writer, wire field,
-reader or activation.
+requirement. Migration `20261009000303` implements the paired service-only
+reader-11 reservation and unfunded-retirement routines behind independent
+default-false gates. The immutable unfunded receipt is unique per child and
+follows binding/parent deletion; terminal replay never recreates occupancy. No
+HTTP/native consumer or activation is introduced.

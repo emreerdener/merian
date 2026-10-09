@@ -15469,25 +15469,26 @@ and its production factory remain unconnected.
 The
 [source-occupancy design checkpoint](../rfcs/analysis-source-occupancy-contract-2026-10-08.md)
 is required before ordinary fresh audio entry; the first read-only SQL resolver
-is prepared, while reservation and ordinary entry remain unimplemented. Existing
-exact-child admission reserves quota and cannot be used as read-only discovery.
-Local missing work never proves remote absence. The planned resolver grants no
-execution authority; an independent atomic unfunded claim must fence every
-competing writer and retain durable retirement/completion proof while the owner
-observation remains live. Parent deletion intentionally erases private linked
-records; exact terminal receipt replay remains allowed until deletion. Completed
-history must still allow later explicit reanalysis of the same source. Unknown
-execution remains outcome/status recovery only. Existing saved photo replay
-stays unchanged; all activation gates remain disabled.
+is prepared; reservation now has a separately gated service-only transaction,
+while ordinary entry remains unimplemented. Existing exact-child admission
+reserves quota and cannot be used as read-only discovery. Local missing work
+never proves remote absence. The planned resolver grants no execution authority;
+an independent atomic unfunded claim must fence every competing writer and
+retain durable retirement/completion proof while the owner observation remains
+live. Parent deletion intentionally erases private linked records; exact
+terminal receipt replay remains allowed until deletion. Completed history must
+still allow later explicit reanalysis of the same source. Unknown execution
+remains outcome/status recovery only. Existing saved photo replay stays
+unchanged; all activation gates remain disabled.
 
 `_shared/analysisHistory/sourceDiscovery.ts` now owns the prepared executable
 descriptor contract. The private SQL producer is now
 `get_owned_observation_analysis_source(uuid,jsonb,integer)`; no HTTP route,
 transport or native consumer is connected. It does not change the Identify
 generated DTO block, existing readers or saved request fingerprints. The SQL
-reader is exactly 10. Pure fingerprint encoders are prepared separately;
-reservation integration, source claims and all-writer admission fencing remain
-pending.
+reader is exactly 10. Separate default-false service-only reader-11 routines use
+the fingerprint encoders for source reservation and unfunded retirement.
+HTTP/native reservation integration and ordinary activation remain pending.
 
 The request has exactly `schema_version: 1`, `observation_id` and
 `source_analysis_id`, using distinct canonical lowercase UUIDs. Owner comes from
@@ -15564,17 +15565,17 @@ reinterpret errors/timeouts as absence.
 ### Prepared source reservation fingerprint
 
 `_shared/analysisHistory/sourceFingerprint.ts` defines fingerprint version 1 as
-an inert pure contract. It has no RPC, durable reservation, upload
-authorization, HTTP caller or runtime consumer. The ungranted internal SQL
-encoders and `ObservationSourceFingerprint` implement the same pure contract;
-all three languages share checked-in canonical-byte and hash vectors before
-reservation integration is connected. Existing saved request bytes and
-`request_digest` are preserved verbatim; this fingerprint is additional binding,
-never a replacement for their replay rules. The existing server admission checks
-`request_digest` syntax and exact replay identity; it does not prove that native
-JSON bytes hash to that value. The new fingerprint binds the validated semantic
-fields independently. Do not add JSON digest reconstruction or rewriting to
-saved V2/V3 requests.
+a pure contract consumed by the gated source-reservation SQL. It grants no
+upload or execution authority and has no HTTP/native mutation consumer. The
+ungranted internal SQL encoders and `ObservationSourceFingerprint` implement the
+same pure contract; all three languages share checked-in canonical-byte and hash
+vectors before reservation integration is connected. Existing saved request
+bytes and `request_digest` are preserved verbatim; this fingerprint is
+additional binding, never a replacement for their replay rules. The existing
+server admission checks `request_digest` syntax and exact replay identity; it
+does not prove that native JSON bytes hash to that value. The new fingerprint
+binds the validated semantic fields independently. Do not add JSON digest
+reconstruction or rewriting to saved V2/V3 requests.
 
 Only strictly validated fresh protected-photo input schema 2 and audio input
 schema 3 are supported. Source must be non-null, distinct from observation and
@@ -15655,11 +15656,16 @@ automatic expiration, replacement, provider retry or refund is introduced.
 
 ### Prepared source reservation and unfunded retirement wire
 
-`sourceReservation.ts` now defines an inert executable boundary for the future
-coordinated mutation. No SQL routine, HTTP route, native consumer, or grant uses
-it. Its action reader is **11**, distinct from read-only source discovery reader
-10; introducing the constant does not upgrade existing readers or activate a
-route. Future mutations must reject unsupported readers explicitly.
+`sourceReservation.ts` defines the reader **11** contract implemented by
+migration `20261009000303`. The service-only RPCs
+`reserve_owned_observation_analysis_source(uuid,jsonb,integer)` and
+`retire_owned_observation_analysis_source(uuid,jsonb,integer)` use explicit
+owner, request and reader arguments. Both authorize `service_role`, reject
+unsupported readers and frozen snapshots, and have five-second statement
+timeouts. Only service-role execution is granted; private storage/helpers are
+revoked from API roles. Independent `source_reservation_enabled` and
+`source_unfunded_retirement_enabled` gates default false. No HTTP or native
+consumer is connected. Read-only discovery remains reader 10.
 
 The reservation request has exactly `schema_version: 1`, `input`,
 `fingerprint_version: 1`, and `fingerprint`. Input is the complete existing
@@ -15673,7 +15679,7 @@ fingerprint; a caller-synthesized identity/digest tuple is not an accepted
 expected value. Response bytes and expected requests are snapshotted before that
 hash await. Retirement request construction uses the same verified full
 candidate, and retirement receipt decoding checks both that candidate and the
-original action. The server must repeat fingerprint validation under its future
+original action. The server must repeat fingerprint validation under its
 reservation transaction; successful decoding is not durable admission.
 
 Every response is bounded to 2 KiB and starts with exactly `schema_version: 1`,
@@ -15690,13 +15696,13 @@ Every response is bounded to 2 KiB and starts with exactly `schema_version: 1`,
 - `unavailable` has no additional fields. Neither advisory absence nor
   history-only is a mutation response or permission to create a different child.
 
-The future SQL transaction must return exact same-candidate replay before fresh
-rollout gates, after owner/deletion validation. Same child with changed
-immutable input is the existing operation-conflict error, not success or a
-replacement. Binding without occupancy remains held unless an independently
-verified terminal rule applies. A reserved response after a lost reply does not
-authorize another provider invocation or prove that no admission occurred. All
-writers must revalidate their own durable phase and binding.
+The SQL transaction returns exact same-candidate replay before fresh rollout
+gates, after owner/deletion validation. Same child with changed immutable input
+is the existing operation-conflict error, not success or a replacement. Binding
+without occupancy remains held unless an independently verified terminal rule
+applies. A reserved response after a lost reply does not authorize another
+provider invocation or prove that no admission occurred. All writers must
+revalidate their own durable phase and binding.
 
 Unfunded retirement is separate from existing funded execution retirement. Its
 exact request fields are `schema_version: 1`, distinct `operation_id`,
@@ -15709,25 +15715,28 @@ boundary. Errors, held responses, missing data and cancellation never become a
 retirement receipt. Neither receipt fabricates a result or grants a new
 reservation.
 
-Before producing this receipt, the future transaction must establish exact
-binding and complete absence of any cohort, evidence, intent, funding,
-invocation, work, draft or result; atomically prevent all later writers; save
-the immutable operation receipt; and release only its occupancy. The receipt
-must survive occupancy deletion but follow parent deletion. Same operation
-replay returns the saved receipt; changed identity or a different retirement
-operation conflicts. Missing prunable accounting alone is never non-execution
-proof. These storage and all-writer obligations remain unimplemented at this
-wire-only checkpoint. Existing saved photo/audio and funded-retirement contracts
-are unchanged.
+Before producing this receipt, the transaction establishes exact binding and
+complete absence of any cohort, evidence, intent, funding, invocation, work,
+draft or result; atomically prevent all later writers; save the immutable
+operation receipt; and release only its occupancy. The receipt must survive
+occupancy deletion but follow parent deletion. Same operation replay returns the
+saved receipt; changed identity or a different retirement operation conflicts.
+Missing prunable accounting alone is never non-execution proof. Immutable
+`observation_source_unfunded_retirements` storage retains one operation per
+bound child, cascades with the binding on parent deletion, and permits occupancy
+deletion only with exact unused-child proof. Retained bindings continue fencing
+ingestion, evidence, intent, quota and invocation writers. Legacy ingestion IDs
+are normalized as UUIDs. Existing saved photo/audio and funded-retirement
+contracts are unchanged.
 
 ### Source reservation terminal replay and successor admission
 
-This October 8 contract decision precedes the paired
-reservation/unfunded-retirement SQL implementation. It adds no response variant,
-reader, producer or consumer. The wire above remains authoritative. `reserved`
-requires both the exact immutable binding and its matching live occupancy;
-acknowledging a binding alone is not sufficient. It conveys no admission,
-execution or retry permission.
+This October 8 contract decision is implemented by the October 9 paired
+reservation/unfunded-retirement SQL migration. The implementation preserves the
+prepared response variants and reader; HTTP/native consumers remain absent. The
+wire above remains authoritative. `reserved` requires both the exact immutable
+binding and its matching live occupancy; acknowledging a binding alone is not
+sufficient. It conveys no admission, execution or retry permission.
 
 After owner/deletion and exact immutable identity checks, classify an existing
 candidate before fresh rollout gates:
@@ -15785,10 +15794,13 @@ an explicit remaining implementation requirement, not a change to the user's
 ability to request later reanalysis once the complete feature is qualified.
 
 Fresh reservation and unfunded retirement remain default-false, service-only
-preparation with no HTTP/native consumer. Their paired implementation must add
-permanent unfunded receipt storage and all-writer fences, then prove
-reservation, retirement, upload/admission and deletion races. This contract
-decision does not claim those routines or completion release exist.
+preparation with no HTTP/native consumer. Migration `20261009000303` implements
+permanent unfunded receipts and guarded occupancy release. Every parent media
+namespace has an independent 65th-row sentinel alongside intents, same-source
+bindings/releases and results. Unbound parent intents or unattributed media hold
+conservatively. Completion release remains unimplemented. Catalog tests live in
+`observation_source_reservation.sql`; two-connection photo/audio races live in
+`observationSourceReservationConcurrencyDb.test.ts`.
 
 ### Prepared source-bound funding exclusion
 

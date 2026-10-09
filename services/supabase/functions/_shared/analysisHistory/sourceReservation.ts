@@ -2,7 +2,7 @@ import { parseExecutableAnalysisInput } from "./analysisInput.ts";
 import { exactObject, historyUUID, invalidHistory } from "./contract.ts";
 import { sourceReservationFingerprint } from "./sourceFingerprint.ts";
 
-/** Prepared contract only. No RPC, reservation writer, or execution capability. */
+/** Service-only gated SQL contract; no HTTP/native consumer or execution capability. */
 export const SOURCE_RESERVATION_READER = 11;
 export const SOURCE_RESERVATION_MAX_REQUEST_BYTES = 1_048_576;
 export const SOURCE_RESERVATION_MAX_RECEIPT_BYTES = 2_048;

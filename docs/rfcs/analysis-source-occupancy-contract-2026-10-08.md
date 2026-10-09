@@ -519,3 +519,13 @@ may accept only proven funded/unfunded retirement predecessors. Completed-source
 release remains separate, unimplemented work; the broader feature still requires
 later reanalysis after qualified completion. No new response variant, reader,
 RPC, native consumer or gate activation is introduced by this decision.
+
+### October 9 paired service-only reservation and unfunded retirement
+
+Migration `20261009000303` implements the reader-11 wire and the terminal replay
+decision above, with separate default-false reservation and unfunded-retirement
+gates. Immutable per-child retirement receipts permit exact occupancy release
+while retaining the binding and all writer fences. Current behavior and limits
+are in the
+[canonical API contract](../backend-and-data/05-api-contracts.md#prepared-source-reservation-and-unfunded-retirement-wire).
+No HTTP/native consumer, completion release or activation is included.
