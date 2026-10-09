@@ -3143,3 +3143,9 @@ lease; a normally returned binding can start audio only after source exit.
 `PreparedHistoryReanalysisComposition.audioSourceStart` is the inert live
 factory. Capture and V10 saved-request presentation remain separate integration
 work; this boundary adds no owner or scheduler.
+
+`ObservationAudioSourceResumeStore.swift` owns strict V10 saved-audio source
+reads and the preparation-owner/account-lease wrapper
+`ObservationAudioSourceResumeReader`. It returns exact evidence only; legacy
+resume/status readers and execution owners remain separate. See the Analysis
+History README for mutation-free reads and post-await snapshot fencing.

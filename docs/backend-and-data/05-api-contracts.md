@@ -16311,3 +16311,17 @@ admission/dispatch remain authoritative. The audio owner awaits its existing
 receipt-bound cleanup. The prepared App factory does not install Capture,
 status/resume presentation, ordinary access or scheduling. No wire, reader,
 SwiftData schema or rollout gate changes are included.
+
+### Prepared audio source resume evidence
+
+The private V10 audio source envelope has a dedicated native exact-child reader:
+`ObservationAudioSourceResumeStore` plus retained
+`ObservationAudioSourceResumeReader`. It preserves the original source request,
+state, generation and reply bytes across reopening without inspecting media or
+invoking an endpoint. Off-main proof verification is bracketed by exact snapshot
+and account/source validation. The shared source read forbids saves. The
+retained wrapper releases its account lease only on actual task exit and
+revalidates the snapshot before returning. This is evidence recovery, not source
+admission, execution binding or provider permission; unknown execution remains
+non-dispatching. Legacy readers stay strict. No wire, schema, reader-version,
+activation gate or installed Capture route changes.

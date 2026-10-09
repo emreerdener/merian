@@ -61,7 +61,7 @@ enum ObservationSourceReservationStore {
     }
 
     static func read(_ identity: OfflineQueueWork.Reanalysis, container: ModelContainer, isCurrent: () -> Bool) throws -> Snapshot {
-        try Persistence.transaction(identity, container: container, isCurrent: isCurrent, save: { try $0.save() }) { context in
+        try Persistence.transaction(identity, container: container, isCurrent: isCurrent, save: { _ in throw Persistence.IntegrityError.conflict }) { context in
             try pair(identity, container: container, context: context).snapshot
         }
     }

@@ -11841,3 +11841,15 @@ receipt completion and file removal before audio lease exit. Existing
 owner/drain and cleanup tests remain applicable. These synthetic tests do not
 establish ordinary Capture installation, actual hosted admission or device
 qualification.
+
+### Saved audio source reader regressions
+
+`ObservationAudioSourceResumeTests` verifies exact source recovery for every
+source state, missing local media, malformed or legacy envelopes, foreign
+targets, source deletion and metadata changes during proof verification.
+Cancellation keeps the shared preparation slot and account lease until verifier
+exit, and a second reader cannot enter that slot. SQLite reopening tests retain
+the original V3 candidate and V10 metadata against both V3 and V4 immutable
+source results. Legacy audio resume still rejects these envelopes. The reader
+never supplies a claim or dispatch capability; these tests do not qualify
+installed Capture UI, real-device migration or hosted media execution.

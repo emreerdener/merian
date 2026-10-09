@@ -1866,3 +1866,20 @@ existing refresh after cleanup. Neither callback rereads durable work to grant
 execution. Both existing Auth drains and connectivity cancellation apply; no new
 owner, timer or automatic retry is added. The App-owned `audioSourceStart`
 factory assembles live dependencies but remains uninstalled in Capture.
+
+### Exact saved audio source reader
+
+`ObservationAudioSourceResumeStore` reads one exact V10 source reservation and
+reconstructs its proof against `captureForAudio`. It verifies the saved
+preparation off-main, then rechecks source authority and the exact metadata
+snapshot. It never reads files, claims work, binds execution or interprets a
+source status as permission to dispatch. All valid source states remain opaque
+saved evidence, including reserved, held, unknown and conflict states.
+`ObservationSourceReservationStore.read` rejects any attempted save.
+
+`ObservationAudioSourceResumeReader` retains the existing preparation slot and
+account lease through the actual read task. Cancellation retains ownership until
+exit; a final currentness/proof/snapshot check rejects changes during lease
+release. No idle lease or polling is introduced. Legacy audio resume and saved
+status readers remain closed to V10. Capture source resume/status installation
+remains a subsequent checkpoint; this reader alone does not resume execution.
