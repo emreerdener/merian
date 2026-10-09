@@ -98,9 +98,16 @@ enum ObservationReanalysisPersistence {
     @MainActor
     static func transaction<T>(_ identity: OfflineQueueWork.Reanalysis, container: ModelContainer, isCurrent: () -> Bool,
                                save: (ModelContext) throws -> Void, settlingRetirement: ObservationAnalysisRetirementReceipt? = nil,
+                               settlingSource: ObservationSourceReservationReply? = nil,
                                body: (ModelContext) throws -> T) throws -> T {
         try ConfirmedSpeciesReviewPersistence.transaction {
             guard isCurrent() else { throw IntegrityError.accountChanged }
+            if let settlingSource {
+                guard settlingRetirement == nil, settlingSource.ownerID == identity.ownerID,
+                      settlingSource.request.observationID == identity.observationID,
+                      settlingSource.request.analysisID == identity.analysisID,
+                      settlingSource.request.sourceAnalysisID == identity.sourceAnalysisID else { throw IntegrityError.conflict }
+            }
             if let settlingRetirement {
                 let request = settlingRetirement.request.execution
                 guard request.observationID == identity.observationID, request.analysisID == identity.analysisID,
@@ -122,7 +129,7 @@ enum ObservationReanalysisPersistence {
                 guard let source = try context.fetch(query).first,
                       source.ownerAccountID == scan.analysisOwnerAccountID, source.observationID == scan.id else { throw IntegrityError.unavailable }
                 let result = try body(context)
-                if settlingRetirement == nil { try Task.checkCancellation() }
+                if settlingRetirement == nil && settlingSource == nil { try Task.checkCancellation() }
                 guard isCurrent() else { throw IntegrityError.accountChanged }
                 if context.hasChanges { try save(context) }
                 return result

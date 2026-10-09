@@ -945,6 +945,42 @@ final Capture action and all activation gates remain disabled.
 filtering, stale claims, retry/hold transitions, failed-save rollback, locked
 promotion, account loss, binding and discard fences.
 
+### Inert photo source-reservation storage
+
+`ObservationSourceReservationWork` owns a closed version-9 local envelope for
+photo V2 only. It preserves the submitted source proof, original input and
+candidate bytes, local claim generation and exact raw observation. Its 4 MiB
+metadata cap includes base64 expansion of the separately bounded preparation,
+input, candidate and 2 KiB reply. Audio V3 remains with its separate owner; no
+SwiftData field or frozen schema changes.
+
+`ObservationSourceReservationStore.stage` consumes only an exact running,
+files-verified admission-pending claim. It saves the immutable candidate before
+any future I/O. Exact stage replay returns existing work without resetting its
+phase or generation, including a save that commits then throws. Every mutation
+checks the owner/parent/source/child, retained immutable source proof, pristine
+paired execution fields, exact metadata and current container. The existing
+admission store shares its pristine-pair validator; it grants no authority.
+
+All states keep the queue/job at needs-attention with zero execution attempts
+and no deadline. An initial explicit claim changes staged to running. After the
+preceding retained owner drains, explicit same-request recovery may replace a
+running/unknown or held/unavailable observation with a new local generation.
+Stale claims cannot settle. Reserved observations and definite conflicts cannot
+be rearmed here, and neither permits admission. A known validated reply can be
+saved after cancellation only under the unchanged claim and account/container
+scope; cancellation without a known reply may retain running work for explicit
+recovery. This store has no timer, scheduler, transport or presentation caller.
+
+Old preparation/admission/execution decoders reject version 9. Source work
+cannot appear in their candidate sets, bind execution, or use local preparation
+discard. Parent erasure still uses independent parent linkage and records its
+child cleanup receipt regardless of metadata. The same transaction retains the
+owner-bound parent-deletion task; server parent deletion cascades through source
+bindings and occupancy. No source state authorizes upload, funding, a new UUID,
+inference, refund or release. A later retained delivery owner and separate exact
+unfunded-retirement action are required before wiring.
+
 ### Shared preparation ownership
 
 `ObservationReanalysisPreparationOwner` reserves each immutable child before a

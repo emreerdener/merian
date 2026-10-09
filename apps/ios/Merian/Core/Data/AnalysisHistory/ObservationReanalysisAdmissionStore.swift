@@ -177,9 +177,18 @@ enum ObservationReanalysisAdmissionStore {
     private static func pair(_ identity: OfflineQueueWork.Reanalysis, context: ModelContext) throws -> Pair {
         try Persistence.requireNoResultCollision(identity, context: context)
         guard let (row, job) = try Persistence.pair(identity, context: context), let metadata = job.metadataJSON else { throw Persistence.IntegrityError.unavailable }
-        let work = try Work.decode(Data(metadata.utf8)), child = identity.analysisID.uuidString.lowercased()
-        guard work.preparation.draft.identity == identity, row.work == .reanalysis(identity), row.id == child,
-              row.inferenceImagePaths == work.preparation.draft.photoPaths, row.scanStateRaw == ScanQueueState.pending.rawValue,
+        let work = try Work.decode(Data(metadata.utf8))
+        try validatePristinePair(identity, preparation: work.preparation, row: row, job: job)
+        return .init(row: row, job: job, snapshot: .init(work: work, metadata: metadata))
+    }
+
+    /// Shared pristine execution-field fence; this does not classify metadata or grant admission.
+    static func validatePristinePair(_ identity: OfflineQueueWork.Reanalysis,
+                                     preparation: ObservationReanalysisPreparationIntent,
+                                     row: OfflineQueuedScan, job: OfflineJobRecord) throws {
+        let child = identity.analysisID.uuidString.lowercased()
+        guard preparation.draft.identity == identity, row.work == .reanalysis(identity), row.id == child,
+              row.inferenceImagePaths == preparation.draft.photoPaths, row.scanStateRaw == ScanQueueState.pending.rawValue,
               row.queueNeedsAttention, row.queueAttemptCount == 0, row.queueLastAttemptAt == nil, row.queueNextRetryAt == nil,
               row.queueLastErrorCode == nil, row.queueLastErrorMessage == nil, row.queueLastHTTPStatus == nil,
               row.queueLastServerStatus == nil, row.queueLastServerStage == nil, row.queueLastServerRetryAfter == nil, row.stagedR2Keys == nil,
@@ -188,6 +197,5 @@ enum ObservationReanalysisAdmissionStore {
               job.attemptCount == 0, job.lastAttemptAt == nil, job.nextRunAt == nil, job.lastErrorCode == nil,
               job.lastErrorMessage == nil, job.lastHTTPStatus == nil, job.serverStatus == nil, job.serverStage == nil, job.serverRetryAfter == nil,
               job.updatedAt.timeIntervalSince1970.isFinite, row.queueUpdatedAt.timeIntervalSince1970.isFinite else { throw Persistence.IntegrityError.conflict }
-        return .init(row: row, job: job, snapshot: .init(work: work, metadata: metadata))
     }
 }

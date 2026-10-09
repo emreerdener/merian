@@ -15760,10 +15760,25 @@ idempotency retry. After Auth, the caller validates dispatch scope; after a
 strict reply, a separate caller fence validates known-answer settlement. An
 exact bounded public409 error with the operation-conflict code preserves a typed
 conflict bound to that candidate and owner, never a receipt. Other errors remain
-uncertain. These types and factories are inert: durable source staging, CAS,
-retained delivery/recovery and unfunded retirement admission are not yet
-connected. They cannot wake preflight, upload or inference, and all gates stay
-false.
+uncertain. The types and factories remain inert. Photo-only native source
+storage now uses a closed version-9 paired-metadata envelope preserving the
+submitted preparation, exact V2 input/candidate bytes and raw response, bounded
+to 4 MiB including base64 expansion. It consumes an exact running
+ready-admission claim and keeps all execution fields at needs-attention, zero
+attempts and no deadline. Exact metadata, source proof, owner, parent, child and
+container fence each mutation. Stage replay never resets work; explicit recovery
+retains the candidate and advances only the local claim generation after the
+previous owner drains. Stale claims cannot acknowledge. Known replies survive
+cancellation only under the same settlement scope. Reserved and conflict states
+cannot be rearmed by this store. Older admission/execution/discard decoders
+reject the envelope. Parent erasure atomically retains its owner-bound durable
+parent-deletion task while removing the child; server parent deletion cascades
+through source bindings and occupancy, independently of this metadata.
+
+This photo store does not accept audio V3 and has no live caller. Retained
+source delivery, audio persistence and unfunded retirement admission remain
+separate. No source observation can wake preflight, upload or inference; all
+gates remain false.
 
 The reservation request has exactly `schema_version: 1`, `input`,
 `fingerprint_version: 1`, and `fingerprint`. Input is the complete existing

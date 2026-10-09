@@ -11768,3 +11768,13 @@ simulation with an unavailable-only execution boundary, not evidence of actual
 provider execution, hosted outcome recovery or process restart. Existing domain
 tests own delayed-await presentation/account cancellation. Ordinary access and
 activation remain disabled.
+
+### Photo source-reservation persistence
+
+`ObservationSourceStoreTests` covers exact candidate persistence before I/O, all
+source phases staying outside legacy admission/execution/discard, strict
+version-9 decoding and byte bounds, source/owner/container/deletion fences,
+commit-then-throw staging recovery, unchanged request bytes across disk restart,
+explicit generation replacement and stale-claim denial. Known-answer settlement
+is tested after cancellation without granting dispatch permission. The separate
+audio handoff and retained delivery owner are not established by these tests.
