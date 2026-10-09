@@ -1086,3 +1086,10 @@ metadata shape and retain original JSON bytes. Shared synthetic
 `fixtures/video-manifest-v4.json` vectors cover both implementations. These are
 prepared contracts, not admission or persistence owners; existing photo/audio
 and source reservation parsers remain unchanged.
+
+`videoAdmission.ts` adds the prepared, closed reanalysis input V4 around that
+manifest. It validates parent/media separation and existing consent protocol
+constants. It is not imported into executable admission, source reservation or
+handlers. The replay digest retains its existing identifier semantics; native
+fresh/saved hashing is independently covered by shared request goldens. Future
+live video must coordinate upload, SQL, result, reader and provider boundaries.

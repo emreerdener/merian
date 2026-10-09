@@ -4174,3 +4174,13 @@ checkpoints. Tests are `ObservationSourceReservationTests`,
 `ObservationSourceReservationOwnerTests` and
 `ObservationSourceReservationServiceTests`. See
 [the source reservation contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-reservation-and-unfunded-retirement-wire).
+
+### Prepared private video request
+
+`ObservationVideoReanalysisRequest` is a separate schema-4 codec for the private
+video manifest. It validates all scope/artifact aliases and its canonical
+digest, and preserves the exact saved request body. It grants no transport,
+queue, upload or admission capability and has no installed caller. Photo/audio
+request codecs and source reservation remain unchanged. See the API contract's
+“Prepared video reanalysis request V4” section for the later coordinated runtime
+requirements.

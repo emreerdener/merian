@@ -16455,3 +16455,37 @@ aliases but do not establish owner authorization. Membership and byte/storage
 verification, dedicated production, persistence, server profile selection,
 forward database admission and coordinated reader/result contracts remain later
 checkpoints. No activation gate changes.
+
+### Prepared video reanalysis request V4
+
+`videoAdmission.ts` defines a closed, prepared ten-field input:
+`schema_version:4`, `observation_id`, `analysis_id`, non-null
+`source_analysis_id`, `request_digest`, `evidence_manifest` (private manifest
+V4), `entitlement_protocol:3`, `identification_protocol:6`, `history_protocol:9`
+and `expected_processor_permission:"google_gemini"`. All three analysis-scope
+identities are distinct. The historical source analysis must also differ from
+the retained clip and every derived frame/audio artifact ID. It is never
+interchangeable with a media source link.
+
+The history protocol is the existing consent/capability protocol, not the future
+public result reader. The expected processor is an assertion, not consent,
+model/profile selection, quota or dispatch authority. Server-owned video profile
+selection remains pending. The backend validates the lowercase 64-hex replay
+identifier; it does not reinterpret `request_digest` as server proof of JSON
+hashing. Future source reservation needs its own reviewed semantic fingerprint
+extension; current source fingerprint/reservation stays closed to V4.
+
+Native `ObservationVideoReanalysisRequest` creates a fresh sorted-key JSON body
+(with unescaped slashes), hashes it without `request_digest`, and validates that
+hash when reopening. It revalidates the manifest against the current request's
+identity tuple rather than trusting a previously decoded value's scope. Saved
+request bytes are retained exactly, including whitespace. The typed nested
+manifest is a canonical metadata view; only `body` is the exact replay envelope.
+The byte limit is 1,044,480. Backend fresh serialization is not a replacement
+for saved bytes and neither codec confers durable staging authority.
+
+This format is intentionally absent from executable admission, source
+reservation, queue/transport callers and all Edge handlers. No result version,
+public reader, upload cohort or SQL admission is added here. Live integration
+requires those coordinated server/native contracts together, with default-false
+gates and old photo/audio replay unchanged.

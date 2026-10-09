@@ -11920,3 +11920,17 @@ This coverage is metadata validation only. It does not establish real video
 preprocessing, persisted queue recovery, database admission, reader support or
 hosted/device qualification. Old photo/audio formats are compatibility controls;
 no public reader or runtime gate is enabled by accepting this private manifest.
+
+### Prepared video request compatibility
+
+`videoAdmission_test.ts` and `ObservationVideoReanalysisRequestTests` share
+synthetic audio/silent request payloads in `fixtures/video-request-v4.json`.
+Native checks compare fresh canonical bytes/digest and exact pretty-printed
+reopening, while backend tests compare the admitted metadata shape. The backend
+replay identifier remains format-validated, not server JSON hashing proof. Both
+reject historical source aliases to every artifact, unknown fields and
+unsupported protocol generations. Existing photo/audio request and source
+fingerprint tests remain compatibility controls; all executable/source routes
+must still reject V4. Candidate CI explicitly registers the prepared request
+suite for type-check and helper tests. No runtime, database or device
+qualification is implied by this codec coverage.
