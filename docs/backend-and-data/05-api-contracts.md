@@ -15802,6 +15802,106 @@ conservatively. Completion release remains unimplemented. Catalog tests live in
 `observation_source_reservation.sql`; two-connection photo/audio races live in
 `observationSourceReservationConcurrencyDb.test.ts`.
 
+### Planned atomic completion release
+
+This is the reviewed target contract for the next forward migration. Completion
+release is not implemented by migration `20261009000303`. The planned
+independent `source_completion_release_enabled` gate defaults to false; reader
+11, existing completion receipts and all public request/response shapes stay
+unchanged.
+
+The owner is the existing
+`advance_owned_observation_analysis(..., p_operation = 'complete')` transaction.
+After canonical result append, complimentary settlement, saved completion
+receipt and work-token/expiry clearing, a private helper may establish release
+proof. It runs under the same owner/parent/source/child/intent serialization. No
+separate worker, scheduled task, public recovery operation or provider
+invocation is introduced. Releasing occupancy never selects the new result or
+changes any result's review authority.
+
+The helper distinguishes these outcomes:
+
+| Evidence at original completion                                                          | Result and settlement                            | Source occupancy                                                        |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------- |
+| Gate closed, unbound operation, or no qualified release proof                            | Preserve the existing completion result.         | Retain any existing occupancy.                                          |
+| Exact successful execution/accounting and settlement proof                               | Preserve that same completion result.            | Save immutable proof and delete only its matching occupancy atomically. |
+| Accounting previously recorded `unknown`, or accounting is missing, pruned or mismatched | Preserve a valid late result and its settlement. | Hold; no successor or automatic reconciliation attestation.             |
+
+Expected proof unavailability returns a held decision inside the existing
+transaction; it must not turn a valid late result into a completion failure. Do
+not use a blanket exception handler: ownership, deletion, malformed mutation and
+integrity failures retain their established failure semantics. A storage failure
+while saving a qualified proof cannot commit an unproven occupancy delete. No
+partial proof or release survives transaction rollback.
+
+Eligibility must match the exact immutable binding/input/fingerprint; completed
+intent and saved receipt; canonical child result, source, request digest and
+evidence; original dispatch witness; original committed reservation, lease hash
+and attempt; matching invocation/provider/model/profile/provenance; and its
+successful `identification_invocation` usage event with `ai_outcome = draft`.
+There must be no live work, retirement, failed/refunded funding, contradictory
+provider outcome or mismatched complimentary settlement. A consumed allocation
+must retain `durable_result_complete` with `credit_consumed` true; a released
+allocation is eligible only for the existing `paid_before_completion`
+disposition with `credit_consumed` false. An operation without an allocation
+must independently establish that case from its original funding identity rather
+than treating a missing row as proof.
+
+The usage event records execution disposition. Price-estimation availability is
+a separate fact: a null estimated cost alone does not mean unknown execution.
+Release must not require a price, pricing version or non-null token count,
+reprice historical usage, synthesize missing token counts or replace the saved
+event. Match every persisted normalized usage field to saved provider usage with
+the existing null-preserving `identification_usage_count` semantics, including
+OpenAI output/cache-write/tier metadata or Gemini modality breakdown as
+applicable. Match event owner, child, source key/type/operation, model, plan,
+modality and frozen provenance/binding/profile. Exclude estimated cost and
+pricing version from eligibility; they may only be copied as nullable historical
+facts. The original funding and settlement disposition must still be verified.
+An event whose outcome is `unknown` cannot be promoted by a later successful
+draft: the existing accounting writer returns its original event before
+processing a later outcome.
+
+A minimal private, immutable, child-unique completion-release receipt is
+required. Its binding/parent cascade owns erasure; it has no foreign key to
+quota/invocation rows or any retention-managed accounting evidence. Current
+invocation pruning is not a usage-ledger deletion policy. Under the original
+completion transaction, copy the checked owner/parent/source/child and versioned
+request identity, reservation and lease hash/attempt, invocation/provenance and
+accounting disposition, canonical result/evidence/receipt digests, and
+complimentary settlement disposition. Do not copy private prose, raw media or
+quota lease tokens. Bound the proof payload to 16 KiB and validate its exact
+versioned shape. Later predecessor verification uses that permanent proof and
+retained immutable product identity; it must not require the accounting rows to
+remain present or inspect today's selected result/review.
+
+Mint proof only when the intent was `draft` before calling
+`internal.complete_observation_analysis`. Retain that pre-transition fact in the
+transaction, then re-read the finalized intent/result after clearing work. A
+post-call `state = complete` check alone cannot authorize proof creation.
+Existing complete intents without it remain held; exact completion replay
+returns its original receipt without backfilling release. No timer, status
+lookup, client retry, lease expiry, gate opening or missing row creates proof.
+Binding retention and every existing writer fence prevent the completed child
+from reopening. New explicit different-child reservation still requires complete
+bounded predecessor/media/legacy inventory. Add the new receipt namespace to
+that inventory. Replace the reservation routine's unconditional same-source
+result blocker with bounded per-result validation: every result must map to its
+exact retained binding and valid completion-release proof. Unbound, mismatched
+or unsupported results remain held. Preserve the separate storage INSERT guard
+that prevents recreating occupancy for a child with an existing result.
+
+Required migration acceptance includes photo/audio success, selection/review
+independence, paid-before-completion settlement, nullable pricing with known
+success, unknown-before-late-draft completion without release,
+missing/mismatched accounting, malformed proof, disabled gates and no
+old-completion backfill. Prove completion versus successor reservation and
+deletion in both winner orders, exact lost-response replay, account-transition
+fencing, proof immutability, parent erasure, and post-release invocation/quota
+retention independence followed by a new explicit reservation. A transaction
+failing proof persistence must leave no partial release. Existing retired and
+unresolved predecessor classes retain their rules.
+
 ### Prepared source-bound funding exclusion
 
 The authoritative quota core now denies bound `original_analysis_id` before

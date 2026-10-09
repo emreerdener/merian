@@ -1007,3 +1007,11 @@ from each synthetic owner. Duplicate calls for that owner retain the same
 bucket; unrelated owners do not consume a shared suite-wide IP limit. This
 isolation belongs only to test fixtures and does not change production quota
 policy.
+
+Completion-based release remains a forward implementation checkpoint. Its
+[planned atomic contract](../../../../../docs/backend-and-data/05-api-contracts.md#planned-atomic-completion-release)
+keeps valid late completion separate from release eligibility: unknown or
+missing accounting holds occupancy without discarding the result. Qualified
+completion must save permanent proof and release occupancy in the existing
+transaction; exact replay never backfills old completions or dispatches another
+attempt.

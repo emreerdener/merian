@@ -529,3 +529,19 @@ while retaining the binding and all writer fences. Current behavior and limits
 are in the
 [canonical API contract](../backend-and-data/05-api-contracts.md#prepared-source-reservation-and-unfunded-retirement-wire).
 No HTTP/native consumer, completion release or activation is included.
+
+### Completion-release contract checkpoint
+
+The next forward migration will attach conditional private proof creation to the
+existing completion transaction after work ownership is cleared. A qualified
+immutable receipt and occupancy deletion commit together. Expected missing or
+unknown accounting preserves a valid completed result and settlement while
+retaining occupancy; unexpected integrity/storage failures retain transactional
+failure semantics. Historical price estimation is separate from execution
+certainty and must not be recomputed to establish release.
+
+The bounded permanent proof, retained identity, no-backfill rule, paid-before-
+completion disposition and race matrix are specified in
+[Planned atomic completion release](../backend-and-data/05-api-contracts.md#planned-atomic-completion-release).
+This contract checkpoint adds no migration, wire shape, worker or gate
+activation.
