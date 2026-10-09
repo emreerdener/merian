@@ -12016,6 +12016,17 @@ AAC, empty asset metadata and supported transforms. This is simulator encoder
 evidence, not a complete ISO-BMFF security validator, real-camera qualification
 or proof of frame/WAV derivation from the retained clip.
 
+The `nonSquareTransformedDurationBoundaries` test adds four 96×64 outputs:
+0.1-second and 5-second rotated silent clips, plus reflected stereo-source clips
+at both durations. It checks the retained coded dimensions and transform, source
+preservation, output bounds, duration within one movie tick and mono 44.1 kHz
+audio normalization. Each output is attached to XCResult for subsequent
+byte-level compatibility checks. `VideoAudioFixture` keeps its existing
+64×64/one-second/identity defaults and bounds configurable dimensions and frame
+counts. These additional attachments do not establish Edge parser compatibility
+until imported and tested there. Minimum/maximum dimension encoder coverage and
+real-device/OS qualification remain separate requirements.
+
 ### Prepared retained-source frame tests
 
 `ObservationVideoFrameDeriverTests` creates synthetic silent/audio clips and

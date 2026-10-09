@@ -57,6 +57,45 @@ struct ObservationRetainedVideoTests {
         #expect(try await lease.relinquishOwnership() == lease.url)
     }
 
+    @Test(arguments: [false, true])
+    func nonSquareTransformedDurationBoundaries(audio: Bool) async throws {
+        for frames in [3, 150] {
+            let transform = audio
+                ? CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: 96, ty: 0)
+                : CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 64, ty: 0)
+            let fixture = try await VideoAudioFixture(
+                channels: audio ? 2 : nil, width: 96, height: 64,
+                frameCount: frames, transform: transform
+            )
+            defer { fixture.remove() }
+            let original = try Data(contentsOf: fixture.videoURL)
+            let lease = try await ObservationRetainedVideoClipProducer().prepare(
+                source: fixture.videoURL, directory: fixture.outputDirectory
+            )
+            let bytes = try Data(contentsOf: lease.url)
+            Attachment.record(bytes, named: "retained-variant-\(audio ? "audio" : "silent")-\(frames).mp4")
+            #expect(try Data(contentsOf: fixture.videoURL) == original)
+            #expect(!bytes.isEmpty && bytes.count <= ScanMediaPayloadPolicy.maxSavedVideoBytes)
+            let asset = AVURLAsset(url: lease.url)
+            let duration = try await asset.load(.duration)
+            #expect(abs(duration.seconds - Double(frames) / 30) <= 1.0 / 600)
+            let video = try #require(try await asset.loadTracks(withMediaType: .video).first)
+            let actualTransform = try await video.load(.preferredTransform)
+            #expect(actualTransform == transform)
+            let description = try #require(try await video.load(.formatDescriptions).first)
+            let dimensions = CMVideoFormatDescriptionGetDimensions(description)
+            #expect(dimensions.width == 96 && dimensions.height == 64)
+            let audios = try await asset.loadTracks(withMediaType: .audio)
+            #expect(audios.count == (audio ? 1 : 0))
+            if let audioTrack = audios.first {
+                let audioDescription = try #require(try await audioTrack.load(.formatDescriptions).first)
+                let format = try #require(CMAudioFormatDescriptionGetStreamBasicDescription(audioDescription)?.pointee)
+                #expect(format.mSampleRate == 44_100 && format.mChannelsPerFrame == 1)
+            }
+            _ = try await lease.relinquishOwnership()
+        }
+    }
+
     @Test
     func droppingSuccessfulLeaseRemovesOnlyItsOutput() async throws {
         let fixture = try await VideoAudioFixture(channels: nil)
