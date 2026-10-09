@@ -232,3 +232,8 @@ reservation/consent/binding service and existing audio execution/erasure owners
 through the queue coordinator. It shares the same account/session/generation
 predicate as the prepared audio execution factory. The closure is not installed
 in Capture yet; ordinary access and the App installation gate remain disabled.
+
+`audioSourceConfiguration` now assembles a distinct
+`CaptureAudioSourceReanalysisAccess.Configuration` with required source and
+existing execution handoffs. It does not replace the legacy audio configuration
+or install either source entry point in a host, status list or ordinary route.

@@ -11853,3 +11853,15 @@ the original V3 candidate and V10 metadata against both V3 and V4 immutable
 source results. Legacy audio resume still rejects these envelopes. The reader
 never supplies a claim or dispatch capability; these tests do not qualify
 installed Capture UI, real-device migration or hosted media execution.
+
+### Source Capture boundary regressions
+
+`CaptureAudioSourceSubmissionTests` covers staged-source recovery without files,
+consumed-execution preservation, malformed and partial records, foreign account
+leases, and saves failing before or after commit. It verifies that explicit
+retry retains the original child, while presentation/account/deletion changes
+withhold handoff. `CaptureAudioSourceAccessTests` exercises V3/V4 source
+opening, exact source persistence before queue admission, all durable source
+states and frozen owner/session/generation/container/presentation checks. These
+are prepared boundary tests, not proof of installed host/status flow or provider
+execution.

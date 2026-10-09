@@ -788,3 +788,19 @@ uses the exact presentation scope and preserves any durable request. The sheet
 creates no Task, account lease, status lookup, automatic retry or selection
 change. Fresh-entry/recovery authority and runtime UI qualification remain
 separate requirements.
+
+### Prepared source-based audio access
+
+`CaptureAudioSourceReanalysisAccess` is separate from legacy
+`CaptureAudioReanalysisAccess`. Its required source-start dependency admits a
+strict saved source only through the retained source coordinator; a repeated
+fresh tap that finds an exact execution binding uses the existing execution
+owner with unchanged consumption markers. `openSourceResume` reads only V10
+source work, then applies the source service's durable admission policy. It
+never treats a source reply as provider permission. Opening holds no idle lease;
+both paths freeze and recheck owner/session/generation/container around awaits,
+and check presentation separately before synchronous handoff.
+
+This boundary is prepared, not installed in the existing host or saved-request
+status list. Tagged host/status integration remains a separate checkpoint.
+Ordinary access remains nil and alternatives-card layout is unchanged.

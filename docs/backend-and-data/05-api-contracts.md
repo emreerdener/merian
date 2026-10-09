@@ -16325,3 +16325,16 @@ revalidates the snapshot before returning. This is evidence recovery, not source
 admission, execution binding or provider permission; unknown execution remains
 non-dispatching. Legacy readers stay strict. No wire, schema, reader-version,
 activation gate or installed Capture route changes.
+
+### Prepared native source submission boundary
+
+`CaptureAudioSourceReanalysisAccess` exposes separate fresh and exact-source
+resume entry points. `ObservationAudioSourcePreparation` stages the original V3
+candidate after retained file preparation and before reservation transport.
+Saved V10 records bypass files; saved execution records preserve their original
+request and consumed-attempt evidence. Invalid metadata never falls back to
+legacy admission. A save that throws cannot hand off; later explicit recovery
+reads the same child. Source admission remains distinct from execution
+authority. No endpoint, payload, reader version or schema changes are
+introduced. Legacy access/readers remain strict, ordinary routes remain
+uninstalled, and source host/status integration is still pending.

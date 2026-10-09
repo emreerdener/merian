@@ -39,7 +39,15 @@ extension PreparedHistoryReanalysisComposition {
         })
     }
 
-    /// Prepared source-enabled handoff factory. Capture has not installed this closure yet.
+    /// Separate source boundary; constructing it never installs an ordinary Capture route.
+    @MainActor
+    static func audioSourceConfiguration(in dependencies: AppDIContainer, cloud: ObservationHistoryCloudClient,
+                                         client: MerianNetworkClient) -> CaptureAudioSourceReanalysisAccess.Configuration {
+        .init(start: audioConfiguration(in: dependencies, cloud: cloud, client: client).start,
+              sourceStart: audioSourceStart(in: dependencies, cloud: cloud, client: client))
+    }
+
+    /// Source-enabled handoff factory for inert Capture composition; ordinary routes remain uninstalled.
     @MainActor
     static func audioSourceStart(in dependencies: AppDIContainer, cloud: ObservationHistoryCloudClient,
                                  client: MerianNetworkClient) -> (ObservationSourceReservationOwner.Key, ObservationAudioPreparation.Verified,

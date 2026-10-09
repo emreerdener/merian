@@ -45,12 +45,7 @@ final class CaptureAudioReanalysisSession {
         try validate()
         submitting = true
         defer { submitting = false }
-        let input: CaptureAudioReanalysisPlan.Verified
-        if let verified { input = verified } else {
-            input = try await DetachedWork.value(category: .inferenceRequestPreparation) { try plan.verify() }
-            try validate()
-            verified = input
-        }
+        let input = try await verifiedInput(plan, validate: validate)
         let snapshot: ObservationAudioExecutionStore.Snapshot
         switch try ObservationAudioExecutionStore.admissionState(input.proof, container: container, isCurrent: isCurrentAccount) {
         case let .bound(saved): snapshot = saved
@@ -67,4 +62,52 @@ final class CaptureAudioReanalysisSession {
         }
         return start(snapshot, input.proof)
     }
+    /// Presentation outcome only; neither retained owner's admission is a provider permission.
+    enum SourceAdmission: Equatable {
+        case started, coalesced, unavailable
+        init(_ value: ObservationAudioExecutionOwner.Admission) {
+            switch value {
+            case .started: self = .started
+            case .coalesced: self = .coalesced
+            case .unavailable: self = .unavailable
+            }
+        }
+        init(_ value: ObservationSourceReservationOwner.Admission) {
+            switch value {
+            case .started: self = .started
+            case .coalesced: self = .coalesced
+            case .unavailable: self = .unavailable
+            }
+        }
+    }
+
+    func submitSource(generation: UUID, preparation: ObservationAudioSourcePreparation,
+                      isCurrentAccount: @escaping @MainActor @Sendable () -> Bool,
+                      isCurrentPresentation: @escaping @MainActor @Sendable () -> Bool,
+                      save: @escaping @MainActor @Sendable (ModelContext) throws -> Void = { try $0.save() },
+                      start: @MainActor (ObservationAudioSourcePreparation.Ready, ObservationAudioPreparation.Verified) -> SourceAdmission) async throws -> SourceAdmission {
+        guard !submitting, let plan else { throw ObservationHistoryError.unavailable }
+        func validate() throws {
+            try Task.checkCancellation()
+            guard generation == self.generation, isCurrentAccount(), isCurrentPresentation() else { throw ObservationHistoryError.accountChanged }
+            try source.validate(container: container)
+        }
+        try validate()
+        submitting = true
+        defer { submitting = false }
+        let input = try await verifiedInput(plan, validate: validate)
+        let saved = try await preparation.prepare(input.proof, source: source, bytes: input.bytes,
+            container: container, isCurrent: isCurrentAccount, save: save)
+        try validate()
+        return start(saved, input.proof)
+    }
+
+    private func verifiedInput(_ plan: CaptureAudioReanalysisPlan, validate: () throws -> Void) async throws -> CaptureAudioReanalysisPlan.Verified {
+        if let verified { return verified }
+        let input = try await DetachedWork.value(category: .inferenceRequestPreparation) { try plan.verify() }
+        try validate()
+        verified = input
+        return input
+    }
+
 }

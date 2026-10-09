@@ -578,3 +578,12 @@ The adapter creates no analysis/media identity, account lease, queue record or
 execution authority. Its random temporary directory identifies only local
 scratch storage. Caller files are preserved. A filesystem cleanup failure
 withholds success; it does not qualify device file-provider behavior.
+
+### Separate source-based audio submission
+
+`CaptureAudioReanalysisSession.submitSource` uses the same synchronously frozen
+plan with `ObservationAudioSourcePreparation`. Its tagged result distinguishes
+source reservation from an already bound execution. Presentation cancellation
+withholds handoff while preserving committed durable work. A stage failure
+retains the plan; a later explicit retry recovers the same saved UUID. This
+method cannot invoke the legacy binder. Existing `submit` behavior is unchanged.

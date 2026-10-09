@@ -1883,3 +1883,15 @@ exit; a final currentness/proof/snapshot check rejects changes during lease
 release. No idle lease or polling is introduced. Legacy audio resume and saved
 status readers remain closed to V10. Capture source resume/status installation
 remains a subsequent checkpoint; this reader alone does not resume execution.
+
+### Explicit audio source preparation
+
+`ObservationAudioSourcePreparation` classifies exact saved source and execution
+records before any file preparation. V10 uses the strict source reader; an
+existing execution snapshot retains its attempts and consumption markers.
+Malformed or partial records throw without a legacy fallback. Only an unbound
+preparation can prepare the original WAV and stage its exact source request.
+Each preparation/staging phase retains the shared preparation owner and account
+lease; source/proof and exact metadata are rechecked before handoff. A throwing
+save never rereads or starts work, even when it committed. Explicit later
+recovery uses the original child.
