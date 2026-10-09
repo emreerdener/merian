@@ -1996,3 +1996,22 @@ phase callbacks expose no media paths. This is temporary composition only: it
 exposes no partial transfer, persisted row, queue route, account capability or
 admission. The later durable owner must verify files again and reject incomplete
 cohorts.
+
+## Closed video preparation metadata
+
+`ObservationVideoPreparation` defines local envelope version 1 with kind
+`video_preparation`. It retains the exact UTF-8 V4 request body, owner identity,
+source-snapshot SHA-256 and an ordered complete inventory: retained MP4, five
+frames, then optional WAV. Every path is reconstructed from child/media UUIDs
+and the validated content type under `ReanalysisQueue/<child>/`; supplied paths
+must match exactly. Unknown fields, malformed scope, changed inventory, missing
+artifacts and reordered entries fail closed. The envelope is capped at 2 MiB;
+the embedded request retains its existing stricter bound.
+
+Only `files_pending` and `files_ready` are representable. These are held local
+metadata states, not proof that bytes exist or authority to submit. This value
+performs no filesystem or SwiftData writes. The next persistence owner must
+validate the current source/account/deletion association in its transaction,
+exclude video from legacy recovery/discard readers before staging any row, and
+verify the whole file cohort before promotion. No durable transfer or restart
+recovery is installed by the codec alone.

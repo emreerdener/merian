@@ -16591,3 +16591,23 @@ owned temporary root; caller input is preserved. No per-file transfer or durable
 staging API exists. A later closed video-preparation persistence contract must
 exclude legacy readers, preserve exact bytes across restart, and coordinate
 server byte/profile/admission validation before any execution route can open.
+
+### Closed local video-preparation envelope
+
+The native-only `ObservationVideoPreparation` codec adds local version 1, kind
+`video_preparation`, closed phases `files_pending`/`files_ready`, canonical
+owner UUID, source snapshot digest, exact UTF-8 `request_body` and ordered
+`files` entries containing `media_id` and `path`. It changes no endpoint, wire
+reader, DTO or database schema. The request body remains byte-identical through
+local encoding/decoding, including noncanonical whitespace; its own V4 digest
+and closed manifest validation still apply. A 2 MiB envelope bound allows JSON
+string escaping while preserving the existing embedded request bound.
+
+Inventory is derived from validated provenance: retained source, five ordered
+frames and optional companion. Paths must exactly equal the child/media-ID
+namespace and type-derived suffix, with no caller path or URL accepted. Owner
+aliases with observation, child, historical source or any artifact are rejected.
+A decoded digest or ready phase is not ownership, byte verification or execution
+authority. No consumer stages this envelope yet: atomic metadata/file ownership,
+legacy-reader exclusion, source/account/deletion checks, promotion and restart
+recovery remain required before durable video staging can open.

@@ -12011,3 +12011,13 @@ shared golden manifest and rejects duplicate/cross-source artifact construction.
 Run these alongside retained-clip, frame, WAV, closed audio-container and video
 request selectors. This proves temporary composition; durable restart,
 account/deletion fencing and live video journeys are later acceptance work.
+
+### Closed video-preparation metadata checks
+
+`merianTests/ObservationVideoPreparationTests` checks exact pretty-printed V4
+request replay for silent/audio golden vectors, ordered complete inventory,
+closed fields/versions/phases, bounded decoding, owner aliases, traversal and
+absolute-path substitution, duplicate/omitted/reordered artifacts, and rejection
+by existing audio preparation and photo/audio request decoders. Run with video
+manifest/request selectors. These are metadata checks only: no persisted job,
+file transfer, current-account proof or restart delivery is established here.
