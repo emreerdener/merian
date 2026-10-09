@@ -11,6 +11,15 @@ extension PreparedHistoryReanalysisComposition {
         }
     }
 
+    /// Explicit source entry. The existing sheet shares presentation mechanics, never admission fallback.
+    @MainActor
+    func openAudioSourceHost(target: HistoricalReanalysisTarget, container: ModelContainer) throws -> CaptureAudioReanalysisHost {
+        guard let audioSourceCapture, let audioHostOwner else { throw ObservationHistoryError.unavailable }
+        return try audioHostOwner.open(target: target, container: container, route: .source) {
+            try CaptureAudioReanalysisHost(source: audioSourceCapture.open(target, container, UUID()))
+        }
+    }
+
     /// Explicit presentation factory only; no route or ordinary installation invokes it.
     @MainActor
     func openSavedAudioRequests(ownerID: UUID, observationID: UUID, container: ModelContainer,

@@ -11865,3 +11865,10 @@ opening, exact source persistence before queue admission, all durable source
 states and frozen owner/session/generation/container/presentation checks. These
 are prepared boundary tests, not proof of installed host/status flow or provider
 execution.
+
+`CaptureAudioSourceHostTests` covers source-stage save failure before/after
+commit followed by dismissal/reopening of the same candidate, delayed replies
+after closing, cross-route host-occupancy refusal, wrong factory rejection and a
+source-only inert composition. Existing legacy host and source-access suites
+remain compatibility controls. Host-level tests use the existing sheet model;
+source status discovery and end-to-end runtime UI qualification remain separate.

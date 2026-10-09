@@ -45,12 +45,38 @@ final class CaptureAudioReanalysisHost {
             }
         }
     }
-    private var opened: CaptureAudioReanalysisAccess.Opened?
+    enum Route: Hashable { case legacy, source }
+    @MainActor private enum Opened {
+        case legacy(CaptureAudioReanalysisAccess.Opened)
+        case source(CaptureAudioSourceReanalysisAccess.Opened)
+
+        var session: CaptureAudioReanalysisSession {
+            switch self {
+            case let .legacy(value): return value.session
+            case let .source(value): return value.session
+            }
+        }
+        func isCurrent() -> Bool {
+            switch self {
+            case let .legacy(value): return value.isCurrent()
+            case let .source(value): return value.isCurrent()
+            }
+        }
+        func submit(_ current: @escaping @MainActor @Sendable () -> Bool) async throws -> CaptureAudioReanalysisSession.SourceAdmission {
+            switch self {
+            case let .legacy(value): return .init(try await value.submit(current))
+            case let .source(value): return try await value.submit(current)
+            }
+        }
+    }
+    let route: Route
+    private var opened: Opened?
     private var presentation = UUID()
     private var work: Task<Void, Never>?
     private var invalidationHandler: (() -> Void)?
 
-    init(opened: CaptureAudioReanalysisAccess.Opened) { self.opened = opened }
+    init(opened: CaptureAudioReanalysisAccess.Opened) { self.opened = .legacy(opened); route = .legacy }
+    init(source: CaptureAudioSourceReanalysisAccess.Opened) { opened = .source(source); route = .source }
 
     var analysisID: UUID? { opened?.session.plan?.analysisID }
     var isFrozen: Bool { opened?.session.plan != nil }
@@ -159,7 +185,7 @@ final class CaptureAudioReanalysisHostOwner {
     private var hosts: [Key: CaptureAudioReanalysisHost] = [:]
     private var isInvalidated = false
 
-    func open(target: HistoricalReanalysisTarget, container: ModelContainer,
+    func open(target: HistoricalReanalysisTarget, container: ModelContainer, route: CaptureAudioReanalysisHost.Route = .legacy,
               make: () throws -> CaptureAudioReanalysisHost) throws -> CaptureAudioReanalysisHost {
         guard !isInvalidated else { throw ObservationHistoryError.accountChanged }
         // Do not discard a stale entry and silently authorize a replacement in a newer account scope.
@@ -168,10 +194,13 @@ final class CaptureAudioReanalysisHostOwner {
         }
         let key = Key(owner: target.ownerID, observation: target.observationID,
             source: target.analysisID, container: ObjectIdentifier(container))
-        if let host = hosts[key] { return host }
+        if let host = hosts[key] {
+            guard host.route == route else { throw ObservationHistoryError.unavailable }
+            return host
+        }
         guard hosts.count < 4 else { throw ObservationHistoryError.unavailable }
         let host = try make()
-        guard !isInvalidated, host.isCurrent else { host.invalidate(); throw ObservationHistoryError.accountChanged }
+        guard !isInvalidated, host.isCurrent, host.route == route else { host.invalidate(); throw ObservationHistoryError.accountChanged }
         host.onInvalidation { [weak self] in self?.invalidate() }
         hosts[key] = host
         return host

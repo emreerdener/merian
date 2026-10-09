@@ -16,6 +16,7 @@ struct PreparedHistoryReanalysisComposition {
     let status: ReanalysisStatusAccess
     let audioHostOwner: CaptureAudioReanalysisHostOwner?
     let audioCapture: CaptureAudioReanalysisAccess?
+    let audioSourceCapture: CaptureAudioSourceReanalysisAccess?
     let audioStatus: CaptureAudioStatusAccess?
     let capture: CaptureReanalysisAccess
     let reanalyze: SavedIdentificationReanalysisAccess
@@ -41,13 +42,14 @@ struct PreparedHistoryReanalysisComposition {
          audio: CaptureAudioReanalysisAccess.Configuration? = nil,
          audioStatusOwner: ObservationAudioStatusOwner? = nil,
          audioHostOwner: CaptureAudioReanalysisHostOwner? = nil,
+         audioSource: CaptureAudioSourceReanalysisAccess.Configuration? = nil,
          documents: @escaping @MainActor () throws -> URL = {
              try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
          },
          downloadPhoto: @escaping @Sendable (ObservationHistoryPhotoTicket) async throws -> Data = { ticket in
              try await PrivateHistoryPhotoTransport.download(ticket)
          }) {
-        self.audioHostOwner = audio.map { _ in audioHostOwner ?? CaptureAudioReanalysisHostOwner() }
+        self.audioHostOwner = audio != nil || audioSource != nil ? (audioHostOwner ?? CaptureAudioReanalysisHostOwner()) : nil
         let photos = ObservationHistoryPhotoLoader(account: cloud, resolve: cloud.resolvePhoto, download: downloadPhoto)
         let session: (String, ModelContainer) throws -> IdentificationHistorySession = { id, container in
             try IdentificationHistorySession(observation: id, container: container, cloud: cloud, photos: photos,
@@ -67,6 +69,11 @@ struct PreparedHistoryReanalysisComposition {
                 generation: generation, sessionIsCurrent: sessionIsCurrent, containerIsCurrent: containerIsCurrent)
         }
         audioCapture = audio.map { configuration in
+            .prepared(account: cloud, ownership: preparationOwner, configuration: configuration,
+                currentOwner: currentOwner, generation: generation, sessionIsCurrent: sessionIsCurrent,
+                containerIsCurrent: containerIsCurrent, documents: documents)
+        }
+        audioSourceCapture = audioSource.map { configuration in
             .prepared(account: cloud, ownership: preparationOwner, configuration: configuration,
                 currentOwner: currentOwner, generation: generation, sessionIsCurrent: sessionIsCurrent,
                 containerIsCurrent: containerIsCurrent, documents: documents)
@@ -122,6 +129,7 @@ struct PreparedHistoryReanalysisComposition {
                     queue.requestReanalysisErasureRecovery()
                     dependencies.appEventPublisher.send(.scanLibraryChanged)
                 }), audio: audioConfiguration(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared),
-                audioStatusOwner: queue.audioStatusOwner)
+                audioStatusOwner: queue.audioStatusOwner,
+                audioSource: audioSourceConfiguration(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared))
     }
 }

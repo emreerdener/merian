@@ -801,6 +801,21 @@ never treats a source reply as provider permission. Opening holds no idle lease;
 both paths freeze and recheck owner/session/generation/container around awaits,
 and check presentation separately before synchronous handoff.
 
-This boundary is prepared, not installed in the existing host or saved-request
-status list. Tagged host/status integration remains a separate checkpoint.
+This boundary is available through the explicit source host factory described
+below. Source saved-request status integration remains a separate checkpoint.
 Ordinary access remains nil and alternatives-card layout is unchanged.
+
+### Explicit source host presentation
+
+The existing `CaptureAudioReanalysisHost` and sheet share presentation/input
+mechanics through an exhaustive legacy/source access value. Distinct typed
+constructors cannot fall back between routes. The immutable host route never
+changes after opening. One parent owner retains at most one host per
+owner/observation/source/container tuple; opening that tuple through the other
+route fails closed before creating another candidate. Both routes share the same
+four-host capacity and invalidation lifetime. Source close/reopen keeps the
+frozen plan, cancels only its waiter, and retains it until actual exit.
+
+`openAudioSourceHost` is an explicit prepared factory using the required source
+access. The ordinary installation gate stays false. Source status-list routing
+remains pending; the legacy status reader is unchanged.
