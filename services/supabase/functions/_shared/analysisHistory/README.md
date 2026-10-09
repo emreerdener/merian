@@ -1031,3 +1031,15 @@ proof immutability, lost-response recovery, deletion and proof-storage rollback.
 `observationSourceCompletionConcurrencyDb.test.ts` uses two blocked connections
 to test completion/reservation and completion/account-deletion in both orders.
 These tests do not qualify hosted execution or activate admission.
+
+`sourceReservationRepository.ts` provides the closed service-only reader-11 RPC
+adapter. `reserve` snapshots the exact candidate; `retireUnfunded` additionally
+uses a stable caller-supplied operation UUID. Each performs one RPC with an
+actual five-second abort deadline and strict original-scope receipt decoding. A
+cancelled, lost, erroneous or malformed answer remains an unavailable error;
+there is no automatic retry, auth/route fallback, refund or new identity.
+Reserved and held observations confer no execution authority. This module is not
+exported through a handler/index and has no HTTP or native consumer. Adapter
+tests cover exact arguments, snapshot mutation, all closed observations,
+retirement identity, cancellation, stalled transport, late replies and malformed
+or oversized payloads. The SQL producers and activation gates are unchanged.

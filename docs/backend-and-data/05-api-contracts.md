@@ -15667,6 +15667,21 @@ revoked from API roles. Independent `source_reservation_enabled` and
 `source_unfunded_retirement_enabled` gates default false. No HTTP or native
 consumer is connected. Read-only discovery remains reader 10.
 
+`sourceReservationRepository` is the server-only one-call transport for these
+routines. It accepts trusted owner scope and the full original candidate; an
+unfunded retirement additionally requires the caller's stable operation UUID. It
+validates and snapshots before I/O, always passes reader 11, applies a
+five-second abort deadline, and strictly decodes the bounded 2 KiB receipt
+against those original identities. Cancellation, RPC/network errors, lost
+replies and malformed responses throw `analysis_history_unavailable`; they do
+not fabricate an unavailable/retired receipt. Even a transport that stalls
+cancellation cannot keep the caller waiting beyond the deadline. It performs no
+automatic retry, token refresh, route fallback, UUID generation, refund or
+successor admission. An explicitly returned reserved/held/unavailable receipt is
+an observation, never execution permission. Later explicit recovery must reuse
+the original candidate and retirement operation. The adapter has no HTTP/native
+caller and does not change funded execution retirement.
+
 The reservation request has exactly `schema_version: 1`, `input`,
 `fingerprint_version: 1`, and `fingerprint`. Input is the complete existing
 executable InputV2 photo or InputV3 audio, with a non-null immutable source. The
