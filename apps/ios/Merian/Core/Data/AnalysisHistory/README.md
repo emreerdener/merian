@@ -1922,7 +1922,7 @@ parameters, frames and optional audio. These values confer no admission,
 persistence, upload or execution authority. Existing audio/photo readers and
 requests remain separate. Shared backend/native golden vectors qualify metadata
 parity. Native retained-clip, frame and WAV producers are prepared below;
-complete-cohort orchestration and durable queue integration remain pending.
+complete-cohort durability and queue integration remain pending.
 
 ## Prepared retained video clip
 
@@ -1950,9 +1950,9 @@ operation directory. Cancellation joins the worker and cancels decoding;
 incomplete generations never escape.
 
 There is deliberately no ownership-transfer or durable-admission API for this
-partial frame cohort. Shared frame/WAV orchestration, complete-cohort staging
-and coordinated server byte/profile/reader validation remain required. Ordinary
-access and legacy video behavior are unchanged.
+partial frame cohort. Complete-cohort durable staging and coordinated server
+byte/profile/reader validation remain required. Ordinary access and legacy video
+behavior are unchanged.
 
 An exclusive source-use token blocks clip transfer during derivation and while
 the frame result is retained. Dropping the result synchronously releases that
@@ -1974,6 +1974,25 @@ Cancellation and the processing deadline are observed between synchronous sample
 reads; the SDK forbids concurrent reader cancellation during a read. An
 in-flight read may delay cleanup and slot release. Cancellation always joins the
 worker. The temporary result owns its directory and retains exclusive source
-use; dropping it removes only that directory. Complete frame/audio composition
-must share one source-use session and persist the whole cohort before transfer.
-No partial audio transfer or live queue route exists.
+use; dropping it removes only that directory. The cohort preparer below shares
+one source-use session. A durable owner must persist the whole cohort before
+transfer. No partial audio transfer or live queue route exists.
+
+## Temporary video cohort ownership
+
+`ObservationVideoCohortPreparer` composes the retained MP4, five frames and
+optional WAV under one temporary root. It acquires source use once and passes
+that same token to the existing frame/audio workers sequentially. The source
+snapshot is fixed before phase callbacks; `ObservationRetainedVideoUse.artifact`
+is the shared bounded source reader. Every output is rechecked for size and
+digest after the final callback, before handoff. One result retains all producer
+leases and removes the entire root on drop. Errors and joined cancellation do
+the same without deleting the caller's original input.
+
+The cohort constructs a canonical V4 manifest through the existing closed
+decoder and constructs/restores the exact request bytes. All artifact and scope
+identities must remain distinct. File paths and child leases remain private;
+phase callbacks expose no media paths. This is temporary composition only: it
+exposes no partial transfer, persisted row, queue route, account capability or
+admission. The later durable owner must verify files again and reject incomplete
+cohorts.

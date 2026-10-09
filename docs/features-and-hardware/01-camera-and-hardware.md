@@ -1382,9 +1382,8 @@ without touching sibling work. The temporary retained-file lease owns that
 directory until explicitly accepted; acceptance transfers directory ownership
 with the file. Output size checks use fresh filesystem attributes rather than
 cached URL resource values. Input ownership remains with the caller. No ordinary
-capture path uses this producer; shared frame/WAV orchestration, complete-cohort
-durability, server byte validation and device resource qualification remain
-required.
+capture path uses this producer; complete-cohort durability, server byte
+validation and device resource qualification remain required.
 
 ### Prepared retained-source frame derivation
 
@@ -1401,8 +1400,8 @@ The result binds each artifact's ID, size and digest to the retained source ID;
 the source hash is rechecked before returning. Generation owns a private output
 directory, a 30-second cancellation watchdog and a joined worker. Drop/error
 cleanup removes only that directory, while the result retains the source lease.
-No partial result transfers into the queue. Shared frame/audio orchestration and
-whole-cohort persistence remain unfinished parts of video integration.
+No partial result transfers into the queue. Whole-cohort persistence remains an
+unfinished part of video integration.
 
 An exclusive source-use token blocks clip transfer during derivation and while
 the frame result is retained. Dropping the result synchronously releases that
@@ -1425,11 +1424,27 @@ read and cleanup before the producer reopens its slot; this is not a hard codec
 timeout. The final sample count comes from the closed WAV inspector; the source
 digest is rechecked before handing back a temporary directory-owning result.
 Source transfer remains blocked until that result is dropped. Whole-cohort
-composition, durable staging, live integration and device resource qualification
-remain outstanding; ordinary capture and the alternatives card are unchanged.
+durable staging, live integration and device resource qualification remain
+outstanding; ordinary capture and the alternatives card are unchanged.
 
 Timing belongs to the retained clip, not the original capture composition. The
 reader can materialize a leading audio gap as PCM silence, including for an
 untranscoded composition. Extraction preserves those decoded samples and records
 their actual start, including zero; it does not claim the original pre-transcode
 offset survived.
+
+### Temporary complete video cohort
+
+`ObservationVideoCohortPreparer` creates one temporary root for the retained
+clip and all derivatives. It borrows source use once across sequential frame and
+WAV work, then validates the complete manifest, saved request and file
+sizes/digests. Source identity is fixed before injected phase revalidation. The
+resulting owner keeps all leases together; dropping or canceling the cohort
+removes the root and preserves the original caller-owned capture. There is no
+partial transfer. The existing cooperative codec cancellation limits still
+apply, and the worker is joined before its slot reopens.
+
+This preparer is uninstalled. Complete-cohort durable staging, account/deletion
+fences, server validation, exact saved-media recovery and device resource
+qualification remain required. Ordinary capture and alternatives layout are
+unchanged.

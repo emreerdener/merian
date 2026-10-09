@@ -53,10 +53,11 @@ actor ObservationVideoAudioDeriver {
         } onCancel: { worker.cancel() }
     }
 
-    private nonisolated static func prepare(use: ObservationRetainedVideoUse, sourceMediaID: UUID, directory: URL,
-                                            validate: @Sendable (Int) async throws -> Void, afterWrite: @Sendable () async throws -> Void) async throws -> ObservationVideoAudioDerivation? {
+    nonisolated static func prepare(use: ObservationRetainedVideoUse, sourceMediaID: UUID, directory: URL,
+                                    validate: @Sendable (Int) async throws -> Void, afterWrite: @Sendable () async throws -> Void) async throws -> ObservationVideoAudioDerivation? {
+        guard directory.isFileURL else { throw ObservationVideoAudioError.invalidSource }
         try Task.checkCancellation()
-        let source = try sourceArtifact(use.url, id: sourceMediaID)
+        let source = try use.artifact(mediaID: sourceMediaID)
         let asset = AVURLAsset(url: use.url, options: [AVURLAssetReferenceRestrictionsKey: AVAssetReferenceRestrictions.forbidAll.rawValue])
         let duration = try await asset.load(.duration)
         guard duration.isNumeric, (0.1...5).contains(duration.seconds) else { throw ObservationVideoAudioError.invalidSource }
@@ -65,7 +66,7 @@ actor ObservationVideoAudioDeriver {
         try Task.checkCancellation()
         guard tracks.count <= 1 else { throw ObservationVideoAudioError.invalidSource }
         guard let track = tracks.first else {
-            guard try sourceArtifact(use.url, id: sourceMediaID) == source else { throw ObservationVideoAudioError.sourceChanged }
+            guard try use.artifact(mediaID: sourceMediaID) == source else { throw ObservationVideoAudioError.sourceChanged }
             return nil
         }
         let reader = try AVAssetReader(asset: asset)
@@ -121,7 +122,7 @@ actor ObservationVideoAudioDeriver {
         guard ContinuousClock.now < deadline else { throw ObservationVideoAudioError.timedOut }
         let bytes = wav(pcm)
         guard let inspection = ObservationAudioContainer.inspect(bytes), inspection.sampleCount == timeline.sampleCount else { throw ObservationVideoAudioError.invalidPCM }
-        guard try sourceArtifact(use.url, id: sourceMediaID) == source else { throw ObservationVideoAudioError.sourceChanged }
+        guard try use.artifact(mediaID: sourceMediaID) == source else { throw ObservationVideoAudioError.sourceChanged }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let owned = directory.appendingPathComponent("video-audio-\(UUID().uuidString.lowercased())", isDirectory: true)
         try FileManager.default.createDirectory(at: owned, withIntermediateDirectories: false)
@@ -133,7 +134,7 @@ actor ObservationVideoAudioDeriver {
         try bytes.write(to: file, options: .atomic)
         try await afterWrite()
         try Task.checkCancellation()
-        guard try sourceArtifact(use.url, id: sourceMediaID) == source else { throw ObservationVideoAudioError.sourceChanged }
+        guard try use.artifact(mediaID: sourceMediaID) == source else { throw ObservationVideoAudioError.sourceChanged }
         let audio = ObservationVideoProvenance.Audio(sourceMediaID: sourceMediaID, startTicks: interval.start, endTicks: interval.end,
                                                      sampleCount: inspection.sampleCount,
                                                      artifact: .init(mediaID: id, contentType: "audio/wav", byteCount: bytes.count, sha256: hash(bytes)))
@@ -144,15 +145,6 @@ actor ObservationVideoAudioDeriver {
 
     private nonisolated static func ticks(_ time: CMTime) -> Int {
         Int(CMTimeConvertScale(time, timescale: 600, method: .roundHalfAwayFromZero).value)
-    }
-
-    private nonisolated static func sourceArtifact(_ url: URL, id: UUID) throws -> ObservationVideoProvenance.Artifact {
-        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-        guard attributes[.type] as? FileAttributeType == .typeRegular,
-              let size = attributes[.size] as? NSNumber, (1...12_582_912).contains(size.intValue) else { throw ObservationVideoAudioError.invalidSource }
-        let bytes = try Data(contentsOf: url)
-        guard bytes.count == size.intValue else { throw ObservationVideoAudioError.sourceChanged }
-        return .init(mediaID: id, contentType: "video/mp4", byteCount: bytes.count, sha256: hash(bytes))
     }
 
     private nonisolated static func hash(_ bytes: Data) -> String { SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined() }

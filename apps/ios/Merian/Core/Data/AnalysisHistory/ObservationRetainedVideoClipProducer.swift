@@ -1,9 +1,10 @@
 import AVFoundation
+import CryptoKit
 import Foundation
 import os
 
 enum ObservationRetainedVideoClipError: Error {
-    case busy, invalidSource, unsupportedProfile, failed, timedOut, oversized
+    case busy, invalidSource, sourceChanged, unsupportedProfile, failed, timedOut, oversized
     case readerFailure(Int), writerFailure(Int), incompleteStream
 }
 
@@ -58,6 +59,21 @@ final class ObservationRetainedVideoUse: Sendable {
 
     fileprivate init(source: ObservationRetainedVideoClip, id: UUID) {
         self.source = source; self.id = id; url = source.url
+    }
+
+    func artifact(mediaID: UUID) throws -> ObservationVideoProvenance.Artifact {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        guard attributes[.type] as? FileAttributeType == .typeRegular,
+              let size = attributes[.size] as? NSNumber, (1...12_582_912).contains(size.intValue) else {
+            throw ObservationRetainedVideoClipError.invalidSource
+        }
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        // Bound the read even if a file changes after the size check.
+        let bytes = try handle.read(upToCount: size.intValue + 1) ?? Data()
+        guard bytes.count == size.intValue else { throw ObservationRetainedVideoClipError.sourceChanged }
+        return .init(mediaID: mediaID, contentType: "video/mp4", byteCount: bytes.count,
+                     sha256: SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined())
     }
 
     deinit { source.endDerivation(id) }

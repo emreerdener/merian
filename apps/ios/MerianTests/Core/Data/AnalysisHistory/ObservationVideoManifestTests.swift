@@ -49,6 +49,40 @@ struct ObservationVideoManifestTests {
         #expect(restored == pretty)
     }
 
+    @Test func canonicalEncoderRoundTripsEveryAcceptedGoldenVector() throws {
+        for vector in try vectors() where vector["valid"] as? Bool == true {
+            let original = try decode(vector)
+            let graph = original.provenance
+            let rebuilt = try ObservationVideoManifest.prepared(source: graph.source, parameters: graph.parameters,
+                                                               frames: graph.frames, audio: graph.audio, descriptions: original.descriptions,
+                                                               observationID: identifier(vector, "observation_id"), analysisID: identifier(vector, "analysis_id"))
+            #expect(rebuilt.provenance == graph)
+            #expect(rebuilt.descriptions == original.descriptions)
+            let request = try ObservationVideoReanalysisRequest(observationID: identifier(vector, "observation_id"),
+                                                                analysisID: identifier(vector, "analysis_id"), sourceAnalysisID: UUID(), manifestBytes: rebuilt.originalBytes)
+            #expect(request.manifest == rebuilt)
+            #expect(try ObservationVideoReanalysisRequest(savedBody: request.body) == request)
+        }
+    }
+
+    @Test func encoderRejectsDuplicateArtifactsAndWrongSourceLink() throws {
+        let vector = try #require(vectors().first)
+        let original = try decode(vector)
+        let graph = original.provenance
+        for crossSource in [false, true] {
+            var frames = graph.frames
+            let frame = frames[1]
+            frames[1] = .init(index: frame.index, sourceMediaID: crossSource ? UUID() : frame.sourceMediaID,
+                              requestedTimeTicks: frame.requestedTimeTicks, actualTimeTicks: frame.actualTimeTicks,
+                              artifact: crossSource ? frame.artifact : frames[0].artifact)
+            #expect(throws: (any Error).self) {
+                try ObservationVideoManifest.prepared(source: graph.source, parameters: graph.parameters, frames: frames,
+                                                      audio: graph.audio, descriptions: original.descriptions,
+                                                      observationID: identifier(vector, "observation_id"), analysisID: identifier(vector, "analysis_id"))
+            }
+        }
+    }
+
     @Test func boundedDecoderAndIdentityScope() throws {
         let vector = try #require(vectors().first)
         let value = try decode(vector)

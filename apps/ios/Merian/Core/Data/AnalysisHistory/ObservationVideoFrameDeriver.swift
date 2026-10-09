@@ -39,9 +39,7 @@ actor ObservationVideoFrameDeriver {
     func derive(source: ObservationRetainedVideoClip, sourceMediaID: UUID, directory: URL,
                 cropCenterBasisPoints: Int, inferenceLongEdge: Int) async throws -> ObservationVideoFrameDerivation {
         guard !occupied else { throw ObservationVideoFrameError.busy }
-        guard (0...10000).contains(cropCenterBasisPoints), [768, 1024].contains(inferenceLongEdge), directory.isFileURL else {
-            throw ObservationVideoFrameError.invalidParameters
-        }
+        try Self.validateParameters(directory: directory, cropCenterBasisPoints: cropCenterBasisPoints, inferenceLongEdge: inferenceLongEdge)
         try Task.checkCancellation()
         occupied = true
         defer { occupied = false }
@@ -59,12 +57,19 @@ actor ObservationVideoFrameDeriver {
         } onCancel: { worker.cancel() }
     }
 
-    private nonisolated static func prepare(
+    nonisolated static func validateParameters(directory: URL, cropCenterBasisPoints: Int, inferenceLongEdge: Int) throws {
+        guard directory.isFileURL, (0...10000).contains(cropCenterBasisPoints), [768, 1024].contains(inferenceLongEdge) else {
+            throw ObservationVideoFrameError.invalidParameters
+        }
+    }
+
+    nonisolated static func prepare(
         source: ObservationRetainedVideoUse, sourceMediaID: UUID, directory: URL,
         cropCenterBasisPoints: Int, inferenceLongEdge: Int, validate: @Sendable (Int) async throws -> Void
     ) async throws -> ObservationVideoFrameDerivation {
+        try validateParameters(directory: directory, cropCenterBasisPoints: cropCenterBasisPoints, inferenceLongEdge: inferenceLongEdge)
         try Task.checkCancellation()
-        let artifact = try sourceArtifact(source.url, id: sourceMediaID)
+        let artifact = try source.artifact(mediaID: sourceMediaID)
         let asset = AVURLAsset(url: source.url, options: [AVURLAssetReferenceRestrictionsKey: AVAssetReferenceRestrictions.forbidAll.rawValue])
         let duration = try await asset.load(.duration)
         guard duration.isNumeric, duration.seconds >= 0.1, duration.seconds <= 5 else { throw ObservationVideoFrameError.invalidSource }
@@ -109,7 +114,7 @@ actor ObservationVideoFrameDeriver {
                     try await validate(index)
                 }
                 guard ContinuousClock.now < deadline else { throw ObservationVideoFrameError.timedOut }
-                guard try sourceArtifact(source.url, id: sourceMediaID) == artifact else { throw ObservationVideoFrameError.sourceChanged }
+                guard try source.artifact(mediaID: sourceMediaID) == artifact else { throw ObservationVideoFrameError.sourceChanged }
                 return ObservationVideoFrameDerivation(source: artifact, parameters: parameters, frames: frames, files: files,
                                                        sourceLease: source, directory: owned)
             } onCancel: { Task { await decoder.cancel() } }
@@ -125,15 +130,6 @@ actor ObservationVideoFrameDeriver {
             await decoder.cancel()
             throw error
         }
-    }
-
-    private nonisolated static func sourceArtifact(_ url: URL, id: UUID) throws -> ObservationVideoProvenance.Artifact {
-        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-        guard attributes[.type] as? FileAttributeType == .typeRegular,
-              let size = attributes[.size] as? NSNumber, (1...12_582_912).contains(size.intValue) else { throw ObservationVideoFrameError.invalidSource }
-        let bytes = try Data(contentsOf: url)
-        guard bytes.count == size.intValue else { throw ObservationVideoFrameError.sourceChanged }
-        return .init(mediaID: id, contentType: "video/mp4", byteCount: bytes.count, sha256: hash(bytes))
     }
 
     private nonisolated static func hash(_ data: Data) -> String {

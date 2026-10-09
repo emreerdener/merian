@@ -11916,10 +11916,12 @@ prove existing executable and source-reservation admission rejects V4. Candidate
 CI lists the manifest test explicitly for type-check and helper tests; its
 registration is guarded by `workflowSecurity.test.ts`.
 
-This coverage is metadata validation only. It does not establish real video
-preprocessing, persisted queue recovery, database admission, reader support or
-hosted/device qualification. Old photo/audio formats are compatibility controls;
-no public reader or runtime gate is enabled by accepting this private manifest.
+These shared vectors cover metadata validation only. The separate native
+retained-clip, frame, WAV and temporary-cohort checks below cover preprocessing.
+Neither establishes persisted queue recovery, database admission, reader support
+or hosted/device qualification. Old photo/audio formats are compatibility
+controls; no public reader or runtime gate is enabled by accepting this private
+manifest.
 
 ### Prepared video request compatibility
 
@@ -11997,3 +11999,15 @@ tests cover nonzero first timestamps, adjoining samples, gaps/overlap, invalid
 times, empty buffers, count overflow and endpoint bounds. This same timing value
 is used by the production deriver. Raw-composition offsets are not assumed to
 survive decoding or retained transcoding.
+
+### Temporary video cohort checks
+
+`merianTests/ObservationVideoCohortPreparerTests` covers silent/audio cohorts,
+ordered complete file-to-manifest binding, exact request restoration, scope and
+description preflight, interruption/source mutation at every phase, derivative
+mutation before handoff, cancellation/slot reuse and whole-root drop cleanup.
+`merianTests/ObservationVideoManifestTests` also reconstructs every accepted
+shared golden manifest and rejects duplicate/cross-source artifact construction.
+Run these alongside retained-clip, frame, WAV, closed audio-container and video
+request selectors. This proves temporary composition; durable restart,
+account/deletion fencing and live video journeys are later acceptance work.

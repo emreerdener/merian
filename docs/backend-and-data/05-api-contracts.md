@@ -16416,21 +16416,22 @@ returned objects and arrays are immutable copies.
   source interval is nonempty and within the clip; it may start after zero or
   end before the clip. The exact output sample count is 1–220,500 and its
   duration may differ from the rounded source interval by at most one 600-Hz
-  tick. A future dedicated extractor must measure this interval and verify PCM
-  sample count rather than assume full-clip coverage. Null freezes the absence
+  tick. The dedicated native extractor measures this interval and verifies PCM
+  sample count rather than assuming full-clip coverage. Null freezes the absence
   of an accepted companion; later retry cannot add one or extract another track.
 
 Parsing validates claimed structure and relationships, not actual derivation,
-MIME, duration, hash correctness, ownership or storage readiness. A future
-producer must retain and verify the source before deriving outputs, capture
-actual timing, validate every output's bytes, and persist the whole closed graph
-before admission. Server byte/storage verification and server-owned video
-profile selection remain required. Retry must load the saved outputs and exact
-provenance; neither replay nor reopening permits resampling, re-extraction or
-another provider invocation while the original outcome is unknown. Interrupted
-preprocessing, durable native replay, source-and-derivative erasure and public
-reader rejection require their later integration tests. This checkpoint changes
-no database, captured-media display wire, generated DTO, gate or installation.
+MIME, duration, hash correctness, ownership or storage readiness. The temporary
+native cohort producer below retains and verifies the source, captures actual
+timing and validates output bytes. Persisting the whole closed graph remains
+required before admission. Server byte/storage verification and server-owned
+video profile selection remain required. Retry must load the saved outputs and
+exact provenance; neither replay nor reopening permits resampling, re-extraction
+or another provider invocation while the original outcome is unknown.
+Interrupted preprocessing, durable native replay, source-and-derivative erasure
+and public reader rejection require their later integration tests. This
+checkpoint changes no database, captured-media display wire, generated DTO, gate
+or installation.
 
 ### Prepared private video manifest V4
 
@@ -16522,10 +16523,11 @@ stays temporary until a caller explicitly accepts it. Ordinary access remains
 absent.
 
 This boundary owns retained-clip creation. The prepared frame and audio derivers
-below still need shared orchestration, persistence of the whole provenance graph
-and a coordinated server byte/cohort/profile/reader contract. Current synthetic
-top-level topology and track checks are not a server ISO-BMFF allowlist or
-device qualification. Legacy video preparation remains unchanged.
+below are coordinated by the temporary cohort preparer; persistence of the whole
+provenance graph and a coordinated server byte/cohort/profile/reader contract
+remain pending. Current synthetic top-level topology and track checks are not a
+server ISO-BMFF allowlist or device qualification. Legacy video preparation
+remains unchanged.
 
 ### Prepared native retained-source frames
 
@@ -16537,10 +16539,10 @@ distinct ID, actual MIME, length and SHA-256. The retained source hash is
 verified before and after generation. Its temporary result retains source
 ownership and cleans the entire frame directory on drop.
 
-This does not make a V4 manifest executable: shared frame/WAV orchestration,
-complete durable cohort, server byte validation, source/profile admission and
-reader coordination remain required. No upload, request, schema or activation
-gate is changed by this private native producer.
+This does not make a V4 manifest executable: a complete durable cohort, server
+byte validation, source/profile admission and reader coordination remain
+required. No upload, request, schema or activation gate is changed by this
+private native producer.
 
 An exclusive source-use token blocks clip transfer during derivation and while
 the frame result is retained. Dropping the result synchronously releases that
@@ -16564,4 +16566,28 @@ retaining the existing compact/FLLR closed-format rules and `isValid` behavior.
 Final inspected count must equal accumulated decoded samples. Source and output
 size/digests accompany the temporary result, which holds exclusive source use.
 This adds no wire version, reader, grant, schema or activation change. Durable
-whole-cohort composition and coordinated server byte admission remain pending.
+whole-cohort staging and coordinated server byte admission remain pending.
+
+### Prepared complete native video cohort
+
+The uninstalled `ObservationVideoCohortPreparer` now coordinates retained-source
+creation and sequential frame/WAV derivation through one exclusive source-use
+session. The complete temporary result contains the retained source, all five
+ordered frames, optional companion and one exact V4 request. A missing audio
+track freezes null; an existing-track failure aborts the whole cohort.
+
+`ObservationVideoManifest.prepared` writes the existing V4 keys canonically and
+round-trips the strict decoder. It reuses bounded description validation and
+preserves text verbatim. Request construction and exact saved-body restoration
+check the source-analysis alias boundary in addition to manifest identity rules.
+No field, version, reader, endpoint or generated DTO changes. The encoder is
+covered against every accepted shared golden manifest, and
+duplicate/cross-source artifacts are rejected. No server authority follows from
+this local graph.
+
+The source snapshot precedes callbacks, and all files undergo bounded size/hash
+checks after the last callback. Failure/cancellation/drop removes the entire
+owned temporary root; caller input is preserved. No per-file transfer or durable
+staging API exists. A later closed video-preparation persistence contract must
+exclude legacy readers, preserve exact bytes across restart, and coordinate
+server byte/profile/admission validation before any execution route can open.
