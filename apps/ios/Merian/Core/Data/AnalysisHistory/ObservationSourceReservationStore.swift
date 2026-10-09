@@ -7,7 +7,7 @@ enum ObservationSourceReservationStore {
     typealias Work = ObservationSourceReservationWork
     typealias Proof = ObservationReanalysisPreparationIntent.Verified
     private typealias Persistence = ObservationReanalysisPersistence
-    enum Admission { case initial, explicitRecovery }
+    enum Admission: Equatable { case initial, explicitRecovery }
     struct Snapshot: Equatable, Sendable {
         let work: Work
         let metadata: String
@@ -87,14 +87,16 @@ enum ObservationSourceReservationStore {
         }
         let work = try Work(preparation: claim.snapshot.work.preparation, request: claim.snapshot.work.request,
             state: conflict == nil ? .unknown : .conflict, generation: claim.snapshot.work.generation)
-        return try change(claim.snapshot, to: work, proof: proof, container: container, isCurrent: isCurrent, save: save)
+        return try change(claim.snapshot, to: work, proof: proof, container: container, isCurrent: isCurrent,
+            settlingSourceConflict: conflict, save: save)
     }
 
     private static func change(_ expected: Snapshot, to work: Work, proof: Proof, container: ModelContainer,
                                isCurrent: () -> Bool, settlingSource: ObservationSourceReservationReply? = nil,
+                               settlingSourceConflict: ObservationSourceReservationConflict? = nil,
                                save: (ModelContext) throws -> Void) throws -> Snapshot {
         try Persistence.transaction(expected.identity, container: container, isCurrent: isCurrent, save: save,
-            settlingSource: settlingSource) { context in
+            settlingSource: settlingSource, settlingSourceConflict: settlingSourceConflict) { context in
             let job = try matching(expected, proof: proof, container: container, context: context)
             return try write(work, job: job, container: container)
         }

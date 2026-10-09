@@ -978,8 +978,26 @@ discard. Parent erasure still uses independent parent linkage and records its
 child cleanup receipt regardless of metadata. The same transaction retains the
 owner-bound parent-deletion task; server parent deletion cascades through source
 bindings and occupancy. No source state authorizes upload, funding, a new UUID,
-inference, refund or release. A later retained delivery owner and separate exact
-unfunded-retirement action are required before wiring.
+inference, refund or release. The explicit retained delivery service below is
+the only new consumer; a separate exact unfunded-retirement action remains
+required before release.
+
+### Explicit photo source reservation delivery
+
+`ObservationSourceReservationService` performs one attempt under the queue's
+`ObservationSourceReservationOwner`. It requires the owner's exact snapshot,
+admission mode and container, durably claims before calling the injected
+transport, and revalidates the claim after Auth before bytes. A claim save that
+throws produces no send capability, even if the write committed. A known bounded
+observation settles only under the unchanged account/source/claim scope;
+dispatch cancellation does not erase it. Auth invalidation does deny settlement.
+Errors remain held or leave the original interrupted running claim if
+cancellation prevents a save. Only a later explicit action after actual owner
+exit may claim the same candidate again. There is no timer, candidate discovery,
+upload, funding, inference or automatic rearm. Exact conflicts never release
+occupancy. The photo-only store and service are not connected to ordinary
+presentation; audio V3 persistence and source retirement remain separate
+contracts.
 
 ### Shared preparation ownership
 

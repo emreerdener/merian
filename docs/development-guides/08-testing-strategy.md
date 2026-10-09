@@ -11791,3 +11791,22 @@ pre-cancelled constructor and successful preparation afterward. It does not
 deterministically force cancellation while queued. CI iOS887 exposed a
 writer-readiness timeout; overlapping fixture exports are a supported contention
 hypothesis, not evidence of a production media defect.
+
+### Explicit source reservation delivery regressions
+
+`ObservationSourceReservationOwnerTests` covers exact coalescing, actual lease
+exit, changed owner/session/generation/container/claim, overlapping Auth drains,
+both queue teardown seams and absence of scheduler admission.
+`ObservationSourceReservationServiceTests` covers claim-save failure before or
+after commit without sending, post-Auth dispatch denial, known observation
+settlement and exact typed-conflict persistence after dispatch cancellation,
+conflict rearm denial, stale claim/account/deletion denial, and explicit
+same-candidate recovery after an uncertain reply. Reserved work cannot rearm.
+These are synthetic photo-source delivery tests, not proof of hosted admission,
+audio V3 persistence, provider execution or activation.
+
+The existing Supabase candidate detector includes all application sources,
+including the retained source owner, service, durable store/work, shared
+persistence and queue/Auth teardown seams. The detector regression pins these
+paths and their service/owner/store tests; this selects candidate validation and
+grants no deployment authorization.

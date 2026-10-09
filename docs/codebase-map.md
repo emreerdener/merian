@@ -3050,12 +3050,13 @@ Native
 owns the immutable saved-input wrapper and strict owner/candidate-bound reply.
 `Transport/ObservationSourceReservationTransport.swift` owns the fixed
 five-second reservation bridge through the private pinned dispatcher. The codec
-and bridge remain inert.
+and bridge have no installed composition caller.
 `Core/Data/AnalysisHistory/ObservationSourceReservationWork` and
 `ObservationSourceReservationStore` now own the photo-only version-9 paired
-metadata, exact ready-claim staging and explicit generation/CAS settlement. They
-have no delivery or UI caller. Audio storage and retained delivery remain
-separate; no receipt state grants execution permission.
+metadata, exact ready-claim staging and explicit generation/CAS settlement. The
+explicit retained delivery service and owner below are its only new consumers;
+ordinary UI and audio storage remain separate. No receipt state grants execution
+permission.
 
 `retire-observation-analysis-source` separately wraps unfunded reader11
 retirement. Its endpoint-owned `request.ts` snapshots the full original
@@ -3121,3 +3122,11 @@ remains nil. The
 and
 [product contract](features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet)
 own the details.
+
+The inert source-reservation delivery boundary is owned by
+`Core/Data/AnalysisHistory/ObservationSourceReservationService.swift` (exact
+photo claim, one transport attempt and bounded observation settlement) and
+`Core/Data/OfflineSync/Services/ObservationSourceReservationOwner.swift`
+(retained account lease, coalescing and Auth drain). The queue's
+source-reservation extension exposes only explicit injected admission; no
+ordinary UI or automatic scheduler is connected.

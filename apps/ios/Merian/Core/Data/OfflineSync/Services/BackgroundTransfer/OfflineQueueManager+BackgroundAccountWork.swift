@@ -109,6 +109,7 @@ extension OfflineQueueManager {
         sourceUserID: UUID?
     ) async -> Bool {
         protectedChatDeliveryOwner.invalidate()
+        sourceReservationOwner.invalidate()
         audioExecutionOwner.invalidate()
         audioStatusOwner.invalidate()
         confirmationUndoOwner.cancelAll()
@@ -119,6 +120,7 @@ extension OfflineQueueManager {
         await rejectionUndoOwner.cancelAndAwaitAll()
         await analysisReviewDeliveryOwner.cancelAndAwait()
         await protectedChatDeliveryOwner.invalidateAndAwait()
+        await sourceReservationOwner.invalidateAndAwait()
         await audioExecutionOwner.invalidateAndAwait()
         await audioStatusOwner.invalidateAndAwait()
         syncTask?.cancel()

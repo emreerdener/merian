@@ -120,6 +120,7 @@ import SwiftData
     @ObservationIgnored let publicationTargetRecoveryOwner = ObservationPublicationRecoveryOwner()
     @ObservationIgnored lazy var reanalysisAdmissionRuntime = makeReanalysisAdmissionRuntime()
     @ObservationIgnored let reanalysisExecutionOwner = ObservationReanalysisExecutionOwner()
+    @ObservationIgnored let sourceReservationOwner = ObservationSourceReservationOwner()
     @ObservationIgnored let audioExecutionOwner = ObservationAudioExecutionOwner()
     @ObservationIgnored let audioStatusOwner = ObservationAudioStatusOwner()
     private(set) var reanalysisExecutionGeneration: UInt64 = 0
@@ -527,6 +528,7 @@ import SwiftData
                     self.reconnectDebounceTask = nil
                     guard !newIsConstrained else {
                         self.protectedChatDeliveryOwner.cancel()
+                        self.sourceReservationOwner.cancel()
                         self.audioExecutionOwner.cancel()
                         self.analysisReviewDeliveryOwner.cancel()
                         self.reanalysisExecutionOwner.cancel()
@@ -563,6 +565,7 @@ import SwiftData
                     self.identificationReviewSyncTask?.cancel()
                     self.publicationDeliveryOwner.cancel()
                     self.protectedChatDeliveryOwner.cancel()
+                    self.sourceReservationOwner.cancel()
                     self.audioExecutionOwner.cancel()
                     self.analysisReviewDeliveryOwner.cancel()
                     self.reanalysisExecutionOwner.cancel()

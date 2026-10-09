@@ -2,7 +2,9 @@
 
 Prepared authenticated `POST reserve-observation-analysis-source` reserves exact
 source occupancy for an immutable photo/audio candidate. It does not admit or
-execute an analysis. No native caller or deployment is included.
+execute an analysis. Native photo V2 has a durable handoff and retained injected
+reservation service, but no composition/UI/scheduler caller is installed. Audio
+handoff and deployment remain separate.
 
 `route.ts` owns authenticated HTTP parsing and sanitized responses; `index.ts`
 registers it through `serveEdge`. The shared `sourceReservationRepository`

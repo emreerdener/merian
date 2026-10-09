@@ -99,9 +99,16 @@ enum ObservationReanalysisPersistence {
     static func transaction<T>(_ identity: OfflineQueueWork.Reanalysis, container: ModelContainer, isCurrent: () -> Bool,
                                save: (ModelContext) throws -> Void, settlingRetirement: ObservationAnalysisRetirementReceipt? = nil,
                                settlingSource: ObservationSourceReservationReply? = nil,
+                               settlingSourceConflict: ObservationSourceReservationConflict? = nil,
                                body: (ModelContext) throws -> T) throws -> T {
         try ConfirmedSpeciesReviewPersistence.transaction {
             guard isCurrent() else { throw IntegrityError.accountChanged }
+            if let settlingSourceConflict {
+                let request = settlingSourceConflict.request
+                guard settlingRetirement == nil, settlingSource == nil, settlingSourceConflict.ownerID == identity.ownerID,
+                      request.observationID == identity.observationID, request.analysisID == identity.analysisID,
+                      request.sourceAnalysisID == identity.sourceAnalysisID else { throw IntegrityError.conflict }
+            }
             if let settlingSource {
                 guard settlingRetirement == nil, settlingSource.ownerID == identity.ownerID,
                       settlingSource.request.observationID == identity.observationID,
@@ -129,7 +136,7 @@ enum ObservationReanalysisPersistence {
                 guard let source = try context.fetch(query).first,
                       source.ownerAccountID == scan.analysisOwnerAccountID, source.observationID == scan.id else { throw IntegrityError.unavailable }
                 let result = try body(context)
-                if settlingRetirement == nil && settlingSource == nil { try Task.checkCancellation() }
+                if settlingRetirement == nil && settlingSource == nil && settlingSourceConflict == nil { try Task.checkCancellation() }
                 guard isCurrent() else { throw IntegrityError.accountChanged }
                 if context.hasChanges { try save(context) }
                 return result
