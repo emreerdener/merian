@@ -3041,9 +3041,16 @@ endpoint is deployed or scheduled by this implementation.
 with authenticated owner scope, a1MiB request bound and a scoped5s/2KiB service
 transport. `_shared/analysisHistory/sourceReservation{,Repository}.ts` own the
 exact candidate fingerprint and receipt boundary. This prepared route grants no
-upload, inference admission or dispatch authority; native and
-unfunded-retirement HTTP consumers remain separate and the SQL reservation gate
-remains false.
+upload, inference admission or dispatch authority; native consumers remain
+separate and the SQL reservation gate remains false.
+
+`retire-observation-analysis-source` separately wraps unfunded reader11
+retirement. Its endpoint-owned `request.ts` snapshots the full original
+candidate and stable operation; the shared repository builds the frozen SQL
+tuple. The outer body cap preserves the original candidate budget plus87bytes of
+envelope overhead. The independent retirement gate stays false and native
+admission remains separate; no funded execution retirement or provider dispatch
+occurs.
 
 `retire-observation-analysis` separately authenticates explicit retirement of an
 exact admitted, never-dispatched operation. Its service-only SQL routine

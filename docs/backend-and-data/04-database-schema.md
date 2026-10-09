@@ -7732,8 +7732,8 @@ routines with fixed empty search paths; PUBLIC and all API roles have no
 execution grant. They add no table, reservation, mutation path or execution
 authority. Shared vectors bind their bytes and SHA-256 to TypeScript and native
 implementations. Default-false reader-11 SQL now uses these helpers for source
-reservation; HTTP/native integration and ordinary activation remain separate
-prerequisites.
+reservation. Prepared reservation and unfunded-retirement HTTP wrappers exist;
+native integration and ordinary activation remain separate prerequisites.
 
 The helpers are STABLE because PostgreSQL UTF-8 conversion is STABLE. The locked
 reservation transaction persists the computed binding; these helpers cannot be
@@ -8046,8 +8046,9 @@ reader-11 reservation and unfunded-retirement routines behind independent
 default-false gates. The immutable unfunded receipt is unique per child and
 follows binding/parent deletion; terminal replay never recreates occupancy. No
 HTTP/native consumer or activation was introduced by that migration. The later
-prepared `reserve-observation-analysis-source` HTTP route wraps reservation
-only; native and unfunded-retirement HTTP consumers remain separate.
+prepared `reserve-observation-analysis-source` and
+`retire-observation-analysis-source` HTTP routes wrap these routines; native
+consumers remain separate.
 
 ### Atomic source completion release
 

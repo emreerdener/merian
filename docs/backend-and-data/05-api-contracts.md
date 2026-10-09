@@ -15488,7 +15488,8 @@ transport or native consumer is connected. It does not change the Identify
 generated DTO block, existing readers or saved request fingerprints. The SQL
 reader is exactly 10. Separate default-false service-only reader-11 routines use
 the fingerprint encoders for source reservation and unfunded retirement.
-HTTP/native reservation integration and ordinary activation remain pending.
+Prepared HTTP wrappers exist for those mutations; native integration and
+ordinary activation remain pending.
 
 The request has exactly `schema_version: 1`, `observation_id` and
 `source_analysis_id`, using distinct canonical lowercase UUIDs. Owner comes from
@@ -15681,9 +15682,9 @@ cancellation cannot keep the caller waiting beyond the deadline. It performs no
 automatic retry, token refresh, route fallback, UUID generation, refund or
 successor admission. An explicitly returned reserved/held/unavailable receipt is
 an observation, never execution permission. Later explicit recovery must reuse
-the original candidate and retirement operation. The prepared reservation route
-uses this adapter; unfunded retirement has no HTTP/native caller. Neither
-changes funded execution retirement.
+the original candidate and retirement operation. The prepared reservation and
+unfunded-retirement routes use this adapter; neither has a native caller.
+Neither changes funded execution retirement.
 
 Prepared authenticated `POST reserve-observation-analysis-source` accepts the
 same four-field candidate, never a caller-selected owner. `withEdgeHandler`
@@ -15703,12 +15704,41 @@ sanitized 503, never a fabricated vacancy or release receipt. No automatic retry
 or fallback occurs. A lost reply may conceal committed source occupancy:
 recovery must retain the identical candidate; it cannot create a successor. The
 endpoint is prepared source only, with no native caller, deployment or
-activation. Unfunded-retirement HTTP/native admission is a separate checkpoint.
+activation. Native durable retirement admission remains a separate checkpoint.
 
 A received exact `analysis_history_operation_conflict` from the source RPC is
 preserved as a typed conflict (HTTP409 for reservation). It is not a vacancy or
 release receipt and never permits replacement or dispatch. Other RPC failures
 remain sanitized unavailable errors.
+
+Prepared authenticated `POST retire-observation-analysis-source` has a distinct
+public schema-1 envelope with exactly `schema_version`, `candidate` and
+`operation_id`. `candidate` is the full original four-field reservation request;
+the lowercase retirement UUID is frozen before first I/O and retained for exact
+recovery. The endpoint parser snapshots both before awaits, validates the
+candidate fingerprint and requires the operation UUID to differ from the
+observation/source/child identities. It rejects owner, SQL tuple, receipt,
+funding and replacement fields. Only the existing service adapter constructs the
+frozen identity-only reader11 SQL request; the SQL wire is unchanged.
+
+The actual HTTP body cap is 1,048,663 bytes: the original 1,048,576-byte
+candidate budget plus 87 bytes of minimal schema/UUID envelope overhead. The
+shared reader allows harmless JSON whitespace within this bound and rejects the
+next byte. The scoped client caps actual upstream bytes at 2 KiB and one RPC at
+five seconds, including uncooperative cancellation. Only the exact
+`retired_unfunded` receipt returns200; funded `retired_before_dispatch`,
+reserved/held/unavailable, foreign/malformed/oversized or uncertain replies
+return sanitized503. Deterministic operation conflict returns409. Invalid
+body/schema/fingerprint or UUID association returns400, unsupported content
+type415 and oversize413; method/auth failures are405/401. All responses are
+private/no-store.
+
+A lost reply can conceal committed retirement. A later explicit recovery must
+retain the full original candidate and same operation UUID. No error or absent
+result proves release; the route never remints, refunds, creates a successor or
+dispatches. It is separate from reader10 funded `retire-observation-analysis`.
+The independent SQL gate remains false; no native caller, deployment or
+activation is included.
 
 The reservation request has exactly `schema_version: 1`, `input`,
 `fingerprint_version: 1`, and `fingerprint`. Input is the complete existing
@@ -15776,8 +15806,8 @@ contracts are unchanged.
 
 This October 8 contract decision is implemented by the October 9 paired
 reservation/unfunded-retirement SQL migration. The implementation preserves the
-prepared response variants and reader. The later prepared reservation HTTP
-wrapper is described above; native and unfunded-retirement HTTP consumers remain
+prepared response variants and reader. The later prepared reservation HTTP and
+unfunded-retirement wrappers are described above; native consumers remain
 absent. The wire above remains authoritative. `reserved` requires both the exact
 immutable binding and its matching live occupancy; acknowledging a binding alone
 is not sufficient. It conveys no admission, execution or retry permission.
@@ -15838,8 +15868,8 @@ an explicit remaining implementation requirement, not a change to the user's
 ability to request later reanalysis once the complete feature is qualified.
 
 Fresh reservation and unfunded retirement remain default-false service-only SQL
-routines. The prepared reservation HTTP wrapper is described above; native and
-unfunded-retirement HTTP consumers remain separate. Migration `20261009000303`
+routines. The prepared reservation and unfunded-retirement HTTP wrappers are
+described above; native consumers remain separate. Migration `20261009000303`
 implements permanent unfunded receipts and guarded occupancy release. Every
 parent media namespace has an independent 65th-row sentinel alongside intents,
 same-source bindings/releases and results. Unbound parent intents or

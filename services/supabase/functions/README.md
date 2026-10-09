@@ -41,6 +41,7 @@ that layout.
 - [replay-scan-ingestion](./replay-scan-ingestion/README.md)
 - [reserve-observation-analysis-source](./reserve-observation-analysis-source/README.md)
 - [retire-observation-analysis](./retire-observation-analysis/README.md)
+- [retire-observation-analysis-source](./retire-observation-analysis-source/README.md)
 - [scan-media-health](./scan-media-health/README.md)
 - [sync-collections](./sync-collections/README.md)
 

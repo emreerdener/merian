@@ -56,6 +56,15 @@ gate remains false. No native caller, deployment or scheduling is included. See
 the
 [endpoint contract](../../services/supabase/functions/reserve-observation-analysis-source/README.md).
 
+**2026-10-09 unfunded-retirement source addendum:**
+`retire-observation-analysis-source` separately accepts the full original
+candidate and stable retirement operation. It uses the reader11 unfunded RPC,
+not reader10 funded retirement, with a five-second/2-KiB transport. Only an
+exact `retired_unfunded` receipt proves this operation; errors and other states
+do not release occupancy. The independent SQL gate stays false; no native
+consumer or deployment is included. See the
+[endpoint contract](../../services/supabase/functions/retire-observation-analysis-source/README.md).
+
 ## Scope
 
 This review inventories every configured deployable Supabase Edge Function
@@ -327,6 +336,7 @@ resolve-purchase-principal
 restore-community-identification
 reserve-observation-analysis-source
 retire-observation-analysis
+retire-observation-analysis-source
 revenuecat-webhook
 safe-delete
 scan-media-health

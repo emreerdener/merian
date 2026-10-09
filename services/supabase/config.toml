@@ -799,3 +799,7 @@ verify_jwt = false
 # Owner-authenticated source occupancy only; default-off SQL gate, no inference.
 [functions.reserve-observation-analysis-source]
 verify_jwt = false
+
+# Exact unfunded source retirement only; independently gated, no inference.
+[functions.retire-observation-analysis-source]
+verify_jwt = false

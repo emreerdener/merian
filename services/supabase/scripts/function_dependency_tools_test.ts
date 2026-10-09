@@ -62,6 +62,7 @@ Deno.test("Identify contract changes deploy every direct and shared-adapter cons
       "refresh-species-model-content",
       "request-community-identification",
       "reserve-observation-analysis-source",
+      "retire-observation-analysis-source",
       "review-scan-identification",
       "share-scan-to-explore",
       "update-explore-field-notes",
