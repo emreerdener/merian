@@ -77,9 +77,12 @@ BEGIN
 END;
 $$;
 CREATE FUNCTION pg_temp.admit_bound(owner_id UUID,input JSONB) RETURNS JSONB LANGUAGE PLPGSQL AS $$
+DECLARE fixture_ip TEXT := encode(extensions.digest('source-admission-fixture:' || owner_id::TEXT,'sha256'),'hex');
 BEGIN
- IF input->'schema_version'='2'::JSONB THEN RETURN internal.admit_protected_observation_analysis(owner_id,input,repeat('a',64)); END IF;
- RETURN internal.admit_audio_observation_analysis(owner_id,input,repeat('a',64));
+ -- Concurrency suites reuse this helper with independent synthetic owners.
+ -- Keep one stable IP per owner/replay without sharing a suite-wide rate bucket.
+ IF input->'schema_version'='2'::JSONB THEN RETURN internal.admit_protected_observation_analysis(owner_id,input,fixture_ip); END IF;
+ RETURN internal.admit_audio_observation_analysis(owner_id,input,fixture_ip);
 END;
 $$;
 -- END SOURCE ADMISSION HELPERS

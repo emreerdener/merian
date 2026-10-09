@@ -1001,3 +1001,9 @@ reader-11 reservation and unfunded-retirement routines behind independent
 default-false gates. The immutable unfunded receipt is unique per child and
 follows binding/parent deletion; terminal replay never recreates occupancy. No
 HTTP/native consumer or activation is introduced.
+
+Source-admission database concurrency fixtures derive a stable synthetic IP hash
+from each synthetic owner. Duplicate calls for that owner retain the same
+bucket; unrelated owners do not consume a shared suite-wide IP limit. This
+isolation belongs only to test fixtures and does not change production quota
+policy.

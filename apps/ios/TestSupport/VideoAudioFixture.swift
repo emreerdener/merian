@@ -84,7 +84,21 @@ struct VideoAudioFixture: Sendable {
         }
     }
 
+    private static let writerGate = VideoFixtureWriterGate()
+
     private static func writeSilentVideo(to url: URL) async throws {
+        await writerGate.acquire()
+        do {
+            try Task.checkCancellation()
+            try await writeOwnedSilentVideo(to: url)
+            await writerGate.release()
+        } catch {
+            await writerGate.release()
+            throw error
+        }
+    }
+
+    private static func writeOwnedSilentVideo(to url: URL) async throws {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264,
@@ -100,7 +114,12 @@ struct VideoAudioFixture: Sendable {
             ]
         )
         writer.add(input)
-        #expect(writer.startWriting())
+        // Keep encoder ownership until completion or cancellation, including
+        // failed assertions and cancellation during fixture preparation.
+        defer {
+            if writer.status == .writing { writer.cancelWriting() }
+        }
+        try #require(writer.startWriting())
         writer.startSession(atSourceTime: .zero)
         var pixelBuffer: CVPixelBuffer?
         #expect(CVPixelBufferCreate(
@@ -114,16 +133,43 @@ struct VideoAudioFixture: Sendable {
         }
         CVPixelBufferUnlockBaseAddress(pixels, [])
         for frame in 0..<30 {
+            try Task.checkCancellation()
             let deadline = ContinuousClock.now + .seconds(5)
             while !input.isReadyForMoreMediaData, ContinuousClock.now < deadline {
                 try await Task.sleep(for: .milliseconds(5))
             }
-            try #require(input.isReadyForMoreMediaData)
+            try #require(
+                input.isReadyForMoreMediaData,
+                "Fixture writer stalled at frame \(frame), status \(writer.status.rawValue), error \(String(describing: writer.error))"
+            )
             try #require(adaptor.append(pixels, withPresentationTime: CMTime(value: Int64(frame), timescale: 30)))
         }
         writer.endSession(atSourceTime: CMTime(seconds: 1, preferredTimescale: 600))
         input.markAsFinished()
         await writer.finishWriting()
         try #require(writer.status == .completed)
+    }
+}
+
+// Synthetic encoders share process resources even when Swift Testing runs
+// independent suites concurrently. No production capture ownership uses this.
+private actor VideoFixtureWriterGate {
+    private var occupied = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func acquire() async {
+        if !occupied {
+            occupied = true
+            return
+        }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func release() {
+        if waiters.isEmpty {
+            occupied = false
+        } else {
+            waiters.removeFirst().resume()
+        }
     }
 }
