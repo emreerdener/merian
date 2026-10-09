@@ -16,38 +16,47 @@ struct VideoAudioFixture: Sendable {
             at: outputDirectory,
             withIntermediateDirectories: true
         )
+        await Self.writerGate.acquire()
         do {
-            let silentURL = root.appendingPathComponent("silent.mp4")
-            try await Self.writeSilentVideo(to: silentURL)
-            guard let channels else {
-                try FileManager.default.copyItem(at: silentURL, to: videoURL)
-                return
-            }
-            let audioURL = root.appendingPathComponent("tone.m4a")
-            try Self.writeAAC(to: audioURL, channels: channels, amplitude: amplitude)
-            let composition = AVMutableComposition()
-            for (url, mediaType) in [(silentURL, AVMediaType.video), (audioURL, .audio)] {
-                let asset = AVURLAsset(url: url)
-                let source = try #require(try await asset.loadTracks(withMediaType: mediaType).first)
-                let track = try #require(composition.addMutableTrack(
-                    withMediaType: mediaType,
-                    preferredTrackID: kCMPersistentTrackID_Invalid
-                ))
-                try track.insertTimeRange(
-                    CMTimeRange(start: .zero, duration: CMTime(seconds: 1, preferredTimescale: 600)),
-                    of: source,
-                    at: .zero
-                )
-            }
-            let exporter = try #require(AVAssetExportSession(
-                asset: composition,
-                presetName: AVAssetExportPresetPassthrough
-            ))
-            try await exporter.export(to: videoURL, as: .mp4)
+            try Task.checkCancellation()
+            try await prepare(channels: channels, amplitude: amplitude)
+            await Self.writerGate.release()
         } catch {
             remove()
+            await Self.writerGate.release()
             throw error
         }
+    }
+
+    /// Keep the fixture's encoder permit through AAC creation and composition export.
+    private func prepare(channels: Int?, amplitude: Double) async throws {
+        let silentURL = root.appendingPathComponent("silent.mp4")
+        try await Self.writeSilentVideo(to: silentURL)
+        guard let channels else {
+            try FileManager.default.copyItem(at: silentURL, to: videoURL)
+            return
+        }
+        let audioURL = root.appendingPathComponent("tone.m4a")
+        try Self.writeAAC(to: audioURL, channels: channels, amplitude: amplitude)
+        let composition = AVMutableComposition()
+        for (url, mediaType) in [(silentURL, AVMediaType.video), (audioURL, .audio)] {
+            let asset = AVURLAsset(url: url)
+            let source = try #require(try await asset.loadTracks(withMediaType: mediaType).first)
+            let track = try #require(composition.addMutableTrack(
+                withMediaType: mediaType,
+                preferredTrackID: kCMPersistentTrackID_Invalid
+            ))
+            try track.insertTimeRange(
+                CMTimeRange(start: .zero, duration: CMTime(seconds: 1, preferredTimescale: 600)),
+                of: source,
+                at: .zero
+            )
+        }
+        let exporter = try #require(AVAssetExportSession(
+            asset: composition,
+            presetName: AVAssetExportPresetPassthrough
+        ))
+        try await exporter.export(to: videoURL, as: .mp4)
     }
 
     func outputFiles() throws -> [URL] {
@@ -87,18 +96,6 @@ struct VideoAudioFixture: Sendable {
     private static let writerGate = VideoFixtureWriterGate()
 
     private static func writeSilentVideo(to url: URL) async throws {
-        await writerGate.acquire()
-        do {
-            try Task.checkCancellation()
-            try await writeOwnedSilentVideo(to: url)
-            await writerGate.release()
-        } catch {
-            await writerGate.release()
-            throw error
-        }
-    }
-
-    private static func writeOwnedSilentVideo(to url: URL) async throws {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264,

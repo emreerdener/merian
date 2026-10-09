@@ -11778,3 +11778,16 @@ commit-then-throw staging recovery, unchanged request bytes across disk restart,
 explicit generation replacement and stale-claim denial. Known-answer settlement
 is tested after cancellation without granting dispatch permission. The separate
 audio handoff and retained delivery owner are not established by these tests.
+
+### Synthetic video fixture encoder ownership
+
+`VideoAudioFixture` serializes its complete preparation lifecycle across test
+suites: silent-video writing, AAC preparation and composition export. The permit
+is released only after completion or error cleanup, including cancellation after
+waiting. The five-second writer readiness bound is unchanged. This test-only
+guard does not serialize production capture or extraction. The concurrent
+fixture regression covers silent, mono and stereo outputs together with a
+pre-cancelled constructor and successful preparation afterward. It does not
+deterministically force cancellation while queued. CI iOS887 exposed a
+writer-readiness timeout; overlapping fixture exports are a supported contention
+hypothesis, not evidence of a production media defect.
