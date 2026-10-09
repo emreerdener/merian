@@ -73,6 +73,48 @@ enum ObservationAudioExecutionStore {
         }
     }
 
+    /// Explicit source-to-execution handoff. A reservation is occupancy evidence only; fresh
+    /// consent is still required, and the remote upload/admission gates remain independent.
+    /// Exact saved binding replay precedes consent and never resets claims or consumption.
+    static func bindReserved(_ candidate: ObservationAudioExecutionIntent,
+                             source: ObservationSourceReservationStore.Snapshot,
+                             proof: ObservationAudioPreparation.Verified,
+                             authorization: IdentificationDispatchAuthorization,
+                             container: ModelContainer, isCurrent: () -> Bool,
+                             save: (ModelContext) throws -> Void = { try $0.save() }) throws -> Snapshot {
+        guard source.containerID == ObjectIdentifier(container), source.work.preparation == .audio(proof.preparation),
+              source.work.state == .observed, source.work.reply?.state == .reserved,
+              candidate.matches(proof.preparation), candidate.request.body == source.work.request.input else {
+            throw Persistence.IntegrityError.conflict
+        }
+        func resolve(_ context: ModelContext) throws -> (pair: (OfflineQueuedScan, OfflineJobRecord), saved: Snapshot?) {
+            try proof.validate(context: context)
+            try completionNamespace(candidate.identity, context: context)
+            try Persistence.requireNoResultCollision(candidate.identity, context: context)
+            guard let (row, job) = try Persistence.pair(candidate.identity, context: context), let metadata = job.metadataJSON else {
+                throw Persistence.IntegrityError.unavailable
+            }
+            if let work = try? Work.decode(Data(metadata.utf8)) {
+                let saved = try snapshot(proof, row: row, job: job)
+                guard work.intent == candidate else { throw Persistence.IntegrityError.conflict }
+                return ((row, job), saved)
+            }
+            _ = try ObservationSourceReservationStore.matchingReservedAudio(source, proof: proof, container: container, context: context)
+            return ((row, job), nil)
+        }
+        let prior = try Persistence.transaction(candidate.identity, container: container, isCurrent: isCurrent,
+            save: { _ in throw Persistence.IntegrityError.conflict }) { try resolve($0).saved }
+        if let prior { return prior }
+        // Consent may read persistence. Never call it while holding the transaction lock.
+        guard authorization.recipient == .gemini else { throw Persistence.IntegrityError.conflict }
+        try authorization.validate()
+        return try Persistence.transaction(candidate.identity, container: container, isCurrent: isCurrent, save: save) { context in
+            let (pair, prior) = try resolve(context)
+            if let prior { return prior }
+            return try write(Work(intent: candidate), proof: proof, row: pair.0, job: pair.1)
+        }
+    }
+
     /// Exact persisted recovery is independent of current inference consent; it never returns dispatch permission.
     static func read(_ proof: ObservationAudioPreparation.Verified, container: ModelContainer, isCurrent: () -> Bool) throws -> Snapshot {
         try Persistence.transaction(proof.preparation.identity, container: container, isCurrent: isCurrent, save: { try $0.save() }) { context in

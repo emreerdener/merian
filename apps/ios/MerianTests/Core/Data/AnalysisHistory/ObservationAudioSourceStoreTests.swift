@@ -32,6 +32,13 @@ struct ObservationAudioSourceStoreTests {
                     proof: .audio(seed.proof), container: seed.container, isCurrent: { true })
             }
         }
+        if state != "reserved" {
+            #expect(throws: (any Error).self) { try ObservationAudioExecutionIntent(reserved: saved.work) }
+            #expect(throws: (any Error).self) {
+                try ObservationAudioExecutionStore.bindReserved(.init(preparation: seed.preparation), source: saved,
+                    proof: seed.proof, authorization: fixture.authorization, container: seed.container, isCurrent: { true })
+            }
+        }
         #expect(try stage(seed) == saved)
         #expect(try Work.decode(saved.work.storedData()) == saved.work)
         #expect(saved.work.preparation.version == 10)
@@ -189,4 +196,79 @@ struct ObservationAudioSourceStoreTests {
             container: container, isCurrent: { true })
         #expect(claim.snapshot.work.request == retained.request && claim.snapshot.work.generation == 2)
     }
+
+    func reserved(_ seed: ObservationAudioPreparationTests.Seed, exactBytes: Bool = false) throws -> Store.Snapshot {
+        let original = try candidate(seed)
+        let request = exactBytes
+            ? try ObservationSourceReservationRequest(audio: .init(savedBody: Data("\n".utf8) + original.input + Data(" ".utf8)))
+            : original
+        let staged = try Store.stageAudio(request: request, proof: .audio(seed.proof), container: seed.container, isCurrent: { true })
+        let claim = try Store.claim(staged, admission: .initial, proof: .audio(seed.proof), container: seed.container, isCurrent: { true })
+        return try Store.settle(claim, reply: ObservationSourceStoreTests().reply(claim.snapshot, state: "reserved"),
+            proof: .audio(seed.proof), container: seed.container, isCurrent: { true })
+    }
+
+    @Test func explicitReservedBindingPreservesBytesAndConsumedReplay() async throws {
+        let seed = try await fixture.ready(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let source = try reserved(seed, exactBytes: true)
+        let intent = try ObservationAudioExecutionIntent(reserved: source.work)
+        #expect(intent.request.body == source.work.request.input)
+        #expect(intent.request.body != (try candidate(seed).input))
+        let bound = try ObservationAudioExecutionStore.bindReserved(intent, source: source, proof: seed.proof,
+            authorization: fixture.authorization, container: seed.container, isCurrent: { true })
+        let claim = try ObservationAudioExecutionStore.claim(bound, purpose: .initial, proof: seed.proof,
+            container: seed.container, isCurrent: { true })
+        let permit = try ObservationAudioExecutionStore.consume(claim, proof: seed.proof, container: seed.container, isCurrent: { true })
+        let revoked = IdentificationDispatchAuthorization(recipient: .recoveryOnly, validate: { throw MerianError.aiConsentRequired })
+        let replay = try ObservationAudioExecutionStore.bindReserved(intent, source: source, proof: seed.proof,
+            authorization: revoked, container: seed.container, isCurrent: { true })
+        #expect(replay == permit.snapshot && replay.work.consumedAttempt == 1)
+        #expect(try Data(contentsOf: seed.file) == seed.bytes)
+        #expect(throws: (any Error).self) {
+            try ObservationAudioExecutionStore.bindReserved(.init(preparation: seed.preparation), source: source, proof: seed.proof,
+                authorization: fixture.authorization, container: seed.container, isCurrent: { true })
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func reservedBindingSaveUncertaintyRetainsOriginalBytes(committed: Bool) async throws {
+        let seed = try await fixture.ready(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let source = try reserved(seed, exactBytes: true), intent = try ObservationAudioExecutionIntent(reserved: source.work)
+        #expect(throws: (any Error).self) {
+            try ObservationAudioExecutionStore.bindReserved(intent, source: source, proof: seed.proof,
+                authorization: fixture.authorization, container: seed.container, isCurrent: { true }, save: {
+                    if committed { try $0.save() }; throw CocoaError(.fileWriteUnknown)
+                })
+        }
+        if !committed { #expect(try Store.read(source.identity, container: seed.container, isCurrent: { true }) == source) }
+        let saved = try ObservationAudioExecutionStore.bindReserved(intent, source: source, proof: seed.proof,
+            authorization: fixture.authorization, container: seed.container, isCurrent: { true })
+        #expect(saved.work.intent == intent && saved.work.state == .idle && saved.work.consumedAttempt == nil)
+    }
+
+    @Test(arguments: ["consent", "account", "container", "cas"])
+    func reservedBindingRevalidatesBeforeReplacingSource(_ reason: String) async throws {
+        let seed = try await fixture.ready(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let source = try reserved(seed), intent = try ObservationAudioExecutionIntent(reserved: source.work)
+        var current = true
+        let authorization = IdentificationDispatchAuthorization(recipient: .gemini, validate: {
+            if reason == "consent" { throw MerianError.aiConsentRequired }
+            if reason == "account" { current = false }
+            if reason == "cas" {
+                let context = ModelContext(seed.container)
+                let job = try #require(context.fetch(FetchDescriptor<OfflineJobRecord>()).first)
+                let changed = try Work(preparation: source.work.preparation, request: source.work.request,
+                    state: .observed, generation: source.work.generation + 1, reply: source.work.reply)
+                job.metadataJSON = try #require(String(bytes: changed.storedData(), encoding: .utf8))
+                try context.save()
+            }
+        })
+        let container = reason == "container" ? try ObservationReanalysisSourceTests().fixture.container() : seed.container
+        #expect(throws: (any Error).self) {
+            try ObservationAudioExecutionStore.bindReserved(intent, source: source, proof: seed.proof,
+                authorization: authorization, container: container, isCurrent: { current })
+        }
+        #expect(try Store.read(source.identity, container: seed.container, isCurrent: { true }).work.request == source.work.request)
+    }
+
 }

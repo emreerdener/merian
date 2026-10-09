@@ -974,14 +974,31 @@ scope; cancellation without a known reply may retain running work for explicit
 recovery. This store has no timer, scheduler, transport or presentation caller.
 
 Old preparation/admission/execution decoders reject source-reservation envelopes
-(versions 9 and 10). Source work cannot appear in their candidate sets, bind
-execution, or use local preparation discard. Parent erasure still uses
-independent parent linkage and records its child cleanup receipt regardless of
-metadata. The same transaction retains the owner-bound parent-deletion task;
+(versions 9 and 10). Source work cannot appear in their candidate sets, use
+legacy execution binding, or use local preparation discard. Parent erasure still
+uses independent parent linkage and records its child cleanup receipt regardless
+of metadata. The same transaction retains the owner-bound parent-deletion task;
 server parent deletion cascades through source bindings and occupancy. No source
 state authorizes upload, funding, a new UUID, inference, refund or release. The
-explicit retained delivery service below is the only new consumer; a separate
-exact unfunded-retirement action remains required before release.
+explicit retained delivery service and the narrow audio handoff below are the
+only new consumers; a separate exact unfunded-retirement action remains required
+before release.
+
+### Explicit reserved-audio binding
+
+`ObservationAudioExecutionIntent.init(reserved:)` decodes the original V3 input
+bytes from an acknowledged reserved source; it never reconstructs the request.
+`ObservationAudioExecutionStore.bindReserved` consumes only that exact stored
+snapshot and immutable audio proof in one transaction, after fresh fixed-Gemini
+consent outside the persistence lock. Account, parent, child, source, container,
+result namespace and exact metadata are revalidated before replacing source
+metadata with an idle audio execution binding. Save uncertainty returns no
+binding; a later explicit call recovers the same saved request. Existing exact
+execution replay precedes fresh consent and preserves its claim/consumed marker.
+Held, unavailable, conflicted and uncertain source states cannot enter this
+handoff. It creates no dispatch permit and invokes no network work. Server
+upload admission and funded analysis admission remain independent requirements;
+no installed source-to-execution composition is included.
 
 ### Explicit source reservation delivery
 

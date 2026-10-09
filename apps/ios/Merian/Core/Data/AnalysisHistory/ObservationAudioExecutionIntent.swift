@@ -19,6 +19,15 @@ struct ObservationAudioExecutionIntent: Equatable, Sendable {
             sourceAnalysisID: preparation.identity.sourceAnalysisID, evidence: preparation.evidence)
     }
 
+    /// Decode the original reserved input verbatim; never rebuild it from evidence or selection.
+    init(reserved source: ObservationSourceReservationWork) throws {
+        guard case let .audio(preparation) = source.preparation, source.state == .observed,
+              source.reply?.state == .reserved else { throw MerianError.invalidResponse }
+        ownerID = preparation.identity.ownerID; sourceSnapshotSHA256 = preparation.sourceSnapshotSHA256
+        request = try .init(savedBody: source.request.input)
+        guard matches(preparation) else { throw MerianError.invalidResponse }
+    }
+
     private init(ownerID: UUID, sourceSnapshotSHA256: String, request: ObservationAudioReanalysisRequest) {
         self.ownerID = ownerID; self.sourceSnapshotSHA256 = sourceSnapshotSHA256; self.request = request
     }

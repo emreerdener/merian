@@ -3055,9 +3055,12 @@ and bridge have no installed composition caller.
 `ObservationSourceReservationStore` share tagged preparation/proof through
 `ObservationSourceReservationPreparation`: unchanged photo version-9 and new
 audio version-10 metadata, exact ready-state staging and generation/CAS
-settlement. The explicit retained delivery service and owner below are its only
-new consumers; ordinary UI and composition remain separate. No receipt state
-grants execution permission.
+settlement. `ObservationAudioExecutionIntent.init(reserved:)` and
+`ObservationAudioExecutionStore.bindReserved` add the explicit exact-byte audio
+handoff after fresh consent and transaction-level source CAS, without dispatch
+permission. The explicit retained delivery service and owner below remain
+separate; ordinary UI and composition remain separate. No receipt state grants
+execution permission.
 
 `retire-observation-analysis-source` separately wraps unfunded reader11
 retirement. Its endpoint-owned `request.ts` snapshots the full original

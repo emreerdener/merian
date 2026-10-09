@@ -11814,11 +11814,15 @@ grants no deployment authorization.
 ### Tagged audio source handoff regressions
 
 `ObservationAudioSourceStoreTests` covers exact ready-only V3 staging, all
-source states staying outside execution/preparation, commit-then-throw recovery,
-strict variant/evidence decoding, stale
+source states staying outside legacy execution/preparation, commit-then-throw
+recovery, strict variant/evidence decoding, stale
 account/source/parent/child/container/claim settlement denial, cancelled
 known-answer settlement and durable SQLite restart with the original candidate.
 It pins byte-for-byte compatibility of the v9 photo envelope. Existing photo
 store and retained owner/service regressions continue to run with tagged proofs.
-These tests do not qualify installed composition, provider execution, device
-behavior or activation.
+The explicit reserved-binding regressions additionally cover noncanonical saved
+V3 byte preservation, consumed execution replay before consent, rejected
+non-reserved states, commit-then-throw versus pre-commit failure, revoked
+consent, account/container changes and a source CAS change during consent
+validation. These tests do not qualify installed composition, provider
+execution, device behavior or activation.

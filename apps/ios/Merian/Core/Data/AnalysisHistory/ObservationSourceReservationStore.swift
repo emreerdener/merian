@@ -112,6 +112,16 @@ enum ObservationSourceReservationStore {
             settlingSourceConflict: conflict, save: save)
     }
 
+    /// Only the explicit audio binding transaction consumes this exact acknowledged reservation.
+    /// This check grants neither upload nor dispatch authority.
+    static func matchingReservedAudio(_ expected: Snapshot, proof: ObservationAudioPreparation.Verified,
+                                      container: ModelContainer, context: ModelContext) throws -> OfflineJobRecord {
+        guard expected.work.state == .observed, expected.work.reply?.state == .reserved else {
+            throw Persistence.IntegrityError.conflict
+        }
+        return try matching(expected, proof: .audio(proof), container: container, context: context)
+    }
+
     private static func change(_ expected: Snapshot, to work: Work, proof: Proof, container: ModelContainer,
                                isCurrent: () -> Bool, settlingSource: ObservationSourceReservationReply? = nil,
                                settlingSourceConflict: ObservationSourceReservationConflict? = nil,

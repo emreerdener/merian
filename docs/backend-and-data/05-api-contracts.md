@@ -15783,18 +15783,26 @@ through source bindings and occupancy, independently of this metadata.
 Audio staging requires exact submitted admission-pending preparation and
 pristine audio paired fields; pending files, hold actions and any existing
 execution binding fail closed. Exact source replay does not rebind execution.
-Existing audio execution/resume decoders continue to reject source envelopes. No
-saved V2/V3 request, wire, reader, provider profile or SwiftData schema changes.
-Explicit native delivery has a queue-retained single-slot owner and injected
-service: it claims before the single HTTP attempt, revalidates after Auth before
-bytes, and atomically saves a known observation under exact
-claim/account/source/container fences. Connectivity cancellation preserves
-same-scope known-answer settlement; both Auth drains invalidate and await actual
-account-lease exit. A throwing claim save never authorizes sending. Unknown
-attempts require later explicit same-candidate recovery after owner exit,
-without timers or automatic rearm. Ordinary presentation remains disconnected;
-exact unfunded retirement admission remain separate. No source observation can
-wake preflight, upload or inference; all gates remain false.
+Existing legacy audio execution/resume decoders continue to reject source
+envelopes. The separate explicit `bindReserved` transaction can consume only an
+exact acknowledged reserved audio snapshot after current fixed-Gemini consent.
+It retains the original saved V3 request bytes, validates source/account/parent/
+child/container and metadata CAS, and writes an idle execution binding without a
+dispatch permit. Exact bound replay preserves attempts and consumption before
+fresh consent. Upload still requires its independent server cohort admission;
+analysis still requires funded admission and dispatch checks. No composition
+caller or automatic transition is installed. No saved V2/V3 request, wire,
+reader, provider profile or SwiftData schema changes. Explicit native delivery
+has a queue-retained single-slot owner and injected service: it claims before
+the single HTTP attempt, revalidates after Auth before bytes, and atomically
+saves a known observation under exact claim/account/source/container fences.
+Connectivity cancellation preserves same-scope known-answer settlement; both
+Auth drains invalidate and await actual account-lease exit. A throwing claim
+save never authorizes sending. Unknown attempts require later explicit
+same-candidate recovery after owner exit, without timers or automatic rearm.
+Ordinary presentation remains disconnected; exact unfunded retirement admission
+remain separate. No source observation can wake preflight, upload or inference;
+all gates remain false.
 
 The reservation request has exactly `schema_version: 1`, `input`,
 `fingerprint_version: 1`, and `fingerprint`. Input is the complete existing
