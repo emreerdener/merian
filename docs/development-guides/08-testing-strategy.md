@@ -11984,6 +11984,25 @@ otherwise valid top-level boxes. Envelope inspection therefore cannot satisfy
 nested track/reference/sample/metadata, codec/decode, source-derivation or
 device qualification. Those remain required before retained MP4 admission.
 
+### Retained MP4 nested structural profile
+
+`retainedVideoStructure_test.ts` consumes the same unchanged native silent/audio
+fixtures and explicitly checks their 2,112-tick AAC priming and legacy
+sample-entry channel template. Mutations cover track IDs, transforms,
+edits/timescales, external references, descriptions, metadata/unknown placement,
+AVC/AAC configuration, timing/sample/chunk tables, overlapping/out-of-range
+media, sync/dependency/roll tables and nested size/count bounds. Positive
+fixtures and nonzero input views return frozen scalar facts; no input bytes
+escape. Candidate CI checks/runs the suite and workflow-security tests guard
+both registrations.
+
+This is a constrained structural profile, not compressed-payload decoding or
+manifest/source provenance proof. Its exact AAC descriptor template and narrow
+container variants are intentionally unqualified beyond the imported synthetic
+simulator corpus. More producer variants and device qualification, cryptographic
+manifest binding and coordinated admission remain required. Do not use a passing
+envelope inspector as fallback when this profile rejects a file.
+
 ### Prepared retained video encoding
 
 `ObservationRetainedVideoTests` uses the shared synthetic `VideoAudioFixture`

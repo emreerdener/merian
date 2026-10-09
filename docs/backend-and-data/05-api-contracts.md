@@ -16555,15 +16555,60 @@ Payloads, including `ftyp` brands and the entire `moov` tree, remain opaque.
 Success does not establish self-contained references, track/codec/sample-table
 validity, timing, metadata absence, decodability or source derivation. There is
 no manifest/hash verification wrapper or live caller. A deliberately invalid
-media payload passes the envelope-only unit test to freeze this limitation.
-Nested `moov`/`trak`/sample descriptions, `dref`, sample extents and metadata
-policy remain a required subsequent validator checkpoint before video admission.
-Actual synthetic iOS 27 simulator silent/audio outputs are imported unchanged
-from native test attachments; both contain extended-size `mdat` boxes. These
-fixtures establish envelope compatibility, not device or complete MP4 security
-qualification. The
+media payload passes the envelope-only unit test to freeze this limitation. The
+separate nested inspector below checks `moov`/`trak`, descriptions, `dref`,
+sample extents and a closed metadata policy; envelope success alone still cannot
+qualify source bytes for admission. Actual synthetic iOS 27 simulator
+silent/audio outputs are imported unchanged from native test attachments; both
+contain extended-size `mdat` boxes. These fixtures establish envelope
+compatibility, not device or complete MP4 security qualification. The
 [Apple atom format](https://developer.apple.com/documentation/quicktime-file-format/atoms)
 is a format reference, not an expansion of this closed accepted envelope.
+
+### Retained video nested structure profile
+
+`retainedVideoStructure.inspectRetainedVideoStructure` is a synchronous, private
+structural inspector with no live caller or manifest/hash wrapper. It builds on
+the bounded envelope and limits nested boxes to 128 through fixed parent-child
+paths. Unknown, duplicate, misplaced, fragmented and metadata boxes fail closed;
+nested extended-size boxes and unsupported full-box versions are excluded. The
+initial profile fixes observed MP4 brands, static handler text, zero padding,
+reserved fields, and sample-description extensions. It returns only frozen
+`width`, `height`, `durationTicks` and `hasAudio` facts.
+
+Exactly one video and at most one audio track have unique nonzero IDs. Movie
+time is 600 Hz and 60–3,000 ticks. Video dimensions are even 2–2,048 pixels and
+agree between track and sample description; transforms are bounded orthogonal
+matrices. Each track has one self-contained `url` data reference with no URL
+payload and sample-description reference index 1. H.264 configuration requires
+declared Main profile, bounded SPS/PPS NAL framing and matching profile bytes;
+color requires the observed `nclx` 6/1/6 tuple with full-range flag 0, and
+`pasp` requires unit pixel aspect (1/1). The AAC `esds` descriptor is currently
+an exact native template including AAC-LC/44.1-kHz/mono ASC. This is a closed
+compatibility choice, not a general MPEG-4 descriptor decoder. Native `mp4a`
+declares template channel count 2 even though ASC/AVFoundation identify mono;
+the inspector preserves that representation.
+
+One rate-1 edit per track is bounded against media duration. The native audio
+fixture has priming offset **2,112 media ticks** and a 599-tick track inside a
+600-tick movie; zero audio offset or exact movie/audio duration equality is not
+required. Time/sample/chunk tables must agree, with at most 600 video and 1,024
+audio samples; AAC `stts` deltas are exactly 1,024 media ticks. Every sample
+extent lies within the sole `mdat`; sorted extents must cover its payload
+exactly without gaps or overlaps. Sync/dependency tables and the observed AAC
+roll group are checked. No external data references or arbitrary container
+metadata are admitted by this profile.
+
+Compressed sample bytes and SPS bit-level semantics remain undecoded. Successful
+inspection does not prove actual codec decodability, decoded dimensions,
+no-reordering, frame/WAV derivation, producer identity, or ownership. Manifest
+length/digest/duration binding, immutable cohort receipts and coordinated
+source, profile, materialization and reader admission remain separate. The
+initial fixture corpus covers only silent/audio one-second 64×64 iOS 27
+simulator output; non-square/transformed/boundary-duration/resampling and
+device/OS variants require qualification before activation. Unsupported output
+fails closed rather than falling back to envelope-only acceptance. Existing
+executable V4 routes remain closed.
 
 ### Prepared native retained clip creation
 

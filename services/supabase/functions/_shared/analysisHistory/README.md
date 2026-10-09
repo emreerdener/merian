@@ -1119,3 +1119,14 @@ silent/audio fixtures exercise actual extended-size `mdat` headers. Nested
 track/sample/reference/metadata validation remains required before source bytes
 can qualify for admission. See the
 [canonical envelope boundary](../../../../../docs/backend-and-data/05-api-contracts.md#retained-video-envelope-inspection).
+
+`retainedVideoStructure.inspectRetainedVideoStructure` adds a separate closed
+nested structural profile over the envelope. It checks self-contained
+references, track/description/edit declarations, bounded sample tables and
+contiguous exact `mdat` coverage across tracks. It returns frozen
+dimensions/duration/audio facts, not bytes or admission authority. Its initial
+AAC descriptor and container profile are tied to the imported simulator output;
+wider producer compatibility is unqualified. It does not decode compressed media
+or SPS semantics, bind a manifest/hash, or prove derivation. The
+[nested structure contract](../../../../../docs/backend-and-data/05-api-contracts.md#retained-video-nested-structure-profile)
+records the required compatibility and admission work.
