@@ -8040,9 +8040,37 @@ with proven release conflicts; it never recreates occupancy. Errors cannot
 substitute for durable terminal proof or authorize a new UUID. A new child needs
 complete bounded predecessor/namespace verification. The first paired SQL
 implementation supports only exact funded/unfunded retirement predecessors;
-completion-based occupancy release remains an explicit separate implementation
-requirement. Migration `20261009000303` implements the paired service-only
+completion-based release is added separately by migration `20261009032643`,
+described below. Migration `20261009000303` implements the paired service-only
 reader-11 reservation and unfunded-retirement routines behind independent
 default-false gates. The immutable unfunded receipt is unique per child and
 follows binding/parent deletion; terminal replay never recreates occupancy. No
 HTTP/native consumer or activation is introduced.
+
+### Atomic source completion release
+
+Migration `20261009032643_prepare_source_completion_release.sql` adds the
+independent default-false `source_completion_release_enabled` gate and private
+`observation_source_completion_receipts`. The child primary key and composite
+binding foreign key retain exact owner/parent/source identity; parent erasure
+cascades the receipt. API roles have no table or helper privileges. Update and
+premature deletion are rejected. There is no quota or invocation foreign key.
+
+The original draft-to-complete transaction appends its immutable result, settles
+credit, saves the receipt and clears work before verifying execution proof.
+Known successful native accounting must match the original dispatch witness,
+committed reservation/lease hash/attempt, provider assignment, normalized usage
+and settlement. Missing, mismatched or unknown accounting keeps occupancy held
+without discarding valid completion. Null pricing and token counts are allowed
+according to the accounting writer's normalization. Proof-storage failure rolls
+back completion; no blanket exception handler masks integrity failures.
+
+The bounded 16 KiB versioned proof copies execution/accounting/settlement facts
+and hashes immutable result, evidence, draft, outcome, funding and receipt
+bytes. It retains no result prose or raw lease token. Later verification uses
+immutable product identity and this permanent proof, independently of current
+selection, review, entitlement or invocation retention. It never backfills
+existing complete intents. The reservation routine now classifies each
+same-source result against its exact binding and valid proof, with a separate
+65th-row receipt sentinel. Completed children cannot recreate occupancy. Generic
+quota cleanup remains held; this migration does not broaden accounting deletion.

@@ -542,6 +542,9 @@ certainty and must not be recomputed to establish release.
 
 The bounded permanent proof, retained identity, no-backfill rule, paid-before-
 completion disposition and race matrix are specified in
-[Planned atomic completion release](../backend-and-data/05-api-contracts.md#planned-atomic-completion-release).
-This contract checkpoint adds no migration, wire shape, worker or gate
-activation.
+[Atomic completion release](../backend-and-data/05-api-contracts.md#atomic-completion-release).
+Forward migration `20261009032643` implements that contract behind the
+default-false `source_completion_release_enabled` gate. It adds a private
+immutable proof table and extends the existing completion transaction and
+successor reservation classification. Public wires and workers remain unchanged;
+no gate activation is included.

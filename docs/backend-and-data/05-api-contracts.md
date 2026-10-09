@@ -15798,17 +15798,17 @@ preparation with no HTTP/native consumer. Migration `20261009000303` implements
 permanent unfunded receipts and guarded occupancy release. Every parent media
 namespace has an independent 65th-row sentinel alongside intents, same-source
 bindings/releases and results. Unbound parent intents or unattributed media hold
-conservatively. Completion release remains unimplemented. Catalog tests live in
+conservatively. Migration `20261009032643` adds qualified completion release as
+described below. Reservation catalog tests live in
 `observation_source_reservation.sql`; two-connection photo/audio races live in
 `observationSourceReservationConcurrencyDb.test.ts`.
 
-### Planned atomic completion release
+### Atomic completion release
 
-This is the reviewed target contract for the next forward migration. Completion
-release is not implemented by migration `20261009000303`. The planned
-independent `source_completion_release_enabled` gate defaults to false; reader
-11, existing completion receipts and all public request/response shapes stay
-unchanged.
+Forward migration `20261009032643` implements completion release after the
+source reservation migration `20261009000303`. The independent
+`source_completion_release_enabled` gate defaults to false; reader 11, existing
+completion receipts and all public request/response shapes stay unchanged.
 
 The owner is the existing
 `advance_owned_observation_analysis(..., p_operation = 'complete')` transaction.
@@ -15862,18 +15862,19 @@ An event whose outcome is `unknown` cannot be promoted by a later successful
 draft: the existing accounting writer returns its original event before
 processing a later outcome.
 
-A minimal private, immutable, child-unique completion-release receipt is
-required. Its binding/parent cascade owns erasure; it has no foreign key to
-quota/invocation rows or any retention-managed accounting evidence. Current
-invocation pruning is not a usage-ledger deletion policy. Under the original
-completion transaction, copy the checked owner/parent/source/child and versioned
-request identity, reservation and lease hash/attempt, invocation/provenance and
-accounting disposition, canonical result/evidence/receipt digests, and
-complimentary settlement disposition. Do not copy private prose, raw media or
-quota lease tokens. Bound the proof payload to 16 KiB and validate its exact
-versioned shape. Later predecessor verification uses that permanent proof and
-retained immutable product identity; it must not require the accounting rows to
-remain present or inspect today's selected result/review.
+The private `internal.observation_source_completion_receipts` table retains an
+immutable, child-unique completion-release receipt. Its binding/parent cascade
+owns erasure; it has no foreign key to quota/invocation rows or any
+retention-managed accounting evidence. Current invocation pruning is not a
+usage-ledger deletion policy. Under the original completion transaction, copy
+the checked owner/parent/source/child and versioned request identity,
+reservation and lease hash/attempt, invocation/provenance and accounting
+disposition, canonical result/evidence/receipt digests, and complimentary
+settlement disposition. Do not copy private prose, raw media or quota lease
+tokens. Bound the proof payload to 16 KiB and validate its exact versioned
+shape. Later predecessor verification uses that permanent proof and retained
+immutable product identity; it must not require the accounting rows to remain
+present or inspect today's selected result/review.
 
 Mint proof only when the intent was `draft` before calling
 `internal.complete_observation_analysis`. Retain that pre-transition fact in the

@@ -995,8 +995,8 @@ with proven release conflicts; it never recreates occupancy. Errors cannot
 substitute for durable terminal proof or authorize a new UUID. A new child needs
 complete bounded predecessor/namespace verification. The first paired SQL
 implementation supports only exact funded/unfunded retirement predecessors;
-completion-based occupancy release remains an explicit separate implementation
-requirement. Migration `20261009000303` implements the paired service-only
+completion-based release is added separately by migration `20261009032643`,
+described below. Migration `20261009000303` implements the paired service-only
 reader-11 reservation and unfunded-retirement routines behind independent
 default-false gates. The immutable unfunded receipt is unique per child and
 follows binding/parent deletion; terminal replay never recreates occupancy. No
@@ -1008,10 +1008,26 @@ bucket; unrelated owners do not consume a shared suite-wide IP limit. This
 isolation belongs only to test fixtures and does not change production quota
 policy.
 
-Completion-based release remains a forward implementation checkpoint. Its
-[planned atomic contract](../../../../../docs/backend-and-data/05-api-contracts.md#planned-atomic-completion-release)
+Completion-based release is implemented by migration `20261009032643` behind
+`source_completion_release_enabled = false`. Its
+[atomic contract](../../../../../docs/backend-and-data/05-api-contracts.md#atomic-completion-release)
 keeps valid late completion separate from release eligibility: unknown or
 missing accounting holds occupancy without discarding the result. Qualified
 completion must save permanent proof and release occupancy in the existing
 transaction; exact replay never backfills old completions or dispatches another
 attempt.
+
+The database owns `observation_source_completion_receipts`; no Edge endpoint can
+create, update or delete a proof directly. Original completion checks the
+immutable product against its dispatch witness, committed quota, invocation,
+normalized successful usage and complimentary disposition. Permanent proof
+retains digests and accounting facts, never result prose or raw lease tokens.
+Subsequent reservation verifies retained proof without depending on prunable
+invocation rows. Existing complete operations lacking proof stay held.
+
+`observation_source_completion.sql` covers photo/audio, nullable accounting,
+unknown or missing evidence, selection independence, both paid dispositions,
+proof immutability, lost-response recovery, deletion and proof-storage rollback.
+`observationSourceCompletionConcurrencyDb.test.ts` uses two blocked connections
+to test completion/reservation and completion/account-deletion in both orders.
+These tests do not qualify hosted execution or activate admission.
