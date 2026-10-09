@@ -2051,24 +2051,41 @@ The private cohort permits one successful copy into
 temporary root after success. Failed attempts retain the exact temporary bytes
 for explicit same-child retry while the owner lives; dropping the owner cleans
 its temporary root. An incomplete pending cohort after restart remains held
-without regeneration; parent erasure remains available. FileStore owns stable
-root/child locks, no-follow bounded reads, exclusive writes, directory
-synchronization and complete-inventory checks. Promotion retains verified files
-if save throws, including commit-then-throw. Explicit reopening uses existing
-metadata and saved bytes only; missing, changed, extra or symlinked files fail
-without repair or another preprocessing pass. Container/profile validation
-originates in the retained-source producers; exact recovery proves byte
-identity, not new server/provider admission.
+without regeneration; explicit held-video discard or parent erasure remains
+available. FileStore owns stable root/child locks, no-follow bounded reads,
+exclusive writes, directory synchronization and complete-inventory checks.
+Promotion retains verified files if save throws, including commit-then-throw.
+Explicit reopening uses existing metadata and saved bytes only; missing,
+changed, extra or symlinked files fail without repair or another preprocessing
+pass. Container/profile validation originates in the retained-source producers;
+exact recovery proves byte identity, not new server/provider admission.
 
 Photo preparation, restore, admission and discard readers explicitly reject
 video_preparation, including unsupported phases. Ordinary inference already
 excludes qualified reanalysis work. Parent erasure indexes every artifact
-through captured media plus the whole child namespace. No video-specific discard
-or remote source/admission/execution path is installed. These prepared APIs
-remain uninstalled in Capture and automatic queue delivery; ordinary access
-stays nil.
+through captured media plus the whole child namespace. No remote
+source/admission/execution path is installed. These prepared APIs remain
+uninstalled in Capture and automatic queue delivery; ordinary access stays nil.
 
 The held video captured-media projection stores the optional WAV as a separate
 audio entry after all five frames. V58 media entities store only the video path;
 embedding the companion in that entity would lose it on restore. The immutable
 manifest, rather than the display projection, retains its source relationship.
+
+### Explicit held-video discard
+
+`ObservationVideoPreparationStore.discard` atomically removes only the exact
+saved pending/ready preparation and records the existing local erasure receipt.
+Missing work cannot create a fresh receipt. Exact completed/pending receipt
+replay requires no surviving row/job and precedes source deletion gates. The
+closed envelope, zero-attempt row parity, source proof, account and result
+collision checks reject malformed, attempted or future bound work. Local discard
+is not evidence of remote absence or permission to retry inference.
+
+`ObservationVideoPreparationProducer.discard` retains the shared preparation
+owner and account lease through one awaited, injected erasure-owner attempt. A
+throwing save never starts cleanup; reopening replays a committed receipt
+without recreating the child. Cleanup failure or cancellation retains the
+receipt for existing local recovery. Source and sibling files are never deletion
+targets. The path is prepared only; Capture and automatic video delivery remain
+absent.

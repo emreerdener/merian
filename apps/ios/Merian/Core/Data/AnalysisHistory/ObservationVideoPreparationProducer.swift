@@ -8,6 +8,30 @@ struct ObservationVideoPreparationProducer {
     let ownership: ObservationReanalysisPreparationOwner
     let account: ObservationHistoryCloudClient
 
+    /// Explicit held-only discard, followed by one awaited receipt-authorized cleanup attempt.
+    /// Throwing saves never start cleanup; exact receipt replay recovers commit-then-throw.
+    func discard(_ preparation: ObservationVideoPreparation, source: ObservationReanalysisSource,
+                 container: ModelContainer, cleanup: ObservationReanalysisErasureOwner,
+                 isCurrent: @escaping @MainActor @Sendable () -> Bool) async throws -> ObservationReanalysisErasureReceipt {
+        let receipt = try await ownership.perform(preparation.identity) { tokenCurrent in
+            let lease = try account.begin(preparation.identity.ownerID)
+            defer { account.finish(lease) }
+            let current: @MainActor @Sendable () -> Bool = { tokenCurrent() && account.isCurrent(lease) && isCurrent() }
+            try Task.checkCancellation()
+            guard current() else { throw ObservationHistoryError.accountChanged }
+            let proof = try await DetachedWork.value(category: .inferenceRequestPreparation) { try preparation.verified(source: source) }
+            try Task.checkCancellation()
+            guard current() else { throw ObservationHistoryError.accountChanged }
+            let receipt = try ObservationVideoPreparationStore.discard(proof, container: container, isCurrent: current)
+            await cleanup.erase(receipt, container: container, isCurrent: current)
+            try Task.checkCancellation()
+            guard current() else { throw ObservationHistoryError.accountChanged }
+            return receipt
+        }
+        guard isCurrent() else { throw ObservationHistoryError.accountChanged }
+        return receipt
+    }
+
     /// `cohort == nil` requests complete-cohort recovery only; it never repairs missing evidence.
     /// The caller retains the original preparation/child identity across every attempt.
     func prepare(_ preparation: ObservationVideoPreparation, source: ObservationReanalysisSource, cohort: ObservationVideoCohort?,

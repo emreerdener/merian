@@ -1462,3 +1462,10 @@ recovery. This prepared boundary is not installed into ordinary Capture or queue
 dispatch. The earlier temporary producers feed this owner; remaining integration
 work is server source/profile/byte admission, V5 readers, execution and
 device/hosted qualification. Alternatives-card design and layout are unchanged.
+
+Held video preparation now has an explicit local discard boundary: exact
+pending/ready work is removed atomically with a durable cleanup receipt,
+followed by one awaited whole-child cleanup attempt. Incomplete files do not
+prevent this local exit. Unknown or attempted execution cannot use it. This
+remains an uninstalled capability; no ordinary Capture control or provider route
+is enabled.

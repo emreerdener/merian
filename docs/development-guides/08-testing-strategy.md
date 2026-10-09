@@ -12045,3 +12045,15 @@ source-proof suites. Explicit recovery must retain identity and never rerun
 preprocessing. These are local held-durability checks; remote video
 profiles/admission, provider execution, device and hosted storage/erasure
 qualification remain open.
+
+### Held video discard checks
+
+`ObservationVideoDurabilityTests` also covers explicit pending, ready and
+missing-file discard, exact receipt replay after source deletion, promotion and
+reinsertion fences, commit-then-throw recovery through a reopened disk store,
+precommit rollback, and rejection of missing, attempted, malformed, wrong-owner
+or stale-account work. Cleanup must include the entire child namespace without
+regenerating media or touching its historical source. Run with
+`ObservationReanalysisDiscardTests` and `ObservationReanalysisErasureTests` to
+preserve legacy discard and shared receipt/lock behavior. No video server
+retirement or rendered Capture action is implied by these local tests.

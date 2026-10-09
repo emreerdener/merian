@@ -16644,23 +16644,34 @@ Metadata is saved before any private copy. A complete temporary cohort supplies
 the exact request and byte buffers; individual paths never escape. One
 successful copy consumes it. A failed attempt retains the same bytes for
 explicit retry while the owner lives; dropping it removes temporary files.
-Incomplete restart recovery stays held and cannot regenerate evidence; parent
-erasure remains available. Stable root/child filesystem locks surround fresh
-source/account/deletion checks, exclusive byte publication and final metadata
-promotion. A thrown promotion save retains the verified cohort because the save
-may have committed. Existing-only recovery verifies the full ordered inventory
-and original digests; it never creates missing work, repairs files, transcodes
-or invokes a provider. Source container/profile qualification is inherited from
-the preparation producers; this local hash-preserving store is not server
-byte-validation evidence.
+Incomplete restart recovery stays held and cannot regenerate evidence; explicit
+held-video discard and parent erasure remain available. Stable root/child
+filesystem locks surround fresh source/account/deletion checks, exclusive byte
+publication and final metadata promotion. A thrown promotion save retains the
+verified cohort because the save may have committed. Existing-only recovery
+verifies the full ordered inventory and original digests; it never creates
+missing work, repairs files, transcodes or invokes a provider. Source
+container/profile qualification is inherited from the preparation producers;
+this local hash-preserving store is not server byte-validation evidence.
 
 Photo preparation/admission/restoration/discard paths reject video metadata;
 ordinary inference remains closed to all qualified reanalysis children. Parent
 linked erasure owns the entire namespace, including frames. Prepared durability
-does not install Capture, automatic discovery, video-specific discard, remote
-binding/admission, V5 result support or execution. Activation remains disabled.
+does not install Capture, automatic discovery, remote binding/admission, V5
+result support or execution. Activation remains disabled.
 
 The held video captured-media projection stores the optional WAV as a separate
 audio entry after all five frames. V58 media entities store only the video path;
 embedding the companion in that entity would lose it on restore. The immutable
 manifest, rather than the display projection, retains its source relationship.
+
+Prepared native video discard accepts only an existing exact local pending/ready
+preparation with no attempt, error, binding or execution state. It atomically
+removes the child/job and saves the existing erasure receipt under the review
+transaction lock. Missing work cannot manufacture a receipt. Exact receipt
+replay precedes source deletion gates, requires absent row/job, and cannot erase
+a result collision. The retained account/preparation owner awaits one
+receipt-bound cleanup attempt after a normally returned commit; uncertain saves
+require exact receipt recovery. This is local-only retirement of never-admitted
+preparation, not a server absence proof, funding refund or authority for
+uncertain-execution redispatch.

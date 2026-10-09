@@ -74,6 +74,41 @@ enum ObservationVideoPreparationStore {
         return saved.phase
     }
 
+    /// Explicit deletion of an exact, locally held video preparation. No remote absence claim.
+    /// Existing erasure receipts replay before source deletion gates; absent work cannot mint one.
+    static func discard(_ proof: ObservationVideoPreparation.Verified, container: ModelContainer,
+                        isCurrent: () -> Bool, save: (ModelContext) throws -> Void = { try $0.save() }) throws -> ObservationReanalysisErasureReceipt {
+        let preparation = proof.preparation, identity = preparation.identity
+        return try ConfirmedSpeciesReviewPersistence.transaction {
+            try Task.checkCancellation()
+            guard isCurrent() else { throw Persistence.IntegrityError.accountChanged }
+            let context = ModelContext(container); context.autosaveEnabled = false
+            let receipt = ObservationReanalysisErasureReceipt(parentID: identity.observationID, childID: identity.analysisID)
+            do {
+                try Persistence.requireNoResultCollision(identity, context: context)
+                let existingPair = try Persistence.pair(identity, context: context)
+                if let existing = try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(identity.analysisID)) {
+                    guard try ObservationReanalysisErasureReceipt.restore(existing) == receipt, existingPair == nil,
+                          isCurrent() else { throw Persistence.IntegrityError.conflict }
+                    return receipt
+                }
+                try proof.validate(context: context)
+                guard let (row, job) = existingPair else { throw Persistence.IntegrityError.unavailable }
+                // Only the closed pending/ready envelope and zero-attempt exact row may be discarded.
+                // Future reserved/bound/executing envelopes must use their own authority.
+                _ = try restore(preparation, row: row, job: job)
+                try context.deletePreferredGoalHint(scanId: row.id)
+                context.delete(job)
+                context.delete(row)
+                try receipt.record(in: context)
+                try Task.checkCancellation()
+                guard isCurrent() else { throw Persistence.IntegrityError.accountChanged }
+                try save(context)
+                return receipt
+            } catch { context.rollback(); throw error }
+        }
+    }
+
     /// Exact held video row; there is no video execution envelope.
     static func validateRow(_ expected: ObservationVideoPreparation, row: OfflineQueuedScan, job: OfflineJobRecord) throws {
         let child = expected.identity.analysisID.uuidString.lowercased()

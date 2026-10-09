@@ -179,4 +179,79 @@ struct ObservationVideoDurabilityTests {
         #expect(throws: (any Error).self) { try ObservationVideoPreparationStore.read(seed.proof, container: seed.container, isCurrent: { true }) }
         #expect(try context.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
     }
+    @Test(arguments: ["pending", "ready", "missing-file"])
+    func explicitDiscardFencesReplayAndCleansWholeChild(state: String) async throws {
+        let seed = try await seed(); defer { seed.remove() }
+        if state == "pending" {
+            _ = try ObservationVideoPreparationStore.begin(seed.proof, container: seed.container, isCurrent: { true })
+        } else {
+            _ = try await producer(seed).prepare(seed.preparation, source: seed.source, cohort: seed.cohort,
+                container: seed.container, isCurrent: { true })
+            if state == "missing-file" { try FileManager.default.removeItem(at: seed.root.appendingPathComponent(seed.preparation.files[1].path)) }
+        }
+        let cleanup = ObservationReanalysisErasureOwner(files: .init(documents: seed.root))
+        let receipt = try await producer(seed).discard(seed.preparation, source: seed.source,
+            container: seed.container, cleanup: cleanup, isCurrent: { true })
+        let context = ModelContext(seed.container)
+        #expect(try context.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
+        let storedReceipt = try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(receipt.childID))
+        let job = try #require(storedReceipt)
+        #expect(job.statusRaw == OfflineJobStatus.complete.rawValue)
+        for file in seed.preparation.files { #expect(!FileManager.default.fileExists(atPath: seed.root.appendingPathComponent(file.path).path)) }
+        #expect(throws: (any Error).self) { try ObservationVideoPreparationStore.begin(seed.proof, container: seed.container, isCurrent: { true }) }
+        #expect(throws: (any Error).self) { try ObservationVideoPreparationStore.validate(seed.proof, container: seed.container, isCurrent: { true }, makeReady: true) }
+        // A durable receipt remains replayable after the source has gone.
+        for record in try context.fetch(FetchDescriptor<LocalAnalysisRecord>()) { context.delete(record) }
+        try context.save()
+        #expect(try await producer(seed).discard(seed.preparation, source: seed.source,
+            container: seed.container, cleanup: cleanup, isCurrent: { true }) == receipt)
+    }
+
+    @Test(arguments: [false, true])
+    func discardSaveUncertaintyRecoversOnlyCommittedReceipt(commits: Bool) async throws {
+        let seed = try await seed(); defer { seed.remove() }
+        _ = try ObservationVideoPreparationStore.begin(seed.proof, container: seed.container, isCurrent: { true })
+        #expect(throws: Simulated.self) {
+            try ObservationVideoPreparationStore.discard(seed.proof, container: seed.container, isCurrent: { true }, save: {
+                if commits { try $0.save() }; throw Simulated.save
+            })
+        }
+        let reopened = try ObservationPublicationPersistenceTests().container(url: seed.storeURL, seed: false)
+        let context = ModelContext(reopened)
+        #expect(try context.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == (commits ? 0 : 1))
+        #expect((try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(seed.preparation.identity.analysisID)) != nil) == commits)
+        let receipt = try ObservationVideoPreparationStore.discard(seed.proof, container: reopened, isCurrent: { true })
+        #expect(receipt.childID == seed.preparation.identity.analysisID)
+        #expect(try ObservationVideoPreparationStore.discard(seed.proof, container: reopened, isCurrent: { true }) == receipt)
+    }
+
+    @Test(arguments: ["attempt", "unknown", "owner", "missing-job", "account"])
+    func discardRejectsUnprovenStateWithoutMutation(reason: String) async throws {
+        let seed = try await seed(); defer { seed.remove() }
+        _ = try ObservationVideoPreparationStore.begin(seed.proof, container: seed.container, isCurrent: { true })
+        let context = ModelContext(seed.container)
+        let row = try #require(context.fetch(FetchDescriptor<OfflineQueuedScan>()).first)
+        let job = try #require(context.fetch(FetchDescriptor<OfflineJobRecord>()).first)
+        switch reason {
+        case "attempt": job.attemptCount = 1
+        case "unknown": job.metadataJSON = "{}"
+        case "owner": row.reanalysisOwnerAccountID = UUID().uuidString.lowercased()
+        case "missing-job": context.delete(job)
+        default: break
+        }
+        try context.save()
+        #expect(throws: (any Error).self) {
+            try ObservationVideoPreparationStore.discard(seed.proof, container: seed.container, isCurrent: { reason != "account" })
+        }
+        let fresh = ModelContext(seed.container)
+        #expect(try fresh.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 1)
+        #expect(try fresh.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(seed.preparation.identity.analysisID)) == nil)
+    }
+
+    @Test func discardCannotCreateReceiptForMissingPreparation() async throws {
+        let seed = try await seed(); defer { seed.remove() }
+        #expect(throws: (any Error).self) { try ObservationVideoPreparationStore.discard(seed.proof, container: seed.container, isCurrent: { true }) }
+        #expect(try ModelContext(seed.container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+    }
+
 }
