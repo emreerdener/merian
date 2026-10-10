@@ -8349,3 +8349,31 @@ advance. Action readers remain unchanged and deny video histories and explicit
 pending V4 children. No grants, default-off gates or execution consumers change.
 Source occupancy remains held: this completion receipt alone is not the required
 source-release proof and grants no erasure or execution authority.
+
+### Durable V4 completion source release
+
+Migration `20261010181556_prepare_video_source_completion_release.sql` adds the
+private, RLS-protected `observation_video_source_completions` table. Its
+composite binding foreign key owns parent erasure; all API privileges are
+revoked. A transaction-fenced insert revalidates the exact completed product,
+immutable video accounting proof, committed quota/dispatch identity and settled
+credit. The bounded16KiB proof copies accounting/execution/settlement facts and
+hashes the saved completion receipt and immutable result. It has no live
+invocation foreign key. Updates, premature deletion and occupancy resurrection
+are denied.
+
+Only the original private video completion transaction can insert this proof and
+remove its exact occupancy, after result/authority/credit/receipt commit
+conditions are established. The existing source completion release gate remains
+default false. Closed gate or unavailable proof retains occupancy; storage
+failure rolls back completion and settlement. Complete replay never backfills
+proof. Known results survive invocation retention, admission expiry and closed
+fresh execution gates; no new provider invocation or refund occurs.
+
+Video same-source successor reservation now classifies every retained result
+against its exact permanent release proof, with independent65th-row sentinels
+for video and generic completion receipts. Existing child replay stays held;
+only a new identity can reserve after proven release. Video evidence remains
+retained, selection/review/reconciliation stay unchanged, and generic
+photo/audio proof semantics are unchanged. No source cleanup or external
+activation is authorized.

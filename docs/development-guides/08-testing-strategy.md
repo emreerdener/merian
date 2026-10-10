@@ -12710,3 +12710,21 @@ LocalAnalysisRecordTests and the adjacent history state/selection/review tests
 through the managed local simulator wrapper. This reader checkpoint does not
 qualify video execution, source release or devices; full integrated native
 capability acceptance remains a separate milestone.
+
+### Video source completion release verification
+
+`observationVideoEvidenceDb.test.ts` covers all three video graphs and paid,
+complimentary and paid-before-completion funding. It verifies receipt insertion
+and occupancy deletion in the original completion transaction after invocation
+retention, expiry and fresh-gate closure. Proof-storage failure rolls back
+result/authority/credit/receipt changes; exact replay changes nothing. Closed
+release gate retains occupancy permanently for that completion; later replay
+cannot backfill. Tests also cover malformed product rejection, immutable proof
+rows, occupancy resurrection denial, timezone/current entitlement independence,
+new same-source successor reservation and parent erasure.
+
+`observation_video_source_completion.sql` checks private privileges, RLS, fixed
+search paths, default-closed release and separate generic proof semantics. Run
+focused DB, full fresh catalog/ACL/Edge, migration/tooling, recursive type
+checks and lint/format gates on the scoped candidate. No hosted activation,
+provider execution, device or integrated native acceptance is implied.

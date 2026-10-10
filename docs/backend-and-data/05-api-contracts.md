@@ -17913,3 +17913,27 @@ Actions still reject video histories and explicit pending V4 children. This does
 not advance the app-wide Identify header or the separate evidence/source
 protocols. No HTTP/native completion caller or source-release proof is
 installed; occupancy stays held and activation gates remain disabled.
+
+### Prepared video completion source release
+
+The private V4 completion owner may now establish a separate durable source
+release proof in the same transaction. This introduces no public RPC, DTO or
+reader version. Existing `source_completion_release_enabled` stays false.
+Successful proof storage and exact occupancy deletion are atomic with result
+append, credit settlement and saved completion receipt; persistence failure
+rolls back all of them. Closed release gate or unavailable proof retains
+occupancy, and replay never backfills a completion that originally held.
+
+Video release uses its immutable accounting receipt plus exact completed product
+and settled funding identity. Unlike the original photo/audio candidate, it does
+not depend on a live invocation or recheck fresh admission expiry. Pruned
+invocation, expired admission and closed dispatch/media gates do not discard an
+accounted known result. Unknown or mismatched execution never authorizes
+release, another provider invocation or a refund.
+
+The permanent proof excludes mutable selection, review and current entitlement.
+Retained evidence is not erased. Reader12 video reservation admits a new
+same-source identity only when all predecessor results/bindings have exact
+release proof and complete bounded coverage. Existing completed identity remains
+held; page/state reader11 remains read-only. External qualification and Field
+Trip reconciliation are separate requirements.

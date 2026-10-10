@@ -1309,3 +1309,13 @@ settlement. Page/state reader11 now admits snapshot5 with strict Deno/native
 parsing; older readers and all current action readers reject video histories. No
 public/native caller or activation is installed. See the
 [completion contract](../../../../../docs/backend-and-data/05-api-contracts.md#private-v4-successful-completion-preparation).
+
+Private V4 completion source release is owned by SQL migration
+`20261010181556_prepare_video_source_completion_release.sql`. Its separate
+immutable proof binds durable accounting, exact result/completion receipt and
+settled credit, then removes only matching occupancy in the original completion
+transaction. Invocation retention and expiry do not invalidate known completion.
+The existing release gate remains false; no public execution/release caller,
+provider retry, refund or evidence cleanup is added. Complete replay never
+backfills proof, and existing child reservation stays held. A new video identity
+may reserve the same source only after complete bounded predecessor proof.
