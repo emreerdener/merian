@@ -8077,3 +8077,16 @@ existing complete intents. The reservation routine now classifies each
 same-source result against its exact binding and valid proof, with a separate
 65th-row receipt sentinel. Completed children cannot recreate occupancy. Generic
 quota cleanup remains held; this migration does not broaden accounting deletion.
+
+### Held video source fingerprint parity
+
+Migration `20261010005747_prepare_video_source_fingerprint_parity.sql` adds four
+private stable-invoker metadata helpers: bounded integer and artifact
+validators, `internal.observation_video_source_fingerprint_bytes(jsonb)` and its
+SHA-256 wrapper. Each fixes an empty search path and revokes execution from
+PUBLIC and all API roles. The closed V4 graph binds the retained clip, ordered
+frames, optional audio and exact descriptions using the separate version-1 video
+domain. No table, trigger, RPC, rollout gate or existing photo/audio codec
+changes. These routines establish neither media proof nor ownership/admission
+authority. See
+[the exact fingerprint contract](05-api-contracts.md#held-video-source-fingerprint-v1).

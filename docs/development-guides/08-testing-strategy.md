@@ -12157,5 +12157,10 @@ exact native canonical bytes and hashes, including numeric spelling/signed-zero
 equivalence, every semantic leaf, aliases, unsupported text, ordered
 descriptions and unchanged rejection by the old source codec. Native validation
 reuses the closed video manifest without treating a fingerprint as saved-request
-restoration. SQL parity and any live reservation/admission qualification remain
-open.
+restoration. `observationVideoFingerprintDb.test.ts` compares SQL against the
+same vectors and TypeScript for mutated scalars, Unicode/aggregate bounds,
+numeric spellings, frame timing and identity aliases. The static migration
+contract and `observation_video_source_fingerprint.sql` catalog fixture enforce
+private stable invoker routines and actual denial for API roles. Run on a fresh
+disposable database before claiming SQL parity; live reservation/admission
+qualification remains separate.

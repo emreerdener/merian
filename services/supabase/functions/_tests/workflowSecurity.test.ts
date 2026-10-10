@@ -261,6 +261,18 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
     2,
     "Held video fingerprint must run in both candidate type-check and helper-test lists",
   );
+  for (
+    const suite of [
+      "observationVideoFingerprintMigrationContract.test.ts",
+      "observationVideoFingerprintDb.test.ts",
+    ]
+  ) {
+    assertEquals(
+      candidateWorkflow.split(`supabase/functions/_tests/${suite}`).length - 1,
+      2,
+      `${suite} must run in both candidate type-check and helper-test lists`,
+    );
+  }
   assertStringIncludes(candidateWorkflow, "  merge_group:");
   assertStringIncludes(candidateWorkflow, "  workflow_dispatch:");
   assertStringIncludes(candidateWorkflow, "  workflow_call:");

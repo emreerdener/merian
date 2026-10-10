@@ -1145,6 +1145,6 @@ admission authority. See the
 its own versioned domain, binding complete source/frame/audio provenance and
 ordered descriptions. It leaves existing source reservation and executable input
 parsing photo/audio-only. Its fixed vectors also verify the separate native
-codec; SQL parity and durable video cohort/recovery coverage are required before
-any consumer connects. See the
+codec and private ungranted SQL helpers. Durable video cohort/recovery coverage
+is still required before any consumer connects. See the
 [held fingerprint field order](../../../../../docs/backend-and-data/05-api-contracts.md#held-video-source-fingerprint-v1).

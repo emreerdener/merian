@@ -16801,12 +16801,13 @@ separate requirements. Existing executable photo/audio routes remain unchanged.
 
 `videoSourceFingerprint.videoSourceCanonicalBytes` and `videoSourceFingerprint`
 define a separate, unregistered V4 semantic binding contract. The TypeScript
-codec, native `ObservationVideoSourceFingerprint` and fixed vectors are
-prepared; SQL parity remains required before any producer or consumer may use
-this identity. Existing photo/audio fingerprints, original request bytes,
-`request_digest` replay semantics and live reservation/admission parsers are
-unchanged. The codec does not authenticate an owner, verify media bytes, reserve
-occupancy or select an executable provider.
+codec, native `ObservationVideoSourceFingerprint` and fixed vectors are prepared
+alongside private SQL `internal.observation_video_source_fingerprint_bytes` and
+`internal.observation_video_source_fingerprint` helpers. All remain uninstalled;
+parity alone does not authorize a producer or consumer. Existing photo/audio
+fingerprints, original request bytes, `request_digest` replay semantics and live
+reservation/admission parsers are unchanged. The codec does not authenticate an
+owner, verify media bytes, reserve occupancy or select an executable provider.
 
 After `parsePreparedVideoAdmission` validation, encode each scalar as a UTF-8
 netstring: decimal UTF-8 byte length, colon, exact scalar text, comma. Numbers
@@ -16847,7 +16848,15 @@ identifier without attempting to recompute it from JSON. Its shared golden
 vectors cover audio, silent and Unicode inputs; numeric spelling has the same
 semantic meaning in TypeScript and Swift. No native caller is installed.
 
-The profile string binds declared metadata only. SQL parity, video cohort
-coverage, durable reservation/recovery/retirement, materialization and execution
-are separate checkpoints. In particular, do not register V4 with the existing
-photo/audio source reservation codec merely because this fingerprint is defined.
+The SQL helpers mirror the closed V4 graph, numeric and text bounds and exact
+netstring sequence. All four routines (including bounded integer/artifact
+helpers) are stable invokers with an empty search path and no execution grants
+to PUBLIC, anon, authenticated or service_role. They read no tables and create
+no binding, occupancy or receipt. Shared golden vectors and mutation cases
+compare SQL bytes/hashes with TypeScript; native tests use the same fixed
+vectors.
+
+The profile string binds declared metadata only. Video cohort coverage, durable
+reservation/recovery/retirement, materialization and execution are separate
+checkpoints. In particular, do not register V4 with the existing photo/audio
+source reservation codec merely because this fingerprint is defined.

@@ -4191,7 +4191,8 @@ requirements.
 the separate video netstring identity, checked against shared TypeScript golden
 vectors. Numeric spelling is semantic, while description text remains exact. It
 does not recompute the original request digest or grant saved-request, owner,
-reservation, upload or execution authority. SQL parity is still required before
-any caller is installed. Existing photo/audio source codecs remain unchanged.
-See
+reservation, upload or execution authority. Private SQL parity helpers share its
+vectors; durable video coverage and lifecycle contracts are still required
+before any caller is installed. Existing photo/audio source codecs remain
+unchanged. See
 [the held fingerprint contract](../../../../../docs/backend-and-data/05-api-contracts.md#held-video-source-fingerprint-v1).
