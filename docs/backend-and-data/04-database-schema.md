@@ -8253,3 +8253,25 @@ consumer exists. No invocation, accounting, credit, draft, result, receipt,
 occupancy or erasure state changes when capturing/reading this evidence. Payload
 retention is not semantic result validation or settlement; those remain required
 before public execution can open.
+
+### Private V4 canonical draft retention
+
+`record_video_observation_draft` saves one immutable prepared V4 draft under the
+same canonical owner/source/intent locks and dispatch witness as outcome
+capture. The original quota token, exact saved input/evidence and draft received
+outcome are required. The result must equal that outcome except for its
+independently verified species link; result provenance must also match the
+dispatch witness. First storage checks scan identity, primitive fields,
+confidence, review-field exclusion, dictionary linkage under a share lock and
+the existing projection validator. Full Identify semantic validation remains the
+canonical Edge builder's responsibility. JSONB storage remains bounded to 1 MiB.
+
+Exact replay survives dictionary changes and invocation retention, but never
+owner deletion or a changed draft. Saving the received outcome already
+established invocation identity, so first draft retention does not require a
+still-live invocation. Gates, work/media expiry and current consent do not
+discard known received evidence. The intent remains `dispatched`: only `draft`
+is written; usage, quota, credit, work claim, result, receipt and source
+occupancy are unchanged. A future accounting owner must establish the separate
+transition to `draft`. No API role can execute this private routine and no
+public consumer is installed.

@@ -12622,3 +12622,16 @@ and malformed/oversized saved input. Existing executable parsing and public
 result readers continue rejecting the draft. Draft schema4 is explicitly not
 public result snapshot4 (audio). Audio and generic execution suites remain
 regression checks; no SQL/result reader, native or provider path is activated.
+
+### Private V4 draft storage verification
+
+The video evidence DB suite passes prepared builder output through outcome and
+draft storage for all three graph variants. It tests unknown/refused/invalid
+outcome denial, wrong owner/token, altered input/evidence/result, invalid
+species and saved primitives, dictionary mismatch, size limits, late first
+persistence after invocation pruning, exact replay, deletion denial and
+two-session duplicate serialization. Intent fields other than draft remain
+byte-equivalent as JSONB; quota stays committed, complimentary credit held,
+usage/receipt null and no result appears. Static/catalog checks enforce private
+bounded execution and no accounting or activation. CI's restricted migration
+allowlist includes the new forward migration.

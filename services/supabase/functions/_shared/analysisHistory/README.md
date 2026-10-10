@@ -1270,3 +1270,11 @@ request rewrite or side effect. Draft4 is not public result snapshot4 (audio).
 SQL draft persistence, known-result settlement, video producer normalization and
 new result-reader versioning remain required before execution can open. See the
 [prepared semantic draft contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-v4-semantic-draft).
+
+### Prepared video draft storage
+
+The private SQL draft writer binds `buildPreparedVideoDraft` output to the saved
+received outcome and dictionary identity. It stores the draft while leaving the
+intent dispatched and accounting/settlement held; no route calls it. See the
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#private-v4-draft-persistence)
+for replay and late-answer boundaries.

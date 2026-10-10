@@ -17811,15 +17811,35 @@ independently resolved matching taxonomy link. The prepared draft retains the
 existing 1 MiB minus 4 KiB metadata reserve.
 
 Draft schema4 is the input generation, not a public result snapshot version.
-Result snapshot4 already represents prepared audio; future video persistence
-requires a distinct version and reader contract. This builder has no executable
-caller, SQL write, accounting, append, settlement, occupancy release or cleanup
-authority. Public executable V4 parsing remains denied. Future draft persistence
-must bind the canonical result, except its independently verified species link,
-to the exact saved received outcome before any known-result settlement. V4
-provider normalization is also still uninstalled: it must use visual evidence
-for five frames and audio evidence only for the saved optional audio branch.
+Result snapshot4 already represents prepared audio; future video result
+publication requires a distinct version and reader contract. This builder has no
+executable caller, SQL write, accounting, append, settlement, occupancy release
+or cleanup authority. Public executable V4 parsing remains denied. The private
+draft persistence boundary below binds the canonical result, except its
+independently verified species link, to the exact saved received outcome before
+any known-result settlement. V4 provider normalization is also still
+uninstalled: it must use visual evidence for five frames and audio evidence only
+for the saved optional audio branch.
 
 The canonical result import also makes `upload-observation-video` a transitive
 Identify-contract dependency through its shared admission module. The deployment
 graph test includes that route; this dependency does not activate execution.
+
+### Private V4 draft persistence
+
+The ungranted
+`record_video_observation_draft(owner, observation, analysis,
+quota_token, draft)`
+accepts the prepared builder's exact identity/evidence and requires a saved
+draft outcome. Its result minus `species_id` must equal the saved result; the
+independently checked dictionary link is the only enrichment. Result provenance
+must equal both outcome and immutable dispatch witness. Missing, refused or
+invalid outcomes cannot be promoted. Exact replay accepts only the already saved
+draft and still applies owner/source deletion fencing.
+
+This stores evidence only: state stays `dispatched`, usage remains unsettled and
+there is no credit settlement, completion receipt, result append, occupancy
+release or provider retry. It accepts late known evidence after expiry and after
+invocation retention. Full semantic validation belongs to the Edge builder; SQL
+adds identity/taxonomy/projection checks. The helper has no public wire or
+native caller. Future known-result accounting and settlement remain separate.

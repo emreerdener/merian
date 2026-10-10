@@ -138,3 +138,32 @@ Deno.test("video received outcome is private and cannot grant settlement or prov
   );
   assert(!/SET work_token|may_dispatch.*TRUE|DELETE FROM/.test(sql));
 });
+
+Deno.test("video draft storage cannot imply settlement or provider retry", async () => {
+  const sql = await Deno.readTextFile(
+    new URL(
+      "../../migrations/20261010161048_prepare_private_video_draft_persistence.sql",
+      import.meta.url,
+    ),
+  );
+  assert(
+    !/\bGRANT\b|CREATE (?:OR REPLACE )?FUNCTION public\.|ALTER TABLE/.test(sql),
+  );
+  for (
+    const boundary of [
+      "lock_video_observation_analysis",
+      "assert_video_analysis_dispatch_identity",
+      "saved.provider_outcome#>>'{outcome,kind}'",
+      "result-'species_id' IS DISTINCT FROM saved.provider_outcome",
+      "saved.draft IS DISTINCT FROM p_draft",
+      "FOR SHARE",
+      "observation_analysis_projection",
+      "SET draft=p_draft",
+      "FROM PUBLIC,anon,authenticated,service_role",
+    ]
+  ) assert(sql.includes(boundary), boundary);
+  assert(
+    !/complete_identification_usage|settle_complimentary_analysis|append_observation_analysis|SET state=|SET work_token|INSERT INTO|DELETE FROM/
+      .test(sql),
+  );
+});
