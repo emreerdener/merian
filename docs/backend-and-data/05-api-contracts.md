@@ -17365,3 +17365,24 @@ then validates the whole reply against the original candidate and owner. It has
 no installed HTTP/native caller. Unavailable or held observations never prove
 vacancy. Existing video reservation/recovery gates remain false; no SQL,
 photo/audio codec, native transport or ordinary access changes are included.
+
+### Prepared native video binary wire
+
+`ObservationVideoEvidenceWireRequest` is the handwritten native Wire1 encoder
+for the prepared `upload-observation-video` endpoint. It takes the original
+validated schema2 reservation envelope, an existing inventory media ID and the
+exact saved item bytes. Metadata embeds the envelope unchanged, including saved
+V4 input formatting, with schema_version1, reader_version12 and lowercase
+media_id. A four-byte unsigned big-endian metadata length precedes UTF-8 JSON;
+the item immediately follows. Metadata is bounded to1,048,832 bytes; the
+complete body to that bound plus four bytes and12MiB. The inventory imposes the
+smaller per-item bound before hashing or body allocation.
+
+Unknown media, incorrect count and mismatched SHA-256 fail locally. Cancellation
+is checked before parsing and after construction. The caller must own an
+off-main preparation task. Rebuilding from the same saved envelope and bytes
+produces the identical wire body without generating any identity, sampling or
+extracting media. Digest equality alone does not establish container validity,
+authentication, allocation, readiness or execution permission. Server validators
+remain required. This checkpoint installs no native transport or queue caller;
+reader11 photo/audio paths and generated Identify DTOs are unchanged.

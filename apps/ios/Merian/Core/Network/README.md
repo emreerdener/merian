@@ -4234,3 +4234,14 @@ identity and whole immutable inventory. Saved request bytes remain unchanged.
 snapshot, fixed object IDs/deadline, strict UTC milliseconds and monotonic
 per-item readiness. Fresh allocation decoding requires every item unready. These
 values install no transport, queue, storage verifier or provider caller.
+
+### Prepared video binary wire
+
+`ObservationVideoEvidenceWireRequest` frames one saved cohort item for
+`upload-observation-video`: four-byte big-endian metadata length, reader12 Wire1
+JSON, then exact bytes. It embeds the original schema2 candidate without
+reserialization and rejects unknown media, byte-count or SHA-256 mismatch.
+Preparation checks cancellation before and after bounded construction. It must
+run on an owned preparation task. This value performs no I/O and installs no
+transport or queue caller; server container checks remain authoritative. See
+[the native wire contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-native-video-binary-wire).

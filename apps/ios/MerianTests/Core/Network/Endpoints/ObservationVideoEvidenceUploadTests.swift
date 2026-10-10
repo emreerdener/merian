@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 @testable import Merian
 import Testing
@@ -114,6 +115,70 @@ struct ObservationVideoEvidenceUploadTests {
             var value = try row("allocated"); value["expires_at"] = stamp
             #expect(try ObservationVideoEvidenceReceipt(data: data(value), request: request, ownerID: owner).expiresAt == stamp)
         }
+    }
+
+    @Test func exactWireFramingForEverySavedCohortItem() throws {
+        for vector in try vectors("video-request-v4") {
+            let row = try #require(vector["input"] as? [String: Any])
+            let original = try ObservationVideoReanalysisRequest(savedBody: data(row))
+            var manifest = try #require(row["evidence_manifest"] as? [String: Any])
+            var provenance = try #require(manifest["provenance"] as? [String: Any])
+            let inventory = try ObservationVideoCohortInventory(input: original.body)
+            let payloads = Dictionary(uniqueKeysWithValues: inventory.items.enumerated().map { index, item in
+                (item.artifact.mediaID, Data(repeating: UInt8(index + 1), count: item.artifact.byteCount))
+            })
+            func update(_ value: Any?) throws -> [String: Any] {
+                var artifact = try #require(value as? [String: Any])
+                let id = try ObservationHistoryPage.uuid(artifact["media_id"])
+                artifact["sha256"] = SHA256.hash(data: try #require(payloads[id])).map { String(format: "%02x", $0) }.joined()
+                return artifact
+            }
+            provenance["source"] = try update(provenance["source"])
+            var frames = try #require(provenance["frames"] as? [[String: Any]])
+            for index in frames.indices { frames[index]["artifact"] = try update(frames[index]["artifact"]) }
+            provenance["frames"] = frames
+            if var audio = provenance["audio"] as? [String: Any] {
+                audio["artifact"] = try update(audio["artifact"]); provenance["audio"] = audio
+            }
+            manifest["provenance"] = provenance
+            let video = try ObservationVideoReanalysisRequest(observationID: original.observationID,
+                analysisID: original.analysisID, sourceAnalysisID: original.sourceAnalysisID, manifestBytes: data(manifest))
+            let pretty = try JSONSerialization.data(withJSONObject: JSONSerialization.jsonObject(with: video.body), options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+            let candidate = try ObservationVideoSourceReservationRequest(video: .init(savedBody: pretty))
+            for item in inventory.items {
+                let bytes = try #require(payloads[item.artifact.mediaID])
+                let wire = try ObservationVideoEvidenceWireRequest(candidate: candidate, mediaID: item.artifact.mediaID, bytes: bytes)
+                let length = wire.body.prefix(4).reduce(0) { ($0 << 8) | Int($1) }
+                let header = wire.body.subdata(in: 4..<(4 + length))
+                let metadata = try #require(JSONSerialization.jsonObject(with: header) as? [String: Any])
+                #expect(Set(metadata.keys) == ["schema_version", "reader_version", "candidate", "media_id"])
+                #expect(metadata["schema_version"] as? Int == 1 && metadata["reader_version"] as? Int == 12)
+                #expect(metadata["media_id"] as? String == item.artifact.mediaID.uuidString.lowercased())
+                #expect(header.range(of: candidate.body) != nil)
+                #expect(wire.body.suffix(bytes.count) == bytes)
+                #expect(wire.request.identity == candidate.identity)
+                #expect(try ObservationVideoEvidenceWireRequest(candidate: candidate, mediaID: item.artifact.mediaID, bytes: bytes).body == wire.body)
+                #expect(throws: (any Error).self) { try ObservationVideoEvidenceWireRequest(candidate: candidate, mediaID: UUID(), bytes: bytes) }
+                #expect(throws: (any Error).self) { try ObservationVideoEvidenceWireRequest(candidate: candidate, mediaID: item.artifact.mediaID, bytes: bytes.dropLast()) }
+                var corrupt = bytes; corrupt[0] ^= 255
+                #expect(throws: (any Error).self) { try ObservationVideoEvidenceWireRequest(candidate: candidate, mediaID: item.artifact.mediaID, bytes: corrupt) }
+            }
+        }
+    }
+
+    @Test func cancelledWirePreparationDoesNotAllocateBody() async throws {
+        let input = try #require(vectors("video-request-v4").first?["input"])
+        let candidate = try ObservationVideoSourceReservationRequest(video: .init(savedBody: data(input)))
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            do {
+                _ = try ObservationVideoEvidenceWireRequest(candidate: candidate, mediaID: UUID(), bytes: Data())
+                Issue.record("Cancelled preparation unexpectedly succeeded")
+            } catch is CancellationError {
+                // Cancellation wins before inventory parsing or byte validation.
+            } catch { Issue.record("Expected cancellation, got \(error)") }
+        }
+        await task.value
     }
 
 }

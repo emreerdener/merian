@@ -12395,3 +12395,14 @@ five-second timeout. Existing source route tests retain schema1 behavior and add
 schema2 V4 owner-derived routing with no legacy fallback. Both candidate helper
 selectors include the adapter suite. Native delivery and hosted qualification
 remain separate.
+
+### Prepared native video binary wire coverage
+
+`ObservationVideoEvidenceUploadTests` checks source/frame/audio framing from
+saved V4 audio and silent candidates, preservation of pretty-printed candidate
+bytes, the closed metadata fields and big-endian length, exact repeat output,
+unknown media, truncated and digest-corrupted bytes, and cancellation before
+construction. These synthetic byte patterns prove framing/digest binding only;
+they are not container or live transport qualification. Endpoint container and
+authorization validation remain separate. Native transport, durable delivery and
+real allocated-route write/HEAD/completion remain later acceptance work.

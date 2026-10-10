@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Prepared metadata only. No transport, queue or byte-verification capability.
@@ -114,5 +115,38 @@ struct ObservationVideoEvidenceReceipt: Equatable, Sendable {
         let days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
         guard (1...days[parts[1] - 1]).contains(parts[2]) else { throw MerianError.invalidResponse }
         return value
+    }
+}
+
+/// Prepared Wire1 body for one immutable cohort item. Hash equality is not container or server authority.
+struct ObservationVideoEvidenceWireRequest: Equatable, Sendable {
+    static let maximumMetadataBytes = ObservationVideoSourceReservationRequest.maximumBytes + 256
+    static let maximumBytes = 4 + maximumMetadataBytes + 12 * 1_024 * 1_024
+    let candidate: ObservationVideoSourceReservationRequest
+    let request: ObservationVideoEvidenceUploadRequest
+    let mediaID: UUID
+    let body: Data
+
+    /// Call on the owner's preparation task, before any transport attempt.
+    init(candidate: ObservationVideoSourceReservationRequest, mediaID: UUID, bytes: Data) throws {
+        try Task.checkCancellation()
+        let request = try ObservationVideoEvidenceUploadRequest(input: candidate.input)
+        guard let item = request.inventory.items.first(where: { $0.artifact.mediaID == mediaID }),
+              bytes.count == item.artifact.byteCount,
+              SHA256.hash(data: bytes).map({ String(format: "%02x", $0) }).joined() == item.artifact.sha256 else {
+            throw MerianError.invalidResponse
+        }
+        // Embed the saved envelope directly. Parsing and reserializing it would lose exact replay bytes.
+        var metadata = Data("{\"schema_version\":1,\"reader_version\":12,\"candidate\":".utf8)
+        metadata.append(candidate.body)
+        metadata.append(Data(",\"media_id\":\"\(mediaID.uuidString.lowercased())\"}".utf8))
+        guard metadata.count <= Self.maximumMetadataBytes else { throw MerianError.invalidResponse }
+        let length = UInt32(metadata.count)
+        var body = Data([UInt8((length >> 24) & 255), UInt8((length >> 16) & 255),
+                         UInt8((length >> 8) & 255), UInt8(length & 255)])
+        body.append(metadata); body.append(bytes)
+        guard body.count <= Self.maximumBytes else { throw MerianError.invalidResponse }
+        try Task.checkCancellation()
+        self.candidate = candidate; self.request = request; self.mediaID = mediaID; self.body = body
     }
 }
