@@ -4215,3 +4215,13 @@ upload, execution or release authority. See the prepared video source contract
 in `docs/backend-and-data/05-api-contracts.md` and shared-fixture coverage in
 the canonical testing strategy. Existing photo/audio reservation owners remain
 unchanged.
+
+## Prepared video retirement models
+
+`Models/ObservationAnalysis/ObservationVideoSourceRetirement.swift` owns the
+separate reader-12 request and permanent receipt. Both bind the original
+complete video identity; saved request and response bytes survive validation
+unchanged. They install no endpoint, queue or cleanup consumer. The
+[canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-video-pre-execution-retirement-parity)
+owns bounds, compatibility and authority; shared-vector tests live in
+`ObservationVideoSourceRetirementTests`.

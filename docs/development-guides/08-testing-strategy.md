@@ -12290,3 +12290,14 @@ Edge suite and before catalog/security qualification: committed integration
 fixtures and altered cutover state are not a fresh catalog baseline. These are
 metadata lifecycle checks, not provider execution, hosted storage or native
 delivery qualification.
+
+### Native video retirement parity verification
+
+`ObservationVideoSourceRetirementTests` checks shared audio/silent/Unicode
+request and receipt vectors, exact saved-byte restoration, every closed field,
+owner/operation/candidate association, target UUID alias rejection, scalar
+types, legacy states, byte limits and UTF-8-only decoding including BOM-free
+alternate encodings. Run it with the video reservation, fingerprint and
+saved-request suites through `make ios-local-build`; retain exact scoped
+candidate and XCResult identity. This verifies handwritten models, not native
+delivery, server receipt provenance, cleanup or device qualification.

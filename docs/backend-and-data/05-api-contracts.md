@@ -17039,8 +17039,7 @@ binds owner, operation, full candidate identity and validated V4 fingerprint,
 snapshots mutable inputs before hashing, and rejects extra fields or any other
 state. Matching JSON alone cannot authenticate a server receipt or authorize
 release. Fixed audio, silent and Unicode vectors freeze this representation for
-SQL parity and future native parity. Reader-11 photo/audio contracts are
-unchanged.
+SQL and native parity. Reader-11 photo/audio contracts are unchanged.
 
 An optional V4 cohort must exactly match the binding-derived whole inventory.
 The server retains that inventory (or explicit no-cohort proof) privately with
@@ -17083,3 +17082,29 @@ The original binding remains an ingestion fence. Binding/occupancy/cohort,
 shared admission-chain and execution locks explicitly reject retired children.
 Parent erasure cascades the private record; replay still checks ownership and
 deletion first. Legacy release proofs and funded retirement are unchanged.
+
+### Native video pre-execution retirement parity
+
+`ObservationVideoSourceRetirementRequest` and
+`ObservationVideoSourceRetirementReceipt` mirror the separate reader-12/schema-2
+wire. Construction binds a validated original video identity to a distinct
+operation UUID. Restoration validates every closed field against that identity
+and retains the exact persisted bytes, including whitespace; it never generates
+a new operation or rewrites the saved request. The permanent receipt binds
+owner, operation and complete original identity and accepts only
+`retired_pre_execution`. Both boundaries enforce 2 KiB and UTF-8, including
+rejection of BOM-free UTF-16 and UTF-32 that Foundation could otherwise
+auto-detect. Original reply bytes are retained. Reservation/recovery decoders
+still reject retirement states.
+
+These handwritten models are outside the generated Identify DTO block. They
+install no HTTP transport, durable delivery, cleanup, UI, gate or ordinary
+access. Matching JSON alone is not authenticated server provenance and grants no
+local cleanup authority. Shared audio/silent/Unicode vectors verify Swift parity
+with the existing Deno and SQL contract. Native delivery and receipt-bound
+cleanup remain separate reviewed work.
+
+The shared video identity and reservation-reply byte boundaries also reject raw
+NUL bytes before Foundation JSON parsing. This prevents BOM-free UTF-16/32
+autodetection from accepting alternate encodings at a boundary that requires
+UTF-8; escaped JSON Unicode and the shared Unicode vectors remain supported.

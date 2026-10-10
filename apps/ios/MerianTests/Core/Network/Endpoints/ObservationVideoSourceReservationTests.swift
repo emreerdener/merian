@@ -74,7 +74,7 @@ struct ObservationVideoSourceReservationTests {
     @Test func directVideoInputRejectsFoundationAlternateEncodings() throws {
         let vector = try #require(fixtures("video-request-v4").first)
         let text = try #require(vector["canonical_body"] as? String)
-        for encoding in [String.Encoding.utf16, .utf32] {
+        for encoding in [String.Encoding.utf16, .utf32, .utf16LittleEndian, .utf32LittleEndian] {
             let encoded = try #require(text.data(using: encoding))
             // Foundation support differs by platform; rejection at either boundary is safe.
             #expect(throws: (any Error).self) { try ObservationVideoSourceIdentity(input: encoded) }
@@ -118,7 +118,8 @@ struct ObservationVideoSourceReservationTests {
         let target = try identity(), valid = try data(replies()[0])
         let text = try #require(String(data: valid, encoding: .utf8))
         for bad in [Data(), Data(repeating: 32, count: 2049), Data([0xc3, 0x28]), Data("[]".utf8),
-                    Data("{".utf8), try #require(text.data(using: .utf16))] {
+                    Data("{".utf8), try #require(text.data(using: .utf16)), try #require(text.data(using: .utf32)),
+                    try #require(text.data(using: .utf16LittleEndian)), try #require(text.data(using: .utf32LittleEndian))] {
             #expect(throws: (any Error).self) { try ObservationVideoSourceReservationReply(data: bad, identity: target, ownerID: owner) }
         }
     }

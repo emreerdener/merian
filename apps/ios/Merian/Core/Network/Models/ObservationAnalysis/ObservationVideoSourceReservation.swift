@@ -10,7 +10,7 @@ struct ObservationVideoSourceIdentity: Equatable, Sendable {
     let fingerprint: String
 
     init(input: Data) throws {
-        guard !input.isEmpty, input.count <= 1_044_480,
+        guard !input.isEmpty, input.count <= 1_044_480, !input.contains(0),
               String(data: input, encoding: .utf8) != nil else { throw MerianError.invalidResponse }
         fingerprint = try ObservationVideoSourceFingerprint(input: input).sha256
         guard let row = try JSONSerialization.jsonObject(with: input) as? [String: Any],
@@ -26,13 +26,13 @@ struct ObservationVideoSourceIdentity: Equatable, Sendable {
         try JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys, .withoutEscapingSlashes])
     }
 
-    fileprivate var fields: [String: Any] {
+    var fields: [String: Any] {
         ["schema_version": 2, "observation_id": observationID.uuidString.lowercased(),
          "source_analysis_id": sourceAnalysisID.uuidString.lowercased(), "analysis_id": analysisID.uuidString.lowercased(),
          "request_digest": requestDigest, "fingerprint_version": 1, "fingerprint": fingerprint]
     }
 
-    fileprivate func validate(_ row: [String: Any]) throws {
+    func validate(_ row: [String: Any]) throws {
         guard try ObservationHistoryPage.integer(row["schema_version"]) == 2,
               try ObservationHistoryPage.integer(row["fingerprint_version"]) == 1,
               row["observation_id"] as? String == observationID.uuidString.lowercased(),
@@ -85,7 +85,7 @@ struct ObservationVideoSourceReservationReply: Equatable, Sendable {
     let data: Data
 
     init(data: Data, identity: ObservationVideoSourceIdentity, ownerID: UUID) throws {
-        guard !data.isEmpty, data.count <= Self.maximumBytes,
+        guard !data.isEmpty, data.count <= Self.maximumBytes, !data.contains(0),
               String(data: data, encoding: .utf8) != nil,
               let row = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               row["owner_id"] as? String == ownerID.uuidString.lowercased() else { throw MerianError.invalidResponse }
