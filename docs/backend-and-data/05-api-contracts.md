@@ -17843,3 +17843,22 @@ release or provider retry. It accepts late known evidence after expiry and after
 invocation retention. Full semantic validation belongs to the Edge builder; SQL
 adds identity/taxonomy/projection checks. The helper has no public wire or
 native caller. Future known-result accounting and settlement remain separate.
+
+### Private V4 accounting preparation
+
+The ungranted
+`account_video_observation_draft(owner, observation, analysis,
+quota_token)`
+accepts only an exact saved successful draft and its original committed
+execution. A successful ledger projection is independently checked after
+idempotent accounting; an already reconciled unknown event, mismatched usage or
+missing original invocation keeps the child held. It never overwrites an event,
+creates another invocation or refunds a reservation.
+
+The private immutable proof permits exact replay after invocation retention.
+First accounting atomically records that proof, saves received usage and
+advances only to `draft`. Credit remains held until future durable completion;
+no result/receipt append, source release, public/native caller or activation is
+installed. Refusal/invalid-output terminal settlement remains a separate
+requirement. This private accounting receipt adds no public DTO or reader
+version.

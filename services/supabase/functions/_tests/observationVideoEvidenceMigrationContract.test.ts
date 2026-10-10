@@ -167,3 +167,31 @@ Deno.test("video draft storage cannot imply settlement or provider retry", async
       .test(sql),
   );
 });
+
+Deno.test("video accounting is private and never settles completion or retries execution", async () => {
+  const sql = await Deno.readTextFile(
+    new URL(
+      "../../migrations/20261010162902_prepare_private_video_accounting.sql",
+      import.meta.url,
+    ),
+  );
+  assert(!/\bGRANT\b|CREATE (?:OR REPLACE )?FUNCTION public\./.test(sql));
+  for (
+    const boundary of [
+      "ENABLE ROW LEVEL SECURITY",
+      "lock_video_observation_analysis",
+      "video_analysis_accounting_invocation",
+      "observation_source_expected_usage",
+      "FOR UPDATE",
+      "FOR SHARE",
+      "analysis_history_accounting_unproven",
+      "pg_current_xact_id()",
+      "receipt.proof->'product'",
+      "FROM PUBLIC,anon,authenticated,service_role",
+    ]
+  ) assert(sql.includes(boundary), boundary);
+  assert(
+    !/PERFORM internal\.(?:settle_complimentary_analysis|fail_observation_analysis)|SET work_token|may_dispatch.*TRUE/
+      .test(sql),
+  );
+});

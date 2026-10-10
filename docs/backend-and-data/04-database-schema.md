@@ -8272,6 +8272,26 @@ established invocation identity, so first draft retention does not require a
 still-live invocation. Gates, work/media expiry and current consent do not
 discard known received evidence. The intent remains `dispatched`: only `draft`
 is written; usage, quota, credit, work claim, result, receipt and source
-occupancy are unchanged. A future accounting owner must establish the separate
-transition to `draft`. No API role can execute this private routine and no
-public consumer is installed.
+occupancy are unchanged. The separate private accounting owner establishes the
+transition to `draft` only after proving successful usage. No API role can
+execute this private routine and no public consumer is installed.
+
+### Private V4 successful accounting
+
+`account_video_observation_draft` requires the exact saved canonical draft and
+received draft outcome under canonical owner/source/intent locks. It verifies
+the original committed quota, attempt, lease and invocation before completing
+usage. It then compares the actual ledger event against the expected successful
+projection; an existing unknown, refused, erroneous or mismatched event cannot
+be promoted. Missing invocation proof before first accounting fails closed.
+
+An immutable private accounting receipt binds input, draft, outcome, usage and
+funding hashes, execution facts and the exact event projection. Its fenced
+insert and the transition from `dispatched` to `draft` with saved provider usage
+are atomic. Exact replay survives invocation retention using this proof; owner
+deletion still denies it. Unavailable counts stay null under the existing usage
+contract, and unavailable pricing does not fabricate a cost.
+
+This receipt is not completion or erasure authority. Complimentary credit stays
+held, quota stays committed, and no result, completion receipt or occupancy
+release occurs. All helpers/table access remain revoked from API roles.

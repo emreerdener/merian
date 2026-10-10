@@ -12635,3 +12635,19 @@ byte-equivalent as JSONB; quota stays committed, complimentary credit held,
 usage/receipt null and no result appears. Static/catalog checks enforce private
 bounded execution and no accounting or activation. CI's restricted migration
 allowlist includes the new forward migration.
+
+### Private V4 accounting verification
+
+The video database suite covers all three evidence graphs, exact committed
+execution, missing invocation, known-result ledger comparison, existing
+unknown/refusal/failure or mismatched usage, atomic rollback on receipt failure,
+matching preexisting usage, duplicate two-session accounting, immutable receipts
+and replay after invocation pruning and gate/expiry changes. It asserts held
+credit, committed quota, unchanged work claim, no completed result/receipt and
+denied generic completion after the transition to draft. Deletion still denies
+replay. Catalog tests check RLS, API-role denial and bounded definer ownership.
+
+Run the fresh disposable database catalog/ACL and full Edge suites, migration
+and restricted CI helper contracts, recursive formatting/lint/type checks and
+complete Supabase tooling gate on the isolated candidate. Keep failed evidence
+separate. These tests do not qualify external execution or authorize activation.
