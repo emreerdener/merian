@@ -991,3 +991,15 @@ merge with `55000/field_chat_execution_merge_conflict`. The whole merge rolls
 back, preserving both owners and all attempt evidence. Neither operational quota
 retirement nor a user-controlled bypass resolves this conflict. Two terminal
 seals with the same UUID also block merge; no winner is selected.
+
+### Prepared V4 execution service boundary
+
+The four video begin/advance/recovery RPCs are explicit service-role grants in
+`internal.privileged_routine_grants`. Each checks service role and both disabled
+orchestration gates; the private video state owners remain ungranted. Recovery
+uses canonical owner/source locks and only durable known outcomes or drafts.
+Fresh dispatch and received-result settlement retain separate fences. Worker
+claims, original quota, outcomes and evidence inventories are private, never
+client response or logging material. No Edge/native caller, scheduler, release
+or gate activation is supplied. See the
+[closed service contract](05-api-contracts.md#prepared-service-only-video-execution-composition).

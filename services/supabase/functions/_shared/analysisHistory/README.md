@@ -1330,3 +1330,11 @@ unknown execution, and grants no execution or settlement authority. Generic
 capture and the claimed generic executor explicitly reject V4; public parsing
 and RPCs remain closed. See the
 [canonical normalization contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-v4-received-outcome-normalization).
+
+The prepared parallel SQL video orchestration RPCs now compose initial
+admission, materialization/one-shot dispatch and known-result
+recovery/settlement under service-only grants and disabled gates. Generic
+workers and executable parsers still reject V4. They are not callers of this new
+boundary; the video Edge and native execution composition remains pending. See
+the
+[service contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-service-only-video-execution-composition).

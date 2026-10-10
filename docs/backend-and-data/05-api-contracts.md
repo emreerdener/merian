@@ -17961,3 +17961,45 @@ performing work. Public executable parsing, begin/advance/recovery RPCs and
 native execution remain closed to V4. Gates remain disabled and ordinary access
 nil. This prepares producer normalization within video acceptance; it is not
 runtime or device qualification.
+
+### Prepared service-only video execution composition
+
+The SQL service boundary for V4 input consists of
+`begin_owned_observation_video_analysis(owner,input,ip_hash)`,
+`list_observation_video_analysis_recovery()`,
+`claim_observation_video_analysis_recovery(owner,observation,analysis)` and
+`advance_owned_observation_video_analysis(owner,observation,analysis,work,operation,payload)`.
+Only `service_role` can execute them. Both orchestration gates default false;
+these routines are not authenticated client APIs or deployed worker scheduling.
+
+Begin returns `{state,claimed:false}` or a claimed120-second work lease with
+`work_token`, exact `input` and original `quota`. Recovery additionally returns
+`provider_outcome` and nullable `draft`; it only claims a durable received
+outcome or accounted draft. Discovery returns at most32 owner/parent/child
+identities and grants no authority. Unknown dispatch never becomes fresh work.
+
+Advance accepts a closed operation set. `materialize` returns the exact ready
+video evidence receipt under fresh dispatch validation. `dispatch` accepts
+`{provenance}` and returns the immutable invocation decision. `outcome` accepts
+`{quota_token,value}` under the original quota token, including after worker
+expiry; the value is the bounded canonical received outcome. `draft` accepts
+`{draft}`. `resolve_species`, `account`, `complete`, `fail` and `release` accept
+only `{}`. Except late outcome, each operation requires the exact live work
+token. Species resolution returns null or dictionary identity only. Account,
+complete and fail return their existing durable proofs/receipt. Draft returns
+the unchanged dispatched state; outcome/release return `{}`.
+
+Known-result operations do not invoke a provider, refresh quota or refund
+unknown execution. They retain each private owner's identity, deletion,
+accounting and retained-evidence guards. Release only clears work and delays
+recovery60 seconds. Worker inputs, quota, outcome and object inventory are
+private and must never reach client responses or logs. Legacy execution APIs
+continue denying V4; reader11 completed-result support is unchanged. Edge/native
+execution composition and integrated acceptance remain required. See the
+[database owner](04-database-schema.md#service-only-v4-orchestration).
+
+Video `resolve_species` only reads a case-normalized, unambiguous existing
+public biological dictionary identity with a GBIF key. Missing, unverified or
+ambiguous identity fails closed without inserting model-authored taxonomy. Any
+dictionary materialization belongs to the established verified resolver; it is
+not provider retry authority.

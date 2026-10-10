@@ -12739,3 +12739,15 @@ V4 denial by generic capture/execution. `execution_test.ts` retains V1–V3
 recovery regressions. These pure fixtures make no provider calls and do not
 qualify public video execution, user devices or external runtime/storage
 behavior.
+
+### Prepared video orchestration verification
+
+`observation_video_orchestration.sql` verifies disabled defaults, service-only
+grants, fixed security-definer paths and retained private-helper denial.
+`observationVideoEvidenceDb.test.ts` exercises public begin, exact replay, ready
+cohort materialization, one-shot dispatch, unknown-execution hold, late outcome
+capture, replacement recovery claims, successful accounting/completion and both
+known-terminal outcomes. It verifies expired/wrong work-token rejection, role
+and identity denial, closed generic entry points and no retry/refund. These
+local contracts do not qualify an Edge/native video execution consumer or
+external/device acceptance.

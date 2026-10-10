@@ -8377,3 +8377,40 @@ only a new identity can reserve after proven release. Video evidence remains
 retained, selection/review/reconciliation stay unchanged, and generic
 photo/audio proof semantics are unchanged. No source cleanup or external
 activation is authorized.
+
+### Service-only V4 orchestration
+
+Migration `20261010190000_prepare_video_orchestration.sql` composes the private
+video state owners through four explicitly allowlisted service RPCs. Both
+`orchestration_enabled` and the new default-false `video_orchestration_enabled`
+are required. Initial begin admits the exact V4 input and claims work; it cannot
+renew quota or rearm dispatched execution.
+
+Recovery discovery is bounded to32 identities with a saved outcome or accounted
+draft, an expired/absent work lease and an elapsed recovery delay. Recovery
+claim uses canonical owner/parent/source/child/intent locks, rechecks the
+dispatch witness, and returns a120-second work token with original input, quota,
+outcome and draft. Unknown execution is neither listed nor claimed.
+
+Advance materializes the exact closed ready cohort receipt only under a live
+fresh-dispatch claim. Dispatch keeps the existing one-invocation guard. Late
+outcome capture requires the original quota token independently of the work
+lease. Other operations require the current unexpired work token. Known-result
+species resolution, draft retention, accounting, completion and terminal
+settlement call their existing owners without fresh dispatch eligibility;
+accounting still requires its original execution proof and completion still
+requires intact retained evidence. Release clears only the matching live work
+claim and delays recovery60 seconds; it never releases source occupancy, refunds
+quota or invents a terminal outcome. No cancel-uninvoked operation is exposed.
+
+Private helpers remain ungranted. Legacy wrappers, public executable parsers,
+authenticated readers/actions and Edge/native execution consumers are unchanged.
+No scheduler or activation is installed. This service composition supersedes the
+earlier private-preparation sections' statements that no service consumer is
+installed; it does not make video executable from ordinary access.
+
+Video `resolve_species` only reads a case-normalized, unambiguous existing
+public biological dictionary identity with a GBIF key. Missing, unverified or
+ambiguous identity fails closed without inserting model-authored taxonomy. Any
+dictionary materialization belongs to the established verified resolver; it is
+not provider retry authority.
