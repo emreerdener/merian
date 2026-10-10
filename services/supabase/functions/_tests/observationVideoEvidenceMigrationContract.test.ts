@@ -223,3 +223,31 @@ Deno.test("video terminal settlement binds known outcomes without refund or sour
       .test(sql),
   );
 });
+
+Deno.test("private video completion binds accounted result5 and blocks unsupported readers", async () => {
+  const sql = await Deno.readTextFile(
+    new URL(
+      "../../migrations/20261010170334_prepare_private_video_completion.sql",
+      import.meta.url,
+    ),
+  );
+  assert(!/\bGRANT\b|CREATE (?:OR REPLACE )?FUNCTION public\./.test(sql));
+  for (
+    const boundary of [
+      "lock_video_observation_analysis",
+      "observation_video_accounting_receipts",
+      "video_analysis_accounting_product",
+      "assert_video_completion_evidence",
+      "pg_current_xact_id()",
+      "settle_complimentary_analysis",
+      "video_analysis_completion_matches",
+      "analysis_history_reader_upgrade_required",
+      "work_token=NULL,work_expires_at=NULL",
+      "FROM PUBLIC,anon,authenticated,service_role",
+    ]
+  ) assert(sql.includes(boundary), boundary);
+  assert(
+    !/complete_identification_usage|release_completed_observation_source|DELETE FROM internal.observation_analysis_source_occupancy|may_dispatch.*TRUE/
+      .test(sql),
+  );
+});

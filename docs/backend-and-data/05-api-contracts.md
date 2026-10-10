@@ -17880,4 +17880,30 @@ original invocation, contradictory accounting or an already settled allocation
 without proof stays held. Quota is never refunded; result, completion receipt,
 source occupancy and erasure are unchanged. Existing generic RPCs remain closed
 to V4. There is no new public DTO, HTTP/native caller or activation. Successful
-video completion and source release remain separate requirements.
+video completion is prepared below; source release remains separate.
+
+### Private V4 successful completion preparation
+
+The ungranted
+`complete_video_observation_analysis(owner, observation, analysis, quota_token)`
+accepts an already accounted canonical video draft. It requires the original
+committed quota and exact immutable accounting proof, then validates the
+retained ready cohort and dictionary/projection before atomically appending
+result snapshot5, blank review authority, credit settlement and a saved receipt.
+Video input/draft4 is distinct from audio result4. No provider call or ledger
+rewrite occurs. Missing/erased evidence remains a denial; expiry or closed
+fresh-dispatch gates alone do not discard a known accounted result.
+
+The receipt retains the existing private shape: `snapshot` (exact JSON text),
+`plan_used`, `credit_consumed`, and `entitlement_after`. Complimentary funding
+is consumed at durable completion, or released with `paid_before_completion` if
+the owner upgraded. Paid admission has no allocation. Replay returns those exact
+saved bytes after invocation retention without changing entitlement epoch or
+current selection/review. Deletion still fences replay.
+
+Public history page/state/action readers remain at their existing versions and
+reject a history containing any V4 video result, including an older cursor or
+selected child. Actions also reject an explicit pending V4 child. No public DTO,
+HTTP/native completion caller or reader11 is introduced. Versioned video
+parsers/readers and source-release proof remain required before public
+execution; occupancy stays held and activation gates remain disabled.

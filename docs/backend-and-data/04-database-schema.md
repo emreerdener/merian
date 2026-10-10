@@ -8321,3 +8321,29 @@ authorize source release, retirement or erasure: occupancy stays held, and no
 result/completion receipt is appended. Generic legacy advance/fail remains
 closed to V4 through the existing source fingerprint guard. API-role access to
 all new helpers/table remains revoked; no public consumer is installed.
+
+### Private V4 durable completion
+
+`complete_video_observation_analysis` requires the original quota token, exact
+saved successful draft/usage and immutable accounting proof under canonical
+owner/source/child/intent locks. The quota must remain committed with its
+original attempt and zero refunds. First completion rechecks the exact retained
+ready video cohort, taxonomy and result projection. Its admission deadline and
+current dispatch gates do not invalidate a received, accounted result; missing,
+changed or erased evidence still denies completion. Invocation retention does
+not discard the accounting proof.
+
+A transaction-bound completion fence protects insertion of the immutable result
+and its blank review authority. Video manifests/input version4 produce result
+snapshot5, preserving audio result4. Result insertion, complimentary consumption
+(or release after a paid upgrade), exact completion receipt and work-claim
+clearing are atomic. Paid admission proves no allocation exists. Initialized
+selection, reconciliation and previous authority remain unchanged. Exact replay
+returns the original saved receipt without accounting or settlement, including
+after invocation pruning or later entitlement changes; owner deletion denies it.
+
+All new helpers remain private. Existing public page/state/action readers reject
+the whole history once it contains a video result, including cursor pages or
+actions aimed at an older child. Reader/parser support is a separate checkpoint.
+Source occupancy remains held: this completion receipt alone is not the required
+source-release proof and grants no erasure or execution authority.

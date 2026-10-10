@@ -12670,3 +12670,23 @@ Run fresh disposable catalog/ACL and full Edge suites, migration/static/CI
 contracts and full Supabase tooling, recursive type/lint/format, DTO and
 Markdown gates. API-role and PUBLIC access stay denied. No provider call, hosted
 state, source cleanup or activation is exercised by these synthetic tests.
+
+### Private V4 successful completion verification
+
+The video evidence DB suite covers all three graphs with complimentary, paid and
+paid-before-completion funding. It denies missing accounting, altered
+draft/usage, wrong scope/token, direct result insertion, unready/erased evidence
+and generic completion. A failure after result insertion and settlement rolls
+back result, authority, credit and entitlement epoch. Late first completion
+after invocation pruning, deadline expiry and gate closure preserves the
+original accounting proof; exact replay and later entitlement changes preserve
+the saved receipt. Two-session duplicate completion waits for the first commit.
+
+Assertions cover snapshot5, blank initial authority, unchanged initialized
+selection/reconciliation, committed quota with zero refunds, one usage event,
+cleared work claims and retained occupancy. Public page/state/action tests deny
+all current readers for mixed video history, including cursor and older-child
+requests. Catalog/static checks enforce private bounded helpers. Run fresh
+disposable catalog/ACL and full Edge suites plus migration, restricted CI, full
+tooling, recursive type/lint/format, DTO and Markdown gates. These synthetic
+checks do not qualify a public/native video execution path or source release.
