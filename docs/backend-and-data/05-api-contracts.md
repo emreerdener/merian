@@ -16913,3 +16913,53 @@ closed to V4. A retained cohort prevents any future unfunded-retirement absence
 proof. Adding V4 lifecycle or media delivery requires separate reviewed
 contracts; neither this inventory nor its persistence authorizes another
 provider invocation.
+
+### Prepared video source reservation and recovery wire contract
+
+`videoSourceReservation.ts` defines a separate reader-12, outer-schema-2
+contract. It is not registered with an RPC, repository, HTTP handler, queue or
+native caller. Reader-11 photo/audio envelopes remain schema 1 with input schema
+2/3 and are unchanged. Both legacy reservation and executable admission continue
+to reject V4.
+
+The closed candidate fields are `schema_version: 2`, the complete `input`
+(schema 4), `fingerprint_version: 1` and `fingerprint`. Validation snapshots and
+deeply freezes the input before awaiting its separate video-domain SHA-256. The
+supplied `request_digest` keeps its immutable replay-identifier meaning; the
+server codec does not recompute a native saved-body digest. The envelope is
+bounded to 1 MiB. A future native producer must embed its exact saved input
+bytes, not rebuild them from current selection or a manifest. Parsed semantic
+objects are not a replacement for those saved bytes.
+
+A read-only recovery request has the exact identity fields `schema_version: 2`,
+`observation_id`, `source_analysis_id`, `analysis_id`, `request_digest`,
+`fingerprint_version: 1` and `fingerprint`. Build it from the validated complete
+candidate. The decoder checks the closed shape; a future database routine must
+independently match the actual owned binding. It is not vacancy or release
+proof.
+
+Every response, including held/unavailable responses, echoes **all** identity
+fields and `owner_id`. This binds the reply to the exact child and fingerprint,
+not only the parent/source pair. The response and recovery request bounds are 2
+KiB, decoded as strict UTF-8. Reservation and recovery share these closed
+states:
+
+| State         | Required durable meaning before a server may emit it                                                                                            |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reserved`    | Exact owned immutable binding and live occupancy observed under the canonical locks; no upload, admission or execution permission               |
+| `held`        | Conservative hold with exactly one of `source_occupied`, `ambiguous_occupancy`, `coverage_incomplete`, `malformed_linkage`, `terminal_unproven` |
+| `unavailable` | No actionable observation; does not disclose absence, ownership or deletion and never authorizes replacement                                    |
+
+Only `held` has a `reason` field. Unknown states, additional fields, mismatched
+identity/owner, `not_found`, `retired_unfunded`, `complete` and `dispatched` are
+rejected. There is no V4 durable retirement proof to decode yet. Local
+held-video discard remains local-only; it cannot establish remote absence or
+release. Unknown execution continues to permit status/outcome recovery and
+reconciliation only. No decoder invokes a provider or schedules, rearms, refunds
+or replaces work.
+
+The fixed `video-source-reservation-v2.json` vectors reference the existing
+ordered-audio, silent and Unicode fingerprint inputs. They freeze identity and
+all seven valid response shapes for later SQL/native parity. That parity, server
+gates and mutation-time validation remain prerequisites to connecting a
+consumer; this checkpoint introduces no producer or service grant.

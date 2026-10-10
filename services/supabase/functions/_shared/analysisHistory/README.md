@@ -1163,3 +1163,10 @@ persists whole inventories in a private source-bound table and includes them in
 coverage and child-use fences. It installs no API writer, object receipt or V4
 reservation/execution consumer. Generic photo/audio lifecycle parsers stay
 unchanged; V4 delivery and retirement remain separate checkpoints.
+
+`videoSourceReservation.ts` owns the separate prepared reader-12/schema-2 wire
+contract. Complete V4 candidates use the video fingerprint; reservation and
+read-only recovery responses bind owner plus the full candidate identity, with
+only reserved/held/unavailable states. Fixed vectors support later SQL/native
+parity. No live caller or retirement proof is installed. See the
+[wire contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-source-reservation-and-recovery-wire-contract).

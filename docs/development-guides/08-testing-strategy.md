@@ -12208,3 +12208,17 @@ workflow guard protect registration in both early checks and the exact bounded
 helper gate. Full disposable replay and the affected backend gates remain
 required; this coverage does not qualify hosted storage/CDN, device erasure,
 media transport or execution.
+
+### Prepared video source wire coverage
+
+`videoSourceReservation_test.ts` exercises schema-2/reader-12 V4 candidates and
+read-only recovery identities against fixed audio/silent/Unicode vectors. It
+checks deep snapshots across awaits, original replay digests, full identity on
+every reply, owner/source/child mismatch, unsupported states, closed keys,
+strict UTF-8 and byte bounds. It also proves the unchanged legacy reservation
+and executable-input parsers reject V4. Candidate CI includes this suite in both
+shared type checks and the bounded helper test list.
+
+This is codec coverage only. No SQL/native parity, durable reservation/recovery,
+retirement, transport, queue, media delivery or provider execution is claimed by
+these tests. Existing database storage evidence remains a separate checkpoint.
