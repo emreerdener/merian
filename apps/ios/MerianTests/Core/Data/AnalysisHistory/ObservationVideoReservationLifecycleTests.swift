@@ -11,8 +11,8 @@ struct ObservationVideoReservationLifecycleTests {
     typealias Seed = ObservationVideoDurabilityTests.Seed
     enum Simulated: Error { case save }
 
-    func staged() async throws -> (Seed, Store.Snapshot) {
-        let fixture = ObservationVideoDurabilityTests(), seed = try await fixture.seed()
+    func staged(audio: Bool = true) async throws -> (Seed, Store.Snapshot) {
+        let fixture = ObservationVideoDurabilityTests(), seed = try await fixture.seed(audio: audio)
         do {
             _ = try await fixture.producer(seed).prepare(seed.preparation, source: seed.source, cohort: seed.cohort,
                 container: seed.container, isCurrent: { true })

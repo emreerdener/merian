@@ -2167,3 +2167,20 @@ through account lease exit. Both Auth barriers invalidate and drain the owner;
 connectivity cancellation blocks dispatch while same-account known settlement
 remains possible. Ordinary UI access stays nil. See the
 [canonical delivery contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-retained-video-reservation-delivery).
+
+### Reserved video upload handoff
+
+`ObservationVideoUploadStore.swift` owns the separate closed version 1
+`video_evidence_upload` envelope. Its existing-only stage/read APIs transfer an
+exact observed/reserved reservation into held upload work without minting any
+identity. The original V2 reservation bytes and derived upload metadata request
+bytes remain nested verbatim. The outer bound is 7,467,048 bytes, including both
+base64 expansions. Source proof, owner/account, container, result, erasure and
+pristine held row/job parity remain mandatory. Exact replay saves nothing;
+uncertain saves recover the existing reservation or handoff.
+
+This is local staging only: no item claim, receipt, dispatch, readiness or
+cleanup capability is returned. Legacy photo/audio/preparation/reservation
+readers reject the new kind. Source occupancy and parent erasure remain intact.
+Delivery must verify saved files again before upload. See the
+[canonical handoff contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-reserved-video-upload-handoff).

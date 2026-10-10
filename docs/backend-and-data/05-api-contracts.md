@@ -17568,3 +17568,45 @@ account work; both network cancellation paths cancel dispatch. Completion is
 published only after actual owner exit and only for the current context/account.
 No scheduler, UI access, upload, restart lookup, provider invocation, refund or
 automatic caller is enabled. Gates remain disabled and ordinary access nil.
+
+### Native reserved video upload handoff
+
+`ObservationVideoUploadWork` is a closed local version 1 envelope with exactly
+`version`, `kind`, `reservation_base64` and `request_base64`; its kind is
+`video_evidence_upload`. It has no phase, attempt, receipt, object IDs, expiry,
+readiness or error state. The nested reservation must be valid version 2
+observed work with an owner-bound reserved reply.
+Staged/running/unknown/conflict and observed held/unavailable are rejected. The
+original reservation UTF-8 bytes remain verbatim, preserving its original V1
+envelope, V4 request, local attempt and raw server answer. The upload request is
+derived solely from that saved V4 input. Restoring its exact saved bytes uses
+the strict upload metadata decoder and requires byte equality with the canonical
+derived request; semantically equivalent reformatting is rejected. Names,
+current selection or newly prepared media cannot replace its inventory.
+
+The maximum envelope is 7,467,048 bytes: canonical base64 expansion of the
+5,595,996-byte reservation bound plus expansion of the 4,096-byte upload
+metadata bound and 256 bytes of fixed overhead. Each nested field is bounded
+before base64 allocation, and persisted text before Data allocation. Unknown
+fields, versions and noncanonical base64 fail closed. Decoding proves structural
+association only; it grants no authenticated remote authority.
+
+`ObservationVideoUploadStore.stage` requires the exact current reserved snapshot
+and same container under the existing local transaction. It revalidates source
+proof, account/owner, result collision, erasure and complete pristine held
+row/job media parity before replacing metadata. It preserves the nested terminal
+reservation rather than overwriting its provenance. Exact handoff replay retains
+the same request and saves nothing. A save that commits then throws can be read
+from a reopened container; failure before commit leaves the original reservation
+available for explicit retry. Existing-only read creates no job, candidate or
+receipt. Cancellation denies staging and discovery.
+
+The existing child stays needs-attention with zero queue attempts. Legacy
+photo/audio/preparation/reservation readers and generic discard cannot consume
+this envelope. Local source occupancy and parent erasure remain unchanged. There
+is no file read, item claim, upload delivery, upload receipt settlement,
+readiness projection, per-child cleanup, retirement or provider execution in
+this boundary. Those require separate retained lifecycle work; saved files must
+be verified again before delivery. No automatic caller or UI access is
+installed. Gates remain disabled and ordinary access nil. No wire payload or
+SwiftData entity changes.

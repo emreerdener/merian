@@ -12489,3 +12489,18 @@ checks cover both Auth barriers and both connectivity cancellation paths while
 excluding scheduler admission. Existing lifecycle, source-owner and reader12
 transport suites remain regression selectors. These checks establish explicit
 native delivery, not hosted runtime, upload progression or activation.
+
+### Reserved video upload handoff coverage
+
+`ObservationVideoUploadStagingTests` covers silent and audio-bearing ordered
+inventories, exact pretty-printed reservation bytes and derived upload request
+preservation, unchanged saved files, no-save replay, disk reopening, and save
+failure before commit or commit-then-throw.
+Account/container/source/job/attempt/ erasure/result changes and byte-level
+reservation replacement fail safely. Cross-analysis request substitution and
+forged owner replies are rejected. Codec checks reject every non-reserved
+reservation phase/outcome, extra fields, unsupported versions, noncanonical
+base64 and oversized work; a synthetic maximum envelope proves the base64
+expansion allowance. Legacy readers and discard reject the new handoff, and
+queue attempts remain zero. These tests qualify local staging only; item
+dispatch, upload receipts and cleanup remain separate.

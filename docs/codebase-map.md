@@ -3175,3 +3175,10 @@ video through `videoSourceReservationRepository` and its reader12 reserve RPC.
 Schema1 photo/audio keeps reader11 routing. The adapter prepares separate exact
 read-only recovery, currently without an HTTP/native caller. See the
 [reader12 admission contract](backend-and-data/05-api-contracts.md#reader12-video-source-http-admission).
+
+`Core/Data/AnalysisHistory/ObservationVideoUploadStore.swift` owns the held
+reserved-to-upload handoff: exact terminal reservation bytes, a derived upload
+metadata request, closed bounded encoding and existing-only stage/read APIs. It
+grants no item claim, receipt settlement, dispatch or cleanup authority; the
+[API handoff contract](backend-and-data/05-api-contracts.md#native-reserved-video-upload-handoff)
+owns those boundaries.
