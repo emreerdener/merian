@@ -27,6 +27,7 @@ struct ObservationHistoryPage {
         let version: Int
         let photos: [ObservationHistoryPhotoReference]
         let audio: ObservationHistoryAudioReference?
+        let video: ObservationVideoManifest?
         let analysisID: UUID
         let completedAt: Date?
         let importedAt: Date?
@@ -86,7 +87,7 @@ struct ObservationHistoryPage {
         let analysisID = try uuid(row["analysis_id"])
         let observationUUID = try uuid(observationID)
         let version = try integer(row["schema_version"])
-        guard [1, 2, 3, 4].contains(version), row["observation_id"] as? String == observationID,
+        guard [1, 2, 3, 4, 5].contains(version), row["observation_id"] as? String == observationID,
               analysisID != observationUUID,
               try integer(row["ordinal"]) == ordinal else {
             throw ObservationHistoryError.invalidSnapshot
@@ -123,7 +124,17 @@ struct ObservationHistoryPage {
         }
         var photos: [ObservationHistoryPhotoReference] = []
         var audio: ObservationHistoryAudioReference?
-        if version == 4 {
+        var video: ObservationVideoManifest?
+        if version == 5 {
+            let sourceID = try uuid(row["source_analysis_id"])
+            guard let manifest = row["evidence_manifest"] else { throw ObservationHistoryError.invalidSnapshot }
+            let decoded = try ObservationVideoManifest(data: JSONSerialization.data(withJSONObject: manifest),
+                observationID: observationUUID, analysisID: analysisID)
+            let graph = decoded.provenance
+            let artifacts = [graph.source] + graph.frames.map(\.artifact) + (graph.audio.map { [$0.artifact] } ?? [])
+            guard !artifacts.contains(where: { $0.mediaID == sourceID }) else { throw ObservationHistoryError.invalidSnapshot }
+            video = decoded
+        } else if version == 4 {
             audio = try ObservationHistoryAudioReference.decodeManifest(row["evidence_manifest"], observationID: observationUUID,
                 analysisID: analysisID)
         } else if version == 2 {
@@ -137,7 +148,7 @@ struct ObservationHistoryPage {
                 from: JSONSerialization.data(withJSONObject: mediaValue))
             guard !media.items.isEmpty else { throw ObservationHistoryError.invalidSnapshot }
         }
-        return Result(version: version, photos: photos, audio: audio, analysisID: analysisID,
+        return Result(version: version, photos: photos, audio: audio, video: video, analysisID: analysisID,
             completedAt: Date(timeIntervalSince1970: Double(milliseconds) / 1000), importedAt: nil, bytes: bytes)
     }
 

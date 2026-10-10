@@ -249,3 +249,34 @@ Deno.test("reader10 page and target state keep audio and imported authority sepa
   );
   assertThrows(() => parseHistoryState(state, target, state.owner_id, 9));
 });
+
+Deno.test("reader11 retains audio4 and imported3 read semantics", async () => {
+  const f = await fixture();
+  const page = JSON.parse(
+    await Deno.readTextFile(
+      new URL("./fixtures/page-v1.json", import.meta.url),
+    ),
+  );
+  const state = JSON.parse(
+    await Deno.readTextFile(
+      new URL("./fixtures/state-v1.json", import.meta.url),
+    ),
+  );
+  const audio = {
+    ...JSON.parse(page.items[0].snapshot),
+    schema_version: 4,
+    evidence_manifest: f.input.evidence_manifest,
+  };
+  for (
+    const snapshot of [
+      JSON.stringify(audio),
+      state.analysis.snapshot,
+      page.items[0].snapshot,
+    ]
+  ) {
+    assertEquals(
+      decodeAnalysisResultSnapshot(snapshot, 11),
+      decodeAnalysisResultSnapshot(snapshot, 10),
+    );
+  }
+});

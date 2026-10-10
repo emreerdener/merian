@@ -12685,8 +12685,28 @@ the saved receipt. Two-session duplicate completion waits for the first commit.
 Assertions cover snapshot5, blank initial authority, unchanged initialized
 selection/reconciliation, committed quota with zero refunds, one usage event,
 cleared work claims and retained occupancy. Public page/state/action tests deny
-all current readers for mixed video history, including cursor and older-child
-requests. Catalog/static checks enforce private bounded helpers. Run fresh
-disposable catalog/ACL and full Edge suites plus migration, restricted CI, full
-tooling, recursive type/lint/format, DTO and Markdown gates. These synthetic
-checks do not qualify a public/native video execution path or source release.
+older readers for mixed video history, including cursor and older-child
+requests; current action readers remain denied. Catalog/static checks enforce
+private bounded helpers. Run fresh disposable catalog/ACL and full Edge suites
+plus migration, restricted CI, full tooling, recursive type/lint/format, DTO and
+Markdown gates. These synthetic checks do not qualify a public/native video
+execution path or source release.
+
+### Video result reader11 verification
+
+The video evidence DB suite reads mixed video/legacy histories through reader11,
+including cursor pages, explicit video previews and existing selected state. It
+passes returned bytes through the Deno decoders, denies unknown readers and
+keeps action reader11 unavailable. Existing gates, owner/deletion fences,
+selection and source occupancy are unchanged.
+
+Shared result5 cases reuse all forty manifest4 acceptance/rejection vectors and
+add source-analysis aliases, null source and input/result-version confusion.
+Deno and native decoders consume the same cases; audio4 and imported3 retain
+prior semantics. Native sync tests persist exact video result bytes, reject
+changed replay, reopen a disk store and preserve selection and corrections. Run
+ObservationVideoManifestTests, ObservationHistorySyncTests,
+LocalAnalysisRecordTests and the adjacent history state/selection/review tests
+through the managed local simulator wrapper. This reader checkpoint does not
+qualify video execution, source release or devices; full integrated native
+capability acceptance remains a separate milestone.

@@ -26,7 +26,7 @@ struct ObservationAnalysisReviewTicketTests {
         var authority = try #require(JSONSerialization.jsonObject(with: state.review.data) as? [String: Any])
         authority.merge(authorityPatch) { _, new in new }
         let encoded = try JSONSerialization.data(withJSONObject: envelope)
-        let raw = try version == 4 ? ObservationHistoryPage.snapshot(encoded, observationID: state.observationID.uuidString.lowercased(), ordinal: ObservationHistoryPage.integer(envelope["ordinal"])) : ObservationHistoryPage.Result(version: version, photos: photos, audio: nil, analysisID: state.result.analysisID,
+        let raw = try version == 4 ? ObservationHistoryPage.snapshot(encoded, observationID: state.observationID.uuidString.lowercased(), ordinal: ObservationHistoryPage.integer(envelope["ordinal"])) : ObservationHistoryPage.Result(version: version, photos: photos, audio: nil, video: nil, analysisID: state.result.analysisID,
             completedAt: nil, importedAt: state.result.importedAt, bytes: encoded)
         let entry = ObservationHistoryListingService.Entry(result: raw, display: nil,
             authority: try ObservationHistoryAuthority.decode(authority), reviewRevision: revision)

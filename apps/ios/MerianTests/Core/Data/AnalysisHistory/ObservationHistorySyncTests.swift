@@ -351,3 +351,53 @@ extension ObservationHistorySyncTests {
         #expect(throws: (any Error).self) { try ObservationHistoryState.decode(bytes(state), request: .init(observation_id: observation, analysis_id: nil), ownerID: owner) }
     }
 }
+
+extension ObservationHistorySyncTests {
+    func videoSnapshot() throws -> [String: Any] {
+        let text = try DatabaseActorTestSupport.loadRepositorySource(at:
+            "services/supabase/functions/_shared/analysisHistory/fixtures/video-result-v5.json")
+        let fixture = try #require(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+        var snapshot = try #require(fixture["base_snapshot"] as? [String: Any])
+        let manifestsText = try DatabaseActorTestSupport.loadRepositorySource(at:
+            "services/supabase/functions/_shared/analysisHistory/fixtures/video-manifest-v4.json")
+        let manifests = try #require(JSONSerialization.jsonObject(with: Data(manifestsText.utf8)) as? [[String: Any]])
+        snapshot["evidence_manifest"] = manifests.first?["manifest"]
+        return snapshot
+    }
+
+    @Test func videoResultSyncReplaysAndReopensWithoutChangingSelectionOrCorrection() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("video-history-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("fixture.store"), snapshot = try videoSnapshot(), data = try audioPage(snapshot)
+        let analysis = try ObservationHistoryPage.uuid(snapshot["analysis_id"])
+        do {
+            let container = try container(url: url)
+            let service = ObservationHistorySyncService(cloud: client(fetch: { _ in data }))
+            _ = try await service.syncPage(observationID: observation, container: container)
+            _ = try await service.syncPage(observationID: observation, container: container)
+            #expect(try count(container) == 1)
+            var changed = snapshot; changed["completed_at_ms"] = 1750000000001 as Int64
+            let conflict = ObservationHistorySyncService(cloud: client(fetch: { _ in try audioPage(changed) }))
+            await #expect(throws: ObservationHistoryError.resultConflict) {
+                try await conflict.syncPage(observationID: observation, container: container)
+            }
+        }
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        let reopened = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+        let context = ModelContext(reopened), scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        let entry = try ObservationHistoryListingService.entry(analysis, scan: scan, context: context)
+        #expect(try entry.result.bytes == bytes(snapshot))
+        #expect(entry.result.version == 5 && entry.result.video != nil && entry.result.audio == nil && entry.result.photos.isEmpty)
+        #expect(scan.selectedAnalysisID == "00000000-0000-4000-8000-000000000009")
+        #expect(scan.userIdentificationOverride == "Existing correction")
+        #expect(throws: ObservationHistoryError.unavailable) {
+            try ObservationReanalysisSource.capture(observationID: UUID(uuidString: observation)!, analysisID: analysis, ownerID: owner, container: reopened)
+        }
+        #expect(throws: ObservationHistoryError.unavailable) {
+            try ObservationReanalysisSource.captureForAudio(observationID: UUID(uuidString: observation)!, analysisID: analysis, ownerID: owner, container: reopened)
+        }
+        #expect(throws: ObservationHistoryError.unavailable) {
+            try ObservationReanalysisSource.captureForVideo(observationID: UUID(uuidString: observation)!, analysisID: analysis, ownerID: owner, container: reopened)
+        }
+    }
+}

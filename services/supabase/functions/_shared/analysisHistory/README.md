@@ -51,17 +51,17 @@ analysis before using the existing effective-identification policy. Pure
 decision functions do not replace locked persistence, provider admission,
 entitlement settlement, or authorization.
 
-| Value                                    | Bound                                                 |
-| ---------------------------------------- | ----------------------------------------------------- |
-| Snapshot schema versions                 | 1, 2, imported saved-identification 3 and audio 4     |
-| Explicit history reader protocols        | 7 (V1), 8 (V1/V2), 9 (V1/V2/V3), backend 10 (also V4) |
-| History page                             | 1–20 entries, descending ordinal cursor               |
-| Observation/review revision              | 0–2,147,483,646; exhaustion fails closed              |
-| Result or evidence storage envelope      | 1 MiB each                                            |
-| Review or active projection              | 32 KiB each                                           |
-| Selection operation identity / receipt   | 2 KiB / 4 KiB                                         |
-| Chat system input / assembled user input | 64 KiB / 128 KiB UTF-8                                |
-| Serialized chat admission context        | 256 KiB                                               |
+| Value                                    | Bound                                                       |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| Snapshot schema versions                 | 1, 2, imported saved-identification 3, audio 4 and video 5  |
+| Explicit history reader protocols        | 7 (V1), 8 (V1/V2), 9 (V1/V2/V3), 10 (also V4), 11 (also V5) |
+| History page                             | 1–20 entries, descending ordinal cursor                     |
+| Observation/review revision              | 0–2,147,483,646; exhaustion fails closed                    |
+| Result or evidence storage envelope      | 1 MiB each                                                  |
+| Review or active projection              | 32 KiB each                                                 |
+| Selection operation identity / receipt   | 2 KiB / 4 KiB                                               |
+| Chat system input / assembled user input | 64 KiB / 128 KiB UTF-8                                      |
+| Serialized chat admission context        | 256 KiB                                                     |
 
 All versioned request keys are exact. An owner UUID supplied in a request body
 is invalid; a future route must derive identity from its verified session.
@@ -1305,7 +1305,7 @@ Private SQL now completes an exactly accounted video draft using retained ready
 evidence. Result snapshot5, blank review authority, credit settlement and the
 exact receipt are atomic; initialized selection and source occupancy stay
 unchanged. Replay survives invocation retention without accounting or
-settlement. Current public readers/actions reject video histories until their
-versioned parsers are ready. No public/native caller or activation is installed.
-See the
+settlement. Page/state reader11 now admits snapshot5 with strict Deno/native
+parsing; older readers and all current action readers reject video histories. No
+public/native caller or activation is installed. See the
 [completion contract](../../../../../docs/backend-and-data/05-api-contracts.md#private-v4-successful-completion-preparation).

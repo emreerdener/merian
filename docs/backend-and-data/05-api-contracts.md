@@ -17901,9 +17901,15 @@ the owner upgraded. Paid admission has no allocation. Replay returns those exact
 saved bytes after invocation retention without changing entitlement epoch or
 current selection/review. Deletion still fences replay.
 
-Public history page/state/action readers remain at their existing versions and
-reject a history containing any V4 video result, including an older cursor or
-selected child. Actions also reject an explicit pending V4 child. No public DTO,
-HTTP/native completion caller or reader11 is introduced. Versioned video
-parsers/readers and source-release proof remain required before public
-execution; occupancy stays held and activation gates remain disabled.
+Public history page/state reader11 admits result snapshot5 alongside snapshots
+1–4. Snapshot5 requires manifest4 with the closed video provenance graph and a
+nonnull source analysis distinct from every artifact ID. Deno and native readers
+retain original snapshot bytes; parsed metadata is not rewritten into storage.
+Native storage uses existing opaque fields without a schema shape change. Older
+readers still reject the whole history, including older cursor pages and
+selected children. Reader11 applies only to these named read RPCs; enrollment,
+selection, review and execution keep their existing protocols and restrictions.
+Actions still reject video histories and explicit pending V4 children. This does
+not advance the app-wide Identify header or the separate evidence/source
+protocols. No HTTP/native completion caller or source-release proof is
+installed; occupancy stays held and activation gates remain disabled.

@@ -12,8 +12,11 @@ struct ObservationReanalysisSource: Equatable, Sendable {
     let evidence: [ObservationHistoryPhotoReference.Evidence]
 
     private init(ownerID: UUID, observationID: UUID, result: ObservationHistoryPage.Result, permitsAudio: Bool) throws {
-        // Audio authority is available only to the explicit audio path, never as an empty photo source.
-        guard result.version != 4 || permitsAudio else { throw ObservationHistoryError.unavailable }
+        // Only reviewed source formats may authorize fresh work. Video result5
+        // remains read-only; audio4 is available only to explicit media paths.
+        guard [1, 2, 3].contains(result.version) || (permitsAudio && result.version == 4) else {
+            throw ObservationHistoryError.unavailable
+        }
         self.audio = result.audio
         self.ownerID = ownerID; self.observationID = observationID; self.analysisID = result.analysisID
         self.snapshot = result.bytes; self.photos = result.photos

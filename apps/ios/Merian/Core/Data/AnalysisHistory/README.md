@@ -5,7 +5,7 @@ which hydrates the current scan projection. Ordinary history admission remains
 disconnected. The backend reader, enrollment and selection gates remain false.
 
 - `ObservationHistoryCloudClient` owns the existing Auth work lease and the
-  owner-only `get_owned_observation_analysis_page` RPC. Protocol 10 is explicit
+  owner-only `get_owned_observation_analysis_page` RPC. Protocol 11 is explicit
   to this RPC; it does not advance the app's general Identify reader header.
 - `ObservationHistoryPage` bounds bytes, versions, identities, ordinals,
   pagination and current media references. It reuses generated Identify/media
@@ -19,17 +19,25 @@ disconnected. The backend reader, enrollment and selection gates remain false.
   and Unicode bounds, and rejects private locator fields. `LocalAnalysisRecord`
   stores V4 in the existing V58 opaque snapshot fields with finite completion;
   disk reopening does not select the new child or change the parent's review.
-  Named history page/state/selection and review transports use reader 10. V4
-  review tickets strictly decode the WAV snapshot before admitting review and
-  receipt-bound confirmation/rejection Undo through the existing reader-10
-  owners. V4 cannot enter photo publication, photo loading, or become an empty
-  legacy Capture source. Explicit selection and receipt-bound selection Undo
-  admit V4 only after validating both results' retained evidence, authority and
-  display; staging does not change the visible identification. Explicit
-  `captureForAudio` can retain V4 as immutable source provenance for a new WAV
-  with optional caller-supplied descriptions; it never loads the original WAV.
-  Candidate selection, publication and selected chat remain unavailable for V4.
-  Enrollment remains reader 9 and photo resolution remains 8.
+  Named history page/state reads use reader 11; selection and review transports
+  retain reader 10. V4 review tickets strictly decode the WAV snapshot before
+  admitting review and receipt-bound confirmation/rejection Undo through the
+  existing reader-10 owners. V4 cannot enter photo publication, photo loading,
+  or become an empty legacy Capture source. Explicit selection and receipt-bound
+  selection Undo admit V4 only after validating both results' retained evidence,
+  authority and display; staging does not change the visible identification.
+  Explicit `captureForAudio` can retain V4 as immutable source provenance for a
+  new WAV with optional caller-supplied descriptions; it never loads the
+  original WAV. Candidate selection, publication and selected chat remain
+  unavailable for V4. Enrollment remains reader 9 and photo resolution
+  remains 8.
+- Video result V5 uses the strict manifest-4 provenance decoder and requires a
+  distinct source analysis, including against every retained artifact ID. It
+  exposes typed video provenance separately from photo and audio references,
+  preserving exact original snapshot bytes in the existing opaque record fields.
+  No SwiftData schema shape changes. Page/state RPC reader11 admits V1–V5; video
+  selection, review, execution, media loading and source release remain
+  unavailable. Reads do not authorize another provider invocation or refund.
 - `ObservationHistorySyncService` owns page admission and the shared immutable
   child insertion helper. Every call reads one page and returns the server
   continuation only after the local transaction succeeds. It never assigns

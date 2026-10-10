@@ -34,7 +34,7 @@ struct ObservationHistoryCloudClient {
             fetch: { request in
                 struct Parameters: Encodable {
                     let p_request: ObservationHistoryPageRequest
-                    let p_reader = 10
+                    let p_reader = 11
                 }
                 return try await manager.client
                     .rpc("get_owned_observation_analysis_page", params: Parameters(p_request: request))
@@ -43,7 +43,7 @@ struct ObservationHistoryCloudClient {
             fetchState: { request in
                 struct Parameters: Encodable {
                     let p_request: ObservationHistoryStateRequest
-                    let p_reader = 10
+                    let p_reader = 11
                 }
                 return try await manager.client
                     .rpc("get_owned_observation_analysis_state", params: Parameters(p_request: request))

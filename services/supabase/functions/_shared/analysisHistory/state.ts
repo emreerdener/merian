@@ -98,9 +98,9 @@ export function parseHistoryState(
   value: unknown,
   request: HistoryStateRequest,
   ownerID: string,
-  reader: 9 | 10 = 9,
+  reader: 9 | 10 | 11 = 9,
 ) {
-  if (reader !== 9 && reader !== 10) return invalidHistory();
+  if (reader !== 9 && reader !== 10 && reader !== 11) return invalidHistory();
   const expected = parseHistoryStateRequest(request);
   const row = exactObject(value, [
     "schema_version",

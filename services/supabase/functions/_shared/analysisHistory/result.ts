@@ -1,3 +1,4 @@
+import { parsePreparedVideoManifest } from "./videoManifest.ts";
 import { parsePreparedAudioManifest } from "./audioManifest.ts";
 import { parseSavedIdentification } from "./savedIdentification.ts";
 import { parseProtectedEvidenceManifest } from "./protectedManifest.ts";
@@ -31,6 +32,7 @@ function parseSnapshot(
   value: unknown,
   allowProtected: boolean,
   allowAudio = false,
+  allowVideo = false,
 ) {
   const row = exactObject(value, [
     "schema_version",
@@ -46,7 +48,7 @@ function parseSnapshot(
   const version = row.schema_version;
   if (
     version !== 1 && !(allowProtected && version === 2) &&
-    !(allowAudio && version === 4)
+    !(allowAudio && version === 4) && !(allowVideo && version === 5)
   ) {
     return invalidHistory();
   }
@@ -68,7 +70,25 @@ function parseSnapshot(
     return invalidHistory();
   }
   let evidence;
-  if (version === 4) {
+  if (version === 5) {
+    if (identity.source_analysis_id === null) return invalidHistory();
+    evidence = parsePreparedVideoManifest(
+      row.evidence_manifest,
+      identity.observation_id,
+      identity.analysis_id,
+    );
+    const graph = evidence.provenance;
+    const artifacts = [
+      graph.source,
+      ...graph.frames.map((frame) => frame.artifact),
+      ...(graph.audio ? [graph.audio.artifact] : []),
+    ];
+    if (
+      artifacts.some((artifact) =>
+        artifact.media_id === identity.source_analysis_id
+      )
+    ) return invalidHistory();
+  } else if (version === 4) {
     evidence = parsePreparedAudioManifest(
       row.evidence_manifest,
       identity.observation_id,
@@ -119,10 +139,11 @@ function parseSnapshot(
 /** Validate read-back bytes. Callers retain the original text for exact replay. */
 export function decodeAnalysisResultSnapshot(
   text: unknown,
-  reader: 7 | 8 | 9 | 10 = 7,
+  reader: 7 | 8 | 9 | 10 | 11 = 7,
 ) {
   if (
-    (reader !== 7 && reader !== 8 && reader !== 9 && reader !== 10) ||
+    (reader !== 7 && reader !== 8 && reader !== 9 && reader !== 10 &&
+      reader !== 11) ||
     typeof text !== "string" ||
     new TextEncoder().encode(text).length > HISTORY_MAX_RESULT_BYTES
   ) {
@@ -133,7 +154,7 @@ export function decodeAnalysisResultSnapshot(
     if (reader >= 9 && value?.schema_version === 3) {
       return parseImportedSnapshot(value);
     }
-    return parseSnapshot(value, reader >= 8, reader === 10);
+    return parseSnapshot(value, reader >= 8, reader >= 10, reader === 11);
   } catch {
     return invalidHistory();
   }

@@ -8342,8 +8342,10 @@ selection, reconciliation and previous authority remain unchanged. Exact replay
 returns the original saved receipt without accounting or settlement, including
 after invocation pruning or later entitlement changes; owner deletion denies it.
 
-All new helpers remain private. Existing public page/state/action readers reject
-the whole history once it contains a video result, including cursor pages or
-actions aimed at an older child. Reader/parser support is a separate checkpoint.
+All new helpers remain private. Page/state reader11 admits video result5 along
+with prior formats; older readers reject the whole video history, including
+cursor pages or state targeting an older child. Only those read capabilities
+advance. Action readers remain unchanged and deny video histories and explicit
+pending V4 children. No grants, default-off gates or execution consumers change.
 Source occupancy remains held: this completion receipt alone is not the required
 source-release proof and grants no erasure or execution authority.

@@ -95,3 +95,37 @@ struct ObservationVideoManifestTests {
         #expect(throws: (any Error).self) { try ObservationAudioReanalysisRequest(savedBody: value.originalBytes) }
     }
 }
+
+extension ObservationVideoManifestTests {
+    @Test func sharedResult5VectorsKeepInputAndResultVersionsSeparate() throws {
+        let text = try DatabaseActorTestSupport.loadRepositorySource(at:
+            "services/supabase/functions/_shared/analysisHistory/fixtures/video-result-v5.json")
+        let fixture = try #require(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+        let vectors = try #require(fixture["cases"] as? [[String: Any]])
+        let manifests = try self.vectors()
+        #expect(vectors.count == 51)
+        for vector in vectors {
+            var snapshot = try #require(fixture["base_snapshot"] as? [String: Any])
+            let manifest = manifests[try #require(vector["manifest_index"] as? Int)]
+            snapshot["evidence_manifest"] = manifest["manifest"]
+            snapshot["observation_id"] = manifest["observation_id"]
+            snapshot["analysis_id"] = manifest["analysis_id"]
+            snapshot["source_analysis_id"] = vector["source_analysis_id"]
+            snapshot["schema_version"] = vector["schema_version"]
+            let data = try JSONSerialization.data(withJSONObject: snapshot, options: [.prettyPrinted, .sortedKeys])
+            let observation = try #require(snapshot["observation_id"] as? String)
+            let name = try #require(vector["name"] as? String)
+            if vector["valid"] as? Bool == true {
+                let result = try ObservationHistoryPage.snapshot(data, observationID: observation, ordinal: 1)
+                #expect(result.version == 5 && result.video != nil, "\(name)")
+                #expect(result.bytes == data && result.photos.isEmpty && result.audio == nil)
+                #expect(result.video?.provenance.frames.count == 5)
+                #expect(result.completedAt != nil && result.importedAt == nil)
+            } else {
+                #expect(throws: (any Error).self, "\(name)") {
+                    try ObservationHistoryPage.snapshot(data, observationID: observation, ordinal: 1)
+                }
+            }
+        }
+    }
+}

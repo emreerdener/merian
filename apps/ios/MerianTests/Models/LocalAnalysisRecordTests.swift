@@ -38,7 +38,7 @@ struct LocalAnalysisRecordTests {
                 try record(scan: scan, data: Data(malformed.utf8))
             }
         }
-        for version in [0, 5, -1] {
+        for version in [0, 6, -1] {
             #expect(throws: LocalAnalysisRecord.StorageError.unsupportedVersion) {
                 try record(scan: scan, version: version)
             }
@@ -60,7 +60,7 @@ struct LocalAnalysisRecordTests {
         let imported = try LocalAnalysisRecord(analysisID: analysisID, observationID: scan.id,
             ownerAccountID: ownerID, completedAt: nil, snapshotVersion: 3, resultSnapshotData: Data("{}".utf8))
         #expect(imported.completedAt == nil)
-        for version in [1, 2, 4] {
+        for version in [1, 2, 4, 5] {
             #expect(throws: LocalAnalysisRecord.StorageError.invalidCompletionDate) {
                 try LocalAnalysisRecord(analysisID: analysisID, observationID: scan.id,
                     ownerAccountID: ownerID, completedAt: nil, snapshotVersion: version, resultSnapshotData: Data("{}".utf8))

@@ -1,3 +1,6 @@
+import { decodeAnalysisResultSnapshot } from "../_shared/analysisHistory/result.ts";
+import { parseHistoryPage } from "../_shared/analysisHistory/page.ts";
+import { parseHistoryState } from "../_shared/analysisHistory/state.ts";
 import { buildPreparedVideoDraft } from "../_shared/analysisHistory/videoAdmission.ts";
 import {
   buildVideoEvidenceUploadRequest,
@@ -60,7 +63,9 @@ async function seed(db: Client, owner: string, parent: string, source: string) {
     }`,
   );
   await db.queryArray(
-    "SELECT internal.append_observation_analysis($1,pg_temp.history_append_request($2,$3))",
+    `SELECT internal.append_observation_analysis($1,jsonb_set(jsonb_set(pg_temp.history_append_request($2,$3),
+    '{result_snapshot,image_quality}','{"sharpness":8,"framing":7,"diagnostic_utility":9,"overall_score":82}'::jsonb),
+    '{result_snapshot,extracted_visual_traits}','["Synthetic texture"]'::jsonb))`,
     [owner, parent, source],
   );
 }
@@ -3218,6 +3223,10 @@ for (let variant = 0; variant < 3; variant++) {
           );
           const receipt = (await completeVideoResult(db, f)).rows[0].value;
           assertEquals(receipt.credit_consumed, funding === "complimentary");
+          assertEquals(
+            decodeAnalysisResultSnapshot(receipt.snapshot, 11).schema_version,
+            5,
+          );
           const snapshot = JSON.parse(receipt.snapshot as string);
           assertEquals(snapshot.schema_version, 5);
           assertEquals(snapshot.ordinal, 2);
@@ -3327,6 +3336,130 @@ for (let variant = 0; variant < 3; variant++) {
                   [f.parent, reader, f.c.input.source_analysis_id],
                 ),
             );
+          }
+          const readRequest = {
+            schema_version: 1,
+            observation_id: f.parent,
+            before_ordinal: null,
+            limit: 20,
+          };
+          const stateRequest = {
+            schema_version: 1,
+            observation_id: f.parent,
+            analysis_id: f.child,
+          };
+          await db.queryArray(
+            "UPDATE internal.observation_history_rollout SET reader_enabled=false,state_reader_enabled=false",
+          );
+          await denied(
+            db,
+            () =>
+              db.queryArray(
+                "SELECT public.get_owned_observation_analysis_page($1::jsonb,11)",
+                [JSON.stringify(readRequest)],
+              ),
+          );
+          await denied(
+            db,
+            () =>
+              db.queryArray(
+                "SELECT public.get_owned_observation_analysis_state($1::jsonb,11)",
+                [JSON.stringify(stateRequest)],
+              ),
+          );
+          await db.queryArray(
+            "UPDATE internal.observation_history_rollout SET reader_enabled=true,state_reader_enabled=true",
+          );
+          await db.queryArray(
+            "SELECT set_config('request.jwt.claim.sub',$1,true)",
+            [crypto.randomUUID()],
+          );
+          await denied(
+            db,
+            () =>
+              db.queryArray(
+                "SELECT public.get_owned_observation_analysis_page($1::jsonb,11)",
+                [JSON.stringify(readRequest)],
+              ),
+          );
+          await denied(
+            db,
+            () =>
+              db.queryArray(
+                "SELECT public.get_owned_observation_analysis_state($1::jsonb,11)",
+                [JSON.stringify(stateRequest)],
+              ),
+          );
+          await db.queryArray(
+            "SELECT set_config('request.jwt.claim.sub',$1,true)",
+            [f.owner],
+          );
+          // Reader11 returns the immutable snapshot5, including mixed/cursor
+          // pages and older selected state. It does not authorize actions.
+          for (const cursor of [null, 2, 1]) {
+            const request = {
+              schema_version: 1 as const,
+              observation_id: f.parent,
+              before_ordinal: cursor,
+              limit: 20,
+            };
+            const page = (await db.queryObject<{ value: unknown }>(
+              "SELECT public.get_owned_observation_analysis_page($1::jsonb,11) value",
+              [JSON.stringify(request)],
+            )).rows[0].value;
+            const decoded = parseHistoryPage(page, request, f.owner, 11);
+            assertEquals(
+              decoded.items.length,
+              cursor === null ? 2 : cursor === 2 ? 1 : 0,
+            );
+            if (cursor === null) {
+              assertEquals(decoded.items[0].snapshot, receipt.snapshot);
+            }
+          }
+          for (
+            const analysis of [null, f.child, f.c.input.source_analysis_id]
+          ) {
+            const request = {
+              schema_version: 1 as const,
+              observation_id: f.parent,
+              analysis_id: analysis,
+            };
+            const value = (await db.queryObject<{ value: unknown }>(
+              "SELECT public.get_owned_observation_analysis_state($1::jsonb,11) value",
+              [JSON.stringify(request)],
+            )).rows[0].value;
+            const decoded = parseHistoryState(value, request, f.owner, 11);
+            assertEquals(
+              decoded.selected_analysis_id,
+              f.c.input.source_analysis_id,
+            );
+            assertEquals(
+              JSON.parse(decoded.analysis.snapshot).analysis_id,
+              analysis ?? f.c.input.source_analysis_id,
+            );
+            if (analysis === f.child) {
+              assertEquals(JSON.parse(decoded.analysis.snapshot), snapshot);
+            }
+            await denied(db, () =>
+              db.queryArray(
+                "SELECT internal.require_observation_action_reader($1,11,$2)",
+                [f.parent, analysis],
+              ));
+          }
+          for (const reader of [null, 12]) {
+            await denied(db, () =>
+              db.queryArray(
+                "SELECT public.get_owned_observation_analysis_page($1::jsonb,$2)",
+                [
+                  JSON.stringify({
+                    schema_version: 1,
+                    observation_id: f.parent,
+                    before_ordinal: null,
+                    limit: 20,
+                  }),
+                  reader,
+                ],
+              ));
           }
           // Later entitlement changes cannot rewrite the historical receipt.
           await db.queryArray(
