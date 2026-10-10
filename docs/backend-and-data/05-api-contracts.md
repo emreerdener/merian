@@ -17796,3 +17796,30 @@ provider call. No quota/work token is exposed, no claim is renewed and no credit
 is settled or refunded. V4 is excluded from legacy recovery discovery. There is
 no public wire, native consumer or executable parser change. Known-result
 settlement, result validation and public reader integration remain held.
+
+### Prepared V4 semantic draft
+
+`buildPreparedVideoDraft(savedInputBytes, result, species)` reparses the bounded
+original V4 input and returns a pure storage draft with its original
+observation, child, source, request digest and complete video evidence graph.
+Frame order, optional audio, descriptions, digests and derivation metadata
+retain their values; JSON object-key order is not an identity or
+byte-preservation guarantee. The saved request bytes are not rewritten. The
+shared canonical Identify validator binds result scan identity, validates result
+semantics, strips mutable review and funding fields, and adds only the
+independently resolved matching taxonomy link. The prepared draft retains the
+existing 1 MiB minus 4 KiB metadata reserve.
+
+Draft schema4 is the input generation, not a public result snapshot version.
+Result snapshot4 already represents prepared audio; future video persistence
+requires a distinct version and reader contract. This builder has no executable
+caller, SQL write, accounting, append, settlement, occupancy release or cleanup
+authority. Public executable V4 parsing remains denied. Future draft persistence
+must bind the canonical result, except its independently verified species link,
+to the exact saved received outcome before any known-result settlement. V4
+provider normalization is also still uninstalled: it must use visual evidence
+for five frames and audio evidence only for the saved optional audio branch.
+
+The canonical result import also makes `upload-observation-video` a transitive
+Identify-contract dependency through its shared admission module. The deployment
+graph test includes that route; this dependency does not activate execution.

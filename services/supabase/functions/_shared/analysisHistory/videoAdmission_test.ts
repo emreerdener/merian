@@ -1,11 +1,13 @@
 import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   buildPreparedVideoAdmission,
+  buildPreparedVideoDraft,
   parsePreparedVideoAdmission,
 } from "./videoAdmission.ts";
 import { parseExecutableAnalysisInput } from "./analysisInput.ts";
 import { parsePreparedAudioAdmission } from "./audioAdmission.ts";
 import { parseSourceReservationRequest } from "./sourceReservation.ts";
+import { decodeAnalysisResultSnapshot } from "./result.ts";
 import { sourceReservationCanonicalBytes } from "./sourceFingerprint.ts";
 
 interface Vector {
@@ -99,6 +101,118 @@ Deno.test("prepared video request remains outside live execution, audio and rese
         fingerprint_version: 1,
         fingerprint: "a".repeat(64),
       })
+    );
+  }
+});
+
+const historyPage = JSON.parse(
+  await Deno.readTextFile(new URL("./fixtures/page-v1.json", import.meta.url)),
+);
+const historySnapshot = JSON.parse(historyPage.items[0].snapshot);
+const species = {
+  id: "00000000-0000-4000-8000-000000000099",
+  scientific_name: historySnapshot.result.scientific_name,
+};
+const resultFor = (input: Record<string, unknown>) => ({
+  ...structuredClone(historySnapshot.result),
+  scan_id: input.observation_id,
+});
+Deno.test("prepared video draft preserves exact silent and audio provenance and strips mutable authority", () => {
+  for (const v of vectors) {
+    const input = structuredClone(v.input), result = resultFor(input);
+    const draft = buildPreparedVideoDraft(v.canonical_body, {
+      ...result,
+      user_confirmed_identification: true,
+      user_identification_override: "Injected",
+      confirmed_species_identity: { scientific_name: "Injected" },
+      confirmed_species_identity_revision: 10,
+      ai_identification_review: { status: "confirmed" },
+      user_review_state: "confirmed",
+      entitlement: { credit_consumed: true },
+      species_id: "injected",
+    }, species);
+    const {
+      entitlement_protocol: _e,
+      identification_protocol: _i,
+      history_protocol: _h,
+      expected_processor_permission: _p,
+      ...identity
+    } = input;
+    assertEquals({ ...draft, result_snapshot: undefined }, {
+      ...identity,
+      result_snapshot: undefined,
+    });
+    assertEquals(draft.result_snapshot.species_id, species.id);
+    for (
+      const key of [
+        "user_confirmed_identification",
+        "user_identification_override",
+        "confirmed_species_identity",
+        "confirmed_species_identity_revision",
+        "ai_identification_review",
+        "user_review_state",
+        "entitlement",
+      ]
+    ) assertEquals(Object.hasOwn(draft.result_snapshot, key), false);
+    assertEquals(Object.isFrozen(draft), true);
+    assertEquals(
+      Object.isFrozen(draft.evidence_manifest.provenance.frames),
+      true,
+    );
+    assertEquals<unknown>(draft.evidence_manifest, input.evidence_manifest);
+    const saved = JSON.stringify(draft);
+    result.common_name = "changed";
+    input.evidence_manifest = {};
+    assertEquals(JSON.stringify(draft), saved);
+  }
+});
+Deno.test("prepared video draft rejects wrong result identity, invalid semantics and taxonomy links", () => {
+  const v = vectors[0], result = resultFor(v.input);
+  for (
+    const changed of [null, {}, { ...result, scan_id: species.id }, {
+      ...result,
+      confidence_score: 1.1,
+    }, { ...result, is_biological_subject: "yes" }]
+  ) {
+    assertThrows(() =>
+      buildPreparedVideoDraft(v.canonical_body, changed, species)
+    );
+  }
+  assertThrows(() => buildPreparedVideoDraft(v.canonical_body, result, null));
+  assertThrows(() =>
+    buildPreparedVideoDraft(v.canonical_body, result, {
+      ...species,
+      id: "invalid",
+    })
+  );
+  assertThrows(() =>
+    buildPreparedVideoDraft(v.canonical_body, result, {
+      ...species,
+      scientific_name: "Different species",
+    })
+  );
+});
+Deno.test("prepared video draft requires bounded saved V4 bytes and cannot become a completion or executable request", () => {
+  const v = vectors[0], result = resultFor(v.input);
+  for (
+    const bytes of [
+      "{",
+      "null",
+      "[]",
+      " ".repeat(1048577),
+      "é".repeat(524289),
+      JSON.stringify({ ...v.input, schema_version: 3 }),
+      JSON.stringify({ ...v.input, history_protocol: 12 }),
+    ]
+  ) {
+    assertThrows(() => buildPreparedVideoDraft(bytes, result, species));
+  }
+  const draft = buildPreparedVideoDraft(v.canonical_body, result, species);
+  assertThrows(() => parseExecutableAnalysisInput(v.input));
+  assertThrows(() => parseExecutableAnalysisInput(draft));
+  for (const reader of [7, 8, 9, 10] as const) {
+    assertThrows(() =>
+      decodeAnalysisResultSnapshot(JSON.stringify(draft), reader)
     );
   }
 });

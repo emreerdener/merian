@@ -1,4 +1,8 @@
 import {
+  buildCanonicalAnalysisResult,
+  type ResolvedAnalysisSpecies,
+} from "./append.ts";
+import {
   exactObject,
   HISTORY_MAX_RESULT_BYTES,
   invalidHistory,
@@ -72,4 +76,44 @@ export function parsePreparedVideoAdmission(value: unknown) {
 /** Fresh preparation only. Never use this to rewrite saved photo/audio/video bytes. */
 export function buildPreparedVideoAdmission(value: unknown): string {
   return JSON.stringify(parsePreparedVideoAdmission(value));
+}
+
+/** Pure prepared storage draft from the original saved V4 input. This grants
+ * no execution, append, settlement or result-reader authority. */
+export function buildPreparedVideoDraft(
+  inputBytes: string,
+  result: unknown,
+  species: ResolvedAnalysisSpecies | null,
+) {
+  if (
+    typeof inputBytes !== "string" ||
+    new TextEncoder().encode(inputBytes).length > HISTORY_MAX_RESULT_BYTES
+  ) {
+    return invalidHistory();
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(inputBytes);
+  } catch {
+    return invalidHistory();
+  }
+  const input = parsePreparedVideoAdmission(value);
+  const draft = Object.freeze({
+    schema_version: 4 as const,
+    observation_id: input.observation_id,
+    analysis_id: input.analysis_id,
+    source_analysis_id: input.source_analysis_id,
+    request_digest: input.request_digest,
+    evidence_manifest: input.evidence_manifest,
+    result_snapshot: buildCanonicalAnalysisResult(
+      input.observation_id,
+      result,
+      species,
+    ),
+  });
+  if (
+    new TextEncoder().encode(JSON.stringify(draft)).length >
+      HISTORY_MAX_RESULT_BYTES - 4096
+  ) return invalidHistory();
+  return draft;
 }

@@ -12612,3 +12612,13 @@ recovery discovery. Catalog tests cover every API-role denial and bounded
 definer configuration; static contracts forbid grants or settlement calls. The
 exact CI migration read allowlist includes this new migration. These are
 received-evidence checks, not semantic result or settlement qualification.
+
+### Prepared V4 semantic draft verification
+
+`videoAdmission_test.ts` exercises the pure draft builder with shared silent and
+audio video fixtures, complete graph and description preservation, canonical
+review/funding-field removal, result scan/taxonomy mismatch, invalid semantics
+and malformed/oversized saved input. Existing executable parsing and public
+result readers continue rejecting the draft. Draft schema4 is explicitly not
+public result snapshot4 (audio). Audio and generic execution suites remain
+regression checks; no SQL/result reader, native or provider path is activated.

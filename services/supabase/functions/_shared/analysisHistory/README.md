@@ -1262,3 +1262,11 @@ discovery excludes V4 until its consumer is ready. Existing
 `SavedAnalysisOutcome` envelope shape is reused only for bounded retention;
 result validation and known-result settlement remain uninstalled. See the
 [received-outcome contract](../../../../../docs/backend-and-data/05-api-contracts.md#private-v4-received-outcome-recovery).
+
+`buildPreparedVideoDraft` in `videoAdmission.ts` now prepares a bounded semantic
+draft from the original saved V4 input and canonical Identify result/taxonomy.
+It preserves the full graph and ordered descriptions without a live-media read,
+request rewrite or side effect. Draft4 is not public result snapshot4 (audio).
+SQL draft persistence, known-result settlement, video producer normalization and
+new result-reader versioning remain required before execution can open. See the
+[prepared semantic draft contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-v4-semantic-draft).

@@ -66,6 +66,7 @@ Deno.test("Identify contract changes deploy every direct and shared-adapter cons
       "review-scan-identification",
       "share-scan-to-explore",
       "update-explore-field-notes",
+      "upload-observation-video",
     ],
   );
 });
