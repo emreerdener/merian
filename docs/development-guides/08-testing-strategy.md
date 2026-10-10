@@ -12559,3 +12559,18 @@ A stale snapshot isolation level is denied. The catalog fixture
 security-definer settings and default-closed existing gates. This is evidence
 validation only; protected V4 admission, dispatch, result settlement and their
 concurrency acceptance remain separate work.
+
+### Private video initial funding verification
+
+The video database suite exercises all three canonical V4 variants through
+source reservation, allocation, readiness and private initial admission. It
+checks closed gates, missing eligibility rollback, API-role denial, bound video
+profile selection, exactly one intent/quota/complimentary hold, changed-input
+and owner denial, original-receipt replay after expiry/gate closure, and held
+unknown execution without new claim or funding. Two concurrent admissions block
+on the canonical lock and return the same original receipt with one funding
+hold. A funded V4 intent cannot pass the existing source dispatch witness. The
+private-admission catalog fixture checks default-closed gates, helper
+privileges, timeout/search path, V4 storage backstop and absent public begin
+integration. These are prepared funding checks; provider dispatch and result
+settlement remain uninstalled.

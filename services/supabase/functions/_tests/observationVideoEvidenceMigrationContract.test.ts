@@ -53,3 +53,28 @@ Deno.test("video ready-evidence prerequisite stays private without execution aut
   ) assert(sql.includes(boundary), boundary);
   assert(!sql.includes("INSERT INTO") && !sql.includes("UPDATE internal."));
 });
+
+Deno.test("video initial admission is private and exact funding does not wire execution", async () => {
+  const sql = await Deno.readTextFile(
+    new URL(
+      "../../migrations/20261010142136_prepare_video_initial_admission.sql",
+      import.meta.url,
+    ),
+  );
+  assert(!/\bGRANT\b|CREATE (?:OR REPLACE )?FUNCTION public\./.test(sql));
+  for (
+    const boundary of [
+      "video_analysis_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+      "assert_ready_video_analysis_evidence",
+      "observation_video_evidence_execution_clear",
+      "assert_observation_source_input_chain",
+      "multimodal_video_frames_v1",
+      "multimodal_video_audio_v1",
+      "FROM PUBLIC,anon,authenticated,service_role",
+    ]
+  ) assert(sql.includes(boundary), boundary);
+  assert(
+    !sql.includes("pg_get_functiondef('public.begin_owned") &&
+      !sql.includes("pg_get_functiondef('public.advance_owned"),
+  );
+});

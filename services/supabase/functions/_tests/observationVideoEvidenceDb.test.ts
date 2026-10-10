@@ -833,3 +833,281 @@ for (const deletionFirst of [false, true]) {
     },
   });
 }
+
+async function videoAdmissionEligibility(
+  db: Client,
+  owner: string,
+  parent: string,
+) {
+  const fixture = await Deno.readTextFile(
+    new URL(
+      "../../tests/observation_source_initial_admission.sql",
+      import.meta.url,
+    ),
+  );
+  const helper = fixture.slice(
+    fixture.indexOf("CREATE FUNCTION pg_temp.seed_funded_history"),
+    fixture.indexOf("CREATE FUNCTION pg_temp.admission_input"),
+  )
+    .replace(
+      "    PERFORM pg_temp.seed_history_append(owner_id,observation);",
+      "",
+    );
+  await db.queryArray(
+    helper.replaceAll(
+      "pg_temp.seed_funded_history",
+      "pg_temp.video_admission_eligibility",
+    ),
+  );
+  await db.queryArray("SELECT pg_temp.video_admission_eligibility($1,$2)", [
+    owner,
+    parent,
+  ]);
+}
+const admitVideo = (db: Client, owner: string, input: unknown) =>
+  db.queryObject<{ value: Record<string, unknown> }>(
+    "SELECT internal.admit_video_observation_analysis($1::uuid,$2::jsonb,encode(extensions.digest($1::text,'sha256'),'hex')) value",
+    [owner, JSON.stringify(input)],
+  );
+for (let variant = 0; variant < 3; variant++) {
+  Deno.test({
+    name:
+      `video private admission funds once and exact replay never renews variant=${variant}`,
+    ignore: !url,
+    async fn() {
+      const db = await connect();
+      await db.queryArray("BEGIN");
+      try {
+        await fixture(db);
+        const [owner, parent, source, child] = Array.from(
+          { length: 4 },
+          () => crypto.randomUUID(),
+        );
+        await seed(db, owner, parent, source);
+        const c = await candidate(parent, source, child, variant),
+          request = await buildVideoEvidenceUploadRequest(c);
+        await reserve(db, owner, c);
+        const allocation = await decodeVideoEvidenceAllocation(
+          bytes(await allocate(db, owner, request)),
+          c,
+          owner,
+        );
+        await db.queryArray(
+          "UPDATE internal.entitlement_rollout_config SET entitlement_mode='complimentary',required_client_protocol=3 WHERE config_key='current'",
+        );
+        await db.queryArray(
+          "UPDATE internal.observation_history_rollout SET admission_enabled=true,protected_analysis_enabled=true",
+        );
+        const count = async () =>
+          (await db.queryObject<{ n: number }>(
+            "SELECT ((SELECT count(*) FROM internal.observation_analysis_intents WHERE analysis_id=$1)+(SELECT count(*) FROM internal.ai_quota_reservations WHERE original_analysis_id=$1)+(SELECT count(*) FROM internal.complimentary_scan_usage WHERE client_scan_id=$1))::int n",
+            [child],
+          )).rows[0].n;
+        await denied(db, () => admitVideo(db, owner, c.input));
+        assertEquals(await count(), 0);
+        for (const item of allocation.items) {
+          await complete(db, owner, request, item);
+        }
+        await denied(db, () => admitVideo(db, owner, c.input));
+        assertEquals(await count(), 0);
+        await db.queryArray(
+          "UPDATE internal.observation_history_rollout SET video_analysis_enabled=true",
+        );
+        // Required legal/processor consent failure must roll the inserted intent back.
+        await denied(db, () => admitVideo(db, owner, c.input));
+        assertEquals(await count(), 0);
+        await videoAdmissionEligibility(db, owner, parent);
+        for (const role of ["anon", "authenticated", "service_role"]) {
+          await denied(db, async () => {
+            await db.queryArray(`SET LOCAL ROLE ${role}`);
+            await admitVideo(db, owner, c.input);
+          });
+        }
+        const original = (await admitVideo(db, owner, c.input)).rows[0].value;
+        assertEquals(original.state, "admitted");
+        assertEquals(await count(), 3);
+        assertEquals(
+          (await admitVideo(db, owner, c.input)).rows[0].value,
+          original,
+        );
+        const profile = (await db.queryObject<{ profile: string }>(
+          "SELECT a.input_profile profile FROM internal.identification_provider_attempts a JOIN internal.ai_quota_reservations r ON r.id=a.reservation_id WHERE r.original_analysis_id=$1 AND a.attempt_count=1",
+          [child],
+        )).rows[0].profile;
+        assertEquals(
+          profile,
+          c.input.evidence_manifest.provenance.audio === null
+            ? "multimodal_video_frames_v1"
+            : "multimodal_video_audio_v1",
+        );
+        // Even a funded V4 intent cannot enter the existing source dispatch path.
+        await db.queryArray(
+          "UPDATE internal.observation_history_rollout SET source_dispatch_enabled=true,dispatch_enabled=true",
+        );
+        await denied(db, () =>
+          db.queryArray(
+            "SELECT internal.prepare_source_dispatch_witness($1,$2,$3,$4,'{}'::jsonb)",
+            [
+              owner,
+              parent,
+              child,
+              (original.quota as { lease_token: string }).lease_token,
+            ],
+          ));
+        assertEquals(
+          (await db.queryObject<{ n: number }>(
+            "SELECT count(*)::int n FROM internal.observation_analysis_dispatch_witnesses WHERE analysis_id=$1",
+            [child],
+          )).rows[0].n,
+          0,
+        );
+        await denied(db, () => admitVideo(db, crypto.randomUUID(), c.input));
+        await denied(
+          db,
+          () =>
+            admitVideo(db, owner, {
+              ...c.input,
+              request_digest: "0".repeat(64),
+            }),
+        );
+        await db.queryArray(
+          "UPDATE internal.observation_history_rollout SET admission_enabled=false,protected_analysis_enabled=false,media_enabled=false,video_analysis_enabled=false",
+        );
+        await age(db, child);
+        await db.queryArray(
+          "UPDATE internal.ai_quota_reservations SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE original_analysis_id=$1",
+          [child],
+        );
+        assertEquals(
+          (await admitVideo(db, owner, c.input)).rows[0].value,
+          original,
+        );
+        assertEquals(await count(), 3);
+        // Simulated uncertain execution is lookup-only: no new funding or claim.
+        await db.queryArray(
+          "UPDATE internal.observation_analysis_intents SET state='dispatched' WHERE analysis_id=$1",
+          [child],
+        );
+        const unknown = (await admitVideo(db, owner, c.input)).rows[0].value;
+        assertEquals(unknown.state, "dispatched");
+        assertEquals(unknown.quota, original.quota);
+        assertEquals(await count(), 3);
+        assertEquals(unknown.work_token, null);
+        await db.queryArray("SELECT public.apply_user_tombstone($1)", [owner]);
+        await denied(db, () => admitVideo(db, owner, c.input));
+      } finally {
+        await db.queryArray("ROLLBACK");
+        await db.end();
+      }
+    },
+  });
+}
+
+Deno.test({
+  name:
+    "video concurrent private admission replays one original funding receipt",
+  ignore: !url,
+  async fn() {
+    const first = await connect(), second = await connect();
+    const [owner, parent, source, child] = Array.from(
+      { length: 4 },
+      () => crypto.randomUUID(),
+    );
+    const admissionGates = [
+      ...gates,
+      "admission_enabled",
+      "protected_analysis_enabled",
+      "video_analysis_enabled",
+    ];
+    let prior: Record<string, boolean> | undefined;
+    let entitlement: { mode: string; protocol: number } | undefined;
+    try {
+      await fixture(first);
+      prior = (await first.queryObject<Record<string, boolean>>(
+        `SELECT ${
+          admissionGates.join(",")
+        } FROM internal.observation_history_rollout`,
+      )).rows[0];
+      entitlement =
+        (await first.queryObject<{ mode: string; protocol: number }>(
+          "SELECT entitlement_mode mode,required_client_protocol protocol FROM internal.entitlement_rollout_config WHERE config_key='current'",
+        )).rows[0];
+      await seed(first, owner, parent, source);
+      const c = await candidate(parent, source, child, 1);
+      const request = await buildVideoEvidenceUploadRequest(c);
+      await reserve(first, owner, c);
+      const allocation = await decodeVideoEvidenceAllocation(
+        bytes(await allocate(first, owner, request)),
+        c,
+        owner,
+      );
+      for (const item of allocation.items) {
+        await complete(first, owner, request, item);
+      }
+      await videoAdmissionEligibility(first, owner, parent);
+      await first.queryArray(
+        "UPDATE internal.entitlement_rollout_config SET entitlement_mode='complimentary',required_client_protocol=3 WHERE config_key='current'",
+      );
+      await first.queryArray(
+        "UPDATE internal.observation_history_rollout SET admission_enabled=true,protected_analysis_enabled=true,video_analysis_enabled=true",
+      );
+      await first.queryArray("BEGIN");
+      await second.queryArray("BEGIN");
+      const original = (await admitVideo(first, owner, c.input)).rows[0].value;
+      const pid = (await second.queryObject<{ pid: number }>(
+        "SELECT pg_backend_pid() pid",
+      )).rows[0].pid;
+      const pending = admitVideo(second, owner, c.input).then(
+        (value) => ({ value }),
+        (error) => ({ error }),
+      );
+      let blocked = false;
+      for (let n = 0; n < 100 && !blocked; n++) {
+        blocked = (await first.queryObject<{ blocked: boolean }>(
+          "SELECT cardinality(pg_blocking_pids($1))>0 blocked",
+          [pid],
+        )).rows[0].blocked;
+        if (!blocked) await new Promise((r) => setTimeout(r, 5));
+      }
+      assert(
+        blocked,
+        "duplicate admission must wait for original funding transaction",
+      );
+      await first.queryArray("COMMIT");
+      const replay = await pending;
+      assert("value" in replay);
+      assertEquals(replay.value.rows[0].value, original);
+      await second.queryArray("COMMIT");
+      assertEquals(
+        (await first.queryObject<{ n: number }>(
+          "SELECT ((SELECT count(*) FROM internal.observation_analysis_intents WHERE analysis_id=$1)+(SELECT count(*) FROM internal.ai_quota_reservations WHERE original_analysis_id=$1)+(SELECT count(*) FROM internal.complimentary_scan_usage WHERE client_scan_id=$1))::int n",
+          [child],
+        )).rows[0].n,
+        3,
+      );
+    } finally {
+      await first.queryArray("ROLLBACK").catch(() => {});
+      await second.queryArray("ROLLBACK").catch(() => {});
+      await first.queryArray("SELECT public.apply_user_tombstone($1)", [owner])
+        .catch(() => {});
+      await first.queryArray("DELETE FROM auth.users WHERE id=$1", [owner])
+        .catch(() => {});
+      if (prior) {
+        await first.queryArray(
+          `UPDATE internal.observation_history_rollout SET ${
+            admissionGates.map((g, i) => `${g}=$${i + 1}`).join(",")
+          }`,
+          admissionGates.map((g) => prior![g]),
+        );
+      }
+      if (entitlement) {
+        await first.queryArray(
+          "UPDATE internal.entitlement_rollout_config SET entitlement_mode=$1,required_client_protocol=$2 WHERE config_key='current'",
+          [entitlement.mode, entitlement.protocol],
+        );
+      }
+      await first.end();
+      await second.end();
+    }
+  },
+});

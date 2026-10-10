@@ -1242,3 +1242,9 @@ original bound V4 request and complete ready, unexpired cohort within canonical
 locks. It is a future execution prerequisite, with no API grant or dispatch
 authority. See the
 [ready-evidence boundary](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-ready-evidence-execution-prerequisite).
+
+Private SQL `admit_video_observation_analysis` prepares atomic exact V4 initial
+funding under a separate default-off gate. Replay returns the saved original
+quota without renewal. No API role can call it and public begin/advance remain
+unconnected. See the
+[private funding contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-private-v4-initial-funding).

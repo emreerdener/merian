@@ -8180,7 +8180,26 @@ and live occupancy must match; legacy mixed cohorts are rejected. Closed receipt
 validation checks complete inventory, metadata, object identity and permanent
 erasure state. Every item must be ready and the fixed allocation unexpired.
 
-This transaction-local assertion is a prerequisite for future protected V4
-admission and dispatch. It creates no intent, quota reservation or execution
-claim and has no public caller. It offers no expired-evidence settlement bypass.
-Gates, executable input parsing, completion and cleanup authority are unchanged.
+This transaction-local assertion protects the installed private V4 admission and
+is a prerequisite for future execution and dispatch. It creates no intent, quota
+reservation or execution claim and has no public caller. It offers no
+expired-evidence settlement bypass. Gates, executable input parsing, completion
+and cleanup authority are unchanged.
+
+### Prepared private video initial admission
+
+Migration `20261010142136_prepare_video_initial_admission.sql` adds the non-null
+default-false `video_analysis_enabled` flag and private
+`internal.admit_video_observation_analysis`. Fresh admission requires exact
+ready, unexpired V4 evidence under canonical source locks, unused execution and
+funding namespaces, and the admission/protected/media/video gates. It inserts
+one intent and reserves its quota in the same transaction. Source-chain and
+intent triggers validate V4; the final quota overload binds frames-only versus
+frames-plus-audio profiles to the original immutable input. Legacy overloads
+remain excluded.
+
+Exact saved admission replays the original quota before fresh expiry or gates;
+owner deletion still wins. It cannot renew an expired quota, create a claim,
+retry ambiguous dispatch, or refund. API roles cannot call the private function.
+Public begin/advance, V4 executable parsing, dispatch, result completion and
+source release remain unconnected and require their own reviewed contracts.

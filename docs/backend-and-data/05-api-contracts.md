@@ -17730,3 +17730,23 @@ execution state, alongside its own gate, namespace, quota and claim checks.
 Calling it separately cannot authorize a provider call. V4 remains rejected by
 executable input parsing; no public payload, provider invocation, completion,
 refund, cleanup permission or expiry bypass is introduced.
+
+### Prepared private V4 initial funding
+
+Private `admit_video_observation_analysis(owner, input, ip_hash)` atomically
+inserts the exact bound V4 intent and makes its single initial quota
+reservation. The default-off `video_analysis_enabled` flag is independent of
+upload gates. Fresh admission also requires admission/protected/media gates,
+verified legal and processor eligibility through the existing quota boundary,
+and the exact complete ready, unexpired cohort. Profiles remain
+`multimodal_video_frames_v1` or `multimodal_video_audio_v1` according to the
+saved provenance graph.
+
+Saved input and original reservation/lease/request identity must match on
+replay. An exact replay returns the original saved quota even after expiry or
+gate closure; it neither reserves again nor confers dispatch authority.
+Ownership and deletion checks precede replay. Unknown execution is
+recovery-only. This function is inaccessible to API roles and is not wired to
+public begin or advance; V4 remains rejected by executable parsing. Claim,
+dispatch, result, reader and completion integration are still required before
+any execution path can open.
