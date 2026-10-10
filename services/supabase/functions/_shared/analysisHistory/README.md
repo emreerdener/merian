@@ -1197,7 +1197,8 @@ inventory and closed allocation/status receipts. Fresh allocation requires all
 items unready; later snapshots preserve object identity and expiry and may only
 advance readiness. Shared audio/silent/Unicode vectors and strict bounded UTF-8
 codecs cover cross-scope, alias, order, timestamp and replay failures. This is
-metadata only: no SQL writer, route, native transport or provider invocation is
-installed. The
+metadata only. A separate service-only SQL allocation and per-item completion
+authority now returns these whole receipts behind disabled gates. No route,
+native transport, byte verifier or provider invocation is installed. The
 [canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-whole-inventory-upload-and-receipt-contract)
 owns the wire shape and remaining authority/byte-verification requirements.

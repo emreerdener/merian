@@ -17111,15 +17111,16 @@ UTF-8; escaped JSON Unicode and the shared Unicode vectors remain supported.
 
 ### Prepared video whole-inventory upload and receipt contract
 
-`videoEvidence.ts` defines reader-12/schema-2 metadata codecs before installing
-SQL upload authority or transport. `buildVideoEvidenceUploadRequest` validates
-and snapshots the complete V4 candidate before hashing. The closed request is
-its seven-field video source identity plus `items`, exactly the six/seven
-ordered `preparedVideoCohortItems` descriptors. The bounded decoder compares
-both identity and the entire inventory against that original candidate. Names,
-individual item acknowledgements and current selection cannot establish
-membership. The request is at most 4 KiB of strict UTF-8 JSON; it contains no
-owner, object allocation, readiness or binary media.
+`videoEvidence.ts` defines reader-12/schema-2 metadata codecs. The separate SQL
+allocation authority below implements them without installing byte transport.
+`buildVideoEvidenceUploadRequest` validates and snapshots the complete V4
+candidate before hashing. The closed request is its seven-field video source
+identity plus `items`, exactly the six/seven ordered `preparedVideoCohortItems`
+descriptors. The bounded decoder compares both identity and the entire inventory
+against that original candidate. Names, individual item acknowledgements and
+current selection cannot establish membership. The request is at most 4 KiB of
+strict UTF-8 JSON; it contains no owner, object allocation, readiness or binary
+media.
 
 A closed receipt carries the same identity, `owner_id`, `state`, `expires_at`
 and the entire ordered `items`. Every item retains its exact role/index/media
@@ -17130,7 +17131,7 @@ cohort. Receipt bytes are bounded to 8 KiB. Dates use exact UTC millisecond
 strings `YYYY-MM-DDTHH:mm:ss.SSSZ`, with years 0001–9999; invalid dates and
 alternate spellings are rejected, not normalized. Every non-null readiness
 timestamp must precede the shared expiry. The server must emit this
-representation when SQL authority is installed.
+representation in the SQL authority below.
 
 `decodeVideoEvidenceAllocation` represents **fresh allocation** and requires all
 readiness fields null. `decodeVideoEvidenceReceipt` represents later status or
@@ -17145,15 +17146,65 @@ silent and Unicode vectors freeze request/allocation/ready shapes.
 These decoders authenticate neither server provenance nor byte correctness.
 Expired snapshots remain decodable for exact recovery inspection; decoding never
 renews an expiry or authorizes upload, admission, cleanup, refund or invocation.
-Ready timestamps are server observations, never client mutation inputs. Future
-SQL must independently enforce ownership/deletion, exact live source occupancy,
-whole-cohort atomic allocation and replay, retirement/erasure fences and
-deadlines. It must retain the existing raw video cohort inventory separately
-from object allocation, since retirement validates that immutable inventory.
-Completion must verify stored bytes before marking readiness; a receipt alone
-cannot attest that frames/audio were derived from the retained source clip.
+Ready timestamps are server observations, never client mutation inputs. The SQL
+authority below independently enforces ownership/deletion, exact live source
+occupancy, whole-cohort atomic allocation and replay, retirement/erasure fences
+and deadlines. It retains raw video cohort inventory separately from object
+allocation, since retirement validates that immutable inventory. Completion must
+verify stored bytes before marking readiness; a receipt alone cannot attest that
+frames/audio were derived from the retained source clip.
 
-No SQL routine, endpoint, native consumer, provider profile, storage URL/key or
-new enabled gate is installed by these codecs. Photo/audio contracts and saved
-replay remain unchanged. SQL authority, byte materialization, native parity and
-coordinated protected execution remain subsequent checkpoints.
+The codecs provide no endpoint, native consumer, provider profile or storage
+URL/key. The separate default-off SQL authority follows below. Photo/audio
+contracts and saved replay remain unchanged. Byte materialization, native parity
+and coordinated protected execution remain subsequent checkpoints.
+
+### Prepared video evidence allocation authority
+
+Migration `20261010054046_prepare_video_evidence_allocation.sql` installs the
+service-only reader-12 SQL layer for the preceding closed metadata contract.
+Fresh allocation requires both `media_enabled` and the new default-false
+`video_evidence_enabled` gate. There is no HTTP upload route, signed URL issuer,
+native caller, byte verifier or protected execution admission in this
+checkpoint.
+
+`reserve_owned_observation_video_evidence(owner, request, reader)` validates the
+entire displayed identity and ordered inventory under the existing
+owner/parent/source/child/evidence locks. The separate immutable private
+`observation_video_evidence_allocations` row retains all six/seven object UUIDs
+and one five-minute deadline; raw provenance inventory is not rewritten. Object
+allocation uses the established object advisory locks and bounded collision
+retry. Allocation and all generic object rows commit atomically. Exact replay
+returns the same complete receipt, even with fresh-write gates disabled; it
+cannot renew expiry, replace missing rows or mint replacement object IDs.
+
+`complete_owned_observation_video_evidence(owner, request, media, object, reader)`
+acknowledges **one** exact allocated media/object pair after trusted code has
+verified its stored bytes. SQL accepts no readiness timestamp or caller-supplied
+metadata replacement. A fresh acknowledgement requires both gates and an
+unexpired allocation and records server time truncated to milliseconds. It
+returns the entire receipt: `allocated` until every item is ready. Repeated
+acknowledgement preserves the original readiness timestamp and can recover that
+result after gates close. These service routines do not themselves read storage
+or prove derivation; a future verifier must establish exact type/count/digest
+before calling completion.
+
+All recovery still validates owner, deletion, full V4 binding/live occupancy and
+absence of execution/funding conflicts. The shared post-allocation execution
+predicate permits this allocation and its objects; retirement's separate
+pre-execution predicate explicitly rejects any retained allocation. Legacy
+photo/audio admission and provider paths remain closed to V4.
+
+`retire_expired_observation_video_evidence()` is a separate unscheduled service
+routine behind `private_evidence_erasure_enabled`. It locks and validates one
+expired complete allocation, deletes all its generic rows and relies on existing
+delete triggers to enqueue permanent object erasure obligations. A concurrent
+worker rechecks after acquiring the lock and returns zero once whole cleanup has
+committed; a partial inventory still fails closed. It retains raw inventory,
+allocation, binding and occupancy: expiry never restores retirement eligibility
+or releases the source. Legacy single-object expiry helpers and the ordinary
+orphan worker explicitly exclude video allocations. A missing or mismatched
+object is held for investigation rather than replaced or partly cleaned. Parent
+erasure remains the authority for cascading the retained allocation. No storage
+deletion or live erasure qualification is claimed merely by emitting
+obligations.

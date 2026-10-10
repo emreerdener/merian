@@ -12314,3 +12314,23 @@ allocation rejects both partially and completely ready snapshots. Both Supabase
 candidate helper selectors include the suite. These codec tests do not establish
 SQL upload permission, byte/source derivation, storage qualification or native
 delivery.
+
+### Prepared video evidence SQL coverage
+
+`observationVideoEvidenceDb.test.ts` exercises audio/silent/Unicode whole
+allocation with and without an existing raw cohort, strict identity/inventory,
+owner/reader/role rejection, fixed object/deadline replay, per-item readiness,
+closed-gate recovery, missing-object holds and permanent retirement exclusion.
+Explicitly aged disposable fixtures prove legacy expiry cannot split video and
+the video routine enqueues every object's erasure while retaining allocation.
+Two-connection tests require actual canonical lock blocking for duplicate
+allocation, both allocation/retirement orders, deletion, completion and
+duplicate expiry; fresh connections recover the same durable receipt after
+simulated response loss.
+
+`observation_video_evidence.sql` checks disabled defaults, registered service
+privileges, RLS/private helpers and the distinct fresh-retirement versus
+post-allocation execution predicates. Candidate workflow selectors include the
+runtime and migration-contract suites. Tests establish SQL behavior only;
+storage byte verification, source derivation, native delivery and device/hosted
+qualification remain separate acceptance requirements.

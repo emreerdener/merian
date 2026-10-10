@@ -8114,7 +8114,8 @@ The binding insertion validator recognizes V4 internally. Existing public
 reservation, generic source lock, funded/unfunded retirement and completion
 contracts are not widened. Child-use, reservation and discovery coverage now
 include video, with independent bounded sentinels; legacy cohorts cannot claim
-V4 children. No application writer or upload object is created. See the
+V4 children. That storage migration created no application writer or upload
+object; the later allocation authority below adds service-only writes. See the
 [held storage contract](05-api-contracts.md#held-video-cohort-storage).
 
 ### Prepared video source reservation authority
@@ -8147,3 +8148,22 @@ legacy release routines are unchanged. Retained binding and explicit admission,
 execution and storage guards prevent old-child resurrection. No media object,
 provider invocation, quota consumption or refund is authorized. See the
 [retirement contract](05-api-contracts.md#prepared-video-pre-execution-retirement-contract).
+
+### Prepared video evidence allocations
+
+Migration `20261010054046_prepare_video_evidence_allocation.sql` adds the
+non-null default-false `video_evidence_enabled` gate and private RLS-protected
+`observation_video_evidence_allocations`. Child is primary key, with cascading
+foreign keys to the raw video cohort and the complete source-binding identity.
+The immutable bounded array retains exact inventory plus object IDs; one fixed
+expiry governs all objects. Raw cohort descriptors remain unchanged. API roles
+have no table or helper access; only the three registered service routines can
+allocate, acknowledge a verified item, or expire a complete allocation.
+
+Allocation persists after generic-row cleanup to prohibit replacement IDs and
+post-allocation source retirement. Existing generic readiness immutability and
+delete-to-erasure triggers remain authoritative. Video-aware guards enforce
+exact allocation membership; legacy expiry routines exclude these objects.
+Parent erasure cascades retained allocation state. No provider admission or HTTP
+upload route is installed. See the
+[allocation contract](05-api-contracts.md#prepared-video-evidence-allocation-authority).

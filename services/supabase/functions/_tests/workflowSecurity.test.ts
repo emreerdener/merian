@@ -272,6 +272,8 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
       "observationVideoReservationMigrationContract.test.ts",
       "observationVideoReservationDb.test.ts",
       "observationVideoRetirementDb.test.ts",
+      "observationVideoEvidenceDb.test.ts",
+      "observationVideoEvidenceMigrationContract.test.ts",
     ]
   ) {
     assertEquals(

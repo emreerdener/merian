@@ -5,7 +5,7 @@ import {
   parseVideoSourceReservationRequest,
 } from "./videoSourceReservation.ts";
 
-/** Prepared metadata contract, not an installed upload or execution authority. */
+/** Prepared metadata contract, not byte transport or execution authority; separate SQL services own allocation. */
 export const VIDEO_EVIDENCE_READER = 12;
 export const VIDEO_EVIDENCE_REQUEST_MAX_BYTES = 4_096;
 export const VIDEO_EVIDENCE_RECEIPT_MAX_BYTES = 8_192;
