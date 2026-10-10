@@ -17,7 +17,10 @@ struct ObservationVideoUploadLifecycleTests {
         } catch { seed.remove(); throw error }
     }
     func receipt(_ claim: Store.Claim, all: Bool = false) throws -> ObservationVideoEvidenceReceipt {
-        let work = claim.snapshot.work, request = work.staged.request
+        try receipt(claim.snapshot, all: all)
+    }
+    func receipt(_ snapshot: Store.Snapshot, all: Bool = false) throws -> ObservationVideoEvidenceReceipt {
+        let work = snapshot.work, request = work.staged.request
         var row = try #require(JSONSerialization.jsonObject(with: request.body) as? [String: Any])
         var items = try #require(row["items"] as? [[String: Any]])
         let target = try #require(work.attempts.last).mediaID

@@ -2196,3 +2196,16 @@ settlement can survive dispatch cancellation but still requires current account,
 source, row/job and erasure scope. No network owner, cleanup, scheduler or
 execution is introduced. See the
 [canonical lifecycle contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-video-upload-attempt-lifecycle).
+
+### Retained video upload delivery
+
+`ObservationVideoUploadService` saves each ordered item claim before reading the
+complete original cohort. Its live seam uses locked `readVideo`, constructs
+Wire1 on a cancellable utility task, revalidates the claim after awaits, then
+uses the dedicated upload transport. Each exact known receipt settles separately
+from unknown network handling. The bounded loop advances only after durable
+settlement; unknown work is held without retry. Upload readiness retains every
+local file: it is not execution, retirement or erasure authority. The
+queue-owned `ObservationVideoUploadOwner` retains account lifetime and separate
+dispatch/known settlement fences. See the
+[delivery contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-retained-video-upload-delivery).

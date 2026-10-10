@@ -122,6 +122,7 @@ import SwiftData
     @ObservationIgnored let reanalysisExecutionOwner = ObservationReanalysisExecutionOwner()
     @ObservationIgnored let sourceReservationOwner = ObservationSourceReservationOwner()
     @ObservationIgnored let videoReservationOwner = ObservationVideoReservationOwner()
+    @ObservationIgnored let videoUploadOwner = ObservationVideoUploadOwner()
     @ObservationIgnored let audioExecutionOwner = ObservationAudioExecutionOwner()
     @ObservationIgnored let audioStatusOwner = ObservationAudioStatusOwner()
     private(set) var reanalysisExecutionGeneration: UInt64 = 0
@@ -531,6 +532,7 @@ import SwiftData
                         self.protectedChatDeliveryOwner.cancel()
                         self.sourceReservationOwner.cancel()
                         self.videoReservationOwner.cancel()
+                        self.videoUploadOwner.cancel()
                         self.audioExecutionOwner.cancel()
                         self.analysisReviewDeliveryOwner.cancel()
                         self.reanalysisExecutionOwner.cancel()
@@ -569,6 +571,7 @@ import SwiftData
                     self.protectedChatDeliveryOwner.cancel()
                     self.sourceReservationOwner.cancel()
                     self.videoReservationOwner.cancel()
+                    self.videoUploadOwner.cancel()
                     self.audioExecutionOwner.cancel()
                     self.analysisReviewDeliveryOwner.cancel()
                     self.reanalysisExecutionOwner.cancel()

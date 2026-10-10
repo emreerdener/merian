@@ -4212,11 +4212,11 @@ separate reader-12/schema-2 native identity, exact saved-input envelope and
 full-identity reply decoder. Recovery uses that same identity and reply shape. A
 typed reservation transport consumes these values through the explicit injected
 video reservation service and retained queue owner. No scheduler, ordinary UI,
-recovery, upload progression or execution caller is installed. They confer no
-upload, execution or release authority. See the prepared video source contract
-in `docs/backend-and-data/05-api-contracts.md` and shared-fixture coverage in
-the canonical testing strategy. Existing photo/audio reservation owners remain
-unchanged.
+recovery or execution caller is installed. Explicit upload progression is
+described below. They confer no upload, execution or release authority. See the
+prepared video source contract in `docs/backend-and-data/05-api-contracts.md`
+and shared-fixture coverage in the canonical testing strategy. Existing
+photo/audio reservation owners remain unchanged.
 
 ## Prepared video retirement models
 
@@ -4255,7 +4255,8 @@ and returns the closed reader12 reply. It preserves exact saved bytes, single
 attempt delivery, account lease, bounded response and separate
 attempt/settlement validators. Exact conflicts retain the candidate in
 `ObservationVideoSourceReservationConflict`. Reader11 behavior is unchanged; no
-queue/composition, recovery or upload caller is installed. See the
+automatic or recovery caller is installed. Explicit reservation and upload
+composition is documented in the delivery contracts. See the
 [native reader12 contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-reader12-video-reservation-transport).
 
 ### Native video upload transport
@@ -4265,5 +4266,15 @@ through the account-bound dispatcher once. `PinnedNetworkTransport` owns a
 separate130-second session and streamed8KiB reply cap. Whole-cohort validation
 preserves prior receipt evidence and requires the target item ready before
 settlement. Attempt and settlement fences remain distinct; no retry, inference
-authority or live queue caller is added. See the
+authority is added. The explicit retained queue caller is described below. See
+the
 [native upload contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-exact-video-item-upload-transport).
+
+### Retained video upload caller
+
+`ObservationVideoUploadService.live` is the explicit prepared caller of
+`ObservationVideoEvidenceTransport`. It supplies exact saved Wire1 bytes, the
+prior whole-cohort receipt and separate durable claim/known-settlement
+validators. The dedicated queue owner retains the full operation; no ordinary
+capture or scheduler caller is enabled. See the
+[delivery contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-retained-video-upload-delivery).

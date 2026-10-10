@@ -975,3 +975,16 @@ stops dispatch; current-account known settlement remains available. Both Auth
 barriers invalidate and drain the owner, and overlapping drains block admission.
 There is no scheduler or ordinary UI caller. See the
 [reservation delivery contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-retained-video-reservation-delivery).
+
+### Explicit video upload owner
+
+`Services/ObservationVideoUploadOwner.swift` retains one exact lifecycle
+snapshot through the actual account lease exit.
+`OfflineQueueManager+VideoUpload` accepts explicit injected work only. Both Auth
+barriers invalidate and await the owner; both connectivity cancellation paths
+stop dispatch while allowing a known same- account receipt to settle. Completion
+is published only after owner exit and for the original current context/account.
+No scheduler or ordinary UI admission is installed. Upload-ready work retains
+local media pending independent cleanup authority. The
+[canonical API contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-retained-video-upload-delivery)
+owns the state and cancellation semantics.

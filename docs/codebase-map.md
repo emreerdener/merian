@@ -3189,3 +3189,11 @@ store. It preserves the original handoff and all observed receipts while unknown
 work remains non-dispatching. The
 [canonical lifecycle contract](backend-and-data/05-api-contracts.md#native-video-upload-attempt-lifecycle)
 defines its transaction and cancellation authority.
+
+`ObservationVideoUploadService` and the queue's `ObservationVideoUploadOwner` /
+`OfflineQueueManager+VideoUpload` connect durable ordered item claims to exact
+saved-file verification and the dedicated Wire1 transport. They retain account
+lifetime, separate dispatch/known-settlement predicates and all local media.
+[Native video upload delivery](backend-and-data/05-api-contracts.md#native-retained-video-upload-delivery)
+is the canonical owner; upload readiness grants no cleanup or inference
+authority.

@@ -17338,9 +17338,9 @@ body budget, 400 invalid contract,409 definite operation conflict and503
 uncertain/unavailable (including concealed database denial). No diagnostic or
 request body is returned. The route never retries, renews expiry, replaces
 evidence, refunds, or invokes a provider. SQL `media_enabled` and
-`video_evidence_enabled` remain disabled. No native caller or new execution
-permission is introduced; device, hosted resource/storage/CDN/erasure
-qualification remains separate.
+`video_evidence_enabled` remain disabled. The explicit retained native upload
+caller is documented below; it grants no new execution permission; device,
+hosted resource/storage/CDN/erasure qualification remains separate.
 
 ### Reader12 video source HTTP admission
 
@@ -17387,9 +17387,9 @@ off-main preparation task. Rebuilding from the same saved envelope and bytes
 produces the identical wire body without generating any identity, sampling or
 extracting media. Digest equality alone does not establish container validity,
 authentication, allocation, readiness or execution permission. Server validators
-remain required. The encoder installs no queue caller; its separate native
-transport is described below; reader11 photo/audio paths and generated Identify
-DTOs are unchanged.
+remain required. The retained delivery service below owns preparation and queue
+lifetime; its separate native transport is described below; reader11 photo/audio
+paths and generated Identify DTOs are unchanged.
 
 ### Native reader12 video reservation transport
 
@@ -17409,9 +17409,10 @@ and owner after settlement validation. All other errors remain uncertain;
 neither error nor reserved/held/unavailable grants upload, provider execution,
 release or replacement. The reader11 overload is unchanged. The explicit
 injected queue entry point and retained delivery owner below now compose this
-seam. Scheduler, ordinary UI, recovery HTTP, upload progression and execution
-callers remain uninstalled. The saved-cohort reader and video upload transport
-are described below. Gates remain disabled and ordinary access nil.
+seam. Scheduler, ordinary UI, recovery HTTP and execution callers remain
+uninstalled. Explicit upload progression is documented below. The saved-cohort
+reader and video upload transport are described below. Gates remain disabled and
+ordinary access nil.
 
 ### Native exact video item upload transport
 
@@ -17431,8 +17432,9 @@ object/expiry/readiness evidence and mark the requested item ready; other items
 may still be pending. Only the separate settlement validator accepts the known
 answer after dispatch cancellation. Every non200, lost, malformed, oversized,
 foreign or unready-target response fails without automatic retry or fallback. No
-upload result grants provider execution, release or refund. No live queue caller
-is installed. Gates remain false and ordinary access nil.
+upload result grants provider execution, release or refund. The explicit
+retained queue caller is documented below. Gates remain false and ordinary
+access nil.
 
 ### Native saved video cohort reader
 
@@ -17451,8 +17453,8 @@ release the filesystem fences. The caller must still revalidate its current
 account/claim after await; returned bytes are not authority to upload or invoke
 a provider. This checks equality with the saved immutable manifest, not fresh
 container/derivation verification or server readiness. No persistence schema
-change or live video delivery caller is installed. Gates and ordinary access
-remain disabled.
+change is introduced. The explicit reservation and upload services below use
+this reader. Gates and ordinary access remain disabled.
 
 ### Native durable video reservation staging
 
@@ -17656,3 +17658,45 @@ grants no provider execution or cleanup authority. Retained upload delivery,
 exact recovery, receipt-bound cleanup and protected execution remain separate
 checkpoints. Gates remain disabled and ordinary access nil. No wire contract or
 SwiftData entity changes.
+
+### Native retained video upload delivery
+
+`ObservationVideoUploadService` runs only inside the explicit
+`ObservationVideoUploadOwner` scope keyed by exact lifecycle snapshot, account
+session, generation and container. It saves each initial next-item claim before
+awaiting preparation or transport. The live preparation seam reads and verifies
+the complete original saved cohort under the existing file locks, selects only
+the claimed media ID, and constructs Wire1 on a cancellable utility task from
+the original reservation candidate bytes. It revalidates cancellation, account,
+connectivity and exact durable claim after read/preparation awaits and before
+transport. Returned prepared wire must match the saved candidate, metadata
+request and claimed item. Missing/damaged media denies delivery; no
+preprocessing, replacement evidence or replacement operation is generated.
+
+Each upload receives the exact previously saved whole-cohort receipt. Known
+response settlement has a distinct account/container/session predicate and
+separate error path: failed settlement persistence cannot become an unknown
+network failure. Once durable, partial progress can authorize the next
+internally derived item under a fresh dispatch check. The loop is bounded by the
+original item count; every accepted receipt makes its target ready. All-ready
+returns without another claim. Unknown failures may hold the exact attempt;
+cancellation or lost dispatch authority can leave running work held. Neither
+state can rearm. Reopening grants discovery only, not a recovered dispatch
+capability.
+
+The owner coalesces only the same active key and holds one slot through actual
+lease exit. Connectivity cancellation closes dispatch while known same-account
+settlement remains possible. Auth invalidation denies both. Overlapping drains
+close admission until all captured tasks exit. The queue's explicit injected
+`requestVideoEvidenceUpload` checks current context/account and
+online/unconstrained state; both Auth barriers invalidate and await it, and both
+connectivity paths cancel it. Completion follows lease release and only reaches
+the same current context/account. No automatic caller, scheduler admission or
+ordinary UI access is enabled.
+
+Upload-ready receipts do not authorize deletion of local source or derived
+media. The service retains all cohort files. Existing parent erasure remains
+independent; future per-child cleanup must obtain its own durable
+execution/retirement/erasure authority and await receipt-bound deletion. No
+provider invocation, cleanup receipt, refund, gate activation or hosted
+scheduling is added by this checkpoint.

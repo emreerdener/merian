@@ -12518,3 +12518,17 @@ codec transitions. Existing handoff, reservation lifecycle and metadata parity
 suites remain regression selectors. This qualifies local claims and settlement
 only; upload delivery, cleanup, execution and hosted qualification remain
 separate.
+
+### Retained video upload delivery coverage
+
+`ObservationVideoUploadDeliveryTests` uses live saved-file verification and
+Wire1 preparation with a synthetic upload seam. It covers silent/audio ordered
+delivery, previous receipt threading, all-ready admission rejection and
+unchanged local files; missing/damaged media; cancellation/account/dispatch
+changes after preparation; unknown/late receipt outcomes; erasure; claim and
+settlement saves before/after commit; retained owner coalescing/drain/lease
+exit; and runtime queue completion across offline/context/account changes.
+Source assertions retain both Auth and connectivity barriers. Lifecycle,
+reservation delivery and video transport tests remain regression selectors. This
+is native prepared delivery acceptance, not hosted storage, provider execution,
+cleanup or activation qualification.

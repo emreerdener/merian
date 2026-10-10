@@ -38,6 +38,7 @@ extension OfflineQueueManager {
         protectedChatDeliveryOwner.invalidate()
         sourceReservationOwner.invalidate()
         videoReservationOwner.invalidate()
+        videoUploadOwner.invalidate()
         audioExecutionOwner.invalidate()
         audioStatusOwner.invalidate()
         confirmationUndoOwner.cancelAll()
@@ -63,6 +64,7 @@ extension OfflineQueueManager {
         await protectedChatDeliveryOwner.invalidateAndAwait()
         await sourceReservationOwner.invalidateAndAwait()
         await videoReservationOwner.invalidateAndAwait()
+        await videoUploadOwner.invalidateAndAwait()
         await audioExecutionOwner.invalidateAndAwait()
         await audioStatusOwner.invalidateAndAwait()
     }
