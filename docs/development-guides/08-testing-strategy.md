@@ -12150,5 +12150,12 @@ property order, original request preservation, mutation after the hash call,
 every semantic leaf being bound or rejected, ordered descriptions, aliases,
 unsupported text and schema separation. Existing photo/audio golden bytes remain
 unchanged, and the executable input parser continues rejecting V4. Candidate CI
-registers both type checks and tests. These are TypeScript contract tests;
-Swift/SQL parity and any live reservation/admission qualification remain open.
+registers both type checks and tests.
+
+`ObservationVideoSourceFingerprintTests` uses the same fixed vectors to compare
+exact native canonical bytes and hashes, including numeric spelling/signed-zero
+equivalence, every semantic leaf, aliases, unsupported text, ordered
+descriptions and unchanged rejection by the old source codec. Native validation
+reuses the closed video manifest without treating a fingerprint as saved-request
+restoration. SQL parity and any live reservation/admission qualification remain
+open.

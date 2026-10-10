@@ -2055,6 +2055,7 @@
 		C5BEB9B8E78EE366E67851BA /* ScansSheetPresentationModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 521DC07F7DB2AF16172B7CA1 /* ScansSheetPresentationModifier.swift */; };
 		C5C030D992C90836972DC76E /* IdentificationHistoryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46A3CA791C45F572F05F3A24 /* IdentificationHistoryUITests.swift */; };
 		C5C47C2089AD320D5CD5CD38 /* SettingsExportDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AAFD4EDDA6CD9F84AB885CB /* SettingsExportDependencies.swift */; };
+		C5D0A45044AD6BEFE7EA8169 /* ObservationVideoSourceFingerprintTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB4F3FC4C2BE79502119E29C /* ObservationVideoSourceFingerprintTests.swift */; };
 		C5E02FC1D25E98D05D5C1E3B /* InsightHistoryReanalysisAccesses.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366179E496DB625163CDEBA0 /* InsightHistoryReanalysisAccesses.swift */; };
 		C60F1AF9BBC8B53F629F2D47 /* ConsentLedgerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F8B815A975D0192CF0E225 /* ConsentLedgerStore.swift */; };
 		C61D87C166EE56A865991181 /* ExploreFeedRoutes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53BD642FAF1C802F689C5E94 /* ExploreFeedRoutes.swift */; };
@@ -2256,6 +2257,7 @@
 		D86A96764694D57A8C57FBA4 /* AppUpdateCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F45E2687F776858851B8ADB9 /* AppUpdateCoordinator.swift */; };
 		D87F2F501F16F84C62BC014C /* OfflineQueueManager+Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 141DAED67D2C6CD35430A179 /* OfflineQueueManager+Diagnostics.swift */; };
 		D8839D1076F9651C5FF7B979 /* PushRegistrationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E1FF9C6462EA4A90B523392 /* PushRegistrationCoordinator.swift */; };
+		D8870A0A259BCBCEEB4DCB98 /* ObservationVideoSourceFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2AD63B7C1727DE2E06DB9F3 /* ObservationVideoSourceFingerprint.swift */; };
 		D8DC1EEA47AB0286BA9C956E /* CaptureWorkspaceViewModel+PhotoCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 902E76EB4811F484E01C769E /* CaptureWorkspaceViewModel+PhotoCapture.swift */; };
 		D90136B826CAB293F012116B /* ExportEndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 684C5569CC34008113CF36F1 /* ExportEndpointTests.swift */; };
 		D9277A6A8EDD5F44E128DEEE /* InsightFieldNotesDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21DA8E77230F902A91DD9783 /* InsightFieldNotesDependencies.swift */; };
@@ -4656,6 +4658,7 @@
 		BAE041D593445A32343578ED /* SearchableScan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchableScan.swift; sourceTree = "<group>"; };
 		BAE42065679C9BB419E4C0E7 /* MilestoneToastPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneToastPresenter.swift; sourceTree = "<group>"; };
 		BB0AE39969F0604490ECB159 /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
+		BB4F3FC4C2BE79502119E29C /* ObservationVideoSourceFingerprintTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationVideoSourceFingerprintTests.swift; sourceTree = "<group>"; };
 		BB5BA49CBF14F4E340D44AFD /* MerianNetworkClient+ExploreInteractions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MerianNetworkClient+ExploreInteractions.swift"; sourceTree = "<group>"; };
 		BB5BE583CB1EC6F00526EB54 /* ScanAdmissionSessionReadinessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAdmissionSessionReadinessTests.swift; sourceTree = "<group>"; };
 		BB7EC6A6A42C6E634E3AD48F /* ArchiveManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveManager.swift; sourceTree = "<group>"; };
@@ -4891,6 +4894,7 @@
 		D2853018959B0A8113F74346 /* SettingsTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTabView.swift; sourceTree = "<group>"; };
 		D2A0A6035EA69EF4ABEBD1EB /* InferenceAudioTestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceAudioTestFixtures.swift; sourceTree = "<group>"; };
 		D2A17201579A94B17981D3B3 /* ObservationReanalysisSourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationReanalysisSourceTests.swift; sourceTree = "<group>"; };
+		D2AD63B7C1727DE2E06DB9F3 /* ObservationVideoSourceFingerprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationVideoSourceFingerprint.swift; sourceTree = "<group>"; };
 		D2BD456D1F60FEE51F38484A /* AudioRecordingPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecordingPresentationTests.swift; sourceTree = "<group>"; };
 		D2D38A1EBE6D09F535961621 /* CaptureScanArchitectureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureScanArchitectureTests.swift; sourceTree = "<group>"; };
 		D2D3D7D97B79F12AE93AC48A /* StoreMigrationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreMigrationModels.swift; sourceTree = "<group>"; };
@@ -5722,6 +5726,7 @@
 				7103B738CDE19278AA87D117 /* ObservationSourceFingerprint.swift */,
 				D3040360B739AC80F44C8EB7 /* ObservationSourceReservation.swift */,
 				4E4E0D0936E69A146A5BFFF1 /* ObservationVideoReanalysisRequest.swift */,
+				D2AD63B7C1727DE2E06DB9F3 /* ObservationVideoSourceFingerprint.swift */,
 			);
 			path = ObservationAnalysis;
 			sourceTree = "<group>";
@@ -11890,6 +11895,7 @@
 				91DB0E49D85B4C70AA7A60AF /* ObservationSourceFingerprintTests.swift */,
 				628A9667BC65C268CBA44603 /* ObservationSourceReservationTests.swift */,
 				6F8AEDBE806CA359D732F6D6 /* ObservationVideoReanalysisRequestTests.swift */,
+				BB4F3FC4C2BE79502119E29C /* ObservationVideoSourceFingerprintTests.swift */,
 				4216324FDB904ECF6755C0D5 /* ProductFeedbackEndpointTests.swift */,
 				5E7AD23FAE524D8773D7781F /* PublicProfileEndpointTests.swift */,
 				00EDBB604FBF8FDDC678F79D /* ReanalysisRecoveryTransportTests.swift */,
@@ -14556,6 +14562,7 @@
 				FC6D6EA1BA8E272E85B29FBC /* ObservationVideoPreparationTests.swift in Sources */,
 				CBD2E4BB48AE84C81031D053 /* ObservationVideoReanalysisRequestTests.swift in Sources */,
 				72E334B1F64C10A301897F57 /* ObservationVideoSourceBindingTests.swift in Sources */,
+				C5D0A45044AD6BEFE7EA8169 /* ObservationVideoSourceFingerprintTests.swift in Sources */,
 				EC11ED25727450B988B49D97 /* OfflineJobSchedulerTests.swift in Sources */,
 				C6561BD6DFF6A5BF79552226 /* OfflineQueueAdmissionArchitectureTests.swift in Sources */,
 				71D9371F9F880561052B53DC /* OfflineQueueMaintenanceArchitectureTests.swift in Sources */,
@@ -16025,6 +16032,7 @@
 				B0ECE97E271563C09B2FD6A2 /* ObservationVideoPreparationStore.swift in Sources */,
 				CF03D50AE6D6F11690A75780 /* ObservationVideoProvenance.swift in Sources */,
 				2EA0B8331EF6632F384049CD /* ObservationVideoReanalysisRequest.swift in Sources */,
+				D8870A0A259BCBCEEB4DCB98 /* ObservationVideoSourceFingerprint.swift in Sources */,
 				9E1892DE1A47E2C93F9414FC /* OfflineCaptureFileStore.swift in Sources */,
 				340E8B37587875468B6E04BB /* OfflineJobRecord.swift in Sources */,
 				47C1991374C7CDD9069D73B0 /* OfflineJobScheduler.swift in Sources */,

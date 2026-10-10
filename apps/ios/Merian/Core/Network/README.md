@@ -4184,3 +4184,14 @@ queue, upload or admission capability and has no installed caller. Photo/audio
 request codecs and source reservation remain unchanged. See the API contract's
 “Prepared video reanalysis request V4” section for the later coordinated runtime
 requirements.
+
+### Held video source fingerprint
+
+`ObservationVideoSourceFingerprint` validates private V4 metadata and encodes
+the separate video netstring identity, checked against shared TypeScript golden
+vectors. Numeric spelling is semantic, while description text remains exact. It
+does not recompute the original request digest or grant saved-request, owner,
+reservation, upload or execution authority. SQL parity is still required before
+any caller is installed. Existing photo/audio source codecs remain unchanged.
+See
+[the held fingerprint contract](../../../../../docs/backend-and-data/05-api-contracts.md#held-video-source-fingerprint-v1).

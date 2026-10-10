@@ -76,7 +76,7 @@ export function videoSourceCanonicalBytes(
   const framed = fields.map((field) => {
     if (
       typeof field === "number" &&
-      (!Number.isSafeInteger(field) || field < 0 || Object.is(field, -0))
+      (!Number.isSafeInteger(field) || field < 0)
     ) {
       return invalidHistory();
     }

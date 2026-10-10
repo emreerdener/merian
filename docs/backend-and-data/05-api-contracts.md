@@ -16801,21 +16801,23 @@ separate requirements. Existing executable photo/audio routes remain unchanged.
 
 `videoSourceFingerprint.videoSourceCanonicalBytes` and `videoSourceFingerprint`
 define a separate, unregistered V4 semantic binding contract. The TypeScript
-codec and fixed vectors are prepared; Swift and SQL parity remain required
-before any producer or consumer may use this identity. Existing photo/audio
-fingerprints, original request bytes, `request_digest` replay semantics and live
-reservation/admission parsers are unchanged. The codec does not authenticate an
-owner, verify media bytes, reserve occupancy or select an executable provider.
+codec, native `ObservationVideoSourceFingerprint` and fixed vectors are
+prepared; SQL parity remains required before any producer or consumer may use
+this identity. Existing photo/audio fingerprints, original request bytes,
+`request_digest` replay semantics and live reservation/admission parsers are
+unchanged. The codec does not authenticate an owner, verify media bytes, reserve
+occupancy or select an executable provider.
 
 After `parsePreparedVideoAdmission` validation, encode each scalar as a UTF-8
 netstring: decimal UTF-8 byte length, colon, exact scalar text, comma. Numbers
-use nonnegative safe-integer decimal text; booleans below use 1/0. NUL, lone
-surrogates and negative zero scalar values are rejected, without replacement or
-Unicode normalization. The complete canonical representation is bounded to
-262,144 bytes. SHA-256 uses these owned bytes, captured before the first await.
-Object property order is irrelevant; array order remains significant. Owner is
-excluded, preserving the existing account-merge identity boundary without
-conferring merge authority.
+use nonnegative safe-integer decimal text; booleans below use 1/0. Numeric
+spelling is not bound: `-0`, `0`, `0.0` and `0e0` encode the same integer zero,
+consistent with PostgreSQL JSONB. NUL and lone surrogates are rejected, without
+replacement or Unicode normalization. The complete canonical representation is
+bounded to 262,144 bytes. SHA-256 uses these owned bytes, captured before the
+first await. Object property order is irrelevant; array order remains
+significant. Owner is excluded, preserving the existing account-merge identity
+boundary without conferring merge authority.
 
 The exact scalar sequence is:
 
@@ -16839,7 +16841,13 @@ The exact scalar sequence is:
    `bits_per_sample`, `encoding`, then its artifact tuple.
 7. Description count; each description in order, with exact text preserved.
 
-The profile string binds declared metadata only. Swift/SQL parity, video cohort
+The native codec validates the closed manifest and identity independently of
+saved-request restoration. It binds the original `request_digest` as a replay
+identifier without attempting to recompute it from JSON. Its shared golden
+vectors cover audio, silent and Unicode inputs; numeric spelling has the same
+semantic meaning in TypeScript and Swift. No native caller is installed.
+
+The profile string binds declared metadata only. SQL parity, video cohort
 coverage, durable reservation/recovery/retirement, materialization and execution
 are separate checkpoints. In particular, do not register V4 with the existing
 photo/audio source reservation codec merely because this fingerprint is defined.

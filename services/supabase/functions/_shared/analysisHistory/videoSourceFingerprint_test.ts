@@ -89,18 +89,6 @@ Deno.test("held video fingerprint rejects aliases, unsupported text and alternat
     input.evidence_manifest.descriptions = [text];
     await assertRejects(() => videoSourceFingerprint(input));
   }
-  const negativeZero = structuredClone(vectors[0].input);
-  negativeZero.evidence_manifest.provenance.parameters
-    .crop_center_basis_points = -0;
-  assertEquals(
-    Object.is(
-      parsePreparedVideoAdmission(negativeZero).evidence_manifest.provenance
-        .parameters.crop_center_basis_points,
-      -0,
-    ),
-    true,
-  );
-  assertThrows(() => videoSourceCanonicalBytes(negativeZero));
   const alias = structuredClone(vectors[0].input);
   alias.source_analysis_id = alias.evidence_manifest.provenance.source.media_id;
   assertThrows(() => videoSourceCanonicalBytes(alias));
@@ -125,4 +113,31 @@ Deno.test("held video fingerprint leaves executable admission and photo/audio fi
       old.canonical_utf8_hex,
     );
   }
+});
+
+Deno.test("held video fingerprint binds semantic integers across JSON runtimes", async () => {
+  for (const field of ["crop", "actual", "start", "index"]) {
+    const zero = structuredClone(vectors[0].input);
+    const graph = zero.evidence_manifest.provenance;
+    if (field === "crop") graph.parameters.crop_center_basis_points = 0;
+    if (field === "actual") graph.frames[0].actual_time_ticks = 0;
+    if (field === "start") {
+      graph.audio!.start_ticks = 0;
+      graph.audio!.end_ticks = 1200;
+    }
+    const baseline = await videoSourceFingerprint(zero);
+    if (field === "crop") graph.parameters.crop_center_basis_points = -0;
+    if (field === "actual") graph.frames[0].actual_time_ticks = -0;
+    if (field === "start") graph.audio!.start_ticks = -0;
+    if (field === "index") graph.frames[0].index = -0;
+    assertEquals(await videoSourceFingerprint(zero), baseline);
+    parsePreparedVideoAdmission(zero);
+  }
+  const json = JSON.stringify(vectors[0].input);
+  const decimal = json.replaceAll(":100,", ":1e2,");
+  assertNotEquals(decimal, json);
+  assertEquals(
+    await videoSourceFingerprint(JSON.parse(decimal)),
+    vectors[0].sha256,
+  );
 });
