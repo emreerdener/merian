@@ -265,6 +265,8 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
     const suite of [
       "observationVideoFingerprintMigrationContract.test.ts",
       "observationVideoFingerprintDb.test.ts",
+      "observationVideoCohortMigrationContract.test.ts",
+      "observationVideoCohortDb.test.ts",
     ]
   ) {
     assertEquals(
@@ -273,6 +275,13 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
       `${suite} must run in both candidate type-check and helper-test lists`,
     );
   }
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoCohort_test.ts",
+    ).length - 1,
+    2,
+    "Held video inventory must run in both candidate type-check and helper-test lists",
+  );
   const helperStep = candidateWorkflow.split(
     "- name: Test shared Edge helpers",
   )[1]
@@ -280,7 +289,7 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   assert(helperStep, "Candidate helper step must remain explicit");
   assertStringIncludes(
     helperStep,
-    "--allow-read=supabase/functions,../apps/web,supabase/migrations/20261010005747_prepare_video_source_fingerprint_parity.sql",
+    "--allow-read=supabase/functions,../apps/web,supabase/migrations/20261010005747_prepare_video_source_fingerprint_parity.sql,supabase/migrations/20261010015758_prepare_video_cohort_inventory.sql",
   );
   assertStringIncludes(candidateWorkflow, "  merge_group:");
   assertStringIncludes(candidateWorkflow, "  workflow_dispatch:");

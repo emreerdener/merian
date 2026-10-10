@@ -184,6 +184,9 @@ jobs:
             supabase/functions/_shared/analysisHistory/retainedVideoStructure_test.ts \
             supabase/functions/_shared/analysisHistory/retainedVideoContainer_test.ts \
             supabase/functions/_shared/analysisHistory/videoSourceFingerprint_test.ts \
+            supabase/functions/_shared/analysisHistory/videoCohort_test.ts \
+            supabase/functions/_tests/observationVideoCohortMigrationContract.test.ts \
+            supabase/functions/_tests/observationVideoCohortDb.test.ts \
             supabase/functions/_tests/observationVideoFingerprintMigrationContract.test.ts \
             supabase/functions/_tests/observationVideoFingerprintDb.test.ts \
             supabase/functions/resolve-history-photo/handler_test.ts \
@@ -343,7 +346,7 @@ jobs:
         run: |
           deno test --frozen --config supabase/functions/deno.json \
             --allow-env \
-            --allow-read=supabase/functions,../apps/web,supabase/migrations/20261010005747_prepare_video_source_fingerprint_parity.sql \
+            --allow-read=supabase/functions,../apps/web,supabase/migrations/20261010005747_prepare_video_source_fingerprint_parity.sql,supabase/migrations/20261010015758_prepare_video_cohort_inventory.sql \
             supabase/functions/_shared/http_test.ts \
             supabase/functions/_shared/outbound_test.ts \
             supabase/functions/_shared/posthog_test.ts \
@@ -392,6 +395,9 @@ jobs:
             supabase/functions/_shared/analysisHistory/retainedVideoStructure_test.ts \
             supabase/functions/_shared/analysisHistory/retainedVideoContainer_test.ts \
             supabase/functions/_shared/analysisHistory/videoSourceFingerprint_test.ts \
+            supabase/functions/_shared/analysisHistory/videoCohort_test.ts \
+            supabase/functions/_tests/observationVideoCohortMigrationContract.test.ts \
+            supabase/functions/_tests/observationVideoCohortDb.test.ts \
             supabase/functions/_tests/observationVideoFingerprintMigrationContract.test.ts \
             supabase/functions/_tests/observationVideoFingerprintDb.test.ts \
             supabase/functions/resolve-history-photo/handler_test.ts \

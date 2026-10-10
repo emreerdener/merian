@@ -8090,3 +8090,10 @@ domain. No table, trigger, RPC, rollout gate or existing photo/audio codec
 changes. These routines establish neither media proof nor ownership/admission
 authority. See
 [the exact fingerprint contract](05-api-contracts.md#held-video-source-fingerprint-v1).
+
+Migration `20261010015758_prepare_video_cohort_inventory.sql` adds the separate
+ungranted stable-invoker `internal.observation_video_source_cohort_items(jsonb)`
+projection. It first runs full V4 fingerprint validation, then returns retained
+source, five frames and optional audio with explicit roles/indices. It creates
+no cohort table, trigger, receipt or caller. See the
+[held inventory contract](05-api-contracts.md#held-video-cohort-inventory).

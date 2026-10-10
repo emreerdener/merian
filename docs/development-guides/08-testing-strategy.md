@@ -12166,8 +12166,22 @@ disposable database before claiming SQL parity; live reservation/admission
 qualification remains separate.
 
 The candidate shared-helper step grants read access to the exact held-video
-fingerprint migration file in addition to its existing function/web roots.
-`workflowSecurity.test.ts` guards that permission within the helper step itself:
-registering a migration test in its file list does not grant its filesystem
-access. Validate this step with its checked-in Deno permissions; a successful
-full-suite run with broader permissions does not prove the candidate step runs.
+fingerprint and inventory migration files in addition to its existing
+function/web roots. `workflowSecurity.test.ts` guards that permission within the
+helper step itself: registering a migration test in its file list does not grant
+its filesystem access. Validate this step with its checked-in Deno permissions;
+a successful full-suite run with broader permissions does not prove the
+candidate step runs.
+
+### Held video inventory coverage
+
+`videoCohort_test.ts` checks fixed audio/silent/Unicode inventory fixtures,
+immutable snapshots, whole-array equality and rejection of partial, reordered,
+extra-key and cross-input metadata. `observationVideoCohortDb.test.ts` compares
+SQL projection with those fixtures and TypeScript and executes actual API-role
+denial paths. Its database tests run only with the disposable database URL. The
+migration contract and pgTAP catalog test verify the private stable invoker
+boundary. All three TypeScript suites appear in both candidate lists; the helper
+step grants only the exact additional inventory migration file for its static
+test, with step-scoped permission and registration regression guards. Native
+parity and durable upload/retirement coverage remain separate.

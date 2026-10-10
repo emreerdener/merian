@@ -16860,3 +16860,26 @@ The profile string binds declared metadata only. Video cohort coverage, durable
 reservation/recovery/retirement, materialization and execution are separate
 checkpoints. In particular, do not register V4 with the existing photo/audio
 source reservation codec merely because this fingerprint is defined.
+
+### Held video cohort inventory
+
+`videoCohort.preparedVideoCohortItems` and private SQL
+`internal.observation_video_source_cohort_items(jsonb)` project the fully
+validated V4 binding into one ordered inventory. Six items for silent video,
+seven for video with audio: retained source first, five frames in index order,
+optional WAV last. Every item has exactly `role`, `index`, `media_id`,
+`content_type`, `byte_count` and `sha256`. Roles are `source`, `frame`, `audio`;
+`index` is null for source/audio and 0–4 for frames. The full provenance remains
+in the immutable input; this projection never replaces it or its fingerprint.
+
+`matchPreparedVideoCohortItems` compares the whole closed ordered array with
+that projection, rejecting missing, extra, reordered or changed items. The
+returned metadata is an independently frozen snapshot. This is not a receipt: it
+carries no owner, object key, expiry, readiness, byte verification or source to
+derived-output attestation, and grants no upload or execution permission.
+
+The SQL helper is a stable invoker with empty search path and execution revoked
+from PUBLIC and all API roles. No table or live consumer is introduced. Native
+inventory parity, durable cohort storage and writer/coverage/release/retirement
+coordination remain required before wiring. Existing photo/audio contracts are
+unchanged.
