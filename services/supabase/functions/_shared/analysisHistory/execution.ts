@@ -1,6 +1,7 @@
 import { parsePreparedVideoAdmission } from "./videoAdmission.ts";
 import { buildPreparedAudioDraft } from "./audioAdmission.ts";
 import type {
+  AIAttemptSnapshot,
   AIExecutionOutcome,
   PreparedAIExecution,
 } from "../ai/contracts.ts";
@@ -68,7 +69,7 @@ export function captureAnalysisOutcome(
 
 /** Pure received-outcome preparation. The caller must bind the original saved
  * input/quota and dispatch witness; this grants no execution or settlement.
- * Public executable V4 admission remains closed.
+ * The separate V4 worker owns dispatch; generic admission remains closed.
  */
 export function capturePreparedVideoOutcome(
   result: AIExecutionOutcome,
@@ -77,10 +78,24 @@ export function capturePreparedVideoOutcome(
   if (
     result.kind === "unknown_execution" || result.kind === "operational_failure"
   ) return null;
+  const { input, hasAudioEvidence } = assertVideoExecutionSnapshot(
+    work,
+    result.execution,
+  );
+  return captureOutcome(result, { ...work, input }, {
+    hasVisualEvidence: true,
+    hasAudioEvidence,
+  });
+}
+
+/** Bind preparation and received output to the same saved video authority. */
+export function assertVideoExecutionSnapshot(
+  work: AnalysisWork,
+  snapshot: AIAttemptSnapshot,
+) {
   const input = parsePreparedVideoAdmission(work.input);
   const hasAudioEvidence = input.evidence_manifest.provenance.audio !== null;
   const q = work.quota;
-  const snapshot = result.execution;
   if (
     !q ||
     q.input_profile !==
@@ -103,10 +118,7 @@ export function capturePreparedVideoOutcome(
       (hasAudioEvidence ? "identify_blended_v1" : "identify_vision_v1")
   ) return invalidHistory();
   prepareMultimodalResultPolicy(snapshot);
-  return captureOutcome(result, { ...work, input }, {
-    hasVisualEvidence: true,
-    hasAudioEvidence,
-  });
+  return { input, hasAudioEvidence };
 }
 
 function captureOutcome(

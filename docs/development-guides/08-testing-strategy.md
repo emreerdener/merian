@@ -12751,3 +12751,17 @@ known-terminal outcomes. It verifies expired/wrong work-token rejection, role
 and identity denial, closed generic entry points and no retry/refund. These
 local contracts do not qualify an Edge/native video execution consumer or
 external/device acceptance.
+
+### Video Edge execution verification
+
+`videoExecution_test.ts` covers both video graph modes, whole-cohort corruption,
+source exclusion, one-time dispatch, malformed/uncertain decisions, unknown
+execution, cancellation, saved-result recovery, settlement failure and awaited
+lease release. The separate analyze route/handler tests cover closed V4 input,
+verified owner derivation, bounded bodies, cancellation during begin and closed
+status/error projections. Service recovery route tests cover exact service auth,
+closed/aborted bodies, the32-identity cap, rejection of initial work and saved
+refusal settlement with no provider/storage calls. Generic recovery retains its
+10-job tests. Run these plus full Edge/tooling, recursive format/lint/type
+checks, DTO and Markdown gates on the scoped candidate. These synthetic checks
+do not qualify native video execution, hosted storage/runtime or user devices.

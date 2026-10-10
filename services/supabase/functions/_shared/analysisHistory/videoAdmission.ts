@@ -10,7 +10,7 @@ import {
 } from "./contract.ts";
 import { parsePreparedVideoManifest } from "./videoManifest.ts";
 
-/** Prepared metadata contract only. Not registered with executable admission.
+/** Separate V4 metadata contract. Generic executable admission still rejects it.
  * request_digest retains its existing replay-identifier meaning, not a server JSON hash proof.
  * Consent protocol 9 is independent of the future public result-reader version.
  */

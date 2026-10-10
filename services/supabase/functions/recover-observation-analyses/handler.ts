@@ -15,10 +15,11 @@ export interface AnalysisRecoveryDependencies {
 /** A single bounded discovery pass; one bad/deleted job cannot starve the rest. */
 export async function recoverObservationAnalyses(
   deps: AnalysisRecoveryDependencies,
+  maximumCandidates: 10 | 32 = 10,
 ) {
   const deadline = deps.now() + 40_000;
   const candidates = await deps.list();
-  if (!Array.isArray(candidates) || candidates.length > 10) {
+  if (!Array.isArray(candidates) || candidates.length > maximumCandidates) {
     return invalidHistory();
   }
   let attempted = 0, completed = 0;

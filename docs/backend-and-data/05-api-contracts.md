@@ -18003,3 +18003,50 @@ public biological dictionary identity with a GBIF key. Missing, unverified or
 ambiguous identity fails closed without inserting model-authored taxonomy. Any
 dictionary materialization belongs to the established verified resolver; it is
 not provider retry authority.
+
+### Gated video Edge execution
+
+`analyze-observation-video` accepts only the closed V4 admission JSON through
+`parsePreparedVideoAdmission`, with a 1 MiB JSON body limit and verified JWT
+owner. It calls the service-only video begin RPC; neither caller owner nor
+private work, quota, outcome or inventory fields are accepted. Its closed
+response is `{schema_version:1,observation_id,analysis_id,state}` with
+private/no-store headers: 200 for complete/failed_terminal and 202 for
+admitted/dispatched/draft. Invalid input is 400, unavailable/foreign history
+404, immutable admission conflict 409, and uncertain execution or worker
+conflict 503. Recover the saved identity after uncertainty; a request is never
+authority for another provider invocation.
+
+The separate video worker snapshots and bounds private claims, verifies the
+original quota/graph/Gemini binding, and validates the entire retained source,
+five frames and optional WAV before dispatch. The source MP4 is verified but
+never sent to the provider. Ordered descriptions, five immutable derived frames
+and optional derived audio are the only model evidence. Frame/audio lineage and
+capture counts remain explicit. A positive durable dispatch decision permits one
+invoke. Unknown, thrown or operational outcomes remain held without refund.
+Received outcomes persist under the original quota token before taxonomy,
+draft/accounting and completion. Known-result recovery never prepares a provider
+or rereads media. Lease release is awaited and cannot mask the original failure.
+
+`recover-observation-video-analyses` requires exact environment-resolved service
+authorization and a closed empty JSON object, at most1024 bytes. It returns only
+`{attempted,completed}`. Discovery admits at most32 identities; no new job
+starts after the40-second discovery-pass deadline. Each RPC has the
+existing12-second bound; this is not a hard40-second total runtime ceiling. One
+bad/stale claim cannot starve the remaining list. Only claimed dispatched/draft
+work advances; initial claims and unknown execution cannot invoke a provider
+through recovery. The existing generic recovery route retains its10-candidate
+default.
+
+Submission body/materialization/pre-invoke checks share request cancellation and
+a110-second deadline; cohort reads also have a20-second deadline. Provider
+execution retains the shared adapter's own deadline. Once an outcome is
+received, persistence and known-result settlement proceed under their own
+bounded RPCs, even after request cancellation. Service recovery body ingestion
+has a5-second bound. There is no detached required cleanup.
+
+Both orchestration gates and every existing activation gate remain disabled.
+These separate source routes supersede the earlier no-Edge-consumer preparation
+status; generic execution/parsers still reject V4. Native execution, integrated
+acceptance and external runtime/device qualification remain pending. No function
+deployment, scheduling or ordinary native access is installed by this change.

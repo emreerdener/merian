@@ -265,3 +265,12 @@ claims, immutable canonical checkpoints and service-only lifecycle wrappers. All
 gates remain false and no route/schedule is deployed. Enrollment, normal native
 presentation, public/chat snapshots and explicit erasure delivery remain
 activation requirements. See the function READMEs and canonical API contract.
+
+### Gated V4 video orchestration
+
+[`analyze-observation-video`](analyze-observation-video/README.md) owns verified
+user submission through the separate strict V4 worker.
+[`recover-observation-video-analyses`](recover-observation-video-analyses/README.md)
+owns service-only saved-result recovery, without provider preparation or fresh
+execution. Both use the prepared video RPCs; gates remain false and no schedule
+or deployment is supplied. Generic execution continues denying V4.

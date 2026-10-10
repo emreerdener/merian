@@ -1003,3 +1003,17 @@ claims, original quota, outcomes and evidence inventories are private, never
 client response or logging material. No Edge/native caller, scheduler, release
 or gate activation is supplied. See the
 [closed service contract](05-api-contracts.md#prepared-service-only-video-execution-composition).
+
+### Video Edge authentication boundary
+
+The separate `analyze-observation-video` handler now supplies the verified user
+owner to the prepared service RPCs. `recover-observation-video-analyses` accepts
+only exact environment-resolved service authorization, then creates its client
+from that resolved credential. Both use `verify_jwt=false` because the handlers
+own authentication; neither route is public. All SQL activation gates remain
+false. Private claims, outcomes, source bytes and inventory never enter status
+responses. Unknown dispatch remains held without retry or refund. These source
+routes supersede the earlier no-Edge-caller status; native execution and hosted
+qualification remain outstanding. Config changes require the normal reviewed
+future deployment plan and confer no deployment/scheduling authorization. See
+[video execution contract](05-api-contracts.md#gated-video-edge-execution).

@@ -807,3 +807,10 @@ verify_jwt = false
 # Owner-authenticated saved video item ingress; SQL gates remain disabled.
 [functions.upload-observation-video]
 verify_jwt = false
+
+# Verified user admission / explicit service-role known-result recovery; gates off.
+[functions.analyze-observation-video]
+verify_jwt = false
+
+[functions.recover-observation-video-analyses]
+verify_jwt = false

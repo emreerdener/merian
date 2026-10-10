@@ -270,7 +270,9 @@ confirm-observation-analysis
 confirm-scan-species
 resolve-history-photo
 analyze-observation
+analyze-observation-video
 recover-observation-analyses
+recover-observation-video-analyses
 erase-observation-evidence
 erase-publication-photos
 review-scan-identification
@@ -536,3 +538,14 @@ RPCs and storage. Its narrow response exposes only immutable media descriptors.
 All audio/media rollout gates remain false; native audio inference and hosted
 qualification remain separate. See the
 [endpoint contract](../../services/supabase/functions/upload-observation-audio/README.md).
+
+### October 10 gated video route addendum
+
+The source inventory now includes `analyze-observation-video` (verified JWT
+owner, strict V4 input, private status) and `recover-observation-video-analyses`
+(exact environment-resolved service credential, closed empty input, aggregate
+counts). Both register through `serveEdge`; generic execution still rejects V4.
+One-time dispatch and known-result-only recovery retain separate fences. All
+activation gates stay disabled. This source addition is not hosted route or
+customer smoke qualification; see the
+[current API contract](05-api-contracts.md#gated-video-edge-execution).

@@ -1,3 +1,4 @@
+import { publicationAbortable } from "./publicationDeadline.ts";
 import { materializeAudioAnalysis } from "./audioMaterialization.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -23,9 +24,15 @@ export async function historyWorkerRPC(
   client: SupabaseClient,
   name: string,
   args: Record<string, unknown>,
+  parentSignal?: AbortSignal,
 ): Promise<unknown> {
-  const { data, error } = await client.rpc(name, args).abortSignal(
-    AbortSignal.timeout(12_000),
+  const deadline = AbortSignal.timeout(12_000);
+  const signal = parentSignal
+    ? AbortSignal.any([parentSignal, deadline])
+    : deadline;
+  const { data, error } = await publicationAbortable(
+    signal,
+    () => client.rpc(name, args).abortSignal(signal),
   );
   if (error) {
     if (error.message === "analysis_history_not_found") {
@@ -34,7 +41,8 @@ export async function historyWorkerRPC(
     // Admission compares immutable request identity. Later worker conflicts can
     // instead mean an expired claim, whose saved work remains recoverable.
     if (
-      name === "begin_owned_observation_analysis" &&
+      (name === "begin_owned_observation_analysis" ||
+        name === "begin_owned_observation_video_analysis") &&
       error.message === "analysis_history_operation_conflict"
     ) {
       throw new HistoryError("analysis_history_operation_conflict");

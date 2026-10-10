@@ -1338,3 +1338,15 @@ workers and executable parsers still reject V4. They are not callers of this new
 boundary; the video Edge and native execution composition remains pending. See
 the
 [service contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-service-only-video-execution-composition).
+
+### Gated video Edge execution
+
+`videoExecution.ts` owns the separate bounded V4 claim decoder and one-invoke
+worker; `videoProduction.ts` composes verified whole-cohort materialization and
+the service RPCs. Only derived frames/optional WAV and descriptions reach the
+provider. Received-result persistence precedes taxonomy and settlement; release
+is awaited. The separate analyze/recovery routes now consume the prepared SQL
+boundary, superseding the no-Edge-consumer status above. Generic parsers/workers
+still reject V4; native execution remains pending and all gates stay disabled.
+See the
+[canonical API contract](../../../../../docs/backend-and-data/05-api-contracts.md#gated-video-edge-execution).

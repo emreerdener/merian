@@ -78,6 +78,7 @@ const EXPECTED_AUTHORIZATION_BOUNDARIES = [
   "reconcile-scan-deletions/index.ts",
   "reconcile-scan-media-assets/index.ts",
   "recover-observation-analyses/index.ts",
+  "recover-observation-video-analyses/route.ts",
   "refresh-merian-reference-images/index.ts",
   "refresh-species-content/index.ts",
   "refresh-species-model-content/index.ts",
