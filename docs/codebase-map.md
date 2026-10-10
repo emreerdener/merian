@@ -3149,3 +3149,12 @@ reads and the preparation-owner/account-lease wrapper
 `ObservationAudioSourceResumeReader`. It returns exact evidence only; legacy
 resume/status readers and execution owners remain separate. See the Analysis
 History README for mutation-free reads and post-await snapshot fencing.
+
+### Private video ingress
+
+`services/supabase/functions/upload-observation-video` owns authenticated
+bounded binary ingress for one saved video inventory item. It composes the
+shared video upload coordinator and bounded video RPC repository, preserving the
+existing private storage and erasure namespace. Gates remain disabled; no native
+or provider caller is enabled. See the
+[API contract](backend-and-data/05-api-contracts.md#private-video-item-upload-route).

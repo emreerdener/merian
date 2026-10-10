@@ -44,6 +44,7 @@ that layout.
 - [retire-observation-analysis-source](./retire-observation-analysis-source/README.md)
 - [scan-media-health](./scan-media-health/README.md)
 - [sync-collections](./sync-collections/README.md)
+- [upload-observation-video](./upload-observation-video/README.md)
 
 ### Explore publication, feeds, comments, and reactions
 

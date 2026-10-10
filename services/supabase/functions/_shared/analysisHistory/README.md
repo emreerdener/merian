@@ -1198,8 +1198,9 @@ items unready; later snapshots preserve object identity and expiry and may only
 advance readiness. Shared audio/silent/Unicode vectors and strict bounded UTF-8
 codecs cover cross-scope, alias, order, timestamp and replay failures. This is
 metadata only. A separate service-only SQL allocation and per-item completion
-authority now returns these whole receipts behind disabled gates. No route,
-native transport, byte verifier or provider invocation is installed. The
+authority returns these whole receipts behind disabled gates. The authenticated
+video upload route now connects byte verification and storage; native transport
+and provider invocation remain uninstalled. The
 [canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-whole-inventory-upload-and-receipt-contract)
 owns the wire shape and remaining authority/byte-verification requirements.
 
@@ -1219,14 +1220,15 @@ per-item completion calls. Its live factory uses the bounded service-role client
 (5 seconds/8 KiB); each method performs one RPC under caller cancellation. Whole
 receipt validation retains allocation and prior timestamps while accepting
 concurrent monotonic readiness. The caller must authenticate and verify stored
-bytes before completion. No route or storage/execution consumer is installed.
-See the
+bytes before completion. The video upload route supplies these checks through
+the shared coordinator; execution remains uninstalled. See the
 [RPC adapter contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-allocation-and-readiness-rpc-adapter).
 
 `videoUpload.ts` prepares exact per-item byte verification before server
 allocation, conditional private write before readiness, and expired-ready replay
 without storage mutation. Its inert factory reuses bounded video RPCs and the
 existing private erasure-protected object namespace. It never retries, repairs
-outputs or grants dispatch. No authenticated route or native caller installs it.
-See the
+outputs or grants dispatch. The authenticated
+[`upload-observation-video`](../../upload-observation-video/README.md) route
+installs it; no native caller is installed. See the
 [coordinator contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-exact-video-item-upload-coordinator).

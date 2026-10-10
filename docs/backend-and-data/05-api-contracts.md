@@ -17164,9 +17164,9 @@ and coordinated protected execution remain subsequent checkpoints.
 Migration `20261010054046_prepare_video_evidence_allocation.sql` installs the
 service-only reader-12 SQL layer for the preceding closed metadata contract.
 Fresh allocation requires both `media_enabled` and the new default-false
-`video_evidence_enabled` gate. There is no HTTP upload route, signed URL issuer,
-native caller, byte verifier or protected execution admission in this
-checkpoint.
+`video_evidence_enabled` gate. The later authenticated video item upload route
+now connects byte verification and private storage. No signed URL issuer, native
+caller or protected execution admission is installed.
 
 `reserve_owned_observation_video_evidence(owner, request, reader)` validates the
 entire displayed identity and ordered inventory under the existing
@@ -17253,8 +17253,9 @@ authority. Source and derived bytes remain separate ordered inventory items.
 explicit reserve or completion call, using a five-second deadline composed with
 caller cancellation. The prepared environment factory uses the existing
 service-role client with a five-second transport timeout and actual 8 KiB
-response-body cap. Injected clients must obey those same transport bounds. No
-route installs it.
+response-body cap. Injected clients must obey those same transport bounds. The
+authenticated video item upload route installs it through the shared
+coordinator.
 
 Reserve accepts the full immutable candidate and permits allocated, partially
 ready or ready exact replay; it never assumes an all-null fresh allocation.
@@ -17293,8 +17294,45 @@ allocation. SQL remains authoritative if expiry/deletion/gates change mid-write.
 The inert factory composes the bounded video RPC adapter with
 `PrivateHistoryEvidenceStorage.writeOnce`, preserving the private bucket, exact
 `evidence/v1/` object namespace, conditional creation and permanent
-erasure-marker protection. No new storage credentials, URL delivery, HTTP route
-or caller is installed. A future route must derive the authenticated owner and
-bound incoming body streaming before calling this coordinator. Container checks
-do not prove source derivation; hosted storage and erasure qualification remain
-separate.
+erasure-marker protection. The authenticated video item upload route now
+installs this coordinator, deriving ownership and bounding incoming streaming
+first. No new credentials, URL delivery or native caller is installed. Container
+checks do not prove source derivation; hosted storage and erasure qualification
+remain separate.
+
+### Private video item upload route
+
+`upload-observation-video` accepts owner-authenticated POST only, with exact
+`Content-Type: application/octet-stream`. It is separate from the unchanged
+photo/audio wires. Gateway `verify_jwt = false` delegates authentication to the
+shared `withEdgeHandler`/`requireAuth` boundary, never to payload fields.
+
+Wire1 is a four-byte unsigned big-endian JSON metadata length, that many strict
+UTF-8 bytes, then one exact saved item's bytes. Metadata has exactly
+`schema_version: 1`, `reader_version: 12`, `candidate` (the full schema2 V4
+source reservation envelope) and `media_id`. Metadata is limited
+to1,048,832bytes; total ingress to12MiB plus that limit plus four bytes. The
+stream reader checks actual bytes and Content-Length. The immutable manifest
+then enforces the selected source/frame/audio item's smaller exact byte count
+and container/digest before allocation. No owner, object ID, URL, expiry or
+readiness override is accepted. Unsupported versions and malformed metadata fail
+with400.
+
+The route derives owner from verified identity. Its120-second deadline composes
+request cancellation across authentication, body reading, allocation, private
+write and completion. Video RPCs use a separate service-role client capped at
+five seconds/8KiB. Success returns the existing closed schema2 whole-cohort
+receipt, at most8KiB, with the target ready. Other items may still be pending.
+The same request preserves the allocation and original expiry. Ready target
+replay skips writes even after expiry; SQL still validates owner/deletion/gates.
+There is no standalone allocation-only endpoint in this checkpoint.
+
+All responses carry `Cache-Control: private, no-store` and the shared
+request/error boundary. Statuses include401 auth denial,405 method,415 MIME,413
+body budget, 400 invalid contract,409 definite operation conflict and503
+uncertain/unavailable (including concealed database denial). No diagnostic or
+request body is returned. The route never retries, renews expiry, replaces
+evidence, refunds, or invokes a provider. SQL `media_enabled` and
+`video_evidence_enabled` remain disabled. No native caller or new execution
+permission is introduced; device, hosted resource/storage/CDN/erasure
+qualification remains separate.

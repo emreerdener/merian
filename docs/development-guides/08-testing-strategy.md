@@ -12375,3 +12375,13 @@ proves conditional PUT/HEAD and erasure-marker denial before readiness. Shared
 `videoByteTestFixtures.ts` retains synthetic native container vectors for this
 suite and whole-cohort materialization. Both candidate selectors cover the
 upload suite. No hosted storage or device qualification is implied.
+
+### Private video route verification
+
+`upload-observation-video/handler_test.ts` and `route_test.ts` cover binary
+framing, closed metadata, reader12, saved source/frame/audio replay,
+owner-derived actual RPC arguments, private responses, method/MIME/auth denial,
+body budgets and cancellation during authentication/ingress. The coordinator
+suite owns write/completion ordering and erasure-marker regressions. Both
+candidate test selectors include the endpoint suites. Native transport and
+hosted resource, storage/CDN/erasure and device acceptance remain separate.

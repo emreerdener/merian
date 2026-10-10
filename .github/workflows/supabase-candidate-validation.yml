@@ -220,6 +220,8 @@ jobs:
             supabase/functions/upload-observation-evidence/route_test.ts \
             supabase/functions/upload-observation-audio/handler_test.ts \
             supabase/functions/upload-observation-audio/route_test.ts \
+            supabase/functions/upload-observation-video/handler_test.ts \
+            supabase/functions/upload-observation-video/route_test.ts \
             supabase/functions/get-observation-publication-status/handler_test.ts \
             supabase/functions/get-observation-publication-status/route_test.ts \
             supabase/functions/get-observation-publication-target/handler_test.ts \
@@ -444,6 +446,8 @@ jobs:
             supabase/functions/upload-observation-evidence/route_test.ts \
             supabase/functions/upload-observation-audio/handler_test.ts \
             supabase/functions/upload-observation-audio/route_test.ts \
+            supabase/functions/upload-observation-video/handler_test.ts \
+            supabase/functions/upload-observation-video/route_test.ts \
             supabase/functions/get-observation-publication-status/handler_test.ts \
             supabase/functions/get-observation-publication-status/route_test.ts \
             supabase/functions/get-observation-publication-target/handler_test.ts \

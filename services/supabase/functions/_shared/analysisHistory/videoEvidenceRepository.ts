@@ -133,7 +133,7 @@ export function videoEvidenceRepository(client: SupabaseClient) {
   };
 }
 
-/** Prepared live factory; construction makes no RPC and no caller installs it. */
+/** Bounded live factory; construction makes no RPC. Video ingress installs it. */
 export function createVideoEvidenceRepository() {
   return videoEvidenceRepository(
     createServiceRoleClientFromEnvironmentWithOptions({

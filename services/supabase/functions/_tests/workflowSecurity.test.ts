@@ -1283,3 +1283,19 @@ Deno.test("complete release gates execute the purchase identity rollout tool tes
     "needs: [candidate-validation, production-hold]",
   );
 });
+
+Deno.test("video ingress suites remain in both candidate selectors", async () => {
+  const source = await Deno.readTextFile(
+    new URL(
+      "../../../../.github/workflows/supabase-candidate-validation.yml",
+      import.meta.url,
+    ),
+  );
+  for (const suite of ["handler_test.ts", "route_test.ts"]) {
+    assertEquals(
+      source.split(`supabase/functions/upload-observation-video/${suite}`)
+        .length - 1,
+      2,
+    );
+  }
+});

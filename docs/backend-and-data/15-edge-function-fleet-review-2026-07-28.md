@@ -68,6 +68,15 @@ do not release occupancy. The independent SQL gate stays false; no native
 consumer or deployment is included. See the
 [endpoint contract](../../services/supabase/functions/retire-observation-analysis-source/README.md).
 
+**2026-10-10 video-ingress source addendum:** `upload-observation-video` adds an
+owner-authenticated binary reader12 item upload route. The shared deadline
+bounds authentication, streamed ingress and exact allocation/write/completion.
+It reuses private conditional storage and erasure-marker fences; both media and
+video evidence SQL gates remain disabled. This source addition extends the
+current inventory only, not historical hosted or release qualification. No
+native caller, provider dispatch, deployment or activation is included. See the
+[endpoint contract](../../services/supabase/functions/upload-observation-video/README.md).
+
 ## Scope
 
 This review inventories every configured deployable Supabase Edge Function
@@ -331,6 +340,7 @@ get-observation-publication-status
 get-observation-publication-target
 prepare-observation-publication-consent
 upload-observation-audio
+upload-observation-video
 upload-observation-evidence
 moderate-publication-photos
 copy-publication-photos

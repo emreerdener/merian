@@ -45,8 +45,7 @@ export interface VideoUploadDependencies {
 const json = (value: unknown) =>
   new TextEncoder().encode(JSON.stringify(value));
 
-/** Prepared trusted coordinator. Caller supplies authenticated owner; no HTTP
- * route installs this. Never repairs/resamples bytes, retries or grants dispatch.
+/** Trusted coordinator. The video upload route supplies the authenticated owner. Never repairs/resamples bytes, retries or grants dispatch.
  */
 export async function uploadVideoEvidenceItem(
   candidate: unknown,
