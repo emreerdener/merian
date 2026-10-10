@@ -2,7 +2,7 @@ import { exactObject, historyUUID, invalidHistory } from "./contract.ts";
 import { parsePreparedVideoAdmission } from "./videoAdmission.ts";
 import { videoSourceFingerprint } from "./videoSourceFingerprint.ts";
 
-/** Gated SQL reservation contract. No installed HTTP route or queue consumer. */
+/** Gated SQL reservation contract. Explicit schema2 HTTP reservation; no queue consumer. */
 export const VIDEO_SOURCE_READER = 12;
 export const VIDEO_SOURCE_MAX_REQUEST_BYTES = 1_048_576;
 export const VIDEO_SOURCE_MAX_RECEIPT_BYTES = 2_048;

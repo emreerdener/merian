@@ -248,3 +248,105 @@ Deno.test("source reservation HTTP exits once on deadline despite uncooperative 
     }
   });
 });
+
+Deno.test("source reservation video schema2 selects reader12 without legacy fallback", async () => {
+  await environment(async () => {
+    const inputs = (await import(
+      "../_shared/analysisHistory/fixtures/video-source-fingerprint-v1.json",
+      { with: { type: "json" } }
+    )).default;
+    const fixtures = (await import(
+      "../_shared/analysisHistory/fixtures/video-source-reservation-v2.json",
+      { with: { type: "json" } }
+    )).default;
+    const candidate = {
+      schema_version: 2,
+      input: inputs[0].input,
+      fingerprint_version: 1,
+      fingerprint: inputs[0].sha256,
+    };
+    for (const data of fixtures[0].replies) {
+      let calls = 0;
+      globalThis.fetch = (url, init) => {
+        calls++;
+        assertEquals(
+          String(url).endsWith(
+            "/rest/v1/rpc/reserve_owned_observation_video_source",
+          ),
+          true,
+        );
+        assertEquals(JSON.parse(String(init?.body)), {
+          p_owner: owner,
+          p_request: candidate,
+          p_reader: 12,
+        });
+        return Promise.resolve(
+          new Response(JSON.stringify(data), {
+            headers: { "content-type": "application/json" },
+          }),
+        );
+      };
+      const response = await sourceReservationRoute(
+        request(candidate),
+        authenticated,
+      );
+      assertEquals(response.status, 200);
+      assertEquals(await response.json(), data);
+      assertEquals(calls, 1);
+    }
+    let overflowCalls = 0, cancelled = false;
+    globalThis.fetch = () => {
+      overflowCalls++;
+      return Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(c) {
+              c.enqueue(new Uint8Array(2049).fill(32));
+            },
+            cancel() {
+              cancelled = true;
+            },
+          }),
+          { headers: { "content-type": "application/json" } },
+        ),
+      );
+    };
+    const oversized = await sourceReservationRoute(
+      request(candidate),
+      authenticated,
+    );
+    assertEquals(oversized.status, 503);
+    await oversized.body?.cancel();
+    assertEquals(overflowCalls, 1);
+    assertEquals(cancelled, true);
+    for (
+      const invalid of [
+        null,
+        [],
+        {},
+        { ...candidate, schema_version: 1 },
+        {
+          ...candidate,
+          input: vectors[0].input,
+          fingerprint: vectors[0].sha256,
+        },
+        { ...candidate, schema_version: 3 },
+        { ...candidate, fingerprint: "0".repeat(64) },
+        { ...candidate, owner_id: owner },
+      ]
+    ) {
+      let calls = 0;
+      globalThis.fetch = () => {
+        calls++;
+        throw new Error("unexpected");
+      };
+      const response = await sourceReservationRoute(
+        request(invalid),
+        authenticated,
+      );
+      assertEquals(response.status, 400);
+      await response.body?.cancel();
+      assertEquals(calls, 0);
+    }
+  });
+});

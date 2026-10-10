@@ -1299,3 +1299,18 @@ Deno.test("video ingress suites remain in both candidate selectors", async () =>
     );
   }
 });
+
+Deno.test("video source RPC suite remains in both candidate selectors", async () => {
+  const source = await Deno.readTextFile(
+    new URL(
+      "../../../../.github/workflows/supabase-candidate-validation.yml",
+      import.meta.url,
+    ),
+  );
+  assertEquals(
+    source.split(
+      "supabase/functions/_shared/analysisHistory/videoSourceReservationRepository_test.ts",
+    ).length - 1,
+    2,
+  );
+});

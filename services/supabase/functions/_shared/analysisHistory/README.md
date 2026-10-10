@@ -1168,16 +1168,19 @@ unchanged; V4 delivery and retirement remain separate checkpoints.
 contract. Complete V4 candidates use the video fingerprint; reservation and
 read-only recovery responses bind owner plus the full candidate identity, with
 only reserved/held/unavailable states. Fixed vectors support later SQL/native
-parity. No live caller is installed; this reservation wire grants no retirement
-proof. See the
+parity. The source reservation route now installs schema2 admission; this wire
+grants no retirement proof. See the
 [wire contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-source-reservation-and-recovery-wire-contract).
 
 The separate reader-12
 [SQL reservation authority](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-sql-reservation-and-recovery-authority)
 now implements this prepared wire behind disabled reservation/recovery gates and
 service-only grants. Exact lookup never proves vacancy or releases a V4 binding.
-No HTTP repository, native transport or queue consumer is connected; photo/audio
-lifecycle parsers and the alternatives layout remain unchanged.
+The shared video source repository now connects reservation to the existing
+authenticated source route via explicit schema2/reader12 dispatch. Its separate
+exact recovery method has no HTTP/native caller. Native transport and queue
+delivery remain unconnected; photo/audio lifecycle parsers and the alternatives
+layout remain unchanged.
 
 `videoSourceRetirement.ts` separately owns the prepared never-admitted V4 action
 and exact permanent-receipt shape. It shares shape-only identity validation with

@@ -14,6 +14,8 @@ import {
   SOURCE_RESERVATION_MAX_REQUEST_BYTES,
 } from "../_shared/analysisHistory/sourceReservation.ts";
 import { sourceReservationRepository } from "../_shared/analysisHistory/sourceReservationRepository.ts";
+import { parseVideoSourceReservationRequest } from "../_shared/analysisHistory/videoSourceReservation.ts";
+import { videoSourceReservationRepository } from "../_shared/analysisHistory/videoSourceReservationRepository.ts";
 import { createServiceRoleClientFromEnvironmentWithOptions } from "../_shared/serviceRoleClient.ts";
 
 /** Reserves original source occupancy only; never admits or dispatches inference. */
@@ -32,12 +34,19 @@ export function sourceReservationRoute(
     if (body instanceof Response) return body;
     try {
       // Validate before constructing the privileged client. No payload owner is accepted.
-      const candidate = await parseSourceReservationRequest(body);
+      const video = body !== null && typeof body === "object" &&
+        "schema_version" in body && body.schema_version === 2;
+      const candidate = video
+        ? await parseVideoSourceReservationRequest(body)
+        : await parseSourceReservationRequest(body);
       const client = createServiceRoleClientFromEnvironmentWithOptions({
         requestTimeoutMs: 5_000,
         maximumResponseBytes: SOURCE_RESERVATION_MAX_RECEIPT_BYTES,
       });
-      const receipt = await sourceReservationRepository(client).reserve(
+      const repository = video
+        ? videoSourceReservationRepository(client)
+        : sourceReservationRepository(client);
+      const receipt = await repository.reserve(
         user.id,
         candidate,
         req.signal,

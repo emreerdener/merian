@@ -16920,10 +16920,11 @@ persistence authorizes another provider invocation.
 
 `videoSourceReservation.ts` defines a separate reader-12, outer-schema-2
 contract. Separate service-only SQL reservation and recovery routines implement
-this wire contract (see below). No repository, HTTP handler, queue or native
-transport caller is installed. Reader-11 photo/audio envelopes remain schema 1
-with input schema 2/3 and are unchanged. Both legacy reservation and executable
-admission continue to reject V4.
+this wire contract (see below). The video repository and explicit schema2
+reservation HTTP branch are now installed; recovery HTTP, queue and native
+transport callers remain unconnected. Reader-11 photo/audio envelopes remain
+schema 1 with input schema 2/3 and are unchanged. Both legacy reservation and
+executable admission continue to reject V4.
 
 The closed candidate fields are `schema_version: 2`, the complete `input`
 (schema 4), `fingerprint_version: 1` and `fingerprint`. Validation snapshots and
@@ -17014,8 +17015,10 @@ An exact binding without occupancy is held as `terminal_unproven`. Existing V4
 predecessors likewise cannot use the photo/audio release proof to establish
 vacancy. The separately gated pre-execution retirement below supplies V4
 successor proof; no V4 completion proof is installed. Neither routine uploads
-media, consumes quota, invokes a provider or refunds. HTTP routes, repositories,
-native transport and queue delivery remain unconnected.
+media, consumes quota, invokes a provider or refunds. The source reservation
+route now connects schema2 video through its bounded reader12 repository, as
+described below. Recovery HTTP, native transport and queue delivery remain
+unconnected.
 
 ### Prepared video pre-execution retirement contract
 
@@ -17336,3 +17339,29 @@ evidence, refunds, or invokes a provider. SQL `media_enabled` and
 `video_evidence_enabled` remain disabled. No native caller or new execution
 permission is introduced; device, hosted resource/storage/CDN/erasure
 qualification remains separate.
+
+### Reader12 video source HTTP admission
+
+`reserve-observation-analysis-source` now explicitly dispatches schema2 V4
+candidates to `reserve_owned_observation_video_source` through
+`videoSourceReservationRepository`. Schema1 photo/audio retains the existing
+reader11 codec and RPC without rewriting saved requests. Both use the same
+closed four-field envelope and1MiB body boundary. Unsupported versions, forged
+fingerprints and cross-version input fail with400 before RPC; no parsing or
+transport failure falls back to another protocol.
+
+Verified `user.id` is the only owner. The scoped service client enforces a real
+2KiB response cap and five-second transport deadline. The adapter freezes the
+complete candidate before await, composes a five-second cancellation deadline,
+performs one RPC and decodes a closed full-identity reserved/held/unavailable
+receipt. Definite operation conflict remains409; malformed, lost, cancelled,
+foreign/deleted and other failures remain sanitized503. No automatic retry or
+replacement is allowed. Reservation proves occupancy only, never upload,
+provider execution, quota/refund, retirement or release authority.
+
+The same repository's separate `recover` method sends only the exact seven-field
+identity to mutation-free `get_owned_observation_video_source` with reader12,
+then validates the whole reply against the original candidate and owner. It has
+no installed HTTP/native caller. Unavailable or held observations never prove
+vacancy. Existing video reservation/recovery gates remain false; no SQL,
+photo/audio codec, native transport or ordinary access changes are included.

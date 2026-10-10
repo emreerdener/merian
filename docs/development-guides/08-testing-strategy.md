@@ -12385,3 +12385,13 @@ body budgets and cancellation during authentication/ingress. The coordinator
 suite owns write/completion ordering and erasure-marker regressions. Both
 candidate test selectors include the endpoint suites. Native transport and
 hosted resource, storage/CDN/erasure and device acceptance remain separate.
+
+### Reader12 source admission verification
+
+`videoSourceReservationRepository_test.ts` proves reader12 reserve versus exact
+read-only recovery routing, all closed receipt states, immutable snapshots,
+malformed/foreign replies, no retry, cancellation/late answers and an actual
+five-second timeout. Existing source route tests retain schema1 behavior and add
+schema2 V4 owner-derived routing with no legacy fallback. Both candidate helper
+selectors include the adapter suite. Native delivery and hosted qualification
+remain separate.

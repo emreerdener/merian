@@ -3158,3 +3158,9 @@ shared video upload coordinator and bounded video RPC repository, preserving the
 existing private storage and erasure namespace. Gates remain disabled; no native
 or provider caller is enabled. See the
 [API contract](backend-and-data/05-api-contracts.md#private-video-item-upload-route).
+
+The existing `reserve-observation-analysis-source` route also admits schema2
+video through `videoSourceReservationRepository` and its reader12 reserve RPC.
+Schema1 photo/audio keeps reader11 routing. The adapter prepares separate exact
+read-only recovery, currently without an HTTP/native caller. See the
+[reader12 admission contract](backend-and-data/05-api-contracts.md#reader12-video-source-http-admission).

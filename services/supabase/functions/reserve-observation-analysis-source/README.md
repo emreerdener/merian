@@ -1,16 +1,19 @@
 # Reserve observation analysis source
 
 Prepared authenticated `POST reserve-observation-analysis-source` reserves exact
-source occupancy for an immutable photo/audio candidate. It does not admit or
-execute an analysis. Native photo V2/audio V3 have a durable handoff and
-retained injected reservation service, but no composition/UI/scheduler caller is
-installed. Composition and deployment remain separate.
+source occupancy for an immutable photo/audio or video candidate. It does not
+admit or execute an analysis. Native photo V2/audio V3 have a durable handoff
+and retained injected reservation service, but no composition/UI/scheduler
+caller is installed. Composition and deployment remain separate.
 
 `route.ts` owns authenticated HTTP parsing and sanitized responses; `index.ts`
 registers it through `serveEdge`. The shared `sourceReservationRepository`
-performs the sole privileged RPC, `reserve_owned_observation_analysis_source`,
-with verified `user.id`, the exact original candidate and reader11. The SQL
-routine owns locks, replay, owner/deletion fences and the default-false gate.
+performs `reserve_owned_observation_analysis_source` for schema1 photo/audio
+with verified `user.id`, the exact original candidate and reader11. Schema2
+video explicitly uses `videoSourceReservationRepository` and
+`reserve_owned_observation_video_source` with reader12; validation or RPC
+failure never falls back to reader11. The SQL routine owns locks, replay,
+owner/deletion fences and the default-false gate.
 
 The existing schema1 request has exactly `schema_version`, `input`,
 `fingerprint_version` and `fingerprint`. Input is existing executable InputV2
@@ -41,3 +44,12 @@ A received exact `analysis_history_operation_conflict` from the source RPC is
 preserved as a typed conflict (HTTP409 for reservation). It is not a vacancy or
 release receipt and never permits replacement or dispatch. Other RPC failures
 remain sanitized unavailable errors.
+
+Schema2 retains the same closed four-field envelope and1MiB incoming budget, but
+requires the full V4 video fingerprint and whole-identity reader12 receipt. The
+response cap remains2KiB and RPC deadline five seconds. Existing schema1
+photo/audio bytes, codecs and reader11 routing remain unchanged. Video SQL gates
+remain disabled. The video repository also prepares mutation-free exact status
+recovery through `get_owned_observation_video_source`; this method has no HTTP
+or native caller yet. Recovery never proves vacancy or release. No retirement,
+provider execution, upload permission or native composition is introduced here.
