@@ -18084,3 +18084,34 @@ successor; source files and source occupancy remain retained. The V58 persisted
 schema is unchanged because existing opaque job metadata owns the envelope.
 Gates remain disabled, ordinary access nil. Native delivery and integrated,
 external and device acceptance remain separate.
+
+### Native video submission transport
+
+`ObservationVideoAnalysisTransport.submit` accepts the private permit produced
+only after durable execution consumption and fixed-Gemini dispatch
+authorization. It POSTs the exact saved V4 bytes to the fixed
+`analyze-observation-video` route, with entitlement3, current identification
+protocol and recipient headers. The existing Auth dispatcher retains account
+ownership across I/O and revalidates consent and the caller's dispatch fence
+immediately before sending. No logical retry,401 refresh, generic analysis route
+or service recovery endpoint is used.
+
+A dedicated pinned session bounds request/resource/wall-clock duration to130
+seconds; the shared ordinary90-second resource ceiling is unchanged. The
+streamed response limit is4096 bytes, including declared-size rejection. The
+closed version1 receipt must match observation/analysis IDs, a supported state
+and JSON MIME. Complete/failed_terminal require HTTP200; admitted/dispatched/
+draft require HTTP202. Unknown fields, versions, states and identity/status
+mismatches are rejected. After validation, known-response settlement uses its
+separate caller fence without reapplying dispatch cancellation.
+
+This adds an inert transport, not a queue execution installation. Its caller
+must validate the current saved permit and retain uncertain consumed work;
+transport errors and nonterminal receipts never authorize resubmission or
+refund. Completed receipts contain no result, and failed_terminal is not a
+cleanup proof. Exact reader11 history state is the existing completed-result
+recovery seam; the private provider outcome RPC remains inaccessible. Retained
+queue composition, exact V5 result binding, receipt-bound persistence/cleanup
+and integrated acceptance remain pending. Legacy execution readers and generic
+action gates remain closed to video; activation gates stay disabled and ordinary
+access stays nil.

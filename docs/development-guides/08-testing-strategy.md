@@ -12778,3 +12778,14 @@ audio and video source capture. This is local persisted capability evidence; no
 transport, native queue execution, provider, hosted storage or device
 qualification is implied. Use the managed local iOS build cache and preserve
 failed evidence separately from scoped candidate validation.
+
+### Native video submission transport verification
+
+`ObservationVideoAnalysisTransportTests` uses a real saved/consumed video
+execution fixture and mocked HTTP. It covers exact saved bytes and fixed route,
+all five status receipts, auth/consent/claim denial, no error retry or refresh,
+closed receipt identity/version/state/field validation, MIME/status/size denial,
+held/expired/cancelled dispatch and separate known-response settlement fencing.
+Run with the existing audio transport, video evidence transport and video
+execution-store suites to protect shared dispatcher/pinning behavior. These
+checks do not qualify retained queue execution, hosted services or devices.

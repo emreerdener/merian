@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-/// Prepared schema-4 input; no installed transport, queue or admission capability.
+/// Prepared schema-4 input; dispatch requires the separate durable video execution permit.
 struct ObservationVideoReanalysisRequest: Equatable, Sendable {
     let observationID: UUID
     let analysisID: UUID

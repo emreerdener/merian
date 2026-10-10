@@ -4278,3 +4278,15 @@ prior whole-cohort receipt and separate durable claim/known-settlement
 validators. The dedicated queue owner retains the full operation; no ordinary
 capture or scheduler caller is enabled. See the
 [delivery contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-retained-video-upload-delivery).
+
+### Native video submission transport
+
+`ObservationVideoAnalysisTransport` accepts only the durable execution store's
+private consumed permit, preserves the saved V4 body and uses the fixed
+`analyze-observation-video` route. A dedicated pinned130-second session enforces
+a streamed4096-byte closed state-receipt bound. Auth/account ownership remains
+held through I/O, with separate caller dispatch and known-settlement validators.
+There is no automatic retry or auth-refresh replay. A receipt grants no result
+or cleanup authority; retained queue execution and exact reader11 completed
+result binding remain pending. See the
+[canonical transport contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-video-submission-transport).

@@ -2231,3 +2231,15 @@ checks require unexpired evidence and Gemini consent. No network, scheduler,
 cleanup or ordinary installation is added. Legacy readers reject the new kind.
 See the
 [canonical local contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-ready-video-execution-ownership).
+
+### Native video submission transport
+
+`ObservationVideoAnalysisTransport` accepts only a saved execution dispatch
+permit and sends its exact V4 request to `analyze-observation-video`. Its
+account-bound pinned attempt has a130-second deadline and a streamed4096-byte
+state-receipt cap. There is no logical retry or auth-refresh replay. The caller
+supplies separate current-dispatch and known-response settlement fences.
+Completed receipts grant no local result or cleanup authority; existing reader11
+state recovery must bind the final snapshot to the saved request. Retained queue
+execution and settlement remain pending. See the
+[canonical transport contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-video-submission-transport).

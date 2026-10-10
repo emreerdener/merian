@@ -250,6 +250,15 @@ final class PinnedNetworkTransport: @unchecked Sendable {
             timeout: ObservationAudioAnalysisTransport.requestSeconds)
     }
 
+    /// Video execution returns only a bounded state receipt under its own operation deadline.
+    func videoAnalysisData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let session = URLSession(configuration: scopedConfiguration(timeout: ObservationVideoAnalysisTransport.requestSeconds),
+                                 delegate: MerianTLSDelegate(), delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        return try await PinnedBoundedJSONDataTask(maximumBytes: 4096).response(using: session, request: request,
+            timeout: ObservationVideoAnalysisTransport.requestSeconds)
+    }
+
     /// Video item uploads own their deadline and streamed whole-cohort receipt cap.
     func videoEvidenceData(for request: URLRequest) async throws -> (Data, URLResponse) {
         let session = URLSession(configuration: scopedConfiguration(timeout: ObservationVideoEvidenceTransport.requestSeconds),
