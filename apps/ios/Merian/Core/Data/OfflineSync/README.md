@@ -988,3 +988,21 @@ No scheduler or ordinary UI admission is installed. Upload-ready work retains
 local media pending independent cleanup authority. The
 [canonical API contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-retained-video-upload-delivery)
 owns the state and cancellation semantics.
+
+### Prepared video execution ownership
+
+`videoExecutionOwner` retains one exact saved video execution snapshot with its
+account session, generation and container. `requestVideoExecution` is an
+explicit injected entry; it has no scheduler discovery or ordinary App/UI
+caller. Both Auth quiescence seams invalidate and await the owner. Connectivity
+cancellation stops fresh requests while current-scope received outcomes may
+settle. Completion awaits the existing receipt-bound erasure attempt, verifies
+its durable acknowledgment and rechecks scope before notifying inside the
+retained account lease. Pending cleanup suppresses notification and remains
+recoverable separately. The service and reader11 contract are owned by
+[AnalysisHistory](../AnalysisHistory/README.md#retained-video-execution) and the
+[API contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-retained-video-execution).
+
+Both connectivity paths call `cancelPreparedAnalysisDispatch` in the existing
+reanalysis extension, preserving the same ordered five-owner cancellation list.
+Auth invalidation and awaited draining remain separately explicit.

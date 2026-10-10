@@ -12814,3 +12814,18 @@ is returned. Completion still rechecks exact result bytes before retirement.
 Synced settlement compares the result parent with the exact enrolled parent's
 stored ID, including supported historical uppercase UUIDs. Queue identity stays
 normalized. Case-folding a mismatched child-parent reference is not allowed.
+
+### Retained video execution verification
+
+`ObservationVideoExecutionOwnerTests` covers exact-key coalescing, account lease
+release, actual task exit, Auth drains and connectivity fences.
+`ObservationVideoExecutionServiceTests` covers disjoint first-dispatch and
+consumed-recovery authority, ambiguous consumption saves, cancellation versus
+account invalidation, strict results and pre-synced completion.
+`ObservationVideoOutcomeReaderTests` checks reader11 identity and lease fences
+around its await. `ObservationVideoQueueExecutionTests` checks the injected
+queue entry, awaited receipt cleanup, durable pending cleanup after
+cancellation, and completion inside the retained lease. Run these alongside
+video store/completion and existing audio owner/service/queue regression suites,
+then the full native unit target and native static gates. These are scoped local
+checks, not device, hosted, activation or Field Trip qualification.

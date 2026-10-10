@@ -18110,11 +18110,12 @@ must validate the current saved permit and retain uncertain consumed work;
 transport errors and nonterminal receipts never authorize resubmission or
 refund. Completed receipts contain no result, and failed_terminal is not a
 cleanup proof. Exact reader11 history state is the existing completed-result
-recovery seam; the private provider outcome RPC remains inaccessible. Retained
-queue composition, awaited receipt-bound file cleanup and integrated acceptance
-remain pending. Exact V5 binding and local completion are defined below. Legacy
-execution readers and generic action gates remain closed to video; activation
-gates stay disabled and ordinary access stays nil.
+recovery seam; the private provider outcome RPC remains inaccessible. Explicit
+retained queue composition and awaited receipt-bound cleanup are defined below;
+integrated and external acceptance remain separate. Exact V5 binding and local
+completion are defined below. Legacy execution readers and generic action gates
+remain closed to video; activation gates stay disabled and ordinary access stays
+nil.
 
 ### Native video result completion
 
@@ -18139,12 +18140,11 @@ Received-outcome settlement does not reapply task cancellation, expired upload
 credentials or fresh dispatch consent; current account/source scope remains
 mandatory before mutation and immediately before save. No dispatch permit,
 retry, refund, file deletion or remote retirement is created. After commit the
-future retained execution owner must await receipt-bound cleanup. The committed
+retained execution owner below awaits receipt-bound cleanup. The committed
 receipt persists across disk reopen while the queue pair remains absent; the
 future retained cleanup owner must restore it through the existing receipt
-format. This checkpoint adds no separate receipt-recovery API. Queue composition
-and reader11 lease fences remain separate work; activation and ordinary access
-remain disabled.
+format. No separate receipt-recovery API is added. Activation and ordinary
+access remain disabled.
 
 `ObservationVideoExecutionStore.readSyncedForSettlement` recovers only consumed
 running/held work with an already-stored V5 result bound to its exact request.
@@ -18157,3 +18157,39 @@ is returned. Completion still rechecks exact result bytes before retirement.
 Synced settlement compares the result parent with the exact enrolled parent's
 stored ID, including supported historical uppercase UUIDs. Queue identity stays
 normalized. Case-folding a mismatched child-parent reference is not allowed.
+
+### Native retained video execution
+
+`ObservationVideoExecutionOwner` retains one explicit operation keyed by the
+complete saved snapshot, account session, generation and container. Only an
+exact active key coalesces. Its account lease exits before the slot clears.
+Connectivity cancellation closes fresh dispatch; known-result settlement retains
+current account/source/container scope. Both Auth quiescence barriers invalidate
+before awaiting actual exit. One owner-generated attempt UUID bounds the only
+claim an idle entry may create; interruption cannot adopt another attempt.
+
+`ObservationVideoExecutionService` accepts only the matching entry and verified
+preparation. Idle unconsumed work claims once, validates Gemini consent, durably
+consumes and invokes the existing bounded video transport with the saved permit.
+Throwing consumption saves never yield provider authority. Running or held
+unconsumed work remains held. Consumed running/held work only recovers its exact
+result: no claim, consent, submission, refund or reset occurs.
+
+A complete state receipt is not result evidence. The service reads exact
+reader11 history state under an additional account lease, checking fresh-read
+scope before the await and known-result scope plus lease validity after it. The
+strict state and V5 decoders bind owner, parent, child, source, digest and
+manifest; original result bytes reach atomic completion. Existing synced results
+use the narrow settlement reader and must match those bytes. Missing, malformed,
+foreign, nonterminal, failed-terminal and transport-unknown responses never
+clean up or invoke again. Cancellation-safe interruption preserves the exact
+attempt and consumed marker without enabling a future claim.
+
+`OfflineQueueManager.requestVideoExecution` explicitly injects the service and
+awaits one existing receipt-bound erasure attempt after atomic completion. It
+checks the exact receipt is durably acknowledged and rechecks settlement scope
+before notifying completion, inside the retained lease. Cleanup failure or
+cancellation leaves its durable receipt pending and suppresses notification. No
+backlog scan, timer, scheduler admission, App/UI installation or activation is
+added. Ordinary access remains nil. Device/external qualification and Field
+Trip's held reconciliation consumer remain separate requirements.

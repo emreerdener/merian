@@ -102,6 +102,45 @@ enum ObservationVideoExecutionStore {
         }
     }
 
+    /// Cancellation-safe retained-task read. It grants no dispatch capability.
+    static func readForInterruption(proof: ObservationVideoPreparation.Verified, container: ModelContainer,
+                                    scope: ObservationVideoExecutionOwner.Scope) throws -> Snapshot {
+        try interruptionTransaction(proof, container, scope, { _ in throw Persistence.IntegrityError.conflict }) { saved, _ in saved }
+    }
+
+    static func interruptRunning(_ expected: Snapshot, proof: ObservationVideoPreparation.Verified,
+                                 container: ModelContainer, scope: ObservationVideoExecutionOwner.Scope) throws -> Snapshot {
+        guard expected.work.phase == .running, scope.permitsInterruption(expected, container: ObjectIdentifier(container)) else {
+            throw Persistence.IntegrityError.conflict
+        }
+        let held = try Work(uploadData: expected.work.uploadData, phase: .held,
+            attemptID: expected.work.attemptID, consumed: expected.work.consumed)
+        return try interruptionTransaction(proof, container, scope, { try $0.save() }) { saved, job in
+            if saved.work == held { return saved }
+            guard saved == expected else { throw Persistence.IntegrityError.conflict }
+            return try write(held, job, container)
+        }
+    }
+
+    private static func interruptionTransaction(_ proof: ObservationVideoPreparation.Verified, _ container: ModelContainer,
+        _ scope: ObservationVideoExecutionOwner.Scope, _ save: (ModelContext) throws -> Void,
+        _ body: (Snapshot, OfflineJobRecord) throws -> Snapshot) throws -> Snapshot {
+        try ConfirmedSpeciesReviewPersistence.transaction {
+            guard scope.maySettleKnownReceipt() else { throw Persistence.IntegrityError.accountChanged }
+            let context = ModelContext(container); context.autosaveEnabled = false
+            do {
+                try completionNamespace(proof.preparation.identity, context: context)
+                guard try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(proof.preparation.identity.analysisID)) == nil else { throw Persistence.IntegrityError.conflict }
+                let (saved, job) = try snapshot(proof, container, context)
+                guard scope.permitsInterruption(saved, container: ObjectIdentifier(container)) else { throw Persistence.IntegrityError.conflict }
+                let result = try body(saved, job)
+                guard scope.permitsInterruption(result, container: ObjectIdentifier(container)) else { throw Persistence.IntegrityError.accountChanged }
+                if context.hasChanges { try save(context) }
+                return result
+            } catch { context.rollback(); throw error }
+        }
+    }
+
     /// Recovery after history sync appended the result. Never grants dispatch authority.
     static func readSyncedForSettlement(proof: ObservationVideoPreparation.Verified, container: ModelContainer,
                                         isCurrent: () -> Bool) throws -> Snapshot {

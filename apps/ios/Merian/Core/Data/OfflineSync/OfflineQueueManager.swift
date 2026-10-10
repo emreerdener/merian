@@ -124,6 +124,7 @@ import SwiftData
     @ObservationIgnored let videoReservationOwner = ObservationVideoReservationOwner()
     @ObservationIgnored let videoUploadOwner = ObservationVideoUploadOwner()
     @ObservationIgnored let audioExecutionOwner = ObservationAudioExecutionOwner()
+    @ObservationIgnored let videoExecutionOwner = ObservationVideoExecutionOwner()
     @ObservationIgnored let audioStatusOwner = ObservationAudioStatusOwner()
     private(set) var reanalysisExecutionGeneration: UInt64 = 0
     func reanalysisExecutionDidFinish(ownerID: UUID, context: ModelContext, currentOwnerID: UUID?) {
@@ -530,10 +531,7 @@ import SwiftData
                     self.reconnectDebounceTask = nil
                     guard !newIsConstrained else {
                         self.protectedChatDeliveryOwner.cancel()
-                        self.sourceReservationOwner.cancel()
-                        self.videoReservationOwner.cancel()
-                        self.videoUploadOwner.cancel()
-                        self.audioExecutionOwner.cancel()
+                        self.cancelPreparedAnalysisDispatch()
                         self.analysisReviewDeliveryOwner.cancel()
                         self.reanalysisExecutionOwner.cancel()
                         OfflineJobScheduler.shared.cancelScheduledWake(
@@ -569,10 +567,7 @@ import SwiftData
                     self.identificationReviewSyncTask?.cancel()
                     self.publicationDeliveryOwner.cancel()
                     self.protectedChatDeliveryOwner.cancel()
-                    self.sourceReservationOwner.cancel()
-                    self.videoReservationOwner.cancel()
-                    self.videoUploadOwner.cancel()
-                    self.audioExecutionOwner.cancel()
+                    self.cancelPreparedAnalysisDispatch()
                     self.analysisReviewDeliveryOwner.cancel()
                     self.reanalysisExecutionOwner.cancel()
                     self.collectionSyncTask?.cancel()

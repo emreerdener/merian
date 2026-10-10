@@ -2240,8 +2240,8 @@ account-bound pinned attempt has a130-second deadline and a streamed4096-byte
 state-receipt cap. There is no logical retry or auth-refresh replay. The caller
 supplies separate current-dispatch and known-response settlement fences.
 Completed receipts grant no local result or cleanup authority; existing reader11
-state recovery must bind the final snapshot to the saved request. Retained queue
-execution and cleanup composition remain pending. See the
+state recovery must bind the final snapshot to the saved request. Explicit
+retained queue execution and cleanup composition are described below. See the
 [canonical transport contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-video-submission-transport).
 
 ### Native video result completion
@@ -2254,8 +2254,9 @@ erasure receipt and removing the queue pair and preferred-goal hint. It keeps
 source bytes and selection unchanged. Exact already-synced results and
 receipt-backed completion replay are idempotent; conflicting results or scope
 changes reject without retiring work. Known outcomes may settle cancelled tasks
-under current account/source fences. Files remain until a future retained owner
-awaits receipt-bound cleanup; no execution installation is added. See the
+under current account/source fences. Files remain until the retained owner
+awaits a receipt-bound cleanup attempt; no ordinary execution installation is
+added. See the
 [canonical completion contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-video-result-completion).
 
 `ObservationVideoExecutionStore.readSyncedForSettlement` recovers only consumed
@@ -2269,3 +2270,15 @@ is returned. Completion still rechecks exact result bytes before retirement.
 Synced settlement compares the result parent with the exact enrolled parent's
 stored ID, including supported historical uppercase UUIDs. Queue identity stays
 normalized. Case-folding a mismatched child-parent reference is not allowed.
+
+### Retained video execution
+
+`ObservationVideoExecutionService` separates initial
+claim/consent/consume/submit from consumed running/held exact-result recovery.
+Its dependencies bind the existing video transport and reader11 to account
+leases. Cancellation-safe store interruption is restricted to the retained
+owner's single attempt UUID; it never resets or grants a permit. The queue
+retains execution through awaited receipt-bound cleanup and checks settlement
+scope before notification. Unknown outcomes remain retained without provider
+retry or refund. See the
+[canonical retained contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-retained-video-execution).

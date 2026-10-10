@@ -184,6 +184,12 @@ struct ObservationVideoUploadDeliveryTests {
             #expect(source.contains("videoUploadOwner.invalidate()") && source.contains("await videoUploadOwner.invalidateAndAwait()"))
         }
         let manager = try DatabaseActorTestSupport.loadRepositorySource(at: root + "OfflineQueueManager.swift")
-        #expect(manager.components(separatedBy: "videoUploadOwner.cancel()").count == 3)
+        #expect(manager.components(separatedBy: "self.cancelPreparedAnalysisDispatch()").count == 3)
+        let execution = try DatabaseActorTestSupport.loadRepositorySource(at: root + "Services/OfflineQueueManager+ReanalysisExecution.swift")
+        let start = try #require(execution.range(of: "func cancelPreparedAnalysisDispatch() {\n"))
+        let end = try #require(execution[start.upperBound...].range(of: "\n    }"))
+        let helper = String(execution[start.upperBound..<end.lowerBound])
+        let owners = ["sourceReservationOwner", "videoReservationOwner", "videoUploadOwner", "audioExecutionOwner", "videoExecutionOwner"]
+        #expect(helper.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) } == owners.map { $0 + ".cancel()" })
     }
 }

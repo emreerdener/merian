@@ -15,6 +15,7 @@ final class MerianNetworkClient {
     var observationHistoryMutationTransport: ObservationHistoryMutationTransport { transport.history }
     func reanalysisStatusTransport() -> ObservationReanalysisStatusTransport { transport.reanalysisStatus() }
     func analysisRetirementTransport() -> ObservationAnalysisRetirementTransport { transport.retirement() }
+    func videoAnalysisTransport() -> ObservationVideoAnalysisTransport { transport.videoAnalysis() }
     func audioAnalysisTransport() -> ObservationAudioAnalysisTransport { transport.audioAnalysis() }
     func audioOutcomeTransport() -> ObservationAudioOutcomeTransport { transport.audioOutcome() }
     func sourceReservationTransport() -> ObservationSourceReservationTransport { transport.sourceReservation() }
@@ -538,6 +539,7 @@ private final class NetworkTransportAssembly {
 
     func reanalysisStatus() -> ObservationReanalysisStatusTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
     func retirement() -> ObservationAnalysisRetirementTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
+    func videoAnalysis() -> ObservationVideoAnalysisTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
     func audioAnalysis() -> ObservationAudioAnalysisTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
     func audioOutcome() -> ObservationAudioOutcomeTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
     func sourceReservation() -> ObservationSourceReservationTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }

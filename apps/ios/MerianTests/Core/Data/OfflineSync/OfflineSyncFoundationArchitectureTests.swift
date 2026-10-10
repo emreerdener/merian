@@ -336,6 +336,10 @@ struct OfflineSyncFoundationArchitectureTests {
             "Services/OfflineQueueManager+AudioSourceSubmission.swift",
         "func requestAudioExecution":
             "Services/OfflineQueueManager+AudioExecution.swift",
+        "final class ObservationVideoExecutionOwner":
+            "Services/ObservationVideoExecutionOwner.swift",
+        "func requestVideoExecution":
+            "Services/OfflineQueueManager+VideoExecution.swift",
         "final class ObservationAudioExecutionOwner":
             "Services/ObservationAudioExecutionOwner.swift",
         "final class ObservationReanalysisExecutionOwner":
@@ -363,7 +367,9 @@ struct OfflineSyncFoundationArchitectureTests {
         "Services/OfflineQueueManager+VideoUpload.swift",
         "Services/OfflineQueueManager+SourceReservation.swift",
         "Services/ObservationAudioExecutionOwner.swift",
+        "Services/ObservationVideoExecutionOwner.swift",
         "Services/OfflineQueueManager+AudioExecution.swift",
+        "Services/OfflineQueueManager+VideoExecution.swift",
         "Services/OfflineQueueManager+AudioSourceSubmission.swift",
         "Services/ProtectedInsightChatDeliveryOwner.swift",
         "Services/OfflineQueueManager+ProtectedChat.swift",
@@ -436,7 +442,9 @@ struct OfflineSyncFoundationArchitectureTests {
         "Services/OfflineQueueManager+VideoUpload.swift": ["import Foundation", "import SwiftData"],
         "Services/OfflineQueueManager+SourceReservation.swift": ["import Foundation", "import SwiftData"],
         "Services/ObservationAudioExecutionOwner.swift": ["import Foundation"],
+        "Services/ObservationVideoExecutionOwner.swift": ["import Foundation"],
         "Services/OfflineQueueManager+AudioExecution.swift": ["import Foundation", "import SwiftData"],
+        "Services/OfflineQueueManager+VideoExecution.swift": ["import Foundation", "import SwiftData"],
         "Services/OfflineQueueManager+AudioSourceSubmission.swift": ["import Foundation", "import SwiftData"],
         "Services/ProtectedInsightChatDeliveryOwner.swift": ["import Foundation"],
         "Services/OfflineQueueManager+ProtectedChat.swift": ["import Foundation", "import SwiftData"],

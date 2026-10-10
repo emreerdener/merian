@@ -2,6 +2,15 @@ import Foundation
 import SwiftData
 
 extension OfflineQueueManager {
+    /// Both offline and constrained transitions close the same prepared dispatch owners.
+    func cancelPreparedAnalysisDispatch() {
+        sourceReservationOwner.cancel()
+        videoReservationOwner.cancel()
+        videoUploadOwner.cancel()
+        audioExecutionOwner.cancel()
+        videoExecutionOwner.cancel()
+    }
+
     /// Restores only durably admitted bound children. Draft binding remains an explicit submission action.
     func requestReanalysisExecutionRecovery() {
         guard !TestExecutionCoordinator.isRunningTests, isOnline, !isCurrentNetworkConstrained,
@@ -40,6 +49,7 @@ extension OfflineQueueManager {
         videoReservationOwner.invalidate()
         videoUploadOwner.invalidate()
         audioExecutionOwner.invalidate()
+        videoExecutionOwner.invalidate()
         audioStatusOwner.invalidate()
         confirmationUndoOwner.cancelAll()
         rejectionUndoOwner.cancelAll()
@@ -66,6 +76,7 @@ extension OfflineQueueManager {
         await videoReservationOwner.invalidateAndAwait()
         await videoUploadOwner.invalidateAndAwait()
         await audioExecutionOwner.invalidateAndAwait()
+        await videoExecutionOwner.invalidateAndAwait()
         await audioStatusOwner.invalidateAndAwait()
     }
 }
