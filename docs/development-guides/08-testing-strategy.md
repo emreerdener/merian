@@ -12191,3 +12191,20 @@ fixtures in Swift, whole-list count/order/closed keys, scalar type and byte
 bounds, full-input validation and unchanged request metadata. These tests prove
 pure inventory parity; durable upload/retirement and device qualification remain
 separate.
+
+### Held video storage coverage
+
+`observationVideoStorageDb.test.ts` uses trigger-respecting private inserts for
+V4 binding, occupancy and whole inventory. It checks malformed/reordered/partial
+inventories, identity/fingerprint/occupancy mismatch, API denial, legacy-family
+collisions, immutable retention, 65th-row coverage sentinels and parent erasure.
+Two-session cases verify actual blocking for cohort versus deletion, legacy
+upload and retirement. These tests allocate no upload objects or provider work.
+
+`observation_video_cohort_storage.sql` checks catalog privileges, fixed search
+paths, namespace coverage and unchanged V4 rejection in generic lifecycle
+helpers. `observationVideoStorageMigrationContract.test.ts` and the candidate
+workflow guard protect registration in both early checks and the exact bounded
+helper gate. Full disposable replay and the affected backend gates remain
+required; this coverage does not qualify hosted storage/CDN, device erasure,
+media transport or execution.

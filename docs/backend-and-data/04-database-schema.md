@@ -8086,9 +8086,9 @@ validators, `internal.observation_video_source_fingerprint_bytes(jsonb)` and its
 SHA-256 wrapper. Each fixes an empty search path and revokes execution from
 PUBLIC and all API roles. The closed V4 graph binds the retained clip, ordered
 frames, optional audio and exact descriptions using the separate version-1 video
-domain. No table, trigger, RPC, rollout gate or existing photo/audio codec
-changes. These routines establish neither media proof nor ownership/admission
-authority. See
+domain. That fingerprint migration adds no table, trigger, RPC, rollout gate or
+existing photo/audio codec changes. These routines establish neither media proof
+nor ownership/admission authority. See
 [the exact fingerprint contract](05-api-contracts.md#held-video-source-fingerprint-v1).
 
 Migration `20261010015758_prepare_video_cohort_inventory.sql` adds the separate
@@ -8097,3 +8097,21 @@ projection. It first runs full V4 fingerprint validation, then returns retained
 source, five frames and optional audio with explicit roles/indices. It creates
 no cohort table, trigger, receipt or caller. See the
 [held inventory contract](05-api-contracts.md#held-video-cohort-inventory).
+
+### Held video cohort storage
+
+Migration `20261010024956_prepare_video_cohort_storage.sql` adds private
+`internal.observation_video_evidence_upload_cohorts`: child primary key,
+owner/parent/source identity, and an exact ordered inventory capped at 4 KiB.
+Its composite binding foreign key cascades parent erasure. The insertion guard
+uses `internal.lock_owned_observation_video_source_binding` for full V4
+fingerprint, identity and live occupancy validation before child-use checks.
+Updates and live-parent deletes are rejected. RLS is enabled; API table and
+helper privileges are revoked.
+
+The binding insertion validator recognizes V4 internally. Existing public
+reservation, generic source lock, funded/unfunded retirement and completion
+contracts are not widened. Child-use, reservation and discovery coverage now
+include video, with independent bounded sentinels; legacy cohorts cannot claim
+V4 children. No application writer or upload object is created. See the
+[held storage contract](05-api-contracts.md#held-video-cohort-storage).

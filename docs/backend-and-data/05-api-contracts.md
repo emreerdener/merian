@@ -16803,11 +16803,13 @@ separate requirements. Existing executable photo/audio routes remain unchanged.
 define a separate, unregistered V4 semantic binding contract. The TypeScript
 codec, native `ObservationVideoSourceFingerprint` and fixed vectors are prepared
 alongside private SQL `internal.observation_video_source_fingerprint_bytes` and
-`internal.observation_video_source_fingerprint` helpers. All remain uninstalled;
-parity alone does not authorize a producer or consumer. Existing photo/audio
-fingerprints, original request bytes, `request_digest` replay semantics and live
-reservation/admission parsers are unchanged. The codec does not authenticate an
-owner, verify media bytes, reserve occupancy or select an executable provider.
+`internal.observation_video_source_fingerprint` helpers. The codecs have no
+installed application producer or consumer; the private SQL helpers are
+installed by their migrations with API execution revoked. Parity alone does not
+authorize a producer or consumer. Existing photo/audio fingerprints, original
+request bytes, `request_digest` replay semantics and live reservation/admission
+parsers are unchanged. The codec does not authenticate an owner, verify media
+bytes, reserve occupancy or select an executable provider.
 
 After `parsePreparedVideoAdmission` validation, encode each scalar as a UTF-8
 netstring: decimal UTF-8 byte length, colon, exact scalar text, comma. Numbers
@@ -16856,10 +16858,11 @@ no binding, occupancy or receipt. Shared golden vectors and mutation cases
 compare SQL bytes/hashes with TypeScript; native tests use the same fixed
 vectors.
 
-The profile string binds declared metadata only. Video cohort coverage, durable
-reservation/recovery/retirement, materialization and execution are separate
-checkpoints. In particular, do not register V4 with the existing photo/audio
-source reservation codec merely because this fingerprint is defined.
+The profile string binds declared metadata only. Private cohort storage and
+coverage are described below; durable reservation/recovery/retirement,
+materialization and execution remain separate checkpoints. In particular, do not
+register V4 with the existing photo/audio source reservation codec merely
+because this fingerprint is defined.
 
 ### Held video cohort inventory
 
@@ -16879,10 +16882,34 @@ carries no owner, object key, expiry, readiness, byte verification or source to
 derived-output attestation, and grants no upload or execution permission.
 
 The SQL helper is a stable invoker with empty search path and execution revoked
-from PUBLIC and all API roles. No table or live consumer is introduced. Native
+from PUBLIC and all API roles. The projection writes no durable state. Native
 `ObservationVideoCohortInventory` mirrors the same projection after full V4
 semantic fingerprint validation and checks an entire closed inventory within a 4
 KiB native decoding bound. It does not restore saved request bytes or recompute
-their request digest. Durable cohort storage and
-writer/coverage/release/retirement coordination remain required before wiring.
-Existing photo/audio contracts are unchanged.
+their request digest. The private storage boundary below persists this
+inventory; receipt, upload and lifecycle wiring remain separate. Existing
+photo/audio request and execution contracts are unchanged.
+
+### Held video cohort storage
+
+`internal.observation_video_evidence_upload_cohorts` stores the exact complete
+inventory under a composite immutable source-binding foreign key. Its private
+insert guard validates V4 identity and live occupancy under owner/parent →
+source → child locks, then rejects any existing child use. A separate V4 lock
+helper leaves the photo/audio source lock and request parsers unchanged. The
+binding insert validator alone recognizes the video fingerprint domain.
+
+Video cohorts participate in child-use checks, reservation and discovery
+coverage, including independent 65th-row sentinels. Legacy photo/audio cohort
+inserts cannot claim a V4 binding, including through null legacy linkage.
+Updates and deletion while the parent lives are denied; parent tombstoning
+removes the cohort through the binding foreign key. The table has RLS and no API
+role privileges; both new helpers are private with empty search paths.
+
+This is durable metadata, with no installed application writer, object
+allocation, upload deadline, readiness or receipt. Public reservation still
+rejects V4, and existing retirement, completion and execution paths remain
+closed to V4. A retained cohort prevents any future unfunded-retirement absence
+proof. Adding V4 lifecycle or media delivery requires separate reviewed
+contracts; neither this inventory nor its persistence authorizes another
+provider invocation.

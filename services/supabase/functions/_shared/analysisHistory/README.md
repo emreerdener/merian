@@ -1145,8 +1145,9 @@ admission authority. See the
 its own versioned domain, binding complete source/frame/audio provenance and
 ordered descriptions. It leaves existing source reservation and executable input
 parsing photo/audio-only. Its fixed vectors also verify the separate native
-codec and private ungranted SQL helpers. Durable video cohort/recovery coverage
-is still required before any consumer connects. See the
+codec and private ungranted SQL helpers. Private cohort storage and coverage are
+described below; recovery and delivery contracts remain required before an
+application consumer connects. See the
 [held fingerprint field order](../../../../../docs/backend-and-data/05-api-contracts.md#held-video-source-fingerprint-v1).
 
 `videoCohort.ts` owns the held V4 ordered artifact inventory and exact
@@ -1155,3 +1156,10 @@ whole-list metadata matcher. The private SQL projection and native
 establishes a receipt or upload authority; durable cohort lifecycle remains
 required. See the
 [inventory contract](../../../../../docs/backend-and-data/05-api-contracts.md#held-video-cohort-inventory).
+
+The
+[held video storage contract](../../../../../docs/backend-and-data/05-api-contracts.md#held-video-cohort-storage)
+persists whole inventories in a private source-bound table and includes them in
+coverage and child-use fences. It installs no API writer, object receipt or V4
+reservation/execution consumer. Generic photo/audio lifecycle parsers stay
+unchanged; V4 delivery and retirement remain separate checkpoints.
