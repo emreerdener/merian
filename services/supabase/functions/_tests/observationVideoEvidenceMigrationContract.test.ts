@@ -195,3 +195,31 @@ Deno.test("video accounting is private and never settles completion or retries e
       .test(sql),
   );
 });
+
+Deno.test("video terminal settlement binds known outcomes without refund or source release", async () => {
+  const sql = await Deno.readTextFile(
+    new URL(
+      "../../migrations/20261010164735_prepare_private_video_terminal_settlement.sql",
+      import.meta.url,
+    ),
+  );
+  assert(!/\bGRANT\b|CREATE (?:OR REPLACE )?FUNCTION public\./.test(sql));
+  for (
+    const boundary of [
+      "ENABLE ROW LEVEL SECURITY",
+      "lock_video_observation_analysis",
+      "video_analysis_accounting_invocation",
+      "observation_source_expected_usage",
+      "FOR UPDATE",
+      "FOR SHARE",
+      "analysis_history_accounting_unproven",
+      "pg_current_xact_id()",
+      "receipt.proof->'product'",
+      "FROM PUBLIC,anon,authenticated,service_role",
+    ]
+  ) assert(sql.includes(boundary), boundary);
+  assert(
+    !/finalize_observation_provider_reservation|release_completed_observation_source|DELETE FROM internal.observation_analysis_source_occupancy|may_dispatch.*TRUE/
+      .test(sql),
+  );
+});

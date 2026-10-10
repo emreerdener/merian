@@ -17859,6 +17859,25 @@ The private immutable proof permits exact replay after invocation retention.
 First accounting atomically records that proof, saves received usage and
 advances only to `draft`. Credit remains held until future durable completion;
 no result/receipt append, source release, public/native caller or activation is
-installed. Refusal/invalid-output terminal settlement remains a separate
-requirement. This private accounting receipt adds no public DTO or reader
-version.
+installed. Refusal/invalid-output terminal settlement is prepared separately
+below. This private accounting receipt adds no public DTO or reader version.
+
+### Private V4 terminal settlement preparation
+
+The ungranted
+`settle_video_observation_terminal(owner, observation, analysis,
+quota_token)`
+consumes only saved `refusal` or `invalid_output` evidence. The caller cannot
+supply a replacement reason or usage. It checks original committed execution and
+exact ledger facts before atomically releasing a held complimentary allocation,
+recording `failed_terminal` with the mapped reason and usage, clearing the work
+claim and saving immutable proof. Paid admission requires proof that no
+allocation exists.
+
+Replay returns the original terminal proof after invocation pruning and does not
+repeat settlement or change entitlement epoch. Uncertain execution, missing
+original invocation, contradictory accounting or an already settled allocation
+without proof stays held. Quota is never refunded; result, completion receipt,
+source occupancy and erasure are unchanged. Existing generic RPCs remain closed
+to V4. There is no new public DTO, HTTP/native caller or activation. Successful
+video completion and source release remain separate requirements.

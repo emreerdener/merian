@@ -1268,8 +1268,9 @@ draft from the original saved V4 input and canonical Identify result/taxonomy.
 It preserves the full graph and ordered descriptions without a live-media read,
 request rewrite or side effect. Draft4 is not public result snapshot4 (audio).
 Private SQL draft persistence and successful accounting are prepared below.
-Credit/terminal settlement, video producer normalization and new result-reader
-versioning remain required before execution can open. See the
+Known-terminal settlement is prepared below. Successful completion/credit
+consumption, video producer normalization and new result-reader versioning
+remain required before execution can open. See the
 [prepared semantic draft contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-v4-semantic-draft).
 
 ### Prepared video draft storage
@@ -1288,3 +1289,12 @@ draft with received usage. Unknown/mismatched accounting stays held. Credit
 settlement, durable result/receipt and source release remain separate; there is
 no public caller. See the
 [accounting contract](../../../../../docs/backend-and-data/05-api-contracts.md#private-v4-accounting-preparation).
+
+### Prepared video terminal settlement
+
+Private SQL now settles exact saved refusal/invalid-output evidence against the
+original committed invocation and matching usage event. An immutable receipt
+binds the terminal state and credit release; replay survives invocation pruning.
+Unknown execution remains held, quota is not refunded, and source occupancy and
+erasure remain unchanged. No public/native caller is installed. See the
+[terminal settlement contract](../../../../../docs/backend-and-data/05-api-contracts.md#private-v4-terminal-settlement-preparation).

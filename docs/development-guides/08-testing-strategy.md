@@ -12651,3 +12651,22 @@ Run the fresh disposable database catalog/ACL and full Edge suites, migration
 and restricted CI helper contracts, recursive formatting/lint/type checks and
 complete Supabase tooling gate on the isolated candidate. Keep failed evidence
 separate. These tests do not qualify external execution or authorize activation.
+
+### Private V4 terminal settlement verification
+
+The video DB suite covers refusal and invalid-output settlement across all three
+evidence graphs, complimentary and paid admissions, missing invocation,
+unknown/success/different-terminal or mismatched usage events, pre-settled
+credit denial and atomic rollback on receipt failure. It checks committed quota
+with zero refunds, exact credit-release reason, one ledger event and terminal
+proof, cleared work claims, no result/completion receipt and retained source
+occupancy. Replay after invocation pruning preserves the entitlement epoch and
+original proof. Wrong scope/token, generic outcome/fail RPCs, successful-draft
+settlement, receipt mutation and owner deletion are denied. Actual two-session
+tests cover duplicate settlement and both settlement-versus-retention lock
+orders.
+
+Run fresh disposable catalog/ACL and full Edge suites, migration/static/CI
+contracts and full Supabase tooling, recursive type/lint/format, DTO and
+Markdown gates. API-role and PUBLIC access stay denied. No provider call, hosted
+state, source cleanup or activation is exercised by these synthetic tests.

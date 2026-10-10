@@ -8295,3 +8295,29 @@ contract, and unavailable pricing does not fabricate a cost.
 This receipt is not completion or erasure authority. Complimentary credit stays
 held, quota stays committed, and no result, completion receipt or occupancy
 release occurs. All helpers/table access remain revoked from API roles.
+
+### Private V4 known-terminal settlement
+
+`settle_video_observation_terminal` accepts only the exact saved refusal or
+invalid-output outcome and original quota token under canonical V4 identity
+locks. It proves the committed reservation and invocation, accounts the saved
+usage, then independently checks the complete event projection and matching
+terminal outcome. Existing unknown, successful, different terminal or mismatched
+usage events cannot authorize settlement. Missing invocation before first
+settlement remains held. Operational uncertainty is not a received outcome.
+
+An allocated complimentary credit must still be held; settlement releases it
+with `provider_refusal` or `invalid_result`. A paid admission must have no
+credit allocation in either quota reference or storage. The exact
+post-settlement facts, input/outcome/usage/funding hashes and execution/event
+identity are saved in an immutable private terminal receipt. Event accounting,
+credit release, terminal intent state, work-claim clearing and receipt insertion
+are atomic. Exact replay returns the original proof without touching credits or
+accounting, including after invocation retention. Owner deletion still denies
+replay.
+
+The provider quota remains committed with zero refunds. This receipt does not
+authorize source release, retirement or erasure: occupancy stays held, and no
+result/completion receipt is appended. Generic legacy advance/fail remains
+closed to V4 through the existing source fingerprint guard. API-role access to
+all new helpers/table remains revoked; no public consumer is installed.
