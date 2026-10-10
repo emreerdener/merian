@@ -16902,17 +16902,19 @@ binding insert validator alone recognizes the video fingerprint domain.
 Video cohorts participate in child-use checks, reservation and discovery
 coverage, including independent 65th-row sentinels. Legacy photo/audio cohort
 inserts cannot claim a V4 binding, including through null legacy linkage.
-Updates and deletion while the parent lives are denied; parent tombstoning
-removes the cohort through the binding foreign key. The table has RLS and no API
-role privileges; both new helpers are private with empty search paths.
+Updates and ordinary deletion while the parent lives are denied. The separate
+pre-execution retirement below permits only exact receipt-bound deletion; parent
+tombstoning removes the cohort through the binding foreign key. The table has
+RLS and no API role privileges; both new helpers are private with empty search
+paths.
 
 This is durable metadata, with no installed application writer, object
-allocation, upload deadline, readiness or receipt. Public reservation still
-rejects V4, and existing retirement, completion and execution paths remain
-closed to V4. A retained cohort prevents any future unfunded-retirement absence
-proof. Adding V4 lifecycle or media delivery requires separate reviewed
-contracts; neither this inventory nor its persistence authorizes another
-provider invocation.
+allocation, upload deadline, readiness or upload receipt. Separate reader-12
+reservation and pre-execution retirement authorities are described below. Legacy
+retirement, completion and execution paths remain closed to V4. A retained
+cohort prevents generic unused-child absence proof. Adding V4 lifecycle or media
+delivery requires separate reviewed contracts; neither this inventory nor its
+persistence authorizes another provider invocation.
 
 ### Prepared video source reservation and recovery wire contract
 
@@ -16953,11 +16955,11 @@ states:
 
 Only `held` has a `reason` field. Unknown states, additional fields, mismatched
 identity/owner, `not_found`, `retired_unfunded`, `complete` and `dispatched` are
-rejected. There is no V4 durable retirement proof to decode yet. Local
-held-video discard remains local-only; it cannot establish remote absence or
-release. Unknown execution continues to permit status/outcome recovery and
-reconciliation only. No decoder invokes a provider or schedules, rearms, refunds
-or replaces work.
+rejected. Durable retirement uses its separate request and receipt decoder
+below. Local held-video discard remains local-only; it cannot establish remote
+absence or release. Unknown execution continues to permit status/outcome
+recovery and reconciliation only. No decoder invokes a provider or schedules,
+rearms, refunds or replaces work.
 
 The fixed `video-source-reservation-v2.json` vectors reference the existing
 ordered-audio, silent and Unicode fingerprint inputs. They freeze identity and
@@ -17010,19 +17012,22 @@ new default-false `video_source_recovery_enabled`; it does not depend on fresh
 reservation enablement. Missing, foreign or mismatched bindings are unavailable.
 An exact binding without occupancy is held as `terminal_unproven`. Existing V4
 predecessors likewise cannot use the photo/audio release proof to establish
-vacancy. No V4 retirement/completion proof or replacement authorization is
-added. Neither routine uploads media, consumes quota, invokes a provider or
-refunds. HTTP routes, repositories, native transport and queue delivery remain
-unconnected.
+vacancy. The separately gated pre-execution retirement below supplies V4
+successor proof; no V4 completion proof is installed. Neither routine uploads
+media, consumes quota, invokes a provider or refunds. HTTP routes, repositories,
+native transport and queue delivery remain unconnected.
 
 ### Prepared video pre-execution retirement contract
 
 `videoSourceRetirement.ts` defines a separate reader-12/schema-2 action for a V4
 source reservation that has never acquired admission or execution state. One
 exact metadata-only V4 cohort may exist; remote objects remain excluded. This is
-a prepared wire contract only: no retirement SQL writer, grant, HTTP route,
-native delivery or release consumer is installed. Existing reservation/recovery
-decoders retain their three states and reject retirement receipts.
+implemented by service-only
+`retire_owned_observation_video_source(owner, request,
+reader)` behind
+default-false `video_source_retirement_enabled`. No HTTP route, native delivery
+or queue consumer is installed. Existing reservation/recovery decoders retain
+their three states and reject retirement receipts.
 
 The request contains the exact seven-field video identity plus `operation_id`.
 The operation UUID must differ from observation, source and child. Build it from
@@ -17034,14 +17039,14 @@ binds owner, operation, full candidate identity and validated V4 fingerprint,
 snapshots mutable inputs before hashing, and rejects extra fields or any other
 state. Matching JSON alone cannot authenticate a server receipt or authorize
 release. Fixed audio, silent and Unicode vectors freeze this representation for
-future SQL/native parity. Reader-11 photo/audio contracts are unchanged.
+SQL parity and future native parity. Reader-11 photo/audio contracts are
+unchanged.
 
 An optional V4 cohort must exactly match the binding-derived whole inventory.
 The server retains that inventory (or explicit no-cohort proof) privately with
 the permanent receipt; the bounded wire receipt carries identity only.
 
-The following are required server implementation acceptance criteria, not
-implemented database authority in this checkpoint:
+The SQL authority enforces the following acceptance contract:
 
 | Contract element | Required never-admitted V4 retirement behavior                                                                                                                                                                                                                                                                                                                                                                          |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -17062,3 +17067,19 @@ does not authorize funded retirement, remote object cleanup or cleanup receipts.
 Unknown execution permits exact status/outcome recovery and reconciliation only,
 never another invocation or refund. Local video discard continues to affect
 local preparation only.
+
+The private `observation_video_source_retirements` row retains either JSON null
+(no cohort) or the exact original ordered inventory. Its insertion guard checks
+all pre-execution namespaces and the optional cohort under canonical locks.
+`observation_video_retirement_record_valid` authorizes controlled live metadata
+removal; `observation_video_source_release_proven` additionally requires absence
+of both live cohort and occupancy. Keeping these predicates separate prevents
+circular deletion proof and prevents a receipt alone from proving vacancy.
+
+Only reader-12 successor reservation uses this V4 proof, with an independent
+65th-row retirement sentinel. Replay and ordinary lookup of the retired child
+remain held; only the exact retirement operation returns its permanent receipt.
+The original binding remains an ingestion fence. Binding/occupancy/cohort,
+shared admission-chain and execution locks explicitly reject retired children.
+Parent erasure cascades the private record; replay still checks ownership and
+deletion first. Legacy release proofs and funded retirement are unchanged.

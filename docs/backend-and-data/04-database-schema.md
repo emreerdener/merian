@@ -8106,8 +8106,9 @@ owner/parent/source identity, and an exact ordered inventory capped at 4 KiB.
 Its composite binding foreign key cascades parent erasure. The insertion guard
 uses `internal.lock_owned_observation_video_source_binding` for full V4
 fingerprint, identity and live occupancy validation before child-use checks.
-Updates and live-parent deletes are rejected. RLS is enabled; API table and
-helper privileges are revoked.
+Updates and ordinary live-parent deletes are rejected; the later pre-execution
+retirement authority below adds exact receipt-bound removal. RLS is enabled; API
+table and helper privileges are revoked.
 
 The binding insertion validator recognizes V4 internally. Existing public
 reservation, generic source lock, funded/unfunded retirement and completion
@@ -8127,3 +8128,22 @@ immutable bindings and occupancy; no new media row or execution record is
 created. V4 bindings without occupancy stay held, and legacy release/retirement
 routines remain unchanged. See the
 [SQL contract](05-api-contracts.md#prepared-video-sql-reservation-and-recovery-authority).
+
+### Prepared video pre-execution retirement authority
+
+Migration `20261010043740_prepare_video_source_retirement.sql` adds the
+default-false `video_source_retirement_enabled` gate and private immutable
+`internal.observation_video_source_retirements`. Operation is primary key; child
+is unique; the composite binding foreign key preserves owner/parent/source and
+cascades parent erasure. Exact request and receipt each stay within 2 KiB.
+Private cohort inventory is explicit JSON null or the original ordered array
+within 4 KiB. RLS and API-role revokes protect every row and private helper.
+
+The reader-12 service-only retirement routine validates original identity and
+pre-execution absence, retains the irreversible fence, and atomically removes
+only the exact optional cohort and occupancy. Pre-delete authorization and final
+release proof are separate. Only V4 successor reservation uses the final proof;
+legacy release routines are unchanged. Retained binding and explicit admission,
+execution and storage guards prevent old-child resurrection. No media object,
+provider invocation, quota consumption or refund is authorized. See the
+[retirement contract](05-api-contracts.md#prepared-video-pre-execution-retirement-contract).

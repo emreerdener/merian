@@ -12262,3 +12262,31 @@ gate. These pure codec tests do not prove durable retirement or release. The
 server preconditions, atomic release fence, concurrency and replay tests
 required before installing a writer are specified in the
 [retirement contract](../backend-and-data/05-api-contracts.md#prepared-video-pre-execution-retirement-contract).
+
+### Prepared video SQL pre-execution retirement verification
+
+Seventeen independent durable-state fixtures cover every pre-execution
+namespace, including both quota identities. A real reader-11 reservation must
+reject a retired V4 predecessor.
+
+`observationVideoRetirementDb.test.ts` exercises the separately gated reader-12
+retirement authority against the explicit disposable database. Audio-bearing,
+silent and Unicode candidates prove exact codec parity, with and without an
+existing whole cohort. Verify closed-gate fresh denial and exact permanent
+replay, rollback of receipt/cohort/occupancy together, private inventory
+retention, operation/owner/child mismatches, forbidden resurrection and parent
+erasure. A retained receipt alone must fail final release proof until both live
+rows are removed. Corrupt inventory must fail before any durable retirement
+write.
+
+Concurrency cases require actual `pg_blocking_pids` evidence: duplicate
+retirement, successor reservation, ordinary recovery, cohort insertion in both
+orders, deletion in both orders, and admission/execution entry after retirement.
+A new connection recovers the exact original retirement UUID after a lost reply.
+Catalog tests cover private-table RLS, revoked helpers, service-only grants and
+unchanged legacy release authority. Full affected Edge tests must receive the
+approved localhost database URL explicitly. Reset separately before the broad
+Edge suite and before catalog/security qualification: committed integration
+fixtures and altered cutover state are not a fresh catalog baseline. These are
+metadata lifecycle checks, not provider execution, hosted storage or native
+delivery qualification.

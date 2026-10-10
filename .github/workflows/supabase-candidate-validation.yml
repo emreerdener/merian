@@ -193,6 +193,7 @@ jobs:
             supabase/functions/_tests/observationVideoStorageDb.test.ts \
             supabase/functions/_tests/observationVideoReservationMigrationContract.test.ts \
             supabase/functions/_tests/observationVideoReservationDb.test.ts \
+            supabase/functions/_tests/observationVideoRetirementDb.test.ts \
             supabase/functions/_tests/observationVideoFingerprintMigrationContract.test.ts \
             supabase/functions/_tests/observationVideoFingerprintDb.test.ts \
             supabase/functions/resolve-history-photo/handler_test.ts \
@@ -410,6 +411,7 @@ jobs:
             supabase/functions/_tests/observationVideoStorageDb.test.ts \
             supabase/functions/_tests/observationVideoReservationMigrationContract.test.ts \
             supabase/functions/_tests/observationVideoReservationDb.test.ts \
+            supabase/functions/_tests/observationVideoRetirementDb.test.ts \
             supabase/functions/_tests/observationVideoFingerprintMigrationContract.test.ts \
             supabase/functions/_tests/observationVideoFingerprintDb.test.ts \
             supabase/functions/resolve-history-photo/handler_test.ts \

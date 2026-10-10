@@ -1168,7 +1168,8 @@ unchanged; V4 delivery and retirement remain separate checkpoints.
 contract. Complete V4 candidates use the video fingerprint; reservation and
 read-only recovery responses bind owner plus the full candidate identity, with
 only reserved/held/unavailable states. Fixed vectors support later SQL/native
-parity. No live caller or retirement proof is installed. See the
+parity. No live caller is installed; this reservation wire grants no retirement
+proof. See the
 [wire contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-source-reservation-and-recovery-wire-contract).
 
 The separate reader-12
@@ -1180,8 +1181,11 @@ lifecycle parsers and the alternatives layout remain unchanged.
 
 `videoSourceRetirement.ts` separately owns the prepared never-admitted V4 action
 and exact permanent-receipt shape. It shares shape-only identity validation with
-reservation, while reservation/recovery continue rejecting retirement states.
-There is no SQL writer, native delivery or release consumer. The
+reservation, while reservation/recovery continue rejecting retirement states. A
+separate service-only SQL authority now implements pre-execution retirement
+behind its disabled gate. No native delivery or queue consumer is connected. The
 [retirement contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-pre-execution-retirement-contract)
 records the mandatory unused-child evidence, atomic permanent fence and race
-proofs before server implementation may release occupancy.
+proofs required for controlled occupancy release. The private retirement retains
+exact inventory or no-cohort proof; only reader-12 successor reservation accepts
+its separate final release predicate. Legacy release rules are unchanged.

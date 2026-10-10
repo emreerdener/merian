@@ -4,7 +4,7 @@ import {
   videoSourceIdentity,
 } from "./videoSourceReservation.ts";
 
-/** Prepared never-admitted V4 retirement only; no RPC or release consumer yet. */
+/** Prepared never-admitted V4 retirement; separate service SQL, no live delivery consumer. */
 export const VIDEO_SOURCE_RETIREMENT_READER = 12;
 export const VIDEO_SOURCE_RETIREMENT_MAX_BYTES = 2_048;
 const keys = [
