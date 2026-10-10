@@ -134,4 +134,101 @@ struct ObservationSourceTransportTests {
             try await fixture.send(response: { throw SupabaseAuthTransitionError.signOutSessionChanged })
         }
     }
+    private func videoCandidate() throws -> ObservationVideoSourceReservationRequest {
+        let source = try DatabaseActorTestSupport.loadRepositorySource(at: "services/supabase/functions/_shared/analysisHistory/fixtures/video-request-v4.json")
+        let vectors = try #require(JSONSerialization.jsonObject(with: Data(source.utf8)) as? [[String: Any]])
+        let input = try #require(vectors.first?["input"])
+        let body = try JSONSerialization.data(withJSONObject: input, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+        return try .init(video: .init(savedBody: body))
+    }
+
+    @Test(arguments: ["reserved", "unavailable", "source_occupied", "ambiguous_occupancy", "coverage_incomplete", "malformed_linkage", "terminal_unproven"])
+    func videoUsesExactSavedEnvelopeAndDistinctReply(state: String) async throws {
+        let fixture = try Fixture(); defer { fixture.close() }
+        let candidate = try videoCandidate()
+        var row = candidate.identity.fields
+        row["owner_id"] = Values.owner.uuidString.lowercased()
+        row["state"] = ["reserved", "unavailable"].contains(state) ? state : "held"
+        if row["state"] as? String == "held" { row["reason"] = state }
+        let data = try JSONSerialization.data(withJSONObject: row)
+        let calls = OSAllocatedUnfairLock(initialState: 0)
+        fixture.mock.register(path: Self.path) { wire in
+            calls.withLock { $0 += 1 }
+            #expect(MockURLProtocol.bodyData(for: wire) == candidate.body)
+            #expect(wire.httpMethod == "POST" && wire.timeoutInterval == 5)
+            #expect(wire.value(forHTTPHeaderField: "Content-Type") == "application/json")
+            #expect(wire.value(forHTTPHeaderField: "X-Merian-Entitlement-Protocol") == "3")
+            #expect(wire.value(forHTTPHeaderField: "Idempotency-Key") == nil)
+            #expect(wire.value(forHTTPHeaderField: IdentificationRecipientExpectation.header) == nil)
+            return (HTTPURLResponse(url: wire.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"])!, data)
+        }
+        var attempts = 0, settlements = 0
+        let reply = try await fixture.transport.reserve(candidate, ownerID: Values.owner,
+            validateAttempt: { attempts += 1 }, validateResponse: { settlements += 1 })
+        #expect(reply.identity == candidate.identity && reply.data == data)
+        #expect(calls.withLock { $0 } == 1 && attempts == 1 && settlements == 1)
+    }
+
+    @Test(arguments: ["lost", "401", "conflict", "foreign", "oversize", "declared", "mime", "settlement"])
+    func videoFailureNeverRetriesOrRebinds(kind: String) async throws {
+        let fixture = try Fixture(); defer { fixture.close() }
+        let candidate = try videoCandidate(), calls = OSAllocatedUnfairLock(initialState: 0)
+        var row = candidate.identity.fields
+        row["owner_id"] = (kind == "foreign" ? UUID() : Values.owner).uuidString.lowercased(); row["state"] = "reserved"
+        if kind == "conflict" {
+            row = ["error": "Source reservation is unavailable.", "code": "analysis_history_operation_conflict", "request_id": UUID().uuidString.lowercased()]
+        }
+        let data = kind == "oversize" ? Data(repeating: 32, count: 2049) : try JSONSerialization.data(withJSONObject: row)
+        var headers = ["Content-Type": kind == "mime" ? "text/plain" : "application/json"]
+        if kind == "declared" { headers["Content-Length"] = "2049" }
+        let frozenHeaders = headers
+        fixture.dispatcher.overridingAuthSessionRefresh = { Issue.record("Unexpected video Auth retry"); return true }
+        fixture.mock.register(path: Self.path) { wire in
+            calls.withLock { $0 += 1 }
+            if kind == "lost" { throw URLError(.networkConnectionLost) }
+            return (HTTPURLResponse(url: wire.url!, statusCode: kind == "401" ? 401 : kind == "conflict" ? 409 : 200,
+                httpVersion: nil, headerFields: frozenHeaders)!, data)
+        }
+        do {
+            _ = try await fixture.transport.reserve(candidate, ownerID: Values.owner, validateAttempt: {},
+                validateResponse: { if kind == "settlement" { throw SupabaseAuthTransitionError.signOutSessionChanged } })
+            Issue.record("Invalid video answer accepted")
+        } catch let conflict as ObservationVideoSourceReservationConflict {
+            #expect(kind == "conflict" && conflict.request == candidate && conflict.ownerID == Values.owner)
+        } catch { #expect(kind != "conflict") }
+        #expect(calls.withLock { $0 } == 1)
+    }
+
+    @Test(arguments: ["owner", "claim", "cancel"])
+    func staleVideoScopeCannotDispatch(kind: String) async throws {
+        let fixture = try Fixture(); defer { fixture.close() }
+        let candidate = try videoCandidate()
+        fixture.mock.register(path: Self.path) { _ in Issue.record("Stale video request dispatched"); throw MerianError.invalidResponse }
+        if kind == "owner" { fixture.dispatcher.overridingAuthUserID = UUID() }
+        let task = Task { @MainActor in
+            if kind == "cancel" { withUnsafeCurrentTask { $0?.cancel() } }
+            try await fixture.transport.reserve(candidate, ownerID: Values.owner,
+                validateAttempt: { if kind == "claim" { throw MerianError.invalidResponse } }, validateResponse: {})
+        }
+        await #expect(throws: (any Error).self) { try await task.value }
+    }
+
+    @Test func videoKnownReplyUsesSettlementFenceAfterDispatchCancellation() async throws {
+        let fixture = try Fixture(); defer { fixture.close() }
+        let candidate = try videoCandidate()
+        var row = candidate.identity.fields
+        row["owner_id"] = Values.owner.uuidString.lowercased(); row["state"] = "reserved"
+        let data = try JSONSerialization.data(withJSONObject: row)
+        fixture.mock.register(path: Self.path) { wire in
+            (HTTPURLResponse(url: wire.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"])!, data)
+        }
+        let task = Task { @MainActor in
+            try await fixture.transport.reserve(candidate, ownerID: Values.owner, validateAttempt: {},
+                validateResponse: { withUnsafeCurrentTask { $0?.cancel() } })
+        }
+        #expect(try await task.value.data == data)
+    }
+
 }

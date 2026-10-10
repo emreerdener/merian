@@ -12406,3 +12406,14 @@ construction. These synthetic byte patterns prove framing/digest binding only;
 they are not container or live transport qualification. Endpoint container and
 authorization validation remain separate. Native transport, durable delivery and
 real allocated-route write/HEAD/completion remain later acceptance work.
+
+### Native reader12 reservation transport coverage
+
+`ObservationSourceTransportTests` now exercises the typed video overload for all
+seven reserved/unavailable/held states, exact pretty-printed saved input, fixed
+route/protocol/timeout, one attempt and no execution headers. Negative cases
+cover lost replies,401, typed409 conflict, foreign owner, actual/declared2KiB
+overflow, MIME, settlement loss, stale owner/claim and pre-cancellation. Known
+reply settlement survives dispatch cancellation only through the supplied
+settlement scope. Existing reader11 tests remain unchanged. This proves the
+transport seam, not installed durable delivery or hosted/device qualification.

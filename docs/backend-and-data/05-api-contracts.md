@@ -16971,11 +16971,11 @@ consumer.
 ### Prepared native video source parity
 
 `ObservationVideoSourceReservation.swift` mirrors the reader-12/schema-2
-prepared contract without an installed transport or queue consumer. Input must
-be bounded strict UTF-8 before fingerprinting or envelope construction, even
-when Foundation accepted another JSON encoding upstream. Its identity validates
-the complete V4 semantic fingerprint; this is separate from restoring a native
-saved-body digest. Request construction accepts a validated
+prepared contract with a typed reservation transport but no queue caller. Input
+must be bounded strict UTF-8 before fingerprinting or envelope construction,
+even when Foundation accepted another JSON encoding upstream. Its identity
+validates the complete V4 semantic fingerprint; this is separate from restoring
+a native saved-body digest. Request construction accepts a validated
 `ObservationVideoReanalysisRequest` and embeds its original `body` bytes
 verbatim. Restoration verifies the original native input and compares the entire
 saved envelope; it never rebuilds input from current selection or a manifest.
@@ -16985,8 +16985,8 @@ recovery replies share one bounded, strict-UTF8 decoder, requiring the complete
 identity and owner in every state. Only held replies carry a closed reason.
 Unknown fields, old versions, alternate encodings and unsupported retirement or
 execution states fail closed. These values grant no upload, execution, release
-or absence authority. SQL authority is defined below; transport and lifecycle
-consumers remain separate prerequisites; legacy photo/audio owners are
+or absence authority. SQL authority is defined below; live composition and
+lifecycle consumers remain separate prerequisites; legacy photo/audio owners are
 unchanged.
 
 ### Prepared video SQL reservation and recovery authority
@@ -17364,7 +17364,8 @@ identity to mutation-free `get_owned_observation_video_source` with reader12,
 then validates the whole reply against the original candidate and owner. It has
 no installed HTTP/native caller. Unavailable or held observations never prove
 vacancy. Existing video reservation/recovery gates remain false; no SQL,
-photo/audio codec, native transport or ordinary access changes are included.
+photo/audio codec or ordinary access changes are included. Native reservation
+transport is described below; recovery remains uninstalled.
 
 ### Prepared native video binary wire
 
@@ -17386,3 +17387,24 @@ extracting media. Digest equality alone does not establish container validity,
 authentication, allocation, readiness or execution permission. Server validators
 remain required. This checkpoint installs no native transport or queue caller;
 reader11 photo/audio paths and generated Identify DTOs are unchanged.
+
+### Native reader12 video reservation transport
+
+`ObservationSourceReservationTransport.reserve` has a distinct video-request
+overload that posts the exact saved schema2 envelope to
+`reserve-observation-analysis-source`. It uses the existing account-bound
+single-attempt dispatcher, five-second request and actual2KiB response cap.
+There is no generic retry, Auth refresh, reader11 fallback or recovery call. The
+owner and fresh attempt validator are required before dispatch; successful
+replies are closed-decoded against the original video identity and owner, then
+accepted only under the separate settlement validator. A known reply can survive
+dispatch cancellation when that settlement scope remains current.
+
+Only the exact bounded JSON409 conflict envelope becomes
+`ObservationVideoSourceReservationConflict`, retaining the original candidate
+and owner after settlement validation. All other errors remain uncertain;
+neither error nor reserved/held/unavailable grants upload, provider execution,
+release or replacement. The reader11 overload is unchanged. This is an inert
+transport seam: no live queue/composition caller is installed. Recovery HTTP,
+video upload transport, saved-cohort reading and durable delivery remain
+separate checkpoints. Gates remain disabled and ordinary access nil.

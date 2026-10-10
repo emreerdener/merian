@@ -43,7 +43,7 @@ struct ObservationVideoSourceIdentity: Equatable, Sendable {
     }
 }
 
-/// Immutable schema-2 envelope. No transport or queue consumes this prepared value.
+/// Immutable schema-2 envelope for typed reservation transport. No queue caller is installed.
 struct ObservationVideoSourceReservationRequest: Equatable, Sendable {
     static let maximumBytes = 1_048_576
     let identity: ObservationVideoSourceIdentity

@@ -4209,12 +4209,12 @@ is installed and the list is not a receipt, ownership or readiness proof. See
 
 `Models/ObservationAnalysis/ObservationVideoSourceReservation.swift` owns the
 separate reader-12/schema-2 native identity, exact saved-input envelope and
-full-identity reply decoder. Recovery uses that same identity and reply shape.
-These are prepared values without a transport or queue consumer; they confer no
-upload, execution or release authority. See the prepared video source contract
-in `docs/backend-and-data/05-api-contracts.md` and shared-fixture coverage in
-the canonical testing strategy. Existing photo/audio reservation owners remain
-unchanged.
+full-identity reply decoder. Recovery uses that same identity and reply shape. A
+typed reservation transport consumes these values; no queue caller is installed.
+They confer no upload, execution or release authority. See the prepared video
+source contract in `docs/backend-and-data/05-api-contracts.md` and
+shared-fixture coverage in the canonical testing strategy. Existing photo/audio
+reservation owners remain unchanged.
 
 ## Prepared video retirement models
 
@@ -4245,3 +4245,13 @@ Preparation checks cancellation before and after bounded construction. It must
 run on an owned preparation task. This value performs no I/O and installs no
 transport or queue caller; server container checks remain authoritative. See
 [the native wire contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-native-video-binary-wire).
+
+### Native video reservation transport
+
+`ObservationSourceReservationTransport` accepts a distinct typed video candidate
+and returns the closed reader12 reply. It preserves exact saved bytes, single
+attempt delivery, account lease, bounded response and separate
+attempt/settlement validators. Exact conflicts retain the candidate in
+`ObservationVideoSourceReservationConflict`. Reader11 behavior is unchanged; no
+queue/composition, recovery or upload caller is installed. See the
+[native reader12 contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-reader12-video-reservation-transport).
