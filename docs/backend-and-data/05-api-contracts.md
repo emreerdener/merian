@@ -16554,7 +16554,7 @@ references. Input inspection is synchronous.
 Payloads, including `ftyp` brands and the entire `moov` tree, remain opaque.
 Success does not establish self-contained references, track/codec/sample-table
 validity, timing, metadata absence, decodability or source derivation. There is
-no manifest/hash verification wrapper or live caller. A deliberately invalid
+no manifest/hash verification of its own or live caller. A deliberately invalid
 media payload passes the envelope-only unit test to freeze this limitation. The
 separate nested inspector below checks `moov`/`trak`, descriptions, `dref`,
 sample extents and a closed metadata policy; envelope success alone still cannot
@@ -16568,8 +16568,8 @@ is a format reference, not an expansion of this closed accepted envelope.
 ### Retained video nested structure profile
 
 `retainedVideoStructure.inspectRetainedVideoStructure` is a synchronous, private
-structural inspector with no live caller or manifest/hash wrapper. It builds on
-the bounded envelope and limits nested boxes to 128 through fixed parent-child
+structural inspector with no live caller or hashing of its own. It builds on the
+bounded envelope and limits nested boxes to 128 through fixed parent-child
 paths. Unknown, duplicate, misplaced, fragmented and metadata boxes fail closed;
 nested extended-size boxes and unsupported full-box versions are excluded. The
 initial profile fixes observed MP4 brands, static handler text, zero padding,
@@ -16601,16 +16601,17 @@ metadata are admitted by this profile.
 
 Compressed sample bytes and SPS bit-level semantics remain undecoded. Successful
 inspection does not prove actual codec decodability, decoded dimensions,
-no-reordering, frame/WAV derivation, producer identity, or ownership. Manifest
-length/digest/duration binding, immutable cohort receipts and coordinated
-source, profile, materialization and reader admission remain separate. The
-fixture corpus covers silent/audio one-second 64×64 iOS 27 simulator output and
-four unchanged 96×64 native outputs: rotated silent and reflected stereo-source
-clips at 0.1 and 5 seconds, with retained audio normalized to 44.1-kHz mono. All
-pass the existing structural profile without relaxing it. Minimum/maximum
-dimension encoders and other device/OS variants still require qualification
-before activation. Unsupported output fails closed rather than falling back to
-envelope-only acceptance. Existing executable V4 routes remain closed.
+no-reordering, frame/WAV derivation, producer identity, or ownership. The
+separate byte verifier binds manifest length/digest/duration and audio presence;
+immutable cohort receipts and coordinated source, profile, materialization and
+reader admission remain separate. The fixture corpus covers silent/audio
+one-second 64×64 iOS 27 simulator output and four unchanged 96×64 native
+outputs: rotated silent and reflected stereo-source clips at 0.1 and 5 seconds,
+with retained audio normalized to 44.1-kHz mono. All pass the existing
+structural profile without relaxing it. Minimum/maximum dimension encoders and
+other device/OS variants still require qualification before activation.
+Unsupported output fails closed rather than falling back to envelope-only
+acceptance. Existing executable V4 routes remain closed.
 
 ### Prepared native retained clip creation
 
@@ -16775,3 +16776,23 @@ receipt-bound cleanup attempt after a normally returned commit; uncertain saves
 require exact receipt recovery. This is local-only retirement of never-admitted
 preparation, not a server absence proof, funding refund or authority for
 uncertain-execution redispatch.
+
+### Retained video source byte verification
+
+`retainedVideoContainer.verifyPreparedVideoSource` parses and freezes the entire
+private V4 manifest, checks the source byte count before allocating, and copies
+the input view before its first await. The strict nested inspector must match
+the manifest's 600-Hz duration exactly and contain audio if and only if the
+manifest contains an audio companion. SHA-256 must match the saved source
+artifact. It returns the independently owned copied bytes; caller mutations of
+input bytes or manifest objects during hashing cannot alter the verified result.
+Malformed structure fails even when its digest matches; no envelope fallback is
+permitted.
+
+This helper has no live caller. IDs are validated for manifest identity
+separation; the helper does not authenticate an owner or establish association
+with a saved observation/analysis. It does not decode media, verify derived
+frame pixels or PCM samples, or prove an audio companion's exact extraction
+interval against the retained audio track. Durable source/cohort authority,
+provider profile, upload/admission integration and device qualification remain
+separate requirements. Existing executable photo/audio routes remain unchanged.

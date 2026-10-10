@@ -12000,8 +12000,9 @@ This is a constrained structural profile, not compressed-payload decoding or
 manifest/source provenance proof. Its exact AAC descriptor template and narrow
 container variants are intentionally unqualified beyond the imported synthetic
 simulator corpus. More producer variants and device qualification, cryptographic
-manifest binding and coordinated admission remain required. Do not use a passing
-envelope inspector as fallback when this profile rejects a file.
+coordinated admission remain required; the separate source-byte verifier now
+covers manifest binding. Do not use a passing envelope inspector as fallback
+when this profile rejects a file.
 
 ### Prepared retained video encoding
 
@@ -12125,3 +12126,17 @@ regenerating media or touching its historical source. Run with
 `ObservationReanalysisDiscardTests` and `ObservationReanalysisErasureTests` to
 preserve legacy discard and shared receipt/lock behavior. No video server
 retirement or rendered Capture action is implied by these local tests.
+
+### Retained video source byte verification tests
+
+`retainedVideoContainer_test.ts` uses all four unchanged native
+duration-boundary clips to verify independent output bytes, subarray inputs,
+source length/digest, MIME, exact duration and audio-presence matching. It
+rejects malformed container structure even with a matching digest, malformed
+metadata, oversized declared sources and identity collisions. A synchronous
+post-call mutation of bytes and nested metadata proves the verifier captured
+both before hashing awaited. Both candidate type-check and helper-test lists
+register the suite, guarded by `workflowSecurity.test.ts`. These checks do not
+prove authentication, saved analysis association, decoded content or companion
+derivation. No live endpoint uses the helper and no activation qualification is
+implied.
