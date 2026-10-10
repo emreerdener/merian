@@ -17272,3 +17272,29 @@ explicit. Neither outcome grants upload, provider or cleanup permission. The
 caller must authenticate ownership and verify the exact stored bytes before
 completion; this prepared adapter supplies neither authentication nor byte
 verification and installs no storage writer or execution path.
+
+### Prepared exact video item upload coordinator
+
+`videoUpload.ts` verifies a single saved source/frame/audio item against the
+full immutable candidate before allocation. It validates manifest bounds before
+copying caller bytes and freezes metadata before hashing awaits. The overall
+120-second deadline composes caller cancellation; each injected RPC/write is
+abortable, and no later stage starts after cancellation.
+
+The coordinator validates the complete server receipt and uses only its target
+object. Already-ready exact replay returns without writing, even after expiry.
+Pending items require an unexpired fixed deadline, then one awaited private
+conditional write/HEAD verification before one readiness completion. Returned
+completion must preserve the allocation and acknowledge the target. Failures
+never retry, replace objects, resample media, erase evidence or grant execution.
+A write may have committed when its reply is lost; recovery keeps the same
+allocation. SQL remains authoritative if expiry/deletion/gates change mid-write.
+
+The inert factory composes the bounded video RPC adapter with
+`PrivateHistoryEvidenceStorage.writeOnce`, preserving the private bucket, exact
+`evidence/v1/` object namespace, conditional creation and permanent
+erasure-marker protection. No new storage credentials, URL delivery, HTTP route
+or caller is installed. A future route must derive the authenticated owner and
+bound incoming body streaming before calling this coordinator. Container checks
+do not prove source derivation; hosted storage and erasure qualification remain
+separate.

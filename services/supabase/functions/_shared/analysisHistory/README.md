@@ -1222,3 +1222,11 @@ concurrent monotonic readiness. The caller must authenticate and verify stored
 bytes before completion. No route or storage/execution consumer is installed.
 See the
 [RPC adapter contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-allocation-and-readiness-rpc-adapter).
+
+`videoUpload.ts` prepares exact per-item byte verification before server
+allocation, conditional private write before readiness, and expired-ready replay
+without storage mutation. Its inert factory reuses bounded video RPCs and the
+existing private erasure-protected object namespace. It never retries, repairs
+outputs or grants dispatch. No authenticated route or native caller installs it.
+See the
+[coordinator contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-exact-video-item-upload-coordinator).

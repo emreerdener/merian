@@ -12363,3 +12363,15 @@ prior bytes, malformed association denial before RPC, bounded reply decoding,
 uncertain errors without retry, cancellation and the real five-second timeout.
 Both candidate selectors include this prepared adapter suite. Injected transport
 tests do not establish hosted storage, byte verification or execution authority.
+
+### Video item upload coordinator verification
+
+`videoUpload_test.ts` exercises source/frame/audio byte validation, ordered
+allocation/write/completion, whole and partially ready target replay after
+expiry without storage, expired pending refusal, caller mutation, malformed
+scope, lost writes/completion and cancellation with late reserve, write and
+completion replies. A real private-storage adapter with synthetic transport
+proves conditional PUT/HEAD and erasure-marker denial before readiness. Shared
+`videoByteTestFixtures.ts` retains synthetic native container vectors for this
+suite and whole-cohort materialization. Both candidate selectors cover the
+upload suite. No hosted storage or device qualification is implied.
