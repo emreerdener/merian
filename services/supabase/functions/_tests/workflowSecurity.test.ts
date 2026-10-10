@@ -269,6 +269,8 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
       "observationVideoCohortDb.test.ts",
       "observationVideoStorageMigrationContract.test.ts",
       "observationVideoStorageDb.test.ts",
+      "observationVideoReservationMigrationContract.test.ts",
+      "observationVideoReservationDb.test.ts",
     ]
   ) {
     assertEquals(
@@ -298,7 +300,7 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   assert(helperStep, "Candidate helper step must remain explicit");
   assertStringIncludes(
     helperStep,
-    "--allow-read=supabase/functions,../apps/web,supabase/migrations/20261010005747_prepare_video_source_fingerprint_parity.sql,supabase/migrations/20261010015758_prepare_video_cohort_inventory.sql,supabase/migrations/20261010024956_prepare_video_cohort_storage.sql",
+    "--allow-read=supabase/functions,../apps/web,supabase/migrations/20261010005747_prepare_video_source_fingerprint_parity.sql,supabase/migrations/20261010015758_prepare_video_cohort_inventory.sql,supabase/migrations/20261010024956_prepare_video_cohort_storage.sql,supabase/migrations/20261010040600_prepare_video_source_reservation.sql",
   );
   assertStringIncludes(candidateWorkflow, "  merge_group:");
   assertStringIncludes(candidateWorkflow, "  workflow_dispatch:");

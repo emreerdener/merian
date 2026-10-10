@@ -8115,3 +8115,15 @@ contracts are not widened. Child-use, reservation and discovery coverage now
 include video, with independent bounded sentinels; legacy cohorts cannot claim
 V4 children. No application writer or upload object is created. See the
 [held storage contract](05-api-contracts.md#held-video-cohort-storage).
+
+### Prepared video source reservation authority
+
+Migration `20261010040600_prepare_video_source_reservation.sql` adds two
+non-null default-false rollout columns, `video_source_reservation_enabled` and
+`video_source_recovery_enabled`. The two reader-12 public routines have empty
+search paths, five-second statement timeouts and exact service-role allowlist
+entries. PUBLIC, anon and authenticated cannot execute them. They reuse private
+immutable bindings and occupancy; no new media row or execution record is
+created. V4 bindings without occupancy stay held, and legacy release/retirement
+routines remain unchanged. See the
+[SQL contract](05-api-contracts.md#prepared-video-sql-reservation-and-recovery-authority).

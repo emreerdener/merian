@@ -16859,10 +16859,10 @@ compare SQL bytes/hashes with TypeScript; native tests use the same fixed
 vectors.
 
 The profile string binds declared metadata only. Private cohort storage and
-coverage are described below; durable reservation/recovery/retirement,
-materialization and execution remain separate checkpoints. In particular, do not
-register V4 with the existing photo/audio source reservation codec merely
-because this fingerprint is defined.
+coverage and separate SQL reservation/recovery are described below. Durable
+retirement, materialization and execution remain separate checkpoints. In
+particular, do not register V4 with the existing photo/audio source reservation
+codec merely because this fingerprint is defined.
 
 ### Held video cohort inventory
 
@@ -16917,10 +16917,11 @@ provider invocation.
 ### Prepared video source reservation and recovery wire contract
 
 `videoSourceReservation.ts` defines a separate reader-12, outer-schema-2
-contract. It is not registered with an RPC, repository, HTTP handler, queue or
-native caller. Reader-11 photo/audio envelopes remain schema 1 with input schema
-2/3 and are unchanged. Both legacy reservation and executable admission continue
-to reject V4.
+contract. Separate service-only SQL reservation and recovery routines implement
+this wire contract (see below). No repository, HTTP handler, queue or native
+transport caller is installed. Reader-11 photo/audio envelopes remain schema 1
+with input schema 2/3 and are unchanged. Both legacy reservation and executable
+admission continue to reject V4.
 
 The closed candidate fields are `schema_version: 2`, the complete `input`
 (schema 4), `fingerprint_version: 1` and `fingerprint`. Validation snapshots and
@@ -16934,8 +16935,8 @@ objects are not a replacement for those saved bytes.
 A read-only recovery request has the exact identity fields `schema_version: 2`,
 `observation_id`, `source_analysis_id`, `analysis_id`, `request_digest`,
 `fingerprint_version: 1` and `fingerprint`. Build it from the validated complete
-candidate. The decoder checks the closed shape; a future database routine must
-independently match the actual owned binding. It is not vacancy or release
+candidate. The decoder checks the closed shape; the database recovery routine
+independently matches the actual owned binding. It is not vacancy or release
 proof.
 
 Every response, including held/unavailable responses, echoes **all** identity
@@ -16960,9 +16961,9 @@ or replaces work.
 
 The fixed `video-source-reservation-v2.json` vectors reference the existing
 ordered-audio, silent and Unicode fingerprint inputs. They freeze identity and
-all seven valid response shapes for later SQL/native parity. That parity, server
-gates and mutation-time validation remain prerequisites to connecting a
-consumer; this checkpoint introduces no producer or service grant.
+all seven valid response shapes for SQL/native parity. Server gates and
+mutation-time validation remain prerequisites to connecting an application
+consumer.
 
 ### Prepared native video source parity
 
@@ -16981,6 +16982,35 @@ recovery replies share one bounded, strict-UTF8 decoder, requiring the complete
 identity and owner in every state. Only held replies carry a closed reason.
 Unknown fields, old versions, alternate encodings and unsupported retirement or
 execution states fail closed. These values grant no upload, execution, release
-or absence authority. SQL authority, mutation-time validation and lifecycle
+or absence authority. SQL authority is defined below; transport and lifecycle
 consumers remain separate prerequisites; legacy photo/audio owners are
 unchanged.
+
+### Prepared video SQL reservation and recovery authority
+
+Migration `20261010040600_prepare_video_source_reservation.sql` implements
+`reserve_owned_observation_video_source(uuid,jsonb,integer)` and
+`get_owned_observation_video_source(uuid,jsonb,integer)` for service role only.
+Both require reader 12 and current-snapshot isolation, validate the closed
+schema-2 request, and return the full identity plus owner for every state.
+Ownership/deletion and canonical owner → observation → source → child locks
+precede durable binding decisions. Recovery recomputes the complete V4
+fingerprint; request identity alone is never authority.
+
+Fresh reservation requires both `source_reservation_enabled` and the new
+default-false `video_source_reservation_enabled`. Exact immutable replay
+precedes those fresh gates. A changed candidate under the same child conflicts.
+Independent 65th-row sentinels cover intents, bindings, results, unfunded
+retirements and photo/audio/video/object evidence. Incomplete coverage or
+occupied sources hold; only a proven unused child can atomically acquire binding
+and occupancy.
+
+Recovery is mutation-free and requires both `source_discovery_enabled` and the
+new default-false `video_source_recovery_enabled`; it does not depend on fresh
+reservation enablement. Missing, foreign or mismatched bindings are unavailable.
+An exact binding without occupancy is held as `terminal_unproven`. Existing V4
+predecessors likewise cannot use the photo/audio release proof to establish
+vacancy. No V4 retirement/completion proof or replacement authorization is
+added. Neither routine uploads media, consumes quota, invokes a provider or
+refunds. HTTP routes, repositories, native transport and queue delivery remain
+unconnected.

@@ -1170,3 +1170,10 @@ read-only recovery responses bind owner plus the full candidate identity, with
 only reserved/held/unavailable states. Fixed vectors support later SQL/native
 parity. No live caller or retirement proof is installed. See the
 [wire contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-source-reservation-and-recovery-wire-contract).
+
+The separate reader-12
+[SQL reservation authority](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-sql-reservation-and-recovery-authority)
+now implements this prepared wire behind disabled reservation/recovery gates and
+service-only grants. Exact lookup never proves vacancy or releases a V4 binding.
+No HTTP repository, native transport or queue consumer is connected; photo/audio
+lifecycle parsers and the alternatives layout remain unchanged.

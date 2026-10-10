@@ -12234,3 +12234,19 @@ with the video fingerprint, reanalysis-request and legacy source-reservation
 suites through the managed local iOS build wrapper. This covers pure codecs; it
 does not qualify a server reservation, queue consumer, retirement, upload or
 provider execution path.
+
+### Prepared video SQL reservation verification
+
+`observationVideoReservationDb.test.ts` checks shared V4 identities, exact
+replay, closed requests, reader/role denial, fresh versus recovery gates,
+ownership and deletion, and held recovery without occupancy. Independent binding
+and video-cohort fixtures prove the 64/65-row coverage boundary. Separate
+sessions prove actual canonical-lock blocking for duplicate/competing
+reservations, lost-reply lookup and both deletion orderings.
+`observation_video_source_reservation.sql` checks catalog privileges, disabled
+gates, routine configuration and unchanged legacy boundaries.
+`observationVideoReservationMigrationContract.test.ts` freezes bounded coverage
+and mutation-free lookup. Candidate CI type-checks both Deno tests and runs the
+static contract in its bounded helper gate; database cases require the fresh
+disposable database. These checks do not qualify hosted media, provider
+execution, devices, storage/CDN, erasure or Field Trip reconciliation.
