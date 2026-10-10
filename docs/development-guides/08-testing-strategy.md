@@ -12728,3 +12728,14 @@ search paths, default-closed release and separate generic proof semantics. Run
 focused DB, full fresh catalog/ACL/Edge, migration/tooling, recursive type
 checks and lint/format gates on the scoped candidate. No hosted activation,
 provider execution, device or integrated native acceptance is implied.
+
+### Prepared video outcome normalization
+
+`_shared/analysisHistory/videoOutcome_test.ts` checks both V4 graphs and funding
+tiers, immutable input, exact provenance/usage, draft compatibility, visual and
+blended human semantics, diagnostic thresholds, provider safety, malformed and
+oversized output, unknown execution, mismatched profile/configuration and early
+V4 denial by generic capture/execution. `execution_test.ts` retains V1–V3
+recovery regressions. These pure fixtures make no provider calls and do not
+qualify public video execution, user devices or external runtime/storage
+behavior.

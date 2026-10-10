@@ -1,3 +1,4 @@
+import { parsePreparedVideoAdmission } from "./videoAdmission.ts";
 import { buildPreparedAudioDraft } from "./audioAdmission.ts";
 import type {
   AIExecutionOutcome,
@@ -6,6 +7,7 @@ import type {
 import { identificationProvenance } from "../ai/provenance.ts";
 import { identificationUsageFacts } from "../ai/identificationUsage.ts";
 import { prepareMultimodalResultPolicy } from "../ai/multimodalResultPolicy.ts";
+import { diagnosticTriggerForTier } from "../identify/thresholds.ts";
 import { normalizeIdentification } from "../identify/normalizeIdentification.ts";
 import { parseIdentifySuccessEnvelope } from "../identify/contract.ts";
 import { isProviderSafetyRejected } from "../identify/moderation.ts";
@@ -57,6 +59,61 @@ export function captureAnalysisOutcome(
   result: AIExecutionOutcome,
   work: AnalysisWork,
 ): SavedAnalysisOutcome | null {
+  if (work.input?.schema_version === 4) return invalidHistory();
+  return captureOutcome(result, work, {
+    hasVisualEvidence: work.input?.schema_version === 2,
+    hasAudioEvidence: work.input?.schema_version === 3,
+  });
+}
+
+/** Pure received-outcome preparation. The caller must bind the original saved
+ * input/quota and dispatch witness; this grants no execution or settlement.
+ * Public executable V4 admission remains closed.
+ */
+export function capturePreparedVideoOutcome(
+  result: AIExecutionOutcome,
+  work: AnalysisWork,
+): SavedAnalysisOutcome | null {
+  if (
+    result.kind === "unknown_execution" || result.kind === "operational_failure"
+  ) return null;
+  const input = parsePreparedVideoAdmission(work.input);
+  const hasAudioEvidence = input.evidence_manifest.provenance.audio !== null;
+  const q = work.quota;
+  const snapshot = result.execution;
+  if (
+    !q ||
+    q.input_profile !==
+      (hasAudioEvidence
+        ? "multimodal_video_audio_v1"
+        : "multimodal_video_frames_v1") ||
+    q.provider !== "gemini" || q.binding !== "gemini_baseline_v1" ||
+    q.processor_permission !== "google_gemini" || q.attempt_count !== 1 ||
+    !Number.isSafeInteger(q.policy_version) ||
+    (q.policy_version as number) < 1 ||
+    (q.effective_tier !== "free" && q.effective_tier !== "pro") ||
+    snapshot.provider !== q.provider || snapshot.binding !== q.binding ||
+    q.model !==
+      (q.effective_tier === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash") ||
+    snapshot.model !== q.model || snapshot.policyVersion !== q.policy_version ||
+    snapshot.diagnosticTrigger !== diagnosticTriggerForTier(
+        q.effective_tier === "pro" ? "pro" : "flash",
+      ) ||
+    snapshot.prompt !==
+      (hasAudioEvidence ? "identify_blended_v1" : "identify_vision_v1")
+  ) return invalidHistory();
+  prepareMultimodalResultPolicy(snapshot);
+  return captureOutcome(result, { ...work, input }, {
+    hasVisualEvidence: true,
+    hasAudioEvidence,
+  });
+}
+
+function captureOutcome(
+  result: AIExecutionOutcome,
+  work: AnalysisWork,
+  evidence: { hasVisualEvidence: boolean; hasAudioEvidence: boolean },
+): SavedAnalysisOutcome | null {
   if (
     result.kind === "unknown_execution" || result.kind === "operational_failure"
   ) return null;
@@ -72,8 +129,7 @@ export function captureAnalysisOutcome(
         outcome = { kind: "refusal" };
       } else {
         const normalized = normalizeIdentification(result.draft, {
-          hasVisualEvidence: work.input?.schema_version === 2,
-          hasAudioEvidence: work.input?.schema_version === 3,
+          ...evidence,
           hasInvasiveLocationContext: false,
           confidencePolicy: policy.confidence,
         });
@@ -125,6 +181,7 @@ export async function executeObservationAnalysis(
   work: AnalysisWork,
   deps: AnalysisExecutionDependencies,
 ): Promise<AnalysisState> {
+  if (work.input?.schema_version === 4) return invalidHistory();
   if (!work.claimed) return work.state;
   historyUUID(work.work_token);
   if (!work.input || !work.quota) return invalidHistory();

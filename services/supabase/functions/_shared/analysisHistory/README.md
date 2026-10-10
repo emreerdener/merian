@@ -1319,3 +1319,14 @@ The existing release gate remains false; no public execution/release caller,
 provider retry, refund or evidence cleanup is added. Complete replay never
 backfills proof, and existing child reservation stays held. A new video identity
 may reserve the same source only after complete bounded predecessor proof.
+
+### Prepared V4 outcome normalization
+
+`capturePreparedVideoOutcome` in `execution.ts` shares bounded received-outcome
+capture with existing generations, after validating the saved video graph,
+profile, Gemini configuration and tier. It always supplies visual evidence and
+supplies audio only for the saved audio branch. It returns no outcome for
+unknown execution, and grants no execution or settlement authority. Generic
+capture and the claimed generic executor explicitly reject V4; public parsing
+and RPCs remain closed. See the
+[canonical normalization contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-v4-received-outcome-normalization).

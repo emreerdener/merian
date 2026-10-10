@@ -17817,9 +17817,9 @@ executable caller, SQL write, accounting, append, settlement, occupancy release
 or cleanup authority. Public executable V4 parsing remains denied. The private
 draft persistence boundary below binds the canonical result, except its
 independently verified species link, to the exact saved received outcome before
-any known-result settlement. V4 provider normalization is also still
-uninstalled: it must use visual evidence for five frames and audio evidence only
-for the saved optional audio branch.
+any known-result settlement. The separate prepared V4 outcome normalizer below
+uses visual evidence for five frames and audio evidence only for the saved
+optional audio branch; it remains disconnected from public execution.
 
 The canonical result import also makes `upload-observation-video` a transitive
 Identify-contract dependency through its shared admission module. The deployment
@@ -17937,3 +17937,27 @@ same-source identity only when all predecessor results/bindings have exact
 release proof and complete bounded coverage. Existing completed identity remains
 held; page/state reader11 remains read-only. External qualification and Field
 Trip reconciliation are separate requirements.
+
+### Prepared V4 received-outcome normalization
+
+`capturePreparedVideoOutcome` strictly reparses the saved V4 input and binds its
+optional audio branch to the original video quota profile and Gemini execution
+configuration. Five frames always supply visual evidence; audio is present only
+when the validated graph contains its audio artifact. The shared result policy
+uses the original tier's diagnostic threshold. Silent video uses visual
+normalization; video with audio uses blended normalization, including structured
+human handling, without requiring the audio-only discriminator.
+
+The pure helper preserves schema-one saved outcome, provenance and usage and
+binds the normalized result to the observation. Safety rejection becomes
+refusal; malformed or oversized received results become invalid output. Unknown
+execution and operational failure produce no saved outcome. The helper performs
+no I/O, provider invocation, taxonomy lookup, accounting, refund or settlement;
+callers must still bind the original saved input/quota and immutable dispatch
+witness. It does not rewrite saved input or already saved outcomes.
+
+Generic capture and the claimed generic executor explicitly reject V4 before
+performing work. Public executable parsing, begin/advance/recovery RPCs and
+native execution remain closed to V4. Gates remain disabled and ordinary access
+nil. This prepares producer normalization within video acceptance; it is not
+runtime or device qualification.
