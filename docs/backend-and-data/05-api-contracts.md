@@ -17482,8 +17482,53 @@ execution and discard readers. The preparation-specific read/validate/discard
 also rejects it. The source remains occupied locally. Generic status projection
 omits this unsupported held envelope; it does not claim pending execution.
 Parent erasure remains available through existing captured-media/child namespace
-ownership. This checkpoint does not add reservation claims, delivery, receipt
-settlement, per-child retirement, upload admission or provider execution. The
-future retained owner must validate the complete saved cohort and account scope
-around awaits. No automatic caller, polling, queue wake or retry is installed.
-Gates remain disabled and ordinary access nil.
+ownership. The local reservation claim and settlement extension is described
+below; delivery, per-child retirement, upload admission and provider execution
+remain separate. The future retained owner must validate the complete saved
+cohort and account scope around awaits. No automatic caller, polling, queue wake
+or retry is installed. Gates remain disabled and ordinary access nil.
+
+### Native durable video reservation claim lifecycle
+
+Version 1 staged bytes remain accepted and unchanged. Version 2 is a closed
+local envelope with exactly `version`, `kind`, `phase`, `staged_base64`,
+`attempt_id` and `reply_base64`. Its kind remains `video_source_reservation`. It
+embeds the complete original version 1 bytes verbatim in canonical base64; the
+nested envelope must still validate. Its own bound is 5,595,996 bytes: the
+base64 expansion of the 4,194,564-byte staged bound, the expansion of the
+2,048-byte reply bound and 512 bytes of fixed overhead. Persisted text is
+bounded before copying into Data. Version 2 rejects staged phase and requires a
+canonical lowercase attempt UUID. Running, unknown and conflict require null
+reply; observed requires the original strictly decoded owner/candidate-bound
+reply. No remote payload, schema version or SwiftData entity changes.
+
+`ObservationVideoSourceReservationStore.claim` consumes only an exact staged
+snapshot under the existing transaction lock, persisting running state before
+returning an opaque claim. The snapshot binds container identity, metadata
+bytes, source proof and complete pristine held row/job. Running, unknown and
+terminal states cannot be claimed again. Stage replay returns the current state
+without rearming. A claim save that commits then throws leaves running work held
+on reopening. A save failure before commit leaves staged work available for an
+explicit same-candidate attempt. No provider invocation follows from this claim.
+
+Dispatch validation requires the exact current running snapshot and respects
+cancellation. Holding changes only that claim to unknown and grants no retry.
+Known reply/conflict settlement accepts the original running snapshot or the
+exact unknown envelope derived from it; it cannot consume a different attempt or
+rewritten metadata. The complete candidate and original staged bytes remain
+unchanged. Terminal replay requires the identical attempt, original envelope and
+reply/conflict metadata and performs no save; conflicting outcomes fail. A
+settlement save that commits then throws replays the known answer, preserving
+its raw bytes. The server reply has no attempt ID: this is local claim
+correlation, not proof of a server-side attempt identity.
+
+The shared transaction accepts a typed video reply-or-conflict settlement and
+rejects combinations with legacy retirement or photo/audio settlement. It binds
+owner, observation, source and child before the body; the video store
+additionally binds full candidate and exact claim metadata. Only known answers
+may bypass Task cancellation, using the caller's current settlement scope.
+Source, account, erasure, result and row/job fences remain mandatory. Unknown
+failure under cancellation leaves running work intact. There is no automatic
+rearm, provider retry, refund, remote absence inference, transport owner or
+queue registration. Restart outcome recovery, upload progression and retirement
+remain separate checkpoints. Gates remain disabled and ordinary access nil.

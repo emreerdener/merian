@@ -2108,8 +2108,9 @@ delivery owner or server readiness authority is installed. See the
 version1 envelope. Its closed `ObservationVideoSourceReservationWork` preserves
 the original V4 bytes inside the ready preparation and the exact schema2
 candidate bytes in canonical base64, bounded to4,194,564bytes overall. Only
-`staged` is supported. The existing child and job remain held, with zero
-attempts and no network, claim, scheduling or execution authority.
+`staged` is supported in version 1; the local claim lifecycle below uses version
+2. The existing child and job remain held, with zero queue attempts and no
+installed network, scheduling or execution authority.
 
 Fresh transactions revalidate the source proof, owner/account scope, result and
 erasure fences and complete row/job media parity. Existing-only `read` restores
@@ -2122,3 +2123,29 @@ owns the entire namespace; receipt-aware per-child retirement remains a future
 boundary. Status/admission/execution readers do not project or run this held
 video envelope. No live composition caller is installed. See the
 [canonical staging contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-durable-video-reservation-staging).
+
+### Video reservation claims and settlement
+
+The same store creates one opaque `Claim` from an exact version 1 staged
+snapshot. Version 2 retains the complete original envelope bytes in
+`staged_base64`, one immutable local attempt UUID, and phase `running`,
+`unknown`, `observed` or `conflict`. Only observed contains the original bounded
+server reply; the other phases require null. The outer bound is 5,595,996 bytes,
+including nested base64 expansion. Claims never regenerate candidate IDs or
+permit a second attempt from a version 2 state.
+
+Fresh transactions compare exact metadata, container identity, verified source,
+row/job parity and erasure/result fences. Unknown holds block dispatch
+validation. A known same-attempt reply or typed conflict may settle running or
+its exact unknown hold after dispatch cancellation while the account scope
+remains current. Exact terminal replay does not save; another answer cannot
+replace it. This attempt UUID is local evidence, not a server correlation field.
+Commit-then-throw claim saves leave running work held; known settlement saves
+can replay exactly. Unknown failures under cancellation leave running work
+intact.
+
+`ObservationReanalysisPersistence.transaction` accepts video settlement through
+a reply-or-conflict enum, rejects mixed legacy settlement evidence and bypasses
+only the cancellation check for a validated known answer. Account/source/erasure
+checks still apply. No transport owner, restart dispatch, recovery lookup,
+upload, retirement or provider execution is installed by these local APIs.

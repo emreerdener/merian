@@ -12458,3 +12458,19 @@ rearming. Codec checks preserve pretty-printed V4 bytes and reject substitution,
 unsupported fields/versions/phases and oversized envelopes. These tests
 establish only local staging, not network delivery, server reservation, upload
 or execution.
+
+### Durable video reservation lifecycle coverage
+
+`ObservationVideoReservationLifecycleTests` checks one saved claim, exact
+original V1 bytes inside V2, restart without rearm, unknown holds, late known
+answers after cancellation, all reply states and typed conflict, exact terminal
+replay and conflicting outcomes. Claim and reply/conflict settlement saves cover
+both commit-then-throw and failure before commit. Negative cases include changed
+account, owner, attempt, container, metadata, source deletion, erasure and
+result collision. Cancelled claims/unknown holds cannot mutate; mixed
+legacy/video settlement evidence cannot enter a transaction body. Codec coverage
+checks closed phases/fields, canonical nested base64, attempt/reply invariants
+and the expanded maximum envelope. Existing video durability/preparation and
+photo/audio source-store suites remain regression selectors for the shared
+transaction. These are local persistence checks, not transport delivery or
+activation proof.

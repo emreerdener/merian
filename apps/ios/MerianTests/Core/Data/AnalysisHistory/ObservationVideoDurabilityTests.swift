@@ -20,7 +20,7 @@ struct ObservationVideoDurabilityTests {
     }
     enum Simulated: Error { case save }
 
-    private func seed(audio: Bool = true) async throws -> Seed {
+    func seed(audio: Bool = true) async throws -> Seed {
         let root = try ObservationReanalysisFileStoreTests().directory(), url = root.appendingPathComponent("history.store")
         let fixture = ObservationReanalysisSourceTests()
         let history = try fixture.seed(version: 3, url: url)
@@ -33,7 +33,7 @@ struct ObservationVideoDurabilityTests {
         return Seed(root: root, storeURL: url, container: history.container, source: source,
                     preparation: try .init(request: cohort.request, source: source), cohort: cohort, media: media)
     }
-    private func producer(_ seed: Seed) -> ObservationVideoPreparationProducer {
+    func producer(_ seed: Seed) -> ObservationVideoPreparationProducer {
         .init(files: .init(documents: seed.root), ownership: .init(), account: ObservationReanalysisProducerTests().account())
     }
     private func assertBytes(_ seed: Seed) throws {
@@ -228,7 +228,7 @@ struct ObservationVideoDurabilityTests {
         var maximumEnvelope = valid
         maximumEnvelope["preparation_base64"] = Data(repeating: 32, count: ObservationVideoPreparation.maximumStoredBytes).base64EncodedString()
         maximumEnvelope["candidate_base64"] = Data(repeating: 32, count: ObservationVideoSourceReservationRequest.maximumBytes).base64EncodedString()
-        #expect(try JSONSerialization.data(withJSONObject: maximumEnvelope).count <= ObservationVideoSourceReservationWork.maximumBytes)
+        #expect(try JSONSerialization.data(withJSONObject: maximumEnvelope).count <= ObservationVideoSourceReservationWork.maximumStagedBytes)
         for key in ["version", "phase", "kind", "extra", "preparation_base64", "candidate_base64"] {
             var changed = valid
             switch key {

@@ -3063,10 +3063,11 @@ separate; ordinary UI and composition remain separate. No receipt state grants
 execution permission.
 
 `Core/Data/AnalysisHistory/ObservationVideoSourceReservationStore.swift` owns
-separate closed video staging metadata and existing-only persistence reads. It
-transfers verified ready preparations into held exact schema2 candidates;
-claims, network delivery, receipts and execution remain separate checkpoints.
-Legacy photo/audio reservation envelopes are unchanged.
+separate closed video staging and claim metadata, existing-only reads and exact
+known-result settlement. It preserves original staged bytes across one durable
+attempt; uncertain work cannot rearm. Network delivery, upload progression and
+execution remain separate checkpoints. Legacy photo/audio reservation envelopes
+are unchanged.
 
 `retire-observation-analysis-source` separately wraps unfunded reader11
 retirement. Its endpoint-owned `request.ts` snapshots the full original

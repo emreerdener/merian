@@ -101,9 +101,14 @@ enum ObservationReanalysisPersistence {
                                save: (ModelContext) throws -> Void, settlingRetirement: ObservationAnalysisRetirementReceipt? = nil,
                                settlingSource: ObservationSourceReservationReply? = nil,
                                settlingSourceConflict: ObservationSourceReservationConflict? = nil,
+                               settlingVideo: ObservationVideoReservationSettlement? = nil,
                                body: (ModelContext) throws -> T) throws -> T {
         try ConfirmedSpeciesReviewPersistence.transaction {
             guard isCurrent() else { throw IntegrityError.accountChanged }
+            if let settlingVideo {
+                guard settlingRetirement == nil, settlingSource == nil, settlingSourceConflict == nil else { throw IntegrityError.conflict }
+                try settlingVideo.validate(identity)
+            }
             if let settlingSourceConflict {
                 let request = settlingSourceConflict.request
                 guard settlingRetirement == nil, settlingSource == nil, settlingSourceConflict.ownerID == identity.ownerID,
@@ -137,7 +142,7 @@ enum ObservationReanalysisPersistence {
                 guard let source = try context.fetch(query).first,
                       source.ownerAccountID == scan.analysisOwnerAccountID, source.observationID == scan.id else { throw IntegrityError.unavailable }
                 let result = try body(context)
-                if settlingRetirement == nil && settlingSource == nil && settlingSourceConflict == nil { try Task.checkCancellation() }
+                if settlingRetirement == nil && settlingSource == nil && settlingSourceConflict == nil && settlingVideo == nil { try Task.checkCancellation() }
                 guard isCurrent() else { throw IntegrityError.accountChanged }
                 if context.hasChanges { try save(context) }
                 return result
