@@ -17226,3 +17226,23 @@ Gregorian years 0001–9999; expired snapshots remain inspectable but grant no n
 permission. Matching metadata proves neither server authentication nor stored
 bytes/source derivation. No native transport, queue or runtime caller is
 installed.
+
+### Prepared whole video byte materialization
+
+`analysisHistory/videoMaterialization.ts` accepts the exact reader-12 candidate
+envelope and complete ready receipt. Before storage reads it freezes and checks
+the V4 identity, fingerprint, ordered inventory, owner and readiness. Reads are
+sequential, with the exact item byte count and caller-owned AbortSignal passed
+to an injected adapter. The adapter must enforce that limit before buffering and
+honor cancellation; the helper checks cancellation around every await and
+rejects a size mismatch before allocating its own copy. Existing source, frame
+and audio verifiers recheck containers, metadata and SHA-256. Only a complete
+owned cohort returns; failures never return partial evidence, repair files or
+sample again.
+
+An expired ready receipt remains inspectable for exact recovery and is not new
+upload permission. The caller still owns authentication, current SQL fences and
+a bounded deadline. Container and digest checks do not establish that pixels or
+audio were derived from the claimed source. This prepared helper installs no
+storage adapter, HTTP route, readiness writer, provider invocation or execution
+authority. Source and derived bytes remain separate ordered inventory items.

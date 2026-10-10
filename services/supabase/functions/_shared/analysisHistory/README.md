@@ -1202,3 +1202,14 @@ authority now returns these whole receipts behind disabled gates. No route,
 native transport, byte verifier or provider invocation is installed. The
 [canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-whole-inventory-upload-and-receipt-contract)
 owns the wire shape and remaining authority/byte-verification requirements.
+
+`videoMaterialization.ts` binds a complete ready reader-12 video receipt before
+reading its saved six/seven-item inventory. The injected adapter receives each
+exact byte limit and the caller's abort signal; it must enforce limits before
+buffering and honor the deadline. Sequential reads pass existing source, frame
+and audio container/digest verifiers and return only a complete owned cohort.
+Expired ready receipts remain usable for inspection, without renewed upload
+permission. This helper proves neither source derivation nor current server
+authority and installs no storage adapter, readiness writer, route or provider
+execution. See the
+[whole video byte contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-whole-video-byte-materialization).

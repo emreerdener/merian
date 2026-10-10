@@ -12344,3 +12344,13 @@ readiness, monotonic prior snapshots, fresh-allocation restrictions and bounded
 UTF-8. Timestamp cases include invalid calendar dates, year zero, leap-century
 rules and readiness at expiry. This is codec coverage; it does not qualify
 transport, byte verification, queue delivery or device/hosted execution.
+
+### Whole video byte materialization verification
+
+`videoMaterialization_test.ts` exercises saved audio/silent cohorts, exact
+ordered read limits, owned output copies, expired ready receipt inspection,
+receipt scope/readiness failures before I/O, every-item corruption/length/read
+failure, caller metadata mutation and cancellation before/during reads. Both
+backend candidate selectors include the suite. Native container fixtures provide
+synthetic structural evidence; they do not establish source derivation, hosted
+resource limits or live storage qualification.
