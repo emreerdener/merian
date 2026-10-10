@@ -17451,3 +17451,39 @@ a provider. This checks equality with the saved immutable manifest, not fresh
 container/derivation verification or server readiness. No persistence schema
 change or live video delivery caller is installed. Gates and ordinary access
 remain disabled.
+
+### Native durable video reservation staging
+
+`ObservationVideoSourceReservationStore` transfers an existing verified
+`files_ready` child into closed local version1 kind `video_source_reservation`,
+phase `staged`. `ObservationVideoSourceReservationWork` accepts exactly
+`version`, `kind`, `phase`, `preparation_base64` and `candidate_base64`. The
+canonical base64 preparation must decode as ready; it retains owner, frozen
+source digest, exact V4 request body and ordered file inventory. The candidate
+must exactly equal the schema2 reservation envelope for those saved V4 bytes,
+including their original formatting. Unknown fields, phases, versions,
+noncanonical base64 and mismatched candidates fail. The overall metadata bound
+is4,194,564bytes (both base64 expansions plus256bytes); nested preparation and
+candidate retain their2MiB and1MiB bounds. There is no SwiftData schema or
+remote wire change.
+
+Staging validates the source proof and fresh owner/account, erasure and result
+collision fences under the established transaction lock. It requires the same
+qualified row/job, captured media, needsAttention status and zero-attempt
+fields. It replaces metadata only; selection, source linkage and files stay
+intact. Existing-only read repeats these checks. Exact replay preserves stored
+metadata without saving or rearming. After commit-then-throw, reopening finds
+the same child and candidate. Failure before commit leaves the ready envelope;
+explicit retry uses the same candidate. Reading never invents missing work.
+Persisted text is size-checked before conversion into a byte buffer.
+
+The new kind is explicitly excluded from legacy preparation, admission,
+execution and discard readers. The preparation-specific read/validate/discard
+also rejects it. The source remains occupied locally. Generic status projection
+omits this unsupported held envelope; it does not claim pending execution.
+Parent erasure remains available through existing captured-media/child namespace
+ownership. This checkpoint does not add reservation claims, delivery, receipt
+settlement, per-child retirement, upload admission or provider execution. The
+future retained owner must validate the complete saved cohort and account scope
+around awaits. No automatic caller, polling, queue wake or retry is installed.
+Gates remain disabled and ordinary access nil.

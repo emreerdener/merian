@@ -2100,3 +2100,25 @@ the result. Reads do not create, repair, erase or rederive media. The delivery
 owner must revalidate its account/claim after awaiting the read. No live video
 delivery owner or server readiness authority is installed. See the
 [canonical saved-reader contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-saved-video-cohort-reader).
+
+## Durable video reservation staging
+
+`ObservationVideoSourceReservationStore` consumes only an exact verified
+`files_ready` preparation into a separately tagged `video_source_reservation`
+version1 envelope. Its closed `ObservationVideoSourceReservationWork` preserves
+the original V4 bytes inside the ready preparation and the exact schema2
+candidate bytes in canonical base64, bounded to4,194,564bytes overall. Only
+`staged` is supported. The existing child and job remain held, with zero
+attempts and no network, claim, scheduling or execution authority.
+
+Fresh transactions revalidate the source proof, owner/account scope, result and
+erasure fences and complete row/job media parity. Existing-only `read` restores
+the same candidate; exact `stage` replay performs no save or rearm. A save that
+commits then throws is recovered from the persisted envelope; a failed save
+leaves the original ready preparation for explicit same-request retry.
+Preparation recovery/discard and legacy photo readers reject this new kind. The
+existing source linkage continues to block another child. Parent erasure still
+owns the entire namespace; receipt-aware per-child retirement remains a future
+boundary. Status/admission/execution readers do not project or run this held
+video envelope. No live composition caller is installed. See the
+[canonical staging contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-durable-video-reservation-staging).

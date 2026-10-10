@@ -3062,6 +3062,12 @@ permission. The explicit retained delivery service and owner below remain
 separate; ordinary UI and composition remain separate. No receipt state grants
 execution permission.
 
+`Core/Data/AnalysisHistory/ObservationVideoSourceReservationStore.swift` owns
+separate closed video staging metadata and existing-only persistence reads. It
+transfers verified ready preparations into held exact schema2 candidates;
+claims, network delivery, receipts and execution remain separate checkpoints.
+Legacy photo/audio reservation envelopes are unchanged.
+
 `retire-observation-analysis-source` separately wraps unfunded reader11
 retirement. Its endpoint-owned `request.ts` snapshots the full original
 candidate and stable operation; the shared repository builds the frozen SQL

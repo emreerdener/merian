@@ -83,6 +83,167 @@ struct ObservationVideoDurabilityTests {
     }
 
     @Test(arguments: [false, true])
+    func reservationStageReopensExactCandidateAndRemainsHeld(audio: Bool) async throws {
+        let seed = try await seed(audio: audio); defer { seed.remove() }
+        _ = try await producer(seed).prepare(seed.preparation, source: seed.source, cohort: seed.cohort,
+            container: seed.container, isCurrent: { true })
+        let request = try ObservationVideoSourceReservationRequest(video: seed.preparation.request)
+        let staged = try ObservationVideoSourceReservationStore.stage(request, proof: seed.proof,
+            container: seed.container, isCurrent: { true })
+        #expect(try ObservationVideoSourceReservationStore.stage(request, proof: seed.proof,
+            container: seed.container, isCurrent: { true }, save: { _ in Issue.record("Replay attempted a save") }) == staged)
+        let reopened = try ObservationPublicationPersistenceTests().container(url: seed.storeURL, seed: false)
+        let restored = try ObservationVideoSourceReservationStore.read(proof: seed.proof, container: reopened, isCurrent: { true })
+        #expect(restored.work == staged.work && restored.metadata == staged.metadata)
+        #expect(restored.containerID == ObjectIdentifier(reopened))
+        #expect(restored.work.request.input == seed.preparation.request.body && restored.work.request.body == request.body)
+        let context = ModelContext(reopened)
+        let row = try #require(context.fetch(FetchDescriptor<OfflineQueuedScan>()).first)
+        let job = try #require(context.fetch(FetchDescriptor<OfflineJobRecord>()).first)
+        #expect(row.queueNeedsAttention && row.queueAttemptCount == 0 && !row.permitsOrdinaryInference)
+        #expect(job.statusRaw == OfflineJobStatus.needsAttention.rawValue && job.attemptCount == 0 && job.nextRunAt == nil)
+        #expect(throws: (any Error).self) { try ObservationVideoPreparationStore.discard(seed.proof, container: reopened, isCurrent: { true }) }
+        #expect(throws: (any Error).self) { try ObservationVideoPreparationStore.read(seed.proof, container: reopened, isCurrent: { true }) }
+        #expect(throws: (any Error).self) { try ObservationVideoPreparationStore.validate(seed.proof, container: reopened, isCurrent: { true }, expectedPhase: .ready) }
+        #expect(throws: (any Error).self) { try ObservationReanalysisPersistence.restore(row: row, job: job) }
+        #expect(throws: (any Error).self) { try ObservationReanalysisPersistence.discardPreparation(source: seed.source,
+            analysisID: seed.preparation.identity.analysisID, container: reopened, isCurrent: { true }) }
+        #expect(throws: (any Error).self) { try ObservationVideoPreparation.requireNonVideo(Data(restored.metadata.utf8)) }
+        #expect(try ObservationReanalysisAdmissionStore.candidates(ownerID: seed.source.ownerID, canPreflight: true,
+            now: Date(), container: reopened, isCurrent: { true }).isEmpty)
+        #expect(try ObservationReanalysisExecutionStore.candidates(ownerID: seed.source.ownerID,
+            container: reopened, isCurrent: { true }).isEmpty)
+        let siblingRequest = try ObservationVideoReanalysisRequest(observationID: seed.source.observationID, analysisID: UUID(),
+            sourceAnalysisID: seed.source.analysisID, manifestBytes: seed.preparation.request.manifest.originalBytes)
+        let sibling = try ObservationVideoPreparation(request: siblingRequest, source: seed.source)
+        #expect(throws: (any Error).self) { try ObservationVideoPreparationStore.begin(sibling.verified(source: seed.source),
+            container: reopened, isCurrent: { true }) }
+        try assertBytes(seed)
+    }
+
+    @Test(arguments: [false, true])
+    func uncertainReservationStageRetainsSameCandidate(commits: Bool) async throws {
+        let seed = try await seed(); defer { seed.remove() }
+        _ = try await producer(seed).prepare(seed.preparation, source: seed.source, cohort: seed.cohort,
+            container: seed.container, isCurrent: { true })
+        let request = try ObservationVideoSourceReservationRequest(video: seed.preparation.request)
+        #expect(throws: Simulated.save) {
+            try ObservationVideoSourceReservationStore.stage(request, proof: seed.proof, container: seed.container,
+                isCurrent: { true }, save: { if commits { try $0.save() }; throw Simulated.save })
+        }
+        let reopened = try ObservationPublicationPersistenceTests().container(url: seed.storeURL, seed: false)
+        if commits {
+            #expect(try ObservationVideoSourceReservationStore.read(proof: seed.proof, container: reopened,
+                isCurrent: { true }).work.request == request)
+        } else {
+            #expect(throws: (any Error).self) { try ObservationVideoSourceReservationStore.read(proof: seed.proof, container: reopened, isCurrent: { true }) }
+            #expect(try ObservationVideoPreparationStore.read(seed.proof, container: reopened, isCurrent: { true }) == .ready)
+        }
+        let retry = try ObservationVideoSourceReservationStore.stage(request, proof: seed.proof, container: reopened, isCurrent: { true })
+        #expect(retry.work.request == request)
+        #expect(try ModelContext(reopened).fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 1)
+        try assertBytes(seed)
+    }
+
+    @Test(arguments: ["missing", "pending", "account", "attempt", "owner", "deleted", "malformed", "snapshot", "oversized"])
+    func reservationStageRejectsInvalidScopeWithoutRearming(reason: String) async throws {
+        let seed = try await seed(); defer { seed.remove() }
+        let request = try ObservationVideoSourceReservationRequest(video: seed.preparation.request)
+        if reason != "missing" {
+            _ = try ObservationVideoPreparationStore.begin(seed.proof, container: seed.container, isCurrent: { true })
+            if reason != "pending" {
+                _ = try await producer(seed).prepare(seed.preparation, source: seed.source, cohort: seed.cohort,
+                    container: seed.container, isCurrent: { true })
+            }
+            let context = ModelContext(seed.container)
+            let row = try #require(context.fetch(FetchDescriptor<OfflineQueuedScan>()).first)
+            let job = try #require(context.fetch(FetchDescriptor<OfflineJobRecord>()).first)
+            if reason == "attempt" { job.attemptCount = 1 }
+            if reason == "owner" { row.reanalysisOwnerAccountID = UUID().uuidString.lowercased() }
+            if reason == "malformed" { job.metadataJSON = "{\"kind\":\"video_source_reservation\",\"phase\":\"unknown\"}" }
+            if reason == "oversized" { job.metadataJSON = String(repeating: " ", count: ObservationVideoSourceReservationWork.maximumBytes + 1) }
+            if reason == "deleted" || reason == "snapshot" {
+                let source = try #require(context.fetch(FetchDescriptor<LocalAnalysisRecord>()).first)
+                if reason == "snapshot" {
+                    let replacement = try LocalAnalysisRecord(analysisID: seed.source.analysisID,
+                        observationID: source.observationID, ownerAccountID: seed.source.ownerID,
+                        completedAt: source.completedAt, snapshotVersion: source.snapshotVersion, resultSnapshotData: Data("{}".utf8))
+                    context.delete(source)
+                    try context.save()
+                    context.insert(replacement)
+                } else { context.delete(source) }
+            }
+            try context.save()
+        }
+        #expect(throws: (any Error).self) { try ObservationVideoSourceReservationStore.stage(request, proof: seed.proof,
+            container: seed.container, isCurrent: { reason != "account" }) }
+        #expect(throws: (any Error).self) { try ObservationVideoSourceReservationStore.read(proof: seed.proof,
+            container: seed.container, isCurrent: { reason != "account" }) }
+        let context = ModelContext(seed.container)
+        #expect(try context.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == (reason == "missing" ? 0 : 1))
+        #expect(try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(seed.preparation.identity.analysisID)) == nil)
+    }
+
+    @Test(arguments: ["parent", "source", "child", "erasure", "missing", "cancel"])
+    func stagedReservationCannotBypassChangedScope(reason: String) async throws {
+        let seed = try await seed(); defer { seed.remove() }
+        _ = try await producer(seed).prepare(seed.preparation, source: seed.source, cohort: seed.cohort,
+            container: seed.container, isCurrent: { true })
+        let request = try ObservationVideoSourceReservationRequest(video: seed.preparation.request)
+        _ = try ObservationVideoSourceReservationStore.stage(request, proof: seed.proof, container: seed.container, isCurrent: { true })
+        let context = ModelContext(seed.container)
+        let row = try #require(context.fetch(FetchDescriptor<OfflineQueuedScan>()).first)
+        switch reason {
+        case "parent": row.parentObservationID = UUID().uuidString.lowercased()
+        case "source": row.sourceAnalysisID = UUID().uuidString.lowercased()
+        case "child": row.id = UUID().uuidString.lowercased()
+        case "erasure": try ObservationReanalysisErasureReceipt(parentID: seed.source.observationID,
+            childID: seed.preparation.identity.analysisID).record(in: context)
+        case "missing": context.delete(row)
+        default: break
+        }
+        try context.save()
+        let task = Task { @MainActor in
+            if reason == "cancel" { withUnsafeCurrentTask { $0?.cancel() } }
+            #expect(throws: (any Error).self) { try ObservationVideoSourceReservationStore.read(proof: seed.proof,
+                container: seed.container, isCurrent: { true }) }
+            #expect(throws: (any Error).self) { try ObservationVideoSourceReservationStore.stage(request, proof: seed.proof,
+                container: seed.container, isCurrent: { true }) }
+        }
+        await task.value
+        try assertBytes(seed)
+    }
+
+    @Test func reservationCodecRejectsSubstitutionAndFutureEnvelopes() async throws {
+        let seed = try await seed(); defer { seed.remove() }
+        let pretty = try JSONSerialization.data(withJSONObject: JSONSerialization.jsonObject(with: seed.preparation.request.body), options: [.prettyPrinted, .sortedKeys])
+        let video = try ObservationVideoReanalysisRequest(savedBody: pretty)
+        let preparation = try ObservationVideoPreparation(request: video, source: seed.source)
+        let request = try ObservationVideoSourceReservationRequest(video: video)
+        let work = try ObservationVideoSourceReservationWork(preparation: preparation, request: request)
+        #expect(try ObservationVideoSourceReservationWork.decode(work.storedData()) == work)
+        #expect(work.request.input == pretty)
+        #expect(throws: (any Error).self) { try ObservationVideoSourceReservationWork(preparation: seed.preparation, request: request) }
+        let valid = try #require(JSONSerialization.jsonObject(with: work.storedData()) as? [String: Any])
+        var maximumEnvelope = valid
+        maximumEnvelope["preparation_base64"] = Data(repeating: 32, count: ObservationVideoPreparation.maximumStoredBytes).base64EncodedString()
+        maximumEnvelope["candidate_base64"] = Data(repeating: 32, count: ObservationVideoSourceReservationRequest.maximumBytes).base64EncodedString()
+        #expect(try JSONSerialization.data(withJSONObject: maximumEnvelope).count <= ObservationVideoSourceReservationWork.maximumBytes)
+        for key in ["version", "phase", "kind", "extra", "preparation_base64", "candidate_base64"] {
+            var changed = valid
+            switch key {
+            case "version": changed[key] = 2
+            case "phase": changed[key] = "running"
+            case "preparation_base64": changed[key] = try preparation.storedData(phase: .pending).base64EncodedString()
+            case "candidate_base64": changed[key] = try ObservationVideoSourceReservationRequest(video: seed.preparation.request).body.base64EncodedString()
+            default: changed[key] = "unsupported"
+            }
+            #expect(throws: (any Error).self) { try ObservationVideoSourceReservationWork.decode(JSONSerialization.data(withJSONObject: changed)) }
+        }
+        #expect(throws: (any Error).self) { try ObservationVideoSourceReservationWork.decode(Data(repeating: 32, count: ObservationVideoSourceReservationWork.maximumBytes + 1)) }
+    }
+
+    @Test(arguments: [false, true])
     func uncertainPromotionRetainsOriginalCohort(commits: Bool) async throws {
         let seed = try await seed(); defer { seed.remove() }
         #expect(try ObservationVideoPreparationStore.begin(seed.proof, container: seed.container, isCurrent: { true }) == .pending)

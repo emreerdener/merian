@@ -94,7 +94,9 @@ struct ObservationVideoPreparation: Equatable, Sendable {
     /// damaged video phase before a legacy photo reader can attempt restoration.
     static func requireNonVideo(_ data: Data) throws {
         guard data.count <= maximumStoredBytes else { throw MerianError.invalidResponse }
-        if let row = try? JSONSerialization.jsonObject(with: data) as? [String: Any], row["kind"] as? String == "video_preparation" {
+        if let row = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let kind = row["kind"] as? String,
+           ["video_preparation", ObservationVideoSourceReservationWork.kind].contains(kind) {
             throw MerianError.invalidResponse
         }
     }

@@ -12444,3 +12444,17 @@ validators; a held child lock rejects another reader before scope callbacks.
 Existing file-store tests cover shared lock and namespace behavior. These reads
 verify saved-byte equality only, not provider execution, server readiness or
 live durable delivery.
+
+### Durable video reservation staging coverage
+
+`ObservationVideoDurabilityTests` covers exact staged candidate replay and store
+reopening for audio and silent cohorts, unchanged held/zero-attempt media rows,
+preparation and legacy discard rejection, and continued source occupancy.
+Commit-then-throw restores the same candidate; failure before commit leaves the
+ready preparation for explicit same-request retry. Missing/pending work, account
+loss, changed source snapshot, owner or row linkage, source deletion, erasure,
+attempted, malformed or oversized persisted work and cancellation reject without
+rearming. Codec checks preserve pretty-printed V4 bytes and reject substitution,
+unsupported fields/versions/phases and oversized envelopes. These tests
+establish only local staging, not network delivery, server reservation, upload
+or execution.
