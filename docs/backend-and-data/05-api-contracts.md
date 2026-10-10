@@ -17227,8 +17227,8 @@ readiness rollback or replacement. The separate allocation decoder requires all
 readiness null. Timestamp validation uses exact UTC milliseconds and proleptic
 Gregorian years 0001–9999; expired snapshots remain inspectable but grant no new
 permission. Matching metadata proves neither server authentication nor stored
-bytes/source derivation. No native transport, queue or runtime caller is
-installed.
+bytes/source derivation. No live queue or runtime caller is installed; the
+prepared native transport is described below.
 
 ### Prepared whole video byte materialization
 
@@ -17385,8 +17385,9 @@ off-main preparation task. Rebuilding from the same saved envelope and bytes
 produces the identical wire body without generating any identity, sampling or
 extracting media. Digest equality alone does not establish container validity,
 authentication, allocation, readiness or execution permission. Server validators
-remain required. This checkpoint installs no native transport or queue caller;
-reader11 photo/audio paths and generated Identify DTOs are unchanged.
+remain required. The encoder installs no queue caller; its separate native
+transport is described below; reader11 photo/audio paths and generated Identify
+DTOs are unchanged.
 
 ### Native reader12 video reservation transport
 
@@ -17406,5 +17407,27 @@ and owner after settlement validation. All other errors remain uncertain;
 neither error nor reserved/held/unavailable grants upload, provider execution,
 release or replacement. The reader11 overload is unchanged. This is an inert
 transport seam: no live queue/composition caller is installed. Recovery HTTP,
-video upload transport, saved-cohort reading and durable delivery remain
-separate checkpoints. Gates remain disabled and ordinary access nil.
+saved-cohort reading and durable delivery remain separate checkpoints; video
+upload transport is described below. Gates remain disabled and ordinary access
+nil.
+
+### Native exact video item upload transport
+
+`ObservationVideoEvidenceTransport` accepts an already-prepared immutable Wire1
+request. The caller owns off-main preparation and durable saved media; transport
+never samples, extracts or reconstructs input. One authenticated POST to
+`upload-observation-video` sends the exact body with octet-stream MIME. Its
+separate pinned session has a130-second request/resource deadline (covering the
+server120-second budget) and a streamed8KiB JSON reply cap; ordinary requests
+retain their90-second resource ceiling. No Auth refresh, route retry, generic
+executor replay, provider authorization or idempotency substitution occurs.
+
+Before dispatch, any prior receipt is validated against the original candidate
+and owner. The dispatcher owns the account lease and validates the current
+attempt. A200JSON response must match the complete cohort, maintain prior
+object/expiry/readiness evidence and mark the requested item ready; other items
+may still be pending. Only the separate settlement validator accepts the known
+answer after dispatch cancellation. Every non200, lost, malformed, oversized,
+foreign or unready-target response fails without automatic retry or fallback. No
+upload result grants provider execution, release or refund. No live queue caller
+is installed. Gates remain false and ordinary access nil.

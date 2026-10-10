@@ -250,6 +250,15 @@ final class PinnedNetworkTransport: @unchecked Sendable {
             timeout: ObservationAudioAnalysisTransport.requestSeconds)
     }
 
+    /// Video item uploads own their deadline and streamed whole-cohort receipt cap.
+    func videoEvidenceData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let session = URLSession(configuration: scopedConfiguration(timeout: ObservationVideoEvidenceTransport.requestSeconds),
+                                 delegate: MerianTLSDelegate(), delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        return try await PinnedBoundedJSONDataTask(maximumBytes: ObservationVideoEvidenceReceipt.maximumBytes)
+            .response(using: session, request: request, timeout: ObservationVideoEvidenceTransport.requestSeconds)
+    }
+
     /// The immutable state envelope has a larger, still streamed and bounded, read-only budget.
     func audioOutcomeData(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await PinnedBoundedJSONDataTask(maximumBytes: ObservationHistoryPage.maximumPageBytes)

@@ -71,6 +71,7 @@ assert_scope true pull_request "apps/ios/Merian/Core/Network/Transport/PinnedNet
 assert_scope true pull_request "apps/ios/Merian/Core/Network/Transport/AuthenticatedTransportDispatcher.swift"
 assert_scope true pull_request "apps/ios/Merian/Core/Network/Models/ObservationAnalysis/ObservationSourceReservation.swift"
 assert_scope true pull_request "apps/ios/Merian/Core/Network/Transport/ObservationSourceReservationTransport.swift"
+assert_scope true pull_request "apps/ios/Merian/Core/Network/Transport/ObservationVideoEvidenceTransport.swift"
 assert_scope true pull_request "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationSourceReservationService.swift"
 assert_scope true pull_request "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationSourceReservationStore.swift"
 assert_scope true pull_request "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationSourceReservationWork.swift"

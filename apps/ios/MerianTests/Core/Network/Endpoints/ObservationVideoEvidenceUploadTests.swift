@@ -117,7 +117,8 @@ struct ObservationVideoEvidenceUploadTests {
         }
     }
 
-    @Test func exactWireFramingForEverySavedCohortItem() throws {
+    @Test(arguments: [false, true])
+    func exactWireFramingForEverySavedCohortItem(maximumSource: Bool) throws {
         for vector in try vectors("video-request-v4") {
             let row = try #require(vector["input"] as? [String: Any])
             let original = try ObservationVideoReanalysisRequest(savedBody: data(row))
@@ -125,11 +126,12 @@ struct ObservationVideoEvidenceUploadTests {
             var provenance = try #require(manifest["provenance"] as? [String: Any])
             let inventory = try ObservationVideoCohortInventory(input: original.body)
             let payloads = Dictionary(uniqueKeysWithValues: inventory.items.enumerated().map { index, item in
-                (item.artifact.mediaID, Data(repeating: UInt8(index + 1), count: item.artifact.byteCount))
+                (item.artifact.mediaID, Data(repeating: UInt8(index + 1), count: maximumSource && index == 0 ? 12 * 1_024 * 1_024 : item.artifact.byteCount))
             })
             func update(_ value: Any?) throws -> [String: Any] {
                 var artifact = try #require(value as? [String: Any])
                 let id = try ObservationHistoryPage.uuid(artifact["media_id"])
+                artifact["byte_count"] = try #require(payloads[id]).count
                 artifact["sha256"] = SHA256.hash(data: try #require(payloads[id])).map { String(format: "%02x", $0) }.joined()
                 return artifact
             }
@@ -154,7 +156,12 @@ struct ObservationVideoEvidenceUploadTests {
                 #expect(Set(metadata.keys) == ["schema_version", "reader_version", "candidate", "media_id"])
                 #expect(metadata["schema_version"] as? Int == 1 && metadata["reader_version"] as? Int == 12)
                 #expect(metadata["media_id"] as? String == item.artifact.mediaID.uuidString.lowercased())
-                #expect(header.range(of: candidate.body) != nil)
+                let expectedHeader = Data("{\"schema_version\":1,\"reader_version\":12,\"candidate\":".utf8)
+                    + candidate.body + Data(",\"media_id\":\"\(item.artifact.mediaID.uuidString.lowercased())\"}".utf8)
+                #expect(header == expectedHeader)
+                let n = UInt32(expectedHeader.count)
+                let expectedPrefix = Data([UInt8((n >> 24) & 255), UInt8((n >> 16) & 255), UInt8((n >> 8) & 255), UInt8(n & 255)])
+                #expect(wire.body == expectedPrefix + expectedHeader + bytes)
                 #expect(wire.body.suffix(bytes.count) == bytes)
                 #expect(wire.request.identity == candidate.identity)
                 #expect(try ObservationVideoEvidenceWireRequest(candidate: candidate, mediaID: item.artifact.mediaID, bytes: bytes).body == wire.body)

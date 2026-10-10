@@ -164,13 +164,14 @@ exact scan- admission bridge in `Core/Network/MerianNetworkClient.swift`, its
 `Core/Network/Transport/PinnedNetworkTransport.swift` transport, its
 `AuthenticatedTransportDispatcher.swift`, the source-reservation model and
 transport (`ObservationSourceReservation.swift` and
-`ObservationSourceReservationTransport.swift`), all extracted
-`Core/Network/Auth` owners, and all `Core/Security` owners. The
-workflow-security suite freezes that inventory, while
-`scripts/test-ci-detect-supabase-candidate-source-changes.sh` proves
-representative Auth, consent, purchase-principal, scan-admission, and pinned-
-transport files remain candidate inputs. This prevents an iOS contract-owner
-extraction from silently bypassing the production predecessor gate.
+`ObservationSourceReservationTransport.swift`), the video upload transport
+`ObservationVideoEvidenceTransport.swift`, all extracted `Core/Network/Auth`
+owners, and all `Core/Security` owners. The workflow-security suite freezes that
+inventory, while `scripts/test-ci-detect-supabase-candidate-source-changes.sh`
+proves representative Auth, consent, purchase-principal, scan-admission, and
+pinned- transport files remain candidate inputs. This prevents an iOS
+contract-owner extraction from silently bypassing the production predecessor
+gate.
 
 The complete repository-tooling suite is a separate discovery-based gate:
 
@@ -4516,10 +4517,11 @@ import, and permission-denial UI require the physical-device checklist in
   sole live endpoint ownership, and 600-line boundaries. It also requires the
   exact Transport owner inventory, including the scoped
   `ObservationAudioAnalysisTransport` and
-  `ObservationSourceReservationTransport`. The suite freezes the disjoint
-  safe-read and idempotency-aware ambiguous-replay sets, requires exactly one
-  endpoint owner for each classified route, and records the exact owners allowed
-  to acquire the pinned session, private transport, request executor,
+  `ObservationSourceReservationTransport` and
+  `ObservationVideoEvidenceTransport`. The suite freezes the disjoint safe-read
+  and idempotency-aware ambiguous-replay sets, requires exactly one endpoint
+  owner for each classified route, and records the exact owners allowed to
+  acquire the pinned session, private transport, request executor,
   consent/profile context, Auth manager, recovery Species Dictionary query, or
   detached preparation bridge. That inventory records the Auth
   historical-session `+Live` adapter as one permitted `AppDIContainer.shared`
@@ -12417,3 +12419,16 @@ overflow, MIME, settlement loss, stale owner/claim and pre-cancellation. Known
 reply settlement survives dispatch cancellation only through the supplied
 settlement scope. Existing reader11 tests remain unchanged. This proves the
 transport seam, not installed durable delivery or hosted/device qualification.
+
+### Native exact video upload transport coverage
+
+`ObservationVideoEvidenceTransportTests` verifies exact body/MIME/timeout and
+single attempt, ordinary-session timeout preservation, known-answer settlement
+after cancellation, lost replies,401/404/409/503, MIME, actual/declared8KiB
+overflow, foreign owner, unready target, readiness rollback, settlement loss,
+stale owner/claim, pre-cancellation and prior-owner rejection before dispatch.
+Wire tests now compare the complete independently assembled header and body and
+exercise12MiB source bytes. Exact maximum-metadata boundary and real allocated
+route write/HEAD/completion remain separate integration coverage. These tests
+prove the inert native transport, not live durable queue delivery or hosted
+qualification.

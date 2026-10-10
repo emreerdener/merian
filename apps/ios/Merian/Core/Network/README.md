@@ -1239,14 +1239,14 @@ purchase-handoff publication resumes retained revocation work when the fence
 becomes false. Clear diagnostics are emitted only after local cleanup completes.
 
 The suite freezes the production Transport owner inventory, including the scoped
-`ObservationAudioAnalysisTransport` and `ObservationSourceReservationTransport`,
-and the exact disjoint function-name sets used for safe-read and
-server-idempotency-aware ambiguous replay, and the requirement that every
-classified route have exactly one endpoint owner. It also prevents the executor
-from constructing a URLSession, another network client, a singleton instance, or
-detached task. Individual endpoint transport suites remain responsible for
-request identity at the feature bridge. This audit changes no request, response,
-retry, Auth, persistence, or backend contract.
+`ObservationAudioAnalysisTransport`, `ObservationSourceReservationTransport` and
+`ObservationVideoEvidenceTransport`, and the exact disjoint function-name sets
+used for safe-read and server-idempotency-aware ambiguous replay, and the
+requirement that every classified route have exactly one endpoint owner. It also
+prevents the executor from constructing a URLSession, another network client, a
+singleton instance, or detached task. Individual endpoint transport suites
+remain responsible for request identity at the feature bridge. This audit
+changes no request, response, retry, Auth, persistence, or backend contract.
 
 `MerianTests/Core/Network/Transport/` mirrors the production transport owners.
 The eleven policy tests rehome route classification, ambiguous replay,
@@ -4255,3 +4255,13 @@ attempt/settlement validators. Exact conflicts retain the candidate in
 `ObservationVideoSourceReservationConflict`. Reader11 behavior is unchanged; no
 queue/composition, recovery or upload caller is installed. See the
 [native reader12 contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-reader12-video-reservation-transport).
+
+### Native video upload transport
+
+`ObservationVideoEvidenceTransport` sends an already-prepared exact Wire1 body
+through the account-bound dispatcher once. `PinnedNetworkTransport` owns a
+separate130-second session and streamed8KiB reply cap. Whole-cohort validation
+preserves prior receipt evidence and requires the target item ready before
+settlement. Attempt and settlement fences remain distinct; no retry, inference
+authority or live queue caller is added. See the
+[native upload contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-exact-video-item-upload-transport).
