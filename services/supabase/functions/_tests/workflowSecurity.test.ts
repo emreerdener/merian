@@ -335,9 +335,10 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   )[1]
     ?.split("- name:")[0];
   assert(helperStep, "Candidate helper step must remain explicit");
-  assertStringIncludes(
-    helperStep,
-    "--allow-read=supabase/functions,../apps/web,supabase/migrations/20261010005747_prepare_video_source_fingerprint_parity.sql,supabase/migrations/20261010015758_prepare_video_cohort_inventory.sql,supabase/migrations/20261010024956_prepare_video_cohort_storage.sql,supabase/migrations/20261010040600_prepare_video_source_reservation.sql",
+  assertEquals(
+    helperStep.match(/--allow-read=([^\s]+)/)?.[1],
+    "supabase/functions,../apps/web,supabase/migrations/20261010005747_prepare_video_source_fingerprint_parity.sql,supabase/migrations/20261010015758_prepare_video_cohort_inventory.sql,supabase/migrations/20261010024956_prepare_video_cohort_storage.sql,supabase/migrations/20261010040600_prepare_video_source_reservation.sql,supabase/migrations/20261010054046_prepare_video_evidence_allocation.sql,supabase/migrations/20261010135143_prepare_video_execution_evidence_guard.sql,supabase/migrations/20261010142136_prepare_video_initial_admission.sql,supabase/migrations/20261010144617_prepare_private_video_dispatch.sql",
+    "Helper reads must include every video migration fixture without broadening filesystem access",
   );
   assertStringIncludes(candidateWorkflow, "  merge_group:");
   assertStringIncludes(candidateWorkflow, "  workflow_dispatch:");

@@ -12572,5 +12572,26 @@ on the canonical lock and return the same original receipt with one funding
 hold. A funded V4 intent cannot pass the existing source dispatch witness. The
 private-admission catalog fixture checks default-closed gates, helper
 privileges, timeout/search path, V4 storage backstop and absent public begin
-integration. These are prepared funding checks; provider dispatch and result
-settlement remain uninstalled.
+integration. These checks cover initial funding; private dispatch verification
+follows below. Public execution and result settlement remain uninstalled.
+
+### Private V4 dispatch verification
+
+The video database suite covers all three canonical variants through private
+admission, claim and dispatch. It checks closed gates, a single active claim,
+expired admitted-claim replacement without new quota, stale work tokens, expired
+quota/evidence, changed attempts/profiles, prior outcomes, erased objects and
+malformed provenance rollback. Successful dispatch creates one witness and
+invocation, commits quota and retains the complimentary hold. Exact replay after
+expiry/gate closure returns no dispatch permission; unknown execution cannot
+rearm. A two-session test observes canonical blocking and proves one grant plus
+one non-dispatching replay. Generic dispatch remains V4-denying. The catalog
+checks private privileges, bounded definer settings, default-closed activation
+and the unchanged generic lock. These local fixtures make no provider calls and
+do not qualify result settlement or a public V4 path.
+
+The shared-helper CI step grants read access to each exact video migration used
+by these tests. `workflowSecurity.test.ts` locks the full allowlist, including
+ready-evidence, initial admission and private dispatch migrations. Verify the
+helper command with those restricted permissions; a broad local `--allow-read`
+run cannot establish CI permission coverage.

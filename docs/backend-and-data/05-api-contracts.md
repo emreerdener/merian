@@ -17747,6 +17747,29 @@ replay. An exact replay returns the original saved quota even after expiry or
 gate closure; it neither reserves again nor confers dispatch authority.
 Ownership and deletion checks precede replay. Unknown execution is
 recovery-only. This function is inaccessible to API roles and is not wired to
-public begin or advance; V4 remains rejected by executable parsing. Claim,
-dispatch, result, reader and completion integration are still required before
-any execution path can open.
+public begin or advance; V4 remains rejected by executable parsing. Public
+claim/dispatch and result, reader and completion integration are still required
+before an API execution path can open.
+
+### Private V4 dispatch preparation
+
+The ungranted SQL helpers
+`claim_video_observation_analysis(owner, observation,
+analysis)` and
+`dispatch_video_observation_analysis(owner, observation,
+analysis, work_token, provenance)`
+prepare V4 execution without adding public RPC or Edge callers. Fresh operations
+require the separate default-off `video_dispatch_enabled` flag, existing
+modality/admission/source-dispatch controls, exact ready/unexpired evidence,
+original attempt-one funding and processor consent. Claim replacement is
+restricted to admitted work and never renews the quota lease. Dispatch validates
+the current work token and commits one invocation with its immutable transaction
+witness.
+
+Only the first successful dispatch returns `may_dispatch=true`. A matching
+replay returns the same invocation with `may_dispatch=false`, even after media
+expiry or closed fresh gates. Changed work token or provenance is rejected.
+Unknown execution cannot be claimed again and remains charged/held. No result
+settlement, refund, occupancy release or cleanup authority is introduced. Public
+begin/advance/recovery and executable V4 parsing remain unavailable;
+result/reader/settlement contracts are required before connecting a caller.

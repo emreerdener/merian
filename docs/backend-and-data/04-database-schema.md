@@ -8203,3 +8203,32 @@ owner deletion still wins. It cannot renew an expired quota, create a claim,
 retry ambiguous dispatch, or refund. API roles cannot call the private function.
 Public begin/advance, V4 executable parsing, dispatch, result completion and
 source release remain unconnected and require their own reviewed contracts.
+
+### Prepared private V4 claim and dispatch
+
+Migration `20261010144617_prepare_private_video_dispatch.sql` adds default-off
+`video_dispatch_enabled` and four ungranted private helpers. The V4 identity
+lock takes owner/parent, original source, child ingestion/evidence and intent
+locks, checking the immutable input/fingerprint and retirement fence. Fresh
+claim and dispatch additionally require the exact ready, unexpired cohort, live
+occupancy, existing admission/media/source-dispatch gates, original reserved
+attempt-one quota and video profile, and current processor consent.
+
+A 120-second work claim can be replaced only while still admitted; replacement
+does not renew quota. Dispatch requires that exact unexpired work token. The
+existing immutable transaction witness, quota commit, invocation and intent
+transition are atomic. Exact replay with the original work token and provenance
+returns `may_dispatch=false` before fresh gates or media expiry. Dispatched work
+cannot acquire another claim, including an unknown outcome. Complimentary usage
+remains held; this checkpoint provides no settlement or refund.
+
+Generic execution locks, public begin/advance/recovery and executable V4 parsing
+remain unchanged. No provider HTTP caller is connected. Result, reader,
+received-outcome settlement and terminal source release must be integrated
+before any API execution path is enabled. The private dispatch state is durable
+held evidence, never permission to retry a provider after an uncertain reply.
+
+The migration also repairs the previous private admission helper forward: V4
+fingerprint validation is performed without assigning its unused return value.
+This removes a database-lint warning without changing admission behavior or
+rewriting the applied migration.

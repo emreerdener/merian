@@ -1,4 +1,4 @@
-import { assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 Deno.test("video allocation keeps execution and erasure boundaries closed", async () => {
   const sql = await Deno.readTextFile(
     new URL(
@@ -77,4 +77,35 @@ Deno.test("video initial admission is private and exact funding does not wire ex
     !sql.includes("pg_get_functiondef('public.begin_owned") &&
       !sql.includes("pg_get_functiondef('public.advance_owned"),
   );
+});
+
+Deno.test("video claim and dispatch remain private without public execution wiring", async () => {
+  const sql = await Deno.readTextFile(
+    new URL(
+      "../../migrations/20261010144617_prepare_private_video_dispatch.sql",
+      import.meta.url,
+    ),
+  );
+  assert(
+    !/\bGRANT\b|CREATE (?:OR REPLACE )?FUNCTION public\./
+      .test(sql),
+  );
+  assertEquals(sql.match(/pg_get_functiondef/g)?.length, 1);
+  assert(
+    sql.includes(
+      "pg_get_functiondef('internal.admit_video_observation_analysis(uuid,jsonb,text)'",
+    ),
+  );
+  for (
+    const boundary of [
+      "video_dispatch_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+      "assert_ready_video_analysis_evidence",
+      "assert_observation_source_input_chain",
+      "observation_analysis_dispatch_witnesses",
+      "pg_catalog.pg_current_xact_id()",
+      "may_dispatch',FALSE",
+      "work_token IS DISTINCT FROM p_work_token",
+      "FROM PUBLIC,anon,authenticated,service_role",
+    ]
+  ) assert(sql.includes(boundary), boundary);
 });

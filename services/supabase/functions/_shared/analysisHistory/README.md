@@ -1248,3 +1248,10 @@ funding under a separate default-off gate. Replay returns the saved original
 quota without renewal. No API role can call it and public begin/advance remain
 unconnected. See the
 [private funding contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-private-v4-initial-funding).
+
+Private V4 claim/dispatch helpers now prepare one original provider invocation
+behind `video_dispatch_enabled`, with exact work-token fencing and an immutable
+transaction witness. They have no API grants or HTTP caller. Unknown execution
+stays held; replay never dispatches. Generic execution and V4 parsing remain
+unchanged until result/reader/settlement contracts are ready. See the
+[private dispatch boundary](../../../../../docs/backend-and-data/05-api-contracts.md#private-v4-dispatch-preparation).
