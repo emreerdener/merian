@@ -17014,3 +17014,51 @@ vacancy. No V4 retirement/completion proof or replacement authorization is
 added. Neither routine uploads media, consumes quota, invokes a provider or
 refunds. HTTP routes, repositories, native transport and queue delivery remain
 unconnected.
+
+### Prepared video pre-execution retirement contract
+
+`videoSourceRetirement.ts` defines a separate reader-12/schema-2 action for a V4
+source reservation that has never acquired admission or execution state. One
+exact metadata-only V4 cohort may exist; remote objects remain excluded. This is
+a prepared wire contract only: no retirement SQL writer, grant, HTTP route,
+native delivery or release consumer is installed. Existing reservation/recovery
+decoders retain their three states and reject retirement receipts.
+
+The request contains the exact seven-field video identity plus `operation_id`.
+The operation UUID must differ from observation, source and child. Build it from
+the complete original V4 candidate; freeze the operation and exact request at
+the final decision, then persist before delivery. Request and receipt are each
+bounded to 2 KiB and strict UTF-8. The closed permanent receipt echoes every
+request field plus `owner_id` and `state: "retired_pre_execution"`. The decoder
+binds owner, operation, full candidate identity and validated V4 fingerprint,
+snapshots mutable inputs before hashing, and rejects extra fields or any other
+state. Matching JSON alone cannot authenticate a server receipt or authorize
+release. Fixed audio, silent and Unicode vectors freeze this representation for
+future SQL/native parity. Reader-11 photo/audio contracts are unchanged.
+
+An optional V4 cohort must exactly match the binding-derived whole inventory.
+The server retains that inventory (or explicit no-cohort proof) privately with
+the permanent receipt; the bounded wire receipt carries identity only.
+
+The following are required server implementation acceptance criteria, not
+implemented database authority in this checkpoint:
+
+| Contract element | Required never-admitted V4 retirement behavior                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preconditions    | Exact owned immutable V4 binding and matching live occupancy; closed identity and recomputed fingerprint. No child scan/ingestion/tombstone, admission intent, result, photo/audio cohort, evidence object, quota reservation, complimentary usage, invocation, dispatch witness or other terminal receipt. A missing quota row alone is insufficient.                                                                  |
+| Authority        | Authenticated service boundary derives owner. SQL rechecks ownership/deletion and current-snapshot isolation under canonical owner → observation → source → child → operation locks. Fresh retirement has its own default-false gate.                                                                                                                                                                                   |
+| Identity         | Persist the original child/request digest/fingerprint and distinct retirement UUID. Operation identity is immutable; a changed association conflicts. Never create a replacement child while the old outcome is uncertain.                                                                                                                                                                                              |
+| Replay           | Exact permanent receipt replay follows authorization/deletion checks but precedes fresh gates and fresh unused-child admission. Duplicate or lost-reply recovery keeps the same operation. Missing receipt, lookup unavailability or local discard is not vacancy proof.                                                                                                                                                |
+| Postcondition    | In one transaction save the permanent receipt, install the irreversible child retirement fence, remove only its validated V4 cohort metadata, and release only that child's occupancy. All later occupancy, cohort, admission, funding and dispatch paths must reject the retired child before success can return. Selection and immutable original evidence remain unchanged; no refund or provider invocation occurs. |
+
+The release proof must validate the retained receipt and binding under the same
+locks. A new child may reserve the source only after that proof succeeds; its
+identity must be new and its admission independent. Tests must prove retirement
+versus cohort creation/admission/dispatch, duplicate retirement, response loss,
+restart, deletion, forged/cross-child identities and attempted resurrection. A
+foreign, malformed or partially matched cohort, any evidence object, any
+admission/funding record or any uncertain execution remains held. This contract
+does not authorize funded retirement, remote object cleanup or cleanup receipts.
+Unknown execution permits exact status/outcome recovery and reconciliation only,
+never another invocation or refund. Local video discard continues to affect
+local preparation only.

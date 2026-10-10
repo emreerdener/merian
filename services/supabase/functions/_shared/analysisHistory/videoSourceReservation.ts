@@ -2,7 +2,7 @@ import { exactObject, historyUUID, invalidHistory } from "./contract.ts";
 import { parsePreparedVideoAdmission } from "./videoAdmission.ts";
 import { videoSourceFingerprint } from "./videoSourceFingerprint.ts";
 
-/** Prepared V4 lifecycle contract only. No installed RPC, route or queue consumer. */
+/** Gated SQL reservation contract. No installed HTTP route or queue consumer. */
 export const VIDEO_SOURCE_READER = 12;
 export const VIDEO_SOURCE_MAX_REQUEST_BYTES = 1_048_576;
 export const VIDEO_SOURCE_MAX_RECEIPT_BYTES = 2_048;
@@ -57,7 +57,8 @@ export function decodeVideoSourceReservationRequest(bytes: Uint8Array) {
     json(bytes, VIDEO_SOURCE_MAX_REQUEST_BYTES),
   );
 }
-function identity(value: unknown) {
+/** Shape validation only; this identity grants no ownership or release authority. */
+export function parseVideoSourceIdentity(value: unknown) {
   const row = exactObject(value, identityKeys);
   if (row.schema_version !== 2 || row.fingerprint_version !== 1) {
     return invalidHistory();
@@ -78,12 +79,12 @@ function identity(value: unknown) {
     fingerprint: digest(row.fingerprint),
   });
 }
-export type VideoSourceIdentity = ReturnType<typeof identity>;
+export type VideoSourceIdentity = ReturnType<typeof parseVideoSourceIdentity>;
 export async function videoSourceIdentity(
   candidate: unknown,
 ): Promise<VideoSourceIdentity> {
   const request = await parseVideoSourceReservationRequest(candidate);
-  return identity({
+  return parseVideoSourceIdentity({
     schema_version: 2,
     observation_id: request.input.observation_id,
     source_analysis_id: request.input.source_analysis_id,
@@ -99,7 +100,7 @@ export const buildVideoSourceRecoveryRequest = videoSourceIdentity;
 export function decodeVideoSourceRecoveryRequest(
   bytes: Uint8Array,
 ): VideoSourceIdentity {
-  return identity(json(bytes, VIDEO_SOURCE_MAX_RECEIPT_BYTES));
+  return parseVideoSourceIdentity(json(bytes, VIDEO_SOURCE_MAX_RECEIPT_BYTES));
 }
 
 export type VideoSourceReservationReceipt =

@@ -12250,3 +12250,15 @@ and mutation-free lookup. Candidate CI type-checks both Deno tests and runs the
 static contract in its bounded helper gate; database cases require the fresh
 disposable database. These checks do not qualify hosted media, provider
 execution, devices, storage/CDN, erasure or Field Trip reconciliation.
+
+### Prepared video retirement wire verification
+
+`videoSourceRetirement_test.ts` freezes audio/silent/Unicode request and receipt
+vectors, exact operation/owner/candidate association, distinct operation UUIDs,
+strict UTF-8 and 2 KiB bounds, snapshots across hashing awaits and closed
+states. It proves reservation/recovery and reader-11 retirement decoders remain
+narrow. Candidate CI type-checks and runs this test through the shared helper
+gate. These pure codec tests do not prove durable retirement or release. The
+server preconditions, atomic release fence, concurrency and replay tests
+required before installing a writer are specified in the
+[retirement contract](../backend-and-data/05-api-contracts.md#prepared-video-pre-execution-retirement-contract).

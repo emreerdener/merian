@@ -1177,3 +1177,11 @@ now implements this prepared wire behind disabled reservation/recovery gates and
 service-only grants. Exact lookup never proves vacancy or releases a V4 binding.
 No HTTP repository, native transport or queue consumer is connected; photo/audio
 lifecycle parsers and the alternatives layout remain unchanged.
+
+`videoSourceRetirement.ts` separately owns the prepared never-admitted V4 action
+and exact permanent-receipt shape. It shares shape-only identity validation with
+reservation, while reservation/recovery continue rejecting retirement states.
+There is no SQL writer, native delivery or release consumer. The
+[retirement contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-pre-execution-retirement-contract)
+records the mandatory unused-child evidence, atomic permanent fence and race
+proofs before server implementation may release occupancy.
