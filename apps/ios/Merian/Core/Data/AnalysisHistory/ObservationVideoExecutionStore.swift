@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// Existing held child only. No scheduler, HTTP, result insertion or file cleanup.
+/// Existing held child only. No scheduler, HTTP or file cleanup.
 @MainActor
 enum ObservationVideoExecutionStore {
     private typealias Persistence = ObservationReanalysisPersistence
@@ -99,6 +99,97 @@ enum ObservationVideoExecutionStore {
         guard expected.work.phase == .running else { throw Persistence.IntegrityError.conflict }
         return try change(expected, proof, container, isCurrent, save) { work in
             try Work(uploadData: work.uploadData, phase: .held, attemptID: work.attemptID, consumed: work.consumed)
+        }
+    }
+
+    /// Recovery after history sync appended the result. Never grants dispatch authority.
+    static func readSyncedForSettlement(proof: ObservationVideoPreparation.Verified, container: ModelContainer,
+                                        isCurrent: () -> Bool) throws -> Snapshot {
+        try ConfirmedSpeciesReviewPersistence.transaction {
+            guard isCurrent() else { throw Persistence.IntegrityError.accountChanged }
+            let context = ModelContext(container); context.autosaveEnabled = false
+            let identity = proof.preparation.identity
+            try proof.validate(context: context)
+            try completionNamespace(identity, context: context)
+            guard try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(identity.analysisID)) == nil,
+                  let (row, job) = try Persistence.pair(identity, context: context), let text = job.metadataJSON,
+                  text.utf8.count <= Work.maximumBytes else { throw Persistence.IntegrityError.unavailable }
+            try ObservationVideoPreparationStore.validateRow(proof.preparation, row: row, job: job)
+            let work = try Work.decode(Data(text.utf8))
+            guard work.preparation == proof.preparation, work.consumed,
+                  work.phase == .running || work.phase == .held else { throw Persistence.IntegrityError.conflict }
+            let parent = try ObservationHistorySyncService.enrolledScan(identity.observationID.uuidString, context: context)
+            let child = identity.analysisID.uuidString.lowercased()
+            let records = try context.fetch(FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate { $0.id == child }))
+            guard records.count == 1, let record = records.first,
+                  record.ownerAccountID == identity.ownerID.uuidString.lowercased(),
+                  record.observationID == parent.id else { throw Persistence.IntegrityError.conflict }
+            let result = try ObservationReanalysisResult.decode(record.resultSnapshotData, matching: work.request)
+            guard record.snapshotVersion == result.version, record.completedAt == result.completedAt else {
+                throw Persistence.IntegrityError.conflict
+            }
+            guard isCurrent() else { throw Persistence.IntegrityError.accountChanged }
+            return .init(work: work, metadata: text, containerID: ObjectIdentifier(container))
+        }
+    }
+
+    /// The raw result, queue retirement and cleanup receipt commit together; selection is untouched.
+    static func complete(_ expected: Snapshot, resultBytes: Data, proof: ObservationVideoPreparation.Verified,
+                         container: ModelContainer, isCurrent: () -> Bool,
+                         save: (ModelContext) throws -> Void = { try $0.save() }) throws -> ObservationReanalysisErasureReceipt {
+        let identity = proof.preparation.identity
+        guard expected.containerID == ObjectIdentifier(container), expected.work.consumed,
+              expected.work.phase == .running || expected.work.phase == .held,
+              expected.work.preparation == proof.preparation,
+              try Work.decode(Data(expected.metadata.utf8)) == expected.work else { throw Persistence.IntegrityError.conflict }
+        let result = try ObservationReanalysisResult.decode(resultBytes, matching: expected.work.request)
+        let receipt = ObservationReanalysisErasureReceipt(parentID: identity.observationID, childID: identity.analysisID)
+        // Do not use the generic dispatch transaction's cancellation check for a received outcome.
+        return try ConfirmedSpeciesReviewPersistence.transaction {
+            guard isCurrent() else { throw Persistence.IntegrityError.accountChanged }
+            let context = ModelContext(container); context.autosaveEnabled = false
+            do {
+                try proof.validate(context: context)
+                try completionNamespace(identity, context: context)
+                let parent = try ObservationHistorySyncService.enrolledScan(identity.observationID.uuidString, context: context)
+                if let erased = try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(identity.analysisID)) {
+                    guard try ObservationReanalysisErasureReceipt.restore(erased) == receipt,
+                          try Persistence.pair(identity, context: context) == nil else { throw Persistence.IntegrityError.conflict }
+                    let child = identity.analysisID.uuidString.lowercased()
+                    let records = try context.fetch(FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate { $0.id == child }))
+                    guard records.count == 1, let record = records.first, record.ownerAccountID == identity.ownerID.uuidString.lowercased(),
+                          record.observationID == parent.id, record.snapshotVersion == result.version,
+                          record.completedAt == result.completedAt, record.resultSnapshotData == result.bytes else {
+                        throw Persistence.IntegrityError.conflict
+                    }
+                } else {
+                    guard let (row, job) = try Persistence.pair(identity, context: context),
+                          job.metadataJSON == expected.metadata else { throw Persistence.IntegrityError.conflict }
+                    try ObservationVideoPreparationStore.validateRow(proof.preparation, row: row, job: job)
+                    // Sync may already have appended the exact result. Insert rejects every conflicting record.
+                    _ = try ObservationHistorySyncService.insert([result], into: parent, ownerID: identity.ownerID, context: context)
+                    try receipt.record(in: context)
+                    try context.deletePreferredGoalHint(scanId: row.id)
+                    context.delete(job); context.delete(row)
+                }
+                guard isCurrent() else { throw Persistence.IntegrityError.accountChanged }
+                if context.hasChanges { try save(context) }
+                return receipt
+            } catch { context.rollback(); throw error }
+        }
+    }
+
+    private static func completionNamespace(_ identity: OfflineQueueWork.Reanalysis, context: ModelContext) throws {
+        let lower = identity.analysisID.uuidString.lowercased(), upper = identity.analysisID.uuidString
+        guard try context.fetch(FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == lower || $0.id == upper })).isEmpty,
+              try context.fetch(FetchDescriptor<PendingCloudDeletionTask>(predicate: #Predicate { $0.scanId == lower || $0.scanId == upper })).isEmpty,
+              !(try ObservationHistoryEnrollmentIntent.holds(lower, context: context)) else { throw Persistence.IntegrityError.conflict }
+        if upper != lower {
+            guard try context.fetchOfflineJob(id: "reanalysis-erasure:" + upper) == nil,
+                  try context.fetchOfflineJob(id: OfflineQueueManager.scanIngestionJobId(scanId: upper)) == nil,
+                  try context.fetch(FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate { $0.id == upper })).isEmpty else {
+                throw Persistence.IntegrityError.conflict
+            }
         }
     }
 

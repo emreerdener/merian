@@ -18111,7 +18111,49 @@ transport errors and nonterminal receipts never authorize resubmission or
 refund. Completed receipts contain no result, and failed_terminal is not a
 cleanup proof. Exact reader11 history state is the existing completed-result
 recovery seam; the private provider outcome RPC remains inaccessible. Retained
-queue composition, exact V5 result binding, receipt-bound persistence/cleanup
-and integrated acceptance remain pending. Legacy execution readers and generic
-action gates remain closed to video; activation gates stay disabled and ordinary
-access stays nil.
+queue composition, awaited receipt-bound file cleanup and integrated acceptance
+remain pending. Exact V5 binding and local completion are defined below. Legacy
+execution readers and generic action gates remain closed to video; activation
+gates stay disabled and ordinary access stays nil.
+
+### Native video result completion
+
+`ObservationReanalysisResult.decode(_:matching:)` binds a completed V5 snapshot
+to the original V4 video request before local mutation: parent, child, source,
+request digest and canonical evidence manifest must match. The shared strict
+snapshot parser validates the complete result, provider and video provenance;
+original result bytes are preserved.
+
+`ObservationVideoExecutionStore.complete` accepts only consumed running/held
+work with the exact saved metadata, preparation proof and container. Within the
+shared persistence transaction it revalidates account, immutable source, parent,
+child namespace, row/job and erasure scope. It atomically appends the result,
+records `ObservationReanalysisErasureReceipt`, removes the child queue row/job
+and preferred-goal hint, and leaves selection and source bytes unchanged. An
+already-synced result must be byte-identical with matching owner, parent,
+version and completion time. A completion replay requires that exact result, the
+exact durable receipt and no remaining queue pair. Conflicts never retire work.
+Save-before-throw and save-after-commit ambiguity preserve this boundary.
+
+Received-outcome settlement does not reapply task cancellation, expired upload
+credentials or fresh dispatch consent; current account/source scope remains
+mandatory before mutation and immediately before save. No dispatch permit,
+retry, refund, file deletion or remote retirement is created. After commit the
+future retained execution owner must await receipt-bound cleanup. The committed
+receipt persists across disk reopen while the queue pair remains absent; the
+future retained cleanup owner must restore it through the existing receipt
+format. This checkpoint adds no separate receipt-recovery API. Queue composition
+and reader11 lease fences remain separate work; activation and ordinary access
+remain disabled.
+
+`ObservationVideoExecutionStore.readSyncedForSettlement` recovers only consumed
+running/held work with an already-stored V5 result bound to its exact request.
+It checks the result's owner, parent, version, time and bytes, plus current
+source/account/namespace/row/job scope. This permits completion after sync and
+restart while ordinary reads remain closed on result collisions. Missing or
+mismatched results and unconsumed work are rejected; no claim or dispatch permit
+is returned. Completion still rechecks exact result bytes before retirement.
+
+Synced settlement compares the result parent with the exact enrolled parent's
+stored ID, including supported historical uppercase UUIDs. Queue identity stays
+normalized. Case-folding a mismatched child-parent reference is not allowed.

@@ -12789,3 +12789,28 @@ held/expired/cancelled dispatch and separate known-response settlement fencing.
 Run with the existing audio transport, video evidence transport and video
 execution-store suites to protect shared dispatcher/pinning behavior. These
 checks do not qualify retained queue execution, hosted services or devices.
+
+### Native video result completion verification
+
+`ObservationVideoCompletionTests` covers V4/V5 exact identity, digest, manifest
+and version binding; consumed running/held completion with and without audio;
+cancelled-task settlement; byte-identical replay and already-synced results;
+conflicting results; account/source/container/row/job/namespace/erasure fences;
+stale and unconsumed snapshots; save failures before and after commit; and disk
+reopen into settlement, or proof that the committed cleanup receipt persists
+with no remaining queue pair. Assertions preserve source, selection, revision
+and files while retiring only the queue pair. This is local completion coverage;
+retained execution/reader11 lease/awaited cleanup composition and
+external/device qualification remain separate.
+
+`ObservationVideoExecutionStore.readSyncedForSettlement` recovers only consumed
+running/held work with an already-stored V5 result bound to its exact request.
+It checks the result's owner, parent, version, time and bytes, plus current
+source/account/namespace/row/job scope. This permits completion after sync and
+restart while ordinary reads remain closed on result collisions. Missing or
+mismatched results and unconsumed work are rejected; no claim or dispatch permit
+is returned. Completion still rechecks exact result bytes before retirement.
+
+Synced settlement compares the result parent with the exact enrolled parent's
+stored ID, including supported historical uppercase UUIDs. Queue identity stays
+normalized. Case-folding a mismatched child-parent reference is not allowed.

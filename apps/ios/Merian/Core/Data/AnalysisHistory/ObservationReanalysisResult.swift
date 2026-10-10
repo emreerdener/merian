@@ -13,6 +13,11 @@ enum ObservationReanalysisResult {
                    sourceID: request.sourceAnalysisID, version: 4)
     }
 
+    static func decode(_ bytes: Data, matching request: ObservationVideoReanalysisRequest) throws -> ObservationHistoryPage.Result {
+        try decode(bytes, body: request.body, observationID: request.observationID, analysisID: request.analysisID,
+                   sourceID: request.sourceAnalysisID, version: 5)
+    }
+
     private static func decode(_ bytes: Data, body: Data, observationID: UUID, analysisID: UUID,
                                sourceID: UUID, version: Int) throws -> ObservationHistoryPage.Result {
         guard bytes.count <= LocalAnalysisRecord.maximumSnapshotBytes,

@@ -2241,5 +2241,31 @@ state-receipt cap. There is no logical retry or auth-refresh replay. The caller
 supplies separate current-dispatch and known-response settlement fences.
 Completed receipts grant no local result or cleanup authority; existing reader11
 state recovery must bind the final snapshot to the saved request. Retained queue
-execution and settlement remain pending. See the
+execution and cleanup composition remain pending. See the
 [canonical transport contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-video-submission-transport).
+
+### Native video result completion
+
+The video overload of `ObservationReanalysisResult.decode` binds exact V4
+identity, digest and manifest to a strict V5 completed snapshot.
+`ObservationVideoExecutionStore.complete` settles only an exact consumed
+running/held snapshot, atomically appending the result, recording the existing
+erasure receipt and removing the queue pair and preferred-goal hint. It keeps
+source bytes and selection unchanged. Exact already-synced results and
+receipt-backed completion replay are idempotent; conflicting results or scope
+changes reject without retiring work. Known outcomes may settle cancelled tasks
+under current account/source fences. Files remain until a future retained owner
+awaits receipt-bound cleanup; no execution installation is added. See the
+[canonical completion contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-video-result-completion).
+
+`ObservationVideoExecutionStore.readSyncedForSettlement` recovers only consumed
+running/held work with an already-stored V5 result bound to its exact request.
+It checks the result's owner, parent, version, time and bytes, plus current
+source/account/namespace/row/job scope. This permits completion after sync and
+restart while ordinary reads remain closed on result collisions. Missing or
+mismatched results and unconsumed work are rejected; no claim or dispatch permit
+is returned. Completion still rechecks exact result bytes before retirement.
+
+Synced settlement compares the result parent with the exact enrolled parent's
+stored ID, including supported historical uppercase UUIDs. Queue identity stays
+normalized. Case-folding a mismatched child-parent reference is not allowed.
