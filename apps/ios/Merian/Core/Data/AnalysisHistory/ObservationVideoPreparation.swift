@@ -96,7 +96,7 @@ struct ObservationVideoPreparation: Equatable, Sendable {
         guard data.count <= maximumStoredBytes else { throw MerianError.invalidResponse }
         if let row = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let kind = row["kind"] as? String,
-           ["video_preparation", ObservationVideoSourceReservationWork.kind, ObservationVideoUploadWork.kind].contains(kind) {
+           ["video_preparation", ObservationVideoSourceReservationWork.kind, ObservationVideoUploadWork.kind, ObservationVideoExecutionWork.kind].contains(kind) {
             throw MerianError.invalidResponse
         }
     }

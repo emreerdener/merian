@@ -357,6 +357,10 @@ struct OfflineSyncFoundationArchitectureTests {
     private static let extractedOwnerPaths: Set<String> = [
         "Services/ProtectedInsightChatDeliveryService.swift",
         "Services/ObservationSourceReservationOwner.swift",
+        "Services/ObservationVideoReservationOwner.swift",
+        "Services/OfflineQueueManager+VideoReservation.swift",
+        "Services/ObservationVideoUploadOwner.swift",
+        "Services/OfflineQueueManager+VideoUpload.swift",
         "Services/OfflineQueueManager+SourceReservation.swift",
         "Services/ObservationAudioExecutionOwner.swift",
         "Services/OfflineQueueManager+AudioExecution.swift",
@@ -426,6 +430,10 @@ struct OfflineSyncFoundationArchitectureTests {
     private static let expectedImportsByPath: [String: Set<String>] = [
         "Services/ProtectedInsightChatDeliveryService.swift": ["import Foundation", "import SwiftData"],
         "Services/ObservationSourceReservationOwner.swift": ["import Foundation"],
+        "Services/ObservationVideoReservationOwner.swift": ["import Foundation"],
+        "Services/OfflineQueueManager+VideoReservation.swift": ["import Foundation", "import SwiftData"],
+        "Services/ObservationVideoUploadOwner.swift": ["import Foundation"],
+        "Services/OfflineQueueManager+VideoUpload.swift": ["import Foundation", "import SwiftData"],
         "Services/OfflineQueueManager+SourceReservation.swift": ["import Foundation", "import SwiftData"],
         "Services/ObservationAudioExecutionOwner.swift": ["import Foundation"],
         "Services/OfflineQueueManager+AudioExecution.swift": ["import Foundation", "import SwiftData"],

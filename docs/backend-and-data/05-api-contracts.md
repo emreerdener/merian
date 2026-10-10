@@ -18050,3 +18050,37 @@ These separate source routes supersede the earlier no-Edge-consumer preparation
 status; generic execution/parsers still reject V4. Native execution, integrated
 acceptance and external runtime/device qualification remain pending. No function
 deployment, scheduling or ordinary native access is installed by this change.
+
+### Native ready-video execution ownership
+
+`ObservationVideoExecutionWork` is a closed version1 `video_execution` local
+successor of the exact fully ready upload lifecycle. It retains that envelope,
+all reservation/request/receipt bytes, source snapshot digest and file identity.
+It cannot be constructed from partial or unknown upload progress. Its bounded
+base64 envelope is derived from the upload lifecycle maximum; decoding does not
+grant dispatch permission.
+
+`ObservationVideoExecutionStore` stages only an existing held V58 child/job with
+matching source proof, owner/account, container, pristine row/job, result and
+erasure fences. Exact handoff replay precedes consent and saves nothing. Fresh
+staging and consumption require current fixed-Gemini authorization outside the
+persistence lock. Fresh stage, claim, consume and dispatch validation require
+the saved receipt to remain unexpired; existing-state reads/replay preserve
+evidence after expiry without renewing authority.
+
+The only initial claim changes idle to running with one immutable, disjoint UUID
+attempt. Consumption durably saves an irreversible flag before returning a
+privately constructed dispatch permit. A failed save returns no permit,
+including when the save committed before throwing. Running/held work cannot
+claim again; read/reopen cannot recreate a permit. Hold preserves the original
+attempt and consumption, with no reset, retry, provider invocation or refund.
+Interrupted unconsumed work also stays held pending a future explicit safe
+recovery boundary.
+
+This checkpoint supplies the local prerequisite only. No HTTP transport, queue
+execution owner, outcome settlement/cleanup, scheduler discovery or ordinary UI
+installation is attached. Existing preparation/upload/generic readers reject the
+successor; source files and source occupancy remain retained. The V58 persisted
+schema is unchanged because existing opaque job metadata owns the envelope.
+Gates remain disabled, ordinary access nil. Native delivery and integrated,
+external and device acceptance remain separate.

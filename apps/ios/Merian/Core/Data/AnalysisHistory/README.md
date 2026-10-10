@@ -2217,3 +2217,17 @@ local file: it is not execution, retirement or erasure authority. The
 queue-owned `ObservationVideoUploadOwner` retains account lifetime and separate
 dispatch/known settlement fences. See the
 [delivery contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-retained-video-upload-delivery).
+
+### Native ready-video execution ownership
+
+`ObservationVideoExecutionWork` nests the original fully ready upload lifecycle
+inside a closed V4-only local envelope. `ObservationVideoExecutionStore` stages
+that exact existing held child, saves one UUID claim and irreversible
+consumption before returning a private dispatch permit. Unknown/interrupted work
+retains identity and cannot claim again; reads and replay never reconstruct a
+permit. Every transition preserves
+source/account/container/row/job/result/erasure fences, and fresh dispatch
+checks require unexpired evidence and Gemini consent. No network, scheduler,
+cleanup or ordinary installation is added. Legacy readers reject the new kind.
+See the
+[canonical local contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-ready-video-execution-ownership).

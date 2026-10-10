@@ -12765,3 +12765,16 @@ refusal settlement with no provider/storage calls. Generic recovery retains its
 10-job tests. Run these plus full Edge/tooling, recursive format/lint/type
 checks, DTO and Markdown gates on the scoped candidate. These synthetic checks
 do not qualify native video execution, hosted storage/runtime or user devices.
+
+### Native video execution ownership verification
+
+`ObservationVideoExecutionStoreTests` covers exact ready-cohort handoff and disk
+reopening, replay before consent, legacy routing denial, one durable attempt,
+irreversible consume/hold, save-before/after-commit failures, source/account/
+container/job/erasure parity, expired/partial/unknown evidence and strict codec
+negatives. Run with the video upload lifecycle/staging/durability suites and
+`ObservationHistorySyncTests`, whose existing result5 test rejects ordinary,
+audio and video source capture. This is local persisted capability evidence; no
+transport, native queue execution, provider, hosted storage or device
+qualification is implied. Use the managed local iOS build cache and preserve
+failed evidence separately from scoped candidate validation.
