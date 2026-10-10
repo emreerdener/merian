@@ -102,9 +102,17 @@ enum ObservationReanalysisPersistence {
                                settlingSource: ObservationSourceReservationReply? = nil,
                                settlingSourceConflict: ObservationSourceReservationConflict? = nil,
                                settlingVideo: ObservationVideoReservationSettlement? = nil,
+                               settlingVideoUpload: ObservationVideoEvidenceReceipt? = nil,
                                body: (ModelContext) throws -> T) throws -> T {
         try ConfirmedSpeciesReviewPersistence.transaction {
             guard isCurrent() else { throw IntegrityError.accountChanged }
+            if let receipt = settlingVideoUpload {
+                guard settlingRetirement == nil, settlingSource == nil, settlingSourceConflict == nil, settlingVideo == nil,
+                      receipt.ownerID == identity.ownerID,
+                      receipt.request.identity.observationID == identity.observationID,
+                      receipt.request.identity.analysisID == identity.analysisID,
+                      receipt.request.identity.sourceAnalysisID == identity.sourceAnalysisID else { throw IntegrityError.conflict }
+            }
             if let settlingVideo {
                 guard settlingRetirement == nil, settlingSource == nil, settlingSourceConflict == nil else { throw IntegrityError.conflict }
                 try settlingVideo.validate(identity)
@@ -142,7 +150,7 @@ enum ObservationReanalysisPersistence {
                 guard let source = try context.fetch(query).first,
                       source.ownerAccountID == scan.analysisOwnerAccountID, source.observationID == scan.id else { throw IntegrityError.unavailable }
                 let result = try body(context)
-                if settlingRetirement == nil && settlingSource == nil && settlingSourceConflict == nil && settlingVideo == nil { try Task.checkCancellation() }
+                if settlingRetirement == nil && settlingSource == nil && settlingSourceConflict == nil && settlingVideo == nil && settlingVideoUpload == nil { try Task.checkCancellation() }
                 guard isCurrent() else { throw IntegrityError.accountChanged }
                 if context.hasChanges { try save(context) }
                 return result

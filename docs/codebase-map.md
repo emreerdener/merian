@@ -3182,3 +3182,10 @@ metadata request, closed bounded encoding and existing-only stage/read APIs. It
 grants no item claim, receipt settlement, dispatch or cleanup authority; the
 [API handoff contract](backend-and-data/05-api-contracts.md#native-reserved-video-upload-handoff)
 owns those boundaries.
+
+`Core/Data/AnalysisHistory/ObservationVideoUploadLifecycle.swift` owns the
+bounded V2 item-attempt ledger and existing-only claim/hold/receipt settlement
+store. It preserves the original handoff and all observed receipts while unknown
+work remains non-dispatching. The
+[canonical lifecycle contract](backend-and-data/05-api-contracts.md#native-video-upload-attempt-lifecycle)
+defines its transaction and cancellation authority.

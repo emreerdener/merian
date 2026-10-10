@@ -17610,3 +17610,49 @@ this boundary. Those require separate retained lifecycle work; saved files must
 be verified again before delivery. No automatic caller or UI access is
 installed. Gates remain disabled and ordinary access nil. No wire payload or
 SwiftData entity changes.
+
+### Native video upload attempt lifecycle
+
+`ObservationVideoUploadLifecycle` reads the original V1 handoff unchanged, or a
+closed V2 envelope with exactly `version`, `kind`, `staged_base64` and
+`attempts`. The kind stays `video_evidence_upload`. The nested V1 bytes remain
+verbatim. V2 requires one through seven attempts, never more than the original
+inventory. Every attempt has exactly canonical `attempt_id`, canonical
+`media_id`, `phase` and nullable canonical `receipt_base64`. Phases are running,
+unknown or observed. Only the last entry can be running/unknown, with no
+receipt. All earlier entries must be observed. Attempt IDs are unique and cannot
+alias the owner, analysis, source, observation, media or original reservation
+attempt. The total bound is 10,034,580 bytes: base64 expansion of the
+7,467,048-byte handoff, seven 8,192-byte receipt expansions with 256-byte
+per-attempt overhead, and 256 fixed bytes. Nested base64 and persisted text are
+bounded before Data allocation.
+
+The local transaction is the claim authority. It compares the exact snapshot,
+container, account/source proof, pristine held row/job and result/erasure
+fences. It appends one running attempt for the first inventory item lacking
+saved ready evidence. It never accepts a caller-selected item or creates another
+child. A claim save that commits then loses its reply leaves running work held;
+read does not reconstruct a dispatch capability. A running or unknown tail
+cannot be reclaimed, reopened into dispatch, or skipped. Queue attempt counters
+remain zero and ordinary inference stays denied.
+
+Known receipt settlement retains the same opaque claim and validates the
+complete original cohort, owner, stable object IDs, fixed expiry and monotonic
+readiness against every earlier receipt. The claimed item must be ready in the
+new receipt. A receipt may also prove later items ready; subsequent claims skip
+those items. Every raw receipt is retained verbatim. Exact duplicate settlement
+saves nothing; a changed receipt or stale claim after a successor is rejected.
+Settlement can replace exact running or same-attempt unknown metadata. Failure
+before commit leaves the old state; commit-then-throw permits exact receipt
+replay.
+
+`settlingVideoUpload` permits transaction cancellation bypass only for a scoped
+known receipt and cannot be mixed with another settlement kind. It never
+bypasses account/source/erasure or exact claim validation. Read, claim,
+validation and unknown hold retain cancellation checks. A network failure or
+unsupported response may only leave/hold the existing attempt; this API supplies
+no retry or replacement. All-ready receipt evidence terminates item claims but
+grants no provider execution or cleanup authority. Retained upload delivery,
+exact recovery, receipt-bound cleanup and protected execution remain separate
+checkpoints. Gates remain disabled and ordinary access nil. No wire contract or
+SwiftData entity changes.

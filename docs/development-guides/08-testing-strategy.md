@@ -12504,3 +12504,17 @@ base64 and oversized work; a synthetic maximum envelope proves the base64
 expansion allowance. Legacy readers and discard reject the new handoff, and
 queue attempts remain zero. These tests qualify local staging only; item
 dispatch, upload receipts and cleanup remain separate.
+
+### Durable video upload attempt coverage
+
+`ObservationVideoUploadLifecycleTests` exercises ordered silent/audio
+inventories, one claim at a time, exact receipt replay, every retained receipt,
+disk reopening, whole-cohort completion and held zero-attempt queue state. It
+checks unknown-state non-dispatch, known settlement after cancellation, save
+failure before/after commit,
+account/source/container/job/attempt/erasure/metadata fences, receipt
+object/expiry/ readiness regression, missing target readiness and unsupported
+codec transitions. Existing handoff, reservation lifecycle and metadata parity
+suites remain regression selectors. This qualifies local claims and settlement
+only; upload delivery, cleanup, execution and hosted qualification remain
+separate.

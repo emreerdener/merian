@@ -2184,3 +2184,15 @@ cleanup capability is returned. Legacy photo/audio/preparation/reservation
 readers reject the new kind. Source occupancy and parent erasure remain intact.
 Delivery must verify saved files again before upload. See the
 [canonical handoff contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-reserved-video-upload-handoff).
+
+### Durable video upload attempts
+
+`ObservationVideoUploadLifecycle.swift` wraps the immutable V1 handoff in a
+closed V2 ledger. The existing held child saves one attempt for the first
+not-ready inventory item before delivery. Each observed attempt retains its raw
+whole-cohort receipt, and later receipts preserve object IDs, expiry and prior
+readiness. Running/unknown work grants no new claim. Known same-attempt receipt
+settlement can survive dispatch cancellation but still requires current account,
+source, row/job and erasure scope. No network owner, cleanup, scheduler or
+execution is introduced. See the
+[canonical lifecycle contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-video-upload-attempt-lifecycle).
