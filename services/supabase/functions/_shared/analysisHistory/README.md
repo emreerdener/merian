@@ -1189,3 +1189,15 @@ records the mandatory unused-child evidence, atomic permanent fence and race
 proofs required for controlled occupancy release. The private retirement retains
 exact inventory or no-cohort proof; only reader-12 successor reservation accepts
 its separate final release predicate. Legacy release rules are unchanged.
+
+### Prepared video upload metadata
+
+`videoEvidence.ts` binds a complete V4 candidate to its whole ordered upload
+inventory and closed allocation/status receipts. Fresh allocation requires all
+items unready; later snapshots preserve object identity and expiry and may only
+advance readiness. Shared audio/silent/Unicode vectors and strict bounded UTF-8
+codecs cover cross-scope, alias, order, timestamp and replay failures. This is
+metadata only: no SQL writer, route, native transport or provider invocation is
+installed. The
+[canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-whole-inventory-upload-and-receipt-contract)
+owns the wire shape and remaining authority/byte-verification requirements.

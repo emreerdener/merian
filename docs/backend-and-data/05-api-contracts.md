@@ -17108,3 +17108,52 @@ The shared video identity and reservation-reply byte boundaries also reject raw
 NUL bytes before Foundation JSON parsing. This prevents BOM-free UTF-16/32
 autodetection from accepting alternate encodings at a boundary that requires
 UTF-8; escaped JSON Unicode and the shared Unicode vectors remain supported.
+
+### Prepared video whole-inventory upload and receipt contract
+
+`videoEvidence.ts` defines reader-12/schema-2 metadata codecs before installing
+SQL upload authority or transport. `buildVideoEvidenceUploadRequest` validates
+and snapshots the complete V4 candidate before hashing. The closed request is
+its seven-field video source identity plus `items`, exactly the six/seven
+ordered `preparedVideoCohortItems` descriptors. The bounded decoder compares
+both identity and the entire inventory against that original candidate. Names,
+individual item acknowledgements and current selection cannot establish
+membership. The request is at most 4 KiB of strict UTF-8 JSON; it contains no
+owner, object allocation, readiness or binary media.
+
+A closed receipt carries the same identity, `owner_id`, `state`, `expires_at`
+and the entire ordered `items`. Every item retains its exact role/index/media
+ID/type/count/digest and adds only `object_id` and nullable `ready_at`. Object
+UUIDs must be canonical, pairwise distinct and different from owner,
+observation, source analysis, child analysis and **every** media ID in the
+cohort. Receipt bytes are bounded to 8 KiB. Dates use exact UTC millisecond
+strings `YYYY-MM-DDTHH:mm:ss.SSSZ`, with years 0001–9999; invalid dates and
+alternate spellings are rejected, not normalized. Every non-null readiness
+timestamp must precede the shared expiry. The server must emit this
+representation when SQL authority is installed.
+
+`decodeVideoEvidenceAllocation` represents **fresh allocation** and requires all
+readiness fields null. `decodeVideoEvidenceReceipt` represents later status or
+completion snapshots: `allocated` means at least one item is not ready; `ready`
+requires all items ready. With prior receipt bytes, it requires identical object
+IDs and expiry and preserves every already-completed readiness timestamp. Newly
+completed items may advance from null. The initial allocation remains immutable;
+a status snapshot is a separate observation of mutable readiness. Both current
+and prior JSON are copied before fingerprint hashing can suspend. Shared audio,
+silent and Unicode vectors freeze request/allocation/ready shapes.
+
+These decoders authenticate neither server provenance nor byte correctness.
+Expired snapshots remain decodable for exact recovery inspection; decoding never
+renews an expiry or authorizes upload, admission, cleanup, refund or invocation.
+Ready timestamps are server observations, never client mutation inputs. Future
+SQL must independently enforce ownership/deletion, exact live source occupancy,
+whole-cohort atomic allocation and replay, retirement/erasure fences and
+deadlines. It must retain the existing raw video cohort inventory separately
+from object allocation, since retirement validates that immutable inventory.
+Completion must verify stored bytes before marking readiness; a receipt alone
+cannot attest that frames/audio were derived from the retained source clip.
+
+No SQL routine, endpoint, native consumer, provider profile, storage URL/key or
+new enabled gate is installed by these codecs. Photo/audio contracts and saved
+replay remain unchanged. SQL authority, byte materialization, native parity and
+coordinated protected execution remain subsequent checkpoints.

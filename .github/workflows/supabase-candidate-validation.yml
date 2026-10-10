@@ -187,6 +187,7 @@ jobs:
             supabase/functions/_shared/analysisHistory/videoCohort_test.ts \
             supabase/functions/_shared/analysisHistory/videoSourceReservation_test.ts \
             supabase/functions/_shared/analysisHistory/videoSourceRetirement_test.ts \
+            supabase/functions/_shared/analysisHistory/videoEvidence_test.ts \
             supabase/functions/_tests/observationVideoCohortMigrationContract.test.ts \
             supabase/functions/_tests/observationVideoCohortDb.test.ts \
             supabase/functions/_tests/observationVideoStorageMigrationContract.test.ts \
@@ -405,6 +406,7 @@ jobs:
             supabase/functions/_shared/analysisHistory/videoCohort_test.ts \
             supabase/functions/_shared/analysisHistory/videoSourceReservation_test.ts \
             supabase/functions/_shared/analysisHistory/videoSourceRetirement_test.ts \
+            supabase/functions/_shared/analysisHistory/videoEvidence_test.ts \
             supabase/functions/_tests/observationVideoCohortMigrationContract.test.ts \
             supabase/functions/_tests/observationVideoCohortDb.test.ts \
             supabase/functions/_tests/observationVideoStorageMigrationContract.test.ts \

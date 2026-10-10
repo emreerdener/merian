@@ -300,6 +300,13 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
     ).length - 1,
     2,
   );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoEvidence_test.ts",
+    ).length - 1,
+    2,
+    "Prepared video upload contract must run in both candidate lists",
+  );
   const helperStep = candidateWorkflow.split(
     "- name: Test shared Edge helpers",
   )[1]

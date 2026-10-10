@@ -12301,3 +12301,16 @@ alternate encodings. Run it with the video reservation, fingerprint and
 saved-request suites through `make ios-local-build`; retain exact scoped
 candidate and XCResult identity. This verifies handwritten models, not native
 delivery, server receipt provenance, cleanup or device qualification.
+
+### Prepared video upload metadata verification
+
+`videoEvidence_test.ts` freezes reader-12 whole-inventory request, fresh
+allocation and readiness snapshot shapes using shared audio/silent/Unicode
+vectors. It rejects missing/reordered/cross-candidate artifacts, every identity
+mismatch, object aliasing, unsupported fields/states, malformed timestamps and
+encodings, oversized JSON, renewed expiry, replacement objects and readiness
+regression. Mutation-during-hashing tests prove snapshot ownership. Fresh
+allocation rejects both partially and completely ready snapshots. Both Supabase
+candidate helper selectors include the suite. These codec tests do not establish
+SQL upload permission, byte/source derivation, storage qualification or native
+delivery.
