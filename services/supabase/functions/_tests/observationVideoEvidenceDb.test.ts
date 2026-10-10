@@ -631,3 +631,205 @@ Deno.test({
     }
   },
 });
+
+Deno.test({
+  name:
+    "video execution prerequisite requires exact bound whole ready unexpired evidence",
+  ignore: !url,
+  async fn() {
+    const db = await connect();
+    try {
+      await fixture(db);
+      for (let i = 0; i < 3; i++) {
+        await db.queryArray("BEGIN");
+        try {
+          const [owner, parent, source, child] = Array.from(
+            { length: 4 },
+            () => crypto.randomUUID(),
+          );
+          await seed(db, owner, parent, source);
+          const c = await candidate(parent, source, child, i);
+          const request = await buildVideoEvidenceUploadRequest(c);
+          const check = (who = owner, input = c.input) =>
+            db.queryArray(
+              "SELECT internal.assert_ready_video_analysis_evidence($1,$2,$3,$4::jsonb)",
+              [who, parent, child, JSON.stringify(input)],
+            );
+          await denied(db, () => check());
+          await reserve(db, owner, c);
+          await denied(db, () => check());
+          const allocation = await decodeVideoEvidenceAllocation(
+            bytes(await allocate(db, owner, request)),
+            c,
+            owner,
+          );
+          for (const item of allocation.items) {
+            await denied(db, () => check());
+            await complete(db, owner, request, item);
+          }
+          await check();
+          await denied(db, () => check(crypto.randomUUID()));
+          await denied(
+            db,
+            () => check(owner, { ...c.input, request_digest: "0".repeat(64) }),
+          );
+          for (const role of ["anon", "authenticated", "service_role"]) {
+            await denied(db, async () => {
+              await db.queryArray(`SET LOCAL ROLE ${role}`);
+              await check();
+            });
+          }
+          // This helper grants nothing: closed gates remain closed and no
+          // execution intent or quota reservation is created by an assertion.
+          await db.queryArray(
+            "UPDATE internal.observation_history_rollout SET media_enabled=false,video_evidence_enabled=false",
+          );
+          await check();
+          assertEquals(
+            (await db.queryObject<{ n: number }>(
+              "SELECT ((SELECT count(*) FROM internal.observation_analysis_intents WHERE analysis_id=$1)+(SELECT count(*) FROM internal.ai_quota_reservations WHERE original_analysis_id=$1))::int n",
+              [child],
+            )).rows[0].n,
+            0,
+          );
+          await db.queryArray("SAVEPOINT missing");
+          await db.queryArray(
+            "DELETE FROM internal.observation_evidence_objects WHERE media_id=$1",
+            [allocation.items[0].media_id],
+          );
+          await denied(db, () => check());
+          await db.queryArray("ROLLBACK TO SAVEPOINT missing");
+          await check();
+          // Superuser-only corruption fixtures restore triggers before checking.
+          // The production writers never permit these substitutions.
+          for (
+            const mutation of [
+              "UPDATE internal.observation_video_evidence_upload_cohorts SET items=jsonb_set(items,'{0,sha256}',to_jsonb(repeat('0',64))) WHERE analysis_id=$1",
+              "UPDATE internal.observation_video_evidence_allocations SET items=(SELECT jsonb_agg(value ORDER BY ord DESC) FROM jsonb_array_elements(items) WITH ORDINALITY q(value,ord)) WHERE analysis_id=$1",
+              "UPDATE internal.observation_evidence_objects SET sha256=repeat('0',64) WHERE analysis_id=$1",
+            ]
+          ) {
+            await db.queryArray("SAVEPOINT corrupt");
+            await db.queryArray(
+              "ALTER TABLE internal.observation_video_evidence_upload_cohorts DISABLE TRIGGER USER; ALTER TABLE internal.observation_video_evidence_allocations DISABLE TRIGGER USER; ALTER TABLE internal.observation_evidence_objects DISABLE TRIGGER USER",
+            );
+            await db.queryArray(mutation, [child]);
+            await db.queryArray(
+              "ALTER TABLE internal.observation_video_evidence_upload_cohorts ENABLE TRIGGER USER; ALTER TABLE internal.observation_video_evidence_allocations ENABLE TRIGGER USER; ALTER TABLE internal.observation_evidence_objects ENABLE TRIGGER USER",
+            );
+            await denied(db, () => check());
+            await db.queryArray("ROLLBACK TO SAVEPOINT corrupt");
+          }
+          await db.queryArray("SAVEPOINT erased");
+          await db.queryArray(
+            "INSERT INTO internal.observation_evidence_erasure(object_id) VALUES($1)",
+            [allocation.items[0].object_id],
+          );
+          await denied(db, () => check());
+          await db.queryArray("ROLLBACK TO SAVEPOINT erased");
+          await check();
+          await age(db, child);
+          await denied(db, () => check());
+        } finally {
+          await db.queryArray("ROLLBACK");
+        }
+      }
+      await db.queryArray("BEGIN ISOLATION LEVEL REPEATABLE READ");
+      await denied(
+        db,
+        () =>
+          db.queryArray(
+            "SELECT internal.assert_ready_video_analysis_evidence(NULL,NULL,NULL,NULL)",
+          ),
+      );
+      await db.queryArray("ROLLBACK");
+    } finally {
+      await db.end();
+    }
+  },
+});
+
+for (const deletionFirst of [false, true]) {
+  Deno.test({
+    name:
+      `video ready-evidence guard serializes account erasure deletionFirst=${deletionFirst}`,
+    ignore: !url,
+    async fn() {
+      const first = await connect(), second = await connect();
+      const [owner, parent, source, child] = Array.from(
+        { length: 4 },
+        () => crypto.randomUUID(),
+      );
+      let prior: Record<string, boolean> | undefined;
+      try {
+        await fixture(first);
+        prior = (await first.queryObject<Record<string, boolean>>(
+          `SELECT ${gates.join(",")} FROM internal.observation_history_rollout`,
+        )).rows[0];
+        await seed(first, owner, parent, source);
+        const c = await candidate(parent, source, child);
+        const request = await buildVideoEvidenceUploadRequest(c);
+        await reserve(first, owner, c);
+        const allocation = await decodeVideoEvidenceAllocation(
+          bytes(await allocate(first, owner, request)),
+          c,
+          owner,
+        );
+        for (const item of allocation.items) {
+          await complete(first, owner, request, item);
+        }
+        const check = (db: Client) =>
+          db.queryArray(
+            "SELECT internal.assert_ready_video_analysis_evidence($1,$2,$3,$4::jsonb)",
+            [owner, parent, child, JSON.stringify(c.input)],
+          );
+        const erase = (db: Client) =>
+          db.queryArray("SELECT public.apply_user_tombstone($1)", [owner]);
+        await first.queryArray("BEGIN");
+        await second.queryArray("BEGIN");
+        await (deletionFirst ? erase(first) : check(first));
+        const pid = (await second.queryObject<{ pid: number }>(
+          "SELECT pg_backend_pid() pid",
+        )).rows[0].pid;
+        const pending = (deletionFirst ? check(second) : erase(second)).then(
+          () => ({ ok: true }),
+          () => ({ ok: false }),
+        );
+        let blocked = false;
+        for (let n = 0; n < 100 && !blocked; n++) {
+          blocked = (await first.queryObject<{ blocked: boolean }>(
+            "SELECT cardinality(pg_blocking_pids($1))>0 blocked",
+            [pid],
+          )).rows[0].blocked;
+          if (!blocked) await new Promise((r) => setTimeout(r, 5));
+        }
+        assert(
+          blocked,
+          "guard and account erasure must share the canonical lock",
+        );
+        await first.queryArray("COMMIT");
+        assertEquals((await pending).ok, !deletionFirst);
+        await second.queryArray(deletionFirst ? "ROLLBACK" : "COMMIT");
+        await assertRejects(() => check(first));
+      } finally {
+        await first.queryArray("ROLLBACK").catch(() => {});
+        await second.queryArray("ROLLBACK").catch(() => {});
+        await first.queryArray("SELECT public.apply_user_tombstone($1)", [
+          owner,
+        ]).catch(() => {});
+        await first.queryArray("DELETE FROM auth.users WHERE id=$1", [owner])
+          .catch(() => {});
+        if (prior) {
+          await first.queryArray(
+            `UPDATE internal.observation_history_rollout SET ${
+              gates.map((g, i) => `${g}=$${i + 1}`).join(",")
+            }`,
+            gates.map((g) => prior![g]),
+          );
+        }
+        await first.end();
+        await second.end();
+      }
+    },
+  });
+}

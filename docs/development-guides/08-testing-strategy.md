@@ -12546,3 +12546,16 @@ suite accepts metadata padded to the exact 1,048,832-byte ceiling and rejects
 one extra byte before dependency calls. These checks close local allocated-route
 and metadata-boundary coverage; they do not qualify deployed storage, CDN,
 erasure, resource limits or provider execution.
+
+### Video execution evidence prerequisite verification
+
+`observationVideoEvidenceDb.test.ts` exercises the private ready-evidence guard
+against all three canonical V4 fixtures: absent binding/allocation, every
+partial readiness prefix, complete ready cohort, foreign owner, changed request,
+denied API roles, missing evidence and expiry. It verifies that successful
+assertions create no intent or quota and do not require opening execution gates.
+A stale snapshot isolation level is denied. The catalog fixture
+`observation_video_execution_evidence.sql` checks private privileges, bounded
+security-definer settings and default-closed existing gates. This is evidence
+validation only; protected V4 admission, dispatch, result settlement and their
+concurrency acceptance remain separate work.

@@ -1233,5 +1233,12 @@ without storage mutation. Its inert factory reuses bounded video RPCs and the
 existing private erasure-protected object namespace. It never retries, repairs
 outputs or grants dispatch. The authenticated
 [`upload-observation-video`](../../upload-observation-video/README.md) route
-installs it; no native caller is installed. See the
+installs it; an explicit prepared native caller is available, with ordinary
+access and scheduler admission disabled. See the
 [coordinator contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-exact-video-item-upload-coordinator).
+
+The private SQL `assert_ready_video_analysis_evidence` guard validates the
+original bound V4 request and complete ready, unexpired cohort within canonical
+locks. It is a future execution prerequisite, with no API grant or dispatch
+authority. See the
+[ready-evidence boundary](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-ready-evidence-execution-prerequisite).

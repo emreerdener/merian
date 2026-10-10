@@ -17714,3 +17714,19 @@ one extra byte fails before RPC. This is local composition evidence, not hosted
 runtime/storage/CDN/erasure or device qualification. Execution admission still
 rejects V4 until its separate backend contract is established. Gates and
 ordinary access remain disabled.
+
+### Prepared video ready-evidence execution prerequisite
+
+The private SQL `assert_ready_video_analysis_evidence` guard verifies the exact
+saved V4 input, original source occupancy and complete ready, unexpired
+allocated cohort under canonical locks. It rejects partial or missing evidence,
+changed identity, metadata, object IDs, mixed legacy cohorts and permanent
+erasure. Only read-committed snapshots are supported. The assertion grants no
+durable authority beyond its calling transaction and is unavailable to API
+roles.
+
+Future admission/dispatch must call this guard in the transaction that changes
+execution state, alongside its own gate, namespace, quota and claim checks.
+Calling it separately cannot authorize a provider call. V4 remains rejected by
+executable input parsing; no public payload, provider invocation, completion,
+refund, cleanup permission or expiry bypass is introduced.

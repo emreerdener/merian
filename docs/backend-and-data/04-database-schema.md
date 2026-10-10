@@ -8167,3 +8167,20 @@ exact allocation membership; legacy expiry routines exclude these objects.
 Parent erasure cascades retained allocation state. No provider admission or HTTP
 upload route is installed. See the
 [allocation contract](05-api-contracts.md#prepared-video-evidence-allocation-authority).
+
+### Prepared video execution evidence guard
+
+Migration `20261010135143_prepare_video_execution_evidence_guard.sql` adds
+`internal.assert_ready_video_analysis_evidence(owner, observation, analysis, expected_input)`.
+It is private to database owners: no API role, including service_role, receives
+execution permission. At read-committed isolation it takes the canonical
+owner/parent, original-source, child-ingestion and evidence locks, then locks
+the raw cohort, allocation and ordered object rows. The original V4 fingerprint
+and live occupancy must match; legacy mixed cohorts are rejected. Closed receipt
+validation checks complete inventory, metadata, object identity and permanent
+erasure state. Every item must be ready and the fixed allocation unexpired.
+
+This transaction-local assertion is a prerequisite for future protected V4
+admission and dispatch. It creates no intent, quota reservation or execution
+claim and has no public caller. It offers no expired-evidence settlement bypass.
+Gates, executable input parsing, completion and cleanup authority are unchanged.

@@ -29,3 +29,27 @@ Deno.test("video allocation keeps execution and erasure boundaries closed", asyn
       .test(sql),
   );
 });
+
+Deno.test("video ready-evidence prerequisite stays private without execution authority", async () => {
+  const sql = await Deno.readTextFile(
+    new URL(
+      "../../migrations/20261010135143_prepare_video_execution_evidence_guard.sql",
+      import.meta.url,
+    ),
+  );
+  assert(
+    !/\bGRANT\b|CREATE (?:OR REPLACE )?FUNCTION public\.|ALTER TABLE/.test(sql),
+  );
+  for (
+    const boundary of [
+      "transaction_isolation",
+      "lock_owned_observation_video_source_binding",
+      "observation_video_source_cohort_items",
+      "video_evidence_receipt",
+      "ORDER BY media_id FOR UPDATE",
+      "allocation.expires_at<=clock_timestamp()",
+      "FROM PUBLIC,anon,authenticated,service_role",
+    ]
+  ) assert(sql.includes(boundary), boundary);
+  assert(!sql.includes("INSERT INTO") && !sql.includes("UPDATE internal."));
+});
