@@ -1213,3 +1213,12 @@ permission. This helper proves neither source derivation nor current server
 authority and installs no storage adapter, readiness writer, route or provider
 execution. See the
 [whole video byte contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-whole-video-byte-materialization).
+
+`videoEvidenceRepository.ts` owns prepared service-only reader12 allocation and
+per-item completion calls. Its live factory uses the bounded service-role client
+(5 seconds/8 KiB); each method performs one RPC under caller cancellation. Whole
+receipt validation retains allocation and prior timestamps while accepting
+concurrent monotonic readiness. The caller must authenticate and verify stored
+bytes before completion. No route or storage/execution consumer is installed.
+See the
+[RPC adapter contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-allocation-and-readiness-rpc-adapter).

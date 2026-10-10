@@ -17246,3 +17246,29 @@ a bounded deadline. Container and digest checks do not establish that pixels or
 audio were derived from the claimed source. This prepared helper installs no
 storage adapter, HTTP route, readiness writer, provider invocation or execution
 authority. Source and derived bytes remain separate ordered inventory items.
+
+### Prepared video allocation and readiness RPC adapter
+
+`videoEvidenceRepository.ts` performs one service-only reader-12 RPC per
+explicit reserve or completion call, using a five-second deadline composed with
+caller cancellation. The prepared environment factory uses the existing
+service-role client with a five-second transport timeout and actual 8 KiB
+response-body cap. Injected clients must obey those same transport bounds. No
+route installs it.
+
+Reserve accepts the full immutable candidate and permits allocated, partially
+ready or ready exact replay; it never assumes an all-null fresh allocation.
+Completion validates a saved whole receipt, derives the object UUID from the
+requested media's exact association, and sends no caller timestamp. Its reply
+must preserve every object/deadline and prior completed timestamp and
+acknowledge the target. Other previously-null items may have completed
+concurrently since the saved snapshot; their monotonic progress is valid.
+Caller-owned candidate and receipt bytes cannot change the operation across
+hashing awaits.
+
+Transport errors, malformed/lost replies and cancellation remain unavailable and
+uncertain, with no retry or replacement. A definite operation conflict remains
+explicit. Neither outcome grants upload, provider or cleanup permission. The
+caller must authenticate ownership and verify the exact stored bytes before
+completion; this prepared adapter supplies neither authentication nor byte
+verification and installs no storage writer or execution path.

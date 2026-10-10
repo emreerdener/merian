@@ -12354,3 +12354,12 @@ failure, caller metadata mutation and cancellation before/during reads. Both
 backend candidate selectors include the suite. Native container fixtures provide
 synthetic structural evidence; they do not establish source derivation, hosted
 resource limits or live storage qualification.
+
+### Video allocation and readiness RPC verification
+
+`videoEvidenceRepository_test.ts` verifies reader12 allocation/replay, exact
+media/object completion, concurrent monotonic readiness, frozen candidate and
+prior bytes, malformed association denial before RPC, bounded reply decoding,
+uncertain errors without retry, cancellation and the real five-second timeout.
+Both candidate selectors include this prepared adapter suite. Injected transport
+tests do not establish hosted storage, byte verification or execution authority.
