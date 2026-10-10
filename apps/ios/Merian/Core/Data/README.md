@@ -87,31 +87,35 @@ and fails closed on fetch or save errors. Insight and Explore adapt this owner
 instead of independently coordinating the two stores. See the
 [Core Field Notes README](FieldNotes/README.md).
 
-Accepted account deletion routes through `ScanRepository.purgeAllData`, which
-resets derived state and delegates to `ScanLibraryPurgeService`. That service
-explicitly deletes every model in `CurrentSchema` and then invokes the verified
-`Core/Preferences/AccountScopedPreferences` cleanup. A schema-inventory test
-fails when a newly active model is not added to that erasure boundary. Only
-after both durable steps succeed does the service invoke the injected
-`AccountScopedRuntimeState` reset for observable settings, gamification, app
-badge, and RAM image-cache projections. This synchronous boundary deletes rows;
-it does not replace the SQLite store file or traverse unreferenced files in the
-app container. Any broader disk-erasure policy needs a separate inventory of
-file owners and must not infer ownership from a broad directory alone.
+Accepted account deletion and library-clearing sign-out await
+`ScanRepository.purgeAllData`, which resets derived state and delegates to
+`ScanLibraryPurgeService`. Under the existing Auth transition/recovery barrier,
+the service suspends and drains local reanalysis receipt cleanup, deletes every
+model in `CurrentSchema`, then awaits erasure of the entire private
+`ReanalysisQueue` namespace. The file owner takes the exclusive Documents root
+lock shared by writers, recovery and child cleanup, and removes orphaned files
+without following symlinks or touching other Documents content. A failed file
+erasure retains the account cleanup barrier; preferences, runtime reset and
+recovery-marker retirement do not advance. Retry repeats the idempotent purge.
+Only after database and file erasure succeed does verified
+`Core/Preferences/AccountScopedPreferences` cleanup run, followed by the
+injected `AccountScopedRuntimeState` reset. The schema-inventory test keeps row
+erasure exhaustive; purge tests cover file failure and ordering. This does not
+replace the SQLite store file or authorize broad erasure of other unreferenced
+media.
 
 V50 introduced `OfflineQueuedScanGoalHint`, a scan-keyed companion that stores
 the optional standard-outing and checklist-item IDs selected in a qualifying
 live Capture. Keeping this separate preserved the released V49 queue entity. The
-current V52 schema retains that companion through
-`ActiveOfflineQueuedScanGoalHint` and keeps the collection tombstone
-`ScanCollection.isPendingDeletion` mapped to the released `isDeleted` column
-while the Core Network adapter continues to emit the `is_deleted` wire field.
-V51 separately makes preferred species names account-scoped.
-Foreground/background completion read the same goal hint. Successful queue
-finalization preserves it as a durable progress outbox until acknowledgement;
-explicit cancellation and terminal orphan repair remove it. Persistent Insight
-contribution cards are server-backed and are intentionally not cached in
-SwiftData.
+current schema retains that companion through `ActiveOfflineQueuedScanGoalHint`
+and keeps the collection tombstone `ScanCollection.isPendingDeletion` mapped to
+the released `isDeleted` column while the Core Network adapter continues to emit
+the `is_deleted` wire field. V51 separately makes preferred species names
+account-scoped. Foreground/background completion read the same goal hint.
+Successful queue finalization preserves it as a durable progress outbox until
+acknowledgement; explicit cancellation and terminal orphan repair remove it.
+Persistent Insight contribution cards are server-backed and are intentionally
+not cached in SwiftData.
 
 Authenticated historical reconciliation treats a nonempty `scans.captured_media`
 projection as authoritative only when domain mapping yields a usable image or
@@ -831,9 +835,12 @@ serialized under the shared Offline Queue process-state lease.
 
 `Database/BackgroundDatabaseActor+NonBiologicalRetention.swift` is the focused
 persistence owner for `ScanErasurePayload`, `ExpiredNonBiologicalPurgeResult`,
-the bounded retention purge, and bulk deletion. The actor and method signatures
-remain unchanged. The internal payload member is named `mediaPaths` because the
-value carries image, audio, and video paths.
+the bounded retention purge, and bulk deletion. The live bulk adapter uses
+`bulkDeleteNonBiologicalScansWithQueueCleanup` to receive committed child IDs
+alongside file paths, then cancels their runtime owners after commit. The
+original path-only method remains available for persistence callers. The
+internal payload member is named `mediaPaths` because the value carries image,
+audio, and video paths.
 
 The UI's non-biological erasure snapshots are advisory values, not deletion
 authority. `BackgroundDatabaseActor.bulkDeleteNonBiologicalScans` re-fetches
@@ -925,8 +932,8 @@ persistence.
 - It resolves the store URL from the same automatic SwiftData configuration used
   by the production container, then reads actual metadata before container
   creation. This keeps App Group-backed stores aligned with migration,
-  diagnostics, quarantine, and rescue. Fresh and V52 stores open as current;
-  known V42...V51 sources use finite, source-isolated plans; only unknown older
+  diagnostics, quarantine, and rescue. Fresh and V58 stores open as current;
+  known V42...V57 sources use finite, source-isolated plans; only unknown older
   stores use the full historical plan.
 - The current automatic App Group location is a shipped-store compatibility
   constraint, not an extension data-sharing contract. Extensions never open the
@@ -937,14 +944,13 @@ persistence.
   `MerianRecentV50MigrationPlan` for the original frozen graph or
   `MerianReleasedActiveV50MigrationPlan` for the processed release's
   `isPendingDeletion` graph. Both apply a source-exact custom V50→V51
-  account-partition stage and lightweight V51→V52 tail; unknown V50 signatures
-  are preserved through rescue instead of guessed. A released V49 store selects
-  `MerianRecentV49MigrationPlan` and advances through lightweight V49→V50 plus
-  custom V50→V51 and lightweight V51→V52 hops. V51 stores select only the
-  immediate-predecessor V51→V52 plan. The full historical plan remains linear
-  through V42→V49→V50→V51→V52; V43...V48 use their source-isolated plans. The
-  duplicate-checksum retry ladder is ordered current store, V51, both V50
-  graphs, then V49 down through V42.
+  account-partition stage and the shared lightweight tail through V58; unknown
+  V50 signatures are preserved through rescue instead of guessed. Released V49
+  stores prepend V49→V50. V57 stores use only the immediate V57→V58 stage;
+  V51...V56 retain their source-isolated forward stages. The full historical
+  plan remains linear through V42→V49→V50→V51 and onward to V58; V43...V48 use
+  their source-isolated plans. The duplicate-checksum retry ladder is ordered
+  current store, V57 through V51, both V50 graphs, then V49 down through V42.
 - Only confirmed corruption may quarantine `default.store`, `default.store-shm`,
   and `default.store-wal`.
 - Non-corrupt failures on legacy migration strategies may archive those same

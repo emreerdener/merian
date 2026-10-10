@@ -175,7 +175,12 @@ extension InsightContentView {
     }
 
     func resumePendingCandidateSwipeDismissalRequest() {
-        guard let pending = pendingCandidateSwipeDismissalRequest else { return }
+        let community = pendingCommunityConsent
+        pendingCommunityConsent = nil
+        defer { community?.cancel() }
+        let prepared = pendingCandidateReanalysis
+        pendingCandidateReanalysis = nil
+        guard let pending = pendingCandidateSwipeDismissalRequest else { prepared?.cancel(); return }
         pendingCandidateSwipeDismissalRequest = nil
 
         let request = pending.request
@@ -186,13 +191,17 @@ extension InsightContentView {
         inferenceEngine.scanPresentationGeneration == request.presentationGeneration,
         inferenceEngine.speciesData?.scanId?
             .caseInsensitiveCompare(request.scanId) == .orderedSame else {
+            prepared?.cancel()
             return
         }
+        if case .refineScan = request.action {} else { prepared?.cancel() }
 
         switch request.action {
         case .applyOverride(let scientificName):
             Task { @MainActor in
-                guard viewModel.isPresentingLocalRecord(
+                guard let expectedReview = request.expectedReview, inferenceEngine.speciesData?.aiReview == expectedReview,
+                      ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: request.scanId, container: modelContext.container),
+                      viewModel.isPresentingLocalRecord(
                     scanId: request.scanId,
                     generation: pending.localPresentationGeneration
                 ),
@@ -203,12 +212,16 @@ extension InsightContentView {
                 await inferenceEngine.applyIdentificationOverride(
                     scientificName: scientificName,
                     expectedScanId: request.scanId,
-                    modelContext: modelContext
+                    modelContext: modelContext, expectedReview: expectedReview
                 )
             }
         case .confirmOriginal:
             Task { @MainActor in
-                guard viewModel.isPresentingLocalRecord(
+                guard let expectedReview = request.expectedReview,
+                      inferenceEngine.speciesData?.aiReview == expectedReview,
+                      inferenceEngine.scanPresentationGeneration == request.presentationGeneration,
+                      ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: request.scanId, container: modelContext.container),
+                      viewModel.isPresentingLocalRecord(
                     scanId: request.scanId,
                     generation: pending.localPresentationGeneration
                 ) else {
@@ -216,16 +229,21 @@ extension InsightContentView {
                 }
                 await inferenceEngine.confirmAIIdentification(
                     expectedScanId: request.scanId,
-                    modelContext: modelContext
+                    modelContext: modelContext, expectedReview: expectedReview
                 )
             }
         case .askCommunity:
-            guard viewModel.canRequestCommunityIdentification else { return }
+            if let community { community.resume(); return }
+            guard prepareCommunityConsent == nil, viewModel.canRequestCommunityIdentification,
+                  ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: request.scanId, container: modelContext.container) else { return }
             viewModel.presentCommunityIdentificationRequest(
                 expectedScanId: request.scanId,
                 expectedGeneration: pending.localPresentationGeneration
             )
         case .refineScan:
+            if let prepared { prepared.resume(); return }
+            guard prepareSavedReanalysis == nil,
+                  ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: request.scanId, container: modelContext.container) else { return }
             viewModel.dependencies.selectionFeedback()
             viewModel.dependencies.requestRefinement(
                 request.scanId,

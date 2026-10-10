@@ -1354,3 +1354,118 @@ owners while preserving the battery-bounded camera lifecycle.
 - **Prompt policy**: eager and async authorization entry points use the same
   pure prompt policy. Passive location-name and region resolution never asks for
   permission; it returns `nil` unless Core Location is already authorized.
+
+### Prepared history retained-clip producer
+
+The uninstalled `ObservationRetainedVideoClipProducer` creates a separate
+retained MP4 before future V4 frame/audio derivation. It accepts one local
+regular file under the saved-video byte cap, one video track, at most one audio
+track, 0.1–5 seconds and even coded dimensions from 2 through 2,048 pixels.
+Asset reference restrictions forbid resolving other local or remote media from
+that file. Preferred transforms are restricted to finite orthogonal
+quarter-turn/reflection matrices and bounded translation. Unsupported input is
+rejected without a fallback to the original or the independently exported legacy
+playback file.
+
+The writer uses H.264 Main, 4 Mbps, no frame reordering and a maximum keyframe
+interval of 30; optional audio is mono 44.1 kHz AAC at 64 kbps. It writes an MP4
+with a 600-Hz movie timescale, no copied metadata and network optimization.
+Streaming append is bounded to 600 video and 1,024 audio buffers, one copied
+buffer at a time, with cancellation, byte-cap and progress deadline checks.
+Those settings do not freeze OS-specific container brands or all box layouts.
+Synthetic topology evidence must be extended into an exact producer/server
+compatibility contract before live upload admission.
+
+Each transcode owns a unique directory. Failure/cancellation removes that
+directory after canceling the writer, including any writer scratch files,
+without touching sibling work. The temporary retained-file lease owns that
+directory until explicitly accepted; acceptance transfers directory ownership
+with the file. Output size checks use fresh filesystem attributes rather than
+cached URL resource values. Input ownership remains with the caller. No ordinary
+capture path uses this producer; complete-cohort durability, server byte
+validation and device resource qualification remain required.
+
+### Prepared retained-source frame derivation
+
+The uninstalled `ObservationVideoFrameDeriver` consumes the retained MP4 lease,
+never the legacy recording or playback export. It samples five interior times in
+the fixed 600-Hz timebase and records the decoder-returned actual times
+separately. One private decoder applies the preferred transform and 2,048-pixel
+cap; each frame is square-cropped at the recorded center and encoded once at
+quality 85 after an explicit resize to the requested 768/1,024 square
+dimensions. The actual encoded WebP/JPEG MIME is retained. Five outputs are
+required and total at most 5 MiB.
+
+The result binds each artifact's ID, size and digest to the retained source ID;
+the source hash is rechecked before returning. Generation owns a private output
+directory, a 30-second cancellation watchdog and a joined worker. Drop/error
+cleanup removes only that directory, while the result retains the source lease.
+No partial result transfers into the queue. Whole-cohort persistence remains an
+unfinished part of video integration.
+
+An exclusive source-use token blocks clip transfer during derivation and while
+the frame result is retained. Dropping the result synchronously releases that
+use; an already-transferred clip cannot begin derivation. No source identity
+becomes authoritative for server admission through this temporary token.
+
+### Prepared retained-source companion WAV
+
+`ObservationVideoAudioDeriver` consumes the exact retained clip through an
+exclusive source-use token. It reads mono 44.1 kHz signed packed Int16 PCM,
+checks each buffer's format and contiguous presentation timing, and copies at
+most 220,500 samples into a compact WAV. This path does not use the legacy
+Capture extractor, a second encoder, or a fabricated full-clip audio interval.
+Only an absent track produces nil; malformed or failed audio throws.
+
+The worker bounds buffer count to 1,024 and checks a 30-second processing
+deadline around reads. These checks are cooperative: the SDK forbids concurrent
+reader cancellation during a synchronous sample read. Cancellation joins that
+read and cleanup before the producer reopens its slot; this is not a hard codec
+timeout. The final sample count comes from the closed WAV inspector; the source
+digest is rechecked before handing back a temporary directory-owning result.
+Source transfer remains blocked until that result is dropped. Whole-cohort
+durable staging, live integration and device resource qualification remain
+outstanding; ordinary capture and the alternatives card are unchanged.
+
+Timing belongs to the retained clip, not the original capture composition. The
+reader can materialize a leading audio gap as PCM silence, including for an
+untranscoded composition. Extraction preserves those decoded samples and records
+their actual start, including zero; it does not claim the original pre-transcode
+offset survived.
+
+### Temporary complete video cohort
+
+`ObservationVideoCohortPreparer` creates one temporary root for the retained
+clip and all derivatives. It borrows source use once across sequential frame and
+WAV work, then validates the complete manifest, saved request and file
+sizes/digests. Source identity is fixed before injected phase revalidation. The
+resulting owner keeps all leases together; dropping or canceling the cohort
+removes the root and preserves the original caller-owned capture. There is no
+partial transfer. The existing cooperative codec cancellation limits still
+apply, and the worker is joined before its slot reopens.
+
+This preparer is uninstalled. The held storage owner below supplies durable
+staging, account/deletion fences and exact saved-media recovery. Server
+validation and device resource qualification remain required. Ordinary capture
+and alternatives layout are unchanged.
+
+### Prepared held video storage
+
+The protected video cohort permits one successful complete copy into the private
+reanalysis FileStore, coordinated by ObservationVideoPreparationProducer and
+Store. Exact source/frame/WAV bytes and the original request survive disk
+reopen; incomplete recovery fails without resampling. Failed copies retain the
+exact temporary cohort for explicit retry while its owner lives. Metadata owns
+the child before copying, and current source/account/deletion checks surround
+locked promotion. A thrown promotion save retains owned verified bytes for exact
+recovery. This prepared boundary is not installed into ordinary Capture or queue
+dispatch. The earlier temporary producers feed this owner; remaining integration
+work is server source/profile/byte admission, V5 readers, execution and
+device/hosted qualification. Alternatives-card design and layout are unchanged.
+
+Held video preparation now has an explicit local discard boundary: exact
+pending/ready work is removed atomically with a durable cleanup receipt,
+followed by one awaited whole-child cleanup attempt. Incomplete files do not
+prevent this local exit. Unknown or attempted execution cannot use it. This
+remains an uninstalled capability; no ordinary Capture control or provider route
+is enabled.

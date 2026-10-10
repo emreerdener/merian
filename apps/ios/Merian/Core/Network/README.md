@@ -278,15 +278,18 @@ either check fails or the certificate chain cannot be read. Unrelated hosts and
 non-server-trust challenges keep the platform's default handling.
 `AuthenticatedTransportDispatcher` owns per-attempt Auth leases and headers,
 transition validation, the constrained-network header, and its file-local upload
-delegate. `MerianNetworkClient.swift` retains configuration diagnostics and
-injects both stateful transport owners behind narrow bridges. Endpoint
-extensions use those bridges to construct the endpoint, serialize the payload,
-and invoke the existing authenticated POST. Typed calls decode with the existing
-snake-case decoder; body-ignoring calls preserve HTTP-only success without
-decoding. The typed bridge can forward an existing idempotency key and replace
-decoding failures with a caller-specified `MerianError`; both options default to
-nil. Error replacement surrounds only decoding, never request construction,
-transport, auth, or cancellation.
+delegate. The file-private `NetworkTransportAssembly` in
+`MerianNetworkClient.swift` constructs and retains both stateful transport
+owners behind narrow bridges. Its raw request methods cannot be used outside
+that file. Typed audio factories share that dispatcher without widening
+history/review transport responsibilities. Endpoint extensions use those bridges
+to construct the endpoint, serialize the payload, and invoke the existing
+authenticated POST. Typed calls decode with the existing snake-case decoder;
+body-ignoring calls preserve HTTP-only success without decoding. The typed
+bridge can forward an existing idempotency key and replace decoding failures
+with a caller-specified `MerianError`; both options default to nil. Error
+replacement surrounds only decoding, never request construction, transport,
+auth, or cancellation.
 
 `ScanAdmissionManager` and identification recipient preflight use distinct,
 fixed non-Edge PostgREST routes through the facade. The allowance bridge accepts
@@ -1054,8 +1057,10 @@ HTTP status. `performAccountDeletionJSONPost` resolves configuration before
 building the body and forwards the exact optional transition owner to private
 authenticated transport. Legacy proof validation remains inside that builder; v2
 preparation/commit validate before calling it, preserving failure precedence.
-`performAccountDeletionRecoveryJSONPost` delegates to the unchanged private
-capability-only transport: publishable `apikey`, no user Bearer token, 20-second
+`performAccountDeletionRecoveryJSONPost` delegates to
+`Transport/AccountDeletionRecoveryTransport.swift`. This fixed-route owner
+validates configuration before URL/body construction and preserves the existing
+capability-only policy: publishable `apikey`, no user Bearer token, 20-second
 timeout, and at most one two-second retry for the existing transient URL errors
 or 5xx responses. Its 64 KiB response check occurs after URLSession has read the
 data, before status handling; it is not a streaming memory bound. No new Auth
@@ -1095,18 +1100,20 @@ owners, rejects an endpoint entry point duplicated in the remaining aggregate,
 and applies the 600-line review ceiling to every Swift owner under `Auth/`,
 `Endpoints/`, `Inference/`, `Media/`, `Recovery/`, and `Transport/`, plus the
 client façade. The Auth inventory is exactly sixty-four production files; its
-source guard also caps Auth at 7,886 production lines, Purchase Identity at
-2,016, `SupabaseManager.swift` at 3,792, and the combined surface at 13,694. The
+source guard also caps Auth at 7,887 production lines, Purchase Identity at
+2,016, `SupabaseManager.swift` at 3,792, and the combined surface at 13,695. The
 September 2026 startup fix adds exactly 22 Auth lines and 14 façade lines for
 keyed foreground/listener coalescing and replacement fencing; the other limits
 and ownership checks remain unchanged. The October deletion-account resume hook
 adds 7 Auth lines and 7 facade lines, including its extra session fence. The
 subsequent library-transition preparation adds 123 Auth lines and 310 facade
 lines for durable sign-out recovery, ownership/admission fences and transfer
-status. The facade remains the existing reviewed residual owner because these
-live bindings share private transition state; no mutable internals were widened
-solely to satisfy the earlier feature budget. Other extracted owners retain the
-600-line ceiling. See the
+status. The asynchronous account purge adds one Auth line for the post-await
+session-absence fence, without increasing the individual owner ceilings. The
+facade remains the existing reviewed residual owner because these live bindings
+share private transition state; no mutable internals were widened solely to
+satisfy the earlier feature budget. Other extracted owners retain the 600-line
+ceiling. See the
 [startup investigation](../../../../../docs/incidents/2026-09-startup-log-triage.md).
 The guard freezes the effect-free observable runtime owner for transition,
 generation, analytics-token, exact-session lease/drain, and local sign-out
@@ -1153,8 +1160,9 @@ The audit also makes the remaining live-dependency exceptions explicit:
   `URLSession`, owns certificate pins/TLS validation and bounded no-cache
   dispatch, and exposes the DEBUG replacement seam;
 - only `MerianNetworkClient.swift` applies endpoint-configuration diagnostics,
-  stores and injects the two transport owners, invokes the private logical
-  request core, and exposes the exact-route scan-admission PostgREST bridge;
+  contains the private assembly that stores and injects the two transport
+  owners, invokes the private logical request core, and exposes the exact-route
+  scan-admission PostgREST bridge;
 - only `Transport/EdgeFunctionRoutePolicy.swift` constructs validated Edge
   endpoint URLs and classifies unavailable-route evidence;
 - only `Transport/AuthenticatedRequestRetryPolicy.swift` owns the safe-read and
@@ -1230,38 +1238,38 @@ callback idempotently finishes its superseded token. A centralized aggregate
 purchase-handoff publication resumes retained revocation work when the fence
 becomes false. Clear diagnostics are emitted only after local cleanup completes.
 
-The suite freezes exactly six production Transport owners—three stateless
-policies, the request-scoped executor, the pinned session, and the authenticated
-dispatcher—the exact disjoint function-name sets used for safe-read and
-server-idempotency-aware ambiguous replay, and the requirement that every
-classified route have exactly one endpoint owner. It also prevents the executor
-from constructing a URLSession, another network client, a singleton instance, or
-detached task. Individual endpoint transport suites remain responsible for
-request identity at the feature bridge. This audit changes no request, response,
-retry, Auth, persistence, or backend contract.
+The suite freezes the production Transport owner inventory, including the scoped
+`ObservationAudioAnalysisTransport`, `ObservationSourceReservationTransport` and
+`ObservationVideoEvidenceTransport`, and the exact disjoint function-name sets
+used for safe-read and server-idempotency-aware ambiguous replay, and the
+requirement that every classified route have exactly one endpoint owner. It also
+prevents the executor from constructing a URLSession, another network client, a
+singleton instance, or detached task. Individual endpoint transport suites
+remain responsible for request identity at the feature bridge. This audit
+changes no request, response, retry, Auth, persistence, or backend contract.
 
-`MerianTests/Core/Network/Transport/` mirrors all six production owners. The
-eleven policy tests rehome route classification, ambiguous replay, retry-account
-binding, guest regeneration, and transition-owner refresh selection from the
-aggregate Network and Inference suites. Eleven executor tests directly cover
-exact body/account binding across replay, ordinary, transition-owned,
-durable-owner-deferred, and missing-guest Auth recovery, payment and consent
-effects, cancellation before dispatch and after a suspended unauthorized
-refresh, the bounded 1/2/4-second route schedule, failed-attempt upload release
-plus the successful-attempt response fallback. The body-release case
-intentionally receives two callbacks across one logical failure/retry chain: the
-failed attempt releases immediately, and the successful attempt invokes its
-response fallback. Callers therefore keep the callback idempotent across
-attempts; each upload delegate separately suppresses duplicate progress/fallback
-notification within its own attempt. Stateful endpoint transport tests continue
-to prove feature-bridge request identity without changing bodies, owners,
-attempt counts, or cancellation. Seven pinned-transport tests cover the
-production configuration, valid SHA-256 pins, exact Supabase hostname admission,
-concurrent single-session initialization, full-chain intermediate fallback,
-missing/empty/unmatched or platform-untrusted chain rejection, and
-injected-session dispatch. One dispatcher test covers value-only account
-resolution and exact authenticated JSON request construction without live Auth
-or network access. The architecture guard requires the Release
+`MerianTests/Core/Network/Transport/` mirrors the production transport owners.
+The eleven policy tests rehome route classification, ambiguous replay,
+retry-account binding, guest regeneration, and transition-owner refresh
+selection from the aggregate Network and Inference suites. Eleven executor tests
+directly cover exact body/account binding across replay, ordinary,
+transition-owned, durable-owner-deferred, and missing-guest Auth recovery,
+payment and consent effects, cancellation before dispatch and after a suspended
+unauthorized refresh, the bounded 1/2/4-second route schedule, failed-attempt
+upload release plus the successful-attempt response fallback. The body-release
+case intentionally receives two callbacks across one logical failure/retry
+chain: the failed attempt releases immediately, and the successful attempt
+invokes its response fallback. Callers therefore keep the callback idempotent
+across attempts; each upload delegate separately suppresses duplicate
+progress/fallback notification within its own attempt. Stateful endpoint
+transport tests continue to prove feature-bridge request identity without
+changing bodies, owners, attempt counts, or cancellation. Seven pinned-transport
+tests cover the production configuration, valid SHA-256 pins, exact Supabase
+hostname admission, concurrent single-session initialization, full-chain
+intermediate fallback, missing/empty/unmatched or platform-untrusted chain
+rejection, and injected-session dispatch. One dispatcher test covers value-only
+account resolution and exact authenticated JSON request construction without
+live Auth or network access. The architecture guard requires the Release
 `SecTrustEvaluateWithError` gate and both fail-closed cancellation paths. The
 unauthorized-refresh cancellation regression runs the production request in a
 child task, so cancelling that request does not cancel the owning Swift Testing
@@ -2354,7 +2362,7 @@ and task-owned versus independent transport cancellation.
 `AccountDeletionResponseDecoderTests` use a fixed clock for syntax, expiry,
 phase/status/version, operation-specific recovery status, acknowledgement-state,
 and terminal replay checks. `AccountDeletionBoundaryTests` guards ownership,
-validation/bridge ordering, private public-recovery policy, private request
+validation/bridge ordering, fixed-route public-recovery policy, private request
 DTOs, the eight endpoint rehomes, and exact-session fencing across immediate and
 recovered deletion. The existing shared-auth tests and protected critical
 selector remain in `MerianNetworkClientTests`; no CI selector or protected-case
@@ -3837,12 +3845,448 @@ anonymous dictionary route has no native endpoint owner.
 ## Prepared observation publication transport
 
 `Endpoints/MerianNetworkClient+ObservationPublication.swift` owns exact
-immutable admission and operation-status reads using
-`performAuthenticatedJSONDataPost`. Both require the initiating owner and
-disable classified-401 session recovery, leaving durable retry to the future
-queue owner. They never generate a successor operation or call legacy sharing.
-Strict bounded models under `Models/ObservationPublication` preserve ordered
-consent, explicit nulls, Unicode-scalar note limits and all three
+immutable admission, operation-status and descriptive consent-preflight reads
+using `performAuthenticatedJSONDataPost`. All require the initiating owner and
+disable classified-401 session recovery. Durable operations now have a separate
+queue delivery owner and a prepared explicit consent service; ordinary UI
+remains unconnected. They never generate a successor operation or call legacy
+sharing. Strict bounded models under `Models/ObservationPublication` preserve
+ordered consent, explicit nulls, Unicode-scalar note limits and all three
 operation/observation/analysis IDs. Private extra fields and malformed receipts
 fail closed. Historical admission never implies current visibility or a post ID.
-The outbox and UI are not yet connected; no production activation changes.
+The consent snapshot uses a separate 32 KiB decoder for up to 64 ordered photo
+candidates; existing admission/status 4 KiB bounds stay unchanged. Fixed-null
+initial taxon and exact identity/revisions are enforced, and no ready-media or
+publication authority is inferred. Ordinary UI and activation remain separate.
+
+### Private reanalysis binary upload
+
+`Endpoints/MerianNetworkClient+ObservationEvidence.swift` prepares the bounded
+raw-byte frame off the main actor and validates the exact content-bound receipt.
+Its wire values live in
+[`Models/ObservationAnalysis`](Models/ObservationAnalysis/README.md). The fixed
+facade bridge supplies the expected account, binary content type and 130-second
+timeout, disables transient retry and classified-401 refresh, and keeps the
+existing authenticated dispatcher/lease checks. The executor's typed content
+type defaults to JSON for every existing caller; its live composition now owns
+the same injected dispatcher callbacks. Raw transport remains private, and
+neither endpoint nor wire values mint IDs or own durable work.
+
+This is native transport preparation. Ordinary live/queued capture still needs
+explicit append-only integration, enrollment and persistence before it can use
+this route. All history activation gates remain false.
+
+### Exact reanalysis admission and recovery transport
+
+The same endpoint owner exposes `analyzeObservation` through a closed two-route
+observation bridge. It forwards the saved request bytes unchanged with the
+initiating account, JSON content type and a 130-second timeout. Automatic
+transport replay and classified-401 refresh remain disabled. The caller supplies
+current dispatch authorization for the exact saved processor; a mismatched or
+`recoveryOnly` authorization is rejected before I/O. Permission is checked again
+by the shared authenticated dispatcher immediately before sending.
+
+An existing admitted analysis may still dispatch its first provider execution.
+Consequently, a recovery-only preflight response is not permission to replay an
+analysis request without current consent. Exact completed-state reads remain a
+separate path. The four-field response supplies execution state only; the
+durable owner must verify the immutable child result before append-only
+completion. This transport does not preclaim credits, create IDs, select a
+result, or schedule work.
+
+## Prepared reanalysis recipient preflight
+
+`ObservationReanalysisPreflightRequest` owns the distinct protocol 3/6/8 request
+and bounded eight-field response for owner/source/child recipient discovery.
+`MerianNetworkClient+IdentificationPreflight` shares account, cancellation and
+local-consent validation across the original and reanalysis request formats.
+`AdmissionRPCRequestPolicy` permits the two named recipient routes and the exact
+owner state reader through `performOwnedIdentificationRead`; this private pinned
+bridge cannot send allowance or arbitrary RPCs. Reanalysis never invents a
+provider, operation ID or selection. Recovery-only requires null recipient and
+protocol minima and cannot build a new analysis request. Transport does not
+automatically retry or refresh a 401 while the outer durable owner holds an
+account lease. Normal UI/execution stays disabled.
+
+A bound retry instead calls
+`prepareBoundObservationReanalysisAuthorization(processor:expectedAuthUserID:validateAttempt:)`
+with its persisted processor. It synchronizes current required cloud consent,
+checks the expected account before and after suspension, and reuses the same
+required-consent/OpenAI permission and claim validation at dispatch. It never
+runs recipient discovery again or converts recovery-only into permission to
+execute. Lost-response recovery therefore retains the original request's
+processor; withdrawn consent holds that request for explicit remediation. The
+helper uses the existing consent coordinator and does not enter the generic
+401-refresh transport. The durable executor must still own and drain its account
+lease; this helper does not enable execution scheduling.
+
+### Exact completed-child recovery
+
+`MerianNetworkClient+ReanalysisRecovery` requests only the saved child through
+`get_owned_observation_analysis_state` with reader 10. The fixed pinned
+transport binds the expected account and disables transient replay and
+response-driven 401 recovery. Claim/account checks surround the read, including
+failures. Stored-result recovery requires no inference consent and must run
+before opening private files, uploading or authorizing a provider call. A
+completed child can therefore recover after temporary evidence expiry or consent
+withdrawal.
+
+The endpoint admits the bounded owner state envelope, then verifies the exact
+source, request digest and complete ordered manifest with
+`ObservationReanalysisResult`. It returns the original snapshot bytes without
+changing local selection, revision, review or history. Only a bounded PostgREST
+error with `code = P0002` and `message = analysis_history_not_found` returns
+absence; HTTP status alone, another database error, malformed diagnostics or
+unknown fields cannot authorize continuation. Absence can also conceal a
+server-deleted observation, so the execution owner must retain local deletion
+fences and use the same server-fenced immutable request. This read does not
+itself grant upload or inference authority. The dedicated executor consumes this
+read under its retained queue owner; ordinary UI admission and all activation
+gates remain disabled.
+
+Private evidence upload requires the durable caller's attempt validator before
+and after frame preparation, immediately before wire dispatch after Auth work,
+and after a successful response before returning a receipt. The closed
+`ObservationOperation` constructs its fixed request with this independent
+validator; binary upload carries neither identification-recipient nor
+identification-protocol headers. Expected-owner leases, the 130-second transport
+bound, and disabled automatic ambiguous/401 replay remain unchanged. The
+prepared `ObservationReanalysisExecutor` composes these transports with exact
+target recovery and atomic local completion; dedicated scheduling accepts only
+explicitly admitted bound work.
+
+`prepareObservationReanalysisAdmissionAuthorization` synchronizes current cloud
+consent before the advisory owner/source/child recipient read. The local
+admission owner validates its account lease and exact saved draft again before
+atomically binding and admitting execution. Saved bound requests bypass
+recipient discovery; recovery-only never supplies a provider for an unbound
+draft. This helper does not upload evidence, charge funding or dispatch
+inference.
+
+## Prepared analysis-bound review transport
+
+`Endpoints/MerianNetworkClient+ObservationAnalysisReview.swift` accepts the
+closed request in `Models/ObservationReview`. Reject/Undo use the fixed
+protocol-10 owner RPC; confirmation uses `confirm-observation-analysis`. The
+typed review overload in `ObservationHistoryMutationTransport` owns both exact
+routes, preserves the initiating account, and disables transient retry,
+gateway-route retry and classified-401 recovery. A required caller validator
+reaches the existing dispatcher after asynchronous Auth preparation and before
+sending bytes; it rechecks exact claim, expiry, owner and deletion. It exposes
+neither arbitrary URLs nor the dispatcher. The facade stores only the injected
+component; read-only admission routes stay unchanged.
+
+Exact keys, lowercase UUIDs, integral non-Boolean revisions, required nulls, 2
+KiB requests and 4 KiB receipts match the executable backend parsers. Named
+confirmation uses UTF-16 length and ECMAScript trim without Unicode
+normalization. Applied receipts must advance both revisions exactly once;
+negative/conflict receipts cannot carry authority fields. A historical receipt
+never changes selection or supplies current display/credit authority. The
+separate AnalysisHistory persistence owner now saves exact decisions, claims and
+restart-safe receipts. Its prepared reconciler uses one injected account lease
+for exact target and selected-state reads, then commits both states and receipt
+completion atomically. The prepared one-operation delivery service retains the
+owner lease and claims each phase separately. Automatic scheduling and UI remain
+separate work; no ordinary caller or activation is enabled. The canonical
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-native-analysis-bound-review-wire)
+owns these bounds and remaining integration requirements.
+
+## Protected Field Chat receipt
+
+`FieldChatResponseDecoder.decodeProtectedCompletion` validates the separate
+version-one immutable-send receipt within 32 KiB. It checks exact envelope keys,
+original observation/request and deterministic conversation-bound assistant
+UUID, without converting the receipt into a full chat thread or adopting
+selection. The existing legacy conversation decoder is unchanged. Native durable
+send-ticket staging and retained delivery are prepared separately below; the
+dedicated send UI remains behind the disabled History installation gate.
+Ordinary access stays behind the disabled History gate.
+
+`Models/FieldChat/ProtectedInsightChatRequest.swift` owns the closed enrolled
+native send request. It preserves exact IDs and selected analysis/revisions,
+rejects unnormalized or oversized UTF-16 text, and emits sorted-key JSON without
+Unicode normalization. A legacy null-ticket request is deliberately outside this
+native subset. The existing retryable 45-second Field Chat endpoint is not its
+transport. Dedicated bounded delivery now uses the scoped transport below; the
+dedicated UI is connected through inert composition and qualification remains
+required before activation.
+
+## Scoped protected chat transport
+
+`ObservationHistoryMutationTransport` exposes only typed review and protected
+chat operations through the existing private authenticated dispatcher. Its chat
+path sends the exact saved request once, without generic transient, 401 or route
+recovery, and returns only a validated immutable receipt. A required claim fence
+runs after Auth before dispatch; a separate post-response fence checks the
+unchanged attempt and account scope without treating expiry as a reason to lose
+an exact late receipt.
+
+`PinnedNetworkTransport` owns a per-operation pinned session for the 145-second
+chat wire window. The ordinary resource ceiling remains 90 seconds. The scoped
+session has no cache or cookie store, rejects redirects and collects at most 32
+KiB through the task delegate, including responses without Content-Length.
+Cancellation, overflow and deadline cancel the task; the scope always
+invalidates its session. DEBUG uses the injected protocol/header configuration
+without invalidating the injected session. The Auth lease covers request and
+response. After Auth, dispatch requires 145 seconds plus 15 seconds for local
+receipt persistence and a two-second margin within the original claim expiry. It
+never extends a claim. OfflineSync owns explicit retained delivery and both Auth
+teardown waits; the dedicated Insights shell UI consumes those prepared owners.
+All gates stay false.
+
+The collector forwards task-level TLS challenges to the same private pin
+validator as session-level challenges. Successful responses require JSON before
+body acceptance; the scoped session has no credential store. A second budget
+check immediately before starting the task uses the original claim expiry.
+`ProtectedInsightChatReply` retains both the validated completion and the exact
+bounded response bytes for `acknowledge`; no Codable reconstruction can omit
+required null fields before durable storage.
+
+### Exact reanalysis execution status
+
+`ObservationReanalysisStatusTransport` in the reanalysis recovery endpoint owns
+only `get_owned_observation_analysis_execution`. The client's narrow factory
+injects its existing authenticated dispatcher; no private transport visibility
+or generic RPC capability is widened. It sends reader 10 and the saved parent,
+child, source and digest with a five-second timeout. The dispatcher validates
+the durable attempt after Auth and before bytes leave; the read validates again
+after suspension. Automatic transient, 401 and route retries are disabled.
+`ObservationAnalysisExecutionStatus` requires the exact seven-field response,
+matching owner and immutable identity, and at most 4 KiB. It never interprets
+invalid or empty responses as absence. Status alone cannot dispatch, retire,
+release occupancy, append a result or change selection. The adapter remains
+inert until the dedicated recovery action owner supplies its account lease and
+claim checks; it does not replace completed-result recovery.
+
+### Exact admitted-analysis retirement transport
+
+`ObservationAnalysisRetirementRequest` retains one canonical retirement UUID and
+original execution identity; `ObservationAnalysisRetirementReceipt` accepts only
+the exact bounded terminal proof. `ObservationAnalysisRetirementTransport` is a
+fixed five-second Edge mutation with no transient, auth-refresh or route retry.
+It uses a dedicated authenticated-dispatch entry point, validates the attempt
+after Auth and checks a separate account/container/claim settlement predicate
+after decoding a known answer. Dispatch cancellation alone does not erase that
+answer. Durable request admission, claims and UI are not installed by this wire
+component.
+
+`PinnedBoundedJSONDataTask` collects at most 4 KiB for retirement and preserves
+TLS/redirect, cancellation and deadline rules. The existing protected-chat
+wrapper uses the same collector at its unchanged 32-KiB limit with its original
+claim-budget check and scoped session. Ordinary session limits remain unchanged.
+No arbitrary mutation capability or activation gate is exposed.
+
+### Separate protected audio wire boundary
+
+`ObservationAudioEvidenceUpload` and `ObservationAudioReanalysisRequest` are
+separate from saved photo contracts. The fixed
+`MerianNetworkClient+ObservationAudioEvidence` endpoint validates exact WAV
+bytes off the main actor, retains expected-owner and caller claim fences, and
+disables automatic transport/401/route retry. The bounded receipt must match the
+original audio descriptor and digest. Input-3 requests retain exact saved bytes
+and pin the audio processor; they do not grant execution. See the
+[wire owner](Models/ObservationAnalysis/README.md#separate-immutable-audio-wire)
+and
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#private-reanalysis-audio-upload).
+Durable audio production/delivery remains unconnected; gates stay false.
+
+`ObservationAudioAnalysisTransport` is a separate fixed `analyze-observation`
+owner accepting only a saved audio dispatch permit and current Gemini
+permission. Its caller supplies the durable permit validator; the dispatcher
+runs it and consent validation after Auth and retains the account lease through
+I/O. The request and scoped pinned session both use 130 seconds, covering the
+server's 120-second work claim plus response margin, without changing the
+ordinary 90-second session. The streamed receipt is capped at 4 KiB. There is no
+transient, unauthorized, route or idempotency retry. HTTP 200 accepts only
+complete/terminal-failure receipts; HTTP 202 accepts admitted/dispatched/draft.
+A receipt never substitutes for the immutable result: completion still requires
+an exact owner-reader V4 snapshot. Response validation is separate from dispatch
+cancellation so a known same-scope answer can be retained. No production audio
+executor or facade factory is connected yet.
+
+### Prepared audio outcome recovery
+
+`ObservationAudioOutcomeTransport` reads only the exact consumed audio child via
+reader 10 `get_owned_observation_analysis_state`. The direct dispatcher checks
+owner and the injected durable claim after Auth; no inference consent or retry
+executor participates. A five-second streamed read is capped at 4 MiB. Only HTTP
+404 with the bounded PostgREST `P0002` / `analysis_history_not_found` envelope
+returns absence; malformed authority, other errors and generic 404 remain
+failures. Neither absence nor a complete execution-status receipt grants
+provider dispatch.
+
+The reader validates the full owner/target state envelope and exact V4 source,
+request digest and ordered evidence, returning original snapshot bytes without
+selection or review projection. Its response scope check does not discard a
+known answer because the task was cancelled. `ObservationAudioExecutionStore`
+completion remains the final atomic source/claim/account fence; its generic
+`validate` method is cancellation-bearing and must not be used as that known
+answer's sole settlement check. This transport remains inert: production
+factory, retained executor, restart adoption and UI wiring are separate
+checkpoints.
+
+### Shared closed audio transport assembly
+
+`NetworkTransportAssemblyTests` exercises factories created before DEBUG session
+and account overrides, replacement of that session, shared ordinary Auth
+identity, account mismatch rejection and one-attempt 401 handling. The
+`ObservationAudioAnalysisTransport` and `ObservationAudioOutcomeTransport`
+retain private dispatcher/configuration fields; returned values expose only
+their fixed operations. Analysis keeps its existing 130-second request budget;
+exact outcome lookup keeps five seconds. Neither gains automatic Auth or
+transient replay. No live audio executor caller, scheduler or UI is installed by
+this assembly change.
+
+The file-private assembly alone forwards generic requests.
+`AccountDeletionRecoveryTransport` is intentionally module-visible but accepts
+only a body for its fixed public recovery route, checks configuration before
+body evaluation and never acquires user Auth. It shares the client's pinned
+session and DEBUG override. Its established recovery transport tests remain the
+behavioral authority for retry, response-bound and cancellation behavior.
+
+### Prepared source reservation boundary
+
+`ObservationSourceReservationRequest` embeds the exact saved photo V2 or audio
+V3 input bytes, original digest and canonical source fingerprint. Restoration
+requires the original input and exact candidate body; no current selection can
+reconstruct or replace them. `ObservationSourceReservationReply` retains the
+validated owner, full candidate, raw bytes and closed reserved/held/unavailable
+state. None is upload, funding, successor or provider authority.
+
+`ObservationSourceReservationTransport` uses one fixed authenticated
+`reserve-observation-analysis-source` POST, a five-second deadline and an actual
+2 KiB streamed response cap. The private assembly exposes only this closed
+transport; ordinary 90-second limits are unchanged. It bypasses logical retry,
+Auth refresh, route fallback and idempotency replay. The caller validates the
+attempt after Auth and the exact settlement scope after decoding. A known answer
+can survive dispatch cancellation while owner/container/claim settlement remains
+valid. Exact public conflict409 becomes a scoped typed conflict; other HTTP
+errors, malformed replies, timeout or cancellation never become receipts.
+
+Photo V2/audio V3 now have durable candidate staging/CAS and an explicitly
+injected, queue-retained `ObservationSourceReservationService` /
+`ObservationSourceReservationOwner` delivery path. Exact typed conflicts settle
+under the same owner/request/claim fences even after dispatch cancellation. No
+composition caller is installed. Ordinary UI, scheduler, upload and execution
+remain disconnected; installed composition and unfunded retirement are separate
+checkpoints. Tests are `ObservationSourceReservationTests`,
+`ObservationSourceTransportTests`, `ObservationSourceStoreTests`,
+`ObservationSourceReservationOwnerTests` and
+`ObservationSourceReservationServiceTests`. See
+[the source reservation contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-reservation-and-unfunded-retirement-wire).
+
+### Prepared private video request
+
+`ObservationVideoReanalysisRequest` is a separate schema-4 codec for the private
+video manifest. It validates all scope/artifact aliases and its canonical
+digest, and preserves the exact saved request body. It grants no transport,
+queue, upload or admission capability and has no installed caller. Photo/audio
+request codecs and source reservation remain unchanged. See the API contract's
+“Prepared video reanalysis request V4” section for the later coordinated runtime
+requirements.
+
+### Held video source fingerprint
+
+`ObservationVideoSourceFingerprint` validates private V4 metadata and encodes
+the separate video netstring identity, checked against shared TypeScript golden
+vectors. Numeric spelling is semantic, while description text remains exact. It
+does not recompute the original request digest or grant saved-request, owner,
+reservation, upload or execution authority. Private SQL parity helpers share its
+vectors; durable video coverage and lifecycle contracts are still required
+before any caller is installed. Existing photo/audio source codecs remain
+unchanged. See
+[the held fingerprint contract](../../../../../docs/backend-and-data/05-api-contracts.md#held-video-source-fingerprint-v1).
+
+### Held video cohort inventory
+
+`ObservationVideoCohortInventory` projects full validated V4 metadata into the
+shared source/five-frame/optional-audio list. Its bounded whole-list matcher
+rejects partial or changed coverage. No endpoint, queue or persistence consumer
+is installed and the list is not a receipt, ownership or readiness proof. See
+[the inventory contract](../../../../../docs/backend-and-data/05-api-contracts.md#held-video-cohort-inventory).
+
+### Prepared video source reservation
+
+`Models/ObservationAnalysis/ObservationVideoSourceReservation.swift` owns the
+separate reader-12/schema-2 native identity, exact saved-input envelope and
+full-identity reply decoder. Recovery uses that same identity and reply shape. A
+typed reservation transport consumes these values through the explicit injected
+video reservation service and retained queue owner. No scheduler, ordinary UI,
+recovery or execution caller is installed. Explicit upload progression is
+described below. They confer no upload, execution or release authority. See the
+prepared video source contract in `docs/backend-and-data/05-api-contracts.md`
+and shared-fixture coverage in the canonical testing strategy. Existing
+photo/audio reservation owners remain unchanged.
+
+## Prepared video retirement models
+
+`Models/ObservationAnalysis/ObservationVideoSourceRetirement.swift` owns the
+separate reader-12 request and permanent receipt. Both bind the original
+complete video identity; saved request and response bytes survive validation
+unchanged. They install no endpoint, queue or cleanup consumer. The
+[canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-video-pre-execution-retirement-parity)
+owns bounds, compatibility and authority; shared-vector tests live in
+`ObservationVideoSourceRetirementTests`.
+
+## Prepared video upload metadata
+
+`ObservationVideoEvidenceUploadRequest` derives the exact reader-12/schema-2
+identity and whole immutable inventory. Saved request bytes remain unchanged.
+`ObservationVideoEvidenceReceipt` validates the complete allocation/status
+snapshot, fixed object IDs/deadline, strict UTC milliseconds and monotonic
+per-item readiness. Fresh allocation decoding requires every item unready. These
+values install no transport, queue, storage verifier or provider caller.
+
+### Prepared video binary wire
+
+`ObservationVideoEvidenceWireRequest` frames one saved cohort item for
+`upload-observation-video`: four-byte big-endian metadata length, reader12 Wire1
+JSON, then exact bytes. It embeds the original schema2 candidate without
+reserialization and rejects unknown media, byte-count or SHA-256 mismatch.
+Preparation checks cancellation before and after bounded construction. It must
+run on an owned preparation task. This value performs no I/O and installs no
+transport or queue caller; server container checks remain authoritative. See
+[the native wire contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-native-video-binary-wire).
+
+### Native video reservation transport
+
+`ObservationSourceReservationTransport` accepts a distinct typed video candidate
+and returns the closed reader12 reply. It preserves exact saved bytes, single
+attempt delivery, account lease, bounded response and separate
+attempt/settlement validators. Exact conflicts retain the candidate in
+`ObservationVideoSourceReservationConflict`. Reader11 behavior is unchanged; no
+automatic or recovery caller is installed. Explicit reservation and upload
+composition is documented in the delivery contracts. See the
+[native reader12 contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-reader12-video-reservation-transport).
+
+### Native video upload transport
+
+`ObservationVideoEvidenceTransport` sends an already-prepared exact Wire1 body
+through the account-bound dispatcher once. `PinnedNetworkTransport` owns a
+separate130-second session and streamed8KiB reply cap. Whole-cohort validation
+preserves prior receipt evidence and requires the target item ready before
+settlement. Attempt and settlement fences remain distinct; no retry, inference
+authority is added. The explicit retained queue caller is described below. See
+the
+[native upload contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-exact-video-item-upload-transport).
+
+### Retained video upload caller
+
+`ObservationVideoUploadService.live` is the explicit prepared caller of
+`ObservationVideoEvidenceTransport`. It supplies exact saved Wire1 bytes, the
+prior whole-cohort receipt and separate durable claim/known-settlement
+validators. The dedicated queue owner retains the full operation; no ordinary
+capture or scheduler caller is enabled. See the
+[delivery contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-retained-video-upload-delivery).
+
+### Native video submission transport
+
+`ObservationVideoAnalysisTransport` accepts only the durable execution store's
+private consumed permit, preserves the saved V4 body and uses the fixed
+`analyze-observation-video` route. A dedicated pinned130-second session enforces
+a streamed4096-byte closed state-receipt bound. Auth/account ownership remains
+held through I/O, with separate caller dispatch and known-settlement validators.
+There is no automatic retry or auth-refresh replay. A receipt grants no result
+or cleanup authority; retained queue execution and exact reader11 completed
+result binding remain pending. See the
+[canonical transport contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-video-submission-transport).

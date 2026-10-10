@@ -174,3 +174,20 @@ See
 [Event and Presentation Routing](../../../../../docs/system-architecture/10-event-and-presentation-routing.md#media-notification-lifetime)
 and
 [Zero-OOM and Concurrency](../../../../../docs/system-architecture/02-zero-oom-and-concurrency.md).
+
+## Immutable history audio validation
+
+`ObservationAudioContainer.isValid` mirrors the protected backend's
+`analysisHistory/audioContainer.ts` byte contract. It accepts only a complete
+46–2,700,000-byte mono 44.1 kHz PCM16 WAV, with exact RIFF and data lengths,
+consistent rate/alignment, and an optional single zero-filled `FLLR` chunk of
+1–4,096 bytes including zero alignment padding. It neither copies nor transforms
+the payload. This is a byte-only prerequisite, not evidence of ownership, digest
+equality, readiness or permission to execute.
+
+The validator is prepared infrastructure; protected native audio upload and
+queue integration remain separate work. Existing `InferenceAudioPreparer` legacy
+eligibility remains unchanged. `ObservationAudioContainerTests` exercises actual
+prepared Core Audio output and unchanged sample bytes, sliced Data, header
+corruption, truncation, trailing bytes, padding and size limits. Device capture
+and durable audio restart are not established by these tests.

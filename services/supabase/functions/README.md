@@ -39,8 +39,12 @@ that layout.
 - [reconcile-scan-media-assets](./reconcile-scan-media-assets/README.md)
 - [repair-scan-image](./repair-scan-image/README.md)
 - [replay-scan-ingestion](./replay-scan-ingestion/README.md)
+- [reserve-observation-analysis-source](./reserve-observation-analysis-source/README.md)
+- [retire-observation-analysis](./retire-observation-analysis/README.md)
+- [retire-observation-analysis-source](./retire-observation-analysis-source/README.md)
 - [scan-media-health](./scan-media-health/README.md)
 - [sync-collections](./sync-collections/README.md)
+- [upload-observation-video](./upload-observation-video/README.md)
 
 ### Explore publication, feeds, comments, and reactions
 
@@ -261,3 +265,12 @@ claims, immutable canonical checkpoints and service-only lifecycle wrappers. All
 gates remain false and no route/schedule is deployed. Enrollment, normal native
 presentation, public/chat snapshots and explicit erasure delivery remain
 activation requirements. See the function READMEs and canonical API contract.
+
+### Gated V4 video orchestration
+
+[`analyze-observation-video`](analyze-observation-video/README.md) owns verified
+user submission through the separate strict V4 worker.
+[`recover-observation-video-analyses`](recover-observation-video-analyses/README.md)
+owns service-only saved-result recovery, without provider preparation or fresh
+execution. Both use the prepared video RPCs; gates remain false and no schedule
+or deployment is supplied. Generic execution continues denying V4.

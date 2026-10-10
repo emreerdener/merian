@@ -85,6 +85,8 @@ extension OfflineQueueManager {
     ) -> OfflineJobRecord? {
         guard let context = modelContext else { return nil }
         do {
+            let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+            if let scan = try context.fetch(descriptor).first, !scan.permitsOrdinaryInference { return nil }
             let job = try context.ensureOfflineJobRecord(
                 id: Self.scanIngestionJobId(scanId: scanId),
                 kind: .scanIngestion,
@@ -147,7 +149,7 @@ extension OfflineQueueManager {
             )
             return nil
         }
-        guard let scan else { return nil }
+        guard let scan, scan.permitsOrdinaryInference else { return nil }
         let attempt = max(scan.queueAttemptCount, durableAttempt) + 1
         let now = Date()
         scan.queueAttemptCount = attempt
@@ -231,7 +233,7 @@ extension OfflineQueueManager {
             )
             return nil
         }
-        for scan in candidates where scan.queueState == .failed {
+        for scan in candidates where scan.permitsOrdinaryInference && scan.queueState == .failed {
             let job: OfflineJobRecord?
             do {
                 job = try fetchScanJob(scanId: scan.id, in: context)
@@ -285,7 +287,7 @@ extension OfflineQueueManager {
             )
             return false
         }
-        guard let scan else { return false }
+        guard let scan, scan.permitsOrdinaryInference else { return false }
         guard scan.queueState != .externalImport else { return false }
         guard appUpdateCoordinator?.blocksRetry(errorCode: scan.queueLastErrorCode) != true,
               appUpdateCoordinator?.blocksRetry(errorCode: job?.lastErrorCode) != true else { return false }
@@ -445,7 +447,7 @@ extension OfflineQueueManager {
             )
             return false
         }
-        guard let scan else {
+        guard let scan, scan.permitsOrdinaryInference else {
             return false
         }
         let now = Date()
@@ -503,7 +505,7 @@ extension OfflineQueueManager {
             )
             return
         }
-        guard let scan else { return }
+        guard let scan, scan.permitsOrdinaryInference else { return }
         let retryAfterDate = response.retryAfter.flatMap(
             BackgroundInferencePolicy.parseRetryAfterDate
         )

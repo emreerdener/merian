@@ -8,6 +8,59 @@ struct FieldChatResponseDecoderTests {
     private typealias Fixtures = FieldChatNetworkFixtures
     private typealias Decoder = FieldChatResponseDecoder
 
+    @Test
+    func protectedReceiptBindsRequestAndRejectsThreadOrPrivateMetadata() throws {
+        let subject = UUID(uuidString: "00000000-0000-4000-8000-000000000002")!
+        let request = UUID(uuidString: "00000000-0000-4000-8000-000000000003")!
+        let message: [String: Any] = [
+            "id": "9ef24f67-5a9f-8221-b079-90542bb746f9", "conversation_id": "00000000-0000-4000-8000-000000000004",
+            "scan_id": subject.uuidString.lowercased(), "role": "assistant", "text": "Synthetic answer",
+            "client_message_id": request.uuidString.lowercased(), "model": "gemini-2.5-flash",
+            "is_refusal": false, "refusal_reason": NSNull(), "created_at": "2026-10-06T12:00:00Z"
+        ]
+        let receipt: [String: Any] = ["context_version": 1, "completed": true, "message": message]
+        let data = try JSONSerialization.data(withJSONObject: ["data": receipt])
+        let value = try Decoder.decodeProtectedCompletion(data, expectedSubjectId: subject, expectedClientMessageId: request)
+        #expect(value.message.text == "Synthetic answer")
+        for key in ["id", "scan_id", "client_message_id", "conversation_id"] {
+            var changed = message
+            changed[key] = "00000000-0000-4000-8000-000000000099"
+            let malformed = try JSONSerialization.data(withJSONObject: ["data": ["context_version": 1, "completed": true, "message": changed]])
+            #expect(throws: MerianError.invalidResponse) {
+                try Decoder.decodeProtectedCompletion(malformed, expectedSubjectId: subject, expectedClientMessageId: request)
+            }
+        }
+        let invalidAuthority: [[String: Any]] = [
+            ["model": "other-model"], ["model": NSNull()], ["refusal_reason": "unexpected"],
+            ["model": NSNull(), "is_refusal": true, "refusal_reason": "unknown-local-reason"]
+        ]
+        for fields in invalidAuthority {
+            let changed = message.merging(fields) { _, replacement in replacement }
+            let malformed = try JSONSerialization.data(withJSONObject: ["data": ["context_version": 1, "completed": true, "message": changed]])
+            #expect(throws: MerianError.invalidResponse) {
+                try Decoder.decodeProtectedCompletion(malformed, expectedSubjectId: subject, expectedClientMessageId: request)
+            }
+        }
+        let localMessage = message.merging([
+            "model": NSNull(), "is_refusal": true, "refusal_reason": "foraging_or_ingestion"
+        ]) { _, replacement in replacement }
+        let localData = try JSONSerialization.data(withJSONObject: ["data": ["context_version": 1, "completed": true, "message": localMessage]])
+        #expect(try Decoder.decodeProtectedCompletion(localData, expectedSubjectId: subject, expectedClientMessageId: request).message.model == nil)
+        for extra in ["usage", "context_snapshot", "messages"] {
+            var changed = receipt
+            changed[extra] = [:] as [String: String]
+            let malformed = try JSONSerialization.data(withJSONObject: ["data": changed])
+            #expect(throws: MerianError.invalidResponse) {
+                try Decoder.decodeProtectedCompletion(malformed, expectedSubjectId: subject, expectedClientMessageId: request)
+            }
+        }
+        var oversized = data
+        oversized.append(Data(repeating: 0x20, count: 32_769))
+        #expect(throws: MerianError.invalidResponse) {
+            try Decoder.decodeProtectedCompletion(oversized, expectedSubjectId: subject, expectedClientMessageId: request)
+        }
+    }
+
     @Test(arguments: FieldChatDecodingCase.allCases, ["", "not-json", "null", "[]", "{}", #"{"data":null}"#])
     func malformedEnvelopesUseInvalidResponse(_ testCase: FieldChatDecodingCase, json: String) {
         #expect(throws: MerianError.invalidResponse) { try testCase.decode(Data(json.utf8)) }

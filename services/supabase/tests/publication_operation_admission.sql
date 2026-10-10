@@ -17,7 +17,7 @@ CREATE FUNCTION pg_temp.seed_history_append(owner_id UUID, observation UUID, per
 RETURNS VOID LANGUAGE PLPGSQL AS $$
 BEGIN
     INSERT INTO auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
-    VALUES(owner_id,'authenticated','authenticated',owner_id::TEXT || '@example.invalid','{}','{}',NOW(),NOW());
+    VALUES(owner_id,'authenticated','authenticated',owner_id::TEXT || '@example.invalid','{}','{}',NOW(),NOW()) ON CONFLICT(id) DO NOTHING;
     INSERT INTO public.scan_ingestion_jobs(scan_id,user_id,status,stage,terminal_reason_code)
     VALUES(observation::TEXT,owner_id,'failed_terminal','server_replay_limit_reached','replay_exhausted');
     INSERT INTO public.scans(id,user_id,image_storage_urls,ai_confidence_score,is_biological_subject,inference_tier,geoprivacy,is_live_capture)
@@ -30,6 +30,7 @@ $$;
 CREATE FUNCTION pg_temp.seed_funded_history(owner_id UUID,observation UUID) RETURNS VOID LANGUAGE PLPGSQL AS $$
 BEGIN
     PERFORM pg_temp.seed_history_append(owner_id,observation);
+    IF EXISTS(SELECT 1 FROM public.user_adult_eligibility_receipts WHERE user_id=owner_id) THEN RETURN; END IF;
     INSERT INTO public.user_adult_eligibility_receipts(id,user_id,policy_version,confirmed_at,confirmation_method,confirmation_text,platform,app_version,app_build)
     VALUES(gen_random_uuid(),owner_id,'2026-08-03',NOW(),'self_attestation','Synthetic adult attestation','ios','1.0.3','275');
     INSERT INTO public.user_terms_acceptance_receipts(id,user_id,terms_version,accepted_at,acceptance_text,platform,app_version,app_build)
@@ -88,6 +89,18 @@ CREATE FUNCTION pg_temp.publication_request(observation UUID,analysis UUID,opera
  'initial_taxon_id',NULL,'note','Synthetic public note','media_ids',jsonb_build_array(media));
 $$;
 
+
+-- Reconstruct pre-guard admitted rows for compatibility/capacity tests only.
+CREATE FUNCTION pg_temp.legacy_publication_intake(owner_id UUID, request JSONB, ip TEXT) RETURNS VOID LANGUAGE PLPGSQL AS $$
+BEGIN
+ PERFORM internal.prepare_observation_publication_intent(owner_id,request);
+ INSERT INTO internal.observation_publication_operations(operation_id,observation_id,owner_id,ip_hash,receipt)
+ VALUES((request->>'operation_id')::UUID,(request->>'observation_id')::UUID,owner_id,ip,
+ jsonb_build_object('schema_version',1,'operation_id',request->'operation_id','observation_id',request->'observation_id',
+ 'analysis_id',request->'analysis_id','status','accepted','admitted_at',clock_timestamp()));
+END;
+$$;
+
 SELECT extensions.ok(NOT (SELECT publication_operation_enabled FROM internal.observation_history_rollout),'operation gate defaults closed');
 SELECT extensions.ok(has_function_privilege('service_role','public.admit_owned_observation_publication(uuid,jsonb,text)','EXECUTE'),'service intake allowed');
 SELECT extensions.ok(NOT has_function_privilege('authenticated','public.admit_owned_observation_publication(uuid,jsonb,text)','EXECUTE') AND NOT has_function_privilege('anon','public.admit_owned_observation_publication(uuid,jsonb,text)','EXECUTE'),'client roles cannot nominate an owner');
@@ -120,13 +133,18 @@ SELECT extensions.is((SELECT count(*)::INT FROM internal.publication_photo_objec
 SELECT extensions.is((SELECT count(*)::INT FROM public.explore_posts),0,'intake creates no public post');
 SELECT extensions.ok((SELECT receipt-ARRAY['schema_version','operation_id','observation_id','analysis_id','status','admitted_at']='{}'::JSONB FROM accepted),'response excludes notes, media, hash and source identities');
 SELECT extensions.throws_ok($$UPDATE internal.observation_publication_operations SET ip_hash=repeat('b',64)$$,'22023','analysis_history_evidence_immutable','operation facts cannot mutate');
-SELECT extensions.throws_ok($$SELECT pg_temp.admit_fixture('{"note":"changed"}')$$,'22023','analysis_history_operation_conflict','changed consent requires a different operation');
+SELECT extensions.throws_ok($$SELECT pg_temp.admit_fixture('{"note":"changed"}')$$,'22023','analysis_history_operation_conflict','changed consent is not an exact retry');
 UPDATE internal.observation_history_rollout SET publication_operation_enabled=FALSE,publication_intent_enabled=FALSE;
 SELECT extensions.is(pg_temp.admit_fixture(),(SELECT receipt FROM accepted),'gates closing preserve exact acknowledgement replay');
 UPDATE internal.observation_history_rollout SET publication_operation_enabled=TRUE,publication_intent_enabled=TRUE;
--- Fill the rolling intake bound without any external work.
-DO $$ BEGIN FOR i IN 42..48 LOOP PERFORM pg_temp.admit_fixture(jsonb_build_object('operation_id',('00000000-0000-4000-8000-00000000fe'||i)::UUID)); END LOOP; END $$;
-SELECT extensions.throws_ok($$SELECT pg_temp.admit_fixture('{"operation_id":"00000000-0000-4000-8000-00000000fe49"}')$$,'55000','analysis_history_unavailable','rolling intake bound refuses additional new work');
+-- Legacy rows still count toward owner capacity; new target admission cannot
+-- manufacture them. Use a fresh second observation for the capacity denial.
+SELECT pg_temp.seed_publication_intent('00000000-0000-4000-8000-00000000fe01','00000000-0000-4000-8000-00000000fe12','00000000-0000-4000-8000-00000000fe22','00000000-0000-4000-8000-00000000fe32');
+DO $$ BEGIN FOR i IN 42..48 LOOP PERFORM pg_temp.legacy_publication_intake('00000000-0000-4000-8000-00000000fe01',
+ (SELECT request||jsonb_build_object('operation_id',('00000000-0000-4000-8000-00000000fe'||i)::UUID) FROM publication_fixture),repeat('a',64)); END LOOP; END $$;
+SELECT extensions.throws_ok($$SELECT public.admit_owned_observation_publication('00000000-0000-4000-8000-00000000fe01',
+ pg_temp.publication_request('00000000-0000-4000-8000-00000000fe12','00000000-0000-4000-8000-00000000fe22','00000000-0000-4000-8000-00000000fe49','00000000-0000-4000-8000-00000000fe32'),repeat('a',64))$$,
+ '55000','analysis_history_unavailable','rolling intake bound refuses additional new work on a fresh observation');
 SELECT extensions.is(pg_temp.admit_fixture(),(SELECT receipt FROM accepted),'capacity cannot strand lost-response recovery');
 SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_intents),8,'capacity denial cannot leave an orphan intent');
 SET LOCAL ROLE authenticated;

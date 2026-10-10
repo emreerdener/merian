@@ -2814,11 +2814,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "execute four deterministic runtime UI smokes: `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`, `testLiveInsightConnectivityFailureTransitionsToDurableQueue`, `testQueuedRetryPresentationUsesSafeActionableCopy`, and `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` under `merianUITests/merianUITests`",
+    "execute six deterministic runtime UI smokes: `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`, `testLiveInsightConnectivityFailureTransitionsToDurableQueue`, `testQueuedRetryPresentationUsesSafeActionableCopy`, `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff`, `testExactQuestionPersistsAndReopeningKeepsPendingIdentity`, and `testStaleQuestionRequiresExplicitRefreshBeforeFreshChat` under `merianUITests/merianUITests`",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "exactly those four passed cases and zero failed or skipped cases",
+    "exactly those six passed cases and zero failed or skipped cases",
   );
   assert(
     !compact(testingStrategySource).includes(
@@ -6415,7 +6415,7 @@ Deno.test("account-grant issuance documentation retires RevenueCat mutation and 
   assertStringIncludes(reconciler, "rejects apply");
 });
 
-Deno.test("Collections documentation carries the V50 tombstone repair through V52 without changing the wire contract", async () => {
+Deno.test("Collections documentation preserves the V50 tombstone repair through current recovery without changing the wire contract", async () => {
   const [
     documentationIndex,
     coreDataReadme,
@@ -6495,8 +6495,13 @@ Deno.test("Collections documentation carries the V50 tombstone repair through V5
   assertStringIncludes(schema, "V50→V51");
   assertStringIncludes(testing, "V49→V50→V51→V52");
   assertStringIncludes(documentationIndex, "/sync-collections");
-  assertStringIncludes(coreDataReadme, "Fresh and V52 stores");
-  assertStringIncludes(coreDataReadme, "known V42...V51 sources");
+  const aliases = await read("apps/ios/Merian/Models/Aliases.swift");
+  const current = Number(
+    aliases.match(/typealias CurrentSchema = MerianSchemaV(\d+)/)?.[1],
+  );
+  assert(Number.isSafeInteger(current) && current >= 52);
+  assertStringIncludes(coreDataReadme, `Fresh and V${current} stores`);
+  assertStringIncludes(coreDataReadme, `known V42...V${current - 1} sources`);
   assertStringIncludes(
     apiContract,
     "clients do not need to send both keys",

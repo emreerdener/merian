@@ -406,3 +406,14 @@ See:
 - [Explore share route](../../../../../../services/supabase/functions/share-scan-to-explore/README.md)
 - [Scan ingestion reliability and recovery](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#explore-publication)
 - [Insight sheet sharing behavior](../../../../../../docs/features-and-hardware/05-insight-sheet.md)
+
+### History enrollment and legacy Community actions
+
+Insight's scan-only Community create and edit callbacks check the fresh locked
+enrollment predicate before calling their injected dependencies. Both pass the
+presentation's ModelContext, so enrollment after opening an editor is detected.
+Staged intent or any persisted history metadata denies the legacy action; a
+lookup failure also denies it. Completions recheck enrollment before committing
+cache, presentation or feedback. Unenrolled scans retain the existing workflow.
+This boundary does not grant analysis-bound publication consent or activate the
+prepared history feature.

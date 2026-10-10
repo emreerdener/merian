@@ -3,6 +3,18 @@ import Foundation
 import SwiftData
 
 extension UITestSeedCoordinator {
+    static let savedReanalysisFixtureID = "00000000-0000-4000-8000-000000000004"
+    static var savedReanalysisFailureEnabled: Bool {
+        isEnabled && ProcessInfo.processInfo.arguments.contains("-seedSavedReanalysisFailure")
+    }
+
+    /// Fail the real menu's prepared waiter, without a provider or production route.
+    @MainActor static var savedReanalysisFailureAccess: SavedIdentificationReanalysisAccess? {
+        guard savedReanalysisFailureEnabled else { return nil }
+        return .init(prepare: { _, _, _ in .init(resolve: { throw ObservationHistoryError.unavailable }) },
+            dispatch: { _ in assertionFailure("Failed protected entry must not route") })
+    }
+
     @MainActor static var identificationHistoryAccess: IdentificationHistoryAccess? {
         guard isEnabled, ProcessInfo.processInfo.arguments.contains("-seedIdentificationHistory") else { return nil }
         return IdentificationHistoryAccess(hasMultiple: { id, _ in id == "private_map_bird" }, open: { _, _ in

@@ -8,6 +8,58 @@ import Testing
 struct ObservationHistoryStateCacheTests {
     let support = ObservationHistoryStateSyncTests()
 
+    @Test func equivalentNestedCandidateEncodingRetainsBoundDisplay() async throws {
+        let context = try InsightSheetTestSupport.createIsolatedContext()
+        let fixture = try PublicationConsentUIFixture(container: context.container, namedReview: false,
+            confirmationUndo: false, candidateConfirmation: true)
+        let bytes = try #require(fixture.snapshots[PublicationConsentUIFixture.selected])
+        let result = try ObservationHistoryPage.snapshot(bytes, observationID: PublicationConsentUIFixture.observation, ordinal: 2)
+        let display = try #require(try ObservationHistoryDisplayProjection.snapshot(result))
+        var object = try #require(JSONSerialization.jsonObject(with: display) as? [String: Any])
+        let encoded = try #require(object["candidatesData"] as? String)
+        let nested = try JSONSerialization.jsonObject(with: #require(Data(base64Encoded: encoded)))
+        object["candidatesData"] = try JSONSerialization.data(withJSONObject: nested, options: [.sortedKeys, .prettyPrinted]).base64EncodedString()
+        let equivalent = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        #expect(equivalent != display)
+        let restored = try ObservationHistoryDisplayProjection.restore(equivalent, matching: result)
+        #expect(restored.analysisID == result.analysisID)
+        #expect(try restored.storedData() == display)
+        try fixture.seed(context: context); try context.save()
+        let record = try #require(context.fetch(FetchDescriptor<LocalAnalysisRecord>()).first { $0.id == PublicationConsentUIFixture.selected })
+        let prior = try #require(record.state)
+        let replacement = try LocalAnalysisStateRecord(analysisID: result.analysisID,
+            observationID: prior.observationID, ownerAccountID: PublicationConsentUIFixture.owner,
+            observationStateRevision: prior.observationStateRevision, reviewRevision: prior.reviewRevision,
+            reviewSnapshotData: prior.reviewSnapshotData, displaySnapshotData: equivalent)
+        record.state = nil; context.delete(prior); try context.save()
+        context.insert(replacement); record.state = replacement; try context.save()
+        let request = ObservationHistoryStateRequest(observation_id: PublicationConsentUIFixture.observation, analysis_id: nil)
+        let state = try ObservationHistoryState.decode(await fixture.cloud.fetchState(request), request: request, ownerID: PublicationConsentUIFixture.owner)
+        let parent = try ObservationHistorySyncService.enrolledScan(PublicationConsentUIFixture.observation, context: context)
+        let refreshed = try ConfirmedSpeciesReviewPersistence.transaction {
+            let refreshed = try ObservationHistoryStateCache.admit(state, scan: parent, context: context)
+            try context.save()
+            return refreshed
+        }
+        #expect(replacement.displaySnapshotData == equivalent)
+        #expect(try refreshed?.storedData() == display)
+        let candidates = try #require(nested as? [[String: Any]])
+        for change in ["score", "order", "extra", "outer"] {
+            var altered = object, changed = candidates
+            switch change {
+            case "score": changed[0]["confidenceScore"] = 0.99
+            case "order": changed.reverse()
+            case "extra": changed[0]["untrusted"] = "extra"
+            default: altered["commonName"] = "Another identification"
+            }
+            altered["candidatesData"] = try JSONSerialization.data(withJSONObject: changed).base64EncodedString()
+            let tampered = try JSONSerialization.data(withJSONObject: altered, options: [.sortedKeys])
+            #expect(throws: ObservationHistoryError.resultConflict) {
+                try ObservationHistoryDisplayProjection.restore(tampered, matching: result)
+            }
+        }
+    }
+
     @Test func changedAuthorityWithSameReviewRevisionRollsBackEntireAdmission() async throws {
         let container = try support.container()
         _ = try await support.service(data: support.fixture()).syncSelected(observationID: support.support.observation, container: container)
@@ -55,8 +107,11 @@ struct ObservationHistoryStateCacheTests {
             // Unknown top-level fixture keys must never become display authority.
             result["insight_data"] = ["ai_reasoning": "Synthetic nested reasoning", "hazard_type": "none"]
             result["wikipedia_overview"] = "Synthetic overview"
+            result["candidates"] = [["scientific_name": "Synthetic alternative", "confidence_score": 0.3]]
+            result["pet_identification"] = ["species_group": "dog", "label": "Synthetic breed", "label_type": "breed",
+                "confidence_score": 0.5, "evidence": ["Synthetic trait"]]
             envelope["result"] = result
-            items[index]["snapshot"] = String(decoding: try photos.support.bytes(envelope), as: UTF8.self)
+            items[index]["snapshot"] = try #require(String(bytes: photos.support.bytes(envelope), encoding: .utf8))
         }
         fixture["items"] = items
         let page = try ObservationHistoryPage.decode(photos.support.bytes(fixture),
@@ -74,7 +129,10 @@ struct ObservationHistoryStateCacheTests {
             for key in ["gpsLatitude", "gpsLongitude", "locationName", "fieldNotes", "customTags", "capturedMediaJSON", "aiIdentificationReviewData"] {
                 #expect(object[key] == nil)
             }
-            #expect(try ObservationHistoryDisplayProjection.snapshot(result) == data)
+            for _ in 0..<5 {
+                #expect(try ObservationHistoryDisplayProjection.snapshot(result) == data)
+                #expect(try ObservationHistoryDisplayProjection.restore(data, matching: result).storedData() == data)
+            }
         }
     }
 }

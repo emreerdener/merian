@@ -88,9 +88,12 @@ identity. The canonical runtime contract is
   plan-selection coverage; this refactor does not change a schema or migration
   stage.
 
-The active schema is V53. The immediate V52 source uses
-`MerianRecentV52MigrationPlan` with only lightweight V52→V53. Every older plan
-appends the same stage; checksum retries try current store, V52, V51, both V50
-graphs and then V49 through V42. Both frozen V52 snapshot files are pinned in
-the source guard. Saved scans acquire nil primary/confirmation fields without
-network work or alteration of legacy confidence/review state.
+The active schema is V58. The immediate V57 source uses
+`MerianRecentV57MigrationPlan` with lightweight V57→V58. Every older plan
+appends that stage; checksum retries try current store, V57 through V51, both
+V50 graphs and then V49 through V42. Both frozen V57 snapshot files are pinned
+in the source guard. Existing queued scans acquire ordinary qualification and
+nil parent, source and owner linkage without changing saved identification or
+review state. The disk-backed migration fixture verifies media cascade and a
+current-schema reopen. See the canonical
+[SwiftData contract](../../../../../../docs/backend-and-data/04-database-schema.md#v58-qualified-queued-reanalysis-storage).

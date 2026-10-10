@@ -198,6 +198,155 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   ]);
 
   assertStringIncludes(candidateWorkflow, "  pull_request:");
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoProvenance_test.ts",
+    ).length - 1,
+    2,
+    "Video provenance must be included in both candidate type-check and helper-test lists",
+  );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoManifest_test.ts",
+    ).length - 1,
+    2,
+    "Video manifest must be included in both candidate type-check and helper-test lists",
+  );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoAdmission_test.ts",
+    ).length - 1,
+    2,
+    "Prepared video request must be included in both candidate type-check and helper-test lists",
+  );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoAudioContainer_test.ts",
+    ).length - 1,
+    2,
+    "Prepared video companion must be included in both candidate type-check and helper-test lists",
+  );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoFrameContainer_test.ts",
+    ).length - 1,
+    2,
+    "Prepared video frames must be included in both candidate type-check and helper-test lists",
+  );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/retainedVideoEnvelope_test.ts",
+    ).length - 1,
+    2,
+    "Retained video envelope must be included in both candidate type-check and helper-test lists",
+  );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/retainedVideoStructure_test.ts",
+    ).length - 1,
+    2,
+    "Retained video structure must be included in both candidate type-check and helper-test lists",
+  );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/retainedVideoContainer_test.ts",
+    ).length - 1,
+    2,
+    "Retained source verifier must be included in both candidate type-check and helper-test lists",
+  );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoSourceFingerprint_test.ts",
+    ).length - 1,
+    2,
+    "Held video fingerprint must run in both candidate type-check and helper-test lists",
+  );
+  for (
+    const suite of [
+      "observationVideoFingerprintMigrationContract.test.ts",
+      "observationVideoFingerprintDb.test.ts",
+      "observationVideoCohortMigrationContract.test.ts",
+      "observationVideoCohortDb.test.ts",
+      "observationVideoStorageMigrationContract.test.ts",
+      "observationVideoStorageDb.test.ts",
+      "observationVideoReservationMigrationContract.test.ts",
+      "observationVideoReservationDb.test.ts",
+      "observationVideoRetirementDb.test.ts",
+      "observationVideoEvidenceDb.test.ts",
+      "observationVideoEvidenceMigrationContract.test.ts",
+    ]
+  ) {
+    assertEquals(
+      candidateWorkflow.split(`supabase/functions/_tests/${suite}`).length - 1,
+      2,
+      `${suite} must run in both candidate type-check and helper-test lists`,
+    );
+  }
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoCohort_test.ts",
+    ).length - 1,
+    2,
+    "Held video inventory must run in both candidate type-check and helper-test lists",
+  );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoSourceReservation_test.ts",
+    ).length - 1,
+    2,
+    "Prepared video source contract must run in both candidate lists",
+  );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoSourceRetirement_test.ts",
+    ).length - 1,
+    2,
+  );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoEvidence_test.ts",
+    ).length - 1,
+    2,
+    "Prepared video upload contract must run in both candidate lists",
+  );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoMaterialization_test.ts",
+    ).length - 1,
+    2,
+    "Prepared video byte materialization must run in both candidate lists",
+  );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoEvidenceRepository_test.ts",
+    ).length - 1,
+    2,
+    "Prepared video RPC adapter must run in both candidate lists",
+  );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoUpload_test.ts",
+    ).length - 1,
+    2,
+    "Prepared video upload coordinator must run in both candidate lists",
+  );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/videoReader_test.ts",
+    ).length - 1,
+    2,
+    "Video reader must be included in both candidate type-check and helper-test lists",
+  );
+  const helperStep = candidateWorkflow.split(
+    "- name: Test shared Edge helpers",
+  )[1]
+    ?.split("- name:")[0];
+  assert(helperStep, "Candidate helper step must remain explicit");
+  assertEquals(
+    helperStep.match(/--allow-read=([^\s]+)/)?.[1],
+    "supabase/functions,../apps/web,supabase/migrations/20261010005747_prepare_video_source_fingerprint_parity.sql,supabase/migrations/20261010015758_prepare_video_cohort_inventory.sql,supabase/migrations/20261010024956_prepare_video_cohort_storage.sql,supabase/migrations/20261010040600_prepare_video_source_reservation.sql,supabase/migrations/20261010054046_prepare_video_evidence_allocation.sql,supabase/migrations/20261010135143_prepare_video_execution_evidence_guard.sql,supabase/migrations/20261010142136_prepare_video_initial_admission.sql,supabase/migrations/20261010144617_prepare_private_video_dispatch.sql,supabase/migrations/20261010150954_prepare_private_video_outcome_recovery.sql,supabase/migrations/20261010161048_prepare_private_video_draft_persistence.sql,supabase/migrations/20261010162902_prepare_private_video_accounting.sql,supabase/migrations/20261010164735_prepare_private_video_terminal_settlement.sql,supabase/migrations/20261010170334_prepare_private_video_completion.sql,supabase/migrations/20261010173424_prepare_video_history_reader.sql",
+    "Helper reads must include every video migration fixture without broadening filesystem access",
+  );
   assertStringIncludes(candidateWorkflow, "  merge_group:");
   assertStringIncludes(candidateWorkflow, "  workflow_dispatch:");
   assertStringIncludes(candidateWorkflow, "  workflow_call:");
@@ -631,6 +780,10 @@ Deno.test("production uses the candidate tooling gate and cumulative deployment 
       "apps/ios/Merian/Core/Network/SupabaseManager.swift",
       "apps/ios/Merian/Core/Network/MerianNetworkClient.swift",
       "apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift",
+      "apps/ios/Merian/Core/Network/Transport/AuthenticatedTransportDispatcher.swift",
+      "apps/ios/Merian/Core/Network/Models/ObservationAnalysis/ObservationSourceReservation.swift",
+      "apps/ios/Merian/Core/Network/Transport/ObservationSourceReservationTransport.swift",
+      "apps/ios/Merian/Core/Network/Transport/ObservationVideoEvidenceTransport.swift",
       "apps/ios/Merian/Core/Network/Auth/**",
       "apps/ios/Merian/Core/Security/**",
     ]
@@ -1137,5 +1290,36 @@ Deno.test("complete release gates execute the purchase identity rollout tool tes
   assertStringIncludes(
     deployWorkflow,
     "needs: [candidate-validation, production-hold]",
+  );
+});
+
+Deno.test("video ingress suites remain in both candidate selectors", async () => {
+  const source = await Deno.readTextFile(
+    new URL(
+      "../../../../.github/workflows/supabase-candidate-validation.yml",
+      import.meta.url,
+    ),
+  );
+  for (const suite of ["handler_test.ts", "route_test.ts"]) {
+    assertEquals(
+      source.split(`supabase/functions/upload-observation-video/${suite}`)
+        .length - 1,
+      2,
+    );
+  }
+});
+
+Deno.test("video source RPC suite remains in both candidate selectors", async () => {
+  const source = await Deno.readTextFile(
+    new URL(
+      "../../../../.github/workflows/supabase-candidate-validation.yml",
+      import.meta.url,
+    ),
+  );
+  assertEquals(
+    source.split(
+      "supabase/functions/_shared/analysisHistory/videoSourceReservationRepository_test.ts",
+    ).length - 1,
+    2,
   );
 });

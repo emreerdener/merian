@@ -8,6 +8,39 @@ import XCTest
 @testable import Merian
 
 extension CaptureWorkspaceViewModelRefinementTests {
+    func testLegacyRefinementRouteDeniesEnrolledStagedDamagedAndUnavailableScopes() throws {
+        let previous = OfflineQueueManager.shared.modelContext
+        defer { OfflineQueueManager.shared.modelContext = previous }
+        for protection in ["acknowledged", "staged", "damaged", "missingContext", "missingRecord", "legacy"] {
+            let context = try makeModelContext()
+            let record = LocalScanRecord(speciesId: "refinement-fence", scientificName: "Danaus plexippus", commonName: "Monarch")
+            context.insert(record)
+            let id = record.id
+            if protection == "acknowledged" {
+                record.analysisOwnerAccountID = UUID().uuidString.lowercased()
+            } else if protection == "staged" || protection == "damaged" {
+                _ = try ObservationHistoryEnrollmentIntent.stage(observationID: XCTUnwrap(UUID(uuidString: id)), ownerID: UUID(), context: context)
+                if protection == "damaged" {
+                    try context.fetchOfflineJob(id: ObservationHistoryEnrollmentIntent.jobID(id))?.metadataJSON = nil
+                }
+            } else if protection == "missingRecord" {
+                context.delete(record)
+            }
+            try context.save()
+            OfflineQueueManager.shared.modelContext = protection == "missingContext" ? nil : context
+            let viewModel = CaptureWorkspaceViewModel(diContainer: .preview, preparedImageLoader: { _ in nil }, prewarmHeadersOnInit: false)
+            deliverRoute(.refinement(scanId: id, initialDescription: "User supplement", entryPoint: .standard), source: .internalUserAction, to: viewModel)
+            if protection == "legacy" {
+                XCTAssertEqual(viewModel.baseRefinementContext?.scanId, id)
+                viewModel.cancelRefinementStaging()
+            } else {
+                XCTAssertNil(viewModel.baseRefinementContext, protection)
+                XCTAssertFalse(viewModel.isStagingRefinement, protection)
+                XCTAssertNil(viewModel.activeSheet, protection)
+            }
+        }
+    }
+
     func testExternalImportHandoffFromWhatsNewSuppressesLaunchExplore() {
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: .preview,

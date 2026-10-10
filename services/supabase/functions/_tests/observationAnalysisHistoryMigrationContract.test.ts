@@ -1024,3 +1024,328 @@ Deno.test("verified container settlement stores exact immutable service attestat
   assertStringIncludes(sql, "internal.privileged_routine_grants");
   assert(!sql.includes("reserve_ai_quota"));
 });
+
+Deno.test("publication consent shares locked eligibility without operation admission or private media projection", async () => {
+  const sql = await migration(
+    "20261004223926_prepare_publication_consent_preflight",
+  );
+  assertStringIncludes(
+    sql,
+    "internal.lock_owned_observation_evidence(p_owner,observation)",
+  );
+  assertStringIncludes(
+    sql,
+    "NOT p_preflight AND (p_expected_observation_revision IS NULL",
+  );
+  assert(
+    sql.indexOf("analysis_history_revision_conflict") <
+      sql.indexOf("evidence.evidence_manifest->'schema_version'"),
+  );
+  assertStringIncludes(sql, "p_taxonomy_version_id IS DISTINCT FROM taxonomy");
+  assertStringIncludes(sql, "ORDER BY ordinal");
+  assertStringIncludes(sql, "'initial_taxon_id',NULL");
+  assertStringIncludes(
+    sql,
+    "REVOKE ALL ON FUNCTION internal.lock_publication_consent_eligibility",
+  );
+  assertStringIncludes(sql, "internal.privileged_routine_grants");
+  const projection = sql.split(
+    "CREATE FUNCTION public.prepare_owned_observation_publication_consent",
+  )[1];
+  assert(!projection.includes("object_id"));
+  assert(!projection.includes("resolve_owned_observation_photo"));
+  assert(!sql.includes("SET publication_intent_enabled"));
+});
+
+Deno.test("private upload ingress retains expiry identity without opening rollout or primitive grants", async () => {
+  const sql = await migration(
+    "20261004235218_prepare_private_evidence_upload_cohorts",
+  );
+  assertStringIncludes(
+    sql,
+    "ALTER TABLE internal.observation_evidence_upload_cohorts ENABLE ROW LEVEL SECURITY",
+  );
+  assertStringIncludes(sql, "ON DELETE CASCADE");
+  assertStringIncludes(sql, "saved.items<>p_items");
+  assertStringIncludes(sql, "Missing receipts mean cleanup won");
+  assertStringIncludes(sql, "PERFORM internal.require_service_role()");
+  assert(!/UPDATE\s+internal\.observation_history_rollout/i.test(sql));
+  assert(!/GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+internal\./i.test(sql));
+  assert(!/GRANT[^;]+TO\s+(?:authenticated|anon)/i.test(sql));
+});
+
+Deno.test("owner reanalysis preflight binds child before advisory recipient reads without admission", async () => {
+  const sql = await migration(
+    "20261005022411_prepare_owner_reanalysis_preflight",
+  );
+  assertStringIncludes(sql, "caller UUID := auth.uid()");
+  assertStringIncludes(
+    sql,
+    "internal.lock_owned_observation_evidence(caller,observation)",
+  );
+  assertStringIncludes(
+    sql,
+    "saved.input_snapshot->>'source_analysis_id' IS DISTINCT FROM source::TEXT",
+  );
+  assertStringIncludes(
+    sql,
+    "'scan_identification','multimodal_photo_v1',FALSE,analysis,3,6",
+  );
+  assertStringIncludes(
+    sql,
+    "GRANT EXECUTE ON FUNCTION public.get_owned_observation_reanalysis_preflight(JSONB) TO authenticated",
+  );
+  assertStringIncludes(
+    sql,
+    "orchestration_enabled AND admission_enabled AND protected_analysis_enabled",
+  );
+  assert(
+    sql.indexOf("decision:='recovery_only'") <
+      sql.indexOf("FROM public.get_my_identification_preflight("),
+  );
+  assert(
+    sql.indexOf(
+      "internal.complimentary_scan_usage WHERE client_scan_id=analysis",
+    ) < sql.indexOf("FROM public.get_my_identification_preflight("),
+  );
+  assert(
+    !/INSERT INTO internal\.(observation_analysis_intents|ai_quota|complimentary)|reserve_identification_quota\(|UPDATE (internal|public)\./
+      .test(sql),
+  );
+});
+
+Deno.test("publication target guard preserves exact replay and deterministic private recovery", async () => {
+  const sql = await migration(
+    "20261006033539_guard_observation_publication_target",
+  );
+  const guard = sql.indexOf(
+    "IF EXISTS(SELECT 1 FROM internal.observation_publication_operations",
+  );
+  assert(sql.indexOf("RETURN saved.receipt") < guard);
+  assert(guard < sql.indexOf("IF (SELECT publication_operation_enabled"));
+  assertStringIncludes(sql, "WHERE observation_id=observation");
+  assertStringIncludes(sql, "WHERE observation_id=p_observation LIMIT 2");
+  assertStringIncludes(sql, "pg_catalog.cardinality(operations)<>1");
+  assertStringIncludes(
+    sql,
+    "IF operations IS NULL THEN RETURN pg_catalog.jsonb_build_object('schema_version',1,'operation',NULL)",
+  );
+  assertStringIncludes(
+    sql,
+    "public.read_owned_observation_publication_status(p_owner,p_observation,operations[1])",
+  );
+  assertStringIncludes(sql, "internal.privileged_routine_grants");
+  assert(!sql.includes("ORDER BY"));
+  assert(
+    !sql.includes(
+      "CREATE OR REPLACE FUNCTION internal.prepare_observation_publication_intent",
+    ),
+  );
+  assert(!sql.includes("TO authenticated"));
+});
+
+Deno.test("confirmation Undo uses current target receipt association and independent closed gate", async () => {
+  const sql = await migration("20261007033012_add_analysis_confirmation_undo");
+  for (
+    const text of [
+      "confirmation_undo_api_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+      "public.get_owned_observation_confirmation_undo",
+      "prior.receipt->>'review_revision' IS DISTINCT FROM authority.review_revision::TEXT",
+      "internal.observation_confirmation_undo_eligibility(observation,target)",
+      "'user_confirmed_identification',FALSE,'user_review_state','unreviewed'",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) assertStringIncludes(sql, text);
+  assert(
+    sql.indexOf("RETURN saved.receipt") <
+      sql.indexOf(
+        "CASE WHEN p_request->>'action'='undo_confirmation' THEN confirmation_undo_api_enabled",
+      ),
+  );
+  assert(
+    !/UPDATE public\.scans|UPDATE internal\.complimentary_scan_usage|DELETE FROM internal\.observation_review_receipts/
+      .test(sql),
+  );
+  const helper = sql.slice(
+    0,
+    sql.indexOf("CREATE OR REPLACE FUNCTION public.review_owned"),
+  );
+  assert(!helper.includes("prior.receipt->>'observation_revision'"));
+});
+
+Deno.test("rejection Undo recovery shares exact target association without original parent CAS", async () => {
+  const sql = await migration("20261007064255_recover_analysis_rejection_undo");
+  const mutation = sql.slice(
+    sql.indexOf("CREATE OR REPLACE FUNCTION public.review_owned"),
+    sql.indexOf("CREATE FUNCTION public.get_owned"),
+  );
+  assert(
+    mutation.indexOf("RETURN saved.receipt") <
+      mutation.indexOf("FROM internal.observation_history_rollout"),
+  );
+  assertStringIncludes(
+    mutation,
+    "internal.observation_rejection_undo_eligibility(observation,target)",
+  );
+  const helper = sql.slice(
+    0,
+    sql.indexOf("CREATE OR REPLACE FUNCTION public.review_owned"),
+  );
+  assertStringIncludes(
+    helper,
+    "prior.receipt->>'review_revision' IS DISTINCT FROM authority.review_revision::TEXT",
+  );
+  assert(!helper.includes("prior.receipt->>'observation_revision'"));
+  assert(!helper.includes("operation_digest"));
+  const lookup = sql.slice(sql.indexOf("CREATE FUNCTION public.get_owned"));
+  assertStringIncludes(
+    lookup,
+    "rejection_api_enabled AND reader_enabled AND state_reader_enabled",
+  );
+  assertStringIncludes(
+    lookup,
+    "GRANT EXECUTE ON FUNCTION public.get_owned_observation_rejection_undo(JSONB,INTEGER) TO authenticated",
+  );
+  assertStringIncludes(lookup, "internal.scan_deletion_tombstones");
+  assert(
+    !/INSERT INTO internal\.observation_review_receipts|UPDATE (public|internal)\./
+      .test(lookup),
+  );
+});
+
+Deno.test("candidate confirmation retains v1 replay and binds v2 provenance in both phases and Undo", async () => {
+  const sql = await migration(
+    "20261007080657_preserve_analysis_candidate_provenance",
+  );
+  assertStringIncludes(sql, "stored_species_candidates_v1");
+  assertStringIncludes(
+    sql,
+    "pg_catalog.jsonb_array_length(candidates) NOT BETWEEN 1 AND 2",
+  );
+  assertStringIncludes(
+    sql,
+    "p_result#>>'{primary_identification,resolution}' IS DISTINCT FROM 'species'",
+  );
+  assertStringIncludes(
+    sql,
+    "candidate->>'taxon_rank' IS DISTINCT FROM 'species'",
+  );
+  assertStringIncludes(
+    sql,
+    "name IS DISTINCT FROM p_request->>'scientific_name'",
+  );
+  const mutation = sql.slice(
+    sql.indexOf(
+      "CREATE OR REPLACE FUNCTION internal.confirm_observation_analysis",
+    ),
+    sql.indexOf(
+      "CREATE OR REPLACE FUNCTION internal.observation_confirmation_undo_eligibility",
+    ),
+  );
+  assert(
+    mutation.indexOf("'receipt',saved.receipt") <
+      mutation.indexOf("FROM internal.observation_history_rollout"),
+  );
+  assert(
+    mutation.indexOf("internal.observation_candidate_name(target") <
+      mutation.indexOf("IF NOT p_complete THEN"),
+  );
+  assertStringIncludes(mutation, "request_identity IS DISTINCT FROM p_request");
+  assertStringIncludes(
+    mutation,
+    "p_request || pg_catalog.jsonb_build_object('outcome','applied'",
+  );
+  assertStringIncludes(
+    sql,
+    "internal.observation_candidate_name(p_analysis,evidence.result_snapshot,evidence.evidence_manifest,prior.request_identity->'candidate_reference')",
+  );
+  assert(
+    !sql.includes(
+      "CREATE OR REPLACE FUNCTION public.review_owned_observation_analysis",
+    ),
+  );
+  assert(!sql.includes("SET confirmation_api_enabled=TRUE"));
+});
+
+Deno.test("execution status is closed, owner locked and strictly non-dispatching", async () => {
+  const sql = await migration(
+    "20261007113127_prepare_owned_analysis_execution_status",
+  );
+  assertStringIncludes(
+    sql,
+    "execution_status_api_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+  );
+  assertStringIncludes(sql, "reader_enabled AND execution_status_api_enabled");
+  assertStringIncludes(sql, "p_reader IS DISTINCT FROM 9");
+  assertStringIncludes(
+    sql,
+    "internal.lock_owned_observation_evidence(caller, observation)",
+  );
+  assertStringIncludes(sql, "saved.owner_id IS DISTINCT FROM caller");
+  assertStringIncludes(
+    sql,
+    "saved.input_snapshot->>'source_analysis_id' IS DISTINCT FROM source::TEXT",
+  );
+  assertStringIncludes(
+    sql,
+    "'request_digest',p_request->>'request_digest','state',execution_state",
+  );
+  assertStringIncludes(sql, "FROM PUBLIC,anon,authenticated,service_role");
+  assertStringIncludes(sql, "TO authenticated");
+  const routine = sql.slice(sql.indexOf("DECLARE"), sql.indexOf("REVOKE ALL"));
+  assert(!/\b(INSERT|UPDATE|DELETE)\b/.test(routine));
+  assert(
+    !/internal\.(admit|claim|dispatch|fail|complete)_observation_analysis/.test(
+      routine,
+    ),
+  );
+  assert(!sql.includes("execution_status_api_enabled=TRUE"));
+});
+
+Deno.test("retirement is service-only, exact replay first and atomic before dispatch", async () => {
+  const sql = await migration(
+    "20261007115940_prepare_analysis_execution_retirement",
+  );
+  assertStringIncludes(
+    sql,
+    "execution_retirement_api_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+  );
+  assertStringIncludes(sql, "PERFORM internal.require_service_role()");
+  assertStringIncludes(
+    sql,
+    "PERFORM internal.lock_owned_observation_evidence(p_owner,observation)",
+  );
+  assertStringIncludes(
+    sql,
+    "prior.request_identity IS DISTINCT FROM p_request",
+  );
+  assert(
+    sql.indexOf("RETURN prior.receipt") <
+      sql.indexOf("SELECT execution_retirement_api_enabled"),
+  );
+  assertStringIncludes(sql, "saved.state IS DISTINCT FROM 'admitted'");
+  assertStringIncludes(
+    sql,
+    "saved.invocation_id IS NOT NULL OR saved.provider_outcome IS NOT NULL OR saved.draft IS NOT NULL",
+  );
+  assertStringIncludes(sql, "reservation.state IS DISTINCT FROM 'reserved'");
+  assertStringIncludes(
+    sql,
+    "internal.finalize_observation_provider_reservation(p_owner,analysis,reservation.id,reservation.lease_token,'refunded')",
+  );
+  assertStringIncludes(
+    sql,
+    "provider_usage='{}'::JSONB,work_token=NULL,work_expires_at=NULL",
+  );
+  assertStringIncludes(
+    sql,
+    "REFERENCES internal.observation_analysis_intents(analysis_id) ON DELETE CASCADE",
+  );
+  assertStringIncludes(
+    sql,
+    "CREATE TRIGGER immutable_analysis_retirement_receipt BEFORE UPDATE",
+  );
+  assertStringIncludes(sql, "TO service_role");
+  assert(!sql.includes("TO authenticated"));
+  assert(!sql.includes("execution_retirement_api_enabled=TRUE"));
+});

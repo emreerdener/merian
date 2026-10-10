@@ -626,3 +626,10 @@ analysis-bound confirmation. It does not authorize authority writes or spend
 scan allowances. `analysisHistory/confirmation.ts` owns exact operation and
 receipt validation for the
 [prepared confirmation endpoint](../confirm-observation-analysis/README.md).
+
+`analysisHistory/videoMaterialization.ts` owns prepared whole-cohort byte
+verification from an exact ready video receipt: sequential bounded adapter
+reads, cancellation checks and existing source/frame/audio container and digest
+checks. It returns no partial cohort and never rederives outputs. It installs no
+storage adapter or execution authority. See the
+[canonical materialization contract](../../../../docs/backend-and-data/05-api-contracts.md#prepared-whole-video-byte-materialization).

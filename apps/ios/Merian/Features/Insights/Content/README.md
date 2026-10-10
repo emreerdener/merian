@@ -316,3 +316,15 @@ Species Dictionary route with `insight_confirmed_species` entry point. Its
 existing dictionary owner resolves enrichment, avoiding reuse of original scan
 taxonomy, hazards or reference imagery for a replacement. Pending or stale local
 review cannot display a prior selection as current authority.
+
+## Prepared saved reanalysis
+
+The content tree forwards the Shell-owned optional `SavedReanalysisPreparation`
+to biological guidance, candidate cards and the confidence header. A protected
+guidance action leaves the parent presentation alive while its exact prepared
+request resolves. Nested candidate actions retain the same ticket across
+dismissal; Content does not create requests from a later selected result or
+perform network/persistence work. Nil capability preserves legacy refinement
+only when a fresh enrollment check allows scan-only mutation. Staged or
+acknowledged enrollment, damaged holds and failed lookups withhold that action.
+Delayed handoffs and the Capture route repeat the check before legacy staging.

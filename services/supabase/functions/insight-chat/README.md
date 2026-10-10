@@ -282,3 +282,280 @@ hosted authenticated-wrapper release evidence.
 The upstream owner-row, retry, recovery, and deployment guarantees are
 documented in
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#field-chat-readiness).
+
+## Prepared immutable turn admission
+
+The default-off database RPC `reserve_insight_chat_send_with_context` atomically
+stores the admitted question and its bounded immutable context. It preserves the
+existing daily/conversation caps and exact message identity. Context follows the
+message through account merge and cascades with deletion. History admission uses
+the displayed selected analysis and global/review revisions; imported missing
+encounter fields stay unavailable instead of borrowing mutable parent metadata.
+Snapshot replay precedes fresh authority checks, while owner/deletion checks
+still apply. Old messages without a snapshot are held, never reconstructed.
+
+This storage slice does **not** change the live handler or provider recovery.
+Before activation, connect the handler to the new admission result, build every
+recovered answer from its saved snapshot/prefix, add strict HTTP/native ticket
+contracts, and prevent the old mutable execution path for enrolled sends. No
+provider successor, refund or new quota authority is introduced here.
+
+Database/static/concurrency contracts live in `insight_chat_turn_context.sql`,
+`insightChatContextMigrationContract.test.ts` and
+`insightChatContextConcurrencyDb.test.ts`. The canonical
+[API contract](../../../../docs/backend-and-data/05-api-contracts.md#prepared-immutable-insight-admission-protocol)
+and
+[schema](../../../../docs/backend-and-data/04-database-schema.md#prepared-immutable-insight-field-chat-turn-context)
+describe bounds and denial behavior. Raw library `field_notes` are not part of
+this snapshot; the existing captured `user_observation_context` has its own
+explicit text allowlist.
+
+### Prepared read-only recovery
+
+`get_insight_chat_turn_context` resolves an exact owner, observation,
+client-message UUID, normalized question, original displayed ticket and version.
+A missing message returns `{context_version:1,found:false}` without creating a
+conversation or consuming a send. An existing message returns its original
+context before any current authority or rollout checks. Uncontexted old messages
+remain held. Ownership and deletion are checked first; surviving merged messages
+resolve under their current owner. Explicit JSON-null legacy tickets cross
+PostgREST as SQL NULL and are normalized by this resolver.
+
+`storedContextContract.ts` and `storedContext.ts` decode a bounded, closed
+storage shape, validate message/ticket association and return detached frozen
+data. Missing V3 fields remain absent. `storedContextRepository.ts` performs one
+fixed RPC with a five-second deadline and caller cancellation; malformed
+success, unknown errors and missing routes never become `found:false`. Only
+exact SQL code/message pairs classify missing subjects, uncontexted turns or
+idempotency conflicts. This is a prepared internal adapter, with no live handler
+import.
+
+Future send integration must recover before the global mutable scan fetch and
+before stale-quota recovery. A genuinely absent turn needs read-only immutable
+eligibility preflight, existing Pro/provider-quota checks and then atomic
+admission with final ticket revalidation. Admission is never a recovery probe.
+Prompt construction must use only the saved snapshot/prefix and apply existing
+semantic authority and metric qualification; structural decoding alone grants no
+execution authority. Native retry must retain the displayed ticket verbatim,
+with an explicit restart-durability design before claiming restart recovery.
+
+`insight_chat_context_recovery.sql`,
+`insightChatRecoveryMigrationContract.test.ts`,
+`insightChatRecoveryConcurrencyDb.test.ts` and
+`insightChatStoredContext.test.ts` cover no-slot probes, original-context
+recovery, merge/deletion, concurrent admission/deletion, strict decoding and
+transport cancellation. All activation gates remain closed.
+
+### Prepared fresh-context preflight
+
+`prepare_insight_chat_send_context` is a service-only, default-off read that
+returns version, source kind, exact displayed ticket and sanitized
+scan/dictionary context. It accepts only owner, observation, ticket and version:
+no conversation, message UUID or question. It does not read a conversation
+prefix, reserve a send, check entitlement, reserve provider quota or grant later
+execution permission. The private `prepare_current_insight_chat_context` helper
+performs the same locked authority derivation for preflight and final atomic
+admission.
+
+Final admission preserves exact replay first, then reruns that helper. Only it
+freezes the prior-message prefix. It checks the final 128 KiB bound explicitly
+before inserting context; an overflow rolls back the question and daily slot
+with `field_chat_context_unavailable`. PostgREST SQL-null legacy tickets are now
+normalized consistently in preflight, final admission and recovery.
+
+`preparedContext.ts` validates a closed response against the original ticket,
+keeps missing historical fields unavailable and never fabricates a prefix or an
+admitted message. Its fixed RPC has a five-second deadline, caller cancellation
+and no retries. It maps only exact subject-not-found and context-conflict pairs;
+unknown errors and malformed output remain unavailable. HTTP/native integration
+is still pending. New sends must recover first, then apply pure immutable
+eligibility and existing Pro/quota checks before final admission. Lost admission
+replies cannot trigger an unconditional refund or a new provider identity.
+
+The SQL catalog `insight_chat_context_preflight.sql` and the
+`insightChatPreflight*`/`insightChatPreparedContext` tests verify no-slot
+preflight, exact replay, missing historical data, final size rollback and real
+preflight/authority/admission/deletion races.
+
+### Prepared immutable semantics and prompts
+
+`immutableContextPrompt.ts` accepts decoded prepared or stored context and
+shares the existing effective-identification, biological, human and unresolved
+eligibility rules. It never casts sparse historical data to a mutable scan or
+fetches missing fields. Its detached prompt data omits ticket, review,
+dictionary and operation IDs, and all provider configuration. Missing encounter
+fields remain unavailable. Stored prompts preserve the original ordered prefix;
+fresh preflight has no conversation prefix.
+
+The forward projection preserves null candidates and candidate rank. Malformed
+candidate containers fail closed instead of being filtered into empty evidence.
+An additive optional `metrics_qualified` Boolean records compatibility against
+the untouched original provenance before sanitization. Missing provenance is
+unqualified; explicit legacy null retains its established semantics. The prompt
+uses that immutable decision alone, without requalifying sanitized metadata.
+Older immutable contexts without the marker remain readable but omit scores; no
+existing snapshot is rewritten. Unqualified candidate descriptions remain
+available. This adapter does not yet change HTTP dispatch or native requests.
+
+### Prepared exact admission and lost-reply recovery
+
+`contextAdmission.ts` performs one bounded, retry-disabled call to the existing
+atomic admission RPC. Its closed request retains owner, observation, proposed
+conversation, original message UUID/text and displayed ticket. The single-row
+response must bind the returned conversation to the exact user-message identity
+and strict immutable snapshot. The returned conversation may be the existing one
+rather than the proposed UUID. Only the seven identity/text fields are retained
+from the bounded full database message row; unrelated row metadata is never
+passed through as context.
+
+Exact SQL code/message pairs identify a rejected transaction. This says nothing
+about an earlier attempt or whether a quota reservation may be released.
+Transport failures, timeout, malformed success and cancellation after dispatch
+remain unknown. `contextAdmissionRecovery.ts` responds to unknown admission with
+one exact read-only recovery attempt, never another write. A found snapshot is
+returned with a distinct recovery result; an absent, failed or conflicting read
+keeps the original uncertainty. In particular, absence after a client timeout
+cannot prove that the original database transaction will not commit later.
+Neither adapter owns quota, provider dispatch or refunds. Live HTTP wiring still
+needs to preserve those boundaries before activation.
+
+HTTP execution also needs a separate protected quota fence. The legacy chat
+reservation path can reopen failed/refunded/expired work, and its stale recovery
+can turn an unanswered committed request into another metered attempt. Those
+policies must not be reused for immutable protected turns with uncertain
+provider execution. The new branch must preserve durable attempt evidence and
+hold such work without a successor, including after ordinary quota-row
+retention. The prepared admission/recovery owners do not yet supply that
+dispatch guarantee.
+
+### Prepared durable quota fence
+
+The forward protected-quota migration now provides a scan-owned, immutable
+request fence that survives terminal quota pruning. Exact replay is held, never
+a new lease. Context admission can atomically bind the original reservation to
+the saved message. Erasing that message retires its binding; scan deletion or
+account detachment erases the private fence. Account merge preserves independent
+requests and retires colliding operational quota records while retaining charges
+for dispatched attempts. The
+[schema contract](../../../../docs/backend-and-data/04-database-schema.md#prepared-protected-field-chat-execution-fence)
+owns the storage and lifecycle rules.
+
+Protected admission RPCs are connected to the recovery-first HTTP owner and
+remain behind `chat_execution_enabled = false`. The owner uses the funded
+context adapter. The `protectedExecution.ts` adapter reserves through the narrow
+five-field receipt and invokes a separate one-time dispatch RPC. The latter
+records a permanent marker and commits quota atomically; only its fresh decoded
+reply permits provider execution. Replays return held, and unknown replies never
+retry, refund or call the provider. Generic finalizer success is not permission.
+The connected HTTP owner retains owner/deletion/consent checks, recovery-first
+ordering, final saved context and a bounded shared deadline. Generic stale-chat
+recovery must never reopen protected work.
+
+### Server routing and legacy boundary
+
+`sendRoute.ts` performs a bounded, retry-disabled owner/scan route read before
+all mutable send work. The server requires immutable context for enrolled or
+previously protected observations and for the execution cutover; client fields
+cannot opt out. The handler delegates that route to the bounded immutable send
+owner and holds unknown route reads. Protected protocol fields cannot select
+legacy when the server has not enabled the protected route. SQL independently
+fences existing generic admission, quota commit and stale rescue, including old
+deployed handlers. Enrollment waits for the exact reply of any already-committed
+legacy attempt. See the
+[storage contract](../../../../docs/backend-and-data/04-database-schema.md#legacy-insight-admission-and-enrollment-boundary).
+
+`protectedContextAdmission.ts` is the separate funding-bound adapter. It retains
+the original quota pair, marks returned replay explicitly, and allows only one
+read after unknown admission. Read recovery never authorizes dispatch or refund.
+The bounded HTTP execution owner uses this adapter. Deterministic safety
+refusals use the prepared atomic question/context/reply routine below, consuming
+a chat slot without provider quota. Fresh protected execution remains gated off
+in the database.
+
+### Prepared exact completion and atomic local refusal
+
+`exactCompletion.ts` reads the exact original user/conversation-bound assistant
+through `get_insight_chat_turn_completion`, with a bounded closed public-message
+projection and deterministic UUID validation. Missing context holds; a valid
+incomplete turn grants no execution permission. Current owner/deletion checks
+precede historical receipt recovery.
+
+The same module calls `admit_insight_chat_local_refusal` once for a closed
+safety reason. SQL atomically saves admission/context/static answer without
+provider quota, or rolls the entire write back. It never fills a previously
+incomplete provider turn. Exact static replay survives gate/authority changes;
+changed request/reason, cross-scan reuse and prior provider attempts hold.
+Transport uncertainty preserves the original request with no retry/refund. Tests
+cover static-copy parity, rollback, concurrent replay/deletion and actual
+account merge. Recovery orchestration is connected to the protected HTTP owner;
+native persisted send tickets remain to be connected, and all gates stay closed.
+
+### Prepared original-grant provider completion
+
+`protectedReply.ts` freezes the original context/message and reservation/lease
+with a closed normalized provider reply. Its service-only write atomically saves
+the deterministic assistant, usage ledger and conversation touch once. Existing
+replies recover before fresh quota validity, but new writes require the original
+committed attempt and consumed dispatch marker. Known provider attribution is
+retained when usage is unavailable; token counts are never invented.
+
+An unknown write permits one dedicated full-payload read, comparing usage and
+generated metadata in SQL while returning only the public receipt. Missing or
+conflicting recovery holds; it never triggers another write/provider call or
+refund. Each transport has a five-second bound within the parent deadline. The
+protected HTTP execution owner uses this adapter; native persisted send tickets
+remain pending, with all activation gates false.
+
+### Protected send HTTP owner
+
+`protectedSendContract.ts` requires the closed version-one send object:
+`action`, `context_version`, `scan_id`, proposed `conversation_id`,
+`client_message_id`, `message_text`, and explicit `displayed_ticket` (object or
+null). The owner is JWT-derived. The normalized question and ticket are frozen
+before any send work. `protectedSend.ts` recovers original context first;
+existing turns only read the exact completion. A missing turn uses immutable
+eligibility, current Pro, local safety, protected quota, funded context
+admission, immutable saved prompts, one fresh grant and one provider call.
+Replayed or recovered admissions cannot execute. Local safety refusal consumes a
+chat slot without provider quota.
+
+The response is `{data:{context_version:1,completed:true,message}}`, using the
+existing fixed ten-field assistant receipt. It never claims to contain a current
+thread or remaining quota. The native exact receipt decoder validates request,
+observation and deterministic assistant identity; durable sending is a separate
+owner still to be connected. Legacy conversation decoding remains separate.
+Responses are no-store. An omitted ticket never falls back to legacy.
+
+The owner measures its 135-second budget from HTTP entry. Before grant it
+reserves five seconds for grant, 90 seconds for provider and 15 seconds for
+completion and one exact recovery read, plus a two-second dispatch margin; it
+also checks headroom before quota admission. A confirmed grant invokes once with
+the remaining provider window, preserving the completion reserve. The raw
+one-shot provider transport inherits parent cancellation through headers and
+body, rejects redirects, caps JSON at 32 KiB and never retries. Strict model,
+answer and nullable usage normalization rejects uncertainty rather than
+inventing results. Post-dispatch uncertainty stays charged and held. No generic
+quota refund/failure, legacy prompt, mutable thread reconstruction or duplicate
+usage event is used.
+
+### Prepared stale-ticket retirement
+
+The separate service-only no-admission seal can permanently retire an exact
+request only after the database independently verifies a changed displayed
+identification and absence of current admission/attempt evidence under writer
+locks. It preserves a private request fingerprint and original proposed
+conversation. Existing quota, message or execution evidence stays held. All
+context/quota writers honor the terminal seal, including direct unfunded
+admission and quota updates. The schema and API contracts define its closed
+receipt. The prepared HTTP owner reads stored completion first, then the exact
+seal before fresh eligibility or entitlement. A locked `fresh_candidate` only
+permits preflight; it is not dispatch authority. Only typed stale-ticket denial
+calls the sealing writer, once. An exact proof returns a distinct HTTP 200
+`data.outcome:"not_admitted"` receipt without an assistant or thread. Unknown
+reads/writes remain held; generic errors and absence never release occupancy.
+Native decoding and versioned durable proof settlement now consume this exact
+outcome separately from assistant replies. New UUIDs cannot reuse a proved-stale
+selection tuple. The retained explicit refresh action synchronizes different
+authority, verifies the displayed host, and closes the stale session without
+automatic sending. All activation gates remain false; no refund or provider
+successor is granted.

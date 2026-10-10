@@ -1,0 +1,10 @@
+BEGIN;
+SELECT plan(6);
+SELECT is((SELECT provolatile::TEXT FROM pg_proc WHERE oid='internal.observation_video_source_cohort_items(jsonb)'::regprocedure),'s','stable inventory');
+SELECT ok((SELECT NOT prosecdef AND proconfig @> ARRAY['search_path=""'] FROM pg_proc WHERE oid='internal.observation_video_source_cohort_items(jsonb)'::regprocedure),'invoker empty path');
+SELECT ok(NOT has_function_privilege('anon','internal.observation_video_source_cohort_items(jsonb)','EXECUTE'),'anon denied');
+SELECT ok(NOT has_function_privilege('authenticated','internal.observation_video_source_cohort_items(jsonb)','EXECUTE'),'authenticated denied');
+SELECT ok(NOT has_function_privilege('service_role','internal.observation_video_source_cohort_items(jsonb)','EXECUTE'),'service role denied');
+SELECT throws_ok($$SELECT internal.observation_video_source_cohort_items('{}'::jsonb)$$,'22023','invalid_analysis_history','invalid graph denied');
+SELECT * FROM finish();
+ROLLBACK;

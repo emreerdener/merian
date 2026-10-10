@@ -1,7 +1,9 @@
+import SwiftData
 import SwiftUI
 
 struct ConfidenceBadge: View {
     @Environment(InferenceEngine.self) private var inferenceEngine
+    @Environment(\.modelContext) private var modelContext
 
     let confidenceScore: Double?
     let inferenceTier: String?
@@ -11,6 +13,12 @@ struct ConfidenceBadge: View {
     var isFlagged: Bool = false
     var aiScientificName: String?
     var onAskCommunity: (() -> Void)?
+    var prepareCommunityConsent: CommunityConsentPreparation?
+    @State private var pendingCandidateReview: CandidateReviewTicket?
+    @State private var pendingCommunityConsent: CommunityConsentTicket?
+    var prepareSavedReanalysis: SavedReanalysisPreparation?
+    var confidenceReviewControls: ConfidenceReviewControls
+    @State private var pendingReanalysis: SavedReanalysisTicket?
     /// When set, the badge shows an analyzing state with this phrase as its label.
     /// The explanation sheet is suppressed while analyzing.
     var analyzingPhrase: String?
@@ -31,6 +39,9 @@ struct ConfidenceBadge: View {
         isFlagged: Bool = false,
         aiScientificName: String? = nil,
         onAskCommunity: (() -> Void)? = nil,
+        prepareCommunityConsent: CommunityConsentPreparation? = nil,
+        prepareSavedReanalysis: SavedReanalysisPreparation? = nil,
+        confidenceReviewControls: ConfidenceReviewControls = .init(),
         analyzingPhrase: String? = nil,
         onAnalyzingTap: (() -> Void)? = nil,
         dependencies: ConfidenceReviewDependencies = .live
@@ -43,6 +54,9 @@ struct ConfidenceBadge: View {
         self.isFlagged = isFlagged
         self.aiScientificName = aiScientificName
         self.onAskCommunity = onAskCommunity
+        self.prepareCommunityConsent = prepareCommunityConsent
+        self.prepareSavedReanalysis = prepareSavedReanalysis
+        self.confidenceReviewControls = confidenceReviewControls
         self.analyzingPhrase = analyzingPhrase
         self.onAnalyzingTap = onAnalyzingTap
         self._viewModel = State(
@@ -73,7 +87,8 @@ struct ConfidenceBadge: View {
             hasUserOverride: userIdentificationOverride != nil,
             isUserConfirmed: userConfirmedIdentification,
             analyzingPhrase: analyzingPhrase,
-            isIncorrect: inferenceEngine.speciesData?.aiReview.isUnresolved == true
+            review: inferenceEngine.speciesData?.aiReview ?? .init(),
+            confirmationState: confidenceReviewControls.confirmationState
         )
     }
 
@@ -87,7 +102,7 @@ struct ConfidenceBadge: View {
             return .green
         case .incorrect:
             return .red
-        case .possible:
+        case .possible, .awaitingReview:
             return .orange
         case .weak, .unknown:
             return .gray
@@ -247,7 +262,32 @@ struct ConfidenceBadge: View {
                         aiScientificName: aiScientificName,
                         onAskCommunity: onAskCommunity,
                         onRequestDismissalAction: { action in
+                            pendingCandidateReview?.cancel(); pendingCandidateReview = nil
+                            pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
+                            pendingReanalysis?.cancel()
+                            pendingReanalysis = nil
                             viewModel.stageDismissalAction(action)
+                        },
+                        prepareCommunityConsent: prepareCommunityConsent,
+                        prepareSavedReanalysis: prepareSavedReanalysis,
+                        confidenceReviewControls: confidenceReviewControls,
+                        onPreparedCandidateReview: { context, ticket in
+                            pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
+                            pendingReanalysis?.cancel(); pendingReanalysis = nil
+                            pendingCandidateReview?.cancel(); pendingCandidateReview = ticket
+                            viewModel.stageDismissalAction(.reviewCandidates(context))
+                        },
+                        onPreparedCommunityConsent: { context, ticket in
+                            pendingCandidateReview?.cancel(); pendingCandidateReview = nil
+                            pendingCommunityConsent?.cancel()
+                            pendingCommunityConsent = ticket
+                            viewModel.stageDismissalAction(.askCommunity(context))
+                        },
+                        onPreparedReanalysis: { context, ticket in
+                            pendingCandidateReview?.cancel(); pendingCandidateReview = nil
+                            pendingReanalysis?.cancel()
+                            pendingReanalysis = ticket
+                            viewModel.stageDismissalAction(.refineScan(context, initialDescription: nil))
                         },
                         dependencies: viewModel.childDependencies
                     )
@@ -262,6 +302,12 @@ struct ConfidenceBadge: View {
                             }
                         }
                 }
+            }
+            .onDisappear {
+                pendingCandidateReview?.cancel(); pendingCandidateReview = nil
+                pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
+                pendingReanalysis?.cancel()
+                pendingReanalysis = nil
             }
         }
     }
@@ -289,8 +335,17 @@ struct ConfidenceBadge: View {
     }
 
     private func resumePendingExplanationDismissalAction() {
+        let candidate = pendingCandidateReview
+        pendingCandidateReview = nil
+        defer { candidate?.cancel() }
+        let community = pendingCommunityConsent
+        pendingCommunityConsent = nil
+        defer { community?.cancel() }
+        let prepared = pendingReanalysis
+        pendingReanalysis = nil
         guard let currentScanId = inferenceEngine.speciesData?.scanId else {
             viewModel.invalidateExplanation()
+            prepared?.cancel()
             return
         }
         let currentSubject = IdentificationReviewSubject(
@@ -299,12 +354,21 @@ struct ConfidenceBadge: View {
         )
         guard let action = viewModel.takePendingDismissalAction(
             matching: currentSubject
-        ) else { return }
+        ) else { prepared?.cancel(); return }
 
         switch action {
+        case .reviewCandidates:
+            prepared?.cancel()
+            candidate?.resume()
         case .askCommunity:
+            prepared?.cancel()
+            if let community { community.resume(); return }
+            guard prepareCommunityConsent == nil else { return }
             onAskCommunity?()
         case .refineScan(_, let initialDescription):
+            if let prepared { prepared.resume(); return }
+            guard prepareSavedReanalysis == nil,
+                  ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: action.context.scanId, container: modelContext.container) else { return }
             viewModel.requestRefinementRoute(
                 scanId: action.context.scanId,
                 initialDescription: initialDescription

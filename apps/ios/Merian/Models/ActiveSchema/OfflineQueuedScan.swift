@@ -1,13 +1,15 @@
 import Foundation
 import SwiftData
 
-/// Released V49 queue model reused unchanged by V50.
-///
-/// The V50 goal preference is stored in `ActiveOfflineQueuedScanGoalHint` so this
-/// type retains its released identity and SwiftData checksum during migration.
+/// V58 queue identity. Reanalysis routing and erasure never depend on job JSON.
 @Model
 public final class OfflineQueuedScan {
     @Attribute(.unique) public var id: String
+    /// Old stores migrate to ordinary work; the three linkage fields remain nil.
+    public var workKindRaw: String = "ordinary"
+    public var parentObservationID: String?
+    public var sourceAnalysisID: String?
+    public var reanalysisOwnerAccountID: String?
     public var timestamp: Date
     public var capturedMediaJSON: String?
     @Relationship(deleteRule: .cascade) public var capturedMediaEntries: [CapturedMediaEntry]? = []
@@ -142,4 +144,13 @@ public final class OfflineQueuedScan {
         self.queueNeedsAttention = queueNeedsAttention
         self.queueSchemaRepairGeneration = queueSchemaRepairGeneration
     }
+}
+
+extension OfflineQueuedScan {
+    var work: OfflineQueueWork {
+        .classify(kind: workKindRaw, childID: id, parentID: parentObservationID,
+                  sourceID: sourceAnalysisID, ownerID: reanalysisOwnerAccountID)
+    }
+    /// Qualified and damaged rows must never enter legacy upload/identify/finalization.
+    var permitsOrdinaryInference: Bool { work == .ordinary }
 }

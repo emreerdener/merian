@@ -1179,3 +1179,40 @@ destination is retained as a user-attention failure rather than submitted.
 | `CloudScanImageRepairActor` | `Core/Data/Images/Services/`            | Serial owner-authenticated inspection, staging upload, and cloud-reference repair for strongly matched surviving local images          |
 | `ImageCache`                | `Core/Data/Images/`                     | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap                                                             |
 | `ArchiveManager`            | `Core/Data/Images/`                     | `@MainActor` coordinator for generated dataset archive ZIP downloads                                                                   |
+
+## Prepared private reanalysis evidence
+
+The disabled identification-history producer has a separate immutable-evidence
+boundary. Original V2 JPEG/PNG bytes are verified and retained exactly; they do
+not pass through the ordinary WebP preparation path. Explicitly added or edited
+photos use `ObservationReanalysisPhotoPreparation`: one-frame ImageIO input,
+existing 1024-pixel maximum inference raster and 0.85 quality policy, explicit
+JPEG output without copied metadata. Five-photo and 5 MiB aggregate input/output
+bounds apply before durable child admission. The producer saves a held
+`files_pending` identity and exact manifest before writing private files, then
+uses a locked compare-and-save to make the draft ready. Parent deletion retains
+a durable namespace cleanup receipt. A local worker now removes the entire child
+namespace's file contents under the preparation lock and durably acknowledges
+completion; failures retain the receipt for lifecycle recovery. Targeted local
+recovery can adopt a complete existing cohort under the same locks only after
+verifying the saved source fingerprint, exact file set and all ordered photo
+lengths, digests and containers. It preserves the child identity and selection;
+incomplete evidence stays held. Full-account purge awaits complete namespace
+erasure under an exclusive Documents root lock before preferences and runtime
+state reset; failure retains the account cleanup barrier. Automatic restart
+delivery remains an integration prerequisite. Unsupported or oversized originals
+require explicit remediation; they are never silently dropped or reidentified as
+the original after conversion. The
+[private producer contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#verified-file-production)
+owns file durability, source/owner fences and integration status. Ordinary
+capture remains on its existing image pipeline.
+
+The protected Capture preparation owner now accepts an explicit subset of the
+frozen source's V2 photos, preserving exact descriptions and mixed-evidence
+order. It returns an all-or-nothing staged value after account, generation,
+source, digest and container checks, using bounded previews with original-byte
+provenance. A retained session mints one child/media plan before preparation and
+rejects changed retry input; a late account loss withholds the response without
+rolling back durable success. The normal Capture route, chooser and submission
+branch remain integration prerequisites. See the
+[Capture preparation contract](../../apps/ios/Merian/Features/Capture/Submission/README.md#protected-capture-preparation).

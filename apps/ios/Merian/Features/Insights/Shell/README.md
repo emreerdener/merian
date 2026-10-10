@@ -242,3 +242,165 @@ path. `InsightSheetViewModel+History` refreshes the parent from an acknowledged
 Core projection, never preview content. Generation/dismissal and library events
 close or revalidate the model. History services and interaction state belong to
 [History](../History/README.md).
+
+The optional prepared history reanalysis callback uses the existing nested sheet
+host. `InsightSheetView+History` stages an exact source-qualified handoff;
+`handleShellPresentationDismissed` consumes it once after UIKit dismissal.
+Parent presentation teardown clears it. Revalidation precedes the injected
+historical route request, whose root dismissal and account/session fencing stay
+owned by `AppRouteCoordinator` and Capture. It never uses the legacy refinement
+callback. Ordinary history access and protected Capture access remain disabled.
+
+The prepared **Reanalysis status** menu uses a separate optional
+`reanalysisStatusAccess` and `.reanalysisStatus(scanId:generation)` in this same
+presentation slot. `InsightSheetView+ReanalysisStatus` admits its owner-scoped
+read model independently of history's multiple-result condition. Root dismissal,
+scan-generation changes, nested dismissal and library invalidation close or
+revalidate its private state. The History area owns phase-only rows and bounded
+paging; Shell never admits, retries or discards a request from this surface.
+Ordinary access remains nil.
+
+The optional `savedReanalysisAccess` supplies the existing single Reanalyze menu
+action before the legacy Pro/refinement branch. Its lock presentation is
+supplied separately from legacy Pro access. `InsightSheetView+SavedReanalysis`
+captures the displayed baseline before awaiting, retains a token-qualified
+waiter, and checks the exact scan/presentation generation before routing.
+Dismissal, disappearance or generation changes cancel only that waiter;
+QueueManager retains any shared enrollment. A protected failure shows an error
+and never invokes legacy refinement. Ordinary access remains nil.
+
+The final action rechecks settled review state as well as acknowledged revision:
+a newly pending identification-review job invalidates routing even when the
+revision has not advanced. `SavedIdentificationReanalysisTests` covers that
+boundary and account, source, selection and deletion races.
+`IdentificationHistoryUITests` also exercises a Debug-only protected-entry
+failure on a single-result scan: one menu item, no History entry, visible
+failure and the original Insight retained. The synthetic failure never enrolls,
+routes or calls a provider.
+
+The runtime-audit manifest registers the entry acceptance suite and failure UI
+smoke. The Release archive seed denylist includes the Debug-only failure launch
+argument. UI checks query native context-menu labels because the menu does not
+retain custom SwiftUI accessibility identifiers.
+
+Protected reanalysis also covers Field Chat, biological guidance, both candidate
+modal owners, and the confidence explanation (including its nested candidates).
+Shell supplies one `SavedReanalysisPreparation` through the content tree. The
+actual tap synchronously prepares the exact displayed request before any child
+dismisses; successive `onDismiss` callbacks carry that same revocable ticket.
+They never load a newer baseline. The host checks local presentation and engine
+presentation generations separately before preparation and after resolution.
+
+A protected preparation failure returns an inert ticket, preventing legacy
+fallback even if access changes during dismissal. Protected actions do not
+dismiss the parent Insight before resolution. Nil capability preserves the
+legacy entry behavior. Ordinary capabilities remain nil; these changes do not
+enable rollout or change review/publication authority.
+
+`InsightHistoryReanalysisAccesses` groups History, status and saved-result entry
+as one optional, nil-default environment value. The App root supplies all three
+from the same retained bundle as Capture. Every default Insight host resolves
+this overlay at the view boundary, including library, collections, Explore and
+profile hosts. Explicit `dependencies:` injection wins even when its accesses
+are nil; ordinary `.live` is never mutated. The Insight ViewModel does not
+consume these accesses. The immutable App qualification gate is false, so this
+wiring constructs no live bundle and enables no UI or background work.
+
+If any base access is already supplied, including a Debug fixture from `.live`,
+the entire base group remains authoritative. The overlay cannot mix fixture and
+prepared accesses.
+
+## Prepared selected-identification review
+
+`SelectedAnalysisReviewAccess` reuses the history Session and its injected
+review owner. Opening this capability is a local, owner-fenced read: it neither
+enrolls the observation nor sends a review. The App composition prepares it
+alongside history, status and reanalysis; ordinary installation remains
+disabled. The retained `SelectedAnalysisReviewHost` connects protected toolbar
+confirmation, rejection and receipt-backed Undo to that prepared capability.
+Nested legacy candidate and Confidence review controls are withheld for
+protected observations.
+
+`SelectedAnalysisReviewBaseline` freezes the observation, owner, selected
+analysis and global revision into the toolbar snapshot only after the exact
+record has loaded into the inference presentation. A rejected Auth-fenced load
+cannot create that baseline. A same-scan metadata lookup or collection edit
+preserves the already displayed baseline instead of adopting newer, unseen
+authority. A protected initial presentation without a baseline deliberately
+reloads the exact record; an ordinary unenrolled presentation retains its
+existing hydration. Acknowledged history refresh similarly reloads the
+reconciled parent projection.
+
+Opening selected review requires the frozen selection and revision to match a
+fresh local context, idle selection, and the exact cached immutable result and
+review ticket. Account loss or deletion invalidates the session. Selection or
+authority changes invalidate new admission while owner-bound receipt recovery
+remains available. The host must use scope validity for receipt observation and
+exact ticket freshness for a new tap; acknowledged parent refresh is the only
+projection bridge. The capability holds no idle Auth lease and cannot substitute
+the current selection for the displayed target.
+
+The host binds outside view rendering to the displayed baseline, Shell
+generation and model container. A separate binding token rejects delayed alerts
+after even an identical baseline reopens. Exact request uncertainty survives
+rerenders; Retry saving review reuses that request. Actual queue-pass exit
+refreshes the receipt without polling or an idle Auth lease. Applied completion
+refreshes only the reconciled parent, once; negative terminal receipts retire
+the old scope and require a new presentation, even if its revision has not
+changed. Account, container, route and disappearance invalidate the old
+controls.
+
+Fresh enrollment protection, including a staged intent or failed lookup, takes
+precedence over every legacy action. Missing protected access cannot fall back.
+Legacy candidate and Confidence callbacks recheck that protection after delayed
+sheet dismissal and before mutations. Unenrolled scans retain their existing
+review flow. `SelectedAnalysisReviewHostTests` verifies retry identity, delayed
+binding tokens, receipt consumption, conflict lockout and scope loss; the
+existing enrollment and architecture suites cover the underlying boundaries.
+
+## Prepared protected Field Chat
+
+`ProtectedInsightChatAccess` bridges the loaded selected baseline to local
+immutable requests and the injected queue delivery owner.
+`ProtectedInsightChatModel` shows saved questions and exact assistant receipts
+without the mutable legacy thread. The final Send action retains
+UUIDs/text/ticket and synchronously stages before queue handoff. A parent
+`ProtectedInsightChatContinuation` retains a save-uncertain candidate across
+sheet reopening; a changed ticket can only recover an already saved exact
+request, never admit unseen authority. Retrying a save only persists and
+refreshes; the separate saved-question action authorizes delivery.
+
+`InsightSheetView+ProtectedChat` owns the independent token-qualified shell
+presentation. Toolbar protection precedes legacy Pro, unavailable-cache and
+cloud-readiness actions. Nil/stale protected access never falls back. Closing
+only closes the presentation; the retained queue continues independently under
+account/deletion fences. Account/container loss clears private UI state.
+
+Saved pending work has an explicit same-intent send action. Held or expired
+running work has explicit exact-claim recovery; unexpired running work cannot
+enter replay. Terminal replies never send again. Queue task-exit generation
+refreshes local status without polling or an idle lease. Receipt pages are
+bounded and replace one another, and new questions still require transactional
+admission. Exact server no-admission proofs now appear as “Question not sent,”
+with no fabricated answer. Full-scope status disables new sends for the proved
+stale ticket even when local selected-cache equality still passes. This bar
+survives reopening and cannot be hidden by receipt paging. Explicit
+identification refresh now uses a retained queue-owned read. The host
+revalidates the exact model, local and engine generations, owner/container and
+returned ticket before loading the acknowledged parent. It closes the stale chat
+without reopening or sending; a later user tap opens against the newly displayed
+identification. Runtime qualification remains outstanding.
+`ProtectedInsightChatUITests` uses `-seedProtectedInsightChat` and the real
+enrolled V2 seed/persistence to check empty-send disabling, exact saved question
+and identity across reopening. Only the delivery boundary is synthetic; it
+checks the durable owner, target, revisions and request before withholding
+network execution. The launch seed is Debug-only and included in the Release
+archive marker check. All ordinary access and activation gates remain disabled.
+
+The Debug-only `-seedProtectedChatStale` scenario uses real request admission,
+queue delivery, proof settlement, state synchronization and host projection;
+only the authenticated response and state bytes are synthetic. Its UI test
+verifies the proof survives reopening, fresh sending stays unavailable until
+explicit refresh, the stale sheet closes, and a later opening has an empty
+composer plus the original saved proof. This does not prove real provider,
+network, device or production rollout behavior.

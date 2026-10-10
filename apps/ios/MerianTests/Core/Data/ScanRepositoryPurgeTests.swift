@@ -9,7 +9,7 @@ import Testing
     .sharedProcessState(.offlineQueueManager)
 )
 struct ScanRepositoryPurgeTests {
-    @Test func purgeRemovesSpeciesPreferencesAndCompatibilityValues() throws {
+    @Test func purgeRemovesSpeciesPreferencesAndCompatibilityValues() async throws {
         let schema = Schema(CurrentSchema.models)
         let configuration = ModelConfiguration(
             schema: schema,
@@ -97,7 +97,7 @@ struct ScanRepositoryPurgeTests {
 
         var resetCount = 0
         var runtimeResetCount = 0
-        let didPurge = ScanRepository.shared.purgeAllData(
+        let didPurge = await ScanRepository.shared.purgeAllData(
             modelContext: context,
             userDefaults: defaults,
             resetDerivedState: { resetCount += 1 },
@@ -134,7 +134,7 @@ struct ScanRepositoryPurgeTests {
             defaults.string(forKey: UserDefaultsKeys.themeMode) == "dark"
         )
 
-        #expect(ScanRepository.shared.purgeAllData(
+        #expect(await ScanRepository.shared.purgeAllData(
             modelContext: context,
             userDefaults: defaults,
             resetDerivedState: { resetCount += 1 },
@@ -142,6 +142,32 @@ struct ScanRepositoryPurgeTests {
         ))
         #expect(resetCount == 2)
         #expect(runtimeResetCount == 2)
+    }
+
+    @Test func fileFailureKeepsPreferencesAndRuntimeUntilSuccessfulRetry() async throws {
+        let schema = Schema(CurrentSchema.models)
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        context.insert(OfflineJobRecord(id: "orphaned-child", kind: .observationReanalysisSync))
+        try context.save()
+        let suite = "merian.tests.file-purge.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        FieldNotesStore.setFieldNotes("Synthetic note", for: "fixture", userDefaults: defaults)
+        var resets = 0, erasures = 0
+        let failed = await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+            resetRuntimeState: { resets += 1 }, eraseReanalysis: {
+                erasures += 1
+                #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+                #expect(FieldNotesStore.hasStoredValues(userDefaults: defaults))
+                throw CocoaError(.fileWriteUnknown)
+            })
+        #expect(!failed && resets == 0 && erasures == 1)
+        #expect(FieldNotesStore.hasStoredValues(userDefaults: defaults))
+        let completed = await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+            resetRuntimeState: { resets += 1 }, eraseReanalysis: { erasures += 1 })
+        #expect(completed && resets == 1 && erasures == 2)
+        #expect(!FieldNotesStore.hasStoredValues(userDefaults: defaults))
     }
 
     @Test func purgeInventoryTracksEveryCurrentSchemaEntity() {

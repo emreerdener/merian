@@ -11,6 +11,17 @@ struct ModelsIntegrationArchitectureTests {
             let stateOwner = source.relativePath == "Core/Data/AnalysisHistory/ObservationHistoryStateSyncService.swift"
             let enrollmentOwner = source.relativePath == "Core/Data/AnalysisHistory/ObservationHistoryEnrollmentService.swift"
             let stateModel = source.relativePath == "Models/ActiveSchema/LocalAnalysisStateRecord.swift"
+                || source.relativePath == "Models/Schema/SchemaV57ScanSnapshots.swift"
+            let consentFixture = source.relativePath == "App/UITesting/UITestSeedCoordinator+PublicationConsent.swift"
+            if consentFixture {
+                // The sole synthetic enrollment seed is excluded from Release;
+                // immutable children and authority still use production writers.
+                #expect(source.contents.hasPrefix("#if DEBUG\n"))
+                #expect(source.contents.hasSuffix("#endif\n"))
+                #expect(code.contains("isEnabled && ProcessInfo.processInfo.arguments.contains(\"-seedPublicationConsentChooser\")"))
+                #expect(code.contains("ObservationHistorySyncService.insert("))
+                #expect(code.contains("ObservationHistoryStateSyncService.apply("))
+            }
             let cacheOwner = source.relativePath == "Core/Data/AnalysisHistory/ObservationHistoryStateCache.swift"
             if !cacheOwner {
                 #expect(code.range(of: #"LocalAnalysisStateRecord\s*(?:\(|\.init\b)"#, options: .regularExpression) == nil,
@@ -25,14 +36,24 @@ struct ModelsIntegrationArchitectureTests {
                 #expect(code.range(of: #"ObservationHistorySyncService\s*\("#, options: .regularExpression) == nil,
                     "Normal history scheduling remains behind the activation hold: \(source.relativePath)")
             }
-            if !historyAdapter {
+            let chatRefreshOwner = source.relativePath == "Core/Data/AnalysisHistory/ProtectedInsightChatRefreshOwner.swift"
+            if chatRefreshOwner {
+                #expect(code.contains(".syncSelected(observationID:"))
+                #expect(code.contains("cancelAndAwaitAll()"))
+                #expect(code.contains("scoped.isCurrent ="))
+            }
+            if !historyAdapter && !chatRefreshOwner {
                 #expect(code.range(of: #"ObservationHistoryStateSyncService\s*\("#, options: .regularExpression) == nil,
                     "Normal state scheduling remains behind the activation hold: \(source.relativePath)")
-            #expect(code.range(of: #"ObservationHistoryPreviewService\s*\("#, options: .regularExpression) == nil,
+            }
+            if !historyAdapter {
+                #expect(code.range(of: #"ObservationHistoryPreviewService\s*\("#, options: .regularExpression) == nil,
                     "Normal preview presentation remains behind the activation hold: \(source.relativePath)")
             }
-            #expect(code.range(of: #"ObservationHistoryEnrollmentService\s*\("#, options: .regularExpression) == nil,
-                    "Normal enrollment remains behind the activation hold: \(source.relativePath)")
+            if source.relativePath != "Core/Data/AnalysisHistory/ObservationHistoryEnrollmentOwner.swift" {
+                #expect(code.range(of: #"ObservationHistoryEnrollmentService\s*\("#, options: .regularExpression) == nil,
+                        "Only the explicit enrollment owner can request admission: \(source.relativePath)")
+            }
             if !historyAdapter {
                 #expect(code.range(of: #"ObservationHistorySelectionService\s*\("#, options: .regularExpression) == nil,
                     "Normal Restore/Undo remains behind the activation hold: \(source.relativePath)")
@@ -40,6 +61,8 @@ struct ModelsIntegrationArchitectureTests {
             for field in ["analysisRecords", "selectedAnalysisID", "analysisOwnerAccountID",
                           "observationStateRevision", "analysisSelectionInitialized"] {
                 if admissionOwner && field == "analysisRecords" { continue }
+                if consentFixture && ["selectedAnalysisID", "analysisOwnerAccountID",
+                                      "observationStateRevision", "analysisSelectionInitialized"].contains(field) { continue }
                 if enrollmentOwner && ["selectedAnalysisID", "analysisOwnerAccountID", "observationStateRevision"].contains(field) { continue }
                 if (stateOwner || stateModel) && field == "observationStateRevision" { continue }
                 if stateOwner && field == "selectedAnalysisID" { continue }
@@ -156,19 +179,71 @@ struct ModelsIntegrationArchitectureTests {
         )
         #expect(registry.contains("enum MerianMigrationPlan"))
         #expect(registry.contains("enum MerianSchemaV51"))
-        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV57.swift")
-        #expect(currentSchema.contains("enum MerianSchemaV57"))
-        #expect(registry.contains("migrateV56toV57"))
+        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV58.swift")
+        #expect(currentSchema.contains("enum MerianSchemaV58"))
+        #expect(registry.contains("migrateV57toV58"))
     }
 
     @Test func historyPresentationRemainsAnExplicitClosedConsumer() throws {
         let sources = try DatabaseActorTestSupport.swiftSources(below: "apps/ios/Merian")
         for entry in sources {
-            #expect(!codeLines(in: entry.contents).contains("IdentificationHistoryAccess.prepared"))
+            let code = codeLines(in: entry.contents)
+            let audioSheetFixture = entry.relativePath == "App/UITesting/UITestSeedCoordinator+AudioReanalysisSheet.swift"
+            if audioSheetFixture {
+                #expect(entry.contents.hasPrefix("#if DEBUG\n"))
+                #expect(entry.contents.hasSuffix("#endif\n"))
+                let directives = code.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { $0.hasPrefix("#if") || $0.hasPrefix("#else") || $0.hasPrefix("#endif") }
+                #expect(directives == ["#if DEBUG", "#endif"])
+                #expect(code.contains("isEnabled && ProcessInfo.processInfo.arguments.contains(\"-seedAudioReanalysisSheet\")"))
+                #expect(!code.contains("PreparedHistoryReanalysisComposition.prepared"))
+                #expect(!code.contains(".appInstallation"))
+            }
+            if entry.relativePath != "App/Composition/PreparedHistoryReanalysisComposition.swift" {
+                #expect(!code.contains("IdentificationHistoryAccess.prepared"))
+                #expect(!code.contains("ReanalysisStatusAccess.prepared"))
+                #expect(!code.contains("CaptureReanalysisAccess.prepared"))
+                #expect(!code.contains("SavedIdentificationReanalysisAccess.prepared"))
+            }
+            // Only this fully Debug-gated fixture may construct an explicit synthetic bundle.
+            if !audioSheetFixture {
+                #expect(code.range(of: #"PreparedHistoryReanalysisComposition\s*(?:\(|\.prepared\b)"#,
+                                   options: .regularExpression) == nil, "Prepared history has no ordinary caller: \(entry.relativePath)")
+            }
+            if entry.relativePath != "App/MerianApp.swift" {
+                #expect(!code.contains(".appInstallation {"))
+            }
         }
+        let composition = try source(at: "apps/ios/Merian/App/Composition/PreparedHistoryReanalysisComposition.swift")
+        #expect(composition.contains("static let isAppInstallationQualified = false"))
+        #expect(composition.contains("guard isAppInstallationQualified else { return nil }\n        return make()"))
+        let app = try source(at: "apps/ios/Merian/App/MerianApp.swift")
+        #expect(app.contains("#if DEBUG\n                    .modifier(SavedAudioChooserUITestPresentation())\n                    .modifier(AudioReanalysisSheetUITestPresentation())\n                    #endif"))
+        #expect(app.contains("preparedHistoryReanalysis = .appInstallation {\n            .prepared(in: dependencies)"))
+        #expect(app.contains("reanalysisAccess: preparedHistoryReanalysis?.capture"))
+        #expect(app.contains(".environment(\\.insightHistoryReanalysisAccesses, preparedHistoryReanalysis?.insightAccesses)"))
+        let workspace = try source(at: "apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift")
+        #expect(workspace.contains("reanalysisAccess: reanalysisAccess,"))
+        let workspaceModel = try source(at: "apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift")
+        #expect(workspaceModel.contains("if dependencies == nil { workspaceDependencies.reanalysis = reanalysisAccess }"))
+        #expect(workspaceModel.contains("self.init(diContainer: container, dependencies: workspaceDependencies,"))
+        let insight = try source(at: "apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView.swift")
+        #expect(insight.contains("hasExplicitDependencies = dependencies != nil"))
+        #expect(insight.contains("guard !hasExplicitDependencies, let installedHistoryAccesses else { return baseDependencies }"))
+        #expect(insight.contains("return installedHistoryAccesses.applying(to: baseDependencies)"))
         let shell = try source(at: "apps/ios/Merian/Features/Insights/Shell/Services/InsightShellDependencies.swift")
-        #expect(shell.contains("var historyAccess: IdentificationHistoryAccess? = nil"))
-        #expect(shell.contains("#if DEBUG\n        result.historyAccess = UITestSeedCoordinator.identificationHistoryAccess\n        #endif"))
+        #expect(shell.contains("var savedReanalysisAccess: SavedIdentificationReanalysisAccess?"))
+        #expect(shell.contains("result.savedReanalysisAccess = UITestSeedCoordinator.savedReanalysisFailureAccess\n        #endif"))
+        // Optional stored properties default to nil in both spellings.
+        #expect(shell.range(of: #"(?m)^    var historyAccess: IdentificationHistoryAccess\?(?: = nil)?$"#,
+                            options: .regularExpression) != nil)
+        #expect(shell.contains("#if DEBUG\n        if UITestSeedCoordinator.publicationConsentEnabled, let fixture = UITestSeedCoordinator.publicationConsentFixture {\n            if UITestSeedCoordinator.protectedChatEnabled { result.protectedChatAccess = fixture.protectedChat }\n            result.selectedReviewAccess = .prepared(cloud: fixture.cloud, session: fixture.session)\n            result.historyAccess = .prepared(cloud: fixture.cloud, session: fixture.session)\n        } else {\n            result.historyAccess = UITestSeedCoordinator.identificationHistoryAccess\n        }\n        result.savedReanalysisAccess = UITestSeedCoordinator.savedReanalysisFailureAccess\n        #endif"))
+        let seed = try source(at: "apps/ios/Merian/App/UITesting/UITestSeedCoordinator.swift")
+        #expect(seed.contains("if publicationConsentEnabled {"))
+        #expect(seed.contains("let fixture = try PublicationConsentUIFixture(container: container)\n                try fixture.seed(context: context)"))
+        #expect(shell.range(of: #"(?m)^    var reanalysisStatusAccess: ReanalysisStatusAccess\?(?: = nil)?$"#,
+                            options: .regularExpression) != nil)
+        #expect(!shell.contains("result.reanalysisStatusAccess ="))
         let fixture = try source(at: "apps/ios/Merian/App/UITesting/UITestSeedCoordinator+IdentificationHistory.swift")
         #expect(fixture.contains("#if DEBUG"))
         #expect(fixture.contains("-seedIdentificationHistory"))
@@ -200,6 +275,7 @@ struct ModelsIntegrationArchitectureTests {
 
     private static let rootSourcePaths = [
         "Aliases.swift",
+        "OfflineQueueWork.swift",
         "QueuedScanContext.swift",
         "ScanQueueState.swift",
         "SchemaVersions.swift",
@@ -207,6 +283,7 @@ struct ModelsIntegrationArchitectureTests {
     ]
 
     private static let rootValuePaths = [
+        "OfflineQueueWork.swift",
         "QueuedScanContext.swift",
         "ScanQueueState.swift",
         "UserReviewState.swift"

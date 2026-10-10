@@ -107,6 +107,63 @@ final class AuthenticatedTransportDispatcher {
     func perform(
         _ attempt: AuthenticatedRequestExecutor.TransportAttempt
     ) async throws -> AuthenticatedRequestExecutor.TransportResult {
+        try await perform(attempt, protectedChatExpiry: nil)
+    }
+
+    func performProtectedInsightChat(
+        _ attempt: AuthenticatedRequestExecutor.TransportAttempt, claimExpiresAt: Date
+    ) async throws -> AuthenticatedRequestExecutor.TransportResult {
+        guard attempt.expectedAuthUserID != nil, attempt.validateAttempt != nil,
+              attempt.authTransitionOwner == nil else { throw MerianError.invalidResponse }
+        return try await perform(attempt, protectedChatExpiry: claimExpiresAt)
+    }
+
+    func performAnalysisRetirement(
+        _ attempt: AuthenticatedRequestExecutor.TransportAttempt
+    ) async throws -> AuthenticatedRequestExecutor.TransportResult {
+        guard attempt.expectedAuthUserID != nil, attempt.validateAttempt != nil,
+              attempt.authTransitionOwner == nil else { throw MerianError.invalidResponse }
+        return try await perform(attempt, protectedChatExpiry: nil, retirement: true)
+    }
+
+    func performAudioAnalysis(_ attempt: AuthenticatedRequestExecutor.TransportAttempt) async throws -> AuthenticatedRequestExecutor.TransportResult {
+        guard attempt.expectedAuthUserID != nil, attempt.validateAttempt != nil,
+              attempt.identificationAuthorization?.recipient == .gemini,
+              attempt.authTransitionOwner == nil else { throw MerianError.invalidResponse }
+        return try await perform(attempt, protectedChatExpiry: nil, audioAnalysis: true)
+    }
+
+    func performVideoAnalysis(_ attempt: AuthenticatedRequestExecutor.TransportAttempt) async throws -> AuthenticatedRequestExecutor.TransportResult {
+        guard attempt.expectedAuthUserID != nil, attempt.validateAttempt != nil,
+              attempt.identificationAuthorization?.recipient == .gemini,
+              attempt.authTransitionOwner == nil else { throw MerianError.invalidResponse }
+        return try await perform(attempt, protectedChatExpiry: nil, videoAnalysis: true)
+    }
+
+    func performAudioOutcomeRead(_ attempt: AuthenticatedRequestExecutor.TransportAttempt) async throws -> AuthenticatedRequestExecutor.TransportResult {
+        guard attempt.expectedAuthUserID != nil, attempt.validateAttempt != nil,
+              attempt.identificationAuthorization == nil,
+              attempt.authTransitionOwner == nil else { throw MerianError.invalidResponse }
+        return try await perform(attempt, protectedChatExpiry: nil, audioOutcome: true)
+    }
+
+    func performSourceReservation(_ attempt: AuthenticatedRequestExecutor.TransportAttempt) async throws -> AuthenticatedRequestExecutor.TransportResult {
+        guard attempt.expectedAuthUserID != nil, attempt.validateAttempt != nil,
+              attempt.identificationAuthorization == nil,
+              attempt.authTransitionOwner == nil else { throw MerianError.invalidResponse }
+        return try await perform(attempt, protectedChatExpiry: nil, sourceReservation: true)
+    }
+
+    func performVideoEvidenceUpload(_ attempt: AuthenticatedRequestExecutor.TransportAttempt) async throws -> AuthenticatedRequestExecutor.TransportResult {
+        guard attempt.expectedAuthUserID != nil, attempt.validateAttempt != nil,
+              attempt.identificationAuthorization == nil,
+              attempt.authTransitionOwner == nil else { throw MerianError.invalidResponse }
+        return try await perform(attempt, protectedChatExpiry: nil, videoEvidence: true)
+    }
+
+    private func perform(
+        _ attempt: AuthenticatedRequestExecutor.TransportAttempt, protectedChatExpiry: Date?, retirement: Bool = false, audioAnalysis: Bool = false, audioOutcome: Bool = false, sourceReservation: Bool = false, videoEvidence: Bool = false, videoAnalysis: Bool = false
+    ) async throws -> AuthenticatedRequestExecutor.TransportResult {
         let accountWorkLease: AccountBoundWorkLease?
         if attempt.authTransitionOwner == nil {
             accountWorkLease = try await acquireAccountWorkLeaseIfRequired(
@@ -146,14 +203,36 @@ final class AuthenticatedTransportDispatcher {
                 forHTTPHeaderField: "X-Merian-Constrained-Network"
             )
             try await attempt.identificationAuthorization?.validate()
+            try await attempt.validateAttempt?()
+            #if DEBUG
+            if retirement || audioAnalysis || audioOutcome || sourceReservation || videoEvidence || videoAnalysis, sessionTransport.isUsingOverridingSession, overridingAuthUserID != attempt.expectedAuthUserID {
+                throw SupabaseAuthTransitionError.signOutSessionChanged
+            }
+            #endif
+            if let protectedChatExpiry {
+                #if DEBUG
+                if sessionTransport.isUsingOverridingSession,
+                   overridingAuthUserID != attempt.expectedAuthUserID {
+                    throw SupabaseAuthTransitionError.signOutSessionChanged
+                }
+                #endif
+                try ProtectedInsightChatBudget.requireDispatch(claimExpiresAt: protectedChatExpiry)
+            }
             let authCompletedAt = CFAbsoluteTimeGetCurrent()
 
             let transportResult = try await dispatch(
                 request: request,
                 body: attempt.body,
-                onRequestBodySent: attempt.onRequestBodySent
+                onRequestBodySent: attempt.onRequestBodySent,
+                protectedChatExpiry: protectedChatExpiry, retirement: retirement, audioAnalysis: audioAnalysis, audioOutcome: audioOutcome, sourceReservation: sourceReservation, videoEvidence: videoEvidence, videoAnalysis: videoAnalysis
             )
 
+            #if DEBUG
+            if protectedChatExpiry != nil || retirement || audioAnalysis || audioOutcome || sourceReservation || videoEvidence || videoAnalysis, sessionTransport.isUsingOverridingSession,
+               overridingAuthUserID != attempt.expectedAuthUserID {
+                throw SupabaseAuthTransitionError.signOutSessionChanged
+            }
+            #endif
             try await validateTransitionOwner(attempt.authTransitionOwner)
             try await finishAndValidate(accountWorkLease)
 
@@ -241,8 +320,36 @@ final class AuthenticatedTransportDispatcher {
     private func dispatch(
         request: URLRequest,
         body: Data?,
-        onRequestBodySent: (@Sendable () -> Void)?
+        onRequestBodySent: (@Sendable () -> Void)?, protectedChatExpiry: Date?, retirement: Bool, audioAnalysis: Bool, audioOutcome: Bool, sourceReservation: Bool, videoEvidence: Bool, videoAnalysis: Bool
     ) async throws -> TransportDispatchResult {
+        if videoAnalysis {
+            let (data, response) = try await sessionTransport.videoAnalysisData(for: request)
+            return TransportDispatchResult(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
+        }
+        if videoEvidence {
+            let (data, response) = try await sessionTransport.videoEvidenceData(for: request)
+            return TransportDispatchResult(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
+        }
+        if sourceReservation {
+            let (data, response) = try await sessionTransport.sourceReservationData(for: request)
+            return TransportDispatchResult(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
+        }
+        if audioOutcome {
+            let (data, response) = try await sessionTransport.audioOutcomeData(for: request)
+            return TransportDispatchResult(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
+        }
+        if audioAnalysis {
+            let (data, response) = try await sessionTransport.audioAnalysisData(for: request)
+            return TransportDispatchResult(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
+        }
+        if retirement {
+            let (data, response) = try await sessionTransport.analysisRetirementData(for: request)
+            return TransportDispatchResult(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
+        }
+        if let protectedChatExpiry {
+            let (data, response) = try await sessionTransport.protectedInsightChatData(for: request, claimExpiresAt: protectedChatExpiry)
+            return TransportDispatchResult(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
+        }
         guard let body, let onRequestBodySent else {
             let (data, response) = try await sessionTransport.data(for: request)
             return TransportDispatchResult(

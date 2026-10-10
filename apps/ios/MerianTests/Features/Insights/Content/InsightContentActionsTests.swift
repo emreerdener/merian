@@ -174,6 +174,34 @@ struct InsightContentActionsTests {
         #expect(feedbackCount == 1)
     }
 
+    @Test(arguments: ["acknowledged", "staged", "damaged", "deleted"])
+    func refinementDeniesProtectedOrMissingRecordAfterPresentation(protection: String) throws {
+        let context = try InsightSheetTestSupport.createIsolatedContext()
+        let record = LocalScanRecord(speciesId: "refinement-fence", scientificName: "Danaus plexippus", commonName: "Monarch")
+        context.insert(record)
+        try context.save()
+        var calls = 0
+        let viewModel = InsightSheetViewModel(
+            inferenceEngine: InsightSheetTestSupport.biologicalEngine(scanId: record.id),
+            dependencies: InsightShellDependencies(requestRefinement: { _, _ in calls += 1 }, selectionFeedback: { calls += 1 })
+        )
+        #expect(viewModel.fetchLocalRecord(for: record.id, modelContext: context))
+        let id = record.id, generation = viewModel.scanBoundActionGeneration
+        if protection == "acknowledged" {
+            record.analysisOwnerAccountID = UUID().uuidString.lowercased()
+        } else if protection == "deleted" {
+            context.delete(record)
+        } else {
+            _ = try ObservationHistoryEnrollmentIntent.stage(observationID: #require(UUID(uuidString: id)), ownerID: UUID(), context: context)
+            if protection == "damaged" {
+                try context.fetchOfflineJob(id: ObservationHistoryEnrollmentIntent.jobID(id))?.metadataJSON = nil
+            }
+        }
+        try context.save()
+        #expect(!viewModel.requestRefinement(expectedScanId: id, expectedGeneration: generation, modelContext: context))
+        #expect(calls == 0)
+    }
+
     @Test func nonBiologicalRoutePreservesFeedbackBeforeNavigation() {
         var events: [String] = []
         let viewModel = InsightSheetViewModel(

@@ -52,6 +52,27 @@ final class ScansShellDataStoreTests: XCTestCase {
         )
     }
 
+    func testQualifiedAndDamagedChildrenNeverBecomeStandaloneLibraryCards() throws {
+        let context = try makeContext()
+        let parent = UUID().uuidString.lowercased()
+        for kind in ["reanalysis", "ordinary", "future"] {
+            let row = OfflineQueuedScan(id: UUID().uuidString.lowercased(), queueNeedsAttention: true)
+            row.workKindRaw = kind
+            row.parentObservationID = parent
+            row.sourceAnalysisID = UUID().uuidString.lowercased()
+            row.reanalysisOwnerAccountID = UUID().uuidString.lowercased()
+            context.insert(row)
+        }
+        let malformed = OfflineQueuedScan(id: UUID().uuidString.lowercased())
+        malformed.workKindRaw = "reanalysis"
+        context.insert(malformed)
+        try context.save()
+        let result = ScansShellDataStore().queuedSnapshots(in: context.container)
+        XCTAssertTrue(result.snapshots.isEmpty)
+        XCTAssertEqual(result.fetchedCount, 4)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<OfflineQueuedScan>()), 4)
+    }
+
     func testRecordQueriesApplyBiologicalSelectionAndLimitPolicies() throws {
         let context = try makeContext()
         let oldest = makeRecord(

@@ -52,7 +52,7 @@ extension BackgroundDatabaseActor {
         let expectedState = ownership.phase == .upload
             ? ScanQueueState.uploading.rawValue
             : ScanQueueState.inferencing.rawValue
-        guard scan.scanStateRaw == expectedState else { return false }
+        guard scan.permitsOrdinaryInference, scan.scanStateRaw == expectedState else { return false }
 
         let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
         let existingJob: OfflineJobRecord?
@@ -126,6 +126,7 @@ extension BackgroundDatabaseActor {
             )
             return false
         }
+        guard scan.permitsOrdinaryInference else { return false }
         guard OfflineScanJobMetadataContract.backgroundAccountWork(
             in: job.metadataJSON
         ) == ownership else {
@@ -245,6 +246,7 @@ extension BackgroundDatabaseActor {
         guard let scan = scans.first else {
             return clearBackgroundAccountWorkMetadataIfNeeded(job: job)
         }
+        guard scan.permitsOrdinaryInference else { return true }
         let ownsRunnableState: Bool
         if durableOwnership != nil {
             // A terminal callback may advance upload -> staged (or claim

@@ -35,6 +35,7 @@ struct CandidateSwipeModal: View {
     @State private var reviewToast: ToastPayload?
     @State private var reviewToastAction: (() -> Void)?
     @State private var delayedDismissalAction: CandidateSwipeDismissalAction?
+    @State private var delayedDismissalReview: LocalAIIdentificationReview?
     @State private var viewModel: CandidateReviewViewModel
 
     // MARK: - Constants
@@ -86,6 +87,10 @@ struct CandidateSwipeModal: View {
         viewModel.isCurrent(subject, in: inferenceEngine)
     }
 
+    private var permitsLegacyReview: Bool {
+        ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanId, container: modelContext.container)
+    }
+
     // MARK: - Body
     
     var body: some View {
@@ -93,7 +98,11 @@ struct CandidateSwipeModal: View {
             ZStack {
                 Color(.systemBackground).ignoresSafeArea()
 
-                if let confirmed = session.confirmedCandidate {
+                if !permitsLegacyReview {
+                    Text("Review this identification from the scan menu.")
+                        .multilineTextAlignment(.center)
+                        .padding()
+                } else if let confirmed = session.confirmedCandidate {
                     confirmedStateContent(candidate: confirmed)
                 } else if session.isExhausted && !isDismissing {
                     GeometryReader { geometry in
@@ -122,7 +131,7 @@ struct CandidateSwipeModal: View {
                     }
                 }
                 
-                if session.remainingCandidates.count > 1 {
+                if permitsLegacyReview && session.remainingCandidates.count > 1 {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             viewModel.feedback.selection()
@@ -135,7 +144,7 @@ struct CandidateSwipeModal: View {
                             Image(systemName: isGridMode ? "square.stack.3d.up.fill" : "rectangle.grid.1x2")
                         }
                     }
-                } else if session.isExhausted && !isDismissing {
+                } else if permitsLegacyReview && session.isExhausted && !isDismissing {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Restart") {
                             viewModel.feedback.lightImpact()
@@ -151,7 +160,7 @@ struct CandidateSwipeModal: View {
         }
         .merianSystemFeedback(toast: $reviewToast, toastAction: $reviewToastAction, showsAchievementToasts: false)
         .onDisappear {
-            if session.isExhausted,
+            if permitsLegacyReview, session.isExhausted,
                !isDismissing,
                isSubjectPresentationCurrent {
                 viewModel.markAlternativesExhausted(
@@ -174,7 +183,7 @@ struct CandidateSwipeModal: View {
                   self.delayedDismissalAction == delayedDismissalAction else {
                 return
             }
-            requestDismissal(action: delayedDismissalAction)
+            requestDismissal(action: delayedDismissalAction, expectedReview: delayedDismissalReview)
         }
     }
 }
@@ -187,7 +196,8 @@ extension CandidateSwipeModal {
     
     /// Displays the tinder-like stack of SwipeableCandidateCards.
     private var cardStackContent: some View {
-        VStack(spacing: 16) {
+        let expectedReview = inferenceEngine.speciesData?.aiReview
+        return VStack(spacing: 16) {
             Spacer()
 
             // Card Stack
@@ -233,7 +243,7 @@ extension CandidateSwipeModal {
             .padding(.horizontal, 20)
 
             // Skip Button
-            if session.remainingCandidates.count > 1 {
+            if permitsLegacyReview && session.remainingCandidates.count > 1 {
                 Button(action: {
                     viewModel.feedback.lightImpact()
                     skipTopCard()
@@ -251,8 +261,8 @@ extension CandidateSwipeModal {
             Spacer()
 
             CandidateActionBar(
-                onReject: { animateSwipe(.left) },
-                onConfirm: { animateSwipe(.right) }
+                onReject: { animateSwipe(.left, expectedReview: expectedReview) },
+                onConfirm: { animateSwipe(.right, expectedReview: expectedReview) }
             )
             .padding(.bottom, 32)
         }
@@ -262,17 +272,21 @@ extension CandidateSwipeModal {
     
     /// Displays all remaining candidates in a vertical grid layout for quick assessment.
     private var gridContent: some View {
-        VStack(spacing: 20) {
+        let expectedReview = inferenceEngine.speciesData?.aiReview
+        return VStack(spacing: 20) {
             ForEach(session.remainingCandidates, id: \.scientificName) { candidate in
                 GridSwipeableCell(
                     candidate: candidate,
                     imageDependencies: viewModel.imageDependencies,
                     feedback: viewModel.feedback,
                     onConfirm: {
+                        guard let expectedReview, inferenceEngine.speciesData?.aiReview == expectedReview,
+                              permitsLegacyReview, isSubjectPresentationCurrent else { return }
                         viewModel.feedback.successPulse()
                         withAnimation(.spring(response: 0.3)) {
                             session.confirm(candidate)
                         }
+                        delayedDismissalReview = expectedReview
                         delayedDismissalAction = .applyOverride(
                             scientificName: candidate.scientificName
                         )
@@ -294,7 +308,8 @@ extension CandidateSwipeModal {
     /// Displayed when the user has rejected all alternatives in the stack or grid.
     /// Acts as an escape hatch to either confirm the original match, ask the community, or start over.
     private var exhaustedStateContent: some View {
-        VStack(spacing: 32) {
+        let expectedReview = inferenceEngine.speciesData?.aiReview
+        return VStack(spacing: 32) {
             originalScanThumbnail
             
             VStack(spacing: 8) {
@@ -339,22 +354,22 @@ extension CandidateSwipeModal {
                     SlideToConfirm(
                         label: confirmButtonTitle,
                         onConfirm: {
-                            requestDismissal(action: .confirmOriginal)
+                            requestDismissal(action: .confirmOriginal, expectedReview: expectedReview)
                         },
                         feedback: viewModel.feedback
                     )
                 }
-                if isSubjectPresentationCurrent {
+                if isSubjectPresentationCurrent, let expectedReview {
                     if inferenceEngine.speciesData?.canUndoIncorrectIdentification == true {
                         let expectedSubject = subject
                         reviewStateButton("Undo incorrect", icon: "arrow.uturn.backward", color: .gray) {
-                            undoIncorrect(expectedSubject: expectedSubject)
+                            undoIncorrect(expectedSubject: expectedSubject, expectedReview: expectedReview)
                         }
                     } else if inferenceEngine.speciesData?.canMarkIdentificationIncorrect == true {
                         let expectedSubject = subject
                         SlideToConfirm(
                             label: "Mark as incorrect",
-                            onConfirm: { confirmIncorrectIdentification(expectedSubject: expectedSubject) },
+                            onConfirm: { confirmIncorrectIdentification(expectedSubject: expectedSubject, expectedReview: expectedReview) },
                             feedback: viewModel.feedback,
                             color: .red
                         )
@@ -380,26 +395,29 @@ extension CandidateSwipeModal {
         .buttonStyle(.plain)
     }
 
-    private func confirmIncorrectIdentification(expectedSubject: IdentificationReviewSubject) {
+    private func confirmIncorrectIdentification(expectedSubject: IdentificationReviewSubject, expectedReview: LocalAIIdentificationReview) {
         Task { @MainActor in
-            guard expectedSubject.matches(subject), isSubjectPresentationCurrent,
+            guard inferenceEngine.speciesData?.aiReview == expectedReview,
+                  permitsLegacyReview, expectedSubject.matches(subject), isSubjectPresentationCurrent,
                   inferenceEngine.speciesData?.canMarkIdentificationIncorrect == true else { return }
-            await inferenceEngine.markIdentificationIncorrect(expectedScanId: expectedSubject.scanId, modelContext: modelContext,
+            await inferenceEngine.markIdentificationIncorrect(expectedScanId: expectedSubject.scanId, modelContext: modelContext, expectedReview: expectedReview,
                 onLocalSave: {
-                    guard expectedSubject.matches(subject), isSubjectPresentationCurrent else { return }
-                    reviewToastAction = { undoIncorrect(expectedSubject: expectedSubject) }
+                    guard permitsLegacyReview, expectedSubject.matches(subject), isSubjectPresentationCurrent,
+                          let rejectedReview = inferenceEngine.speciesData?.aiReview else { return }
+                    reviewToastAction = { undoIncorrect(expectedSubject: expectedSubject, expectedReview: rejectedReview) }
                     reviewToast = .information("Marked as incorrect", action: .init(id: .undo, title: "Undo"))
                 })
         }
     }
 
-    private func undoIncorrect(expectedSubject: IdentificationReviewSubject) {
+    private func undoIncorrect(expectedSubject: IdentificationReviewSubject, expectedReview: LocalAIIdentificationReview) {
         Task { @MainActor in
-            guard expectedSubject.matches(subject), isSubjectPresentationCurrent,
+            guard inferenceEngine.speciesData?.aiReview == expectedReview,
+                  permitsLegacyReview, expectedSubject.matches(subject), isSubjectPresentationCurrent,
                   inferenceEngine.speciesData?.canUndoIncorrectIdentification == true else { return }
             reviewToast = nil
             reviewToastAction = nil
-            await inferenceEngine.undoIncorrectIdentification(expectedScanId: expectedSubject.scanId, modelContext: modelContext)
+            await inferenceEngine.undoIncorrectIdentification(expectedScanId: expectedSubject.scanId, modelContext: modelContext, expectedReview: expectedReview)
         }
     }
 
@@ -464,14 +482,15 @@ extension CandidateSwipeModal {
     // MARK: Gestures
     
     private var mainDragGesture: some Gesture {
-        DragGesture()
+        let expectedReview = inferenceEngine.speciesData?.aiReview
+        return DragGesture()
             .onChanged { value in
                 topCardOffset = value.translation
                 topCardIsDragging = true
             }
             .onEnded { value in
                 if abs(value.translation.width) >= swipeThreshold {
-                    animateSwipe(value.translation.width > 0 ? .right : .left)
+                    animateSwipe(value.translation.width > 0 ? .right : .left, expectedReview: expectedReview)
                 } else {
                     viewModel.feedback.lightImpact()
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.72)) {
@@ -485,27 +504,29 @@ extension CandidateSwipeModal {
     // MARK: Action Handlers
     
     /// Triggers a programmatic swipe animation off-screen to the given direction.
-    private func animateSwipe(_ direction: CandidateSwipeDirection) {
+    private func animateSwipe(_ direction: CandidateSwipeDirection, expectedReview: LocalAIIdentificationReview?) {
+        guard let expectedReview, inferenceEngine.speciesData?.aiReview == expectedReview, permitsLegacyReview, isSubjectPresentationCurrent else { return }
         let targetX: CGFloat = direction == .right ? 700 : -700
         viewModel.feedback.mediumPulse()
         withAnimation(.easeInOut(duration: 0.3)) {
             topCardOffset = CGSize(width: targetX, height: 60)
         } completion: {
             switch direction {
-            case .right: confirmTopCard()
+            case .right: confirmTopCard(expectedReview: expectedReview)
             case .left:  rejectTopCard()
             }
         }
     }
 
-    private func confirmTopCard() {
-        guard let top = session.topCandidate else { return }
+    private func confirmTopCard(expectedReview: LocalAIIdentificationReview) {
+        guard inferenceEngine.speciesData?.aiReview == expectedReview, permitsLegacyReview, isSubjectPresentationCurrent, let top = session.topCandidate else { return }
         let name = top.scientificName
         withAnimation(.spring(response: 0.3)) {
             session.confirm(top)
             topCardOffset = .zero
             topCardIsDragging = false
         }
+        delayedDismissalReview = expectedReview
         delayedDismissalAction = .applyOverride(scientificName: name)
     }
 
@@ -530,13 +551,19 @@ extension CandidateSwipeModal {
         }
     }
 
-    private func requestDismissal(action: CandidateSwipeDismissalAction) {
+    private func requestDismissal(action: CandidateSwipeDismissalAction, expectedReview: LocalAIIdentificationReview? = nil) {
         guard !isDismissing, isSubjectPresentationCurrent else { return }
+        switch action {
+        case .applyOverride, .confirmOriginal:
+            guard let expectedReview, inferenceEngine.speciesData?.aiReview == expectedReview, permitsLegacyReview else { return }
+        case .askCommunity, .refineScan: break
+        }
         isDismissing = true
         onRequestDismissalAction(CandidateSwipeDismissalRequest(
             action: action,
             scanId: scanId,
-            presentationGeneration: presentationGeneration
+            presentationGeneration: presentationGeneration,
+            expectedReview: expectedReview
         ))
         isPresented = false
     }

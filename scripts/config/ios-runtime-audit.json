@@ -293,6 +293,27 @@
         "OfflineQueueOpenAIPermissionTests"
       ],
       "owner": "apps/ios/MerianTests/Core/Data/OfflineSync/OfflineQueueOpenAIPermissionTests.swift"
+    },
+    {
+      "selector": "merianTests/SavedIdentificationReanalysisTests",
+      "suite_names": [
+        "SavedIdentificationReanalysisTests"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Insights/History/SavedIdentificationReanalysisTests.swift"
+    },
+    {
+      "selector": "merianTests/SavedReanalysisHandoffTests",
+      "suite_names": [
+        "SavedReanalysisHandoffTests"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Insights/History/SavedReanalysisHandoffTests.swift"
+    },
+    {
+      "selector": "merianTests/ObservationConfirmationUndoOwnerTests",
+      "suite_names": [
+        "ObservationConfirmationUndoOwnerTests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/AnalysisHistory/ObservationConfirmationUndoOwnerTests.swift"
     }
   ],
   "ui": [
@@ -329,6 +350,20 @@
     },
     {
       "selector": "merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
+      "suite_names": [
+        "merianUITests"
+      ]
+    },
+    {
+      "selector": "merianUITests/merianUITests/testExactQuestionPersistsAndReopeningKeepsPendingIdentity",
+      "owner": "apps/ios/MerianUITests/ProtectedInsightChatUITests.swift",
+      "suite_names": [
+        "merianUITests"
+      ]
+    },
+    {
+      "selector": "merianUITests/merianUITests/testStaleQuestionRequiresExplicitRefreshBeforeFreshChat",
+      "owner": "apps/ios/MerianUITests/ProtectedInsightChatUITests.swift",
       "suite_names": [
         "merianUITests"
       ]
@@ -371,6 +406,93 @@
         "IdentificationHistoryUITests"
       ],
       "owner": "apps/ios/MerianUITests/IdentificationHistoryUITests.swift"
+    },
+    {
+      "selector": "merianUITests/IdentificationHistoryUITests/testProtectedReanalysisFailureKeepsSavedScanWithoutLegacyFallback",
+      "suite_names": [
+        "IdentificationHistoryUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/IdentificationHistoryUITests.swift"
+    },
+    {
+      "selector": "merianUITests/IdentificationHistoryUITests/testProtectedConfidenceReanalysisDismissesChildWithoutLegacyFallback",
+      "suite_names": [
+        "IdentificationHistoryUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/IdentificationHistoryUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testExplicitPhotoOrderPersistsAndReopeningCannotReplaceRequest",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testSelectedBroaderTaxonNameConfirmationPersistsExactReview",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testPrimaryConfirmationUndoFromMenu",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testNamedConfirmationUndoFromMenu",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testPrimaryConfirmationUndoFromConfidence",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testNamedConfirmationUndoFromConfidence",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testPrimaryConfirmationUndoFromHistoricalPreview",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PublicationConsentUITests/testNamedConfirmationUndoFromHistoricalPreview",
+      "suite_names": [
+        "PublicationConsentUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
+    },
+    {
+      "selector": "merianUITests/SavedAudioChooserUITests/testExplicitSelectionStatusAndRefreshNeverAutoContinue",
+      "suite_names": [
+        "SavedAudioChooserUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/SavedAudioChooserUITests.swift"
+    },
+    {
+      "selector": "merianUITests/AudioReanalysisSheetUITests/testPreparedInputAndDurableRequestSurviveReopening",
+      "suite_names": ["AudioReanalysisSheetUITests"],
+      "owner": "apps/ios/MerianUITests/AudioReanalysisSheetUITests.swift"
+    },
+    {
+      "selector": "merianUITests/AudioReanalysisSheetUITests/testConsumedSavedRequestReopensWithoutFilesConsentOrReplacement",
+      "suite_names": ["AudioReanalysisSheetUITests"],
+      "owner": "apps/ios/MerianUITests/AudioReanalysisSheetUITests.swift"
     }
   ],
   "performance": [
@@ -427,6 +549,12 @@
       "report_metric_families": [
         "Hitch"
       ],
+      "suite_names": [
+        "RuntimePerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianUITests/RuntimePerformanceTests/testProtectedChatProofRefresh",
       "suite_names": [
         "RuntimePerformanceTests"
       ]

@@ -113,6 +113,44 @@ import SwiftData
     @ObservationIgnored var syncGeneration: UUID?
     var identificationReviewSyncGeneration: UUID?
     var identificationReviewSyncTask: Task<Void, Never>?
+    @ObservationIgnored let reanalysisErasureOwner = ObservationReanalysisErasureOwner()
+    @ObservationIgnored let reanalysisPreparationOwner = ObservationReanalysisPreparationOwner()
+    @ObservationIgnored let historyEnrollmentOwner = ObservationHistoryEnrollmentOwner()
+    @ObservationIgnored let publicationConsentPreparationOwner = ObservationPublicationPreparationOwner()
+    @ObservationIgnored let publicationTargetRecoveryOwner = ObservationPublicationRecoveryOwner()
+    @ObservationIgnored lazy var reanalysisAdmissionRuntime = makeReanalysisAdmissionRuntime()
+    @ObservationIgnored let reanalysisExecutionOwner = ObservationReanalysisExecutionOwner()
+    @ObservationIgnored let sourceReservationOwner = ObservationSourceReservationOwner()
+    @ObservationIgnored let videoReservationOwner = ObservationVideoReservationOwner()
+    @ObservationIgnored let videoUploadOwner = ObservationVideoUploadOwner()
+    @ObservationIgnored let audioExecutionOwner = ObservationAudioExecutionOwner()
+    @ObservationIgnored let audioStatusOwner = ObservationAudioStatusOwner()
+    private(set) var reanalysisExecutionGeneration: UInt64 = 0
+    func reanalysisExecutionDidFinish(ownerID: UUID, context: ModelContext, currentOwnerID: UUID?) {
+        guard currentOwnerID == ownerID, modelContext === context else { return }
+        reanalysisExecutionGeneration &+= 1
+    }
+    @ObservationIgnored let publicationDeliveryOwner = ObservationPublicationDeliveryOwner()
+    private(set) var publicationDeliveryGeneration: UInt64 = 0
+    func publicationDeliveryDidFinish(ownerID: UUID, context: ModelContext, currentOwnerID: UUID?) {
+        guard currentOwnerID == ownerID, modelContext === context else { return }
+        publicationDeliveryGeneration &+= 1
+    }
+    private(set) var analysisReviewDeliveryGeneration: UInt64 = 0
+    func analysisReviewDeliveryDidFinish(ownerID: UUID, context: ModelContext, currentOwnerID: UUID?) {
+        guard currentOwnerID == ownerID, modelContext === context else { return }
+        analysisReviewDeliveryGeneration &+= 1
+    }
+    @ObservationIgnored let confirmationUndoOwner = ObservationConfirmationUndoOwner()
+    @ObservationIgnored let rejectionUndoOwner = ObservationRejectionUndoOwner()
+    @ObservationIgnored let analysisReviewDeliveryOwner = ObservationAnalysisReviewDeliveryOwner()
+    @ObservationIgnored let protectedChatRefreshOwner = ProtectedInsightChatRefreshOwner()
+    @ObservationIgnored let protectedChatDeliveryOwner = ProtectedInsightChatDeliveryOwner()
+    private(set) var protectedChatDeliveryGeneration: UInt64 = 0
+    func protectedChatDeliveryDidFinish(ownerID: UUID, context: ModelContext, currentOwnerID: UUID?) {
+        guard currentOwnerID == ownerID, modelContext === context else { return }
+        protectedChatDeliveryGeneration &+= 1
+    }
 
     /// Active collection sync task. Cancelled immediately on connectivity loss.
     /// Returns `true` when the attempt succeeded and `false` when the pending bit
@@ -482,6 +520,8 @@ import SwiftData
                     "Network: \(newStatus ? "Online" : "Offline", privacy: .public) constrained=\(newIsConstrained, privacy: .public) expensive=\(newIsExpensive, privacy: .public)"
                 )
 
+                self.requestReanalysisAdmissionRecovery(.networkChanged)
+
                 if newStatus {
                     // Cancel any pending debounce before rescheduling to prevent stacked sync
                     // calls when the OS path monitor fires multiple times in quick succession
@@ -489,6 +529,13 @@ import SwiftData
                     self.reconnectDebounceTask?.cancel()
                     self.reconnectDebounceTask = nil
                     guard !newIsConstrained else {
+                        self.protectedChatDeliveryOwner.cancel()
+                        self.sourceReservationOwner.cancel()
+                        self.videoReservationOwner.cancel()
+                        self.videoUploadOwner.cancel()
+                        self.audioExecutionOwner.cancel()
+                        self.analysisReviewDeliveryOwner.cancel()
+                        self.reanalysisExecutionOwner.cancel()
                         OfflineJobScheduler.shared.cancelScheduledWake(
                             using: self
                         )
@@ -520,6 +567,14 @@ import SwiftData
                     self.syncGeneration = nil
                     self.identificationReviewSyncGeneration = nil
                     self.identificationReviewSyncTask?.cancel()
+                    self.publicationDeliveryOwner.cancel()
+                    self.protectedChatDeliveryOwner.cancel()
+                    self.sourceReservationOwner.cancel()
+                    self.videoReservationOwner.cancel()
+                    self.videoUploadOwner.cancel()
+                    self.audioExecutionOwner.cancel()
+                    self.analysisReviewDeliveryOwner.cancel()
+                    self.reanalysisExecutionOwner.cancel()
                     self.collectionSyncTask?.cancel()
                     // Cancel any pending backoff retry — it must not fire while offline.
                     self.retryBackoffTask?.cancel()

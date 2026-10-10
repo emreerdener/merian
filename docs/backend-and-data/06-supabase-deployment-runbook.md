@@ -88,6 +88,19 @@ conditional-writer contract; this is not platform-enforced Object Lock. Require
 a real authorized nonproduction R2 race/HEAD/read-expiry test. No private bucket
 was provisioned or hosted policy verified in local validation.
 
+The later audio-cohort checkpoint `20261007154709` adds
+`prepared_audio_evidence_enabled`, also default false. Keep it closed. The
+separate binary upload endpoint and gated audio execution are now prepared;
+neither is deployed or activated. `20261007171421` adds the independent false
+`audio_analysis_enabled` gate. Keep it closed until native reader 10, mutation
+RPC compatibility and durable audio production/delivery are accepted. Existing
+photo replay remains unchanged. The shared private-erasure worker can retire
+matching expired unbound audio receipts while retaining their
+cohort/object/deadline; this adds no schedule. Future audio activation requires
+coordinated binary validation, provider profile, native persistence and reader
+compatibility plus the same storage/erasure qualification. See the
+[audio cohort contract](05-api-contracts.md#prepared-audio-cohort-rpcs).
+
 The seventh migration, `20261003054717`, prepares description-only funded child
 intents. Keep `admission_enabled` and `dispatch_enabled` false. Its private
 admission, one-time dispatch accounting, immutable draft, atomic completion and
@@ -8745,3 +8758,24 @@ provider dispatch. Ordinary enrollment/history scheduling, legacy divergence,
 review/community writers, public/credit authority, privacy/deletion integration
 and the complete activation matrix still gate rollout. See the
 [prepared UI contract](../features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet).
+
+### Prepared analysis execution retirement hold
+
+`retire-observation-analysis` is authenticated prepared source, registered with
+`verify_jwt=false` because `withEdgeHandler` validates JWTs. It calls only the
+service-only retirement RPC introduced by migration
+`20261007115940_prepare_analysis_execution_retirement.sql`. Any separately
+authorized deployment must apply the reviewed migration before deploying this
+function. Keep `execution_retirement_api_enabled=false` and the independently
+prepared `execution_status_api_enabled=false`; registration is not activation.
+The route is included in the future authenticated-denial smoke list, which must
+not create a retirement request or open a gate.
+
+A configured endpoint enters ordinary function discovery on a future authorized
+deployment; default-off runtime controls do not exclude it from that inventory.
+No deployment, scheduling or gate change is authorized by implementation or
+local tests. Native retained retirement delivery and explicit status actions are
+prepared behind the disabled App installation gate. Unknown-admission sealing
+and remaining device/hosted/privacy qualifications remain separate. A timeout or
+absent status cannot authorize a successor or refund; only exact permanent
+retirement proof can establish this admitted-only terminal outcome.

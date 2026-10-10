@@ -161,13 +161,17 @@ model-quality measurements.
 The production workflow's cumulative undeployed-source scope separately includes
 the generated inference DTO contract, `Core/Network/SupabaseManager.swift`, the
 exact scan- admission bridge in `Core/Network/MerianNetworkClient.swift`, its
-`Core/Network/Transport/PinnedNetworkTransport.swift` transport, all extracted
-`Core/Network/Auth` owners, and all `Core/Security` owners. The
-workflow-security suite freezes that inventory, while
-`scripts/test-ci-detect-supabase-candidate-source-changes.sh` proves
-representative Auth, consent, purchase-principal, scan-admission, and pinned-
-transport files remain candidate inputs. This prevents an iOS contract-owner
-extraction from silently bypassing the production predecessor gate.
+`Core/Network/Transport/PinnedNetworkTransport.swift` transport, its
+`AuthenticatedTransportDispatcher.swift`, the source-reservation model and
+transport (`ObservationSourceReservation.swift` and
+`ObservationSourceReservationTransport.swift`), the video upload transport
+`ObservationVideoEvidenceTransport.swift`, all extracted `Core/Network/Auth`
+owners, and all `Core/Security` owners. The workflow-security suite freezes that
+inventory, while `scripts/test-ci-detect-supabase-candidate-source-changes.sh`
+proves representative Auth, consent, purchase-principal, scan-admission, and
+pinned- transport files remain candidate inputs. This prevents an iOS
+contract-owner extraction from silently bypassing the production predecessor
+gate.
 
 The complete repository-tooling suite is a separate discovery-based gate:
 
@@ -225,6 +229,19 @@ and the exact AASA path list. The corresponding iOS suites cover canonical and
 legacy HTTPS/custom-scheme parsing, malformed UUID rejection, share URL copy,
 conflicting-route cleanup, Dictionary-tab presentation state, and survival of
 the immediate foreground timeout reset.
+
+## Guided identification-history device review
+
+The generated `Merian Device - …` schemes expose the existing Debug-only guided
+History, protected-entry failure, publication consent, named confirmation and
+chat fixtures for Xcode Run on an iPhone. They preserve `UITesting=true`,
+separate synthetic keychain namespaces and in-memory storage; ordinary
+installation stays disabled. See the
+[device checklist](24-identification-history-device-review.md) for exact fixture
+inputs and pass/fail reporting. These profiles do not prove restart durability,
+account transitions, migration or live provider/storage behavior.
+`scripts/test-ios-device-review-schemes.py` checks the generated launch
+configuration and unchanged ordinary scheme boundary.
 
 ## Observation analysis history preparation
 
@@ -322,6 +339,20 @@ PostgreSQL blocking; R2 operations remain mocked. No hosted storage, scheduled
 worker, admitted intent or native media manifest is covered. Activation requires
 the separate real-R2 evidence in the release hold.
 
+`observation_evidence_erasure_worker.sql` covers the separate default-off
+service cleanup boundary: atomic ready/unready and partial-cohort retirement,
+fixed descriptor retention, same-ID replay denial, malformed/mismatched
+candidate starvation, single legacy-receipt retirement, intent/result retention,
+deletion and lease settlement after gate rollback. The dedicated
+`observationEvidenceErasureConcurrencyDb.test.ts` verifies real lock ordering
+for duplicate retirement, retirement versus replay, deletion, admission, and
+independent claims skipping an already locked obligation. The private worker
+handler/repository tests additionally cover strict claims, bounded retirement,
+completion reserve, original lease expiry, failed markers, unknown replies and
+parent cancellation. Shared storage tests verify cancellation before PUT, before
+HEAD and after HEAD. These local tests do not prove real storage markers, CDN
+behavior, or recurring hosted cleanup.
+
 The candidate workflow explicitly includes the focused tests. Its migration
 contract script discovers `*Migration*.test.ts`, including the history file; the
 disposable catalog runner discovers all SQL test files, including the history
@@ -379,6 +410,119 @@ revocation; and allowlisted account-deletion materialization. Existing unit
 predicates and catalog assertions do not close those integration cases. Native
 install-over and UI evidence must use the normal iOS build/migration gates when
 those surfaces are implemented.
+
+### Reanalysis dispatch-boundary verification
+
+`ObservationReanalysisExecutorTests` proves that a consumed analyze boundary
+performs only exact outcome reads after unknown replies, cancellation and disk
+restart. It also covers pre-boundary upload retries, save-before-commit failure,
+commit-then-throw, old version-one held/admitted envelopes, and contradictory
+ready/server-dispatch evidence. `ObservationReanalysisExecutionTests` checks
+whole-snapshot claim replacement and one-time consumption;
+`ObservationReanalysisPersistenceTests` rejects ambiguous envelope versions,
+booleans, fractional attempts and unknown dispatch shapes. These tests do not
+prove permanent server retirement or hosted provider qualification; those remain
+separate slice-four and activation requirements.
+
+### Durable confirmation Undo verification
+
+The
+[API contract](../backend-and-data/05-api-contracts.md#durable-undo-confirmation)
+owns exact receipt eligibility and reader-9/10 wire semantics. The
+[History owner](../../apps/ios/Merian/Features/Insights/History/README.md#durable-confirmation-undo)
+owns native presentation and recovery. Confirmation Undo is separate from
+rejection Undo and selection Undo; passing either older Undo flow does not prove
+this one.
+
+| Boundary                               | Executable coverage                                                                                                                                                    | What it establishes                                                                                                                                                                                                                          |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Eligibility and native admission       | `ConfirmationUndoEligibilityTests`                                                                                                                                     | Matching outer target-review revision despite an older confirmation parent revision or different nested AI counter; primary/name authority, second-device admission without a local receipt, and rejection of stale or foreign associations. |
+| Closed lookup and mutation transport   | `ConfirmationUndoLookupTests`, `ObservationAnalysisReviewEndpointTests`, `_shared/analysisHistory/confirmationUndo_test.ts`                                            | Exact bounded request/response shapes, reader 10, owner and attempt fences, timeout and no automatic transport/Auth/route replay.                                                                                                            |
+| Shared lookup ownership                | `ObservationConfirmationUndoOwnerTests`                                                                                                                                | Maximum four coalesced scopes, retention until actual lease exit, stale-dispatch denial, and cancellation/await during Auth drain.                                                                                                           |
+| Save uncertainty and restart           | `HistoryReviewSaveRecoveryTests`, `IdentificationHistoryReviewModelTests`, `SelectedAnalysisReviewHostTests`, `SelectedAnalysisNameConfirmationTests`                  | Commit-then-throw discovery, offline/reopen recovery, disk-reopened same UUID, failure-before-commit retry identity, explicit opening/save wakes and no render/held rearm.                                                                   |
+| Visible authority and retained actions | `ConfidenceReviewPresentationTests` plus the selected host/model tests                                                                                                 | Owner confirmation display is distinct from community authority; current-ticket actions and delayed callbacks remain fenced. These are not direct app UI taps.                                                                               |
+| Database integrity                     | `tests/observation_analysis_confirmation.sql`, `_tests/observationConfirmationUndoConcurrencyDb.test.ts`, `_tests/observationAnalysisHistoryMigrationContract.test.ts` | Primary/name reversal, immutable receipt retention, unchanged selection, independent counters, gate/privilege denial, exact replay and real duplicate/review/selection/deletion races.                                                       |
+
+Swift entries name executable test suites, which can differ from their source
+filenames. Backend paths above are relative to `services/supabase` or its
+`functions` tree. Use `make ios-local-build` for focused native checks; the
+final implementation gate remains the complete native target, required UI smokes
+and fresh disposable-database/backend gates. Candidate counts and prior failed
+runs belong in the
+[dated review addendum](../rfcs/identification-history-integrated-review-results-2026-10-07.md#undo-confirmation-addendum--october-7-2026).
+
+Prepared rejection-Undo recovery has a separate backend checkpoint. The
+`observation_analysis_review.sql` catalog proves exact association, an older
+original parent revision, independent nested/outer counters, malformed receipt
+denial, privileges and gates. `observationRejectionUndoConcurrencyDb.test.ts`
+serializes lookup against review, selection and deletion using real connections.
+The unchanged eight-field Undo request and bounded lookup have strict decoder
+coverage in `_shared/analysisHistory/rejectionUndo_test.ts`.
+`RejectionUndoEligibilityTests` proves recovered admission without an original
+local rejection receipt and denial after selection, legacy-review, deletion,
+owner or revision changes. `ObservationRejectionUndoOwnerTests` covers retained
+bounded lookup and shared-waiter cancellation; `RejectionUndoLookupTests`
+verifies the fixed five-second route and disabled retry paths. The selected-host
+regression resolves the server association, exposes Undo and stages exactly one
+request without a local original receipt. All activation gates remain false.
+
+The seven-slice capability follow-up adds six direct `PublicationConsentUITests`
+scenarios covering primary and named confirmation Undo from History, the
+selected menu and Confidence. The real persisted V2 fixture has no original
+local confirmation receipt; production admission, delivery and paired
+reconciliation verify one exact operation, restored AI review and unchanged
+selection. Named scenarios exercise Cancel and the final alert action.
+`cancelledPresentationCannotPublishWhileJoinedPresentationCompletes` proves one
+shared lookup survives a cancelled waiter and releases its lease and slot only
+at actual exit.
+
+The confirmation-coverage shared-worktree run passed 45 unit tests and all eight
+tests in `PublicationConsentUITests`. Earlier fixture authority and XCTest query
+failures remain retained with their diagnostics. The Confidence badge regression
+now checks protected primary/named confirmation separately from legacy display
+flags. These focused results do not replace the final full native gate. Direct
+UI coverage of stale/dismissed callbacks and imported receipt unavailability
+remains separate from the existing model/admission tests.
+
+A cancelled waiter intentionally does not cancel another waiter's shared read.
+The RPC timeout is five seconds; Auth teardown cancels and awaits the retained
+owner. Device and hosted qualification remain separate. All activation gates
+remain disabled; this document does not authorize rollout, deployment or
+distribution.
+
+### Immutable candidate correction verification
+
+`ObservationAnalysisReviewEndpointTests` verifies schema-2 nine-field requests,
+strict nested references, original confirmation routing and receipt binding,
+while retaining schema-1 coverage. `ObservationAnalysisReviewTicketTests` checks
+raw ordinals before filtering, duplicate names, unsupported representations and
+forged membership. `ObservationAnalysisReviewPersistenceTests` reopens a real
+on-disk store and proves the candidate request/receipt survives unchanged and
+cannot be rebound to another ordinal or a name-only request.
+`ConfirmationUndoEligibilityTests` includes applied candidate corrections with
+an older parent revision and an independent nested AI counter.
+`AnalysisCandidateReviewModelTests` covers duplicate-name navigation, exact
+candidate submission, stale scope/token/authority, pending work, and dismissal
+with an uncertain save retained by the host. Its photo tests verify exact
+analysis/media lookup, coalescing, unavailable evidence and withholding after
+closure or scope loss. Ticket tests distinguish absent legacy provenance from
+present invalid provenance. `IdentificationHistoryReviewLifecycleTests` checks
+exact historical candidate submission and denial after back, revision, account
+or pending-work changes. `CandidateReviewHandoffTests` adds one-use/cancelled
+handoffs, stale child scope and replacement-host denial.
+`CandidateConfirmationUITests` exercises the selected menu, History preview and
+Confidence dismissal using a real enrolled V2 store. Duplicate-name candidates
+force confirmation of raw ordinal 1, including scrolling to it. The History path
+closes and reopens the candidate deck before admission to exercise parent
+session lifetime. The strict synthetic server boundary uses production delivery
+and paired reconciliation, asserting the completed request and receipt,
+unchanged selection and immutable snapshots. These tests do not replace device,
+hosted or complete native acceptance. `ObservationHistoryStateCacheTests`
+verifies deterministic nested candidate/pet encoding for V1/V2, compatibility
+with equivalent older nested JSON formatting, and denial of changed scores,
+candidate order, extra fields or outer display values. The direct Debug fixture
+ticket test uses the production cache reader; a passing fabricated review ticket
+does not establish this boundary.
 
 ## In-Memory Database Containers (`SwiftData`)
 
@@ -591,7 +735,7 @@ here cover only selector ownership and build/tooling contracts.
 | Context grace and bounded retry                                      | `CaptureSubmissionEnvironmentContextGraceTests`, `CaptureSubmissionDeferredContextServiceTests`                                                                                                   |
 | Live dispatch, completion, cancellation and generation fences        | `InferenceLivePipelineCoordinatorTests`, `InferenceLivePipelineDurableVisualTests`, `InferenceLiveResultServiceTests`, `InferenceLiveRecoveryIntegrationTests`                                    |
 | Durable claims, recovery, duplicate records and restart              | `InferenceLifecyclePersistenceTests`, `LiveCaptureLifecycleTests`, `BackgroundInferenceCompletionTests`, `InferenceReplayTests`, `DiskBackedInferenceAcceptanceTests`                             |
-| Insight restoration, media continuity and dismissal                  | `InsightQueuedHandoffTests`, `InsightShellLifecycleTests`, new disk-backed acceptance; five exact UI cases in the manifest                                                                        |
+| Insight restoration, media continuity and dismissal                  | `InsightQueuedHandoffTests`, `InsightShellLifecycleTests`, new disk-backed acceptance; six exact UI cases in the manifest                                                                         |
 | Resource admission and task ownership                                | `MediaStagingBudgetTests`, `AsyncPermitPoolTests`, `InferenceEngineTests` (including backlog cap and Auth hydration/write drains)                                                                 |
 | Startup and V50/V51/V52/V53 compatibility                            | `ModelContainerBootstrapperTests`, `ModelStoreRecoveryCoordinatorTests`, `MigrationPlanTests`                                                                                                     |
 | Secondary product and account transitions                            | `OnboardingViewModelTests`, `OnboardingConsentRecoveryTests`, `ExploreFeedViewModelTests`, `AuthLocalSignOutCoordinatorTests`, `AuthSessionLifecycleCoordinatorTests`, `OfflineJobSchedulerTests` |
@@ -634,17 +778,18 @@ running acceptance from the command line. UI benchmarks live in
 `RuntimePerformanceTests` and reuse `UITestAppLauncher`; no new production Debug
 arguments or services are introduced.
 
-| Benchmark                                                      | Measurement and scope                                                                                                                                                                                         |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PersistencePerformanceTests/testDurableQueueCommit`           | Clock, process CPU and memory for real SQLite queue/job insertion and save. Verification and cleanup are outside timing; each iteration uses a fresh context and empty queue. This excludes capture encoding. |
-| `PersistencePerformanceTests/testLargeLibraryScalarHydration`  | Clock, CPU and memory for 1,000 records' scalar media hydration with a fresh context per sample.                                                                                                              |
-| `PersistencePerformanceTests/testLargeOfflineQueueProjection`  | Clock, CPU and memory for 1,000 queue-row snapshots. This does not measure provider throughput.                                                                                                               |
-| `MediaPerformanceTests/testRepeatedBoundedImageDecode`         | Clock, CPU and memory across 20 real ImageIO decodes per sample, using a synthetic 4,032 × 3,024 image and 512-pixel bound.                                                                                   |
-| `MediaPerformanceTests/testAudioVideoFileAdmission`            | Clock, CPU and memory for 100 file-backed budget validations over two 1 MiB sparse files and the shared one-second PCM WAV fixture. This is metadata admission, not WAV/MP4 decoding or playback.             |
-| `MediaPerformanceTests/testInferenceResponseMapping`           | Clock, CPU and memory for 100 synthetic response decodes and domain mappings; excludes provider time and async persistence.                                                                                   |
-| `RuntimePerformanceTests/testProcessColdLaunch`                | XCTest launch-until-responsive after process termination; simulator caches/app state stay warm. This is not first-install or post-reboot launch.                                                              |
-| `RuntimePerformanceTests/testWarmForeground`                   | Clock and app CPU for background-to-active return in the existing process.                                                                                                                                    |
-| `RuntimePerformanceTests/testRepeatedAudioInsightPresentation` | Clock, app CPU/memory, and iOS 26+ hitch metrics for repeated seeded Insight opening and audio-control hydration. Dismissal occurs between measured samples.                                                  |
+| Benchmark                                                      | Measurement and scope                                                                                                                                                                                                   |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PersistencePerformanceTests/testDurableQueueCommit`           | Clock, process CPU and memory for real SQLite queue/job insertion and save. Verification and cleanup are outside timing; each iteration uses a fresh context and empty queue. This excludes capture encoding.           |
+| `PersistencePerformanceTests/testLargeLibraryScalarHydration`  | Clock, CPU and memory for 1,000 records' scalar media hydration with a fresh context per sample.                                                                                                                        |
+| `PersistencePerformanceTests/testLargeOfflineQueueProjection`  | Clock, CPU and memory for 1,000 queue-row snapshots. This does not measure provider throughput.                                                                                                                         |
+| `MediaPerformanceTests/testRepeatedBoundedImageDecode`         | Clock, CPU and memory across 20 real ImageIO decodes per sample, using a synthetic 4,032 × 3,024 image and 512-pixel bound.                                                                                             |
+| `MediaPerformanceTests/testAudioVideoFileAdmission`            | Clock, CPU and memory for 100 file-backed budget validations over two 1 MiB sparse files and the shared one-second PCM WAV fixture. This is metadata admission, not WAV/MP4 decoding or playback.                       |
+| `MediaPerformanceTests/testInferenceResponseMapping`           | Clock, CPU and memory for 100 synthetic response decodes and domain mappings; excludes provider time and async persistence.                                                                                             |
+| `RuntimePerformanceTests/testProcessColdLaunch`                | XCTest launch-until-responsive after process termination; simulator caches/app state stay warm. This is not first-install or post-reboot launch.                                                                        |
+| `RuntimePerformanceTests/testWarmForeground`                   | Clock and app CPU for background-to-active return in the existing process.                                                                                                                                              |
+| `RuntimePerformanceTests/testRepeatedAudioInsightPresentation` | Clock, app CPU/memory, and iOS 26+ hitch metrics for repeated seeded Insight opening and audio-control hydration. Dismissal occurs between measured samples.                                                            |
+| `RuntimePerformanceTests/testProtectedChatProofRefresh`        | Clock, app CPU and memory for freshly seeded durable staging, synthetic no-admission proof and explicit refresh close. Setup/reopening are outside timing; report-only, not retained-heap, provider or device evidence. |
 
 Each benchmark requests ten XCTest iterations; the audit requests three test
 iterations, retaining raw samples, count, mean, median, sample standard
@@ -704,7 +849,7 @@ The wrapper retains `.artifacts/local-ios/<uuid>.xcresult` and
 phase's exported summary, test tree and metrics. Build and test failures retain
 their XCResult; a failed preflight has only its explicit failure report. The
 manual CI workflow uploads this directory for 14 days even after failure. The
-existing complete-unit and four critical UI gates remain required for iOS
+existing complete-unit and six critical UI gates remain required for iOS
 release.
 
 Start with `summary.md`, identify the failing phase and open its XCResult in
@@ -755,7 +900,7 @@ or documentation changes after the last iOS input, manually dispatch this
 workflow against the final exact SHA. Confirm the scope reason records a manual
 dispatch and all three macOS jobs run. A successful scope-only result is valid
 changed-file reporting, but it is not compiled iOS release evidence and cannot
-replace the complete unit target, all four critical scan UI smokes, and
+replace the complete unit target, all six critical scan UI smokes, and
 Release-archive gate.
 
 Do not replace that design with workflow-level pull-request path filters. GitHub
@@ -1198,17 +1343,27 @@ HTTP request is dispatched. See the
    pinned Xcode build, generated-project membership, and locked packages in its
    own checkout. Its `build-for-testing` compiles the app and complete UI bundle
    without the unit or performance bundles; `test-without-building` reuses that
-   job's simulator and build output to execute four deterministic runtime UI
+   job's simulator and build output to execute six deterministic runtime UI
    smokes: `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`,
    `testLiveInsightConnectivityFailureTransitionsToDurableQueue`,
-   `testQueuedRetryPresentationUsesSafeActionableCopy`, and
-   `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` under
-   `merianUITests/merianUITests`. This is deliberately narrower than the
-   complete UI suite, whose camera/Photos/hardware cases remain separate. The
-   focused result must report exactly those four passed cases and zero failed or
-   skipped cases. Its structured tree must contain that exact named set under
-   `merianUITests`; missing, wrong, duplicated, malformed, empty, or
-   contradictory evidence fails the job. After compilation, a separate
+   `testQueuedRetryPresentationUsesSafeActionableCopy`,
+   `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff`,
+   `testExactQuestionPersistsAndReopeningKeepsPendingIdentity`, and
+   `testStaleQuestionRequiresExplicitRefreshBeforeFreshChat` under
+   `merianUITests/merianUITests`. The pending-question test uses the enrolled V2
+   Debug seed and real immutable request persistence, with only delivery
+   simulated. It checks on-screen button bounds and taps their measured center
+   because iOS 27 reports a zero-size native toolbar accessibility ancestor.
+   Real composer, save and reopening assertions remain mandatory. The
+   stale-question test uses real queue delivery, proof persistence,
+   selected-state synchronization and host projection with synthetic response
+   bytes. It requires explicit refresh to close the stale chat, followed by an
+   explicit reopening with an empty composer and no automatic send. This is
+   narrower than the complete UI suite, whose camera/Photos/hardware cases
+   remain separate. The focused result must report exactly those six passed
+   cases and zero failed or skipped cases. Its structured tree must contain that
+   exact named set under `merianUITests`; missing, wrong, duplicated, malformed,
+   empty, or contradictory evidence fails the job. After compilation, a separate
    five-minute preflight runs `simctl bootstatus <selected-UDID> -b` and
    requires boot completion before XCTest installs and launches its runner.
    Selecting a simulator or compiling for it does not establish boot readiness.
@@ -1217,8 +1372,8 @@ HTTP request is dispatched. See the
    invocation is skipped. This addresses cold boot sharing the test deadline,
    but does not establish that the Instruments service hub is healthy. The UI
    invocation enables XCTest timeouts with default and maximum per-test
-   allowances of 180 seconds. Its 20-minute outer deadline leaves eight minutes
-   beyond the four test allowances for runner startup and result finalization;
+   allowances of 180 seconds. Its 25-minute outer deadline leaves seven minutes
+   beyond the six test allowances for runner startup and result finalization;
    the job has 70 minutes for package resolution, compilation, boot, testing,
    and evidence handling. These are hang-containment limits, not performance
    acceptance thresholds. Failed or timed-out tests are not retried
@@ -1299,7 +1454,7 @@ unrelated change it requires all three to be skipped and reports success.
 Missing or invalid scope output, failed, cancelled, or unexpectedly skipped jobs
 fail the check. The portable workflow contract executes this decision across
 every unit/UI/archive outcome combination and checks that all three jobs depend
-only on scope. Release evidence remains the complete unit target, all four UI
+only on scope. Release evidence remains the complete unit target, all six UI
 cases, and the archive on one exact SHA; no smaller test selection replaces it.
 
 ### Repository Rule Setup
@@ -1399,7 +1554,7 @@ failure:
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Unit compile or execution                                             | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the unit `.xcresult`, package-resolution log, and `xcodebuild` log.                                           |
 | Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.                                        |
-| Critical scan UI smokes or focused-result validation                  | Inspect `ios-critical-scan-ui-evidence-<run>-attempt-<attempt>` and `ios-critical-scan-ui-failure-<run>-attempt-<attempt>`; require the exact four protected cases.        |
+| Critical scan UI smokes or focused-result validation                  | Inspect `ios-critical-scan-ui-evidence-<run>-attempt-<attempt>` and `ios-critical-scan-ui-failure-<run>-attempt-<attempt>`; require the exact six protected cases.         |
 | Privacy manifest source or target membership                          | Run `make validate-ios-privacy-manifest` and `make validate-ios-project`; compare the declaration with the canonical privacy contract rather than weakening the validator. |
 | Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted.     |
 | ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                               |
@@ -2526,16 +2681,20 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `InsightShellLifecycleTests`, `InsightShellPresentationTests`,
   `InsightShellRecordTests`, `InsightToolbarRecordSnapshotTests`,
   `InsightQueuedHandoffTests`, and `InsightFieldTripContributionTests`.
-  Product-area mirrors contain `InsightContentActionsTests`,
-  `UserTagsViewModelTests`, `QueuedContentViewModelTests`,
-  `QueuedScanningPresentationTests`, `InsightQueuedRetryPresentationTests`, and
-  `InsightContentArchitectureTests` in Content. FieldNotes owns
-  `FieldNotesEditPolicyTests`, `FieldNotesEditorViewModelTests`,
-  `InsightFieldNotesStateTests`, and `FieldNotesArchitectureTests`; Core Data
-  Field Notes owns `FieldNotesRepositoryTests`. Media owns
-  `InsightMediaAvailabilityTests`, `InsightMediaGalleryTests`,
-  `InsightMediaSuppressionTests`, `InsightMediaFocusPresentationTests`,
-  `InsightAudioBoostPolicyTests`, `InsightMediaExportLifecycleTests`, and
+  `SelectedAnalysisReviewTests` covers frozen displayed authority and
+  parent-only reconciliation; `SelectedAnalysisReviewHostTests` covers uncertain
+  exact-save retries, stale alert tokens, one-time applied receipt consumption,
+  negative terminal lockout and account/presentation loss. Product-area mirrors
+  contain `InsightContentActionsTests`, `UserTagsViewModelTests`,
+  `QueuedContentViewModelTests`, `QueuedScanningPresentationTests`,
+  `InsightQueuedRetryPresentationTests`, and `InsightContentArchitectureTests`
+  in Content. FieldNotes owns `FieldNotesEditPolicyTests`,
+  `FieldNotesEditorViewModelTests`, `InsightFieldNotesStateTests`, and
+  `FieldNotesArchitectureTests`; Core Data Field Notes owns
+  `FieldNotesRepositoryTests`. Media owns `InsightMediaAvailabilityTests`,
+  `InsightMediaGalleryTests`, `InsightMediaSuppressionTests`,
+  `InsightMediaFocusPresentationTests`, `InsightAudioBoostPolicyTests`,
+  `InsightMediaExportLifecycleTests`, and
   `InsightMediaCarouselArchitectureTests` in Media. Core Media owns
   `AudioPlaybackPresentationTests`, `AudioBoostRequestStateTests`, and
   `MediaExportServiceTests`; Core UI owns `ModelTierBadgePresentationTests`.
@@ -4315,9 +4474,9 @@ import, and permission-denial UI require the physical-device checklist in
   in `MerianNetworkClient.swift`, applies the 600-line ceiling to every Swift
   owner in `Auth/`, `Endpoints/`, `Inference/`, `Media/`, `Models/`,
   `Recovery/`, and `Transport/` plus the client façade. It requires the exact
-  sixty-one Auth foundation paths and caps Auth, Purchase Identity,
-  `SupabaseManager.swift`, and their combined production surface at 7,886,
-  2,016, 3,792, and 13,694 lines, respectively. It includes the effect-free
+  sixty-four Auth foundation paths and caps Auth, Purchase Identity,
+  `SupabaseManager.swift`, and their combined production surface at 7,887,
+  2,016, 3,792, and 13,695 lines, respectively. It includes the effect-free
   observable runtime owner for transition, generation, analytics-token,
   exact-session lease/drain, and local sign-out state; focused
   listener/current-state and historical-sync task owners; lifecycle diagnostics;
@@ -4355,14 +4514,16 @@ import, and permission-denial UI require the physical-device checklist in
   exclusion; and the narrow provider-service framework boundary. It separately
   freezes the Core Security ghost-merge model/service/store and purchase-handoff
   model/store owners, exact persisted fields, device-only verified persistence,
-  sole live endpoint ownership, and 600-line boundaries. It also requires
-  exactly six Transport files: three stateless policies, one request-scoped
-  executor, one pinned session, and one authenticated dispatcher. The suite
-  freezes the disjoint safe-read and idempotency-aware ambiguous-replay sets,
-  requires exactly one endpoint owner for each classified route, and records the
-  exact owners allowed to acquire the pinned session, private transport, request
-  executor, consent/profile context, Auth manager, recovery Species Dictionary
-  query, or detached preparation bridge. That inventory records the Auth
+  sole live endpoint ownership, and 600-line boundaries. It also requires the
+  exact Transport owner inventory, including the scoped
+  `ObservationAudioAnalysisTransport` and
+  `ObservationSourceReservationTransport` and
+  `ObservationVideoEvidenceTransport`. The suite freezes the disjoint safe-read
+  and idempotency-aware ambiguous-replay sets, requires exactly one endpoint
+  owner for each classified route, and records the exact owners allowed to
+  acquire the pinned session, private transport, request executor,
+  consent/profile context, Auth manager, recovery Species Dictionary query, or
+  detached preparation bridge. That inventory records the Auth
   historical-session `+Live` adapter as one permitted `AppDIContainer.shared`
   owner, limited to offline-queue context and scan-repository composition, and
   rejects nullable live-dependency fallback in the Apple and Google
@@ -5777,11 +5938,12 @@ Turnstile verification. The suite also proves incomplete Turnstile configuration
 fails before any provider fetch. Migration coverage requires both bounded
 counter-retention paths to use `FOR UPDATE SKIP LOCKED`, preventing concurrent
 request cleanup from becoming a lock convoy.
-`apps/web/lib/dependencySecurity.test.ts` also checks every locked PostCSS and
-Sharp instance against the reviewed patched floors, keeps the Next.js transitive
-overrides explicit, and verifies that the dependency audit follows the frozen
-install. `.github/workflows/web-quality.yml` runs the live registry-backed audit
-with a high-severity failure threshold, those tests, TypeScript checking, and a
+`apps/web/lib/dependencySecurity.test.ts` also checks every locked PostCSS,
+Sharp, and `source-map-js` instance against the reviewed patched floors
+(including `source-map-js` 1.2.2), keeps the Next.js transitive overrides
+explicit, and verifies that the dependency audit follows the frozen install.
+`.github/workflows/web-quality.yml` runs the live registry-backed audit with a
+high-severity failure threshold, those tests, TypeScript checking, and a
 production Next.js build for affected web changes. High and critical findings,
 or an unavailable audit registry, block the job.
 
@@ -8052,7 +8214,7 @@ Simulator execution cannot accept the tactile or live-camera optical checks.
 
 `testQueuedRetryPresentationUsesSafeActionableCopy` keeps its scheduled fixture
 deadline one hour beyond seeding, longer than the critical UI test step's
-20-minute limit. This smoke verifies scheduled retry copy and action
+25-minute limit. This smoke verifies scheduled retry copy and action
 eligibility; it must not race launch or accessibility work against a 30-second
 deadline. The explicit-clock `InsightQueuedRetryPresentationTests` suite owns
 deadline expiry and suppression of elapsed retry actions.
@@ -9995,7 +10157,7 @@ internal Gemini retries retain the original accepted 5. Existing reader tests
 continue to reject unknown versions and capability 4 for explicit rows, preserve
 visibility before compatibility errors, and reject a worker's attempt to upgrade
 original capability. Run these with the full catalog and Edge suites, then the
-complete native unit target and four required scan UI smokes. Current production
+complete native unit target and six required scan UI smokes. Current production
 provider profiles remain unchanged throughout this reader preparation.
 
 ### Identification rejection checks
@@ -10657,3 +10819,1998 @@ noted copies remain pending; validated legacy publications are protected. Actual
 caller roles, immutability and deletion are covered. The concurrency suite adds
 duplicate settlement, deletion in both orders, and binding/settlement in both
 orders. Provider approval and quota stay unchanged.
+
+### Reanalysis execution status boundary
+
+The default-off execution-status reader has a separate read-only contract. Run
+`observation_analysis_execution_status.sql` on the freshly replayed disposable
+database before the execution-status concurrency suite. Catalogs prove exact
+scope, grants, gate closure, all execution states, unchanged funding/intent
+records and deletion denial. Independent-session races exercise read-first,
+dispatch-first, observation deletion and account deletion.
+
+Native `ObservationExecutionStatusTransportTests`,
+`ReanalysisRecoveryTransportTests` and `ObservationReanalysisRequestTests` cover
+the exact seven-field status response, null original source, malformed
+responses, owner/claim fences and no hidden transport retry. These tests do not
+establish retirement or new-execution authority: absent and dispatched states
+remain observations only. Unknown original execution never permits an analyze
+replay. Full action-owner integration and retirement-versus-dispatch acceptance
+are subsequent slice-4 checkpoints, with media journeys still separately held.
+
+### Admitted analysis retirement proof
+
+`observation_analysis_retirement.sql` exercises protected evidence cleanup and
+its erasure outbox, claimed-admitted retirement, quota/credit settlement,
+receipt-save rollback, exact replay after gate closure, immutable receipts,
+owner/reader/identity denials, contradictory durable evidence, and account-merge
+and deletion fences. `observationAnalysisRetirementConcurrencyDb.test.ts` uses
+independent sessions for retirement-versus-dispatch in both orders, duplicate
+receipt replay, retirement-versus-deletion in both orders and account deletion.
+
+This proves the admitted-only SQL boundary. It does not establish absent-request
+sealing, native restart/UI settlement or hosted erasure liveness. Those remain
+separate acceptance checkpoints; a status label never supplies retirement
+permission.
+
+### Retirement HTTP boundary
+
+`retire-observation-analysis/handler_test.ts` and `route_test.ts` exercise the
+actual authenticated wrapper, exact RPC parameters, owner injection rejection,
+strict receipt association, private/no-store responses, cancellation and a
+stalled transport. The response-cap test omits Content-Length and sends more
+than 4 KiB; the timeout test verifies the five-second budget without sleeping.
+Upstream 401/503 and malformed replies make one attempt and return no proof.
+These synthetic boundaries complement the SQL race catalogs; they do not prove
+native durable retirement admission or deployed behavior.
+
+### Native retirement wire qualification
+
+`AnalysisRetirementTransportTests` exercises canonical saved request identity,
+nullable original source, exact terminal proof, one-attempt HTTP failures,
+after-Auth dispatch validation, separate response settlement and account change.
+Chunked overflow without Content-Length proves the 4-KiB collector boundary;
+cancellation after a known response retains the proof for same-scope settlement.
+`ProtectedInsightChatTransportTests` and `PinnedNetworkTransportTests` cover the
+shared collector's existing chat limits, claim budget, TLS/redirect, deadline
+and cancellation behavior. This is inert transport evidence, not durable
+retirement or UI acceptance. The alternatives card remains unchanged.
+
+### Native retirement staging qualification
+
+`ReanalysisRetirementStagingTests` covers closed version-eight metadata,
+owner/request-qualified admitted status, rejection of absent/dispatched/draft or
+terminal status, legacy held normalization, full-snapshot claim races and
+normal-execution exclusion. Save-before-commit failure retains the prior claim;
+commit-then-throw retains the same retirement UUID. Disk reopen preserves that
+identity. Account loss, pending deletion and completed results deny staging.
+Selection and evidence remain unchanged; no HTTP request or cleanup is performed
+by this foundation. Dedicated retirement ownership and terminal receipt
+settlement require their own subsequent coverage.
+
+`ReanalysisRetirementSettlementTests` checks distinct claims, timer-free holds,
+explicit same-UUID recovery, stale responses, atomic proof/save ambiguity,
+known-answer cancellation with account loss, deletion and exact terminal replay.
+It verifies strict bounded version-two proof decoding, unchanged selection,
+cleanup-proof retention, no downgrade by parent deletion and separation from
+normal result completion and version-one cleanup. This is persistence evidence;
+dedicated retirement delivery and dispatch-winning result reconciliation remain
+separate integration checkpoints.
+
+The same settlement suite also verifies dispatch-winning original-result
+recovery: exact request/result binding, unchanged selection, atomic append and
+queue removal, distinct version-three metadata, stale-claim denial and
+commit-then-throw replay. V1 cleanup, V2 retirement proof and V3
+recovered-result receipts cannot substitute for each other. These persistence
+tests do not yet qualify the dedicated runtime or action UI.
+
+`ReanalysisRetirementRuntimeTests` exercises the actual bounded execution
+service: result-before-request recovery, retirement proof, dispatch-winning
+result recovery, unknown-outcome hold, no normal/provider executor calls,
+account lease release, and network-cancelled proof settlement versus Auth
+invalidation. `ObservationReanalysisSchedulingTests` separately checks retained
+slots and dispatch/settlement scope invalidation. Include
+`OfflineQueueAdmissionArchitectureTests`,
+`OfflineSyncFoundationArchitectureTests` and `CoreIntegrationArchitectureTests`
+when validating these ownership changes. Record shared-worktree guard failures
+separately from exact-candidate source evidence; do not weaken guard ceilings.
+
+The retirement-runtime checkpoint ran 5,481 shared-worktree unit tests: 5,475
+passed and six failed. Four failures came from unrelated local network/Auth
+facade-size changes; two identified stale test contracts. The fixed status
+fixture now consumes its dispatch marker before reporting server dispatch, and
+the exact unauthorized-refresh opt-out inventory includes the fixed reanalysis
+status reader. The corrected focused run passed all 28 tests in six suites,
+including both corrected tests and the runtime/owner/status coverage. This does
+not turn the earlier full run green or establish clean-candidate qualification.
+Retain both result bundles and use current-candidate CI separately.
+
+The prepared retirement-status controls passed an initial 35-test run, then an
+expanded 52-test run across eight suites with no failures or skips. Coverage
+includes admitted-only staging, absent/dispatched/terminal denial, stale claims
+and accounts, committed-save ambiguity and reopening with the same operation,
+pre-commit save failure, held same-operation rearm without another status read,
+Auth cancellation waiting for lease release, retained final-tap UUID and late
+presentation dismissal. Qualified actual-pass-exit refresh exposes the held
+recovery action without a library event, polling or mutation; wrong owner or
+context cannot advance its epoch. These focused results do not replace the
+separately recorded shared-worktree full result or device/hosted qualification.
+
+### Explicit held reanalysis outcome verification
+
+`ReanalysisHeldOutcomeTests` exercises exact consumed/legacy-unknown recovery,
+absence/error/malformed replies without durable mutation, owner/deletion/full
+snapshot changes, retained Auth drain, atomic completion, save-before and
+save-after errors, disk reopening and exact receipt replay. No new provider,
+claim, attempt or timer is created. `ReanalysisOperationStatusTests`
+distinguishes admission/preparation exhaustion from consumed execution
+exhaustion; `ReanalysisStatusViewModelTests` verifies explicit-only reads,
+same-row admission, late UI withholding and queued library refresh after a
+committed save throws. These focused tests do not replace final integrated
+media/device qualification.
+
+No existing-V2 no-admission proof is claimed: independent review rejected an
+unpublished draft because pruned quota/invocation records cannot prove
+historical non-execution. The failed local migration-anchor evidence and
+rejected draft are retained outside the candidate; no new backend migration
+ships with this native lookup checkpoint. Current unknown work remains held by
+contract.
+
+### Prepared audio contract verification
+
+`analysisHistory/audioManifest_test.ts` verifies the manifest-3 metadata limits,
+exact order, detached immutable values, Unicode boundary and rejection by legacy
+photo routes. `audioContainer_test.ts` covers compact and zero-padded Core Audio
+RIFF containers, full byte consumption, PCM-field consistency,
+private/unknown/trailing chunk rejection and raw bounds. The whole-tree backend
+test task discovers both suites. Neither module grants upload, readiness,
+inference or reader compatibility; no native/device or audio end-to-end
+acceptance is implied by these pure tests.
+
+`observation_audio_evidence_upload.sql` covers service privileges, default-off
+admission, immutable tuple/object/expiry, exact replay, changed bytes/digest,
+foreign owner, photo/primitive exclusion, unsupported intent/result admission,
+expired and prematurely erased receipts, retained identity and deletion erasure.
+`observationAudioEvidenceConcurrencyDb.test.ts` observes actual database
+blocking for duplicate reservation, both photo/audio race orders, deletion,
+expiry replay and cross-owner child collision.
+`observationAudioEvidenceMigrationContract.test.ts` keeps the separate cohort,
+gate, privilege and cleanup boundary explicit. Run the fresh full catalog before
+concurrency tests. These tests do not establish a binary audio upload endpoint,
+native audio execution or video support.
+
+### Prepared private audio upload boundary
+
+`upload-observation-audio/handler_test.ts` proves whole-WAV validation and exact
+server hashing before I/O, strict receipt scope/tuple/readiness, fixed expiry,
+owned bytes across awaits, cancellation, no retry on uncertain outcomes and no
+private storage data in responses. `route_test.ts` covers authentication,
+bounded streaming, exact fixed RPC parameters and stalled-body cancellation.
+Both tests run in the two candidate-validation focused lists. Existing
+photo-upload tests run alongside them to preserve its unchanged wire and
+accepted evidence types. These synthetic checks do not qualify a device WAV
+producer, real R2/CDN or provider execution.
+
+### Prepared audio request compatibility
+
+`audioAdmission_test.ts` tests strict input-3 capability/processor claims, exact
+immutable evidence metadata order and text, source/media identity isolation,
+closed metadata and bounds, canonical draft taxonomy and removal of mutable
+review/funding authority. It proves existing V2 serialization remains exact and
+audio cannot masquerade as imported result 3 in readers 7–9.
+
+### Gated audio runtime verification
+
+`audioMaterialization_test.ts` covers exact receipt scope/readiness, extra or
+missing objects, changed digest/length/container, owned bytes, ordered evidence
+and mixed reader-10 page/state decoding. `execution_test.ts` recovers saved V2
+photo and input-3 audio outcomes without another provider call or rewriting
+persisted input. `observation_audio_analysis_admission.sql` exercises the full
+funding/dispatch/interrupted-outcome/draft/completion flow, no automatic
+selection, unreviewed child authority, pre-admission expiry denial, bound replay
+after expiry, old-reader whole-history refusal and deletion/erasure ownership.
+`observationAudioAdmissionConcurrencyDb.test.ts` observes real lock blocking for
+duplicate admission, deletion before admission and materialization before
+deletion. Run fresh catalogs before database concurrency tests.
+
+These tests qualify the gated backend checkpoint, not native audio production,
+device capture, hosted provider/storage or video support. Those remain separate
+acceptance work; all rollout gates remain false.
+
+### Prepared native audio result verification
+
+`ObservationHistorySyncTests` exercises exact result-V4/manifest-3 decoding,
+malformed/aliased evidence, ECMAScript whitespace parity, scalar and UTF-16 text
+bounds, exact replay, preserved parent selection/correction and actual sync →
+disk reopen → listing. Audio cannot enter the photo resolver or become an empty
+legacy reanalysis source. `ObservationAnalysisReviewTicketTests` admits strict
+V4 review tickets while preserving explicit photo-publication and candidate
+format denials. The audio sync suite allows explicit Restore for a validated V4
+preview while still denying selected-chat tickets. The selection-intent matrix
+below qualifies V4 target/outgoing selection and receipt-bound Undo.
+`LocalAnalysisRecordTests` runs disk reopen and parent cascade for both V1 and
+V4 and requires finite audio completion. The opaque-storage constructor change
+does not alter the V58 schema; migration guardrails and `MigrationPlanTests`
+remain part of affected native validation. These decoder checks alone do not
+prove network review delivery, activated native runtime or audio input
+execution.
+
+### Audio history action reader verification
+
+`observation_audio_analysis_admission.sql` verifies reader-9 whole-observation
+refusal before old selection/review/confirmation receipt replay, reader-10
+recovery before closed fresh gates, both Undo lookups, and exact pending input-3
+status/retirement independently of completed audio results.
+`observationAudioAdmissionConcurrencyDb.test.ts` additionally blocks readers 9
+and 10 behind real admission locks and verifies their post-wait decisions.
+Existing retirement-versus-dispatch/deletion concurrency remains required.
+
+`ObservationAnalysisReviewEndpointTests`, both Undo lookup suites,
+`ReanalysisRecoveryTransportTests` and
+`ObservationExecutionStatusTransportTests` assert fixed reader-10 bodies,
+unchanged identities and no automatic retries. Photo recovery retains its strict
+V2 matcher: a valid V4 response is a result conflict, never absence or
+permission to execute. V4 publication/chat holds, native review/selection
+admission and saved-photo replay remain separate coverage. Run these with the
+complete backend catalogs/concurrency/security and affected native gates; this
+does not qualify native audio production, device or hosted rollout.
+
+### Audio preparation persistence regression gate
+
+`ObservationAudioPreparationTests` covers the inert V58 audio preparation
+primitive: original held-v1 byte compatibility, explicit submitted-v2 intent
+before private writes, closed action/phase decoding, scanner exclusion and
+immutable identity. Exercise both actions across promotion failure, committed
+save followed by an error, disk reopen, exact-file recovery, parent erasure and
+account loss. A promotion error retains the verified WAV because the database
+save may have committed. Initial-save uncertainty must precede any private
+write.
+
+The preparation suite also covers source occupancy before a fresh child is
+inserted: intact audio, damaged metadata, missing jobs, owner/parent/kind
+damage, uppercase/mixed-case/extra source text, and same-source photo drafts
+block a new audio UUID. A different source does not block, and exact original
+replay remains available. These checks do not prove absence of rowless jobs,
+missing source links or remote work, and do not qualify fresh audio UI
+admission.
+
+`ObservationAudioExecutionStoreTests` covers exact-byte one-time binding, replay
+before fresh consent, initial and explicitly resumed unconsumed claims,
+consumed-save uncertainty, stale claim/permit denial, malformed generic queue
+residue, scanner exclusion and disk-backed outcome-only recovery. Recovery
+claims cannot become dispatch permits. Binding and consumption saves that commit
+then throw retain the original request and consumed authority.
+
+Run these suites with `ObservationReanalysisFileStoreTests`,
+`ObservationReanalysisSubmissionTests`, `ObservationReanalysisOwnershipTests`
+and `OfflineSyncFoundationArchitectureTests` through `make ios-local-build`.
+These suites also run under the general native unit target; they are not a
+separate CI UI selector. This gate proves local persistence, not audio UI,
+provider execution or device/hosted qualification.
+
+### Native audio transport and completion gate
+
+Run `ObservationAudioAnalysisTransportTests`, `ObservationAudioResultTests`,
+`ObservationAudioCompletionTests` and `ObservationAudioExecutionStoreTests`
+alongside photo result/file-store and protected-chat transport regressions.
+Verify exact persisted request bytes, fixed headers, one attempt on every
+HTTP/transport failure, post-Auth consent/claim denial, stale permit/account
+withholding, actual/declared receipt bounds and status/MIME validation. Ordinary
+90-second session limits and protected-chat budgets must remain unchanged.
+
+File reads prove root/child locks across both callbacks, exact WAV bytes and
+withholding on stale scope, cancellation or changed/incomplete cohorts. Result
+matching proves V4 provenance and ordered manifest equality without weakening
+photo V2 checks. Completion tests prove unconsumed/stale claim denial,
+selection/source preservation, cancellation-safe known-answer settlement, atomic
+rollback and save-commits-then-throws replay. These are inert boundaries; they
+do not qualify retained delivery, restart adoption, device or hosted use.
+
+### Native audio outcome recovery gate
+
+`ObservationAudioOutcomeTransportTests` proves exact reader-10 targeting of an
+unselected child, raw V4 preservation, no inference-consent dependency, and no
+automatic transport/Auth/route retry. It checks narrow missing-target semantics,
+malformed owner/source/digest/child authority, declared and streamed bounds,
+unconsumed/stale claim denial and account changes during I/O. Recovery
+generation reads cannot consume another dispatch permission. Known replies
+survive task cancellation into atomic completion, while replaced claims cannot
+settle and selection stays unchanged. Run it with the existing audio
+submit/completion, photo recovery, protected-chat and transport-owner
+architecture tests. This is prepared-boundary coverage, not retained-executor or
+hosted-runtime acceptance.
+
+### Prepared audio retained-owner gate
+
+`ObservationAudioExecutionOwnerTests` covers exact coalescing, changed request,
+claim, session, generation and container denial, one-slot resource bounds, lease
+release before actual-exit notification, and connectivity cancellation
+preserving known-answer scope. Auth invalidation closes settlement immediately;
+overlapping drains and the invalidate-before-await gap deny replacement work.
+Failed lease admission and stale account scope never invoke the operation. Both
+Auth teardown seams and offline/constrained cancellation are checked; the
+generic scheduler remains unconnected. Run the focused suite with audio
+store/outcome tests and both Offline Sync and Core integration architecture
+suites. These tests establish retained ownership, not executor or provider
+qualification.
+
+### Audio interruption transaction gate
+
+`ObservationAudioInterruptionTests` exercises actual retained-task cancellation
+before/after consumed dispatch, exact held replay, consumption and hold saves
+that fail before commit or commit then throw, original request/marker retention,
+expired owner scope, later-generation rejection, account invalidation, changed
+container/source, parent deletion, erasure and malformed metadata. Recovered
+consumed work cannot obtain another dispatch permit; unconsumed holds cannot
+resume without fresh consent. Run with audio execution store/owner, exact
+outcome and completion suites and Offline Sync architecture checks. This is
+local transaction acceptance; executor orchestration and disk restart journeys
+remain separate integration checks.
+
+### Explicit audio executor gate
+
+`ObservationAudioExecutionServiceTests` verifies initial, held and interrupted
+entry ordering, consumed recovery without files/upload/consent/analyze, exact
+append with unchanged selection, consumption save failure before/after commit,
+boundary failures, missing/malformed outcomes and cancellation/account/deletion
+settlement. Run with interruption, execution-store, retained-owner, outcome and
+completion suites and Offline Sync/Core architecture checks. These injected
+service tests do not qualify a live factory, UI entry, provider or disk restart.
+
+### Private audio transport assembly checkpoint
+
+`NetworkTransportAssemblyTests` verifies late and replaced DEBUG session/account
+injection through the actual client factories, exact audio/outcome timeouts,
+account-mismatch denial and no 401 replay. `AccountDeletionBoundaryTests` and
+`AccountDeletionRecoveryTransportTests` preserve the extracted fixed public
+recovery route's configuration-before-body ordering, no-Auth policy, response
+bound, cancellation and existing retry behavior. The private assembly remains in
+`MerianNetworkClient.swift`; module callers cannot use its generic executor.
+
+The shared-worktree full run executed 5,588 tests: 5,585 passed, three failed,
+none skipped. One failure was the previously recorded overlapping Auth-facade
+size violation. Two Media Storage architecture assertions still named direct
+transport members; they were corrected without changing production behavior. The
+final focused run executed 87 tests in 12 exact suites: 86 passed, only that
+Auth-size test failed, none skipped. The critical full-result validator
+correctly rejected the full run; neither run is represented as wholly green.
+Independent re-review was clear. Evidence remains under
+`/private/tmp/audio-assembly-*` and `.artifacts/local-ios`; shared-worktree
+execution is separate from the scoped candidate export and its seven-target
+project validation. No backend wire, schema or deployment behavior changed. Live
+audio delivery remains unconnected.
+
+### Explicit audio live composition gate
+
+`ObservationAudioLiveDependenciesTests` exercises the actual injected client
+outcome transport for consumed recovery, with no file upload or inference
+consent. `ObservationAudioQueueExecutionTests` covers exact coalescing,
+connectivity versus account/container/generation invalidation, receipt-bound
+cleanup, completion notification before lease exit, and Auth drain awaiting a
+blocked completion callback. Run both with execution-service/owner,
+interruption, erasure and Offline Sync/Core integration architecture suites.
+
+This is explicit injected queue-entry coverage. There is no App/UI invocation,
+automatic audio scheduler, hosted provider or device acceptance claim. Known
+answers can settle after connectivity cancellation; failed cleanup retains the
+durable receipt and cannot turn a completed analysis back into a hold.
+
+This checkpoint's focused run passed 41 tests in eight exact suites with no
+failures or skips. Full shared-worktree validation executed 5,593 tests: 5,592
+passed, one failed, none skipped. The sole failure is the previously recorded
+`authFoundationHasFocusedOwnersAndRehomedTests` Auth size guard in overlapping
+workspace edits (3,800 versus 3,792 lines; aggregate 13,703 versus 13,695). The
+critical validator correctly rejects full green. No clean-candidate full-unit
+pass is claimed. Focused XCResult: `0c771d6492954b94aee2b673a2c5099a`; full:
+`a68e9f5a8cfe48138177f7c21188d6ee`. Failed compile logs remain retained under
+`/private/tmp/audio-live-*`; callback escaping, a source-inventory typo and
+nested Testing macros were corrected before final execution. Source review,
+strict lint, affected guards, DTO and documentation checks passed.
+
+### Audio submission binding recovery gate
+
+`ObservationAudioSubmissionBindingTests` covers exact absent/pending/submitted/
+bound classification, damaged or incomplete queue/job pairs, unknown and
+malformed execution envelopes, and stale account denial. Save-before-commit and
+save-commits-then-throws cases retain the original request; only the latter
+skips consent on a later explicit retry. Bound consumed-state recovery preserves
+its marker and returns no dispatch permit. The authorization test waits for an
+explicit cancellation signal and proves that Auth drain retains the slot and
+lease until actual exit, while account/cancellation changes cannot bind.
+
+Run with audio preparation, execution-store/service, queue integration and both
+Offline Sync/Core architecture suites. These are prerequisite binding checks;
+they do not establish Capture UI installation, restart discovery, provider or
+physical-device qualification.
+
+The focused binding checkpoint passed 50 tests across seven exact suites, with
+zero failures or skips (XCResult `0fd84b7404cf4bec80f1d8f3c4950f7c`). Strict
+lint, affected source guards, DTO21, docs26 and seven-target membership passed.
+Independent source and documentation re-review was clear after clarifying the
+two preparation phases. The most recent full native milestone is the preceding
+`afd186919` composition run recorded above; it is not represented as a full run
+of this narrower checkpoint. Shared-worktree execution and scoped candidate
+validation remain distinct; no activation or external qualification is claimed.
+
+### Frozen Capture audio session gate
+
+`CaptureAudioReanalysisSessionTests` covers synchronous tap identity, exact WAV
+and description order, changed input/generation denial and invalid media without
+queue writes. Real producer/binder tests cover save-before-commit and
+save-commits-then-throws, no queue start on failure, bound retry despite removed
+local bytes, and unavailable queue admission retaining the same request.
+Account, source and presentation changes during authorization withhold queue
+handoff; presentation loss alone does not invalidate durable common-scope
+binding.
+
+Run with photo Capture session, audio binding/preparation/queue, frozen source
+and Offline Sync/Core architecture suites. These tests exercise prepared owners;
+ordinary Capture installation, complete restart journeys, device and hosted
+qualification remain separate. The later audio-only V4 source qualification
+below covers its exact source and resume boundary.
+
+The session checkpoint passed 48 tests across those eight exact suites, with
+zero failures or skips (XCResult `028c167c137e44738e4356e800fa5b48`). The
+initial compile failure was confined to a test attempting an immutable payload
+setter; the corrected fixture deletes the source through `ModelContext`. Failed
+XCResult `fd90fb8c2b1b4f7a86ac89ec6d80ed02` remains retained. Strict lint,
+affected source guards, DTO21, docs26 and scoped seven-target membership passed;
+independent source/documentation re-review was clear. This is focused
+shared-worktree verification, not a clean-candidate full run. The prior full
+milestone and its unrelated Auth-size failure remain recorded above.
+
+### Prepared audio access gate
+
+`CaptureAudioReanalysisAccessTests` exercises the inert bundle with real
+preparation/binding and injected authorization/queue boundaries. It checks the
+short opening lease, exact source/key/proof and generation, same-request retry
+after queue unavailability, and owner/session/generation/container/presentation
+invalidation before submission. Construction causes no authorization or work;
+ordinary App installation remains nil. Run alongside composition, frozen audio
+session, queue/owner and Offline Sync/Core architecture suites. These checks do
+not establish live UI or exact saved-child reopening/restart recovery.
+
+This access checkpoint passed 36 tests across all seven exact suites, with zero
+failures or skips (XCResult `9a70ddbefb474942932f8d150fe1258e`). Strict lint,
+source guards, DTO21, docs26, Markdown28 and scoped seven-target membership
+passed; independent source and documentation review was clear. The initial
+verification command used a nonexistent DTO Make target after the source guards
+passed; the correct `validate-edge-dto-contract` then passed. No native test
+failure occurred. This is focused shared-worktree verification, not a new full
+native milestone or clean-candidate full pass. Existing failed evidence and the
+prior full-run Auth-size limitation remain preserved.
+
+### Exact audio resume proof gate
+
+`ObservationAudioResumeStoreTests` covers original `files_pending` and
+`admission_pending` recovery without reading files or changing phase; exact
+idle/running/consumed/held binding recovery with absent local WAV; and wrong
+owner/parent/source/child, damaged metadata, partial pairs, old held drafts,
+account denial and damaged row state. The reader returns no provider capability
+and creates no replacement. Run with audio binding/preparation/execution-store,
+source and Offline Sync/Core architecture suites. Actual user reopening and
+retained resume delivery are not established by this read-only checkpoint.
+
+The reader checkpoint passed 46 tests across all seven exact suites, with zero
+failures or skips (XCResult `46125de1a0104080948a861b4df016a2`). Strict lint,
+affected source guards, DTO21, docs26, Markdown28 and scoped seven-target
+membership passed. Independent source/test/documentation review was clear. These
+are shared-worktree focused results; no new full-native or clean-candidate full
+pass is claimed. Prior failures and the overlapping Auth-size limitation remain
+recorded above. No wire, persistence schema or hosted behavior changed.
+
+### Retained audio resume submission gate
+
+`ObservationAudioResumeSubmissionTests` verifies binding save failures before
+and after commit, exact reopening retry, lease release while the preparation
+owner still retains the child, original consumed binding recovery without WAV or
+fresh consent, pending complete-cohort verification, and missing/changed files
+remaining pending. It removes or binds a child between proof read and recovery
+to prove existing-only recovery cannot recreate or overwrite work. An explicitly
+signaled Auth-drain test holds authorization and requires lease exit before
+drain completion with no stale binding.
+
+Run with resume-reader, preparation, binding, Capture session,
+`ObservationReanalysisOwnershipTests` and Offline Sync/Core architecture suites.
+Use exact selectors: there is no `ObservationReanalysisPreparationOwnerTests`
+suite. A concurrent bind rejected by file recovery is safely retried only by an
+explicit call retaining the same identity; no automatic retry is implied.
+
+Checkpoint validation: 47 tests across the eight exact suites above passed with
+zero failures/skips (XCResult `877893bb9375416caf6754716c4873a1`). The initial
+42-test/seven-suite run failed the two account-loss preparation cases after
+lease ownership moved; the final post-file account fence was restored inside
+retained work before the successful rerun. Failed evidence remains at
+`ccc717476e2f43b8b33cbeca409b64db`. The initial nonexistent ownership selector
+was corrected in the final run. Independent re-review also verified lock-owning
+source validation at all external proof checks. Strict lint, affected source
+guards, DTO21 and documentation26 passed. Native tests used the shared worktree;
+this does not establish a clean-candidate full-suite pass or clear the
+previously recorded overlapping Auth architecture-size failure.
+
+### Explicit audio resume access gate
+
+`CaptureAudioReanalysisAccessTests` covers short opening leases, exact consumed
+request handoff without WAV or fresh consent, retry after queue unavailability,
+owner/generation/session/container changes during authorization, preclosed
+presentation, and presentation loss after durable binding followed by explicit
+reopening. The request/child and consumed marker remain exact; no queue start
+occurs from stale scope. Lower resume-store tests retain malformed/cross-scope
+identity coverage.
+
+The focused access checkpoint passed 37 tests across seven exact suites with
+zero failures/skips: access, `ObservationAudioResumeSubmissionTests`,
+`CaptureAudioReanalysisSessionTests`, `ObservationAudioQueueExecutionTests`,
+`ObservationAudioExecutionOwnerTests`, `OfflineSyncFoundationArchitectureTests`
+and `CoreIntegrationArchitectureTests`. Evidence:
+`ce07e0d389cc4b9a8cb6b24a5fe03518.xcresult`. Source guards and DTO21 passed.
+Independent source review found no safety blocker; its comment correction
+distinguishes source-freezing fresh entry from scope-only resume opening. Tests
+ran in the shared worktree; no clean-candidate full-suite pass or resolution of
+the prior overlapping Auth size failure is claimed. No media/UI activation or
+external qualification follows from this adapter.
+
+### Saved audio status paging gate
+
+`ObservationAudioSavedStatusTests` covers all seven preparation/bound phases,
+unchanged job metadata/files/selection, 21-link pagination across 20 malformed
+records, scoped owner/parent cursors, invalid raw linkage, missing jobs, held
+drafts and missing sources. Injected read failures prove storage errors,
+cancellation, account loss and parent deletion do not become successful empty
+pages. Reading produces no action or execution capability.
+
+The corrected checkpoint passed 34 tests across six verified suites: saved
+status, `ObservationAudioResumeStoreTests`,
+`ObservationAudioResumeSubmissionTests`, `ReanalysisOperationStatusTests`,
+`OfflineSyncFoundationArchitectureTests` and `CoreIntegrationArchitectureTests`;
+zero failures/skips, XCResult `2dea45b0fa654c95973fb9045a3e20a0`. The initial
+paging fixture reused IDs belonging to its existing observation/source and
+failed with an identity conflict. Moving only synthetic child IDs to a separate
+range fixed setup; failed evidence `9e2bb4fc1ae24b1490e4a48e98c39125` is
+retained. Independent source and fixture re-review was clear; source
+guards/DTO21 and strict lint passed. Native tests used the shared worktree, not
+a clean-candidate full gate. Prior overlapping Auth architecture-size failure
+and external qualification remain separate.
+
+### Retained audio status owner gate
+
+`ObservationAudioStatusOwnerTests` proves exact-page coalescing, four-read
+capacity, cancellation of one joined waiter without cancelling shared work,
+lease release before slot removal, invalid account/session/environment denial,
+overlapping drains, and a later invalidation surviving an earlier drain. Both
+actual queue Auth quiescence seams are exercised with a read deliberately
+retained until released. Source checks keep the owner out of generic scheduling.
+No UI, polling or provider execution is installed by this checkpoint.
+
+The final focused run passed 52 tests across nine verified suites, with zero
+failures/skips: status owner, saved status, audio execution owner, publication
+recovery owner, background transfer architecture/ownership, Offline Sync
+Foundation, Core-wide Integration and Models Integration architecture. XCResult:
+`5ca2578b49cd4fc290d42bf18e50c458`. The initial run failed compilation before
+any tests because a default argument constructed a MainActor-isolated reader;
+the owner now requires explicit injection and the test helper constructs its
+default inside MainActor. Failed evidence `fc162b0076974c99925731b05f2169f6` is
+retained. Strict lint and affected source and DTO guards passed. Independent
+ownership review was clear.
+
+These tests ran in the shared worktree, not a clean-candidate full suite. The
+previous full-native milestone's unrelated Auth architecture-size failure is not
+resolved or relabelled by this focused pass. Device, runtime, external
+storage/erasure and activation acceptance remain separate.
+
+### Inert audio status access gate
+
+`CaptureAudioStatusAccessTests` covers inert composition, opening without an
+idle lease, original child identity, owner/generation/session/container and
+presentation loss after opening, account/presentation/deletion during reads, and
+wrong-owner or missing-parent opening. Actual pages reuse the retained owner;
+opening reuses the reader's shared-lock parent validator. Existing owner tests
+cover joined-waiter cancellation and both Auth drains. No UI or execution action
+is installed.
+
+The checkpoint passed 32 focused tests across six verified suites (access, audio
+reanalysis access, saved status, status owner, Core-wide Integration and Offline
+Sync Foundation), then 20 tests across History Reanalysis Composition, App Root
+Architecture and Models Integration. Both runs had zero failures or skips.
+XCResults: `1b001ed4061b465cb8f598ca6d83060c` and
+`d8b7d99726b147e19a4de05bf35b6efa`. Strict lint passed without cache after the
+first invocation encountered a sandbox cache-write permission error; no source
+or test failure occurred. Affected source guards and DTO21 passed. Independent
+source review was clear.
+
+Native evidence is from the shared worktree, not a full clean-candidate run. The
+previously documented overlapping Auth architecture-size failure remains
+separate. This inert access does not establish audio UI, runtime/device,
+external storage/erasure or activation acceptance.
+
+### Saved audio chooser model gate
+
+`CaptureAudioSavedRequestsModelTests` verifies no automatic selection/resume,
+exact current-row membership, synchronous final-tap opening before its Task,
+same identity after unavailable handoff, failed refresh clearing old actions,
+stale account/presentation/close callbacks, and late resume not reopening a
+closed presentation. Real 21-link paging exercises the opaque cursor and
+omission handling. A production inert-factory test resumes the exact consumed
+snapshot after removing local WAV bytes, without fresh authorization. Existing
+execution service tests prove consumed recovery never redispatches a provider.
+
+The checkpoint passed 55 tests across nine verified suites with zero failures or
+skips: chooser model, status access, audio reanalysis access, execution service,
+History Reanalysis Composition, App Root, Models Integration, Core-wide
+Integration and Offline Sync Foundation architecture. XCResult:
+`3496088a0b3d47f5b45b68984233a575`. Strict lint passed after a test import-order
+correction; source guards and DTO21 passed. Independent source review was clear.
+There was no native failure. This validates a presentation model and inert
+factory, not a rendered sheet or ordinary route.
+
+Native evidence is shared-worktree focused, not a full clean-candidate gate. The
+previous overlapping Auth architecture-size failure remains explicit. Rendered
+chooser UI evidence, full audio/restart journeys, video, device/runtime and
+external storage/erasure qualification remain separate requirements.
+
+### Rendered saved audio chooser gate
+
+`SavedAudioChooserUITests/testExplicitSelectionStatusAndRefreshNeverAutoContinue`
+is the runtime-manifest rendering smoke for the real saved-audio sheet and
+model. Its Debug-only domain fixture performs no persistence, account or
+provider work. It proves explicit selection, consumed-result action copy,
+unavailable feedback, refresh clearing selection and dismissal. Native
+integration coverage separately owns durable identity, consumed recovery and
+account cancellation.
+
+The 2026-10-08 checkpoint passed 30 focused native tests and this UI smoke. The
+final shared-worktree full run recorded 5,637 tests: 5,636 passed, one failed
+and none skipped; the exact chooser UI smoke passed. The failing Auth
+architecture size test reflects overlapping local `SupabaseManager` edits (3,800
+lines against 3,792; aggregate 13,703 against 13,695). Critical-result
+validation correctly failed; this is not a full-green milestone. The shared
+tooling run additionally found that an unrelated local edit removed the required
+`testLifecycleInterruptionCancelsVideoWaitingOnAdmission` declaration. Preserve
+those edits and compare scoped-candidate tooling separately. Retained evidence:
+`61d08bcbe96541298c3e4b3383f4ff41.xcresult` (full) and
+`3546ddabd6674691a756b9408e02e159.xcresult` (focused). The fixture does not
+qualify ordinary route activation, durable restart, device audio, video or
+hosted work.
+
+The eleven-file scoped export then passed full `make test-ios-ci-tooling`, all
+seven targets' generated source membership and 26 documentation contracts. It
+retains HEAD's required lifecycle regression and excludes the overlapping local
+Auth/test/generated/documentation edits. This isolates tooling evidence; it is
+not a clean-candidate full native execution. Strict lint, source guards, DTO21
+and changed-Markdown formatting also passed. Independent source and final
+contract/documentation review found no remaining blocker in this checkpoint.
+
+### Audio-only V4 source qualification
+
+`ObservationReanalysisSourceTests` proves explicit audio capture retains V4
+bytes/reference while ordinary photo capture, photo selection and preparation
+deny it. Selection/review advancement does not replace the source; owner,
+deletion, enrollment and byte changes invalidate it. The plan requires an
+explicit new WAV, accepts optional caller-supplied descriptions and rejects the
+source media ID. A disk-reopened pending proof retains its original source and
+child identity without loading media. `ObservationAudioResumeStoreTests` covers
+V3/V4 pending, ready, bound, running, consumed and held states;
+`CaptureAudioReanalysisAccessTests` proves exact V4 opening, no idle lease,
+final input freeze and repeated binding handoff.
+
+The 2026-10-08 source checkpoint passed 64 tests across eight verified suites,
+zero failures/skips (XCResult `784c72e98b884048abdc45e935e780d7`). Existing
+history sync, photo producer/ownership and audio execution-store suites are
+included. The first test build failed on an optional revision increment in a new
+fixture; it was corrected before this pass. The initially requested nonexistent
+plan suite was replaced by its actual producer/ownership suites. These are
+focused shared-worktree results, not a new full-native green milestone. This
+change adds no schema, wire or server operation and does not activate ordinary
+audio routes, V4 review/selection/publication, original-audio loading or video
+support.
+
+### V4 audio review admission qualification
+
+Strict audio tickets reuse reader-10 review and both receipt-bound Undo paths.
+`ObservationAnalysisReviewAdmissionTests` covers exact staging/replay, unchanged
+selection and owner/deletion/revision/legacy-review fences for photo/imported
+and V4 fixtures. `ConfirmationUndoEligibilityTests` covers recovered primary and
+named confirmation Undo without a local original receipt;
+`RejectionUndoEligibilityTests` covers the same V4 reinstall path and exact
+persisted replay after authority advances.
+
+`ObservationAnalysisReviewReconciliationTests` applies selected C before the
+nonselected V4 target A in the same transaction. Ticket tests retain community
+authority denial, and publication preparation rejects V4 before any account
+lease or network fetch. History and selected-host publication controls also
+check the explicit format permission. At that review checkpoint, selection was
+still held; the following selection qualification supersedes that hold.
+Candidate selection, photo publication and selected chat remain unavailable for
+V4.
+
+The focused shared-worktree run passed 83 tests in nine verified suites,
+retained in `47cc6b72d4834ae9828205d9bdd8bbeb.xcresult`. Earlier nested-macro,
+fixture semantic and helper-name failures are retained separately; the final
+rerun passed without weakening strict decoding. This is focused evidence, not a
+new full-native green result. The earlier unrelated Auth architecture-size
+failure remains recorded. No gates or ordinary routes were enabled; no hosted,
+device or end-to-end audio selection qualification is claimed.
+
+### V4 explicit selection qualification
+
+`ObservationHistorySelectionIntentTests` runs V4 and existing-result matrices
+for explicit staging, exact-request replay after ambiguous replies,
+receipt-bound selection Undo, atomic rollback, account/legacy-review changes,
+deletion and invalid/older responses. Selecting unreviewed B uses B's authority;
+selection Undo returns to A's rejected presentation without changing either
+immutable snapshot. Both outgoing and target results pass the existing strict
+retained evidence/display checks at staging and before dispatch.
+
+`ObservationHistorySyncTests.audioPreviewAllowsExplicitSelectionButNotChat`
+checks Restore eligibility for the exact admitted V4 preview and preserves the
+selected-chat denial. The focused shared-worktree run passed 91 tests across six
+verified suites (`be3c6567eb694cc5a1d639741dcda781.xcresult`), with no failures
+or skips. This is local selection/reconciliation evidence, not a new full-native
+green gate or a complete audio capture/reanalysis/restart journey. The previous
+unrelated Auth architecture failure remains recorded. No ordinary route or
+activation gate changed; video, device and hosted qualification remain separate.
+
+### V4 backend selection qualification
+
+`services/supabase/tests/observation_audio_analysis_admission.sql` now rejects
+current A before completing unreviewed V4 B, explicitly selects B with reader
+10, and selects back to A. It checks exact receipt revisions and projections,
+preserves A's rejected authority and B's unreviewed authority, and compares all
+immutable result/evidence fields before and after selection. Reader 9 still
+refuses the entire mixed history, including fresh V4 selection.
+
+Lost replies for both selections recover their original receipts with the
+selection gate closed. Replaying B after returning to A cannot replace the
+current projection or advance its revision. Neither selection nor receipt
+recovery adds a provider invocation. This test extends the existing audio
+admission catalog; it changes no runtime, wire or schema contract.
+
+This closes the fresh backend select/select-back coverage gap identified at the
+native selection checkpoint. Complete audio entry, interruption/restart and A →
+B → A → Undo A journey acceptance remain separate, as do video and external
+qualification. Gates remain disabled; the earlier full-native failure is not
+superseded by backend qualification.
+
+### Audio completion-save restart qualification
+
+`ObservationAudioCompletionTests.diskRestartAfterCompletionSaveAmbiguityRecoversOutcomeOnly`
+closes the disk-backed completion-save boundary for both outcomes of an
+ambiguous local save. The original container is released before reopening the
+same store. A committed completion retains the exact child result and permanent
+cleanup receipt, and cannot be reopened as runnable audio work. An uncommitted
+completion preserves the original consumed request; the new retained owner runs
+only exact outcome recovery and cleanup, with no media read, upload, consent
+request or provider invocation. Both paths preserve the original source bytes,
+selection and parent revision and retire the queued child.
+
+This uses the production resume store, execution service and completion
+transaction with synthetic network boundaries. It complements the preparation
+and consumed-request disk tests; it does not establish actual app relaunch, full
+capture/review/selection/Undo orchestration, device audio or hosted
+qualification. No runtime, persistence schema, ordinary route, activation gate
+or alternatives-card change is included. The previous unrelated full-native Auth
+architecture failure remains separate from this focused qualification.
+
+### Integrated native audio history journey
+
+`ObservationAudioHistoryJourneyTests.rejectedOriginalAudioRecoverySelectionAndUndoRemainIndependent`
+composes actual review admission/reconciliation, WAV preparation, consumed-work
+persistence, disk-store reopening, retained outcome recovery, history preview,
+selection and receipt-bound review Undo. It rejects selected A before preparing
+B, preserves the exact consumed request through reopening, and permits only
+outcome recovery and cleanup. Completion leaves B without a local authority
+cache; the test obtains that authority through the real preview service before
+explicitly selecting B. Selection Undo returns to rejected A, then review Undo
+clears only A's original rejection. B remains unreviewed and both immutable
+result snapshots and the original rejection receipt remain unchanged.
+
+Injected server responses preserve owner identity, exact operation associations,
+outer review revisions and separate nested AI/species-review counters. The final
+focused run passed 32 tests in four suites, including completion, selection and
+review admission. Initial synthetic-owner, digest-shape and
+unacknowledged-baseline failures were corrected without weakening production
+checks; failed evidence remains retained.
+
+This is native domain integration with synthetic network responses and an actual
+reopened disk store. It does not establish microphone capture, full app
+relaunch, real provider or hosted execution, physical-device behavior, or live
+route activation. The cleanup callback is injected; separate erasure tests own
+physical file cleanup. Video and remaining integrated capability acceptance
+remain open. Alternatives-card layout and all activation gates are unchanged.
+
+### Prepared audio route coverage and remaining assembly
+
+Audio domain completion is not initial Capture-route completion. The current
+inert `PreparedHistoryReanalysisComposition` exposes `audioCapture`, but its
+`historicalReanalysis` route still enters `CaptureReanalysisAccess` and the
+photo editor. No ordinary workspace dependency installs audio access. The
+saved-audio chooser resumes an explicitly selected durable child; it is not a
+fresh audio editor.
+
+| Boundary                                                | Existing evidence                                                                | Limit                                                                        |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Exact source and account scope                          | `CaptureAudioReanalysisAccessTests`                                              | Injected start callback; no initial Capture editor                           |
+| Final-tap identity and ambiguous-save retry             | `CaptureAudioReanalysisSessionTests`                                             | Explicit caller-supplied canonical WAV and descriptions                      |
+| Queue lease, cancellation, settlement and local cleanup | `ObservationAudioQueueExecutionTests`                                            | Synthetic remote outcome; real local receipt-bound erasure                   |
+| Live outcome transport adapter                          | `ObservationAudioLiveDependenciesTests`, `ObservationAudioOutcomeTransportTests` | Injected HTTP response; no hosted request                                    |
+| Saved-child chooser                                     | `SavedAudioChooserUITests`                                                       | Debug fixture and explicit resume, not fresh capture                         |
+| Rejected A through recovered B, selection and Undo      | `ObservationAudioHistoryJourneyTests`                                            | Disk-container reopen and synthetic network boundaries, not process relaunch |
+
+The remaining native route checkpoint must connect explicit audio evidence to
+these existing owners. It must preserve the exact source captured at opening,
+freeze ordered input and child identity at the final tap, retain that session
+across uncertain submission, and route reopening to the same candidate or
+explicit saved-child recovery. Closing a presentation is not proof that no
+request was saved. A fresh editor must not silently replace unresolved work.
+Account/container scope remains independent of presentation cancellation, and
+completion must expose the appended result through History without selecting it.
+
+Qualify the assembled route with tests for initial submission, ambiguous save
+followed by dismissal/reopening, account loss, and completion-to-History
+handoff. Do not duplicate the already covered lower-level restart tests or
+substitute chooser rendering for this route evidence. Physical recording, actual
+process relaunch, hosted upload/provider/outcome behavior and storage/CDN
+erasure remain separate acceptance requirements. The App installation gate stays
+false, ordinary access remains nil, and the alternatives card remains unchanged.
+
+### Retained initial audio candidate host
+
+`CaptureAudioReanalysisHost` is an inert parent-retained presentation owner,
+constructed explicitly by `PreparedHistoryReanalysisComposition.openAudioHost`.
+It does not install a workspace route or sheet. The composition retains an
+injected or locally constructed `CaptureAudioReanalysisHostOwner` when audio
+access exists. Copies share this reference. The owner indexes at most four hosts
+by exact owner, observation, source analysis and container. Opening the same key
+returns the same host without another access opening or lease. Capacity denies
+new keys before opening access; it never evicts a retained candidate.
+
+Errors, closure, task exit and apparent completion do not release entries.
+Common scope loss invalidates the host and, through a weak callback, the whole
+parent. Parent invalidation closes every host and permanently denies further
+opens, including after waiters exit. A new composition is not evidence that
+durable work is absent: startup/new-account UI admission still must use
+saved-child recovery before offering a new request. This checkpoint adds no
+release or replacement authority. The opened access retains its original
+account/session/generation/ container predicate without an idle lease.
+
+The final submit tap freezes canonical audio, ordered descriptions and
+child/media identity synchronously before launching the host waiter. Failed or
+ambiguous saves keep that session and plan. Explicit retry invokes the same
+session's strict admission read: already-bound work skips preparation and
+consent, and consumed work remains outcome-only through the queue. An
+unavailable or completed request never resets the host into a fresh candidate.
+
+Closing hides presentation and cancels only its waiter. The host keeps both the
+candidate and task until the waiter actually exits, and refuses reopening while
+that waiter is running. Late completion cannot repopulate a closed presentation.
+Account-scope validation invalidates the host; it never falls back to legacy
+submission. Queue admission reports checking only, not a completed result or a
+selection change. Durable recovery after process restart remains owned by the
+existing saved-child status/resume boundaries.
+
+`CaptureAudioReanalysisHostTests` covers committed and uncommitted bind-save
+failure followed by dismissal/reopening with the original UUID, exact input,
+single durable job and no repeated authorization for an existing binding;
+delayed waiter exit; changed-input rejection; and current-account loss through
+prepared access. Parent tests additionally cover exact reuse across composition
+copies, four-entry capacity without eviction, failed opening without admission,
+and permanent common-scope/reentrant invalidation. These are domain tests.
+Rendered initial input, parent lifetime wiring, and the assembled
+Capture-to-History UI route remain open. The installation gate remains false and
+ordinary access nil.
+
+### Explicit caller-file audio preparation gate
+
+Run `CaptureAudioInputPreparerTests`, `CaptureAudioReanalysisHostTests`,
+`InferenceAudioPreparerTests`, `CoreIntegrationArchitectureTests` and
+`OfflineSyncFoundationArchitectureTests` through the managed native wrapper. The
+preparer tests use actual local WAV conversion and strict injected failure
+boundaries for malformed/oversized output, external output paths, symlinks and
+conversion errors. Injected security-scope tests verify start/conversion/stop
+ordering, cleanup before release, and no release when access was not acquired,
+across success, failure and cancellation. Source bytes remain intact and owned
+temporary directories are removed. Host tests check no request identity before
+final tap, ordered input freezing, retained retry identity, and cancellation
+withholding late bytes until preparation cleanup exits.
+
+This is local caller-file and host evidence. It does not establish file-picker
+installation, security-scoped third-party file-provider behavior on a device,
+fresh admission after missing local work, or hosted inference qualification.
+
+### Audio sheet presentation fences
+
+`CaptureAudioReanalysisHostTests` covers picker completion/cancellation and old
+sheet dismissal after close/reopen, repeated presentation without changing its
+ticket, active-picker submission denial, and frozen-request replacement denial.
+Run it with `CaptureAudioInputPreparerTests`,
+`CaptureAudioReanalysisAccessTests` and both Core/OfflineSync architecture
+suites. The compiled `CaptureAudioReanalysisSheet` consumes those exact scopes
+and contains no asynchronous task or ordinary route installation. It captures
+descriptions only at the explicit submit action and continues frozen requests
+through `retry`.
+
+These host tests establish lifecycle behavior and compile the view. The rendered
+sheet fixture below adds UI coverage; native file-picker automation and the full
+affected native gate remain separate requirements.
+
+### Prepared audio sheet UI acceptance
+
+Run
+`merianUITests/AudioReanalysisSheetUITests/testPreparedInputAndDurableRequestSurviveReopening`
+with the managed wrapper. Its `-seedAudioReanalysisSheet` fixture persists real
+V2 enrollment before opening the production access object, then uses real local
+WAV conversion, preparation and durable binding. Only account and unavailable
+execution-start boundaries are synthetic. The test opens, dismisses and reopens
+before submission; it then submits, reopens and explicitly continues the same
+request. The fixture rereads the exact saved snapshot and requires one queued
+row, while the UI verifies the original UUID survives.
+
+The runtime manifest registers this selector and the Release denylist includes
+its seed. Host unit tests continue to own delayed picker callbacks, cancellation
+and ambiguous-save cases. This rendered-sheet test does not automate the native
+file importer, prove file-provider permissions or process-restart recovery, or
+qualify ordinary fresh admission and live provider execution. Full affected
+native validation and separate device/hosted qualification remain necessary.
+
+### Durable saved audio chooser UI acceptance
+
+`AudioReanalysisSheetUITests/testConsumedSavedRequestReopensWithoutFilesConsentOrReplacement`
+uses the same Debug seed and actual prepared composition. After real durable
+binding, an explicit fixture action claims/consumes the request and deletes its
+owned local WAV. The rendered chooser must show the persisted child without
+starting it, discard selection on reopening, and continue only the explicitly
+selected original result. Two reopen/continue cycles must preserve the exact
+snapshot, four-ID identity and single queued row without another authorization
+or reading the missing audio. Losing synthetic account scope removes the action
+without another start. Closing the chooser before continuing must not start
+work.
+
+The runtime manifest includes this selector. This is a local consumed-state
+simulation with an unavailable-only execution boundary, not evidence of actual
+provider execution, hosted outcome recovery or process restart. Existing domain
+tests own delayed-await presentation/account cancellation. Ordinary access and
+activation remain disabled.
+
+### Photo source-reservation persistence
+
+`ObservationSourceStoreTests` covers exact candidate persistence before I/O, all
+source phases staying outside legacy admission/execution/discard, strict
+version-9 decoding and byte bounds, source/owner/container/deletion fences,
+commit-then-throw staging recovery, unchanged request bytes across disk restart,
+explicit generation replacement and stale-claim denial. Known-answer settlement
+is tested after cancellation without granting dispatch permission. The separate
+audio handoff and retained delivery owner are not established by these tests.
+
+### Synthetic video fixture encoder ownership
+
+`VideoAudioFixture` serializes its complete preparation lifecycle across test
+suites: silent-video writing, AAC preparation and composition export. The permit
+is released only after completion or error cleanup, including cancellation after
+waiting. The five-second writer readiness bound is unchanged. This test-only
+guard does not serialize production capture or extraction. The concurrent
+fixture regression covers silent, mono and stereo outputs together with a
+pre-cancelled constructor and successful preparation afterward. It does not
+deterministically force cancellation while queued. CI iOS887 exposed a
+writer-readiness timeout; overlapping fixture exports are a supported contention
+hypothesis, not evidence of a production media defect.
+
+### Explicit source reservation delivery regressions
+
+`ObservationSourceReservationOwnerTests` covers exact coalescing, actual lease
+exit, changed owner/session/generation/container/claim, overlapping Auth drains,
+both queue teardown seams and absence of scheduler admission.
+`ObservationSourceReservationServiceTests` covers claim-save failure before or
+after commit without sending, post-Auth dispatch denial, known observation
+settlement and exact typed-conflict persistence after dispatch cancellation,
+conflict rearm denial, stale claim/account/deletion denial, and explicit
+same-candidate recovery after an uncertain reply. Reserved work cannot rearm.
+These are synthetic photo-source delivery tests, not proof of hosted admission,
+audio V3 persistence, provider execution or activation.
+
+The existing Supabase candidate detector includes all application sources,
+including the retained source owner, service, durable store/work, shared
+persistence and queue/Auth teardown seams. The detector regression pins these
+paths and their service/owner/store tests; this selects candidate validation and
+grants no deployment authorization.
+
+### Tagged audio source handoff regressions
+
+`ObservationAudioSourceStoreTests` covers exact ready-only V3 staging, all
+source states staying outside legacy execution/preparation, commit-then-throw
+recovery, strict variant/evidence decoding, stale
+account/source/parent/child/container/claim settlement denial, cancelled
+known-answer settlement and durable SQLite restart with the original candidate.
+It pins byte-for-byte compatibility of the v9 photo envelope. Existing photo
+store and retained owner/service regressions continue to run with tagged proofs.
+The explicit reserved-binding regressions additionally cover noncanonical saved
+V3 byte preservation, consumed execution replay before consent, rejected
+non-reserved states, commit-then-throw versus pre-commit failure, revoked
+consent, account/container changes and a source CAS change during consent
+validation. These tests do not qualify installed composition, provider
+execution, device behavior or activation.
+
+### Retained audio source submission regressions
+
+`ObservationAudioSourceSubmissionTests` covers each durable source state, exact
+candidate persistence before reservation, reserved recovery without HTTP,
+held/unavailable/uncertain replies, cancelled known-answer settlement without
+binding, throwing saves before and after commit, and consent-time account,
+deletion and CAS changes. The real queue handoff test asserts source lease exit
+before audio lease admission, coalescing, no launch after cancel/save
+uncertainty, and network/Auth/container refusal at the owner boundary. Its
+successful path uses existing execution settlement and local erasure, verifying
+receipt completion and file removal before audio lease exit. Existing
+owner/drain and cleanup tests remain applicable. These synthetic tests do not
+establish ordinary Capture installation, actual hosted admission or device
+qualification.
+
+### Saved audio source reader regressions
+
+`ObservationAudioSourceResumeTests` verifies exact source recovery for every
+source state, missing local media, malformed or legacy envelopes, foreign
+targets, source deletion and metadata changes during proof verification.
+Cancellation keeps the shared preparation slot and account lease until verifier
+exit, and a second reader cannot enter that slot. SQLite reopening tests retain
+the original V3 candidate and V10 metadata against both V3 and V4 immutable
+source results. Legacy audio resume still rejects these envelopes. The reader
+never supplies a claim or dispatch capability; these tests do not qualify
+installed Capture UI, real-device migration or hosted media execution.
+
+### Source Capture boundary regressions
+
+`CaptureAudioSourceSubmissionTests` covers staged-source recovery without files,
+consumed-execution preservation, malformed and partial records, foreign account
+leases, and saves failing before or after commit. It verifies that explicit
+retry retains the original child, while presentation/account/deletion changes
+withhold handoff. `CaptureAudioSourceAccessTests` exercises V3/V4 source
+opening, exact source persistence before queue admission, all durable source
+states and frozen owner/session/generation/container/presentation checks. These
+are prepared boundary tests, not proof of installed host/status flow or provider
+execution.
+
+`CaptureAudioSourceHostTests` covers source-stage save failure before/after
+commit followed by dismissal/reopening of the same candidate, delayed replies
+after closing, cross-route host-occupancy refusal, wrong factory rejection and a
+source-only inert composition. Existing legacy host and source-access suites
+remain compatibility controls. Host-level tests use the existing sheet model;
+source status regressions are described below; end-to-end runtime UI
+qualification remains separate.
+
+### Saved source status regressions
+
+`ObservationAudioSourceStatusTests` covers seven source states without local
+media, strict legacy separation, unsupported/malformed rows, bounded paging and
+route/owner cursor fencing. Read failures propagate rather than becoming empty
+success. `ObservationAudioSourceStatusOwnerTests` checks combined source/legacy
+capacity, distinct coalescing scopes, cancellation of one joined waiter and
+account draining through actual task exit.
+
+`CaptureAudioSourceSavedModelTests` covers exact selection, synchronous
+final-tap opening, stale page/continuation callbacks and failed refresh. Its
+real inert composition test discovers an unknown source without files and
+continues only that source; reading cannot invoke source admission or execution
+fallback. The legacy saved-status, owner, access and model suites remain
+compatibility controls. These tests do not qualify an installed source sheet,
+real provider execution or any separate device/hosted activation requirement.
+
+### Private video provenance groundwork tests
+
+`analysisHistory/videoProvenance_test.ts` validates immutable round trips, exact
+frame order, independent requested/actual timing, source links, unique artifact
+identities, byte budgets, fixed derivation parameters, closed keys and rejection
+by existing photo/audio manifest parsers. This is pure metadata coverage: it
+neither proves a real clip-to-output derivation nor exercises a native durable
+restart, upload, provider, database or installed UI. Those remain explicit
+subsequent video checkpoints; no new public history reader is enabled here.
+
+Candidate CI explicitly includes the video provenance test in both its
+type-check and helper-test commands; `workflowSecurity.test.ts` guards that
+registration.
+
+### Private video manifest parity
+
+`videoManifest_test.ts` and `ObservationVideoManifestTests` consume the same 40
+synthetic manifest vectors: optional/offset audio, exact description ordering,
+Unicode and aggregate limits, numeric/Boolean separation, closed fields, source
+links, alias rejection and timing. Native tests separately cover bounded byte
+decoding and retaining original whitespace without re-encoding. Backend checks
+prove existing executable and source-reservation admission rejects V4. Candidate
+CI lists the manifest test explicitly for type-check and helper tests; its
+registration is guarded by `workflowSecurity.test.ts`.
+
+These shared vectors cover metadata validation only. The separate native
+retained-clip, frame, WAV and temporary-cohort checks below cover preprocessing.
+Neither establishes persisted queue recovery, database admission, reader support
+or hosted/device qualification. Old photo/audio formats are compatibility
+controls; no public reader or runtime gate is enabled by accepting this private
+manifest.
+
+### Prepared video request compatibility
+
+`videoAdmission_test.ts` and `ObservationVideoReanalysisRequestTests` share
+synthetic audio/silent request payloads in `fixtures/video-request-v4.json`.
+Native checks compare fresh canonical bytes/digest and exact pretty-printed
+reopening, while backend tests compare the admitted metadata shape. The backend
+replay identifier remains format-validated, not server JSON hashing proof. Both
+reject historical source aliases to every artifact, unknown fields and
+unsupported protocol generations. Existing photo/audio request and source
+fingerprint tests remain compatibility controls; all executable/source routes
+must still reject V4. Candidate CI explicitly registers the prepared request
+suite for type-check and helper tests. No runtime, database or device
+qualification is implied by this codec coverage.
+
+### Video companion PCM byte binding
+
+`videoAudioContainer_test.ts` verifies compact/padded WAV byte ownership, exact
+length/digest, PCM sample-count mismatch despite otherwise plausible metadata,
+malformed containers, absent companion rejection and mutation across the digest
+await. `audioContainer_test.ts` checks inspection with nonzero view offsets and
+padding, preserving existing validation-only return behavior and all closed
+profile checks. `audioMaterialization_test.ts` remains a compatibility control.
+Candidate CI explicitly checks and runs the companion suite, with registration
+guarded by `workflowSecurity.test.ts`. These tests prove byte/metadata binding
+only, not source derivation, durable video admission or installed video support.
+
+### Video frame container byte binding
+
+`videoFrameContainer_test.ts` checks exact copied bytes, length/digest, MIME,
+index and manifest identifier separation, square dimensions, malformed JPEG
+segments, APP0/APP1/APP13 mutation and duplicate metadata, plus WebP bounds,
+animation/metadata/duplicate-image rejection and mutation across hashing awaits.
+`publicPhotoContainer_test.ts` protects the unchanged public metadata policy
+after JPEG structure inspection was extracted. Candidate CI checks and runs the
+frame suite; `workflowSecurity.test.ts` guards both registrations.
+
+`ObservationVideoFrameDeriverTests` attaches the first synthetic native frame at
+768 and 1024 pixels. Those simulator-produced JPEG bytes are imported unchanged
+into `fixtures/video-frame-containers.json` and consumed by the Edge tests.
+Separately labeled reference-encoder WebP and synthetic structural vectors do
+not establish native ImageIO WebP compatibility or pixel-decodability of every
+accepted bitstream. Device, source-derivation and live video admission
+qualification remain separate.
+
+### Retained MP4 envelope groundwork
+
+`ObservationRetainedVideoTests` attaches silent/audio synthetic producer
+outputs; those bytes are imported unchanged into
+`fixtures/retained-video-envelopes.json`. `retainedVideoEnvelope_test.ts` checks
+their exact top-level ranges (including extended-size `mdat`), nonzero
+input-view offsets, immutable range results, 32/64-bit size failures, truncated
+headers/payloads, partial trailing data, box/count/byte bounds and unique
+nonempty required boxes. CI checks and runs this suite;
+`workflowSecurity.test.ts` guards both registrations. No live endpoint imports
+this inspector.
+
+The payload-opacity regression intentionally accepts non-media bytes inside
+otherwise valid top-level boxes. Envelope inspection therefore cannot satisfy
+nested track/reference/sample/metadata, codec/decode, source-derivation or
+device qualification. Those remain required before retained MP4 admission.
+
+### Retained MP4 nested structural profile
+
+`retainedVideoStructure_test.ts` consumes the same unchanged native silent/audio
+fixtures and explicitly checks their 2,112-tick AAC priming and legacy
+sample-entry channel template. Mutations cover track IDs, transforms,
+edits/timescales, external references, descriptions, metadata/unknown placement,
+AVC/AAC configuration, timing/sample/chunk tables, overlapping/out-of-range
+media, sync/dependency/roll tables and nested size/count bounds. Positive
+fixtures and nonzero input views return frozen scalar facts; no input bytes
+escape. Candidate CI checks/runs the suite and workflow-security tests guard
+both registrations.
+
+This is a constrained structural profile, not compressed-payload decoding or
+manifest/source provenance proof. Its exact AAC descriptor template and narrow
+container variants are intentionally unqualified beyond the imported synthetic
+simulator corpus. More producer variants and device qualification, cryptographic
+coordinated admission remain required; the separate source-byte verifier now
+covers manifest binding. Do not use a passing envelope inspector as fallback
+when this profile rejects a file.
+
+### Prepared retained video encoding
+
+`ObservationRetainedVideoTests` uses the shared synthetic `VideoAudioFixture`
+for silent and stereo-audio source clips, then exercises the dedicated retained
+producer. It checks source preservation, distinct bounded output, H.264/AAC
+tracks, dimensions/duration and bounded top-level MP4 topology. Malformed-input,
+pre-cancellation, actual-append cancellation/slot reuse and unaccepted-lease
+cleanup tests check no retained output or writer scratch is left, while an
+unrelated sibling file survives cancellation. Profile tests check mono 44.1 kHz
+AAC, empty asset metadata and supported transforms. This is simulator encoder
+evidence, not a complete ISO-BMFF security validator, real-camera qualification
+or proof of frame/WAV derivation from the retained clip.
+
+The `nonSquareTransformedDurationBoundaries` test adds four 96×64 outputs:
+0.1-second and 5-second rotated silent clips, plus reflected stereo-source clips
+at both durations. It checks the retained coded dimensions and transform, source
+preservation, output bounds, duration within one movie tick and mono 44.1 kHz
+audio normalization. Each output is attached to XCResult for subsequent
+byte-level compatibility checks. `VideoAudioFixture` keeps its existing
+64×64/one-second/identity defaults and bounds configurable dimensions and frame
+counts. The four unchanged attachments are imported into
+`fixtures/retained-video-variants.json`; the existing Edge structural suite
+checks their digest/length, declared facts and independently read fixed-offset
+`tkhd` matrices. They pass the existing profile without a parser-policy change.
+Minimum/maximum dimension encoder coverage and real-device/OS qualification
+remain separate requirements.
+
+### Prepared retained-source frame tests
+
+`ObservationVideoFrameDeriverTests` creates synthetic silent/audio clips and
+trims their duration so requested sample times differ from actual 30fps samples.
+It independently queries the retained clip's decoder times and checks five
+ordered artifacts, source/frame digests, source preservation, exact square
+inference dimensions. Cancellation after a saved frame, interrupted validation,
+producer reuse and dropped-generation directory cleanup verify that partial
+frames do not escape and the retained source survives. These focused tests do
+not qualify measured WAV extraction, durable cohort replay or device resources.
+
+An exclusive source-use token blocks clip transfer during derivation and while
+the frame result is retained. Dropping the result synchronously releases that
+use; an already-transferred clip cannot begin derivation. No source identity
+becomes authoritative for server admission through this temporary token.
+
+### Retained-source companion WAV checks
+
+`merianTests/ObservationVideoAudioDeriverTests` covers retained mono/stereo PCM
+conversion, compact WAV count/hash binding, no-track nil, offset/short audio
+intervals against an independent reader, cancellation and slot reuse, source
+mutation, transfer exclusion and result-directory cleanup.
+`merianTests/ObservationAudioContainerTests` additionally asserts exact sample
+count/data offset for compact and zero-filled FLLR containers while preserving
+existing malformed/trailing-byte bounds. These focused selectors accompany
+retained-clip, frame, manifest and request tests. They do not qualify
+real-device codec/resource behavior, complete-cohort persistence or hosted byte
+admission.
+
+The offset test exercises both a synthetic leased composition and the real
+retained-encoder path. Both can decode the leading gap into PCM silence;
+independent reader bytes, counts and timestamps are the oracle, with the shorter
+audio endpoint required in both cases. Direct `ObservationVideoAudioTimeline`
+tests cover nonzero first timestamps, adjoining samples, gaps/overlap, invalid
+times, empty buffers, count overflow and endpoint bounds. This same timing value
+is used by the production deriver. Raw-composition offsets are not assumed to
+survive decoding or retained transcoding.
+
+### Temporary video cohort checks
+
+`merianTests/ObservationVideoCohortPreparerTests` covers silent/audio cohorts,
+ordered complete file-to-manifest binding, exact request restoration, scope and
+description preflight, interruption/source mutation at every phase, derivative
+mutation before handoff, cancellation/slot reuse and whole-root drop cleanup.
+`merianTests/ObservationVideoManifestTests` also reconstructs every accepted
+shared golden manifest and rejects duplicate/cross-source artifact construction.
+Run these alongside retained-clip, frame, WAV, closed audio-container and video
+request selectors. This proves temporary composition; durable restart,
+account/deletion fencing and live video journeys are later acceptance work.
+
+### Closed video-preparation metadata checks
+
+`merianTests/ObservationVideoPreparationTests` checks exact pretty-printed V4
+request replay for silent/audio golden vectors, ordered complete inventory,
+closed fields/versions/phases, bounded decoding, owner aliases, traversal and
+absolute-path substitution, duplicate/omitted/reordered artifacts, and rejection
+by existing audio preparation and photo/audio request decoders. Run with video
+manifest/request selectors. These are metadata checks only: no persisted job,
+file transfer, current-account proof or restart delivery is established here.
+
+### Video source-proof checks
+
+`merianTests/ObservationVideoSourceBindingTests` covers supported V1–V4 source
+capture, historical target stability after selection/revision changes, fresh
+owner/deletion/enrollment/snapshot validation, historical-media reuse by every
+new artifact and child, and forged digest/owner/parent/source metadata. Run with
+`ObservationReanalysisSourceTests` and `ObservationVideoPreparationTests` to
+retain photo/audio source and exact envelope regression coverage. These tests
+prove source association only; no queue insertion, account lease, durable file
+transfer or restart recovery is claimed.
+
+### Held video durability checks
+
+`merianTests/ObservationVideoDurabilityTests` exercises real silent/audio
+cohorts, exact file inventory/digests, disk reopening with the same child, nil
+legacy inference paths and no photo/ordinary dispatch, failed first save,
+uncertain promotion saves before/after commit, missing/changed/extra/symlink
+recovery, account fencing, deletion during locked validation and full parent
+erasure indexing. Run with audio preparation, generic FileStore, cohort and
+source-proof suites. Explicit recovery must retain identity and never rerun
+preprocessing. These are local held-durability checks; remote video
+profiles/admission, provider execution, device and hosted storage/erasure
+qualification remain open.
+
+### Held video discard checks
+
+`ObservationVideoDurabilityTests` also covers explicit pending, ready and
+missing-file discard, exact receipt replay after source deletion, promotion and
+reinsertion fences, commit-then-throw recovery through a reopened disk store,
+precommit rollback, and rejection of missing, attempted, malformed, wrong-owner
+or stale-account work. Cleanup must include the entire child namespace without
+regenerating media or touching its historical source. Run with
+`ObservationReanalysisDiscardTests` and `ObservationReanalysisErasureTests` to
+preserve legacy discard and shared receipt/lock behavior. No video server
+retirement or rendered Capture action is implied by these local tests.
+
+### Retained video source byte verification tests
+
+`retainedVideoContainer_test.ts` uses all four unchanged native
+duration-boundary clips to verify independent output bytes, subarray inputs,
+source length/digest, MIME, exact duration and audio-presence matching. It
+rejects malformed container structure even with a matching digest, malformed
+metadata, oversized declared sources and identity collisions. A synchronous
+post-call mutation of bytes and nested metadata proves the verifier captured
+both before hashing awaited. Both candidate type-check and helper-test lists
+register the suite, guarded by `workflowSecurity.test.ts`. These checks do not
+prove authentication, saved analysis association, decoded content or companion
+derivation. No live endpoint uses the helper and no activation qualification is
+implied.
+
+### Held video source fingerprint vectors
+
+`videoSourceFingerprint_test.ts` checks fixed canonical UTF-8 bytes and SHA-256
+vectors for audio, silent and Unicode-description V4 inputs. The fixtures were
+encoded independently of the production TypeScript helper. Tests cover JSON
+property order, original request preservation, mutation after the hash call,
+every semantic leaf being bound or rejected, ordered descriptions, aliases,
+unsupported text and schema separation. Existing photo/audio golden bytes remain
+unchanged, and the executable input parser continues rejecting V4. Candidate CI
+registers both type checks and tests.
+
+`ObservationVideoSourceFingerprintTests` uses the same fixed vectors to compare
+exact native canonical bytes and hashes, including numeric spelling/signed-zero
+equivalence, every semantic leaf, aliases, unsupported text, ordered
+descriptions and unchanged rejection by the old source codec. Native validation
+reuses the closed video manifest without treating a fingerprint as saved-request
+restoration. `observationVideoFingerprintDb.test.ts` compares SQL against the
+same vectors and TypeScript for mutated scalars, Unicode/aggregate bounds,
+numeric spellings, frame timing and identity aliases. The static migration
+contract and `observation_video_source_fingerprint.sql` catalog fixture enforce
+private stable invoker routines and actual denial for API roles. Run on a fresh
+disposable database before claiming SQL parity; live reservation/admission
+qualification remains separate.
+
+The candidate shared-helper step grants read access to the exact held-video
+fingerprint and inventory migration files in addition to its existing
+function/web roots. `workflowSecurity.test.ts` guards that permission within the
+helper step itself: registering a migration test in its file list does not grant
+its filesystem access. Validate this step with its checked-in Deno permissions;
+a successful full-suite run with broader permissions does not prove the
+candidate step runs.
+
+### Held video inventory coverage
+
+`videoCohort_test.ts` checks fixed audio/silent/Unicode inventory fixtures,
+immutable snapshots, whole-array equality and rejection of partial, reordered,
+extra-key and cross-input metadata. `observationVideoCohortDb.test.ts` compares
+SQL projection with those fixtures and TypeScript and executes actual API-role
+denial paths. Its database tests run only with the disposable database URL. The
+migration contract and pgTAP catalog test verify the private stable invoker
+boundary. All three TypeScript suites appear in both candidate lists; the helper
+step grants only the exact additional inventory migration file for its static
+test, with step-scoped permission and registration regression guards. Durable
+upload/retirement coverage remains separate.
+
+`ObservationVideoCohortInventoryTests` verifies the same audio/silent/Unicode
+fixtures in Swift, whole-list count/order/closed keys, scalar type and byte
+bounds, full-input validation and unchanged request metadata. These tests prove
+pure inventory parity; durable upload/retirement and device qualification remain
+separate.
+
+### Held video storage coverage
+
+`observationVideoStorageDb.test.ts` uses trigger-respecting private inserts for
+V4 binding, occupancy and whole inventory. It checks malformed/reordered/partial
+inventories, identity/fingerprint/occupancy mismatch, API denial, legacy-family
+collisions, immutable retention, 65th-row coverage sentinels and parent erasure.
+Two-session cases verify actual blocking for cohort versus deletion, legacy
+upload and retirement. These tests allocate no upload objects or provider work.
+
+`observation_video_cohort_storage.sql` checks catalog privileges, fixed search
+paths, namespace coverage and unchanged V4 rejection in generic lifecycle
+helpers. `observationVideoStorageMigrationContract.test.ts` and the candidate
+workflow guard protect registration in both early checks and the exact bounded
+helper gate. Full disposable replay and the affected backend gates remain
+required; this coverage does not qualify hosted storage/CDN, device erasure,
+media transport or execution.
+
+### Prepared video source wire coverage
+
+`videoSourceReservation_test.ts` exercises schema-2/reader-12 V4 candidates and
+read-only recovery identities against fixed audio/silent/Unicode vectors. It
+checks deep snapshots across awaits, original replay digests, full identity on
+every reply, owner/source/child mismatch, unsupported states, closed keys,
+strict UTF-8 and byte bounds. It also proves the unchanged legacy reservation
+and executable-input parsers reject V4. Candidate CI includes this suite in both
+shared type checks and the bounded helper test list.
+
+This is codec coverage only. No SQL/native parity, durable reservation/recovery,
+retirement, transport, queue, media delivery or provider execution is claimed by
+these tests. Existing database storage evidence remains a separate checkpoint.
+
+### Prepared native video reservation parity
+
+`ObservationVideoSourceReservationTests` consumes the shared audio, silent and
+Unicode fingerprint/reservation vectors, matching every identity and all seven
+reply shapes. It verifies exact saved-input embedding and envelope replay,
+unchanged legacy rejection of V4, all-state identity/owner association, closed
+states/reasons, strict scalar types, byte bounds and UTF8-only decoding. Run it
+with the video fingerprint, reanalysis-request and legacy source-reservation
+suites through the managed local iOS build wrapper. This covers pure codecs; it
+does not qualify a server reservation, queue consumer, retirement, upload or
+provider execution path.
+
+### Prepared video SQL reservation verification
+
+`observationVideoReservationDb.test.ts` checks shared V4 identities, exact
+replay, closed requests, reader/role denial, fresh versus recovery gates,
+ownership and deletion, and held recovery without occupancy. Independent binding
+and video-cohort fixtures prove the 64/65-row coverage boundary. Separate
+sessions prove actual canonical-lock blocking for duplicate/competing
+reservations, lost-reply lookup and both deletion orderings.
+`observation_video_source_reservation.sql` checks catalog privileges, disabled
+gates, routine configuration and unchanged legacy boundaries.
+`observationVideoReservationMigrationContract.test.ts` freezes bounded coverage
+and mutation-free lookup. Candidate CI type-checks both Deno tests and runs the
+static contract in its bounded helper gate; database cases require the fresh
+disposable database. These checks do not qualify hosted media, provider
+execution, devices, storage/CDN, erasure or Field Trip reconciliation.
+
+### Prepared video retirement wire verification
+
+`videoSourceRetirement_test.ts` freezes audio/silent/Unicode request and receipt
+vectors, exact operation/owner/candidate association, distinct operation UUIDs,
+strict UTF-8 and 2 KiB bounds, snapshots across hashing awaits and closed
+states. It proves reservation/recovery and reader-11 retirement decoders remain
+narrow. Candidate CI type-checks and runs this test through the shared helper
+gate. These pure codec tests do not prove durable retirement or release. The
+server preconditions, atomic release fence, concurrency and replay tests
+required before installing a writer are specified in the
+[retirement contract](../backend-and-data/05-api-contracts.md#prepared-video-pre-execution-retirement-contract).
+
+### Prepared video SQL pre-execution retirement verification
+
+Seventeen independent durable-state fixtures cover every pre-execution
+namespace, including both quota identities. A real reader-11 reservation must
+reject a retired V4 predecessor.
+
+`observationVideoRetirementDb.test.ts` exercises the separately gated reader-12
+retirement authority against the explicit disposable database. Audio-bearing,
+silent and Unicode candidates prove exact codec parity, with and without an
+existing whole cohort. Verify closed-gate fresh denial and exact permanent
+replay, rollback of receipt/cohort/occupancy together, private inventory
+retention, operation/owner/child mismatches, forbidden resurrection and parent
+erasure. A retained receipt alone must fail final release proof until both live
+rows are removed. Corrupt inventory must fail before any durable retirement
+write.
+
+Concurrency cases require actual `pg_blocking_pids` evidence: duplicate
+retirement, successor reservation, ordinary recovery, cohort insertion in both
+orders, deletion in both orders, and admission/execution entry after retirement.
+A new connection recovers the exact original retirement UUID after a lost reply.
+Catalog tests cover private-table RLS, revoked helpers, service-only grants and
+unchanged legacy release authority. Full affected Edge tests must receive the
+approved localhost database URL explicitly. Reset separately before the broad
+Edge suite and before catalog/security qualification: committed integration
+fixtures and altered cutover state are not a fresh catalog baseline. These are
+metadata lifecycle checks, not provider execution, hosted storage or native
+delivery qualification.
+
+### Native video retirement parity verification
+
+`ObservationVideoSourceRetirementTests` checks shared audio/silent/Unicode
+request and receipt vectors, exact saved-byte restoration, every closed field,
+owner/operation/candidate association, target UUID alias rejection, scalar
+types, legacy states, byte limits and UTF-8-only decoding including BOM-free
+alternate encodings. Run it with the video reservation, fingerprint and
+saved-request suites through `make ios-local-build`; retain exact scoped
+candidate and XCResult identity. This verifies handwritten models, not native
+delivery, server receipt provenance, cleanup or device qualification.
+
+### Prepared video upload metadata verification
+
+`videoEvidence_test.ts` freezes reader-12 whole-inventory request, fresh
+allocation and readiness snapshot shapes using shared audio/silent/Unicode
+vectors. It rejects missing/reordered/cross-candidate artifacts, every identity
+mismatch, object aliasing, unsupported fields/states, malformed timestamps and
+encodings, oversized JSON, renewed expiry, replacement objects and readiness
+regression. Mutation-during-hashing tests prove snapshot ownership. Fresh
+allocation rejects both partially and completely ready snapshots. Both Supabase
+candidate helper selectors include the suite. These codec tests do not establish
+SQL upload permission, byte/source derivation, storage qualification or native
+delivery.
+
+### Prepared video evidence SQL coverage
+
+`observationVideoEvidenceDb.test.ts` exercises audio/silent/Unicode whole
+allocation with and without an existing raw cohort, strict identity/inventory,
+owner/reader/role rejection, fixed object/deadline replay, per-item readiness,
+closed-gate recovery, missing-object holds and permanent retirement exclusion.
+Explicitly aged disposable fixtures prove legacy expiry cannot split video and
+the video routine enqueues every object's erasure while retaining allocation.
+Two-connection tests require actual canonical lock blocking for duplicate
+allocation, both allocation/retirement orders, deletion, completion and
+duplicate expiry; fresh connections recover the same durable receipt after
+simulated response loss.
+
+`observation_video_evidence.sql` checks disabled defaults, registered service
+privileges, RLS/private helpers and the distinct fresh-retirement versus
+post-allocation execution predicates. Candidate workflow selectors include the
+runtime and migration-contract suites. Tests establish SQL behavior only;
+storage byte verification, source derivation, native delivery and device/hosted
+qualification remain separate acceptance requirements.
+
+### Native video upload metadata parity
+
+`ObservationVideoEvidenceUploadTests` loads the shared audio/silent/Unicode
+request and allocation/ready vectors. It covers exact saved bytes, closed
+shapes, owner association, whole-inventory ordering, object aliases, partial
+readiness, monotonic prior snapshots, fresh-allocation restrictions and bounded
+UTF-8. Timestamp cases include invalid calendar dates, year zero, leap-century
+rules and readiness at expiry. This is codec coverage; it does not qualify
+transport, byte verification, queue delivery or device/hosted execution.
+
+### Whole video byte materialization verification
+
+`videoMaterialization_test.ts` exercises saved audio/silent cohorts, exact
+ordered read limits, owned output copies, expired ready receipt inspection,
+receipt scope/readiness failures before I/O, every-item corruption/length/read
+failure, caller metadata mutation and cancellation before/during reads. Both
+backend candidate selectors include the suite. Native container fixtures provide
+synthetic structural evidence; they do not establish source derivation, hosted
+resource limits or live storage qualification.
+
+### Video allocation and readiness RPC verification
+
+`videoEvidenceRepository_test.ts` verifies reader12 allocation/replay, exact
+media/object completion, concurrent monotonic readiness, frozen candidate and
+prior bytes, malformed association denial before RPC, bounded reply decoding,
+uncertain errors without retry, cancellation and the real five-second timeout.
+Both candidate selectors include this prepared adapter suite. Injected transport
+tests do not establish hosted storage, byte verification or execution authority.
+
+### Video item upload coordinator verification
+
+`videoUpload_test.ts` exercises source/frame/audio byte validation, ordered
+allocation/write/completion, whole and partially ready target replay after
+expiry without storage, expired pending refusal, caller mutation, malformed
+scope, lost writes/completion and cancellation with late reserve, write and
+completion replies. A real private-storage adapter with synthetic transport
+proves conditional PUT/HEAD and erasure-marker denial before readiness. Shared
+`videoByteTestFixtures.ts` retains synthetic native container vectors for this
+suite and whole-cohort materialization. Both candidate selectors cover the
+upload suite. No hosted storage or device qualification is implied.
+
+### Private video route verification
+
+`upload-observation-video/handler_test.ts` and `route_test.ts` cover binary
+framing, closed metadata, reader12, saved source/frame/audio replay,
+owner-derived actual RPC arguments, private responses, method/MIME/auth denial,
+body budgets and cancellation during authentication/ingress. The coordinator
+suite owns write/completion ordering and erasure-marker regressions. Both
+candidate test selectors include the endpoint suites. Native transport and
+hosted resource, storage/CDN/erasure and device acceptance remain separate.
+
+### Reader12 source admission verification
+
+`videoSourceReservationRepository_test.ts` proves reader12 reserve versus exact
+read-only recovery routing, all closed receipt states, immutable snapshots,
+malformed/foreign replies, no retry, cancellation/late answers and an actual
+five-second timeout. Existing source route tests retain schema1 behavior and add
+schema2 V4 owner-derived routing with no legacy fallback. Both candidate helper
+selectors include the adapter suite. Native delivery and hosted qualification
+remain separate.
+
+### Prepared native video binary wire coverage
+
+`ObservationVideoEvidenceUploadTests` checks source/frame/audio framing from
+saved V4 audio and silent candidates, preservation of pretty-printed candidate
+bytes, the closed metadata fields and big-endian length, exact repeat output,
+unknown media, truncated and digest-corrupted bytes, and cancellation before
+construction. These synthetic byte patterns prove framing/digest binding only;
+they are not container or live transport qualification. Endpoint container and
+authorization validation remain separate. Native transport, durable delivery and
+real allocated-route write/HEAD/completion remain later acceptance work.
+
+### Native reader12 reservation transport coverage
+
+`ObservationSourceTransportTests` now exercises the typed video overload for all
+seven reserved/unavailable/held states, exact pretty-printed saved input, fixed
+route/protocol/timeout, one attempt and no execution headers. Negative cases
+cover lost replies,401, typed409 conflict, foreign owner, actual/declared2KiB
+overflow, MIME, settlement loss, stale owner/claim and pre-cancellation. Known
+reply settlement survives dispatch cancellation only through the supplied
+settlement scope. Existing reader11 tests remain unchanged. This proves the
+transport seam, not installed durable delivery or hosted/device qualification.
+
+### Native exact video upload transport coverage
+
+`ObservationVideoEvidenceTransportTests` verifies exact body/MIME/timeout and
+single attempt, ordinary-session timeout preservation, known-answer settlement
+after cancellation, lost replies,401/404/409/503, MIME, actual/declared8KiB
+overflow, foreign owner, unready target, readiness rollback, settlement loss,
+stale owner/claim, pre-cancellation and prior-owner rejection before dispatch.
+Wire tests now compare the complete independently assembled header and body and
+exercise12MiB source bytes. Exact maximum-metadata boundary and real allocated
+route write/HEAD/completion remain separate integration coverage. These tests
+prove the inert native transport, not live durable queue delivery or hosted
+qualification.
+
+### Exact saved video cohort read coverage
+
+`ObservationVideoDurabilityTests` exercises audio and silent ordered byte reads,
+repeated exact reads, missing frame/audio, changed size, same-size digest
+damage, extra files and symlinks. Before-read/return scope failures,
+pre-cancellation and cancellation at return yield no cohort and leave bytes
+available for exact retry. Root and child locks remain held through both
+validators; a held child lock rejects another reader before scope callbacks.
+Existing file-store tests cover shared lock and namespace behavior. These reads
+verify saved-byte equality only, not provider execution, server readiness or
+live durable delivery.
+
+### Durable video reservation staging coverage
+
+`ObservationVideoDurabilityTests` covers exact staged candidate replay and store
+reopening for audio and silent cohorts, unchanged held/zero-attempt media rows,
+preparation and legacy discard rejection, and continued source occupancy.
+Commit-then-throw restores the same candidate; failure before commit leaves the
+ready preparation for explicit same-request retry. Missing/pending work, account
+loss, changed source snapshot, owner or row linkage, source deletion, erasure,
+attempted, malformed or oversized persisted work and cancellation reject without
+rearming. Codec checks preserve pretty-printed V4 bytes and reject substitution,
+unsupported fields/versions/phases and oversized envelopes. These tests
+establish only local staging, not network delivery, server reservation, upload
+or execution.
+
+### Durable video reservation lifecycle coverage
+
+`ObservationVideoReservationLifecycleTests` checks one saved claim, exact
+original V1 bytes inside V2, restart without rearm, unknown holds, late known
+answers after cancellation, all reply states and typed conflict, exact terminal
+replay and conflicting outcomes. Claim and reply/conflict settlement saves cover
+both commit-then-throw and failure before commit. Negative cases include changed
+account, owner, attempt, container, metadata, source deletion, erasure and
+result collision. Cancelled claims/unknown holds cannot mutate; mixed
+legacy/video settlement evidence cannot enter a transaction body. Codec coverage
+checks closed phases/fields, canonical nested base64, attempt/reply invariants
+and the expanded maximum envelope. Existing video durability/preparation and
+photo/audio source-store suites remain regression selectors for the shared
+transaction. These are local persistence checks, not transport delivery or
+activation proof.
+
+### Retained video reservation delivery coverage
+
+`ObservationVideoReservationDeliveryTests` exercises a verified saved cohort
+followed by one exact candidate dispatch, all reply states, typed conflict,
+unknown transport failure and known reply after cancellation. Account changes
+and missing files, cancellation or erasure around the cohort-read boundary deny
+dispatch or settlement. Claim and settlement save failures cover both sides of
+commit. Running, unknown and terminal snapshots never rearm. Owner tests check
+exact coalescing, changed generation, cancellation versus settlement authority,
+overlapping Auth drains and account-lease release before completion. Wiring
+checks cover both Auth barriers and both connectivity cancellation paths while
+excluding scheduler admission. Existing lifecycle, source-owner and reader12
+transport suites remain regression selectors. These checks establish explicit
+native delivery, not hosted runtime, upload progression or activation.
+
+### Reserved video upload handoff coverage
+
+`ObservationVideoUploadStagingTests` covers silent and audio-bearing ordered
+inventories, exact pretty-printed reservation bytes and derived upload request
+preservation, unchanged saved files, no-save replay, disk reopening, and save
+failure before commit or commit-then-throw.
+Account/container/source/job/attempt/ erasure/result changes and byte-level
+reservation replacement fail safely. Cross-analysis request substitution and
+forged owner replies are rejected. Codec checks reject every non-reserved
+reservation phase/outcome, extra fields, unsupported versions, noncanonical
+base64 and oversized work; a synthetic maximum envelope proves the base64
+expansion allowance. Legacy readers and discard reject the new handoff, and
+queue attempts remain zero. These tests qualify local staging only; item
+dispatch, upload receipts and cleanup remain separate.
+
+### Durable video upload attempt coverage
+
+`ObservationVideoUploadLifecycleTests` exercises ordered silent/audio
+inventories, one claim at a time, exact receipt replay, every retained receipt,
+disk reopening, whole-cohort completion and held zero-attempt queue state. It
+checks unknown-state non-dispatch, known settlement after cancellation, save
+failure before/after commit,
+account/source/container/job/attempt/erasure/metadata fences, receipt
+object/expiry/ readiness regression, missing target readiness and unsupported
+codec transitions. Existing handoff, reservation lifecycle and metadata parity
+suites remain regression selectors. This qualifies local claims and settlement
+only; upload delivery, cleanup, execution and hosted qualification remain
+separate.
+
+### Retained video upload delivery coverage
+
+`ObservationVideoUploadDeliveryTests` uses live saved-file verification and
+Wire1 preparation with a synthetic upload seam. It covers silent/audio ordered
+delivery, previous receipt threading, all-ready admission rejection and
+unchanged local files; missing/damaged media; cancellation/account/dispatch
+changes after preparation; unknown/late receipt outcomes; erasure; claim and
+settlement saves before/after commit; retained owner coalescing/drain/lease
+exit; and runtime queue completion across offline/context/account changes.
+Source assertions retain both Auth and connectivity barriers. Lifecycle,
+reservation delivery and video transport tests remain regression selectors. This
+is native prepared delivery acceptance, not hosted storage, provider execution,
+cleanup or activation qualification.
+
+### Video upload route composition acceptance
+
+The `upload-observation-video` route suite exercises the real dependency
+composition with synthetic fetch: owned reader12 allocation, exact conditional
+source/frame/audio PUT, HEAD tuple verification, exact completion arguments and
+preserved whole-cohort receipt. Both new-object 200 and existing-object 412
+require HEAD. Length mismatch and erased markers prevent completion. A
+completion reply lost after simulated durable readiness returns unavailable; an
+exact replay performs reservation only, without rewriting storage. The handler
+suite accepts metadata padded to the exact 1,048,832-byte ceiling and rejects
+one extra byte before dependency calls. These checks close local allocated-route
+and metadata-boundary coverage; they do not qualify deployed storage, CDN,
+erasure, resource limits or provider execution.
+
+### Video execution evidence prerequisite verification
+
+`observationVideoEvidenceDb.test.ts` exercises the private ready-evidence guard
+against all three canonical V4 fixtures: absent binding/allocation, every
+partial readiness prefix, complete ready cohort, foreign owner, changed request,
+denied API roles, missing evidence and expiry. It verifies that successful
+assertions create no intent or quota and do not require opening execution gates.
+A stale snapshot isolation level is denied. The catalog fixture
+`observation_video_execution_evidence.sql` checks private privileges, bounded
+security-definer settings and default-closed existing gates. This is evidence
+validation only; protected V4 admission, dispatch, result settlement and their
+concurrency acceptance remain separate work.
+
+### Private video initial funding verification
+
+The video database suite exercises all three canonical V4 variants through
+source reservation, allocation, readiness and private initial admission. It
+checks closed gates, missing eligibility rollback, API-role denial, bound video
+profile selection, exactly one intent/quota/complimentary hold, changed-input
+and owner denial, original-receipt replay after expiry/gate closure, and held
+unknown execution without new claim or funding. Two concurrent admissions block
+on the canonical lock and return the same original receipt with one funding
+hold. A funded V4 intent cannot pass the existing source dispatch witness. The
+private-admission catalog fixture checks default-closed gates, helper
+privileges, timeout/search path, V4 storage backstop and absent public begin
+integration. These checks cover initial funding; private dispatch verification
+follows below. Public execution and result settlement remain uninstalled.
+
+### Private V4 dispatch verification
+
+The video database suite covers all three canonical variants through private
+admission, claim and dispatch. It checks closed gates, a single active claim,
+expired admitted-claim replacement without new quota, stale work tokens, expired
+quota/evidence, changed attempts/profiles, prior outcomes, erased objects and
+malformed provenance rollback. Successful dispatch creates one witness and
+invocation, commits quota and retains the complimentary hold. Exact replay after
+expiry/gate closure returns no dispatch permission; unknown execution cannot
+rearm. A two-session test observes canonical blocking and proves one grant plus
+one non-dispatching replay. Generic dispatch remains V4-denying. The catalog
+checks private privileges, bounded definer settings, default-closed activation
+and the unchanged generic lock. These local fixtures make no provider calls and
+do not qualify result settlement or a public V4 path.
+
+The shared-helper CI step grants read access to each exact video migration used
+by these tests. `workflowSecurity.test.ts` locks the full allowlist, including
+ready-evidence, initial admission and private dispatch migrations. Verify the
+helper command with those restricted permissions; a broad local `--allow-read`
+run cannot establish CI permission coverage.
+
+### Private V4 outcome verification
+
+Video database fixtures cover exact outcome capture/read for all three video
+variants, including draft/refusal/invalid_output, unknown execution with no
+answer, owner mismatch, wrong original token, malformed and oversized envelopes,
+late answers after expiry/gate closure, immutable replay and owner deletion. A
+two-session test proves duplicate outcome capture blocks until the first commit.
+Invocation deletion denies a first answer but preserves identical saved replay.
+Two-session capture-first and deletion-first tests prove this ordering under
+real blocking. Direct generic claim and advance remain denied after outcome
+capture. They assert committed quota and held complimentary credit remain
+unchanged, no new dispatch claim can be acquired, and V4 never enters legacy
+recovery discovery. Catalog tests cover every API-role denial and bounded
+definer configuration; static contracts forbid grants or settlement calls. The
+exact CI migration read allowlist includes this new migration. These are
+received-evidence checks, not semantic result or settlement qualification.
+
+### Prepared V4 semantic draft verification
+
+`videoAdmission_test.ts` exercises the pure draft builder with shared silent and
+audio video fixtures, complete graph and description preservation, canonical
+review/funding-field removal, result scan/taxonomy mismatch, invalid semantics
+and malformed/oversized saved input. Existing executable parsing and public
+result readers continue rejecting the draft. Draft schema4 is explicitly not
+public result snapshot4 (audio). Audio and generic execution suites remain
+regression checks; no SQL/result reader, native or provider path is activated.
+
+### Private V4 draft storage verification
+
+The video evidence DB suite passes prepared builder output through outcome and
+draft storage for all three graph variants. It tests unknown/refused/invalid
+outcome denial, wrong owner/token, altered input/evidence/result, invalid
+species and saved primitives, dictionary mismatch, size limits, late first
+persistence after invocation pruning, exact replay, deletion denial and
+two-session duplicate serialization. Intent fields other than draft remain
+byte-equivalent as JSONB; quota stays committed, complimentary credit held,
+usage/receipt null and no result appears. Static/catalog checks enforce private
+bounded execution and no accounting or activation. CI's restricted migration
+allowlist includes the new forward migration.
+
+### Private V4 accounting verification
+
+The video database suite covers all three evidence graphs, exact committed
+execution, missing invocation, known-result ledger comparison, existing
+unknown/refusal/failure or mismatched usage, atomic rollback on receipt failure,
+matching preexisting usage, duplicate two-session accounting, immutable receipts
+and replay after invocation pruning and gate/expiry changes. It asserts held
+credit, committed quota, unchanged work claim, no completed result/receipt and
+denied generic completion after the transition to draft. Deletion still denies
+replay. Catalog tests check RLS, API-role denial and bounded definer ownership.
+
+Run the fresh disposable database catalog/ACL and full Edge suites, migration
+and restricted CI helper contracts, recursive formatting/lint/type checks and
+complete Supabase tooling gate on the isolated candidate. Keep failed evidence
+separate. These tests do not qualify external execution or authorize activation.
+
+### Private V4 terminal settlement verification
+
+The video DB suite covers refusal and invalid-output settlement across all three
+evidence graphs, complimentary and paid admissions, missing invocation,
+unknown/success/different-terminal or mismatched usage events, pre-settled
+credit denial and atomic rollback on receipt failure. It checks committed quota
+with zero refunds, exact credit-release reason, one ledger event and terminal
+proof, cleared work claims, no result/completion receipt and retained source
+occupancy. Replay after invocation pruning preserves the entitlement epoch and
+original proof. Wrong scope/token, generic outcome/fail RPCs, successful-draft
+settlement, receipt mutation and owner deletion are denied. Actual two-session
+tests cover duplicate settlement and both settlement-versus-retention lock
+orders.
+
+Run fresh disposable catalog/ACL and full Edge suites, migration/static/CI
+contracts and full Supabase tooling, recursive type/lint/format, DTO and
+Markdown gates. API-role and PUBLIC access stay denied. No provider call, hosted
+state, source cleanup or activation is exercised by these synthetic tests.
+
+### Private V4 successful completion verification
+
+The video evidence DB suite covers all three graphs with complimentary, paid and
+paid-before-completion funding. It denies missing accounting, altered
+draft/usage, wrong scope/token, direct result insertion, unready/erased evidence
+and generic completion. A failure after result insertion and settlement rolls
+back result, authority, credit and entitlement epoch. Late first completion
+after invocation pruning, deadline expiry and gate closure preserves the
+original accounting proof; exact replay and later entitlement changes preserve
+the saved receipt. Two-session duplicate completion waits for the first commit.
+
+Assertions cover snapshot5, blank initial authority, unchanged initialized
+selection/reconciliation, committed quota with zero refunds, one usage event,
+cleared work claims and retained occupancy. Public page/state/action tests deny
+older readers for mixed video history, including cursor and older-child
+requests; current action readers remain denied. Catalog/static checks enforce
+private bounded helpers. Run fresh disposable catalog/ACL and full Edge suites
+plus migration, restricted CI, full tooling, recursive type/lint/format, DTO and
+Markdown gates. These synthetic checks do not qualify a public/native video
+execution path or source release.
+
+### Video result reader11 verification
+
+The video evidence DB suite reads mixed video/legacy histories through reader11,
+including cursor pages, explicit video previews and existing selected state. It
+passes returned bytes through the Deno decoders, denies unknown readers and
+keeps action reader11 unavailable. Existing gates, owner/deletion fences,
+selection and source occupancy are unchanged.
+
+Shared result5 cases reuse all forty manifest4 acceptance/rejection vectors and
+add source-analysis aliases, null source and input/result-version confusion.
+Deno and native decoders consume the same cases; audio4 and imported3 retain
+prior semantics. Native sync tests persist exact video result bytes, reject
+changed replay, reopen a disk store and preserve selection and corrections. Run
+ObservationVideoManifestTests, ObservationHistorySyncTests,
+LocalAnalysisRecordTests and the adjacent history state/selection/review tests
+through the managed local simulator wrapper. This reader checkpoint does not
+qualify video execution, source release or devices; full integrated native
+capability acceptance remains a separate milestone.
+
+### Video source completion release verification
+
+`observationVideoEvidenceDb.test.ts` covers all three video graphs and paid,
+complimentary and paid-before-completion funding. It verifies receipt insertion
+and occupancy deletion in the original completion transaction after invocation
+retention, expiry and fresh-gate closure. Proof-storage failure rolls back
+result/authority/credit/receipt changes; exact replay changes nothing. Closed
+release gate retains occupancy permanently for that completion; later replay
+cannot backfill. Tests also cover malformed product rejection, immutable proof
+rows, occupancy resurrection denial, timezone/current entitlement independence,
+new same-source successor reservation and parent erasure.
+
+`observation_video_source_completion.sql` checks private privileges, RLS, fixed
+search paths, default-closed release and separate generic proof semantics. Run
+focused DB, full fresh catalog/ACL/Edge, migration/tooling, recursive type
+checks and lint/format gates on the scoped candidate. No hosted activation,
+provider execution, device or integrated native acceptance is implied.
+
+### Prepared video outcome normalization
+
+`_shared/analysisHistory/videoOutcome_test.ts` checks both V4 graphs and funding
+tiers, immutable input, exact provenance/usage, draft compatibility, visual and
+blended human semantics, diagnostic thresholds, provider safety, malformed and
+oversized output, unknown execution, mismatched profile/configuration and early
+V4 denial by generic capture/execution. `execution_test.ts` retains V1–V3
+recovery regressions. These pure fixtures make no provider calls and do not
+qualify public video execution, user devices or external runtime/storage
+behavior.
+
+### Prepared video orchestration verification
+
+`observation_video_orchestration.sql` verifies disabled defaults, service-only
+grants, fixed security-definer paths and retained private-helper denial.
+`observationVideoEvidenceDb.test.ts` exercises public begin, exact replay, ready
+cohort materialization, one-shot dispatch, unknown-execution hold, late outcome
+capture, replacement recovery claims, successful accounting/completion and both
+known-terminal outcomes. It verifies expired/wrong work-token rejection, role
+and identity denial, closed generic entry points and no retry/refund. These
+local contracts do not qualify an Edge/native video execution consumer or
+external/device acceptance.
+
+### Video Edge execution verification
+
+`videoExecution_test.ts` covers both video graph modes, whole-cohort corruption,
+source exclusion, one-time dispatch, malformed/uncertain decisions, unknown
+execution, cancellation, saved-result recovery, settlement failure and awaited
+lease release. The separate analyze route/handler tests cover closed V4 input,
+verified owner derivation, bounded bodies, cancellation during begin and closed
+status/error projections. Service recovery route tests cover exact service auth,
+closed/aborted bodies, the32-identity cap, rejection of initial work and saved
+refusal settlement with no provider/storage calls. Generic recovery retains its
+10-job tests. Run these plus full Edge/tooling, recursive format/lint/type
+checks, DTO and Markdown gates on the scoped candidate. These synthetic checks
+do not qualify native video execution, hosted storage/runtime or user devices.
+
+### Native video execution ownership verification
+
+`ObservationVideoExecutionStoreTests` covers exact ready-cohort handoff and disk
+reopening, replay before consent, legacy routing denial, one durable attempt,
+irreversible consume/hold, save-before/after-commit failures, source/account/
+container/job/erasure parity, expired/partial/unknown evidence and strict codec
+negatives. Run with the video upload lifecycle/staging/durability suites and
+`ObservationHistorySyncTests`, whose existing result5 test rejects ordinary,
+audio and video source capture. This is local persisted capability evidence; no
+transport, native queue execution, provider, hosted storage or device
+qualification is implied. Use the managed local iOS build cache and preserve
+failed evidence separately from scoped candidate validation.
+
+### Native video submission transport verification
+
+`ObservationVideoAnalysisTransportTests` uses a real saved/consumed video
+execution fixture and mocked HTTP. It covers exact saved bytes and fixed route,
+all five status receipts, auth/consent/claim denial, no error retry or refresh,
+closed receipt identity/version/state/field validation, MIME/status/size denial,
+held/expired/cancelled dispatch and separate known-response settlement fencing.
+Run with the existing audio transport, video evidence transport and video
+execution-store suites to protect shared dispatcher/pinning behavior. These
+checks do not qualify retained queue execution, hosted services or devices.
+
+### Native video result completion verification
+
+`ObservationVideoCompletionTests` covers V4/V5 exact identity, digest, manifest
+and version binding; consumed running/held completion with and without audio;
+cancelled-task settlement; byte-identical replay and already-synced results;
+conflicting results; account/source/container/row/job/namespace/erasure fences;
+stale and unconsumed snapshots; save failures before and after commit; and disk
+reopen into settlement, or proof that the committed cleanup receipt persists
+with no remaining queue pair. Assertions preserve source, selection, revision
+and files while retiring only the queue pair. This is local completion coverage;
+retained execution/reader11 lease/awaited cleanup composition and
+external/device qualification remain separate.
+
+`ObservationVideoExecutionStore.readSyncedForSettlement` recovers only consumed
+running/held work with an already-stored V5 result bound to its exact request.
+It checks the result's owner, parent, version, time and bytes, plus current
+source/account/namespace/row/job scope. This permits completion after sync and
+restart while ordinary reads remain closed on result collisions. Missing or
+mismatched results and unconsumed work are rejected; no claim or dispatch permit
+is returned. Completion still rechecks exact result bytes before retirement.
+
+Synced settlement compares the result parent with the exact enrolled parent's
+stored ID, including supported historical uppercase UUIDs. Queue identity stays
+normalized. Case-folding a mismatched child-parent reference is not allowed.

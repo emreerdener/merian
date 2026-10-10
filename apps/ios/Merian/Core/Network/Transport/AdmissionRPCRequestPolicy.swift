@@ -1,10 +1,12 @@
 import Foundation
 
-/// The two reviewed read-only RPCs are the only non-Edge admission routes.
+/// The reviewed read-only RPCs are the only non-Edge admission routes.
 enum AdmissionRPCRequestPolicy {
     enum Route: String {
         case allowance = "get_my_scan_admission_preview"
         case recipient = "get_my_identification_preflight"
+        case reanalysisRecipient = "get_owned_observation_reanalysis_preflight"
+        case analysisState = "get_owned_observation_analysis_state"
     }
 
     static func url(baseURL: String, route: Route) throws -> URL {

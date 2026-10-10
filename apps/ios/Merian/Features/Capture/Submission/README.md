@@ -240,6 +240,14 @@ Additional physical media, video-derived evidence, multiple descriptions, and
 refinement preflight as Pro-only. The RPC is a short-lived, read-only UX
 preview, not a reservation.
 
+Legacy refinement also rechecks original-observation enrollment before
+requesting this preview and after it returns, before enqueue. A protected or
+unreadable parent leaves the draft intact and cannot enter legacy submission.
+The visual path retains the same parent across that suspension. Ordinary new
+captures have no replacement parent and keep their existing admission behavior.
+A previously dispatched legacy child is not canceled or refunded by this local
+guard.
+
 Before taking the preview's account-work lease, iOS joins or retries eligible
 first-launch session setup through the existing Auth bootstrap coordinator. A
 tap during background warmup therefore waits for session publication. Failed
@@ -452,3 +460,130 @@ chosen count before file loading, using the already-registered draft operation.
 This preserves exhausted-Pro/remaining-Free access to one photo with an optional
 note while rejecting an unfunded second photo. Final submission still rechecks
 its serialized composition and durable admission.
+
+## Refinement evidence identity
+
+`CaptureSubmissionAdmissionSnapshot` includes image provenance, focus regions
+and chronological insertion times as well as IDs and inference bytes. A crop
+that retains the same bytes, a late focus update or a reordered timeline
+therefore invalidates suspended admission. Staging owns the distinction between
+a newly added photo, verified original history media and an edited derivative.
+The prepared
+[history source boundary](../../../Core/Data/AnalysisHistory/README.md#frozen-refinement-source)
+freezes the identification separately from these photo choices.
+`CaptureReanalysisPreparation` maps the final staged timeline into the immutable
+producer plan, preserving removals, order and crop lineage while rejecting
+unsupported modalities. The prepared producer verifies child-owned files and
+saves a held draft. The protected Shell editor connects preparation behind a
+closed access boundary; ordinary submission and dedicated execution remain
+disconnected.
+
+### Protected Capture preparation
+
+`CaptureReanalysisEvidenceSelection` accepts an explicit set of original V2
+photo identities and preserves their relative position among the source's exact
+descriptions. It never chooses the first two or five photographs. The prepared
+boundary accepts up to five JPEG/PNG photos within 5 MiB, independently of the
+ordinary two-item Capture capacity. Unsupported originals and over-budget
+selections fail before downloads; the future chooser must offer explicit
+remediation. V1/V3 sources contribute no inherited photos or descriptions. An
+empty photo selection is allowed while composing, but final preparation requires
+at least one original, edited or newly added photo.
+
+`CaptureReanalysisEvidenceLoader` holds an owner lease, verifies the source and
+foreground generation around every suspension, and returns a complete staged
+value only after every selected photo passes length, digest and actual-container
+checks. A failure cannot commit a partial selection. Original inference bytes
+remain exact, previews are downsampled to 1024 pixels, and every original
+carries its historical analysis/photo provenance. No parent cover, note,
+location or legacy public URL is a fallback. Description text and mixed-evidence
+ordering are preserved in the final preparation plan.
+
+`CaptureReanalysisSession` retains the frozen source and draft generation. Its
+first explicit preparation freezes the input snapshot and mints one plan; exact
+retry reuses its child and media identities. Changed input or a changed
+generation is rejected. Its dedicated `stage` method invokes only the private
+producer, with single-flight ownership and a final foreground fence. It freezes
+the requested held/submit disposition with the plan before awaiting file work; a
+different retry action conflicts. Explicit submit produces durable submission
+intent before private writes and retains it through verified file recovery.
+Default staging and the existing editor still produce held-only drafts. See the
+[submission-intent contract](../../../Core/Data/AnalysisHistory/README.md#submission-intent-before-private-writes).
+An ambiguous response leaves the same plan and action retained. Explicit
+`discard` obtains an owner lease and retires only the same unbound, unattempted
+child through the transactional erasure receipt. It makes this session terminal
+only after that commit; failure retains the plan. A caller must wake local
+erasure recovery before releasing the session. Account teardown invalidates
+private presentation separately and cannot claim durable cancellation.
+
+These owners are compiled and covered by `CaptureReanalysisSessionTests`. The
+prepared protected editor now connects explicit selection and held submission,
+while normal entry stays disabled. It does not enable inference, ordinary scan
+admission, funding, provider retry or automatic selection. All activation gates
+remain closed.
+
+The prepared protected root route now composes these owners through the
+[separate Shell editor](../Shell/README.md#protected-reanalysis-editor). Its
+explicit save creates only a held draft; execution and normal entry remain
+disabled. It bypasses ordinary admission and funding. The editor keeps its
+session after ambiguous save failures and uses the transactional discard
+boundary before allowing replacement. Legacy Capture submission is unchanged.
+
+### Frozen audio reanalysis submission
+
+`CaptureAudioReanalysisPlan` freezes one canonical WAV, ordered descriptions and
+new child/media IDs from an explicit historical source. The synchronous
+`CaptureAudioReanalysisSession.freeze` call belongs at the actual submit tap,
+before scheduling asynchronous work. Changed input or presentation generation
+cannot replace that plan. WAV container and coarse input bounds are checked at
+freeze; hashing and strict manifest validation run off-main from the retained
+bytes. No parent notes, media, selected-result lookup or new preprocessing is a
+fallback.
+
+The session keeps its original container, source, generation and verified proof.
+Submission requires producer and binder to share the retained preparation owner.
+A strict admission read precedes the file producer: exact bound work bypasses
+files and consent; unbound work prepares the original file, requires
+`admission_pending`, then uses retained binding. Account scope governs those
+durable operations. Presentation scope is checked separately after awaits and
+before handoff; losing it withholds UI/queue handoff without claiming that a
+committed binding was cancelled. A fresh exact snapshot comparison precedes the
+synchronous injected queue start. Queue lifetime must use common account scope,
+never the presentation predicate.
+
+A throwing bind save returns no start, including commit-then-throw. A later
+explicit retry preserves the plan and recovers its exact binding. Unavailable
+queue admission also retains the original plan and request. The session never
+discards work, remints an identity, selects the child or authorizes a second
+provider call. The audio-only source proof accepts exact V4 authority and
+rejects reuse of its media ID in the new evidence. It never inherits the source
+WAV or descriptions; the plan requires explicit input. Photo source capture and
+photo preparation continue to reject V4. These owners are prepared only: no
+ordinary Capture dependency, router, editor or alternatives-card layout is
+changed.
+
+### Explicit caller-file audio input
+
+`CaptureAudioInputPreparer` accepts an explicitly supplied local URL and an
+injected temporary directory. It holds any acquired security scope through
+normalization, bounded reading and cleanup, using only
+`InferenceAudioPreparer.prepareLocalFile`. It never resolves historical media or
+reads parent notes. The output must be a regular, nonsymlink file inside its
+unique owned directory. Reading is capped at the inference limit plus one byte,
+requires EOF and passes `ObservationAudioContainer` validation. Success includes
+removal of the temporary directory before returning canonical bytes. Errors and
+cancellation attempt the same cleanup and return no input.
+
+The adapter creates no analysis/media identity, account lease, queue record or
+execution authority. Its random temporary directory identifies only local
+scratch storage. Caller files are preserved. A filesystem cleanup failure
+withholds success; it does not qualify device file-provider behavior.
+
+### Separate source-based audio submission
+
+`CaptureAudioReanalysisSession.submitSource` uses the same synchronously frozen
+plan with `ObservationAudioSourcePreparation`. Its tagged result distinguishes
+source reservation from an already bound execution. Presentation cancellation
+withholds handoff while preserving committed durable work. A stage failure
+retains the plan; a later explicit retry recovers the same saved UUID. This
+method cannot invoke the legacy binder. Existing `submit` behavior is unchanged.

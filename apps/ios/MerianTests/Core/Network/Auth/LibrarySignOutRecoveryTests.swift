@@ -32,6 +32,17 @@ final class LibrarySignOutRecoveryTests: XCTestCase {
         XCTAssertNil(try harness.store.load())
     }
 
+    func testSessionChangeDuringAsynchronousCleanupCannotAdvanceJournal() async throws {
+        let harness = Harness()
+        try harness.commit()
+        harness.replaceSessionDuringCleanup = true
+        let completed = await harness.coordinator.resume()
+        XCTAssertFalse(completed)
+        XCTAssertEqual(harness.cleanupCount, 1)
+        XCTAssertEqual(harness.createCount, 0)
+        XCTAssertEqual(try harness.store.load()?.phase, .sourceCleared)
+    }
+
     func testLostLocalGuestJournalWriteReusesSDKDestination() async throws {
         let harness = Harness()
         try harness.commit()
@@ -103,6 +114,7 @@ final class LibrarySignOutRecoveryTests: XCTestCase {
         var session: AuthTransitionSession?
         var signOutSucceeds = true
         var cleanupSucceeds = true
+        var replaceSessionDuringCleanup = false
         var purchasesSucceed = true
         var rejectDestinationWrite = false
         var loseCreationResponse = false
@@ -138,6 +150,10 @@ final class LibrarySignOutRecoveryTests: XCTestCase {
                 },
                 clearLibrary: {
                     self.cleanupCount += 1
+                    await Task.yield()
+                    if self.replaceSessionDuringCleanup {
+                        self.session = AuthTransitionSession(userID: UUID(), isAnonymous: true)
+                    }
                     return self.cleanupSucceeds
                 },
                 createDestination: {

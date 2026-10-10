@@ -18,7 +18,7 @@ const requestKeys = [
   "undo_operation_id",
 ] as const;
 export interface AnalysisRejectionRequest extends SelectionRequest {
-  action: "reject" | "undo";
+  action: "reject" | "undo" | "undo_confirmation";
   undo_operation_id: string | null;
 }
 
@@ -28,14 +28,16 @@ export function parseAnalysisRejectionRequest(
 ): AnalysisRejectionRequest {
   const row = exactObject(value, requestKeys);
   const { action, undo_operation_id, ...selection } = row;
-  if (action !== "reject" && action !== "undo") return invalidHistory();
+  if (
+    action !== "reject" && action !== "undo" && action !== "undo_confirmation"
+  ) return invalidHistory();
   if (action === "reject" && undo_operation_id !== null) {
     return invalidHistory();
   }
   return Object.freeze({
     ...parseSelectionRequest(selection),
     action,
-    undo_operation_id: action === "undo"
+    undo_operation_id: action !== "reject"
       ? historyUUID(undo_operation_id)
       : null,
   });

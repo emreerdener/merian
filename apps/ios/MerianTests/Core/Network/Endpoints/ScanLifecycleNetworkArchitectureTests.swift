@@ -91,7 +91,7 @@ struct ScanLifecycleNetworkArchitectureTests {
             #expect(!bridge.contains(token), "Raw bridge must not add \(token)")
         }
         for token in [
-            "private let authenticatedTransport: AuthenticatedTransportDispatcher",
+            "private let transport: NetworkTransportAssembly",
             "private func endpointURL(",
             "private func performAuthenticatedRequest("
         ] {

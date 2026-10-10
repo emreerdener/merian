@@ -773,3 +773,44 @@ verify_jwt = false
 # Owner-authenticated exact-operation status; withEdgeHandler validates the user.
 [functions.get-observation-publication-status]
 verify_jwt = false
+
+# Owner-authenticated descriptive consent snapshot; publication gates stay closed.
+[functions.prepare-observation-publication-consent]
+verify_jwt = false
+
+[functions.upload-observation-evidence]
+verify_jwt = false
+
+# Owner-authenticated observation target recovery; no admission or worker effects.
+[functions.get-observation-publication-target]
+verify_jwt = false
+
+# Independently gated service-only private history marker cleanup.
+[functions.erase-observation-evidence]
+verify_jwt = false
+
+# Authenticated exact retirement; default-off SQL gate, never provider execution.
+[functions.retire-observation-analysis]
+verify_jwt = false
+
+[functions.upload-observation-audio]
+verify_jwt = false
+
+# Owner-authenticated source occupancy only; default-off SQL gate, no inference.
+[functions.reserve-observation-analysis-source]
+verify_jwt = false
+
+# Exact unfunded source retirement only; independently gated, no inference.
+[functions.retire-observation-analysis-source]
+verify_jwt = false
+
+# Owner-authenticated saved video item ingress; SQL gates remain disabled.
+[functions.upload-observation-video]
+verify_jwt = false
+
+# Verified user admission / explicit service-role known-result recovery; gates off.
+[functions.analyze-observation-video]
+verify_jwt = false
+
+[functions.recover-observation-video-analyses]
+verify_jwt = false

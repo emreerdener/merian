@@ -11,8 +11,33 @@ struct ObservationHistoryEnrollmentService {
     var cloud = ObservationHistoryCloudClient.live
     var save: (ModelContext) throws -> Void = { try $0.save() }
 
+    /// Scan-only mutations must not compete with staged or acknowledged history.
+    /// A fresh locked read also observes holds committed by another context.
+    static func permitsLegacyMutation(scanID: String, container: ModelContainer?) -> Bool {
+        guard let container else { return false }
+        do {
+            return try ConfirmedSpeciesReviewPersistence.transaction {
+                let context = ModelContext(container)
+                let lower = scanID.lowercased(), upper = scanID.uppercased()
+                var query = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == lower || $0.id == upper })
+                query.fetchLimit = 2
+                guard try context.fetch(query).count == 1 else { return false }
+                return try !ObservationHistoryEnrollmentIntent.protects(scanID, context: context)
+            }
+        } catch { return false }
+    }
+
+    /// Local admission ticket captured before an explicit caller suspends. It creates no intent.
+    static func baseline(observation: UUID, container: ModelContainer) throws -> ObservationHistoryStateSyncService.ReviewBaseline {
+        try ConfirmedSpeciesReviewPersistence.transaction {
+            let scan = try eligibleScan(observation, context: ModelContext(container))
+            return ObservationHistoryStateSyncService.ReviewBaseline(scan, displayAnalysisID: observation)
+        }
+    }
+
     @discardableResult
-    func enroll(observationID: String, expectedOwnerID: UUID, container: ModelContainer) async throws -> UUID {
+    func enroll(observationID: String, expectedOwnerID: UUID, container: ModelContainer,
+                expectedBaseline: ObservationHistoryStateSyncService.ReviewBaseline? = nil) async throws -> UUID {
         guard let observation = UUID(uuidString: observationID) else { throw ObservationHistoryError.invalidPage }
         let lease = try cloud.begin(expectedOwnerID)
         defer { cloud.finish(lease) }
@@ -23,6 +48,7 @@ struct ObservationHistoryEnrollmentService {
             do {
                 let scan = try Self.eligibleScan(observation, context: context)
                 let baseline = ObservationHistoryStateSyncService.ReviewBaseline(scan, displayAnalysisID: observation)
+                guard expectedBaseline == nil || expectedBaseline == baseline else { throw AdmissionError.localStateChanged }
                 let intent = try ObservationHistoryEnrollmentIntent.stage(observationID: observation, ownerID: expectedOwnerID, context: context)
                 try check(lease, owner: expectedOwnerID)
                 try save(context)

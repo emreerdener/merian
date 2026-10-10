@@ -22,7 +22,7 @@ const settled = <T>(promise: Promise<T>) =>
     }),
   );
 for (
-  const scenario of [
+  const { scenario, candidateMode } of [
     "duplicate",
     "competing confirmation",
     "selection first",
@@ -32,10 +32,14 @@ for (
     "account deletion first",
     "confirmation before deletion",
     "pending intent rebind",
-  ]
+  ].flatMap((scenario) =>
+    [false, true].map((candidateMode) => ({ scenario, candidateMode }))
+  )
 ) {
   Deno.test({
-    name: `Analysis confirmation DB concurrency - ${scenario}`,
+    name: `Analysis confirmation DB concurrency - ${
+      candidateMode ? "candidate v2" : "name v1"
+    } - ${scenario}`,
     ignore: !databaseUrl,
     async fn() {
       assert(databaseUrl);
@@ -97,12 +101,39 @@ for (
           "SELECT public.enroll_owned_observation_history($1,9)",
           [observation],
         );
-        const analysis = (await observer.queryObject<{ id: string }>(
+        let analysis = (await observer.queryObject<{ id: string }>(
           "SELECT selected_analysis_id AS id FROM internal.observation_histories WHERE observation_id=$1",
           [observation],
         )).rows[0].id;
+        if (candidateMode) {
+          const candidateAnalysis = crypto.randomUUID();
+          await observer.queryArray(
+            `INSERT INTO internal.observation_analysis_results(analysis_id,observation_id,ordinal,source_analysis_id,request_digest,result_snapshot,evidence_manifest,completed_at)
+             SELECT $2,observation_id,2,analysis_id,repeat('c',64),
+               result_snapshot||'{"primary_identification":{"version":1,"resolution":"species","scientific_name":"Concurrencyfixture original","common_name":null},"candidates":[{"taxon_rank":"species","scientific_name":"Concurrencyfixture accepted","confidence_score":0.4}]}',
+               '{"schema_version":1,"captured_media":[]}',now()
+             FROM internal.observation_analysis_results WHERE analysis_id=$1`,
+            [analysis, candidateAnalysis],
+          );
+          await observer.queryArray(
+            `INSERT INTO internal.observation_analysis_authorities(observation_id,analysis_id,review_snapshot)
+             SELECT observation_id,$2,review_snapshot FROM internal.observation_analysis_authorities WHERE analysis_id=$1`,
+            [analysis, candidateAnalysis],
+          );
+          analysis = candidateAnalysis;
+        }
         const request = {
-          schema_version: 1,
+          schema_version: candidateMode ? 2 : 1,
+          ...(candidateMode
+            ? {
+              candidate_reference: {
+                version: 1,
+                analysis_id: analysis,
+                representation: "stored_species_candidates_v1",
+                ordinal: 0,
+              },
+            }
+            : {}),
           observation_id: observation,
           analysis_id: analysis,
           operation_id: crypto.randomUUID(),
@@ -154,6 +185,8 @@ for (
             [JSON.stringify({
               ...request,
               scientific_name: undefined,
+              schema_version: 1,
+              candidate_reference: undefined,
               action: "reject",
               undo_operation_id: null,
               operation_id: crypto.randomUUID(),
@@ -184,7 +217,10 @@ for (
         if (scenario === "pending intent rebind") {
           await prepare(first);
           const pending = settled(
-            prepare(second, { ...request, scientific_name: "Rebound fixture" }),
+            prepare(second, {
+              ...request,
+              scientific_name: "Rebound fixture",
+            }),
           );
           await blocked(observer, waiter, blocker);
           await first.queryArray("COMMIT");
@@ -193,7 +229,8 @@ for (
           assertEquals(result.error, "analysis_history_operation_conflict");
           await second.queryArray("ROLLBACK");
         } else if (
-          scenario === "deletion first" || scenario === "account deletion first"
+          scenario === "deletion first" ||
+          scenario === "account deletion first"
         ) {
           if (scenario === "account deletion first") {
             await first.queryArray("SELECT public.apply_user_tombstone($1)", [
@@ -301,7 +338,9 @@ for (
         await observer.queryArray("SELECT public.apply_user_tombstone($1)", [
           owner,
         ]).catch(() => {});
-        await observer.queryArray("DELETE FROM auth.users WHERE id=$1", [owner])
+        await observer.queryArray("DELETE FROM auth.users WHERE id=$1", [
+          owner,
+        ])
           .catch(() => {});
         for (const client of clients) await client.end().catch(() => {});
       }

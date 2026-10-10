@@ -18,8 +18,18 @@ extension InsightSheetView {
         _ presentation: InsightShellPresentation
     ) -> some View {
         switch presentation {
+        case .protectedChat(let token, _, _):
+            if let model = protectedChatModel, model.id == token { ProtectedInsightChatSheet(model: model) }
+        case .reviewCandidates(let formID, _, _):
+            if let model = selectedCandidateReview, model.id == formID { AnalysisCandidateReviewSheet(model: model, rendering: dependencies.candidateRendering) }
+        case .reviewName(let formID, _, _):
+            if let form = selectedNameConfirmation, form.id == formID { SelectedAnalysisNameConfirmationSheet(model: form) }
+        case .publicationConsent:
+            if let selectedPublicationModel { IdentificationPublicationSheet(model: selectedPublicationModel) }
+        case .reanalysisStatus:
+            if let reanalysisStatusModel { ReanalysisStatusSheet(model: reanalysisStatusModel) }
         case .identificationHistory:
-            if let historyModel { IdentificationHistorySheet(model: historyModel) }
+            if let historyModel { IdentificationHistorySheet(model: historyModel, candidateRendering: dependencies.candidateRendering) }
         case .paywall:
             PaywallView()
         case .fieldTripAuthor(let route):
@@ -54,7 +64,7 @@ extension InsightSheetView {
         scanId: String,
         generation: UInt64
     ) -> some View {
-        if generation == viewModel.scanBoundActionGeneration,
+        if permitsLegacyReview(scanId), generation == viewModel.scanBoundActionGeneration,
            let speciesData = inferenceEngine.speciesData,
            speciesData.scanId?.caseInsensitiveCompare(scanId) == .orderedSame {
             InsightChatSheet(
@@ -95,7 +105,7 @@ extension InsightSheetView {
                         expectedGeneration: generation
                     )
                 } : nil,
-                onReanalyzeSpecies: viewModel.canReanalyze ? {
+                onReanalyzeSpecies: viewModel.canReanalyze && (dependencies.savedReanalysisAccess != nil || permitsLegacyReview(scanId)) ? {
                     startReanalysisFromInsightChat(
                         expectedScanId: scanId,
                         expectedGeneration: generation
@@ -316,12 +326,23 @@ extension InsightSheetView {
         dismissedShellPresentation = nil
 
         switch presentation {
+        case .protectedChat(let token, _, _):
+            if protectedChatModel?.id == token { protectedChatModel?.close(); protectedChatModel = nil }
         case .chat:
             resumePendingInsightChatDismissalAction()
         case .explore:
             handleExploreSheetDismissed()
-        case .identificationHistory:
+        case .reviewCandidates(let formID, _, _):
+            if selectedCandidateReview?.id == formID { selectedCandidateReview?.close(); selectedCandidateReview = nil }
+        case .reviewName(let formID, _, _):
+            if selectedNameConfirmation?.id == formID { selectedNameConfirmation?.close(); selectedNameConfirmation = nil }
+        case .publicationConsent:
+            selectedPublicationModel?.close(); selectedPublicationModel = nil
+        case .reanalysisStatus:
+            reanalysisStatusModel?.close(); reanalysisStatusModel = nil
+        case .identificationHistory(let scanID, let generation):
             historyModel?.close(); historyModel = nil
+            resumeHistoryReanalysis(scanID: scanID, generation: generation)
         case .paywall, .fieldTripAuthor, .exploreOnboarding:
             break
         }
@@ -341,6 +362,19 @@ extension InsightSheetView {
     @MainActor
     func isShellPresentationValid(_ presentation: InsightShellPresentation) -> Bool {
         switch presentation {
+        case .protectedChat(let token, let scanId, let generation):
+            protectedChatModel?.id == token && protectedChatModel?.isCurrent == true
+                && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
+        case .reviewCandidates(let formID, let scanId, let generation):
+            selectedCandidateReview?.id == formID && selectedCandidateReview?.isScopeCurrent == true
+                && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
+        case .reviewName(let formID, let scanId, let generation):
+            selectedNameConfirmation?.id == formID && selectedNameConfirmation?.isClosed == false
+                && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
+        case .publicationConsent(let scanId, let generation):
+            selectedPublicationModel != nil && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
+        case .reanalysisStatus(let scanId, let generation):
+            reanalysisStatusModel != nil && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
         case .identificationHistory(let scanId, let generation):
             historyModel != nil && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
         case .paywall:
@@ -348,7 +382,7 @@ extension InsightSheetView {
         case .fieldTripAuthor:
             true
         case .chat(let scanId, let generation):
-            viewModel.state.isInsightChatSheetPresented &&
+            permitsLegacyReview(scanId) && viewModel.state.isInsightChatSheetPresented &&
                 selectedInsightChatScanId?
                     .caseInsensitiveCompare(scanId) == .orderedSame &&
                 selectedInsightChatGeneration == generation &&
@@ -386,9 +420,30 @@ extension InsightSheetView {
         releasePayload: Bool
     ) {
         switch presentation {
+        case .protectedChat(let token, _, _):
+            if protectedChatModel?.id == token {
+                protectedChatModel?.close()
+                if releasePayload { protectedChatModel = nil }
+            }
+        case .reviewCandidates(let formID, _, _):
+            if selectedCandidateReview?.id == formID {
+                selectedCandidateReview?.close()
+                if releasePayload { selectedCandidateReview = nil }
+            }
+        case .reviewName(let formID, _, _):
+            if selectedNameConfirmation?.id == formID {
+                selectedNameConfirmation?.close()
+                if releasePayload { selectedNameConfirmation = nil }
+            }
+        case .publicationConsent:
+            selectedPublicationModel?.close()
+            if releasePayload { selectedPublicationModel = nil }
+        case .reanalysisStatus:
+            reanalysisStatusModel?.close()
+            if releasePayload { reanalysisStatusModel = nil }
         case .identificationHistory:
             historyModel?.close()
-            if releasePayload { historyModel = nil }
+            if releasePayload { historyModel = nil; pendingHistoryReanalysis = nil }
         case .paywall:
             viewModel.state.showPaywall = false
         case .fieldTripAuthor:

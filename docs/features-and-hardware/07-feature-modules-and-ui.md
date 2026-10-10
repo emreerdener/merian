@@ -954,6 +954,24 @@ production Shell and Library file remains below the 600-line review guard.
 
 ## 3. Inferences & Telemetry (`InsightSheetView`)
 
+Prepared History review controls, the selected-result menu and Confidence
+confirmed/corrected cards expose **Undo confirmation** for an exact reversible
+owner confirmation. Primary Undo is direct; named Undo first explains that the
+original AI identification returns. Both return that result to unreviewed
+without changing selection, confidence or evidence, and never restore an older
+rejection. Exact server eligibility supports another device or reinstall;
+imported confirmations without a receipt show an unavailable explanation.
+Pending/conflicted authority cannot fall back to legacy review. The alternatives
+card is unchanged. Ordinary History access and the independent Undo API gate
+remain disabled. See the [API contract](../backend-and-data/05-api-contracts.md)
+and
+[History ownership](../../apps/ios/Merian/Features/Insights/History/README.md#durable-confirmation-undo).
+The
+[verification matrix](../development-guides/08-testing-strategy.md#durable-confirmation-undo-verification)
+distinguishes the passing contract/persistence tests from the remaining direct
+Undo UI and joined-presentation cancellation scenarios. Existing selection-Undo
+and named-confirmation UI smokes do not establish coverage of those scenarios.
+
 The `InsightSheetView` is Merian's central contextual readout, triggered after
 an Edge API response or opened offline via the Scans library.
 
@@ -1726,21 +1744,22 @@ dependency composition.
   deletes every active SwiftData row through
   `ScanRepository.purgeAllData(modelContext:userDefaults:resetDerivedState:resetRuntimeState:)`,
   passing the required synchronous private-map derived-state reset before every
-  active-schema model is deleted and verified account-derived defaults are
-  cleared. The injected post-persistence reset then refreshes observable
-  settings and clears legacy gamification, the generation-fenced app badge, and
-  RAM images; the app-root instructions remain visible across relaunch until the
-  user confirms manual Apple removal. That receipt-and-notice behavior exists
-  only in supporting binaries. Public promotion remains blocked until older
-  clients are covered by an enforceable minimum-supported-build control or an
-  independent server-delivered fallback; publishing the new build alone is
-  insufficient. The protocol-v2 prepare response now maps to its dedicated
-  native non-destructive receipt and is locked to the handler through a shared
-  fixture. The injected native workflow checks cancellation before persistence,
-  after the legacy recovery marker, immediately before and after non-destructive
-  v2 preparation, and after both v2 markers; already-durable evidence remains
-  recoverable, but a cancelled task cannot dispatch destructive intake or
-  commit. See the
+  active-schema model is deleted. It then awaits private reanalysis namespace
+  erasure before verified account-derived defaults are cleared; a file failure
+  retains the cleanup barrier for retry. The injected post-persistence reset
+  then refreshes observable settings and clears legacy gamification, the
+  generation-fenced app badge, and RAM images; the app-root instructions remain
+  visible across relaunch until the user confirms manual Apple removal. That
+  receipt-and-notice behavior exists only in supporting binaries. Public
+  promotion remains blocked until older clients are covered by an enforceable
+  minimum-supported-build control or an independent server-delivered fallback;
+  publishing the new build alone is insufficient. The protocol-v2 prepare
+  response now maps to its dedicated native non-destructive receipt and is
+  locked to the handler through a shared fixture. The injected native workflow
+  checks cancellation before persistence, after the legacy recovery marker,
+  immediately before and after non-destructive v2 preparation, and after both v2
+  markers; already-durable evidence remains recoverable, but a cancelled task
+  cannot dispatch destructive intake or commit. See the
   [Core Network preparation contract](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract);
   the intended presentation/workflow above still requires authorized
   real-session evidence.

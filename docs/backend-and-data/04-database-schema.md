@@ -75,11 +75,24 @@ consumers; no worker or public mutation RPC is enabled.
 Legacy deletion refuses enrolled observations before fencing or erasure. Backend
 non-biological retention excludes enrollment at discovery and locked recheck.
 Account detachment locks the owner before scans and clears private history on
-detachment; the required scientific-field allowlist/materializer is still an
-activation prerequisite. See the
+detachment. The prepared October 5 materializer preserves an explicit original
+scientific allowlist and a separate closed, flat `scans.retained_identification`
+before that cascade. It recomputes selected authority under owner-first locks;
+private JSON/media/review state clear, and detached enrolled rows are immutable.
+No new client column grant or activation is introduced. The exact classification
+is in [scientific retention](./17-scientific-observation-retention.md). See the
 [implementation status](../rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md#implementation-progress)
 and
 [history contract owner](../../services/supabase/functions/_shared/analysisHistory/README.md).
+
+The prepared `get_owned_observation_reanalysis_preflight(jsonb)` RPC is granted
+only to `authenticated`, derives its owner from `auth.uid()`, and requires the
+existing orchestration/admission/protected gates. It locks the owner and parent
+before checking source membership and child identities. Matching saved intents
+are recovery-only; fresh identities reuse the nonmutating recipient resolver. It
+changes no history, evidence, funding or quota state. The
+[API contract](05-api-contracts.md#prepared-child-analysis-orchestration-and-recovery)
+defines exact protocol and response fields. All gates remain false.
 
 ### Privileged routine ACL catalog
 
@@ -5524,7 +5537,9 @@ snapshot SHA-256 values, so a property, annotation, default, relationship,
 initializer, or helper edit requires an explicit historical-shape review.
 `SchemaV51Snapshots.swift` freezes all eight `MerianSchemaV51` model classes and
 their relationships; the unchanged goal-hint companion retains its V50 owner.
-`MerianSchemaV57` owns the active global models. V56 is frozen in
+`MerianSchemaV58` owns the active global models. V57 is frozen in
+`SchemaV57ScanSnapshots.swift` and `SchemaV57QueueSnapshots.swift`; the full
+relationship graph compiled before adding queue qualification. V56 is frozen in
 `SchemaV56ScanSnapshots.swift` and `SchemaV56QueueSnapshots.swift`; the graph
 compiled before adding the state-cache relationship. V55 is frozen in
 `SchemaV55ScanSnapshots.swift` and `SchemaV55QueueSnapshots.swift`; its graph
@@ -5534,7 +5549,7 @@ graph was compiled before active-model edits. V53 is independently frozen in
 `SchemaV53ScanSnapshots.swift` and `SchemaV53QueueSnapshots.swift`. V52 is
 independently frozen in `SchemaV52ScanSnapshots.swift` and
 `SchemaV52QueueSnapshots.swift`. Disk migration suites create source stores from
-the frozen snapshots, migrate V49 through V50 and V51 into V57, and migrate both
+the frozen snapshots, migrate V49 through V50 and V51 into V58, and migrate both
 V50 graphs through their source-isolated custom plans. The V51 fixture verifies
 production metadata selection and preserves scan, media, collection, preference,
 queue, event, deletion and goal-hint state while adding nullable provenance,
@@ -5565,7 +5580,7 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current active schema is `MerianSchemaV57`. Recent milestones:
+The current active schema is `MerianSchemaV58`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`,
   `observationContextJSON`) to both local and offline scan models.
@@ -5605,23 +5620,23 @@ The current active schema is `MerianSchemaV57`. Recent milestones:
   directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
-  `ModelContainer`: fresh/current V57 stores open without a migration plan,
+  `ModelContainer`: fresh/current V58 stores open without a migration plan,
   known recent stores use the source-isolated
-  V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and only
-  unknown older stores use the full historical plan. V56 needs only lightweight
-  V56→V57; earlier plans retain their previous stages and append V56→V57. Each
-  V50 plan contains its custom V50→V51 preference-ownership stage followed by
-  V51→V52→V53→V54→V55→V56→V57; the V49 plan prepends the required lightweight
-  V49→V50 hop. Immediate predecessors therefore never validate unrelated
-  history. The V42 and V43 recent plans jump directly to V49 to avoid validating
-  older full-historical custom stages and to keep V42 off the older V42→V43
-  bridge that still failed on real TestFlight stores, while V45 and V46
-  deliberately use one matching source representative each before the V49 repair
-  target. Stores that still hit SwiftData's duplicate-checksum validator during
-  plan construction retry with the same source-isolated recent plans before
-  legacy rescue or safe mode. Safe mode itself creates an empty in-memory V57
-  container without any migration plan; it does not validate this historical
-  ladder again.
+  V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and
+  only unknown older stores use the full historical plan. V57 needs only
+  lightweight V57→V58; earlier plans retain their previous stages and append
+  V57→V58. Each V50 plan contains its custom V50→V51 preference-ownership stage
+  followed by V51→V52→V53→V54→V55→V56→V57→V58; the V49 plan prepends the
+  required lightweight V49→V50 hop. Immediate predecessors therefore never
+  validate unrelated history. The V42 and V43 recent plans jump directly to V49
+  to avoid validating older full-historical custom stages and to keep V42 off
+  the older V42→V43 bridge that still failed on real TestFlight stores, while
+  V45 and V46 deliberately use one matching source representative each before
+  the V49 repair target. Stores that still hit SwiftData's duplicate-checksum
+  validator during plan construction retry with the same source-isolated recent
+  plans before legacy rescue or safe mode. Safe mode itself creates an empty
+  in-memory V58 container without any migration plan; it does not validate this
+  historical ladder again.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.
@@ -5681,8 +5696,8 @@ The current active schema is `MerianSchemaV57`. Recent milestones:
   `confirmedSpeciesIdentityData` through lightweight V52→V53. Both remain nil
   for existing observations. V52 was frozen and compiled before editing the
   active model. Every older plan appends the stage, and
-  `MerianRecentV52MigrationPlan` now contains V52, V53, V54, V55, V56, and V57.
-  The primary bytes preserve the versioned original AI label and resolution
+  `MerianRecentV52MigrationPlan` now contains V52, V53, V54, V55, V56, V57, and
+  V58. The primary bytes preserve the versioned original AI label and resolution
   independently of dictionary enrichment or review. Required missing, malformed
   or unpaired snapshots remain integrity failures, never legacy results.
   Duplicate explicit completions preserve saved review/media state and reject
@@ -5930,7 +5945,7 @@ with non-optional defaults (`queueAttemptCount = 0`, `queueUpdatedAt = now`,
 ### `OfflineQueuedScanGoalHint`
 
 Added in released `MerianSchemaV50` and retained through the
-`ActiveOfflineQueuedScanGoalHint` alias in current V57 source. This optional
+`ActiveOfflineQueuedScanGoalHint` alias in current V58 source. This optional
 companion exists only for a queued scan submitted from an eligible live Capture
 goal selection.
 
@@ -5957,9 +5972,24 @@ cache for Insight contribution cards.
 Added in `MerianSchemaV48` and carried forward unchanged through V50.
 Scheduler/control-plane row for media-agnostic offline work. Current `kindRaw`
 values are `scanIngestion`, `cloudDeletion`, `identificationReviewSync`,
-`observationPublicationSync`, `collectionSync`, `speciesPreferenceSync`, and
-`future`; current `statusRaw` values are `pending`, `running`, `waiting`,
-`needsAttention`, `complete`, and `cancelled`.
+`observationPublicationSync`, `observationReanalysisSync`, `collectionSync`,
+`speciesPreferenceSync`, and `future`; current `statusRaw` values are `pending`,
+`running`, `waiting`, `needsAttention`, `complete`, and `cancelled`.
+
+Prepared reanalysis jobs use `observationReanalysisSync` with the existing
+`scan-ingestion:<child UUID>` erasure index. A local version-2 `draft` envelope
+retains owner, parent/source/child and ordered evidence before recipient
+preflight, without a processor. One-time binding replaces only this metadata
+with the immutable version-seven owner/exact-request envelope and unused
+analyze-dispatch evidence. Atomic consumption records the original local attempt
+before an analyze call; subsequent attempts recover outcomes only. Version-one
+bound requests remain readable as unknown/recovery-only, without rewriting their
+bytes. Versions 2–6 retain their existing unbound meanings. Replay never changes
+a bound request, resets consumed evidence or revives terminal work. The
+qualified V58 row supplies independent parent/source/owner routing and deletion
+linkage. The distinct raw kind excludes them from ordinary complimentary-funding
+restoration. Adding a raw string value changes no stored schema shape or retired
+snapshot. Atomic staging remains held until dedicated execution is connected.
 
 Prepared publication jobs use
 `observation-publication:<observation UUID>:<operation UUID>` so atomic scan
@@ -5971,7 +6001,13 @@ admission is proven, then only owner/identities, a local canonical-consent
 SHA-256, bounded status and observation time. Both terminal receipts use
 complete jobs and persist until scan or account deletion and cannot be revived
 by same-ID staging. This raw kind changes no stored schema shape or frozen
-snapshot. Network execution and wake admission remain disconnected. See
+snapshot. Native delivery uses the existing monotonic `attemptCount`,
+`lastAttemptAt` and a 180-second `nextRunAt` claim deadline to reject stale
+completion/retry writes, including identical-consent successors. Local permanent
+delivery failures use `needsAttention`, preserving consent or polling metadata
+without fabricating a server outcome. The scheduler admits only valid envelopes
+owned by the current account. Ordinary UI enqueue and rollout remain disabled.
+See
 [publication persistence](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-publication-persistence).
 
 - `id`: String (unique stable job id such as `scan-ingestion:{scanId}`,
@@ -6303,7 +6339,7 @@ A top-level album type associated with `LocalScanRecord` nodes, added in
 - `createdAt`: Date
 - `scans`: [LocalScanRecord]? (Inverse `@Relationship` using IDs rather than
   encoded objects, reducing memory pressure.)
-- `isPendingDeletion`: Bool (Active V57 application tombstone, mapped to the
+- `isPendingDeletion`: Bool (Active V58 application tombstone, mapped to the
   released `isDeleted` column with `@Attribute(originalName:)`; the value is
   explicitly projected to the unchanged `is_deleted` Edge field for safe cloud
   erasure instead of destructive state-diffs.)
@@ -6489,12 +6525,12 @@ and disposable `species_discovery_search.sql` catalog/denial tests.
 V54 introduced rejection storage. V53 is independently frozen in
 `SchemaV53ScanSnapshots.swift` and `SchemaV53QueueSnapshots.swift` before adding
 optional `LocalScanRecord.aiIdentificationReviewData`.
-`MerianRecentV53MigrationPlan` includes V53→V54 followed by V54→V55→V56→V57; all
-earlier supported lanes retain that lightweight rejection stage. Existing stores
-retain their scans, original identification, confirmations, collections, and
-queue jobs. The new optional bytes start nil. They store local pending intent
-separately from acknowledged server authority. No new legacy `UserReviewState`
-enum case is introduced.
+`MerianRecentV53MigrationPlan` includes V53→V54 followed by V54→V55→V56→V57→V58;
+all earlier supported lanes retain that lightweight rejection stage. Existing
+stores retain their scans, original identification, confirmations, collections,
+and queue jobs. The new optional bytes start nil. They store local pending
+intent separately from acknowledged server authority. No new legacy
+`UserReviewState` enum case is introduced.
 
 `scans.ai_identification_review` and the matching `scan_ingestion_jobs` backup
 contain a strict, bounded versioned review envelope. The service-only
@@ -6584,10 +6620,10 @@ not history-safe merely because storage exists: enrollment/selection remain
 disabled until the append-only writers, owner-scoped sync, retention, deletion,
 and authority consumers are connected and tested. Restoration UI is not enabled.
 
-`MerianRecentV56MigrationPlan` is the current immediate-predecessor lane; every
-older supported lane appends V56→V57 after its existing stages. Startup checksum
-retries attempt V56 before V55, V54 and V53. Safe mode remains a plan-free
-current-schema container. V54, V55 and V56 snapshot pairs are hash-pinned.
+`MerianRecentV57MigrationPlan` is the current immediate-predecessor lane; every
+older supported lane appends V57→V58 after its existing stages. Startup checksum
+retries attempt V57 before V56, V55, V54 and V53. Safe mode remains a plan-free
+current-schema container. V54, V55, V56 and V57 snapshot pairs are hash-pinned.
 `MigrationPlanTests` verifies disk migration and reopen preservation;
 `LocalAnalysisRecordTests` verifies byte bounds, unsupported versions,
 persistence and cascade deletion; `ScanRepositoryPurgeTests` verifies account
@@ -6721,12 +6757,16 @@ V56 changes only `LocalAnalysisRecord.completedAt` from `Date` to `Date?`. The
 frozen V55 model retains its required completion. The lightweight V55→V56 stage
 preserves old dates and bytes; it does not populate imports or select an
 identification. Current construction allows V3 only with nil completion and
-requires finite completion for V1/V2. Import time is decoded separately from the
-immutable V3 manifest, never substituted for execution time. All full/recent
-plans now append V57; V55 startup retains its isolated lane and safe mode stays
-plan-free. `MigrationPlanTests` covers disk migration, insertion of a nil-date
-import and a current-store reopen. Released-binary install-over remains separate
-from source-created migration fixtures.
+requires finite completion for V1/V2/V4. V4 audio uses the existing opaque
+snapshot bytes and integer version; accepting it changes constructor validation
+only, not persisted fields, defaults, relationships or schema checksums. V58
+remains current and retired schemas are unchanged. Disk reopen and parent
+cascade tests cover both original V1 and V4 storage. Import time is decoded
+separately from the immutable V3 manifest, never substituted for execution time.
+All full/recent plans now append V57 and V58; V55 startup retains its isolated
+lane and safe mode stays plan-free. `MigrationPlanTests` covers disk migration,
+insertion of a nil-date import and a current-store reopen. Released-binary
+install-over remains separate from source-created migration fixtures.
 
 ### Imported saved-identification baselines
 
@@ -6789,9 +6829,9 @@ entity, including orphan rows, before deleting immutable results.
 The lightweight V56→V57 migration creates no state rows, chooses no
 identification, and changes no result bytes, completion dates, review, media,
 private details or pending jobs. The outgoing V56 graph is frozen/hash-pinned;
-all full/recent plans append V57 and startup adds a source-isolated V56 lane.
-Current and safe-mode containers remain plan-free. Recovery signature and
-quarantine policy are unchanged.
+all full/recent plans retain this stage before V58, and startup retains a
+source-isolated V56 lane. Current and safe-mode containers remain plan-free.
+Recovery signature and quarantine policy are unchanged.
 
 Prepared selected-state admission writes result, exact authority cache, selected
 native review and observation revision atomically. The cache rejects stale
@@ -6804,13 +6844,13 @@ unknown original display evidence. Their optional local cache uses a version-1
 only an eligible acknowledged selected display. It is not a provider response or
 portable server history. The first capture is immutable, bounded to one MiB
 including its envelope, and omitted if the envelope exceeds that bound. This
-uses existing V57 storage and does not change the schema or wire protocol. Full
+uses storage introduced in V57 and does not change the wire protocol. Full
 replacement mapping clears missing values and stale lookalike enrichment, but is
 used only inside fenced server-selected state admission. See the
 [native boundary](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md).
 
-Native saved-identification enrollment admission now uses the existing V57
-columns and child/cache entities; no schema or migration stage changes. The
+Native saved-identification enrollment admission uses columns and child/cache
+entities introduced in V57; enrollment itself requires no additional schema. The
 prepared service commits receipt- and current-state-verified ownership,
 selection, result, review cache and saved-local display atomically while
 preserving current identification/review. No ordinary enrollment caller or
@@ -6864,6 +6904,33 @@ Community projection, native review admission and ordinary history activation
 remain incomplete. Confirmation is separately prepared below. No rollout flag is
 enabled by this migration.
 
+### Rejection reversal recovery
+
+`20261007064255_recover_analysis_rejection_undo.sql` adds authenticated
+`get_owned_observation_rejection_undo` and the ungranted shared
+`internal.observation_rejection_undo_eligibility` helper. It reuses existing
+receipt tables, revision counters, canonical locks and disabled rejection/reader
+gates. The helper also guards new rejection Undo mutations; malformed receipt
+fields fail closed. Existing exact receipt replay and deletion precedence remain
+unchanged. The lookup exposes only exact-target eligibility and the original
+rejection operation ID, never the private receipt. No table, native schema,
+provider execution or rollout is introduced. See the
+[recovery contract](05-api-contracts.md#prepared-cross-device-rejection-undo-discovery).
+
+### Confirmation reversal receipts
+
+`20261007033012_add_analysis_confirmation_undo.sql` adds the default-false
+`confirmation_undo_api_enabled` gate, a private shared eligibility helper and
+owner-authenticated mutation-free lookup. Existing immutable review receipts
+record Undo using action `undo_confirmation`; no new receipt table or native
+schema is introduced. Eligibility matches the original confirmation's outer
+target review revision and current operation/state, not its old parent revision
+or nested AI counter. Primary/name Undo clears confirmation/correction to
+unreviewed, preserving selection and evidence without resurrecting rejection.
+Existing authority/public invalidation triggers and reconciliation obligations
+apply; Field Trip's downstream consumer remains held. See the
+[Undo contract](05-api-contracts.md#durable-undo-confirmation).
+
 ### Prepared analysis-bound confirmation transactions
 
 `20261004043041_prepare_analysis_bound_confirmation.sql` adds default-false
@@ -6886,6 +6953,18 @@ pointer or immutable result bytes are rewritten. The migration reloads the
 PostgREST schema cache and grants only the two explicit service wrappers. See
 [confirmation semantics](05-api-contracts.md#prepared-analysis-bound-confirmation)
 for exact payloads, replay, unsupported states and remaining activation holds.
+
+`20261007080657_preserve_analysis_candidate_provenance.sql` extends the same
+transaction owner with schema-2 candidate confirmation. The ungranted, pure
+`internal.observation_candidate_name` resolver reads only its supplied exact
+immutable result/manifest/reference. Both locked phases derive and compare the
+saved candidate name; the original request retains its analysis-scoped raw
+ordinal and representation. Existing intents and receipts need no new columns.
+The confirmation-Undo helper verifies this association for schema-2 originals;
+rejection-Undo's separately recovered admission remains unchanged. Existing
+schema-1 replay and default-false rollout gates are preserved. The
+[confirmation contract](05-api-contracts.md#prepared-analysis-bound-confirmation)
+defines supported evidence and explicit legacy exclusions.
 
 ### Private community binding and reconciliation
 
@@ -7048,6 +7127,23 @@ parent/account erasure cascades it. Intake does not execute external work. See
 the
 [intake contract](05-api-contracts.md#prepared-authenticated-publication-operation-intake).
 
+Migration `20261006033539_guard_observation_publication_target.sql` serializes
+new intake per observation under the same owner-first lock. Exact operation
+replay remains first. Any prior admission, including terminal `needs_action`,
+blocks another UUID; switching historical analyses is not a new target because
+community publication is observation-wide. No automatic replacement is defined.
+Existing duplicate rows are preserved for exact-ID recovery rather than hidden
+by a destructive uniqueness migration. The service-only
+`read_owned_observation_publication_target(owner, observation)` returns an exact
+non-null `{schema_version:1,operation}` envelope: `operation` is JSON null for
+an existing owned observation with no intake, or the original sanitized status
+for one operation. Multiple legacy operations conflict. The explicit envelope
+prevents empty successful SDK replies from masquerading as vacancy. Deletion and
+ownership failure never become an empty result. The separate prepared
+owner-authenticated `get-observation-publication-target` endpoint exposes this
+sanitized lookup. Native storage separately mirrors the observation-wide
+admission rule and strict local lookup without schema changes.
+
 ### Prepared publication operation worker state
 
 `20261004125428_prepare_publication_operation_worker.sql` adds private
@@ -7145,3 +7241,1176 @@ to accepted operation and deletion cascade, and the default-false
 source tuples and fixed policy can enter the service finalizer. Zero-attempt
 `public_container_rejected` outcomes commit with attestation and work
 retirement; existing provider outcomes and copy authority are unchanged.
+
+## Prepared publication consent read
+
+`20261004223926_prepare_publication_consent_preflight.sql` adds no table or
+activation. Its service-only allowlisted
+`prepare_owned_observation_publication_consent(uuid,uuid,uuid)` projects current
+revisions, active taxonomy and ordered immutable V2 photo candidate metadata
+under the same locked eligibility used by intent source resolution. The shared
+internal helper is revoked from all API roles. Existing resolver denial order
+and selected-receipt validation remain intact; candidates promise no readiness
+or publication authority. Owner/deletion fences and the existing default-false
+publication-intent/reader/media-reader gates protect this read. See the
+[API contract](05-api-contracts.md#owner-publication-consent-preflight).
+
+### Immutable private upload cohorts
+
+`20261004235218_prepare_private_evidence_upload_cohorts.sql` adds private,
+RLS-denied `internal.observation_evidence_upload_cohorts`. The analysis primary
+key binds one owner/observation to an immutable ordered descriptor list and a
+fixed common expiry. It survives receipt expiry so cleanup cannot erase the
+analysis identity contract. It contains no object keys, URLs or image bytes;
+private-history cascade and the observation deletion fence remove it.
+
+The allowlisted service-only `reserve_owned_observation_evidence_cohort` freezes
+all 1–5 execution-compatible JPEG/PNG receipts atomically under owner,
+observation and analysis locks. Its five-MiB aggregate bound is narrower than
+the general stored-history envelope. Exact replay returns original objects;
+changed sets/order conflict and missing receipts fail without allocation. A
+receipt-insert trigger prevents primitive callers extending a sealed cohort. The
+companion `complete_owned_observation_evidence_upload` rechecks ownership and
+the existing readiness/deletion rules after trusted storage verification.
+Private primitives remain ungranted, and no rollout flag changes. Protected
+admission compares the ordered image subsequence with the cohort; an intent
+insertion guard prevents cleaned photo identities becoming description-only
+requests.
+
+### Prepared audio upload cohorts
+
+`20261007154709_prepare_private_audio_evidence_cohorts.sql` adds the separate,
+RLS-denied `observation_audio_evidence_upload_cohorts` table. One immutable
+owner/observation/analysis tuple binds one WAV media ID, opaque object ID,
+46–2,700,000-byte length, SHA-256 and fixed five-minute expiry. The object ID is
+retained with the cohort so even a trusted primitive cannot allocate a successor
+after receipt deletion creates an erasure obligation. API roles have no direct
+table access; only two allowlisted service RPCs reserve and acknowledge the
+exact cohort under owner/observation then analysis locks. Both the existing
+media gate and new default-false `prepared_audio_evidence_enabled` gate must be
+open.
+
+Photo cohorts retain their original ordered JSON and replay. Photo and audio
+cohorts exclude each other under the same analysis lock, including another
+owner's attempt to reuse the child ID. Audio requires a cohort even through the
+private receipt primitive. Legacy intent/result paths reject audio-held child
+identities, including after receipt cleanup. The subsequent gated audio
+admission migration permits only exact input-3 intent/draft/cohort binding.
+
+The independent expiry worker discovers only matching, nonempty, unbound audio
+cohorts and rechecks their complete tuple under canonical locks. Receipt
+deletion atomically creates the existing opaque erasure obligation while
+retaining the cohort, original object and deadline. The legacy receipt branch
+excludes audio cohorts. Parent deletion removes private cohort data while opaque
+erasure work survives. No scheduler or rollout is enabled. See the
+[service contract](05-api-contracts.md#prepared-audio-cohort-rpcs).
+
+### Gated audio analysis admission
+
+`20261007171421_prepare_audio_analysis_admission.sql` adds the independent false
+`audio_analysis_enabled` rollout field and private audio assertion, admission
+and append owners. Existing service begin/advance RPCs select this path only for
+input 3. Canonical owner/observation and child evidence locks serialize
+admission, readiness, erasure and deletion. Only fresh admission requires
+unexpired evidence; already-bound replay retains the original ready receipt
+after expiry without renewal. Missing or erased evidence fails closed.
+
+Audio keeps manifest 3 with exact `items` shape, while imported saved-result
+manifest 3 retains its distinct sentinel. Origin constraints and snapshot
+mapping emit outer audio result 4. Reader 10 accepts mixed histories; older
+readers refuse the entire audio-containing history. Imported-baseline enrollment
+and tombstone/quota protections distinguish the sentinel from audio. No schema
+snapshot or existing photo request is rewritten. See the
+[execution/reader contract](05-api-contracts.md#gated-audio-execution-and-reader-10)
+for the still-required native and mutation-reader compatibility work.
+
+### Prepared private-evidence cleanup admission
+
+`20261006222120_prepare_private_evidence_erasure_worker.sql` adds the
+independent, default-false `private_evidence_erasure_enabled` gate and three
+allowlisted service-only RPCs. `retire_expired_observation_evidence` discovers
+one expired, unbound cohort or one noncohort receipt before taking canonical
+owner, observation and analysis locks. It rechecks membership and authority,
+deletes all extant cohort receipts atomically, and retains the immutable
+descriptor and original expiry. Empty, malformed, mismatched and
+intent/result-owned cohorts cannot block later eligible cleanup. The existing
+deletion trigger queues each opaque erasure obligation.
+
+`claim_observation_evidence_erasure` returns only opaque object ID, claim token
+and the original one-minute claim expiry. `finish_observation_evidence_erasure`
+accepts only the same unexpired token and remains available after gate closure.
+Private tables and primitives remain ungranted. The separately prepared
+`erase-observation-evidence` worker connects these facades with a bounded shared
+deadline and permanent marker verification; this migration includes no schedule.
+See the
+[API boundary](05-api-contracts.md#prepared-private-evidence-cleanup-rpcs).
+
+### V58 qualified queued reanalysis storage
+
+V58 adds `OfflineQueuedScan.workKindRaw` (default `ordinary`) and nullable
+`parentObservationID`, `sourceAnalysisID`, and `reanalysisOwnerAccountID`. The
+existing queue `id` remains the child analysis identity. Routing authority lives
+on the queue row, not in optional job metadata. The additive V57 to V58
+migration preserves existing queue media, job payloads, scan selection and
+per-analysis review state; existing rows remain ordinary with nil linkage. The
+frozen V57 graph includes all ten model classes and retains the unchanged V50
+goal-hint model.
+
+`OfflineQueueWork` requires ordinary rows to have no reanalysis linkage.
+Reanalysis requires canonical UUIDs for owner, parent, source and child, with
+parent, source and child distinct. Unknown kinds and partial or malformed
+linkage are invalid. The legacy queue selector, upload claim/completion,
+inference claim/retry/recovery and final persistence admit only ordinary work.
+Final persistence rechecks the durable row after the finalization lock; absent
+rows cannot be recreated by a late completion. Read and deletion paths remain
+able to find held work. No reanalysis producer is enabled in this storage slice;
+observation-attached presentation and the separate append-only executor must be
+connected before admission is enabled. Parent erasure now removes exact
+parent-linked queue children, ingestion jobs and goal hints atomically with the
+parent and cloud deletion intent, including damaged routing metadata. It only
+returns child-owned file paths and cancellation IDs after commit; rollback
+preserves all rows. Missing or noncanonical parent linkage cannot be inferred
+from analysis IDs or job JSON.
+
+`MigrationPlanTests.v57MigrationPreservesQueuedWorkAndAddsOrdinaryQualification`
+creates an on-disk V57 store, verifies production source routing, migrates and
+reopens it, preserves correction/state bytes, round-trips qualified linkage and
+verifies queue-media cascade without deleting the parent observation.
+`QueueWorkQualificationTests` exercises malformed routing, direct legacy claims
+and late completion refusal. All activation gates remain disabled.
+
+### Audio preparation intent in V58
+
+Native audio preparation reuses the qualified row identity and same-child
+`scan-ingestion` key with `observationReanalysisSync` kind; no SwiftData shape
+or frozen snapshot changes are needed. Its closed version-1 `audio_preparation`
+metadata retains owner, parent, source, child, ordered manifest 3 and source
+snapshot SHA-256. Version 1 retains `requested_action: hold` and phases
+`files_pending` / `files_ready`. The inert submitted-preparation primitive uses
+version 2, `requested_action: submit` and phases `files_pending` /
+`admission_pending`. The action is part of immutable preparation equality:
+replay cannot upgrade an old held child or demote submitted work. Pending
+ownership is saved before the canonical child-owned WAV is written, including
+across lost save replies. Both completion phases require complete locked file
+verification plus a fresh exact database comparison. No phase grants upload,
+funding or execution authority; existing photo selectors cannot interpret either
+envelope version.
+
+The WAV lives at `ReanalysisQueue/<child>/<media>.wav`. Both captured-media JSON
+and entries name that Documents-relative file; `inferenceImagePaths` stays nil.
+Recovery, including already-ready replay, verifies exact names, length, digest
+and the supported WAV container without replacing bytes. A throwing promotion
+callback retains fully verified audio files because its save may have committed;
+a fresh owner recovers either durable phase without recreating the WAV. Parent
+erasure and full-account purge reuse the existing namespace locks and permanent
+receipts. See the
+[native ownership contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#native-audio-preparation-intent).
+Audio Capture submission, advisory admission/execution and historical V4 source
+loading remain disconnected. Persisted submission intent alone cannot dispatch.
+
+The separate inert `audio_execution` version-1 envelope binds exact schema-3
+request bytes, owner and source SHA once. Private state, generation and original
+consumed-attempt fields do not repurpose normal V58 job counters. An idle first
+claim, explicitly authorized held/unconsumed resumption and held/consumed
+outcome recovery are distinct transitions. Consumption is saved before any
+potentially dispatching call; a lost save response never permits a call, and
+recovery never clears that marker. Existing photo scanners reject this closed
+envelope. No scheduler or network caller is connected. See the
+[audio claim owner](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#inert-audio-request-binding-and-claims).
+
+### Prepared immutable Insight Field Chat turn context
+
+`20261006084439_prepare_immutable_insight_chat_context.sql` adds private
+`internal.insight_chat_turn_contexts`, keyed solely by the admitted user
+`message_id`, with a cascading message foreign key. Ownership continues through
+message → conversation → scan; account merge can reparent a surviving message
+without rewriting its context. Deleting a duplicate merge source message erases
+only that source context. Context rows are immutable, RLS-enabled and
+inaccessible to API roles, including direct service-role reads and writes.
+
+The service-only `reserve_insight_chat_send_with_context` RPC takes owner,
+conversation candidate, observation, question, client-message UUID, displayed
+history ticket (or explicit JSON null for an unenrolled scan), and context
+version 1. It atomically composes existing admission/cap accounting with context
+insertion. Lock order is owner, Field Chat user/subject advisories, ingestion
+advisory, owned scan and history. Owner/deletion checks precede replay; exact
+replay returns saved context before current authority and rollout checks. A
+saved question without context cannot reconstruct it from current data.
+
+New history sends require the exact selected analysis, observation-state
+revision and review revision displayed to the user. Evidence comes from that
+immutable result and its validated authority; absent imported-result encounter
+fields stay unavailable. A damaged history cannot fall back to the mutable scan.
+Unenrolled scans use a separately marked legacy snapshot. Both sources pass
+explicit scalar, array and nested-field allowlists; private media, raw
+coordinates and raw library `field_notes` are excluded. The selected dictionary
+projection and last 12 ordered message texts (900 characters each) are
+materialized in the same transaction. Context is bounded to 128 KiB.
+
+`chat_context_enabled` defaults false. This migration does not connect the HTTP
+handler, change provider funding/recovery, or activate any history surface. A
+future handler must use the stored context for execution and hold uncontexted
+legacy messages; native sends must preserve the displayed ticket. Existing
+Explore and Dictionary admission remain unchanged.
+
+`20261006091111_prepare_insight_chat_context_recovery.sql` adds the service-only
+read-only resolver `get_insight_chat_turn_context`. Owner-first shared row
+locks, existing Field Chat advisories and the ingestion advisory serialize
+recovery with admission, merge and deletion. The exact joined user message and
+saved context are pinned until transaction completion. Missing user turns return
+an explicit false marker; old messages without context hold. Recovery reads
+neither current history nor rollout state and creates no admissions or
+conversations. The response carries the original immutable context with current
+message ownership, so an account merge does not require rewriting snapshots.
+Direct private-table access stays revoked. No activation or provider-policy
+changes are part of this migration.
+
+`20261006094103_prepare_insight_chat_context_preflight.sql` centralizes fresh
+context derivation in private `internal.prepare_current_insight_chat_context`.
+The SECURITY INVOKER helper has no API-role execution grants. Service-only
+`prepare_insight_chat_send_context(uuid,uuid,jsonb,integer)` returns a bounded
+fresh context under the existing default-off gate without reading or creating
+messages, conversation prefixes or quota/admission state. Its owner-first locks
+last only through this read transaction.
+
+The forward replacement of `reserve_insight_chat_send_with_context` keeps exact
+replay before the helper, then repeats the same current-ticket derivation inside
+final admission. It alone freezes the conversation prefix and checks the final
+128 KiB size before INSERT. Prefix overflow raises a stable unavailable error
+and rolls back all admission effects. Preflight is advisory: authority or
+deletion changes before final admission can deny the send. SQL NULL legacy
+tickets are normalized to JSON null at both boundaries; stored history tickets
+remain exact.
+
+### Immutable chat projection semantics
+
+`20261006101459_preserve_chat_context_semantics.sql` replaces only the private
+context projector. It preserves candidate nullness and rank, denies malformed
+candidate containers, and adds optional version-1 `metrics_qualified` computed
+from untouched original provenance. Unknown metadata cannot acquire metric
+qualification when private/unknown keys are removed. Missing provenance differs
+from explicit legacy null. Existing immutable turn rows are never rewritten;
+consumers omit scores when the marker is absent. The prepared pure semantic
+adapter consumes this immutable marker without later recomputation, without
+borrowing mutable scan fields or exposing operational IDs in prompts. Gates,
+service-only grants, replay order and message-keyed retention stay unchanged.
+
+### Prepared protected Field Chat execution fence
+
+Migration `20261006111319_prepare_protected_chat_quota_fence.sql` adds the
+private `internal.insight_chat_execution_fences` ledger and a separate
+`chat_execution_enabled = false` gate. Its key is observation plus
+client-message UUID; current ownership is derived from the observation. A
+request fingerprint binds normalized question text, immutable ticket and context
+version without retaining the text itself. The original quota UUID/token are
+audit references, not foreign keys to the independently pruned quota table.
+
+First admission atomically creates the fence and reserves the original
+`insight_chat_reply` attempt. Exact replay returns only `status: held`, even
+after refund, failure, expiry, quota pruning or a closed fresh-admission gate.
+Changed content or another retained observation with the same owner/request UUID
+conflicts. Different accounts may independently use the same UUID. Quota insert
+and update guards prohibit a replacement quota UUID, attempt number or token;
+ordinary counter settlement and terminal quota pruning remain intact.
+
+Protected context admission checks the original request and live reservation,
+then saves the question/context and first message binding together. Its replay
+returns the original receipt before fresh gate/lease checks. Message deletion
+sets the reference null while retaining the immutable bound flag, so no later
+message can replace it. Scan deletion cascades the fence; scientific account
+detachment or tombstoning explicitly erases it. A permanent scan-deletion
+request also blocks the first quota commit before physical erasure. Migration
+`20261006114355_prepare_protected_chat_dispatch.sql` adds a permanent, one-way
+dispatch UUID/time pair. A dedicated service RPC locks owner/scan, quota, fence,
+message and saved context in order. It validates the original reservation,
+immutable request fingerprint, live lease and current consent, then records
+permission consumption and commits provider quota in one transaction. It never
+consults current selection to rebase admitted context. Only the fresh successful
+response grants one immediate execution; every marker replay is held. Generic
+quota finalization cannot perform the first commit without the marker. The
+marker survives quota pruning and message erasure; merge preserves it with the
+existing scan-owned ledger. Failed commit rolls back both marker and quota. An
+unknown response cannot be retried into a new permission or refunded.
+
+Account merge requires no duplicated user-key reparenting for this ledger.
+Duplicate chat-message removal retires its original binding; nonduplicate
+contexts follow their existing message. If quota UUIDs collide across the two
+accounts and either quota is protected, a merge helper retires both operational
+quota rows before reparenting. Only still-reserved counters are released;
+committed/failed charges remain consumed. All surviving observation fences
+remain held, with no chosen winner or new lease. Immutable request evidence
+cannot be rewritten by internal updates.
+
+### Legacy Insight admission and enrollment boundary
+
+Migration `20261006121418_fence_legacy_insight_chat_admission.sql` keeps the
+existing public admission, quota-finalization and stale-recovery signatures, but
+moves their original implementations into private cores with no API grants. Only
+SQL owners of immutable context call the private admission core directly; no
+caller flag or session setting bypasses the legacy wrapper.
+
+An observation requires immutable chat when it has history, any retained turn
+context, an execution fence, or the server `chat_execution_enabled` cutover is
+open. Closing rollout cannot downgrade existing context. A service-only route
+read exposes this single boolean under owner/deletion locks; it is not mutation
+or execution permission. Public legacy Insight admission rechecks the condition
+under the same locks, preserving ordinary unenrolled replay but holding enrolled
+legacy turns, including old turns without snapshots.
+
+Quota commit takes subject locks before the quota core, closing the interval
+between legacy admission and enrollment. Immutable-required commits need the
+matching original execution fence, bound context and consumed dispatch marker.
+Generic stale recovery returns false for these observations. Other chat families
+retain their original behavior. Enrollment now takes the matching Field Chat
+advisories before its ingestion lock and holds if an un-fenced, committed legacy
+request lacks its exact deterministic assistant receipt. This protects the
+window where an old worker already committed quota before enrollment began. Once
+the receipt exists, enrollment may proceed without retroactively inventing
+context for the old turn.
+
+### Exact immutable chat completion and local refusal
+
+`20261006124159_prepare_insight_chat_exact_completion.sql` adds service-only
+`get_insight_chat_turn_completion`. It reuses exact original-context recovery
+locks and validates the expected user-message/conversation tuple before reading
+the deterministic assistant UUID. Current owner and deletion win; current
+selection and rollout do not rewrite a completed turn. Missing assistant returns
+an explicit incomplete marker only after valid original context. Missing
+context, wrong identity, malformed snapshot structure or a reparented
+incompatible answer holds. The bounded projection excludes private metadata,
+context and quota.
+
+`admit_insight_chat_local_refusal` saves the question, immutable context, closed
+static refusal and conversation touch in one transaction. Failure rolls back
+normal daily admission too. It creates no provider quota. Replay requires the
+exact original static answer/reason, null model/usage and original request
+metadata; incomplete or provider turns cannot be filled as refusals. Fresh work
+checks the execution gate and rejects same-owner request reuse across scans, any
+retained execution fence and any original quota row. Both helpers remain private
+and API routines are service-only. No activation is part of this migration.
+
+### Original-grant provider chat completion
+
+`20261006131107_persist_protected_insight_chat_reply.sql` adds service-only
+`complete_protected_insight_chat_reply` and read-only
+`get_protected_insight_chat_reply`. Both check the current owner/deletion fence
+before validating the closed reply. Original request/context/message,
+reservation, lease and consumed dispatch marker must agree. Existing receipts
+compare answer, model, refusal, all five nullable token counts, closed modality
+counts and generated request metadata. Recovery exposes only the existing
+ten-field public message, including after quota pruning; a missing original
+committed quota cannot authorize a new answer. New writes require the original
+first attempt and approved model, then atomically insert the deterministic
+assistant, usage ledger and conversation touch. A failure rolls all completion
+writes back without refunding dispatch. Late dispatched replies can finish after
+lease expiry or gate/consent changes; this does not authorize fresh inference.
+No answer is overwritten, and no provider execution, quota admission or
+activation occurs here.
+
+### Prepared protected chat no-admission seal
+
+Migration `20261006183134_prepare_protected_chat_no_admission.sql` adds an
+insert-only terminal alternative to the private scan-owned execution fence.
+`seal_unadmitted_insight_chat_request` accepts the original owner, observation,
+proposed conversation, client-message UUID, normalized text, displayed ticket
+and context version. It takes the canonical subject locks and owner/request
+lock, then rejects ambiguous or cross-observation identity and holds any
+existing attempt, quota or message evidence. Only the shared context helper's
+exact stale-ticket denial can produce `displayed_identification_changed`.
+Current tickets remain held; unavailable or damaged context, ownership loss,
+closed gates and generic errors cannot produce a seal.
+
+The six-field `not_admitted` receipt contains context version, observation,
+proposed conversation, client-message UUID and the closed reason. Its original
+request fingerprint and proposed conversation are immutable. The latter is
+correlation only, never authority over a real conversation. Exact receipt replay
+precedes fresh gates but follows current ownership and deletion checks. Fresh
+sealing requires both context and execution gates. No question, daily slot,
+quota or provider attempt is created. The seal prevents future admission; it
+does not attest to erased legacy execution or authorize a refund.
+
+The shared immutable-context writer checks the seal before either replay or
+fresh admission. Funded admission, local refusal and generic quota insertion or
+update cannot bind a sealed request. Deletion cascades the private seal, while
+canonical scan ownership supplies merge behavior. Pre-existing ambiguous
+owner/request evidence remains held. The RPC is service-only. Migration
+`20261006190021_prepare_chat_no_admission_recovery.sql` adds the service-only
+read-only `get_insight_chat_no_admission` using the same subject/request locks.
+Exact proof recovers before fresh gates. No matching fence, owner-wide quota or
+user/assistant request evidence yields `fresh_candidate`, permitting only fresh
+preflight; nonterminal or ambiguous evidence yields `held`. Changed
+deterministic identity conflicts, and ownership/deletion still wins. HTTP proof
+delivery, native versioned terminal settlement and explicit account-fenced
+identification refresh are prepared. All activation gates stay false.
+
+A terminal seal colliding with another account's attempted UUID blocks account
+merge with `55000/field_chat_execution_merge_conflict`. The whole merge rolls
+back, preserving both owners and all attempt evidence. Neither operational quota
+retirement nor a user-controlled bypass resolves this conflict. Two terminal
+seals with the same UUID also block merge; no winner is selected.
+
+### Exact analysis execution status
+
+Migration `20261007113127_prepare_owned_analysis_execution_status.sql` adds
+false-by-default `execution_status_api_enabled` and authenticated-only
+`get_owned_observation_analysis_execution(jsonb,integer)`. Reader 9 and the
+existing history reader gate are required in the original migration. The forward
+audio action-reader migration accepts readers 9/10, denying reader 9 for a
+completed audio history or the exact pending input-3 operation. The closed
+schema-1 request binds parent, child, nullable original source and request
+digest; the response echoes those fields and the authenticated owner with a
+closed execution state. The owner/parent lock helper checks deletion before the
+exact intent read. Scope conflicts fail closed; missing intent is only an
+observation, never permission to admit, dispatch, refund or retire. No rows,
+claims, funding, provider usage, selection or review authority change.
+Completion recovery remains separate.
+
+### Never-dispatched analysis retirement
+
+Migration `20261007115940_prepare_analysis_execution_retirement.sql` prepares
+service-only `retire_owned_observation_analysis_execution(uuid,jsonb,integer)`
+and default-false `execution_retirement_api_enabled`.
+`internal.observation_analysis_retirement_receipts` has a unique operation and
+child, bounded exact request/receipt, RLS, no API table grants and an update
+rejection trigger. Its child foreign key cascades with intent deletion; the
+existing account-merge denial for retained intents remains unchanged.
+
+Under owner/parent and intent/quota locks, only an admitted operation without
+provider/result/terminal evidence and with matching reserved funding can retire.
+The transaction settles only proven-unused funding, clears the work claim,
+terminalizes the original intent and saves its receipt. Existing evidence
+retirement triggers create the opaque erasure obligation in that transaction.
+Exact receipt replay follows ownership/deletion checks and precedes new gates.
+An absent intent cannot be retired by this routine; no late-admission seal is
+created. Unknown provider execution, other terminal outcomes and inconsistent
+ledger rows fail closed. The prepared authenticated retirement HTTP wrapper
+derives the owner and invokes this service-only routine through bounded
+transport. The SQL gate remains false and no ordinary access is enabled.
+
+### Audio action reader compatibility
+
+`20261007193516_prepare_audio_history_action_readers.sql` adds a private,
+lock-preconditioned volatile compatibility helper and source-checked patches to
+seven action owners. Selection, review, confirmation and Undo lookups refuse
+reader 9 for any completed audio child. Execution status and retirement also
+check the exact pending input-3 intent separately. Current ownership and
+deletion checks precede compatibility; compatible reader-10 receipt replay
+precedes fresh rollout gates. No tables, grants to clients, persisted shapes,
+operation IDs, funding profiles or activation values change. Pending input is
+not a completed result, and compatibility is not execution or remediation
+authority.
+
+### Prepared bounded analysis-source discovery
+
+`20261008153538_prepare_analysis_source_discovery.sql` adds nonunique
+`observation_analysis_results_source` and `observation_analysis_intents_source`
+indexes over existing durable rows. It adds no source claim table or lifetime
+source uniqueness. `source_discovery_enabled` is independent and default false.
+The exact-signature allowlisted service-only
+`get_owned_observation_analysis_source(uuid,jsonb,integer)` performs bounded
+classification under existing owner/parent locks and grants no mutation,
+funding, upload or dispatch authority. No client role receives direct access.
+
+See the
+[source discovery API contract](05-api-contracts.md#prepared-source-discovery-contract)
+for reader 10, 65-row sentinels, conservative orphan/ambiguous handling and
+exact completion/retirement associations. This initial resolver never emits
+absence; the separate reader-11 gated mutation owns source reservations.
+Existing cascade deletion owns these indexed rows and proofs; no new persistent
+private ledger survives intentional owner/parent erasure. Snapshot codec
+compatibility must preserve existing completion receipt bytes across versions
+1–4.
+
+### Prepared source fingerprint encoders
+
+`20261008164349_prepare_source_fingerprint_parity.sql` adds two pure internal
+helpers: `observation_source_fingerprint_bytes(jsonb)` and
+`observation_source_fingerprint(jsonb)`. They validate supported fresh
+photo/audio metadata and encode the versioned UTF-8 netstring contract,
+preserving the original request digest. Both are stable security-invoker
+routines with fixed empty search paths; PUBLIC and all API roles have no
+execution grant. They add no table, reservation, mutation path or execution
+authority. Shared vectors bind their bytes and SHA-256 to TypeScript and native
+implementations. Default-false reader-11 SQL now uses these helpers for source
+reservation. Prepared reservation and unfunded-retirement HTTP wrappers exist;
+native integration and ordinary activation remain separate prerequisites.
+
+The helpers are STABLE because PostgreSQL UTF-8 conversion is STABLE. The locked
+reservation transaction persists the computed binding; these helpers cannot be
+used in an expression index or generated column.
+
+### Prepared private source binding storage
+
+`20261008171734_prepare_analysis_source_binding_storage.sql` prepares two
+private, RLS-enabled tables without API-role table access or a callable
+reservation routine. `observation_analysis_source_bindings` retains the exact
+validated input, version-1 fingerprint and immutable
+owner/observation/source/child association. A separate
+`observation_analysis_source_occupancy` enforces one unresolved child per
+owner/observation/source tuple. The binding table itself does not make a source
+unique across history; an unoccupied binding is not terminal proof or permission
+for replacement.
+
+Insert triggers acquire existing owner/parent locks, then source coordination,
+and validate the source, identity and canonical fingerprint. Existing child
+intent, media, funding, invocation, result, ingestion or tombstone namespaces
+cannot be retrofitted into a fresh binding. Global child indexes on quota,
+complimentary usage and ingestion intents support cross-owner collision checks
+without relying on owner-prefixed indexes. This storage check alone does not
+fence competing legacy writers: the coordinated all-writer cutover remains
+required before any reservation RPC can be installed or enabled.
+
+The forward ingestion prerequisite
+`20261008181427_fence_reserved_analysis_child_identity.sql` serializes binding
+insertion with legacy scan, ingestion-job and ingestion-intent identity writes.
+Generic ingestion guards take the owner key-share lock before the canonical
+child advisory lock; they never acquire parent/source locks. Binding insertion
+uses owner/parent/source, then child ingestion and evidence locks. A committed
+binding rejects legacy reuse across owners even without occupancy. PostgreSQL
+UUID aliases in legacy text IDs are compared through a private immutable parser
+and indexed expressions; stored spellings and non-UUID legacy IDs remain intact.
+Frozen repeatable-read/serializable snapshots fail explicitly: post-lock absence
+checks require Read Committed visibility (PostgreSQL Read Uncommitted has the
+same visibility). No reservation API or funding exception is introduced.
+Funding, media, intent, execution and terminal release still need coordinated
+all-writer coverage.
+
+Updates and live-parent deletion are denied, including occupancy release. No
+expiry, completion, retirement or release operation is implemented here. Parent
+tombstones and parent cascade deletion erase both private tables. Source linkage
+is a deferred foreign key to the exact immutable result; owner and source
+indexes support the lifecycle checks. The existing conservative guest-history
+merge hold also covers these explicit owner bindings, preventing generic
+reparenting from stranding them. Ownership transfer and exact terminal release
+require separately reviewed transactions; neither may be inferred from an empty
+occupancy table.
+
+The forward funding prerequisite
+`20261008184228_fence_source_bound_analysis_funding.sql` denies source-bound
+original analysis IDs in the authoritative quota core before complimentary holds
+or quota writes. Fresh invocation commitment takes that child lock and checks
+the binding before quota finalization or invocation insertion. Exact recorded
+invocation replay remains first and never grants another dispatch. These are
+deny-only guards; no source-aware funding exception is installed. Quota request
+IDs remain independent idempotency keys and are never interpreted as child
+identities. Frozen transaction snapshots fail on fresh guarded paths.
+
+### Prepared exact source validation
+
+The private source-validation checkpoint
+`20261008191800_centralize_observation_source_binding_validation.sql`
+centralizes owner/deletion/enrollment and exact source membership under owner →
+parent → source locks. Storage inserts retain child-ingestion then
+child-evidence locks before namespace validation. The separate exact-binding
+helper recomputes the fingerprint from complete InputV2/V3, compares the full
+saved input and all scope IDs, and requires matching active occupancy. Missing,
+source-less, mismatched or unoccupied bindings fail closed; the source need not
+be selected. Frozen transaction snapshots are unavailable. Both helpers are
+private, revoked from all API roles, and grant no reservation, funding, release
+or dispatch authority.
+
+Existing terminal or legacy replay must precede this live-binding check. Current
+protected writers are not switched to it until their lock order, cohort binding,
+admission and narrow funding/dispatch exceptions change together. Cohort-only
+enforcement is not a supported activation boundary.
+
+### Prepared immutable cohort source links
+
+Migration `20261008194407_prepare_source_linked_evidence_cohorts.sql` adds
+nullable `binding_analysis_id` to photo and audio upload cohorts. A non-null
+link must name the same child and reference its immutable source binding. The
+private insert backstop checks owner, observation and exact media projection:
+photo order is preserved; audio metadata must match the single saved audio item.
+Descriptions remain in the complete binding and fingerprint, not the upload
+projection. Existing update guards make both links and legacy NULL values
+immutable. Parent deletion can cascade through either history or binding;
+receipt cleanup continues retaining the cohort and its fixed expiry.
+
+This is additive storage groundwork. Existing RPCs still create NULL-linked
+cohorts, with unchanged saved-request replay, receipts, gates and grants. No
+existing cohort is backfilled or upgraded. The validator acquires no late locks
+and grants no occupancy, upload receipt, admission or dispatch. A future linked
+writer must validate live occupancy under the canonical source-before-child
+locks as part of the coordinated reservation/cohort/admission/execution cutover.
+The source link alone never establishes that cutover is complete.
+
+### Prepared source-bound intent fence
+
+`20261008200418_fence_source_bound_analysis_intents.sql` adds a deny-only insert
+backstop for source-bound analysis intents. After owner/parent authorization and
+child-ingestion then child-evidence locks, a bound child requires the exact
+immutable input/fingerprint, owner/parent association, live source occupancy and
+one matching linked photo or audio cohort. NULL-linked legacy cohorts, opposite
+or mixed cohort types, and changed media or descriptions cannot establish this
+chain. Existing ready-evidence checks still apply. The private chain check takes
+no late locks and grants no quota or provider authority.
+
+Fresh insert guards require current statement snapshots (read committed/read
+uncommitted); frozen snapshots cannot prove post-wait namespace absence. A
+legacy unbound insert retains its existing behavior under supported isolation.
+This closes binding-versus-direct-intent races in both commit orders. This
+migration leaves bound-child funding and invocation exclusions unconditional;
+the subsequent initial-admission checkpoint below narrows only funding. No GUC,
+metadata validation success or raw intent row opens a funding exception. The
+future coordinated writer change must move source proof before child and intent
+locks, retain exact replay before fresh gates, and additionally prove intent
+state/context and original quota when opening the narrow funding/dispatch path.
+
+### Source-aware evidence writers
+
+Migration `20261008203348_bind_source_evidence_writers.sql` connects existing
+photo/audio cohort reservation and raw receipt reservation/completion to the
+private source entry helper. A bound child requires exact live binding and
+occupancy under owner/parent → source → child ingestion → child evidence locks.
+New cohorts preserve the binding link and exact ordered photo or single-audio
+projection. Existing NULL-linked cohorts never upgrade. Receipt allocation and
+completion also validate the linked chain; existing expiry, readiness and object
+identity rules remain unchanged. No quota, intent or provider grant is created.
+
+An apparently unbound caller takes child locks then rereads the binding table.
+If a binding appeared while waiting, it fails instead of acquiring a source lock
+late. Conversely, a committed legacy cohort makes a later binding fail its
+existing no-retrofit namespace check. These writers require read committed/read
+uncommitted isolation; repeatable-read and serializable snapshots fail closed,
+including for unbound requests. Legacy saved photo/audio replay retains its
+original receipt, object and deadline under supported isolation.
+
+This is closed bound-branch preparation, not all-writer cutover. Atomic source
+reservation, exact retirement and coordinated admission/funding/execution remain
+required before a new source API can open. No grant, rollout gate, wire field or
+ordinary route is added; existing activation holds remain.
+
+### Source-bound initial admission
+
+Migration `20261008210355_prepare_source_bound_initial_admission.sql` connects
+fresh bound V2/V3 admission to source-before-child/intent locking and narrows
+the quota exclusion for exactly one initial funding transaction. The admission
+context must match owner/child; operation, original child, request ID and
+protocol constants must match. The private intent must be admitted with no saved
+quota, work claim, outcome, invocation, draft, result, retirement or prior
+accounting. Exact live binding, input fingerprint, occupancy and linked media
+projection are mandatory. A context setting alone is insufficient.
+
+The current eleven-argument identification quota wrapper also compares its
+profile, processor permission and identification protocol with the immutable
+input. Mismatch rolls back the transaction. Older identification quota overloads
+and the eight-argument generic quota wrapper reject bound children before and
+after their core call; unbound callers retain their existing behavior. No new
+public signature or privilege is introduced.
+
+A recorded bound intent is recovered under owner/parent authorization before
+live occupancy, evidence expiry and fresh gates. Its original input and quota
+identity must validate. Even an admitted replay returns that saved quota; it
+never invokes generic quota reservation again. Expired, refunded or pruned quota
+therefore cannot mint another lease or attempt. Missing/malformed saved quota
+holds rather than funding. Deletion still wins. Recovery is not dispatch
+permission and does not select or alter an analysis.
+
+This is admission-only preparation. The source-bound invocation exclusion stays
+unconditional; no provider may start through this checkpoint. Atomic source
+reservation, terminal release/retirement and the coordinated execution cutover
+remain required before source access opens. All activation gates remain false.
+
+Admission, including saved receipt replay, requires read-committed or
+read-uncommitted isolation before any source existence lookup. Repeatable-read
+and serializable calls fail closed with
+`analysis_history_current_snapshot_required`; a frozen snapshot cannot hide a
+committed deletion. Saved quota replay does not assert that its original lease
+is still live.
+
+### Source execution lock preparation
+
+Migration `20261008213302_prepare_source_execution_lock_order.sql` installs a
+private entry helper before intent row locks in claim/recovery, dispatch, draft
+recording, completion, failure and the public work-advance owner. V2/V3 append
+uses the same ordering before its own result/child locks. Supported isolation is
+read committed/read uncommitted. Owner/deletion authorization precedes binding
+inspection; bound work takes source, child ingestion and child evidence locks,
+then verifies immutable saved-intent input/fingerprint association.
+
+This helper establishes identity and lock order without requiring live
+occupancy, media rows or unexpired uploads. Existing operation-specific token,
+payload and receipt checks still apply. Apparently unbound calls take child
+locks and reread binding absence; a binding committed during the wait holds
+instead of acquiring a source lock late. Unbound behavior is preserved under
+supported isolation.
+
+This is lock preparation, not execution authority. Source-bound invocation
+remains denied. Original-quota dispatch proof and atomic retirement/release
+remain separate coordinated checkpoints before source access opens. No public
+signature, grant, gate or provider successor is introduced.
+
+### Source-bound generic accounting holds
+
+Migration `20261008220335_hold_source_bound_generic_quota_cleanup.sql` closes
+inherited generic accounting paths before source execution opens. The public
+quota finalizer rejects bound children even with a matching provider context;
+generic expiry refund and terminal quota pruning skip bound children while
+continuing unrelated cleanup. No schedule is created, changed or enabled.
+Generic failure/cancellation and fresh funded retirement hold; exact existing
+terminal/retirement receipt replay remains before the new holds. Unbound
+finalization retains its existing isolation behavior.
+
+Parent deletion retains a separate private refund path only for the exact unused
+original reservation, owner, child, request, lease and attempt. A live-parent
+intent deletion is not that proof. Known invocation/outcome/result evidence
+prevents refund; deletion still erases the intent. The unused-work proof applies
+to all admitted intent erasure because source bindings may be removed earlier in
+the same deletion transaction. Other unbound accounting behavior remains
+unchanged under supported isolation. Immutable binding and occupancy are not
+released by generic accounting cleanup.
+
+Atomic source retirement/release and original-grant dispatch remain required.
+Until their reviewed durable proofs exist, bound quota records intentionally
+stay held instead of being expired, pruned or treated as permission for another
+provider call. Activation gates remain false and ordinary access remains nil.
+
+### Source dispatch witness preparation
+
+Migration `20261008222349_prepare_source_dispatch_witness.sql` adds
+default-false `source_dispatch_enabled`. Fresh bound dispatch requires the
+existing modality, admission, append and dispatch gates, current consent, exact
+live source/input/ occupancy/media chain and the original reserved quota,
+request, child, lease and attempt. The assigned input profile must match the
+immutable input and saved quota. Canonical owner/parent/source/child/intent
+locks precede quota locking.
+
+A private immutable intent-owned witness records original reservation, lease
+digest, attempt, source fingerprint, provenance and creating transaction. The
+invocation writer accepts it only in that transaction; finalization and
+invocation insertion are atomic with the witness and intent transition. A
+retained witness is audit evidence, never reusable dispatch authority. Exact
+invocation replay continues to return `may_dispatch=false` before fresh gates.
+Generic quota finalization remains held. No new public signature or grant is
+introduced.
+
+Witnesses have no quota foreign key and cannot disappear through quota pruning.
+They cascade with intent deletion; the unused-reservation erasure proof rejects
+any witness before that cascade, including an interrupted/tampered partial
+state. Binding deletion therefore cannot hide dispatch evidence and permit a
+refund. Account merge remains held by the existing bound-source guard. Atomic
+retirement and source release remain separate work before source access opens.
+All activation gates remain disabled; uncertain execution permits recovery and
+reconciliation only, never a successor provider invocation.
+
+Fresh invocation also checks the permanent child deletion tombstone after its
+child lock. Once deletion erases binding, intent and witness, a held reservation
+cannot fall through to generic dispatch. Existing invocation replay remains
+non-dispatching.
+
+### Atomic source-bound funded retirement
+
+Migration `20261008223804_prepare_atomic_source_execution_retirement.sql` adds
+default-false `source_retirement_enabled` alongside the existing retirement API
+gate. The existing request, receipt and reader9/10 compatibility are unchanged.
+Read-committed/read-uncommitted isolation is required before ownership locks or
+receipt replay; frozen snapshots fail closed. Owner/deletion and reader checks
+still precede exact receipt recovery. That recovery needs neither live occupancy
+nor the original quota row and does not create another operation.
+
+Fresh retirement uses the live source-before-child lock helper before intent and
+quota locks. Apparently unbound callers reread binding absence after child
+locks. The bound input/source must match the saved intent, and a dispatch
+witness blocks retirement even if accounting still appears reserved. Existing
+exact unused-work, original reservation/lease/attempt and complimentary-credit
+proofs remain. A live worker claim is revoked atomically; it is not itself
+evidence of provider dispatch. Expired original leases may retire only when
+those unused-work proofs hold.
+
+Application atomically refunds through the private quota core, settles the held
+complimentary allocation, writes terminal `retired_before_dispatch` state and
+its permanent receipt, then deletes only the matching occupancy. The storage
+trigger requires the complete binding/input/fingerprint, terminal intent, exact
+receipt, refunded original quota and absence of witness/invocation/result before
+permitting that live-parent occupancy deletion. Any failure rolls back all of
+these changes. Immutable binding and dispatch-witness deletion rules remain
+unchanged. Generic quota cleanup is still held and cannot release occupancy.
+
+This is a closed funded-retirement capability, not source API activation. Source
+reservation, unfunded retirement, native consumption and remaining media
+acceptance remain separate. No new public signature, privilege, provider retry
+or uncertain refund is introduced. All activation gates stay disabled.
+
+### Source reservation terminal replay contract
+
+The
+[canonical terminal replay and successor contract](05-api-contracts.md#source-reservation-terminal-replay-and-successor-admission)
+requires binding plus live occupancy for `reserved`. An exact terminal child
+with proven release conflicts; it never recreates occupancy. Errors cannot
+substitute for durable terminal proof or authorize a new UUID. A new child needs
+complete bounded predecessor/namespace verification. The first paired SQL
+implementation supports only exact funded/unfunded retirement predecessors;
+completion-based release is added separately by migration `20261009032643`,
+described below. Migration `20261009000303` implements the paired service-only
+reader-11 reservation and unfunded-retirement routines behind independent
+default-false gates. The immutable unfunded receipt is unique per child and
+follows binding/parent deletion; terminal replay never recreates occupancy. No
+HTTP/native consumer or activation was introduced by that migration. The later
+prepared `reserve-observation-analysis-source` and
+`retire-observation-analysis-source` HTTP routes wrap these routines; native
+consumers remain separate.
+
+### Atomic source completion release
+
+Migration `20261009032643_prepare_source_completion_release.sql` adds the
+independent default-false `source_completion_release_enabled` gate and private
+`observation_source_completion_receipts`. The child primary key and composite
+binding foreign key retain exact owner/parent/source identity; parent erasure
+cascades the receipt. API roles have no table or helper privileges. Update and
+premature deletion are rejected. There is no quota or invocation foreign key.
+
+The original draft-to-complete transaction appends its immutable result, settles
+credit, saves the receipt and clears work before verifying execution proof.
+Known successful native accounting must match the original dispatch witness,
+committed reservation/lease hash/attempt, provider assignment, normalized usage
+and settlement. Missing, mismatched or unknown accounting keeps occupancy held
+without discarding valid completion. Null pricing and token counts are allowed
+according to the accounting writer's normalization. Proof-storage failure rolls
+back completion; no blanket exception handler masks integrity failures.
+
+The bounded 16 KiB versioned proof copies execution/accounting/settlement facts
+and hashes immutable result, evidence, draft, outcome, funding and receipt
+bytes. It retains no result prose or raw lease token. Later verification uses
+immutable product identity and this permanent proof, independently of current
+selection, review, entitlement or invocation retention. It never backfills
+existing complete intents. The reservation routine now classifies each
+same-source result against its exact binding and valid proof, with a separate
+65th-row receipt sentinel. Completed children cannot recreate occupancy. Generic
+quota cleanup remains held; this migration does not broaden accounting deletion.
+
+### Held video source fingerprint parity
+
+Migration `20261010005747_prepare_video_source_fingerprint_parity.sql` adds four
+private stable-invoker metadata helpers: bounded integer and artifact
+validators, `internal.observation_video_source_fingerprint_bytes(jsonb)` and its
+SHA-256 wrapper. Each fixes an empty search path and revokes execution from
+PUBLIC and all API roles. The closed V4 graph binds the retained clip, ordered
+frames, optional audio and exact descriptions using the separate version-1 video
+domain. That fingerprint migration adds no table, trigger, RPC, rollout gate or
+existing photo/audio codec changes. These routines establish neither media proof
+nor ownership/admission authority. See
+[the exact fingerprint contract](05-api-contracts.md#held-video-source-fingerprint-v1).
+
+Migration `20261010015758_prepare_video_cohort_inventory.sql` adds the separate
+ungranted stable-invoker `internal.observation_video_source_cohort_items(jsonb)`
+projection. It first runs full V4 fingerprint validation, then returns retained
+source, five frames and optional audio with explicit roles/indices. It creates
+no cohort table, trigger, receipt or caller. See the
+[held inventory contract](05-api-contracts.md#held-video-cohort-inventory).
+
+### Held video cohort storage
+
+Migration `20261010024956_prepare_video_cohort_storage.sql` adds private
+`internal.observation_video_evidence_upload_cohorts`: child primary key,
+owner/parent/source identity, and an exact ordered inventory capped at 4 KiB.
+Its composite binding foreign key cascades parent erasure. The insertion guard
+uses `internal.lock_owned_observation_video_source_binding` for full V4
+fingerprint, identity and live occupancy validation before child-use checks.
+Updates and ordinary live-parent deletes are rejected; the later pre-execution
+retirement authority below adds exact receipt-bound removal. RLS is enabled; API
+table and helper privileges are revoked.
+
+The binding insertion validator recognizes V4 internally. Existing public
+reservation, generic source lock, funded/unfunded retirement and completion
+contracts are not widened. Child-use, reservation and discovery coverage now
+include video, with independent bounded sentinels; legacy cohorts cannot claim
+V4 children. That storage migration created no application writer or upload
+object; the later allocation authority below adds service-only writes. See the
+[held storage contract](05-api-contracts.md#held-video-cohort-storage).
+
+### Prepared video source reservation authority
+
+Migration `20261010040600_prepare_video_source_reservation.sql` adds two
+non-null default-false rollout columns, `video_source_reservation_enabled` and
+`video_source_recovery_enabled`. The two reader-12 public routines have empty
+search paths, five-second statement timeouts and exact service-role allowlist
+entries. PUBLIC, anon and authenticated cannot execute them. They reuse private
+immutable bindings and occupancy; no new media row or execution record is
+created. V4 bindings without occupancy stay held, and legacy release/retirement
+routines remain unchanged. See the
+[SQL contract](05-api-contracts.md#prepared-video-sql-reservation-and-recovery-authority).
+
+### Prepared video pre-execution retirement authority
+
+Migration `20261010043740_prepare_video_source_retirement.sql` adds the
+default-false `video_source_retirement_enabled` gate and private immutable
+`internal.observation_video_source_retirements`. Operation is primary key; child
+is unique; the composite binding foreign key preserves owner/parent/source and
+cascades parent erasure. Exact request and receipt each stay within 2 KiB.
+Private cohort inventory is explicit JSON null or the original ordered array
+within 4 KiB. RLS and API-role revokes protect every row and private helper.
+
+The reader-12 service-only retirement routine validates original identity and
+pre-execution absence, retains the irreversible fence, and atomically removes
+only the exact optional cohort and occupancy. Pre-delete authorization and final
+release proof are separate. Only V4 successor reservation uses the final proof;
+legacy release routines are unchanged. Retained binding and explicit admission,
+execution and storage guards prevent old-child resurrection. No media object,
+provider invocation, quota consumption or refund is authorized. See the
+[retirement contract](05-api-contracts.md#prepared-video-pre-execution-retirement-contract).
+
+### Prepared video evidence allocations
+
+Migration `20261010054046_prepare_video_evidence_allocation.sql` adds the
+non-null default-false `video_evidence_enabled` gate and private RLS-protected
+`observation_video_evidence_allocations`. Child is primary key, with cascading
+foreign keys to the raw video cohort and the complete source-binding identity.
+The immutable bounded array retains exact inventory plus object IDs; one fixed
+expiry governs all objects. Raw cohort descriptors remain unchanged. API roles
+have no table or helper access; only the three registered service routines can
+allocate, acknowledge a verified item, or expire a complete allocation.
+
+Allocation persists after generic-row cleanup to prohibit replacement IDs and
+post-allocation source retirement. Existing generic readiness immutability and
+delete-to-erasure triggers remain authoritative. Video-aware guards enforce
+exact allocation membership; legacy expiry routines exclude these objects.
+Parent erasure cascades retained allocation state. No provider admission or HTTP
+upload route is installed. See the
+[allocation contract](05-api-contracts.md#prepared-video-evidence-allocation-authority).
+
+### Prepared video execution evidence guard
+
+Migration `20261010135143_prepare_video_execution_evidence_guard.sql` adds
+`internal.assert_ready_video_analysis_evidence(owner, observation, analysis, expected_input)`.
+It is private to database owners: no API role, including service_role, receives
+execution permission. At read-committed isolation it takes the canonical
+owner/parent, original-source, child-ingestion and evidence locks, then locks
+the raw cohort, allocation and ordered object rows. The original V4 fingerprint
+and live occupancy must match; legacy mixed cohorts are rejected. Closed receipt
+validation checks complete inventory, metadata, object identity and permanent
+erasure state. Every item must be ready and the fixed allocation unexpired.
+
+This transaction-local assertion protects the installed private V4 admission and
+is a prerequisite for future execution and dispatch. It creates no intent, quota
+reservation or execution claim and has no public caller. It offers no
+expired-evidence settlement bypass. Gates, executable input parsing, completion
+and cleanup authority are unchanged.
+
+### Prepared private video initial admission
+
+Migration `20261010142136_prepare_video_initial_admission.sql` adds the non-null
+default-false `video_analysis_enabled` flag and private
+`internal.admit_video_observation_analysis`. Fresh admission requires exact
+ready, unexpired V4 evidence under canonical source locks, unused execution and
+funding namespaces, and the admission/protected/media/video gates. It inserts
+one intent and reserves its quota in the same transaction. Source-chain and
+intent triggers validate V4; the final quota overload binds frames-only versus
+frames-plus-audio profiles to the original immutable input. Legacy overloads
+remain excluded.
+
+Exact saved admission replays the original quota before fresh expiry or gates;
+owner deletion still wins. It cannot renew an expired quota, create a claim,
+retry ambiguous dispatch, or refund. API roles cannot call the private function.
+Public begin/advance, V4 executable parsing, dispatch, result completion and
+source release remain unconnected and require their own reviewed contracts.
+
+### Prepared private V4 claim and dispatch
+
+Migration `20261010144617_prepare_private_video_dispatch.sql` adds default-off
+`video_dispatch_enabled` and four ungranted private helpers. The V4 identity
+lock takes owner/parent, original source, child ingestion/evidence and intent
+locks, checking the immutable input/fingerprint and retirement fence. Fresh
+claim and dispatch additionally require the exact ready, unexpired cohort, live
+occupancy, existing admission/media/source-dispatch gates, original reserved
+attempt-one quota and video profile, and current processor consent.
+
+A 120-second work claim can be replaced only while still admitted; replacement
+does not renew quota. Dispatch requires that exact unexpired work token. The
+existing immutable transaction witness, quota commit, invocation and intent
+transition are atomic. Exact replay with the original work token and provenance
+returns `may_dispatch=false` before fresh gates or media expiry. Dispatched work
+cannot acquire another claim, including an unknown outcome. Complimentary usage
+remains held; this checkpoint provides no settlement or refund.
+
+Generic execution locks, public begin/advance/recovery and executable V4 parsing
+remain unchanged. No provider HTTP caller is connected. Result, reader,
+received-outcome settlement and terminal source release must be integrated
+before any API execution path is enabled. The private dispatch state is durable
+held evidence, never permission to retry a provider after an uncertain reply.
+
+The migration also repairs the previous private admission helper forward: V4
+fingerprint validation is performed without assigning its unused return value.
+This removes a database-lint warning without changing admission behavior or
+rewriting the applied migration.
+
+### Private V4 received-outcome retention
+
+`record_video_observation_outcome` stores one bounded immutable received answer
+on the existing intent after canonical owner/source locks and original dispatch
+witness checks. The original quota token and matching live invocation are
+required for the first answer. An exact invocation key-share lock lasts through
+commit, serializing first capture with retention deletion. Exact stored replay
+survives invocation retention; a changed answer is rejected. Work/media expiry
+and closed fresh-dispatch gates do not discard a late answer.
+`read_video_observation_outcome` returns only exact state, input and saved
+outcome after the same identity fence, including null for a dispatched execution
+with no received answer. It creates no work claim or absence proof. Both
+routines and their dispatch assertion are private, with empty search paths and
+ten-second limits.
+
+The existing bounded legacy recovery list excludes V4 until its settlement
+consumer exists. No invocation, accounting, credit, draft, result, receipt,
+occupancy or erasure state changes when capturing/reading this evidence. Payload
+retention is not semantic result validation or settlement; those remain required
+before public execution can open.
+
+### Private V4 canonical draft retention
+
+`record_video_observation_draft` saves one immutable prepared V4 draft under the
+same canonical owner/source/intent locks and dispatch witness as outcome
+capture. The original quota token, exact saved input/evidence and draft received
+outcome are required. The result must equal that outcome except for its
+independently verified species link; result provenance must also match the
+dispatch witness. First storage checks scan identity, primitive fields,
+confidence, review-field exclusion, dictionary linkage under a share lock and
+the existing projection validator. Full Identify semantic validation remains the
+canonical Edge builder's responsibility. JSONB storage remains bounded to 1 MiB.
+
+Exact replay survives dictionary changes and invocation retention, but never
+owner deletion or a changed draft. Saving the received outcome already
+established invocation identity, so first draft retention does not require a
+still-live invocation. Gates, work/media expiry and current consent do not
+discard known received evidence. The intent remains `dispatched`: only `draft`
+is written; usage, quota, credit, work claim, result, receipt and source
+occupancy are unchanged. The separate private accounting owner establishes the
+transition to `draft` only after proving successful usage. No API role can
+execute this private routine and no public consumer is installed.
+
+### Private V4 successful accounting
+
+`account_video_observation_draft` requires the exact saved canonical draft and
+received draft outcome under canonical owner/source/intent locks. It verifies
+the original committed quota, attempt, lease and invocation before completing
+usage. It then compares the actual ledger event against the expected successful
+projection; an existing unknown, refused, erroneous or mismatched event cannot
+be promoted. Missing invocation proof before first accounting fails closed.
+
+An immutable private accounting receipt binds input, draft, outcome, usage and
+funding hashes, execution facts and the exact event projection. Its fenced
+insert and the transition from `dispatched` to `draft` with saved provider usage
+are atomic. Exact replay survives invocation retention using this proof; owner
+deletion still denies it. Unavailable counts stay null under the existing usage
+contract, and unavailable pricing does not fabricate a cost.
+
+This receipt is not completion or erasure authority. Complimentary credit stays
+held, quota stays committed, and no result, completion receipt or occupancy
+release occurs. All helpers/table access remain revoked from API roles.
+
+### Private V4 known-terminal settlement
+
+`settle_video_observation_terminal` accepts only the exact saved refusal or
+invalid-output outcome and original quota token under canonical V4 identity
+locks. It proves the committed reservation and invocation, accounts the saved
+usage, then independently checks the complete event projection and matching
+terminal outcome. Existing unknown, successful, different terminal or mismatched
+usage events cannot authorize settlement. Missing invocation before first
+settlement remains held. Operational uncertainty is not a received outcome.
+
+An allocated complimentary credit must still be held; settlement releases it
+with `provider_refusal` or `invalid_result`. A paid admission must have no
+credit allocation in either quota reference or storage. The exact
+post-settlement facts, input/outcome/usage/funding hashes and execution/event
+identity are saved in an immutable private terminal receipt. Event accounting,
+credit release, terminal intent state, work-claim clearing and receipt insertion
+are atomic. Exact replay returns the original proof without touching credits or
+accounting, including after invocation retention. Owner deletion still denies
+replay.
+
+The provider quota remains committed with zero refunds. This receipt does not
+authorize source release, retirement or erasure: occupancy stays held, and no
+result/completion receipt is appended. Generic legacy advance/fail remains
+closed to V4 through the existing source fingerprint guard. API-role access to
+all new helpers/table remains revoked; no public consumer is installed.
+
+### Private V4 durable completion
+
+`complete_video_observation_analysis` requires the original quota token, exact
+saved successful draft/usage and immutable accounting proof under canonical
+owner/source/child/intent locks. The quota must remain committed with its
+original attempt and zero refunds. First completion rechecks the exact retained
+ready video cohort, taxonomy and result projection. Its admission deadline and
+current dispatch gates do not invalidate a received, accounted result; missing,
+changed or erased evidence still denies completion. Invocation retention does
+not discard the accounting proof.
+
+A transaction-bound completion fence protects insertion of the immutable result
+and its blank review authority. Video manifests/input version4 produce result
+snapshot5, preserving audio result4. Result insertion, complimentary consumption
+(or release after a paid upgrade), exact completion receipt and work-claim
+clearing are atomic. Paid admission proves no allocation exists. Initialized
+selection, reconciliation and previous authority remain unchanged. Exact replay
+returns the original saved receipt without accounting or settlement, including
+after invocation pruning or later entitlement changes; owner deletion denies it.
+
+All new helpers remain private. Page/state reader11 admits video result5 along
+with prior formats; older readers reject the whole video history, including
+cursor pages or state targeting an older child. Only those read capabilities
+advance. Action readers remain unchanged and deny video histories and explicit
+pending V4 children. No grants, default-off gates or execution consumers change.
+Source occupancy remains held: this completion receipt alone is not the required
+source-release proof and grants no erasure or execution authority.
+
+### Durable V4 completion source release
+
+Migration `20261010181556_prepare_video_source_completion_release.sql` adds the
+private, RLS-protected `observation_video_source_completions` table. Its
+composite binding foreign key owns parent erasure; all API privileges are
+revoked. A transaction-fenced insert revalidates the exact completed product,
+immutable video accounting proof, committed quota/dispatch identity and settled
+credit. The bounded16KiB proof copies accounting/execution/settlement facts and
+hashes the saved completion receipt and immutable result. It has no live
+invocation foreign key. Updates, premature deletion and occupancy resurrection
+are denied.
+
+Only the original private video completion transaction can insert this proof and
+remove its exact occupancy, after result/authority/credit/receipt commit
+conditions are established. The existing source completion release gate remains
+default false. Closed gate or unavailable proof retains occupancy; storage
+failure rolls back completion and settlement. Complete replay never backfills
+proof. Known results survive invocation retention, admission expiry and closed
+fresh execution gates; no new provider invocation or refund occurs.
+
+Video same-source successor reservation now classifies every retained result
+against its exact permanent release proof, with independent65th-row sentinels
+for video and generic completion receipts. Existing child replay stays held;
+only a new identity can reserve after proven release. Video evidence remains
+retained, selection/review/reconciliation stay unchanged, and generic
+photo/audio proof semantics are unchanged. No source cleanup or external
+activation is authorized.
+
+### Service-only V4 orchestration
+
+Migration `20261010190000_prepare_video_orchestration.sql` composes the private
+video state owners through four explicitly allowlisted service RPCs. Both
+`orchestration_enabled` and the new default-false `video_orchestration_enabled`
+are required. Initial begin admits the exact V4 input and claims work; it cannot
+renew quota or rearm dispatched execution.
+
+Recovery discovery is bounded to32 identities with a saved outcome or accounted
+draft, an expired/absent work lease and an elapsed recovery delay. Recovery
+claim uses canonical owner/parent/source/child/intent locks, rechecks the
+dispatch witness, and returns a120-second work token with original input, quota,
+outcome and draft. Unknown execution is neither listed nor claimed.
+
+Advance materializes the exact closed ready cohort receipt only under a live
+fresh-dispatch claim. Dispatch keeps the existing one-invocation guard. Late
+outcome capture requires the original quota token independently of the work
+lease. Other operations require the current unexpired work token. Known-result
+species resolution, draft retention, accounting, completion and terminal
+settlement call their existing owners without fresh dispatch eligibility;
+accounting still requires its original execution proof and completion still
+requires intact retained evidence. Release clears only the matching live work
+claim and delays recovery60 seconds; it never releases source occupancy, refunds
+quota or invents a terminal outcome. No cancel-uninvoked operation is exposed.
+
+Private helpers remain ungranted. Legacy wrappers, public executable parsers,
+authenticated readers/actions and Edge/native execution consumers are unchanged.
+No scheduler or activation is installed. This service composition supersedes the
+earlier private-preparation sections' statements that no service consumer is
+installed; it does not make video executable from ordinary access.
+
+Video `resolve_species` only reads a case-normalized, unambiguous existing
+public biological dictionary identity with a GBIF key. Missing, unverified or
+ambiguous identity fails closed without inserting model-authored taxonomy. Any
+dictionary materialization belongs to the established verified resolver; it is
+not provider retry authority.

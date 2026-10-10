@@ -1,0 +1,358 @@
+#if DEBUG
+import CryptoKit
+import Foundation
+import Observation
+import SwiftData
+
+extension UITestSeedCoordinator {
+    static var publicationConsentEnabled: Bool {
+        isEnabled && ProcessInfo.processInfo.arguments.contains("-seedPublicationConsentChooser") || protectedChatEnabled
+    }
+    static var protectedChatEnabled: Bool {
+        isEnabled && (ProcessInfo.processInfo.arguments.contains("-seedProtectedInsightChat")
+            || ProcessInfo.processInfo.arguments.contains("-seedProtectedChatStale"))
+    }
+    @MainActor static var publicationConsentFixture: PublicationConsentUIFixture?
+}
+
+/// Process-local synthetic boundaries; all history, consent and outbox writes
+/// still use their production owners. Only the dedicated UI-test seed installs it.
+@MainActor final class PublicationConsentUIFixture {
+    static let observation = "00000000-0000-4000-8000-000000000001"
+    static let owner = UUID(uuidString: "00000000-0000-4000-8000-000000000003")!
+    static let selected = "00000000-0000-4000-8000-000000000004"
+    static let historical = "00000000-0000-4000-8000-000000000002"
+    static let media = ["00000000-0000-4000-8000-000000000005", "00000000-0000-4000-8000-000000000006"]
+    let container: ModelContainer
+    let namedReview: Bool
+    let undoReview: ConfirmationUndoUIFixture?
+    let candidateReview: CandidateConfirmationUIFixture?
+    let bytes: Data
+    let digest: String
+    let snapshots: [String: Data]
+    let preparation = ObservationPublicationPreparationOwner()
+    let recovery = ObservationPublicationRecoveryOwner()
+    private var savedOperation: UUID?
+    private var chatServerRevision = 1
+    private var savedChatRequest: ProtectedInsightChatRequest?
+
+    init(container: ModelContainer, namedReview: Bool = ProcessInfo.processInfo.arguments.contains("-seedSelectedNameConfirmation"),
+         confirmationUndo: Bool = ProcessInfo.processInfo.arguments.contains("-seedConfirmationUndo"),
+         candidateConfirmation: Bool = ProcessInfo.processInfo.arguments.contains("-seedCandidateConfirmation")) throws {
+        self.container = container
+        self.namedReview = namedReview
+        undoReview = confirmationUndo ? .init(named: namedReview) : nil
+        candidateReview = candidateConfirmation ? .init() : nil
+        let bytes = try UITestSeedCoordinator.uiTestPNGData()
+        let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+        self.bytes = bytes; self.digest = digest
+        snapshots = try Dictionary(uniqueKeysWithValues: [Self.historical, Self.selected].enumerated().map { index, id in
+            let ids = index == 0 ? ["00000000-0000-4000-8000-000000000008"] : Self.media
+            let manifest = ids.map { ["kind": "image", "media_id": $0, "content_type": "image/png",
+                                      "byte_count": bytes.count, "sha256": digest] as [String: Any] }
+            var result: [String: Any] = ["scan_id": Self.observation, "scientific_name": "Danaus plexippus",
+                "common_name": "Consent Butterfly", "confidence_score": 0.87, "is_biological_subject": true,
+                "is_live_capture": true, "ai_reasoning": "Synthetic identification for photo consent verification.",
+                "inference_tier": "flash", "candidates": NSNull(), "pet_identification": NSNull(),
+                "blur_score": 0.2, "colors": [], "estimated_size_cm": 8.5,
+                "extracted_visual_traits": ["orange wings"],
+                "image_quality": ["diagnostic_utility": 9, "framing": 7, "overall_score": 82, "sharpness": 8]]
+            if namedReview || confirmationUndo || candidateConfirmation {
+                result["scientific_name"] = namedReview ? "Danaus" : "Danaus plexippus"
+                result["primary_identification"] = ["version": 1, "resolution": namedReview ? "genus" : "species", "scientific_name": namedReview ? "Danaus" : "Danaus plexippus", "common_name": "Consent Butterfly"]
+                result["is_new_to_merian_dictionary"] = false
+                result["identification_provenance"] = ["version": 2, "provider": "openai", "binding": "synthetic_primary_v1",
+                    "model": "gpt-6-sol", "variant": "multimodal", "operation": "scan_identification", "policy_version": 1,
+                    "prompt": "synthetic_primary_v1", "schema": "merian_identify_primary_v1", "confidence": "openai_unqualified_v1",
+                    "diagnostic_trigger": NSNull(), "prompt_diagnostic_trigger": NSNull(), "safety": "openai_photo_moderation_v1",
+                    "timeout_ms": 90_000, "generation": ["max_output_tokens": 8_192, "reasoning_effort": "low", "image_detail": "high"]]
+            }
+            if candidateConfirmation {
+                result["candidates"] = [0.4, 0.2].map {
+                    ["scientific_name": "Limenitis archippus", "taxon_rank": "species", "confidence_score": $0] as [String: Any]
+                }
+            }
+            return (id, try Self.json(["schema_version": 2, "analysis_id": id, "observation_id": Self.observation,
+                "ordinal": index + 1, "source_analysis_id": index == 0 ? NSNull() : Self.historical as Any,
+                "completed_at_ms": 1_750_000_000_000 + index, "request_digest": String(repeating: "a", count: 64),
+                "result": result, "evidence_manifest": ["schema_version": 2, "items": manifest]]))
+        })
+    }
+
+    func seed(context: ModelContext) throws {
+        try ConfirmedSpeciesReviewPersistence.transaction {
+            let scan = LocalScanRecord(id: Self.observation, speciesId: "synthetic-consent",
+                scientificName: "Danaus plexippus", commonName: "Consent Butterfly", isBiological: true,
+                confidenceScore: 0.87, isLocallyArchived: true, hasBeenViewed: true)
+            scan.analysisOwnerAccountID = Self.owner.uuidString.lowercased()
+            scan.selectedAnalysisID = Self.selected
+            scan.analysisSelectionInitialized = true
+            scan.observationStateRevision = 0
+            context.insert(scan)
+            let state = try ObservationHistoryState.decode(stateData(Self.selected),
+                request: .init(observation_id: Self.observation, analysis_id: nil), ownerID: Self.owner)
+            if undoReview != nil {
+                // Seed an already acknowledged review, as restored by enrollment. A blank
+                // parent is not permission for state sync to overwrite a legacy correction.
+                let review = state.review
+                scan.aiIdentificationReviewData = try LocalAIIdentificationReview(authority: review.aiReview).storedData()
+                scan.confirmedSpeciesIdentityData = try ConfirmedSpeciesReview(revision: review.identityRevision,
+                    identity: review.speciesReview?.identity, override: review.override, confirmed: review.confirmed ?? false,
+                    speciesID: review.confirmedSpeciesID, state: review.state ?? .unreviewed).storedData()
+                scan.confirmedSpeciesId = review.confirmedSpeciesID
+                scan.userIdentificationOverride = review.override
+                scan.userConfirmedIdentification = review.confirmed ?? false
+                scan.userReviewStateRaw = review.state?.rawValue
+            }
+            let old = try ObservationHistoryPage.snapshot(snapshot(Self.historical), observationID: Self.observation, ordinal: 1)
+            _ = try ObservationHistorySyncService.insert([old], into: scan, ownerID: Self.owner, context: context)
+            try ObservationHistoryStateSyncService.apply(state, to: scan, baseline: .init(scan), context: context)
+            if let display = try ObservationHistoryDisplayProjection.snapshot(state.result) {
+                try AnalysisDisplaySnapshot.restore(display, analysisID: state.result.analysisID).apply(to: scan)
+            }
+        }
+    }
+
+    var cloud: ObservationHistoryCloudClient {
+        .init(begin: { owner in
+            guard owner == Self.owner else { throw ObservationHistoryError.accountChanged }
+            return .init(id: UUID(), session: .init(userID: owner, isAnonymous: false))
+        }, isCurrent: { $0.session.userID == Self.owner && !$0.session.isAnonymous }, finish: { _ in },
+        fetch: { [self] request in
+            guard request.observation_id == Self.observation, request.before_ordinal == nil, request.limit == 20 else { throw ObservationHistoryError.invalidPage }
+            return try Self.json(["schema_version": 1, "owner_id": Self.owner.uuidString.lowercased(),
+                "observation_id": Self.observation, "state_revision": undoReview?.revision ?? candidateReview?.revision ?? chatServerRevision, "next_before_ordinal": NSNull(),
+                "items": try [Self.selected, Self.historical].enumerated().map {
+                    ["ordinal": 2 - $0.offset, "snapshot": try snapshotText($0.element)] as [String: Any]
+                }])
+        }, fetchState: { [self] request in
+            guard request.observation_id == Self.observation else { throw ObservationHistoryError.invalidPage }
+            return try stateData(request.analysis_id ?? Self.selected)
+        })
+    }
+
+    func session(_ observation: String, _ candidate: ModelContainer) throws -> IdentificationHistorySession {
+        guard observation == Self.observation, candidate === container else { throw ObservationHistoryError.accountChanged }
+        let cloud = cloud, bytes = bytes, digest = digest
+        let photos = ObservationHistoryPhotoLoader(account: cloud, resolve: { request in
+            guard request.observation_id == Self.observation, request.analysis_id == Self.selected,
+                  Self.media.contains(request.media_id) else { throw ObservationHistoryError.invalidSnapshot }
+            return .init(schema_version: 1, owner_id: Self.owner.uuidString.lowercased(), observation_id: Self.observation,
+                analysis_id: Self.selected, media_id: request.media_id, content_type: "image/png", byte_count: bytes.count,
+                sha256: digest, url: URL(string: "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.r2.cloudflarestorage.com/synthetic")!,
+                expires_at_ms: Int64(Date().addingTimeInterval(20).timeIntervalSince1970 * 1_000))
+        }, download: { ticket in
+            guard ticket.observation_id == Self.observation, ticket.analysis_id == Self.selected,
+                  Self.media.contains(ticket.media_id), ticket.sha256 == digest, ticket.byte_count == bytes.count else {
+                throw ObservationHistoryError.invalidSnapshot
+            }
+            return bytes
+        })
+        let config = IdentificationHistoryPublicationAccess.Configuration(owner: preparation, recoveryOwner: recovery,
+            fetchTarget: { request, owner in
+                guard owner == Self.owner, request.observationID.uuidString.lowercased() == Self.observation else { throw ObservationHistoryError.accountChanged }
+                return nil
+            }, fetch: { request, owner in
+                guard owner == Self.owner, request.observationID.uuidString.lowercased() == Self.observation,
+                      request.analysisID.uuidString.lowercased() == Self.selected else { throw ObservationHistoryError.accountChanged }
+                return try .decode(Self.json(["schema_version": 1, "observation_id": Self.observation,
+                    "analysis_id": Self.selected, "expected_observation_revision": 1, "expected_review_revision": 0,
+                    "taxonomy_version_id": "00000000-0000-4000-8000-000000000007", "initial_taxon_id": NSNull(),
+                    "media": Self.media.map { ["media_id": $0, "content_type": "image/png", "byte_count": bytes.count, "sha256": digest] as [String: Any] }]), request: request)
+            }, wake: { [self] in
+                // This fixture's UI scenario deliberately chooses second, then first.
+                // A passing UI cannot conceal a duplicate or reordered durable write.
+                assert((try? verifySavedChoice()) == true, "Synthetic consent persistence mismatch")
+            }, generation: { 0 })
+        return try IdentificationHistorySession(observation: observation, container: candidate, cloud: cloud, photos: photos,
+            reviewWake: { [self] in
+                if let undoReview { undoReview.wake(container: container, cloud: cloud, snapshots: snapshots) } else if let candidateReview { candidateReview.wake(container: container, cloud: cloud, snapshots: snapshots) } else { assert((try? verifyReviewDiscovery()) == true, "Synthetic review persistence mismatch") }
+            }, reviewGeneration: { [self] in undoReview?.generation ?? candidateReview?.generation ?? 0 }, publication: config,
+            confirmationUndo: undoReview?.configuration ?? candidateReview?.undoConfiguration, currentGeneration: { 1 },
+            sessionIsCurrent: { $0.userID == Self.owner && !$0.isAnonymous })
+    }
+
+    var protectedChat: ProtectedInsightChatAccess {
+        let queue = OfflineQueueManager.shared
+        return .prepared(cloud: cloud, configuration: .init(deliver: { [self] intent, admission, candidate in
+            assert((try? verifySavedChat(intent, admission: admission, candidate: candidate)) == true,
+                   "Synthetic protected chat persistence mismatch")
+            guard ProcessInfo.processInfo.arguments.contains("-seedProtectedChatStale") else {
+                return false // Existing restart fixture retains a pending request without network I/O.
+            }
+            // Test launch disables path monitoring; this synthetic transport is available.
+            queue.isOnline = true
+            let service = ProtectedInsightChatDeliveryService(cloud: cloud, submit: { [self] request, owner, _, dispatch, response in
+                guard request == intent.request, owner == Self.owner else { throw ObservationHistoryError.resultConflict }
+                try dispatch()
+                chatServerRevision = 2
+                let data = try Self.json(["data": ["context_version": 1, "outcome": "not_admitted",
+                    "scan_id": request.observationID.uuidString.lowercased(),
+                    "conversation_id": request.conversationID.uuidString.lowercased(),
+                    "client_message_id": request.clientMessageID.uuidString.lowercased(),
+                    "reason": "displayed_identification_changed"]])
+                try response()
+                return try .init(data: data, request: request)
+            })
+            return queue.requestProtectedChatDelivery(intent, admission: admission, service: service, currentOwnerID: { Self.owner })
+        }, generation: { queue.protectedChatDeliveryGeneration }, refreshOwner: queue.protectedChatRefreshOwner), session: session)
+    }
+
+    private func verifySavedChat(_ intent: ProtectedInsightChatIntent,
+                                 admission: ProtectedInsightChatDeliveryService.Admission,
+                                 candidate: ModelContainer) throws -> Bool {
+        guard candidate === container, intent.ownerID == Self.owner, case .initial = admission,
+              intent.request.observationID.uuidString.lowercased() == Self.observation,
+              intent.request.selection.analysisID.uuidString.lowercased() == Self.selected,
+              intent.request.selection.stateRevision == 1, intent.request.selection.reviewRevision == 0,
+              intent.request.messageText == "What does this identification mean?" else { return false }
+        let page = try ProtectedInsightChatPersistence.status(ownerID: Self.owner, observationID: intent.request.observationID,
+            container: container, isCurrent: { true })
+        guard page.completed.isEmpty, page.unfinished?.state == .pending,
+              page.unfinished?.intent.request == intent.request else { return false }
+        if let savedChatRequest { guard savedChatRequest == intent.request else { return false } }
+        savedChatRequest = intent.request
+        return try ObservationHistorySyncService.enrolledScan(Self.observation, context: ModelContext(container)).selectedAnalysisID == Self.selected
+    }
+
+    private func verifyReviewDiscovery() throws -> Bool {
+        let context = ModelContext(container)
+        let jobs = try context.fetch(FetchDescriptor<OfflineJobRecord>()).filter { $0.kind == .observationAnalysisReviewSync }
+        // Opening a review discovers durable work before any decision is saved.
+        // Chat and publication fixtures also use this same review presentation.
+        if jobs.isEmpty { return true }
+        guard namedReview, jobs.count == 1, let text = jobs.first?.metadataJSON else { return false }
+        let intent = try ObservationAnalysisReviewIntent.decode(Data(text.utf8))
+        let request = intent.request
+        guard request.decision == .confirmName("Danaus plexippus"), request.analysisID.uuidString.lowercased() == Self.selected,
+              request.expectedObservationRevision == 1, request.expectedReviewRevision == 0 else { return false }
+        return try ObservationHistorySyncService.enrolledScan(Self.observation, context: context).selectedAnalysisID == Self.selected
+    }
+    private func verifySavedChoice() throws -> Bool {
+        let context = ModelContext(container)
+        let jobs = try context.fetch(FetchDescriptor<OfflineJobRecord>()).filter { $0.kind == .observationPublicationSync }
+        guard jobs.count == 1, let text = jobs.first?.metadataJSON else { return false }
+        let intent = try ObservationPublicationIntent.decode(Data(text.utf8))
+        guard let request = intent.request, request.mediaIDs.map({ $0.uuidString.lowercased() }) == Array(Self.media.reversed()),
+              request.note == nil, request.analysisID.uuidString.lowercased() == Self.selected else { return false }
+        if let savedOperation { guard savedOperation == request.operationID else { return false } }
+        savedOperation = request.operationID
+        return try ObservationHistorySyncService.enrolledScan(Self.observation, context: context).selectedAnalysisID == Self.selected
+    }
+    private func snapshot(_ id: String) throws -> Data {
+        guard let data = snapshots[id] else { throw ObservationHistoryError.invalidSnapshot }; return data
+    }
+    private func snapshotText(_ id: String) throws -> String {
+        guard let text = String(data: try snapshot(id), encoding: .utf8) else { throw ObservationHistoryError.invalidSnapshot }
+        return text
+    }
+    private func stateData(_ id: String) throws -> Data {
+        try Self.json(["schema_version": 1, "owner_id": Self.owner.uuidString.lowercased(), "observation_id": Self.observation,
+            "state_revision": undoReview?.revision ?? candidateReview?.revision ?? chatServerRevision, "selection_initialized": true, "selected_analysis_id": Self.selected,
+            "analysis": ["snapshot": try snapshotText(id), "review_revision": undoReview?.reviewRevision(id) ?? candidateReview?.reviewRevision(id) ?? 0,
+                "review_snapshot": undoReview?.authority(id) ?? candidateReview?.authority(id) ?? ["ai_identification_review": NSNull(), "confirmed_species_identity": NSNull(),
+                    "confirmed_species_identity_revision": 0, "confirmed_species_id": NSNull(), "user_identification_override": NSNull(),
+                    "user_confirmed_identification": false, "user_review_state": "unreviewed"]]])
+    }
+    private static func json(_ object: [String: Any]) throws -> Data {
+        try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+    }
+}
+/// Synthetic server boundary for the actual lookup, admission, delivery and paired reconciliation.
+/// No original local confirmation receipt is seeded: the UI exercises recovered eligibility.
+@MainActor @Observable
+final class ConfirmationUndoUIFixture {
+    private let named: Bool
+    private let lookupOwner = ObservationConfirmationUndoOwner()
+    private let deliveryOwner = ObservationAnalysisReviewDeliveryOwner()
+    private var applied: ObservationAnalysisReviewRequest?
+    private var response: ObservationAnalysisReviewReceipt?
+    private(set) var revision = 11
+    private(set) var generation: UInt64 = 0
+
+    init(named: Bool) { self.named = named }
+
+    private func originalOperation(_ analysis: String) -> UUID {
+        UUID(uuidString: analysis == PublicationConsentUIFixture.selected
+             ? "00000000-0000-4000-8000-000000000009" : "00000000-0000-4000-8000-00000000000a")!
+    }
+    func reviewRevision(_ analysis: String) -> Int {
+        applied?.analysisID.uuidString.lowercased() == analysis ? 3 : 2
+    }
+    func authority(_ analysis: String) -> [String: Any] {
+        let undone = applied?.analysisID.uuidString.lowercased() == analysis
+        return ["user_review_state": undone ? "unreviewed" : (named ? "user_overridden" : "ai_confirmed"),
+            "user_confirmed_identification": !undone && !named,
+            "user_identification_override": !undone && named ? "Danaus plexippus" : NSNull(),
+            "confirmed_species_identity": undone ? NSNull() : ["version": 1,
+                "species_id": "00000000-0000-4000-8000-00000000000b", "scientific_name": "Danaus plexippus",
+                "common_name": NSNull(), "gbif_taxon_key": 1], "confirmed_species_identity_revision": undone ? 2 : 1,
+            "confirmed_species_id": undone ? NSNull() : "00000000-0000-4000-8000-00000000000b",
+            "ai_identification_review": ["version": 1, "revision": undone ? 8 : 7, "state": "clear",
+                "origin_scan_id": PublicationConsentUIFixture.observation, "origin_identification": NSNull(),
+                "operation_id": (undone ? (applied?.operationID ?? originalOperation(analysis)) : originalOperation(analysis)).uuidString.lowercased(),
+                "operation_digest": String(repeating: "a", count: 32), "community": NSNull()]]
+    }
+    var configuration: IdentificationHistoryReviewAccess.ConfirmationUndoConfiguration {
+        .init(owner: lookupOwner, fetch: { [self] request, owner, validate in
+            try validate()
+            guard owner == PublicationConsentUIFixture.owner,
+                  request.observationID.uuidString.lowercased() == PublicationConsentUIFixture.observation,
+                  request.observationRevision == revision,
+                  request.reviewRevision == reviewRevision(request.analysisID.uuidString.lowercased()) else {
+                throw ObservationHistoryError.resultConflict
+            }
+            var row = try request.object()
+            row["status"] = "available"
+            row["confirmation_operation_id"] = originalOperation(request.analysisID.uuidString.lowercased()).uuidString.lowercased()
+            row["confirmation_action"] = named ? "confirm_name" : "confirm_primary"
+            return try .init(data: JSONSerialization.data(withJSONObject: row), request: request)
+        })
+    }
+    func wake(container: ModelContainer, cloud: ObservationHistoryCloudClient, snapshots: [String: Data]) {
+        let service = ObservationAnalysisReviewDeliveryService(cloud: cloud, submit: { [self] request, owner, validate in
+            try validate()
+            guard owner == PublicationConsentUIFixture.owner,
+                  request.observationID.uuidString.lowercased() == PublicationConsentUIFixture.observation,
+                  snapshots[request.analysisID.uuidString.lowercased()] != nil,
+                  request.expectedObservationRevision == 11, request.expectedReviewRevision == 2,
+                  request.decision == .undoConfirmation(confirmationOperationID: originalOperation(request.analysisID.uuidString.lowercased())) else {
+                throw ObservationHistoryError.resultConflict
+            }
+            if let applied {
+                guard applied == request, let response else { throw ObservationHistoryError.resultConflict }
+                return response
+            }
+            guard var row = try JSONSerialization.jsonObject(with: request.encoded()) as? [String: Any] else {
+                throw ObservationHistoryError.invalidSnapshot
+            }
+            row["outcome"] = "applied"; row["observation_revision"] = 12; row["review_revision"] = 3
+            let receipt = try ObservationAnalysisReviewReceipt.decode(JSONSerialization.data(withJSONObject: row), request: request)
+            applied = request; response = receipt; revision = 12
+            return receipt
+        })
+        deliveryOwner.start(operation: { current in
+            await ObservationAnalysisReviewDrain(cloud: cloud, deliver: service.deliver)
+                .run(ownerID: PublicationConsentUIFixture.owner, container: container, isCurrent: current,
+                     didStart: {}, requestRetry: { assertionFailure("Synthetic Undo must not need fallback") })
+        }, didFinish: { [self] in
+            if applied != nil { assert((try? verifyCompletion(container, snapshots: snapshots)) == true, "Synthetic Undo persistence mismatch") }
+            generation &+= 1
+        })
+    }
+    private func verifyCompletion(_ container: ModelContainer, snapshots: [String: Data]) throws -> Bool {
+        guard let applied else { return false }
+        let context = ModelContext(container)
+        let jobs = try context.fetch(FetchDescriptor<OfflineJobRecord>()).filter { $0.kind == .observationAnalysisReviewSync }
+        guard jobs.count == 1, let job = jobs.first else { return false }
+        let intent = try ObservationAnalysisReviewPersistence.restore(job)
+        guard intent.isComplete, intent.request == applied, intent.receipt == response,
+              intent.receipt?.outcome == .applied(observationRevision: 12, reviewRevision: 3) else { return false }
+        let scan = try ObservationHistorySyncService.enrolledScan(PublicationConsentUIFixture.observation, context: context)
+        guard scan.selectedAnalysisID == PublicationConsentUIFixture.selected else { return false }
+        guard let records = scan.analysisRecords, records.count == snapshots.count,
+              Set(records.map(\.id)) == Set(snapshots.keys) else { return false }
+        return records.allSatisfy { snapshots[$0.id] == $0.resultSnapshotData }
+    }
+}
+#endif

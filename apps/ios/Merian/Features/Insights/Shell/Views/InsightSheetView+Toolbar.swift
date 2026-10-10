@@ -2,30 +2,13 @@ import SwiftData
 import SwiftUI
 
 extension InsightSheetView {
-    private func undoIncorrect(scanId: String, generation: UInt64, showsConfirmation: Bool = false) {
-        Task { @MainActor in
-            guard viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation),
-                  viewModel.canUndoIncorrect else { return }
-            viewModel.state.toastMessage = nil
-            viewModel.toastAction = nil
-            await inferenceEngine.undoIncorrectIdentification(
-                expectedScanId: scanId,
-                modelContext: modelContext,
-                onLocalSave: {
-                    guard showsConfirmation,
-                          viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation) else { return }
-                    viewModel.state.toastMessage = .success("Incorrect mark undone")
-                }
-            )
-        }
-    }
-
     @ToolbarContentBuilder
     var sheetToolbar: some ToolbarContent {
         // Toolbar callbacks can outlive the render that created them. Capture
         // the immutable subject and its monotonic presentation generation now;
         // never resolve "the current scan" later inside an old callback.
         let toolbarGeneration = viewModel.scanBoundActionGeneration
+        let toolbarEngineGeneration = inferenceEngine.scanPresentationGeneration
         let toolbarQueuedScanId = viewModel.queuedContext?.id
         let toolbarLocalScanId = viewModel.presentedLocalRecordScanId
         let toolbarScanId = toolbarQueuedScanId ?? toolbarLocalScanId
@@ -84,7 +67,8 @@ extension InsightSheetView {
             showNewCollectionAlert: toolbarNewCollectionBinding,
             hasCollectionScanId: toolbarRecordSnapshot != nil,
             onIdentificationHistory: historyAction(scanId: toolbarLocalScanId, generation: toolbarGeneration),
-            onReanalyze: viewModel.canReanalyze ? {
+            onReanalysisStatus: reanalysisStatusAction(scanId: toolbarLocalScanId, generation: toolbarGeneration),
+            onReanalyze: viewModel.canReanalyze && (dependencies.savedReanalysisAccess != nil || permitsLegacyReview(toolbarLocalScanId)) ? {
                 guard let scanId = toolbarLocalScanId,
                       viewModel.isPresentingLocalRecord(
                           scanId: scanId,
@@ -92,6 +76,11 @@ extension InsightSheetView {
                       ) else {
                     return
                 }
+                if dependencies.savedReanalysisAccess != nil {
+                    startSavedReanalysis(scanID: scanId, generation: toolbarGeneration)
+                    return
+                }
+                guard permitsLegacyReview(scanId) else { return }
                 if dependencies.isProActive() {
                     if let record = viewModel.activeLocalRecord,
                        record.id.caseInsensitiveCompare(scanId) == .orderedSame {
@@ -105,64 +94,18 @@ extension InsightSheetView {
                     viewModel.state.showPaywall = true
                 }
             } : nil,
-            onReviewAlternatives: viewModel.canReviewAlternatives ? {
-                guard let scanId = toolbarLocalScanId else { return }
-                viewModel.presentCandidateSwipe(
-                    expectedScanId: scanId,
-                    expectedGeneration: toolbarGeneration
-                )
-            } : nil,
-            onConfirmIdentification: viewModel.canConfirm ? {
-                guard let scanId = toolbarLocalScanId,
-                      viewModel.isPresentingLocalRecord(
-                          scanId: scanId,
-                          generation: toolbarGeneration
-                      ) else {
-                    return
-                }
-                dependencies.successFeedback()
-                Task { @MainActor in
-                    guard viewModel.isPresentingLocalRecord(
-                        scanId: scanId,
-                        generation: toolbarGeneration
-                    ) else {
-                        return
-                    }
-                    await inferenceEngine.confirmAIIdentification(
-                        expectedScanId: scanId,
-                        modelContext: modelContext
-                    )
-                }
-            } : nil,
-            onUndoIncorrect: viewModel.canUndoIncorrect ? {
-                guard let scanId = toolbarLocalScanId else { return }
-                undoIncorrect(scanId: scanId, generation: toolbarGeneration, showsConfirmation: true)
-            } : nil,
-            onMarkIncorrect: viewModel.canMarkIncorrect ? {
-                guard let scanId = toolbarLocalScanId else { return }
-                Task { @MainActor in
-                    guard viewModel.isPresentingLocalRecord(
-                        scanId: scanId,
-                        generation: toolbarGeneration
-                    ), viewModel.canMarkIncorrect else { return }
-                    await inferenceEngine.markIdentificationIncorrect(
-                        expectedScanId: scanId,
-                        modelContext: modelContext,
-                        onLocalSave: {
-                            guard viewModel.isPresentingLocalRecord(scanId: scanId, generation: toolbarGeneration) else { return }
-                            viewModel.toastAction = { undoIncorrect(scanId: scanId, generation: toolbarGeneration) }
-                            viewModel.state.toastMessage = .information("Marked as incorrect", action: .init(id: .undo, title: "Undo"))
-                        }
-                    )
-                }
-            } : nil,
-            onAskCommunity: viewModel.canRequestCommunityIdentification ? {
-                guard let scanId = toolbarLocalScanId else { return }
-                viewModel.presentCommunityIdentificationRequest(
-                    expectedScanId: scanId,
-                    expectedGeneration: toolbarGeneration
-                )
-            } : nil,
+            reanalysisRequiresPro: dependencies.savedReanalysisAccess == nil && !dependencies.isProActive(),
+            onReviewAlternatives: alternativesReviewAction(scanID: toolbarLocalScanId, generation: toolbarGeneration),
+            onConfirmIdentification: confirmReviewAction(scanID: toolbarLocalScanId, generation: toolbarGeneration),
+            confirmationTitle: selectedReviewConfirmationTitle,
+            onRetryReviewSave: retryReviewAction(),
+            onUndoIncorrect: undoReviewAction(scanID: toolbarLocalScanId, generation: toolbarGeneration),
+            onUndoConfirmation: undoConfirmationAction(scanID: toolbarLocalScanId, generation: toolbarGeneration),
+            undoConfirmationRequiresPrompt: confidenceReviewControls.undoConfirmationRequiresPrompt,
+            confirmationUndoReason: confidenceReviewControls.confirmationUndoReason,
+            reviewUnavailableReason: confidenceReviewControls.unavailableReason,
+            onMarkIncorrect: incorrectReviewAction(scanID: toolbarLocalScanId, generation: toolbarGeneration),
+            onAskCommunity: communityConsentAction,
             sharedExplorePostId: toolbarSharedExplorePostId,
             sharedCommunityIdentificationRequestId: toolbarCommunityRequestId,
             onEditExplorePost: toolbarSharedExplorePostId != nil ? {
@@ -242,12 +185,17 @@ extension InsightSheetView {
             scanId: toolbarLocalScanId ?? toolbarFieldChatScanId,
             scanPresentationGeneration: toolbarGeneration,
             canShowInsightChat: toolbarFieldChatScanId != nil &&
-                !chatViewModel.isUnavailable(for: toolbarFieldChatScanId ?? ""),
+                (!permitsLegacyReview(toolbarFieldChatScanId) || !chatViewModel.isUnavailable(for: toolbarFieldChatScanId ?? "")),
             onInsightChat: {
                 guard let scanId = toolbarFieldChatScanId,
                       toolbarGeneration == viewModel.scanBoundActionGeneration,
                       fieldChatScanId?
                         .caseInsensitiveCompare(scanId) == .orderedSame else {
+                    return
+                }
+                if !permitsLegacyReview(scanId) {
+                    openProtectedChat(toolbarRecordSnapshot?.selectedReviewBaseline, scanID: scanId,
+                        generation: toolbarGeneration, engineGeneration: toolbarEngineGeneration)
                     return
                 }
                 if dependencies.isProActive() {
@@ -296,14 +244,8 @@ extension InsightSheetView {
                     )
                 }
             } : nil,
-            onAskCommunity: viewModel.canRequestCommunityIdentification ? {
-                guard let scanId = toolbarLocalScanId else { return }
-                viewModel.presentCommunityIdentificationRequest(
-                    expectedScanId: scanId,
-                    expectedGeneration: toolbarGeneration
-                )
-            } : nil,
-            onEditCommunityRequest: toolbarCommunityRequestId != nil ? {
+            onAskCommunity: communityConsentAction,
+            onEditCommunityRequest: toolbarCommunityRequestId != nil && permitsLegacyReview(toolbarLocalScanId) ? {
                 guard let scanId = toolbarLocalScanId else { return }
                 viewModel.presentCommunityIdentificationRequest(
                     expectedScanId: scanId,
@@ -374,6 +316,9 @@ extension InsightSheetView {
     }
 
     private var fieldChatScanId: String? {
+        if !viewModel.isProcessing, let scanID = viewModel.presentedLocalRecordScanId, !permitsLegacyReview(scanID) {
+            return scanID // Exact immutable eligibility is checked by protected admission.
+        }
         guard !viewModel.isProcessing,
               let scanId = viewModel.presentedSpeciesScanId,
               let speciesData = inferenceEngine.speciesData,
@@ -402,7 +347,7 @@ extension InsightSheetView {
         expectedScanId: String,
         expectedGeneration: UInt64
     ) async -> Bool {
-        guard isPresentingFieldChatScan(
+        guard permitsLegacyReview(expectedScanId), isPresentingFieldChatScan(
             scanId: expectedScanId,
             generation: expectedGeneration
         ) else {
@@ -417,7 +362,7 @@ extension InsightSheetView {
             canLoad = await chatViewModel.prepareForPresentation(
                 scanId: expectedScanId
             ) { @MainActor in
-                guard isPresentingFieldChatScan(
+                guard permitsLegacyReview(expectedScanId), isPresentingFieldChatScan(
                     scanId: expectedScanId,
                     generation: expectedGeneration
                 ) else {
@@ -430,7 +375,7 @@ extension InsightSheetView {
                             record,
                             expectedScanId
                         )
-                    guard isPresentingFieldChatScan(
+                    guard permitsLegacyReview(expectedScanId), isPresentingFieldChatScan(
                         scanId: expectedScanId,
                         generation: expectedGeneration
                     ) else {
@@ -445,7 +390,7 @@ extension InsightSheetView {
                 } catch is CancellationError {
                     return false
                 } catch {
-                    guard isPresentingFieldChatScan(
+                    guard permitsLegacyReview(expectedScanId), isPresentingFieldChatScan(
                         scanId: expectedScanId,
                         generation: expectedGeneration
                     ) else {

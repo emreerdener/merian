@@ -117,3 +117,147 @@ suppress the update prompt because these installations have no App Store update
 path; compatibility pauses still apply. Release device builds retain the prompt.
 See the
 [update-required UX contract](../../../../docs/system-architecture/10-event-and-presentation-routing.md#update-required-presentation).
+
+## Guided device review
+
+The shared `Merian Device - …` Xcode schemes reuse existing Debug/UI fixtures
+for manual iPhone review. They set `UITesting=true`, a scenario keychain
+namespace and the same launch arguments as the automated scenarios. They install
+no live history bundle and use an in-memory SwiftData library. The
+[device checklist](../../../../docs/development-guides/24-identification-history-device-review.md)
+records exact supported inputs and the separate live/restart/migration limits.
+
+## Prepared history composition
+
+`Composition/PreparedHistoryReanalysisComposition.swift` assembles the existing
+History, read-only reanalysis status, and protected Capture accesses. It
+performs no work at construction and ordinary live dependencies do not install
+it. The AppDI factory uses its supplied Supabase manager, route coordinator and
+queue's shared preparation owner. Exact submitted-child and erasure callbacks
+return to that same queue; no second runtime, route store or enrollment
+scheduler exists.
+
+All three accesses share the injected cloud client, account/session generation
+and private-photo resolver. Photo preview, editor loading and original-photo
+preparation use that resolver and the same verified downloader. An invalidated
+session cannot regain access after A → B → A. The bundle does not enroll scans,
+change selection, request consent or enable rollout. Explicit enrollment and
+release qualification remain separate. `HistoryReanalysisCompositionTests`
+exercises the actual prepared photo/editor/persistence/status handoff with
+synthetic tickets, bytes and isolated files.
+
+The inert history/reanalysis composition also exposes a protected saved-result
+entry using the same cloud/account/session dependencies and QueueManager's
+retained enrollment owner. Its current-container predicate follows the queue's
+bound ModelContext. The bundle still starts no work and is not installed by
+ordinary live factories. Explicit taps freeze their displayed baseline; History
+and status reads do not enroll.
+
+The App root now retains one optional bundle from `appInstallation`. The
+immutable `isAppInstallationQualified` constant is false, so the factory is not
+evaluated and ordinary access stays nil. No user preference, remote flag or
+consent state can enable this source-controlled boundary. When qualified, the
+same retained bundle supplies Capture synchronously before its State ViewModel
+is created and supplies a feature-owned grouped Insight environment value across
+the complete workspace, including navigation and modal hosts. It never installs
+individual global optional services. Explicit injected feature dependencies take
+precedence.
+
+### Prepared audio Capture assembly
+
+`PreparedHistoryReanalysisComposition+Audio` supplies an optional audio access
+inside the inert bundle. It uses the same cloud account and queue preparation
+owner. The adapter explicitly receives the network client, builds closed audio
+execution dependencies from the opened file store, and starts only the exact
+saved key/proof through `requestAudioExecution`. Cleanup uses the queue's
+existing erasure owner and completion publishes through the injected App event
+publisher. Account/session/generation and container validity govern retained
+work; no presentation predicate reaches the queue. Construction performs no I/O.
+The fixed-false App installer remains unchanged.
+
+The same optional access now exposes explicit saved-child `openResume`. It
+accepts owner/observation/source/child IDs, freezes the current account session,
+generation and container through a short opening lease, then releases it. No
+source lookup or new Capture plan occurs at opening. Explicit resume delegates
+to the retained exact-proof reader and preparation/binding service. A fresh
+matching snapshot and both common and presentation checks precede the injected
+queue handoff. Presentation never enters retained execution. Construction and
+opening start no queue; ordinary installation and automatic adoption remain off.
+
+### Saved audio chooser UI qualification
+
+`UITestSeedCoordinator+SavedAudio` supplies a Debug-only, UI-test-only chooser
+model under the explicit `-seedSavedAudioChooser` argument. A DEBUG-gated root
+modifier presents the real model and sheet with in-memory domain rows and an
+unavailable-only resume closure. It acquires no lease and touches no
+persistence, queue, media, consent or provider. `MerianApp` contains no raw
+launch argument; Release compiles out both modifier and fixture. The existing
+release-binary seed denylist includes the argument. Ordinary prepared-history
+installation remains disabled. This fixture is rendering evidence, not durable
+audio or backend qualification.
+
+### Prepared audio sheet fixture
+
+`-seedAudioReanalysisSheet` installs the Debug-only
+`AudioReanalysisSheetUIFixture` through the synchronous seed coordinator. It
+reuses the immutable V2 enrollment fixture and saves it before opening
+`CaptureAudioReanalysisAccess` in a fresh context. The actual host and input
+preparer convert a local WAV; the actual submission path persists and binds the
+request. Synthetic account and unavailable-only start boundaries perform no
+provider dispatch, upload or receipt fabrication. The retained fixture checks an
+exact persisted snapshot and one queued row across explicit continuation.
+
+`AudioReanalysisSheetUITests` exercises the production sheet before and after
+submission, dismisses and reopens the same host, and verifies its saved UUID is
+unchanged. The seed is release-denylisted and its test belongs to the runtime
+manifest. The Models integration architecture guard permits explicit bundle
+construction only in this named fixture, verifies its single enclosing Debug
+conditional and opt-in launch flag, and checks that the App presentation
+modifier is Debug-only. Every ordinary caller remains excluded. This does not
+install ordinary Capture access or qualify the native file importer, device
+permissions, process restart or hosted execution.
+
+The same audio fixture also opens the real
+`PreparedHistoryReanalysisComposition.openSavedAudioRequests` factory. An
+explicit Debug control marks its actual bound request consumed through the
+production claim/consume transaction, then removes only its owned WAV to model
+an interrupted attempt. This simulates execution evidence without invoking any
+provider. Reopening creates a new presentation model over that same durable
+child. The fixture compares exact snapshots, requires one queued row, counts
+start/authorization calls, and can invalidate its synthetic account. No
+production recovery or admission behavior is changed by these controls.
+
+`PreparedHistoryReanalysisComposition.audioSourceStart` assembles the source
+reservation/consent/binding service and existing audio execution/erasure owners
+through the queue coordinator. It shares the same account/session/generation
+predicate as the prepared audio execution factory. The closure is not installed
+in Capture yet; ordinary access and the App installation gate remain disabled.
+
+`audioSourceConfiguration` now assembles a distinct
+`CaptureAudioSourceReanalysisAccess.Configuration` with required source and
+existing execution handoffs. It does not replace the legacy audio configuration
+or install an ordinary route. The explicit source host factory is described
+below.
+
+The prepared bundle now exposes `openAudioSourceHost` using separate typed
+source access and the shared bounded audio host owner. Legacy and source
+configurations remain independently optional at assembly; a source-only bundle
+cannot open a legacy host. When both are present, a target already retained by
+one route cannot create a second host through the other route. The existing
+sheet consumes either explicitly constructed host without duplicating picker,
+freeze or dismissal rules. No ordinary route is installed; source saved-request
+status is available through the explicit factory below.
+
+`prepared(in:)` intentionally assembles both inert audio entry points to retain
+legacy execution recovery and Debug-fixture compatibility. It is not a
+source-only installation. Both use one target-occupancy owner; the global
+installation boundary still returns nil.
+
+### Explicit saved audio source composition
+
+`audioSourceStatus` and `openSavedAudioSources` assemble a separately typed
+source list over the same retained status owner used by legacy execution pages.
+Opening or refreshing only reads evidence. The final selected-source tap uses
+`openSourceResume`; execution records remain in `openSavedAudioRequests`. No
+source page grants admission or dispatch authority. Both factories remain inert
+until explicitly injected; ordinary installation stays nil.

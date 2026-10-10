@@ -999,7 +999,9 @@ field inside the description payload:
    its request-scoped executor applies them and owns logical retry state, its
    pinned transport owns the sole session/TLS boundary, and its authenticated
    dispatcher owns per-attempt Auth/session validation and upload progress. The
-   main network client injects both stateful transport owners.
+   main network client retains a file-private `NetworkTransportAssembly` that
+   injects both stateful transport owners. Closed audio factories share this
+   dispatcher; generic request forwards remain inaccessible outside the file.
 
 3. **Edge function**: `/identify-multimodal` merges `observation_contexts` into
    the Gemini context preamble while forwarding the structured value to

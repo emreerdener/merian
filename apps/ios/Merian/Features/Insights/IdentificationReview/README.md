@@ -189,3 +189,68 @@ follow the host's eligibility and scan/generation guards; the card is hidden if
 neither action is available. It is independent of candidate availability,
 dismissal, or exhaustion and disappears after Undo or accepted identification.
 The confidence sheet and its Undo card are unchanged.
+
+## Prepared protected reanalysis handoff
+
+When the host supplies `SavedReanalysisPreparation`, candidate and confidence
+reanalysis prepare a ticket at the user's tap before child dismissal. Cards
+inside the confidence explanation forward the same ticket through both modal
+layers; they do not prepare again when either layer closes. The parent Insight
+owns request resolution, current-owner/source validation and cancellation. A
+child's stale or abandoned pending action cancels only its ticket. Protected
+failures never call legacy refinement, and their lock display is independent of
+legacy Pro admission. With no capability, existing entitlement and route
+behavior remains unchanged. Review actions retain their existing separate owner.
+
+Each child-local ticket owner cancels and clears its pending handle on
+disappearance, including removal before a nested dismissal callback. Forwarding
+clears local state first, so disappearance cannot cancel a request already
+passed onward. Parent cancellation also clears its pending chat ticket.
+
+## Protected identification history
+
+Candidate and Confidence review controls consult the fresh enrollment guard.
+Staged or acknowledged history, missing records and failed lookups deny legacy
+confirmation, rejection, Undo, alternative override and reset. Already-open
+sheets and delayed dismissal callbacks recheck the guard before mutation.
+Protected review belongs to the retained selected-result Shell host or
+historical preview; nil protected access never restores legacy permission.
+Protected alternatives use the same retained model from History, the selected
+menu, Biological content and Confidence. `ConfidenceReviewControls` carries
+immutable choices and a one-use `CandidateReviewTicket` preparation closure.
+Confidence prepares at the actual tap, forwards before dismissal and resumes
+only under the original root and engine scopes. A stale or cancelled ticket
+closes its deck without changing the borrowed durable review. The legacy Chat
+alternatives callback rechecks enrollment at dismissal before legacy routing.
+The existing alternatives card layout and styling remain unchanged. Confidence's
+protected reanalysis handoff remains independent. Ordinary unenrolled scans
+retain their existing controls. This wiring is prepared behind disabled gates;
+see the canonical Insight contract for activation and remaining qualification.
+
+## Integrated review: proposal and rejection are distinct
+
+Only an explicit `aiRejected` state displays **Incorrect**. The legacy
+replacement flow preserves its existing carry contract: a new proposal is
+`awaitingAcceptance`, displays **Review new result**, and needs explicit
+acceptance. It has not been rejected by the user. A settled species-level
+proposal offers **Accept this identification** even without alternative
+candidates. Pending sync, damaged review and ineligible acceptance explain why
+further actions are unavailable. Broader identifications can use community help.
+
+Prepared history reanalysis instead appends a separate unreviewed result and
+preserves the selected result and its authority. It does not invoke legacy
+carry. Viewing a completed result and using it remain separate actions.
+
+The confidence card receives the same retained, receipt-bound protected Undo
+control as the main menu. Both Shell and engine presentation scopes are checked
+at invocation. Unavailable reversal is explained; no Undo confirms a species or
+reverses another result's rejection. Delayed rejection, confirmation, Undo and
+candidate-override callbacks cannot act on a later displayed subject or review.
+Each legacy action captures the exact review shown with the action: the UI and
+coordinator recheck it, and the existing write transaction compares it with
+fresh durable authority before creating an intent. Candidate controls and
+delayed child-dismissal handoffs retain that same review. Both authority-free
+persistence paths compare it before saving; a denied legacy save stops remote
+synchronization rather than treating a no-op as success. Alternatives never make
+an obsolete proposal callback eligible after rejection. Rollout gates remain
+disabled.

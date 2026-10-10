@@ -25,6 +25,20 @@ The canonical behavioral contract is the
 - `Coordinators/GenerationTaskRegistry.swift` contains the main-actor,
   compare-before-clear owner for process-local task cancellation. Its mutable
   entries remain private.
+- `historyEnrollmentOwner` retains explicit parent enrollment independently of
+  scheduled sync and child preparation. It coalesces exact owner/generation/
+  container requests with the same captured review/display baseline and admits
+  at most four observations. Auth cancels and awaits it before account-lease
+  drain; committed repository deletion cancels only the matching
+  parent/container. Durable retry remains in the existing enrollment intent,
+  with no timer or implicit History/status admission. See the
+  [enrollment owner](../AnalysisHistory/README.md#prepared-native-enrollment).
+- `publicationConsentPreparationOwner` retains bounded, exactly scoped
+  foreground community-help preflight reads. Account transitions cancel and
+  await actual lease release before Auth drains; cancelled or joined callers
+  cannot retire another scope's task. This owner has no timer, durable
+  publication admission or ordinary UI caller. See the
+  [foreground consent owner](../AnalysisHistory/README.md#retained-foreground-consent-preparation).
 - `Persistence/` contains narrow throwing SwiftData lookups for offline jobs,
   idempotent cloud-deletion task/job creation, durable Field Trip goal-hint
   reads/deletion, one fresh-context projection of mirrored scan/job retry
@@ -166,6 +180,7 @@ The canonical behavioral contract is the
 | `OfflineJobScheduler.swift`                                                       | Persisted wake restoration and the ordered foreground drain.                                                                                                                                                               |
 | `OfflineQueueManager.swift`                                                       | Observable queue facade, connectivity/lifecycle state, background-session setup, and retained transfer state.                                                                                                              |
 | `OfflineQueueManager+AudioQueue.swift`                                            | Single-audio convenience admission into the shared nonvisual queue path.                                                                                                                                                   |
+| `Services/OfflineQueueManager+AudioExecution.swift`                               | Explicit injected audio admission and awaited exact receipt cleanup within the retained account lease; no automatic scheduling.                                                                                            |
 | `Policies/CloudDeletionIntent.swift`                                              | Versioned requesting-account and origin metadata; invalid/legacy intent never becomes automatic delete authority.                                                                                                          |
 | `Services/CloudDeletion/CloudDeletionAccountWork.swift`                           | Account lease for deletion admission/acknowledgement and stable requester capture.                                                                                                                                         |
 | `Services/CloudDeletion/OfflineQueueManager+CloudDeletionSync.swift`              | Durable cloud-deletion drain, explicit confirmation, job recovery, and bounded retry persistence.                                                                                                                          |
@@ -224,6 +239,14 @@ files above.
 reconciliation read, encoding, or save fails. Fresh mutation contexts disable
 autosave, so partially staged authority and dependent-job deletion cannot commit
 after an error. Previously saved running or waiting jobs remain retryable.
+History-protected legacy review jobs are different: a staged hold, acknowledged
+metadata, or the exact server `analysis_bound_review_required` code retains the
+original request as `needsAttention` without a retry deadline or legacy
+reconciliation. Admission, carry (both endpoints), response commit and failure
+reconciliation check fresh history protection within the shared persistence
+transaction. Carry saves once through the caller's save boundary and restores
+only its staged review/job if that save throws, preserving unrelated context
+edits.
 
 SwiftData absence is a valid domain result only after a successful read. No
 production Swift file under `Core/Data` may use `try?` with `fetch` or
@@ -674,8 +697,294 @@ remove their scan-qualified namespace atomically with erasure state. The
 account-transition inventory counts unfinished work, with the existing settings
 summary labeling it Identification sharing.
 
-Publication jobs remain excluded from wake discovery until a durable execution
-owner is connected. Unknown raw kinds and unrecognized `future` namespaces are
-also excluded without deleting them. Known `library-details:` retries retain
-their deadlines. This is a client capability boundary, not rollout activation;
-older binaries must remain excluded before admission becomes available.
+`ObservationPublicationDeliveryService` recovers status before exact admission
+replay under an expected-owner account lease, rechecking after every await.
+`ObservationPublicationDeliveryOwner` coalesces callers, retains cancellation
+ownership and is awaited at entry to the queue's Auth-quiescence method, before
+background transport retirement or any early failure. Connectivity loss cancels
+it. `OfflineQueueManager+ObservationPublication` connects the owner to the
+scheduler; there is no ordinary UI enqueue caller yet. Discovery validates
+owner-bound envelopes and suppresses wakes while that owner is running.
+Persisted claim deadlines recover interrupted work; save failures also request a
+bounded process-local wake. A fresh claim clears that fallback only after
+acquiring the account lease. Account changes suppress another owner's work and
+fallback wakes. The retained pass emits one completion callback only after its
+actual task exits and releases its lease; joined callers do not emit another
+completion. The manager advances `publicationDeliveryGeneration` only when the
+captured owner and exact model context remain current, then rearms scheduling.
+This prepares local status refresh without polling or an idle Auth lease; it
+does not assert that an operation succeeded or remains publicly visible.
+
+Unknown raw kinds and unrecognized `future` namespaces are excluded without
+deleting them. Known `library-details:` retries retain their deadlines. This is
+a client capability boundary, not rollout activation; older binaries must remain
+excluded before admission becomes available.
+
+## Qualified reanalysis queue boundary
+
+V58 persists the work kind and parent/source/owner linkage on
+`OfflineQueuedScan`. `OfflineQueueWork` is the routing policy: ordinary work
+requires nil linkage; reanalysis requires canonical, distinct
+parent/source/child identities and an owner. Missing job metadata cannot change
+that classification. Legacy upload, replay, account-work activation, inference,
+retry and completion owners reject qualified or damaged rows, while explicit
+read/deletion APIs retain access. The ordinary runnable count also excludes
+those rows. Late offline completion requires a surviving ordinary row after
+taking the finalization lock.
+
+Atomic staging creates held qualified work with its exact request and
+child-owned photo paths. Explicit submission uses current owner-bound preflight
+and atomically binds a processor plus pristine `pending` execution admission.
+Drafts and attempted remediation holds never auto-activate.
+`ObservationReanalysisExecutionOwner` retains a single pass and awaits
+cancellation through actual lease release;
+`ObservationReanalysisExecutionService` processes at most eight due children.
+The manager also owns `ObservationReanalysisPreparationOwner`, shared explicitly
+with the prepared Capture producer and targeted local file recovery. It reserves
+the child before metadata access and retains cancelled work until task exit.
+Queue Auth quiescence cancels and awaits this owner before the final account
+lease drain. `ObservationReanalysisAdmissionRuntime` now owns its separate
+eight-child advisory pass and timer, allowing local file recovery offline while
+ready admission requires current consent and network eligibility. Pre-claim
+failures get two delayed retries before waiting for an external opportunity;
+timer callbacks do not reset that budget. Explicit owner-qualified grant events
+rearm only consent holds. Auth also cancels and awaits this runtime and all its
+timers. Foreground recovery precedes inference consent checks so stored results
+can still recover. Fresh execution separately checks saved-processor consent.
+
+Scheduler dates come from strict owner-qualified snapshots, with due pending,
+waiting and interrupted running states. The generic raw-job exclusion remains;
+invalid, held and orphan work cannot create wake-only loops. Local read/commit
+uncertainty uses a five-second fallback floor, suppressed while a pass is
+active. Offline/constrained paths cancel bound execution and ready advisory
+admission; local files-pending verification can continue under its own account
+and file fences. Auth awaits retained tasks before account lease drain.
+Completion wakes permanent-receipt erasure without selection changes. Ordinary
+UI submission remains disconnected; server admission owns funding and all
+activation gates remain disabled. See the
+[V58 contract](../../../../../../docs/backend-and-data/04-database-schema.md#v58-qualified-queued-reanalysis-storage)
+for migration invariants and test ownership.
+
+### Parent-bound reanalysis erasure
+
+`ObservationReanalysisErasure` removes exact canonical parent-linked children,
+their ingestion jobs and preferred-goal hints inside the parent's local deletion
+transaction. Classification and optional job metadata are not erasure authority:
+damaged children with a valid parent link are still removed. Direct deletion and
+explicit non-biological deletion use this boundary; retention keeps its existing
+enrolled-history protection. Save failure rolls back the rows and returns no
+cleanup work. A minimal `observationReanalysisErasure` job is committed with
+each canonical child removal. It preserves canonical parent/child namespace
+ownership after the ingestion metadata disappears and prevents reuse of that
+child ID. These local receipts have no retry deadline and are excluded from the
+network scheduler. `ObservationReanalysisErasureOwner` now drains them locally
+after deletion, at repository configuration and on foreground activation before
+consent gates. It requires an exact receipt and fresh child absence under the
+same filesystem lock used by preparation, and marks the receipt complete only
+after successful erasure. Failures remain pending for a later local opportunity;
+malformed or failed receipts cannot starve later pages. Completed receipts
+retain the identity tombstone but never reauthorize cleanup. No network or Auth
+work is started by this owner.
+
+After commit, `finishReanalysisErasure` refetches child absence and checks the
+same model container before cancelling exact transport and process ownership. It
+never cancels a surviving row, releases a funding hold or requests remote child
+deletion. Parent cloud erasure remains observation-scoped. Private queue file
+cleanup is receipt-bound to the entire `ReanalysisQueue/<canonical-child-ID>`
+namespace, including interrupted preparation files. Generic observation-media
+cleanup no longer receives child paths. No qualified UI producer is enabled yet;
+complete-cohort recovery and admitted execution have dedicated automatic owners.
+The ordinary UI submission action remains disabled. Full-account cleanup now
+drains the local eraser and awaits exclusive-lock namespace purge before
+preferences/runtime reset or recovery-marker retirement.
+
+The ordinary permission-resume affordance and automatic failed-queue purge also
+require ordinary classification. Held children cannot borrow legacy funding
+metadata to enable a permission action, or disappear through automatic cleanup.
+The library's standalone queue-card projection excludes all nonordinary rows;
+owner/parent-scoped progress remains a separate, not-yet-connected presentation.
+
+## Prepared analysis-bound review delivery
+
+`ObservationAnalysisReviewDeliveryService` accepts one already-persisted exact
+intent per call, with an explicitly injected cloud client and mutation
+transport. It retains the expected account lease while claiming, submitting or
+recovering, and reconciling. No current-state preflight can replace a saved
+request: an ambiguous response retries that same operation. The closed transport
+requires the caller's claim validator after asynchronous Auth preparation and
+immediately before dispatch, so deletion, expiry and claim replacement prevent a
+new send.
+
+Acknowledgement saves the immutable receipt before projection and invalidates
+the mutation claim. Delivery obtains a fresh receipt-phase claim before paired
+reconciliation. All later failure writes use that new claim; received receipts
+never dispatch again. Network uncertainty and revision races retain a bounded
+retry date. Exact permanent wire errors, invalid immutable state or missing
+display provenance hold work without a deadline. Error responses never fabricate
+receipt outcomes. The service translates SDK errors into plain code/message
+inputs; the policy imports no networking or persistence framework. Cancellation
+and account changes leave durable work for its rightful owner; save failures
+propagate to bounded fallback scheduling.
+
+`ObservationAnalysisReviewDrain` holds an outer account lease and delivers at
+most eight due saved operations sequentially. QueueManager retains its task in
+`ObservationAnalysisReviewDeliveryOwner`; cancellation invalidates authority
+immediately and retains the slot until actual task exit. Offline and constrained
+network transitions cancel it, and both Auth quiescence boundaries await it. The
+common scheduler starts this pass without blocking other drains. Current owner,
+captured context, token and account lease fence all work. Reviews do not require
+inference consent.
+
+Only dedicated validated candidate dates feed review wakes; the raw kind stays
+excluded from generic discovery. Interrupted valid running claims wake at their
+original expiry. A damaged running claim without its start or fixed expiry
+cannot wake or be directly reclaimed. Received waiting work may reconcile
+immediately; waiting mutations require their saved retry deadline. Malformed,
+held, deleted and wrong-owner work stays inert. Genuine database read errors
+propagate instead of silently appearing empty. Read/save uncertainty gets a
+five-second process fallback qualified by manager, owner and captured container,
+cleared only after valid account work starts. Active retained passes suppress
+duplicate timers; actual task exit restores remaining durable deadlines.
+
+Delivery and scheduling do not stage decisions or authorize inference. Ordinary
+UI access and all activation gates remain disabled. The
+[native persistence contract](../AnalysisHistory/README.md#prepared-analysis-bound-review-persistence)
+owns exact requests, receipt claims and atomic projection completion.
+
+## Prepared protected Field Chat delivery
+
+`ProtectedInsightChatDeliveryService` accepts an exact persisted intent and an
+explicit initial or same-attempt replay admission. Only a terminal local receipt
+can bypass claiming; the HTTP endpoint may dispatch and is never used as a
+read-only probe. The injected cloud boundary retains the expected account lease
+through request and durable acknowledgement. Response validation and saving use
+the original running claim without an expiry or task-cancellation check, while
+new dispatch requires live permission. Account, container, child, deletion and
+claim replacement still deny settlement. The exact validated response bytes
+preserve required nulls through atomic acknowledgement.
+
+Unknown errors and cancellation hold the original claim without a deadline. A
+save error first checks whether the exact local receipt committed; it never
+reopens that receipt or overwrites another attempt. Held and orphaned work can
+only be replayed explicitly with its saved identity. A generic HTTP error does
+not prove no server admission and cannot release the observation's unfinished
+chat occupancy. That remediation requires a separate durable server proof.
+
+QueueManager retains one `ProtectedInsightChatDeliveryOwner` task until actual
+lease release. Connectivity cancellation closes dispatch but preserves the
+same-scope settlement predicate for a known answer. Auth invalidation closes
+both predicates, and both account-transition quiescence paths await actual exit.
+The explicit queue entry injects its service and account identity; there is no
+hidden client resolution. Only actual task exit advances the owner/context
+qualified refresh generation. UI lifetime never owns this task. Generic
+scheduler exclusion remains, with no automatic chat wake, timer or idle Auth
+lease. Send UI and all ordinary access remain disabled.
+
+`ProtectedInsightChatRefreshOwner` separately retains bounded explicit
+identification reads. It is injected from QueueManager through the inert App
+composition. Auth teardown cancels and awaits those tasks before draining
+account leases. Closing a chat cancels only its waiter; no generic timer or chat
+delivery is scheduled by refresh. Exact terminal proof may free the completed
+request, but its stale ticket remains barred until actual different authority is
+loaded.
+
+### Retained reanalysis retirement delivery
+
+The existing reanalysis execution owner retains one bounded pass for both normal
+execution and version-eight retirement work. Normal execution remains separately
+fenced; retirement has only exact-result reads and its fixed saved-operation
+HTTP request. The pass handles at most eight due operations. Unknown retirement
+replies become held work without a timer, and no retry invokes a provider.
+
+Owner scopes distinguish dispatch cancellation from known-receipt settlement.
+Offline/constrained cancellation stops requests while preserving a same-owner,
+same-container, same-generation receipt scope. Auth quiescence invalidates both
+before awaiting actual task and account-lease release. The queue bridge also
+checks the active Auth-transition flag. Only a typed retirement proof may settle
+after task cancellation; ordinary result completion stays
+cancellation-sensitive. Actual completion notifies existing observers and wakes
+receipt-bound cleanup. Actual pass exit separately advances the qualified
+reanalysis execution generation, allowing prepared status UI to expose held
+retirement recovery without polling or automatic rearm. The foreground status
+action reuses the Auth-drained preparation owner; it only reads exact status and
+stages/rearms the fixed retirement request. Delivery remains with this existing
+execution owner. Rollout gates stay false.
+
+### Prepared audio execution ownership
+
+`audioExecutionOwner` retains one explicit audio operation, keyed by the
+complete saved execution snapshot, account session, generation and container
+identity. Only an exact active key coalesces; another child or changed scope
+cannot replace it. The injected account lease starts inside the retained task
+and finishes before its slot clears or actual-exit notification fires.
+Connectivity cancellation closes dispatch while preserving same-scope
+known-result settlement; Auth invalidation closes both and blocks admission
+through overlapping drains. Both queue Auth quiescence seams await it, before
+the final account-lease drain.
+
+The owner has no timer, scanner, provider call or durable claim authority. Its
+operation must use the existing exact claim/consume/completion transactions and
+validate scope around every await.
+`Services/OfflineQueueManager+AudioExecution.swift` owns an explicit injected
+start entry for the exact saved snapshot and verified preparation. It validates
+account/session/generation/container separately from online/unconstrained
+dispatch permission. Completion awaits one receipt-bound erasure attempt and
+rechecks settlement scope before notifying its caller, all inside the retained
+lease. It creates no unretained cleanup task and never joins the backlog loop.
+App/UI callers, automatic adoption and scheduler integration remain absent.
+Closing a presentation does not cancel or erase durable audio work.
+
+### Retained audio status ownership
+
+`audioStatusOwner` retains the bounded local
+`AnalysisHistory/ObservationAudioStatusOwner`, separately from the one-operation
+`audioExecutionOwner`. Four exact account/parent/page scopes can run; equal
+scopes coalesce. The account lease belongs to the retained read task, not a
+presentation waiter, and finishes before its slot is removed.
+
+Both `awaitRetainedSyncQuiescenceForAuthTransition` and
+`quiesceBackgroundAccountWorkForAuthTransition` invalidate status reads before
+awaiting other owners, then await actual status task exit before Auth drains
+leases. Overlapping drains and newer invalidations cannot reopen admission
+early. Local reads do not depend on network availability or inference consent;
+the owner is absent from the scheduler and creates no execution wake. See the
+[offline pipeline](../../../../../../docs/backend-and-data/01-offline-sync-pipeline.md#retained-audio-status-account-lifetime)
+for account versus waiter cancellation. Status access and UI remain uninstalled.
+
+### Explicit source reservation ownership
+
+`ObservationSourceReservationOwner` retains one explicit photo/audio reservation
+task, coalescing only the exact snapshot, admission mode, Auth
+session/generation and container. Its account lease exits before the slot clears
+and before the owner-qualified completion callback. Connectivity cancellation
+stops dispatch but permits unchanged-scope known-answer settlement. Both Auth
+quiescence seams invalidate settlement immediately, close admission and await
+actual lease exit; overlapping drains cannot reopen admission early.
+`requestSourceReservation` injects the account client, service and
+current-account predicate. It has no scheduler, automatic wake, idle lease,
+presentation caller or execution handoff. The service cannot authorize upload,
+funding, inference, replacement or refund.
+
+### Explicit video source reservation
+
+`Services/ObservationVideoReservationOwner.swift` retains one exact staged video
+reservation through account-lease exit. `OfflineQueueManager+VideoReservation`
+exposes the explicit injected service entry point. Account session, generation,
+container and exact candidate determine coalescing. Connectivity cancellation
+stops dispatch; current-account known settlement remains available. Both Auth
+barriers invalidate and drain the owner, and overlapping drains block admission.
+There is no scheduler or ordinary UI caller. See the
+[reservation delivery contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-retained-video-reservation-delivery).
+
+### Explicit video upload owner
+
+`Services/ObservationVideoUploadOwner.swift` retains one exact lifecycle
+snapshot through the actual account lease exit.
+`OfflineQueueManager+VideoUpload` accepts explicit injected work only. Both Auth
+barriers invalidate and await the owner; both connectivity cancellation paths
+stop dispatch while allowing a known same- account receipt to settle. Completion
+is published only after owner exit and for the original current context/account.
+No scheduler or ordinary UI admission is installed. Upload-ready work retains
+local media pending independent cleanup authority. The
+[canonical API contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-retained-video-upload-delivery)
+owns the state and cancellation semantics.

@@ -48,6 +48,7 @@ final class ScanRepository {
             self.seedFavoritesIfNeeded(modelContext: modelContext)
         }
         scheduleLocalMediaRecoveryRegistration(for: modelContext)
+        offlineQueue.requestReanalysisStartupRecovery()
     }
 
     private func scheduleLocalMediaRecoveryRegistration(
@@ -120,12 +121,6 @@ final class ScanRepository {
             MerianLog.data.error("configure: Favorites seed save failed: \(error, privacy: .private)")
         }
     }
-
-    // MARK: - Local Fetching
-
-    // MARK: - Replaced Manual Fetchers
-    // `fetchLocalCollections` and `fetchLocalScans` have been deleted.
-    // The MainActor UI relies natively on iOS 17 declarative @Query macros over the globally elevated LocalScanRecord structure.
 
     // MARK: - Capture Persistence
 
@@ -483,6 +478,7 @@ final class ScanRepository {
             // Missing rows can still commit file/tombstone work.
             guard result.committedErasureCount > 0 else { return }
 
+            await offlineQueue.finishReanalysisErasure(result.childIDs, in: modelContainer)
             await FileIOActor.shared.deleteFiles(at: result.localMediaPaths)
             // Refresh projections only when this transaction removed a row.
             if result.deletedRecordCount > 0 {
@@ -507,13 +503,13 @@ final class ScanRepository {
                        origin: CloudDeletionIntent.Origin = .explicitUserDeletion,
                        allowsMutation: @MainActor () -> Bool = HistoricalSyncCloudClient.allowsLocalMutation) -> Task<Void, Never>? {
         guard allowsMutation() else { return nil }
+        let scanID = record.id
         return ConfirmedSpeciesReviewPersistence.transaction {
             do {
                 if origin != .explicitUserDeletion,
-                   try ObservationHistoryEnrollmentIntent.protects(record.id, context: ModelContext(modelContext.container)) { return nil }
+                   try ObservationHistoryEnrollmentIntent.protects(scanID, context: ModelContext(modelContext.container)) { return nil }
             } catch { return nil }
-            ExploreShareStateStore.setSharedPostId(nil, for: record.id)
-
+            ExploreShareStateStore.setSharedPostId(nil, for: scanID)
             // Collect image paths before deleting the record.
             var imagesToErase: [String] = []
             if let jsonStr = record.capturedMediaJSON,
@@ -525,22 +521,24 @@ final class ScanRepository {
                 })
             }
 
-            // 1. Cancel/tombstone any in-flight upload for this now-deleted scan.
             offlineQueue.softDeleteQueuedScan(
-                scanId: record.id,
+                scanId: scanID,
                 reason: "Scan was deleted locally.",
                 errorCode: "local_scan_deleted",
                 needsAttention: false
             )
-
-            // 2. Queue cloud deletion task + remove SwiftData record atomically.
+            // Queue cloud deletion and remove the scan and private operation receipts atomically.
+            var childCleanup = ObservationReanalysisErasure.Cleanup()
             do {
                 if origin == .explicitUserDeletion {
-                    try ObservationHistoryEnrollmentIntent.supersedeForExplicitDeletion(record.id, context: modelContext)
+                    try ObservationHistoryEnrollmentIntent.supersedeForExplicitDeletion(scanID, context: modelContext)
                 }
-                try modelContext.ensurePendingCloudDeletionTask(scanId: record.id,
+                try modelContext.ensurePendingCloudDeletionTask(scanId: scanID,
                     requestingAccountID: CloudDeletionAccountWork.captureRequestAccount(using: historicalCloudClient), origin: origin)
-                try ObservationPublicationPersistence.removeForDeletion(record.id, context: modelContext)
+                childCleanup = try ObservationReanalysisErasure.removeChildren(of: scanID, context: modelContext)
+                try ObservationPublicationPersistence.removeForDeletion(scanID, context: modelContext)
+                try ObservationAnalysisReviewPersistence.removeForDeletion(scanID, context: modelContext)
+                try ProtectedInsightChatPersistence.removeForDeletion(scanID, context: modelContext)
                 modelContext.delete(record)
                 try modelContext.save()
             } catch {
@@ -550,11 +548,12 @@ final class ScanRepository {
                 // was not persisted, so state remains consistent.
                 return nil
             }
-
-            // 3. File cleanup and the immediate cloud attempt share a completion
-            // handle without delaying the already-committed local deletion.
+            if let observation = UUID(uuidString: scanID) { offlineQueue.historyEnrollmentOwner.cancel(observation, in: modelContext.container) }
             let localPaths = imagesToErase.filter { !$0.starts(with: "http") }
+            let childIDs = childCleanup.childIDs
+            let container = modelContext.container
             let cleanupTask = Task { [offlineQueue] in
+                await offlineQueue.finishReanalysisErasure(childIDs, in: container)
                 await withTaskGroup(of: Void.self) { group in
                     if !localPaths.isEmpty {
                         group.addTask {
@@ -574,8 +573,8 @@ final class ScanRepository {
     }
 
     /// Deletes every active SwiftData row plus verified account preferences and
-    /// process-local projections. This does not replace the store file or scan
-    /// the app container for unreferenced filesystem artifacts.
+    /// process-local projections, including the complete private reanalysis namespace.
+    /// This does not replace the store file or erase other unreferenced media.
     /// Use only for full account deletion or hard resets.
     @discardableResult
     func purgeAllData(
@@ -585,10 +584,10 @@ final class ScanRepository {
         resetRuntimeState: @MainActor () -> Void = {
             AccountScopedRuntimeState.reset()
         }
-    ) -> Bool {
+    ) async -> Bool {
         resetDerivedState()
         libraryRestoration.reset()
-        return ScanLibraryPurgeService.purge(
+        return await ScanLibraryPurgeService.purge(
             modelContext: modelContext, userDefaults: userDefaults,
             resetRuntimeState: resetRuntimeState
         )

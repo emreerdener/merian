@@ -1721,3 +1721,14 @@ Undo.
 
 In the confidence sheet, the incorrect-state card replaces the standalone gray
 Undo button. Menu and completed candidate-review Undo actions remain available.
+
+## Synthetic video/audio test fixtures
+
+`TestSupport/VideoAudioFixture.swift` serializes complete synthetic preparation
+across test suites: H.264 writing, AAC preparation and composition export.
+Ownership lasts until preparation completes or error cleanup finishes; an
+incomplete writer is cancelled before release. Cancellation while queued is
+checked after admission, before starting the next writer. The fixture retains
+all 30 frames and the one-second media range, with bounded readiness waits and
+frame/status diagnostics. This test-only gate does not serialize production
+capture or change extraction behavior.

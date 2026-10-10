@@ -164,29 +164,25 @@ enum ModelContainerFactory {
             )
         }
 
-        do {
-            return try makePersistentContainer(
-                migrationPlan: MerianRecentV56MigrationPlan.self,
-                named: "checksum-recent-v56",
-                diagnostic: &diagnostic
-            )
-        } catch let recentV56Error {
-            MerianLog.general.error(
-                "ModelContainer V56 checksum-safe retry failed: \(recentV56Error.localizedDescription, privacy: .private)"
-            )
-        }
+        // The named helper records each failure in the startup diagnostic.
+        // A failed recent source advances to the next exact representative.
+        if let recovered = try? makePersistentContainer(
+            migrationPlan: MerianRecentV57MigrationPlan.self,
+            named: "checksum-recent-v57",
+            diagnostic: &diagnostic
+        ) { return recovered }
 
-        do {
-            return try makePersistentContainer(
-                migrationPlan: MerianRecentV55MigrationPlan.self,
-                named: "checksum-recent-v55",
-                diagnostic: &diagnostic
-            )
-        } catch let recentV55Error {
-            MerianLog.general.error(
-                "ModelContainer V55 checksum-safe retry failed: \(recentV55Error.localizedDescription, privacy: .private)"
-            )
-        }
+        if let recovered = try? makePersistentContainer(
+            migrationPlan: MerianRecentV56MigrationPlan.self,
+            named: "checksum-recent-v56",
+            diagnostic: &diagnostic
+        ) { return recovered }
+
+        if let recovered = try? makePersistentContainer(
+            migrationPlan: MerianRecentV55MigrationPlan.self,
+            named: "checksum-recent-v55",
+            diagnostic: &diagnostic
+        ) { return recovered }
 
         do {
             return try makePersistentContainer(
@@ -424,6 +420,8 @@ enum ModelContainerFactory {
         diagnostic: inout StartupStoreDiagnostic
     ) throws -> ModelContainer {
         switch source {
+        case .v57:
+            return try makePersistentContainer(migrationPlan: MerianRecentV57MigrationPlan.self, named: "recent-v57", diagnostic: &diagnostic)
         case .v56:
             return try makePersistentContainer(migrationPlan: MerianRecentV56MigrationPlan.self, named: "recent-v56", diagnostic: &diagnostic)
         case .v55:

@@ -2,6 +2,7 @@ import { isScientificName } from "../identify/speciesVerification.ts";
 import {
   exactObject,
   historyRevision,
+  historyUUID,
   invalidHistory,
   parseSelectionRequest,
   type SelectionRequest,
@@ -18,16 +19,60 @@ const requestKeys = [
   "scientific_name",
 ] as const;
 
-export interface AnalysisConfirmationRequest extends SelectionRequest {
-  action: "confirm_primary" | "confirm_name";
-  scientific_name: string | null;
+export interface AnalysisCandidateReference {
+  version: 1;
+  analysis_id: string;
+  representation: "stored_species_candidates_v1";
+  ordinal: number;
+}
+
+export function parseAnalysisCandidateReference(
+  value: unknown,
+  analysisID: string,
+): AnalysisCandidateReference {
+  const row = exactObject(value, [
+    "version",
+    "analysis_id",
+    "representation",
+    "ordinal",
+  ]);
+  if (
+    row.version !== 1 || historyUUID(row.analysis_id) !== analysisID ||
+    row.representation !== "stored_species_candidates_v1" ||
+    typeof row.ordinal !== "number" || !Number.isInteger(row.ordinal) ||
+    row.ordinal < 0 || row.ordinal > 1
+  ) return invalidHistory();
+  return Object.freeze({
+    version: 1,
+    analysis_id: analysisID,
+    representation: "stored_species_candidates_v1",
+    ordinal: row.ordinal,
+  });
+}
+
+export type AnalysisConfirmationRequest =
+  | (SelectionRequest & {
+    action: "confirm_primary" | "confirm_name";
+    scientific_name: string | null;
+  })
+  | (Omit<SelectionRequest, "schema_version"> & {
+    schema_version: 2;
+    action: "confirm_name";
+    scientific_name: string;
+    candidate_reference: AnalysisCandidateReference;
+  });
+
+function keysFor(value: unknown): readonly string[] {
+  return (value as { schema_version?: unknown } | null)?.schema_version === 2
+    ? [...requestKeys, "candidate_reference"]
+    : requestKeys;
 }
 
 export function parseAnalysisConfirmationRequest(
   value: unknown,
 ): AnalysisConfirmationRequest {
-  const row = exactObject(value, requestKeys);
-  const { action, scientific_name, ...selection } = row;
+  const row = exactObject(value, keysFor(value));
+  const { action, scientific_name, candidate_reference, ...selection } = row;
   if (action !== "confirm_primary" && action !== "confirm_name") {
     return invalidHistory();
   }
@@ -37,6 +82,22 @@ export function parseAnalysisConfirmationRequest(
       : !isScientificName(scientific_name)
   ) {
     return invalidHistory();
+  }
+  if (row.schema_version === 2) {
+    if (action !== "confirm_name" || !isScientificName(scientific_name)) {
+      return invalidHistory();
+    }
+    const identity = parseSelectionRequest({ ...selection, schema_version: 1 });
+    return Object.freeze({
+      ...identity,
+      schema_version: 2,
+      action,
+      scientific_name,
+      candidate_reference: parseAnalysisCandidateReference(
+        candidate_reference,
+        identity.analysis_id,
+      ),
+    });
   }
   return Object.freeze({
     ...parseSelectionRequest(selection),
@@ -78,15 +139,16 @@ export function parseAnalysisConfirmationReceipt(
     outcome !== "applied" && outcome !== "revision_conflict" &&
     outcome !== "not_verified"
   ) return invalidHistory();
+  const keys = keysFor(expected);
   const row = exactObject(value, [
-    ...requestKeys,
+    ...keys,
     "outcome",
     ...(outcome === "applied"
       ? ["observation_revision", "review_revision"]
       : []),
   ]);
   const request = sameRequest(
-    Object.fromEntries(requestKeys.map((key) => [key, row[key]])),
+    Object.fromEntries(keys.map((key) => [key, row[key]])),
     expected,
   );
   if (outcome !== "applied") return { ...request, outcome };

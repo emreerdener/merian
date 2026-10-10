@@ -307,6 +307,15 @@ owner-bound update; client recovery JSON remains outside that authority.
 
 ### Held observation review authority
 
+Confirmation reversal is independently default-off under
+`confirmation_undo_api_enabled`. Its owner-authenticated eligibility RPC has no
+API-role table grants and returns only the exact confirmation ID/action or an
+unavailable reason. Reversal repeats shared receipt/authority validation under
+canonical locks. The lookup uses reader 9 and a five-second timeout; neither it
+nor Undo runs taxonomy/provider/funding operations. All activation flags remain
+closed. Field Trip reconciliation still needs separate qualification and cannot
+be described as live credit revocation from the emitted obligation alone.
+
 Protocol-9 `review_owned_observation_analysis` is owner-authenticated and
 remains behind default-false rejection/read gates. Private review receipts have
 no API role table grants, bind one analysis and both revisions, and are erased
@@ -635,7 +644,7 @@ results, deployment IDs, and monitor links. “Repository corrected” and
 
 ## Prepared history evidence credentials
 
-The unconnected `analysisHistory/evidenceStorage.ts` owner reads
+The private `analysisHistory/evidenceStorage.ts` owner reads
 `R2_HISTORY_BUCKET_NAME`, `R2_HISTORY_WRITE_ACCESS_KEY_ID`,
 `R2_HISTORY_WRITE_SECRET_ACCESS_KEY`, `R2_HISTORY_READ_ACCESS_KEY_ID`, and
 `R2_HISTORY_READ_SECRET_ACCESS_KEY`, alongside the existing `R2_ACCOUNT_ID`.
@@ -662,6 +671,30 @@ never operate on this bucket. No lifecycle rule may remove erasure markers.
 Inventory these controls and verify conditional-upload/marker races, HEAD
 metadata and read expiry against an explicitly authorized nonproduction bucket
 before opening any history gate. Local fixtures do not attest hosted policy.
+
+Prepared audio cohorts use the same private storage boundary. Their reserve and
+complete RPCs are exact-signature service-only grants; the private table and
+primitives remain inaccessible to API roles. The new default-false
+`prepared_audio_evidence_enabled` gate does not authorize client assertions of
+WAV readiness. A future uploader must verify the complete container and exact
+bytes before calling these routines. Frozen object IDs and permanent erasure
+markers prevent allocating replacement objects after cleanup. Audio identity
+remains excluded from existing photo/text inference until coordinated admission
+and reader support exists. See the
+[audio cohort contract](05-api-contracts.md#prepared-audio-cohort-rpcs).
+
+Private-evidence cleanup admission now has an independent default-false
+`private_evidence_erasure_enabled` SQL gate. Its service-only retirement call
+preserves expired cohort identity while enqueueing exact opaque objects, and
+claim/finish retain the original one-minute lease. The prepared
+`erase-observation-evidence` endpoint now provides bounded marker execution with
+a shared deadline and completion reserve. It uses only dedicated private-history
+write credentials, never the public bucket. Configured source participates in
+future main deployment planning; runtime-off is not a deployment exclusion.
+Activation still requires real storage qualification, independently authorized
+recurring cleanup and due-backlog/oldest-age monitoring. Public-copy erasure
+does not cover the private outbox. Existing claim settlement must remain
+available when new cleanup admission is disabled.
 
 The prepared photo classifier adapter captures `GEMINI_PAID_API_KEY` before
 dispatch and sends it only in the fixed Gemini endpoint header. It reads exact
@@ -862,3 +895,125 @@ can be recovered only from the permanent registry by the independent erasure
 worker. No source-level gate proves that scheduling is functioning. Runtime
 CPU/process-memory qualification and owner/native delivery also remain
 prerequisites; source/config inventory authorizes no deployment or schedule.
+
+The prepared `upload-observation-evidence` endpoint is the private write owner:
+verified JWT identity enters service-only full-cohort reservation and completion
+facades, with no client access to private routines/tables. It computes actual
+byte digests and uses the dedicated history write credential for conditional
+PUT/HEAD verification under a shared deadline. It never accepts public URLs or
+returns storage capabilities. Cohort metadata preserves immutable consent after
+expiry while the opaque erasure ledger survives account/observation deletion.
+This source wiring does not provision credentials/buckets or activate uploads;
+the private-bucket and independent erasure qualifications above remain required.
+
+### Protected Field Chat execution preparation
+
+The prepared chat execution fence is private with RLS and no direct API-role
+grants. Only `service_role` can invoke the exact allowlisted protected quota and
+context-admission signatures. Private fingerprint, locking, immutability and
+merge helpers have no API execute grant. `chat_execution_enabled` defaults false
+independently of immutable-context preparation.
+
+The fence survives ordinary quota pruning and message erasure. Scan deletion and
+account detachment erase private ownership; merging accounts preserves the
+scan-owned fence and conservatively retires colliding quota rows without
+restoring committed charges. The service-only one-time dispatch routine now
+atomically consumes a permanent marker and commits original provider quota.
+Current owner/deletion/consent and original context/reservation checks apply;
+generic finalization cannot bypass first-dispatch admission. Unknown grant
+replies stay held with no reusable permission. Protected HTTP/native wiring and
+bounded runtime qualification remain necessary before this gate may be
+considered for activation. No current migration, local test, or prepared RPC
+authorizes activation or deployment.
+
+The legacy Insight boundary now uses private admission/finalizer/stale-recovery
+cores without service-role execute grants. Public wrappers preserve exact
+signatures and acquire subject locks before quota locks. The only new exposed
+routine is the service-only owner/deletion-fenced route read. Existing SQL
+snapshot owners invoke the private admission core directly; no API-supplied mode
+bypasses the fence. The matching enrollment barrier holds unknown committed
+legacy work until its exact assistant receipt exists.
+
+The new Insight handler requires the forward routing migration before rollout; a
+missing or unknown routing RPC fails closed rather than selecting legacy. Its
+source-derived Field Chat bundle identity is regenerated. Immutable-required
+HTTP sends now use the bounded protected owner in source; fresh admission
+remains behind disabled database gates and requires coordinated native
+qualification. These source changes do not authorize applying migrations,
+activating either chat gate or deploying the Function.
+
+The exact completion and atomic local-refusal routines are separately
+service-only allowlisted. Their private receipt/copy helpers have no API execute
+grants. Completion reads original owner-bound context before assistant evidence;
+refusal takes exclusive subject locks before any replay/admission. Fixed SQL
+answers and ten-field receipts exclude caller-chosen response payloads and
+private metadata. An assistant write failure rolls back the daily slot and
+context. No provider quota is admitted or settled here. Fresh refusal remains
+behind the false execution gate; HTTP/native execution is still unconnected.
+
+Original-grant reply write and full-payload recovery are separately service-only
+allowlisted. Their private validator/receipt helpers have no API execute grants.
+Subject ownership and deletion precede reply validation; writes preserve
+subject→quota→fence→message lock ordering. Receipt recovery can survive quota
+pruning, but a new answer requires the original committed first-attempt quota
+and consumed dispatch marker. Read recovery compares private accounting without
+returning it. Completion never refunds, redispatches or extends execution
+authority. The migration leaves every activation gate unchanged and does not
+authorize hosted application or deployment.
+
+Protected HTTP execution now uses the exact immutable recovery/admission and
+original-grant completion owners. Source routing cannot turn a client protocol
+omission into legacy permission. The isolated raw provider adapter has a fixed
+origin/model, one invocation, real parent cancellation and bounded response
+body; unknown outcomes remain charged with no successor. The source-derived
+Field Chat fingerprint includes this runtime. Native immutable send tickets,
+receipt decoding, durable delivery and explicit identification refresh are
+prepared; operational qualification still precedes any separately authorized
+deployment or activation. All gates remain false.
+
+The prepared no-admission seal is an exact allowlisted service-only RPC, not an
+authenticated-client table write. Its private immutable columns can never gain
+quota, message or dispatch authority. Both quota INSERT and UPDATE paths and the
+shared context admission owner enforce the seal. Only a locked exact
+stale-ticket denial is sealable; gate, authorization, network and damaged-state
+errors remain failures or holds. Historical replay still checks current owner
+and deletion first. The new exact read-only proof RPC is separately allowlisted
+and uses the same canonical subject/request locks without fresh gates or
+admission. Prepared HTTP recovery reads original completion before proof; only
+exact typed stale-ticket denial can call the seal writer. Native versioned proof
+settlement uses the existing exact running-claim CAS; fresh requests cannot
+reuse a proved-stale ticket. Explicit remote refresh retains account-scoped
+reads through Auth teardown and cannot itself send a new question. These source
+changes do not authorize deployment or change any rollout gate.
+
+A terminal seal colliding with another account's attempted UUID blocks account
+merge with `55000/field_chat_execution_merge_conflict`. The whole merge rolls
+back, preserving both owners and all attempt evidence. Neither operational quota
+retirement nor a user-controlled bypass resolves this conflict. Two terminal
+seals with the same UUID also block merge; no winner is selected.
+
+### Prepared V4 execution service boundary
+
+The four video begin/advance/recovery RPCs are explicit service-role grants in
+`internal.privileged_routine_grants`. Each checks service role and both disabled
+orchestration gates; the private video state owners remain ungranted. Recovery
+uses canonical owner/source locks and only durable known outcomes or drafts.
+Fresh dispatch and received-result settlement retain separate fences. Worker
+claims, original quota, outcomes and evidence inventories are private, never
+client response or logging material. No Edge/native caller, scheduler, release
+or gate activation is supplied. See the
+[closed service contract](05-api-contracts.md#prepared-service-only-video-execution-composition).
+
+### Video Edge authentication boundary
+
+The separate `analyze-observation-video` handler now supplies the verified user
+owner to the prepared service RPCs. `recover-observation-video-analyses` accepts
+only exact environment-resolved service authorization, then creates its client
+from that resolved credential. Both use `verify_jwt=false` because the handlers
+own authentication; neither route is public. All SQL activation gates remain
+false. Private claims, outcomes, source bytes and inventory never enter status
+responses. Unknown dispatch remains held without retry or refund. These source
+routes supersede the earlier no-Edge-caller status; native execution and hosted
+qualification remain outstanding. Config changes require the normal reviewed
+future deployment plan and confer no deployment/scheduling authorization. See
+[video execution contract](05-api-contracts.md#gated-video-edge-execution).

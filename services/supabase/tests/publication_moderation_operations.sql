@@ -107,6 +107,18 @@ $$;
 CREATE FUNCTION pg_temp.prepare_photo_execution(owner_id UUID,observation UUID,receipt JSONB) RETURNS JSONB LANGUAGE SQL AS $$
  SELECT internal.prepare_publication_photo_execution(owner_id,observation,(receipt->>'attempt_id')::UUID,(receipt->>'lease_token')::UUID,pg_temp.photo_execution_proof(receipt));
 $$;
+
+-- Reconstruct pre-guard admitted rows for compatibility/capacity tests only.
+CREATE FUNCTION pg_temp.legacy_publication_intake(owner_id UUID, request JSONB, ip TEXT) RETURNS VOID LANGUAGE PLPGSQL AS $$
+BEGIN
+ PERFORM internal.prepare_observation_publication_intent(owner_id,request);
+ INSERT INTO internal.observation_publication_operations(operation_id,observation_id,owner_id,ip_hash,receipt)
+ VALUES((request->>'operation_id')::UUID,(request->>'observation_id')::UUID,owner_id,ip,
+ jsonb_build_object('schema_version',1,'operation_id',request->'operation_id','observation_id',request->'observation_id',
+ 'analysis_id',request->'analysis_id','status','accepted','admitted_at',clock_timestamp()));
+END;
+$$;
+
 -- END PHOTO MODERATION HELPERS
 
 UPDATE internal.entitlement_rollout_config SET entitlement_mode='complimentary',required_client_protocol=3 WHERE config_key='current';
@@ -114,7 +126,7 @@ UPDATE internal.observation_history_rollout SET media_enabled=TRUE,admission_ena
 UPDATE internal.ai_quota_policies SET enabled=TRUE WHERE operation='observation_photo_publication_moderation';
 SELECT pg_temp.seed_photo_moderation('00000000-0000-4000-8000-00000000ff01','00000000-0000-4000-8000-00000000ff11','00000000-0000-4000-8000-00000000ff21','00000000-0000-4000-8000-00000000ff31','00000000-0000-4000-8000-00000000ff41');
 SELECT public.admit_owned_observation_publication('00000000-0000-4000-8000-00000000ff01',pg_temp.publication_request('00000000-0000-4000-8000-00000000ff11','00000000-0000-4000-8000-00000000ff21','00000000-0000-4000-8000-00000000ff41','00000000-0000-4000-8000-00000000ff31'),repeat('b',64));
-SELECT public.admit_owned_observation_publication('00000000-0000-4000-8000-00000000ff01',pg_temp.publication_request('00000000-0000-4000-8000-00000000ff11','00000000-0000-4000-8000-00000000ff21','00000000-0000-4000-8000-00000000ff44','00000000-0000-4000-8000-00000000ff31'),repeat('b',64));
+SELECT pg_temp.legacy_publication_intake('00000000-0000-4000-8000-00000000ff01',pg_temp.publication_request('00000000-0000-4000-8000-00000000ff11','00000000-0000-4000-8000-00000000ff21','00000000-0000-4000-8000-00000000ff44','00000000-0000-4000-8000-00000000ff31'),repeat('b',64));
 CREATE TEMP TABLE work AS SELECT public.claim_observation_publication_work('00000000-0000-4000-8000-00000000ff01','00000000-0000-4000-8000-00000000ff11','00000000-0000-4000-8000-00000000ff41') AS receipt;
 CREATE TEMP TABLE attempts(label TEXT PRIMARY KEY,receipt JSONB);
 GRANT SELECT,INSERT ON work,attempts TO service_role;
@@ -166,7 +178,7 @@ SELECT extensions.is(pg_temp.admit(),(SELECT receipt FROM attempts WHERE label='
 SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_photo_moderation_attempts),1,'one attempt across claim changes and retries');
 -- A second accepted operation proves expiry retirement keeps provider accounting
 -- and cannot become automatic admission of another provider attempt.
-SELECT public.admit_owned_observation_publication('00000000-0000-4000-8000-00000000ff01',pg_temp.publication_request('00000000-0000-4000-8000-00000000ff11','00000000-0000-4000-8000-00000000ff21','00000000-0000-4000-8000-00000000ff42','00000000-0000-4000-8000-00000000ff31'),repeat('b',64));
+SELECT pg_temp.legacy_publication_intake('00000000-0000-4000-8000-00000000ff01',pg_temp.publication_request('00000000-0000-4000-8000-00000000ff11','00000000-0000-4000-8000-00000000ff21','00000000-0000-4000-8000-00000000ff42','00000000-0000-4000-8000-00000000ff31'),repeat('b',64));
 UPDATE work SET receipt=public.claim_observation_publication_work('00000000-0000-4000-8000-00000000ff01','00000000-0000-4000-8000-00000000ff11','00000000-0000-4000-8000-00000000ff42');
 UPDATE attempts SET label='prior' WHERE label='original';
 INSERT INTO attempts SELECT 'original',public.admit_publication_moderation_work('00000000-0000-4000-8000-00000000ff01','00000000-0000-4000-8000-00000000ff11','00000000-0000-4000-8000-00000000ff42',(receipt->>'work_token')::UUID,'00000000-0000-4000-8000-00000000ff31') FROM work;

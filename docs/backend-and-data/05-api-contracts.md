@@ -9294,6 +9294,13 @@ submitted observation.
 The exact retained-versus-cleared field boundary is normative in the
 [scientific-observation retention contract](./17-scientific-observation-retention.md).
 
+The prepared enrolled-observation detachment materializer adds no request or
+response field. Its `scans.retained_identification` is a restricted, immutable
+scientific snapshot, with no new client column grant; it is neither a history
+result nor a source of current review/publication authority. Selection/review
+writers and deletion serialize on the owner; inconsistent selected state aborts
+the relational transaction before erasure. Legacy detachment stays unchanged.
+
 The iOS wire methods live in
 `Core/Network/Endpoints/MerianNetworkClient+AccountDeletion.swift`, with
 accepted/recovery receipt and status DTOs, the operation-specific preparation
@@ -9539,7 +9546,12 @@ sign-out, and deletes every active-schema SwiftData row through
 The required app-owned private-map reset closure empties and epoch-fences
 exact-coordinate snapshots, index work, and preview rendering and advances the
 active-map presentation reset generation before SwiftData deletion. After the
-database save, the purge read-back verifies removal of account-derived
+database save, the asynchronous purge first erases the entire private
+`ReanalysisQueue` namespace under its exclusive filesystem lock, including
+orphaned preparations. The local receipt worker is suspended and drained first;
+Auth transition/recovery barriers remain held. Failure preserves the cleanup
+marker and prevents acknowledgement, preference/runtime reset and capability
+retirement. The purge then read-back verifies removal of account-derived
 `UserDefaults` caches, including field notes, Explore share state, species-name
 legacy/tombstone/diagnostic values, account-keyed goal and achievement
 envelopes, collection state, Explore state and unread count, legacy
@@ -9549,16 +9561,16 @@ notice remain. An injected post-persistence owner then resets observable
 settings, gamification, the generation-fenced app badge, and RAM images. It then
 acknowledges through the public recovery route using only the independent
 acknowledgement capability, records `capability_retirement_pending`, verifies
-local Auth absence and repeats the idempotent SwiftData/preferences cleanup on
-relaunch, verifies Keychain proof removal, and clears the marker last.
-Foreground and cold-launch recovery repeat the exact phase behind a blocking
-screen. Only a matched committed capability's
-`account_deletion_recovery_expired` `410` permits conservative local cleanup;
-the subsequent independent acknowledgement remains valid after expiry and
-converts the row to a permanent replay receipt before local retirement. An
-unknown legacy proof does not. An authenticated duplicate that arrives after
-acknowledgement returns the same permanent receipt and cannot clear
-acknowledgement or extend its expiry. The app establishes its ordinary
+local Auth absence and repeats the idempotent
+SwiftData/private-reanalysis/preferences cleanup on relaunch, verifies Keychain
+proof removal, and clears the marker last. Foreground and cold-launch recovery
+repeat the exact phase behind a blocking screen. Only a matched committed
+capability's `account_deletion_recovery_expired` `410` permits conservative
+local cleanup; the subsequent independent acknowledgement remains valid after
+expiry and converts the row to a permanent replay receipt before local
+retirement. An unknown legacy proof does not. An authenticated duplicate that
+arrives after acknowledgement returns the same permanent receipt and cannot
+clear acknowledgement or extend its expiry. The app establishes its ordinary
 signed-out state only after this sequence. Neither marker nor proof contains an
 account, job, provider, or request identifier. Legacy `intake_pending` and
 `cleanup_pending` remain supported during the installed-client compatibility
@@ -10204,13 +10216,13 @@ The
 [history contract owner](../../services/supabase/functions/_shared/analysisHistory/README.md)
 defines bounded version-1 identity, selection, pagination and chat-context
 parsers. These are private preparation contracts, not deployed routes or
-generated native DTOs. Explicit history reader protocols 7, 8 and 9 do not
-change the current Identify reader capability. Native advertises protocol 9 for
-history reads only; V56 admits saved imports with unknown completion dates.
-Enrollment still requires state/authority hydration. A separate owner-only
-history read RPC is prepared behind a default-false reader gate; no history
-selection/deletion RPC is exposed and no chat endpoint persists this context
-yet. The
+generated native DTOs. Explicit history reader protocols 7, 8, 9 and backend 10
+do not change the current Identify reader capability. Native advertises protocol
+9 for history reads only; V56 admits saved imports with unknown completion
+dates. Enrollment still requires state/authority hydration. A separate
+owner-only history read RPC is prepared behind a default-false reader gate; no
+history selection/deletion RPC is exposed and no chat endpoint persists this
+context yet. The
 [schema contract](./04-database-schema.md#prepared-observation-analysis-history)
 owns prepared storage and transaction behavior; connected API/DTO changes remain
 under the
@@ -10221,13 +10233,16 @@ The legacy deletion refusal below remains mandatory.
 
 `get_owned_observation_analysis_page(p_request jsonb, p_reader integer)` is
 callable only by `authenticated`. It derives the owner from `auth.uid()` and
-requires `p_reader` 7, 8 or 9 and
+requires `p_reader` 7, 8, 9 or 10 and
 `observation_history_rollout.reader_enabled = true`. Protocol 7 refuses an
 entire history containing V2 or V3; protocol 8 accepts mixed V1/V2 snapshots but
 rejects any history containing V3. Protocol 9 additionally reads imported saved
-identifications, with the unchanged version-1 page envelope. The gate defaults
-false; this is not permission to enable it. Ordinary Identify and scan-history
-requests still advertise capability 6.
+identifications. Backend protocol 10 also reads audio V4; protocols 7–9 refuse
+the whole history when audio is present. Native history transports use protocol
+10 while V4 action admission and audio input execution remain held. All use the
+unchanged version-1 page envelope. The gate defaults false; this is not
+permission to enable it. Ordinary Identify and scan-history requests still
+advertise capability 6.
 
 `p_request` has exactly `schema_version: 1`, a lowercase UUID `observation_id`,
 nullable positive `before_ordinal`, and `limit` from 1 to 20. There is no
@@ -12288,6 +12303,39 @@ scientific allowlisting, and a private-bucket/credential audit with real R2 race
 evidence. No public-CDN URL, staging URL, signed URL or caller-nominated key can
 stand in for a durable protected-media receipt.
 
+## Prepared private-evidence cleanup RPCs
+
+The separate `private_evidence_erasure_enabled` gate starts false. Only a
+service caller may execute `retire_expired_observation_evidence()` and
+`claim_observation_evidence_erasure()`. Retirement returns an integer from zero
+to five: one exact expired unbound cohort, or one legacy noncohort receipt.
+Discovery and the locked recheck exclude intent/result-owned evidence; invalid
+or mismatched immutable cohorts are held while later eligible work can progress.
+The original cohort descriptor and expiry survive receipt cleanup, so retrying
+an expired analysis cannot allocate new object keys. Parent/account deletion
+continues to remove private descriptors and enqueue opaque obligations.
+
+Claim returns SQL null when disabled or no obligation is due, otherwise exactly
+`object_id`, `claim_token`, and `claim_expires_at`. Its one-minute lease is
+never extended.
+`finish_observation_evidence_erasure(p_object,p_claim,p_success)` returns a
+boolean for the original unexpired token. It remains callable after the gate
+closes; successful settlement still requires the trusted caller to PUT and
+HEAD-verify the permanent empty marker. The prepared
+`erase-observation-evidence` service-authenticated POST endpoint now connects
+these RPCs. It consumes no caller body or object key and returns only `retired`
+(0–5), `claimed`, `marked`, and `acknowledged` (0–1 each). All responses are
+no-store. One request retires at most one cohort, then marks at most one
+independently claimed opaque object. A 90-second shared request deadline caps
+twelve-second RPCs and a 25-second PUT/HEAD stage. Storage starts only with at
+least 38 seconds left in the original 60-second claim and request, reserving
+twelve seconds plus scheduling margin for settlement. The claim is never
+renewed. Failed or uncertain marker writes report failure when time allows; lost
+acknowledgements recover through the durable outbox without in-request retries.
+Parent cancellation reaches both storage calls. Configured source participates
+in future main deployment planning; no deployment, schedule or activation is
+implied. Public-copy cleanup cannot drain this separate private outbox.
+
 ## Prepared protected photo analyses
 
 `20261003063309_bind_protected_analysis_evidence.sql` connects private ready
@@ -12404,20 +12452,207 @@ Explore and Field Chat are unchanged.
 
 ## Prepared child-analysis orchestration and recovery
 
+The prepared authenticated RPC `get_owned_observation_reanalysis_preflight`
+accepts one exact `p_request` object: `schema_version:1`, distinct canonical
+`observation_id`, `analysis_id`, `source_analysis_id`, and independent protocols
+`entitlement_protocol:3`, `identification_protocol:6`, `history_protocol:8`. It
+targets photo reanalysis only, without content, caller-supplied owner, provider
+choice or fallback permission. Owner/history/deletion and source membership are
+checked under the same owner-first locks as admission. A historical source need
+not be selected or confirmed. Existing orchestration, admission and protected
+analysis gates must be open; this migration changes none of them.
+
+The response is exactly
+`{schema_version:1, observation_id, analysis_id,
+source_analysis_id, decision, processor_permission,
+minimum_entitlement_protocol, minimum_identification_protocol}`.
+Fresh children reuse the current read-only recipient policy with fixed photo
+shape and no free fallback. Decisions are `ready`, `permission_required`,
+`client_update_required` or `recovery_only`. An existing intent with the same
+owner, observation and source returns only `recovery_only`, with null recipient
+and minima, for every lifecycle state. Legacy or unrelated identity collisions
+fail before recipient resolution; they cannot become new analyses. Owned
+pre-admission private evidence is permitted but this read does not certify its
+readiness or extend its expiry.
+
+Preflight does not reserve quota, claim complimentary funding, admit an intent,
+select a result or authorize dispatch. In particular, native callers must not
+preclaim a legacy complimentary hold for the child: protected admission rejects
+existing unrelated funding identities and owns its own atomic hold. Persist the
+qualified child and exact request locally, then let `analyze-observation` admit
+or recover that same operation. Admission and dispatch still recheck current
+consent and recipient expectations. Native decoding has a separate bounded
+4-KiB, exact-key/identity contract and supports capability 6; it does not pass
+this request through the legacy native preflight format. The same account lease,
+consent and queue-currentness checks apply before the read and after suspension;
+there is no hidden transport retry or 401-refresh recursion.
+
 Migration `20261003074429_prepare_observation_analysis_recovery.sql` adds the
 false-by-default `orchestration_enabled` gate. `analyze-observation` validates
 the existing strict V1/V2 admission contract, derives owner from verified auth
 and IP HMAC from the trusted request boundary, and returns only
 `{schema_version:1, observation_id, analysis_id, state}`. Terminal states
 `complete`/`failed_terminal` return 200; admitted/dispatched/draft return 202.
-All responses are private/no-store. Transport failure requires the same analysis
-ID/input on retry. An immutable identity conflict from admission returns HTTP
-409 with `analysis_history_operation_conflict`; it does not invite endless retry
-of the conflicting input. Later worker-claim conflicts remain sanitized 503
-failures so retry can recover saved work. New analyses use fresh IDs. Completion
-never changes selection. V2 input is additionally limited to five photos and 5
-MiB combined before quota; storage's 32 MiB receipt allowance does not expand
-provider admission.
+All responses are private/no-store. Transport failure retains the same analysis
+ID/input. Once native dispatch permission is consumed, only non-dispatching
+outcome recovery is allowed; neither an absent result nor reopening authorizes
+another analyze invocation. An immutable identity conflict from admission
+returns HTTP 409 with `analysis_history_operation_conflict`; it does not invite
+endless retry of the conflicting input. Later worker-claim conflicts remain
+sanitized 503 failures; callers must distinguish safe outcome recovery from
+inference retry. New analyses use fresh IDs only for a separate explicit action,
+never as an uncertain-operation successor. Completion never changes selection.
+V2 input is additionally limited to five photos and 5 MiB combined before quota;
+storage's 32 MiB receipt allowance does not expand provider admission.
+
+`get_owned_observation_analysis_execution(p_request,p_reader:10)` is a separate
+owner-only, mutation-free execution read behind default-false
+`execution_status_api_enabled` plus `reader_enabled`. Its exact schema-1 request
+contains `observation_id`, `analysis_id`, explicit nullable
+`source_analysis_id`, and `request_digest`. The exact seven-field response
+echoes that request plus `owner_id` and `state`: `absent`, `admitted`,
+`dispatched`, `draft`, `complete`, or `failed_terminal`. Source and digest must
+match the original admitted input. It returns no private input, result, quota or
+lease. Owner/parent/deletion locks serialize it with dispatch and deletion.
+Current selection, review revision and inference consent cannot rebase the saved
+input.
+
+Every state is observational: `absent` is not a no-admission seal, retirement
+receipt or permission to dispatch; `complete` still needs exact immutable result
+recovery. The native fixed RPC uses a five-second timeout, 4-KiB strict decoder,
+expected owner and post-Auth claim validation with no transient, 401 or missing
+route retry. Prepared retirement UI consumes this observation under a retained
+account lease; the read never supplies retirement proof or changes activation
+gates.
+
+The separately prepared service-only
+`retire_owned_observation_analysis_execution(p_owner,p_request,p_reader:10)`
+requires default-false `execution_retirement_api_enabled`. Prepared
+authenticated `POST retire-observation-analysis` derives `p_owner` from
+`withEdgeHandler`; native direct RPC access is denied. The HTTP boundary is
+implemented; native durable staging, proof settlement and retained delivery are
+prepared, including narrowly scoped status actions in the inert App bundle. The
+closed schema-1 request adds one retained `operation_id` to the original
+parent/child/nullable-source/digest identity. The exact receipt echoes those six
+fields plus `state:"retired_before_dispatch"`.
+
+After owner/deletion locks, exact stored receipt replay precedes the fresh gate.
+Fresh retirement requires an admitted intent with no invocation, outcome, draft,
+result, completion receipt, terminal reason or usage, an exact reserved quota
+and any complimentary row still held. Canonical locks serialize dispatch.
+Retirement refunds only that proven-unused reservation, releases its held
+complimentary credit, invalidates the worker claim, marks the intent terminal,
+queues private evidence erasure and saves the immutable receipt in one
+transaction. A receipt-save failure rolls all of that back. An active admitted
+worker claim does not prove provider invocation and can be revoked atomically.
+
+Dispatched uncertainty, draft/completed results, other terminal failures,
+malformed ledgers and absent intents do not receive this proof. A different
+retirement UUID cannot replace the saved one. Parent/account deletion wins
+replay and cascades the private receipt; the existing account-merge guard stays
+closed while the terminal intent exists. This is admitted-only retirement, not a
+no-admission seal for an HTTP request still in flight and not blanket terminal
+remediation or permission for another provider invocation.
+
+The HTTP wrapper accepts at most 2 KiB and uses a scoped five-second service
+transport with an actual streamed 4-KiB response cap. It invokes one fixed RPC,
+propagates cancellation and regains control even if abort acknowledgement
+stalls. There is no automatic retry. Strict exact receipt decoding precedes a
+200 response; malformed server data or interrupted I/O returns sanitized 503.
+Invalid input is 400, missing/foreign/deleted work shares 404, and exact
+operation conflict is 409. Every response is private/no-store. No error or
+absent read releases occupancy; an uncertain reply requires the identical
+retained retirement request to recover its permanent receipt. No deployment is
+implied.
+
+The gated native retirement wire retains canonical request bytes for the
+retained durable owner. Its fixed five-second authenticated dispatch bypasses
+generic response-time cancellation so an exact received proof can reach a
+separate same-account/container/claim settlement check. The pinned collector
+limits actual streamed responses to 4 KiB and rejects redirects. It never
+retries transient, 401 or missing-route failures. This transport does not itself
+stage retirement, acknowledge a job, clean files or release occupancy; those
+effects belong to the prepared durable owners and explicit status actions.
+Unknown outcomes retain the original retirement UUID and require exact receipt
+recovery.
+
+Native version-eight bound metadata now stages that one retirement UUID with its
+unchanged request and dispatch provenance. The typed status retains its
+validated owner and full request identity; staging compares both and requires
+`admitted`, plus a fresh full-snapshot local CAS. Version-one unknown and
+version-seven consumed work are eligible to request retirement; ready work is
+not. Staging fences older normal workers. Runnable retirement records now enter
+the dedicated retirement branch of the retained execution pass. It does not
+itself call the endpoint, erase evidence or release occupancy. Dedicated claims
+and terminal-proof settlement now retain the same operation through explicit
+recovery and save ambiguity. Closed local erasure metadata version two preserves
+the owner and exact bounded server proof in the same save that deletes the
+queued child/job. Unknown replies hold without a timer; replaced claims cannot
+settle. Cancellation alone cannot discard a known answer when account, deletion
+and claim checks still pass. Ordinary result cleanup remains a distinct
+version-one receipt. Original-result reconciliation after a dispatch-winning
+race uses distinct local version-three `recovered_original_result` cleanup
+metadata with the owner and exact retirement request. It requires validated
+immutable result bytes, appends without changing selection and verifies both
+receipt and saved result on replay. It never represents successful retirement or
+authorizes redispatch. Retained delivery now performs only exact-result recovery
+and the fixed retirement request, holding unknown outcomes without a timer.
+Separate dispatch and known-receipt scopes preserve same-account proof
+settlement after network cancellation while invalidating both before Auth drain.
+Prepared status controls use a separate typed affordance, never a phase label,
+and retain the final-tap UUID across ambiguous saves. The foreground owner reads
+exact server status and full-snapshot-CAS stages V8 only for running/waiting
+consumed or legacy-unknown work still admitted remotely. A held V8
+reconciliation state can explicitly rearm only that same retirement request.
+Other holds, ready/unbound work and absent or dispatched status cannot authorize
+this action. A qualified discovery wake follows stage/rearm attempts even when
+saving throws; it only discovers already-persisted runnable work. Reopening
+preserves the saved operation. An actual-owner-exit generation refreshes the
+local status page under current account/context/Auth scope, without polling,
+inference or automatic rearm. Only server retirement can resolve a dispatch
+race.
+
+#### Reanalysis recovery action authority
+
+UI labels do not authorize recovery. The prepared action matrix uses fresh
+validated durable state and keeps admission/preparation exhaustion separate from
+execution/result-check exhaustion:
+
+| Durable precondition                                                                                                            | Action and authority                                        | Identity and replay                                                                        | Durable postcondition                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Pristine unbound, unattempted preparation                                                                                       | Existing exact local discard transaction                    | Original parent/child; permanent local erasure receipt                                     | Only that child is retired; no attempted/bound work is discarded                                      |
+| Submitted files/admission preparation, retry budget exhausted                                                                   | Held; no generic retry or inference action                  | Original draft, source proof and ordered evidence retained                                 | No automatic deadline or replacement; consent rearm is a separate exact CAS                           |
+| Bound dispatch still ready, execution preparation exhausted                                                                     | Held; no outcome-recovery or retirement capability inferred | Exact bound request remains saved                                                          | No invocation permission is added by reopening/status                                                 |
+| Bound consumed/legacy-unknown, running/waiting, exact remote `admitted`                                                         | Explicit retirement staging and service retirement routine  | One retained retirement UUID and exact original request; lost response reuses it           | Only atomic server proof retires never-dispatched work; dispatch-winning result recovers separately   |
+| V8 retirement held for reconciliation                                                                                           | Explicit same-retirement recovery                           | Same UUID/request; full-snapshot CAS, no provider interface                                | Proof settles or original result appends; uncertainty remains held without timers                     |
+| Bound consumed/legacy-unknown, held for reconciliation/result-check exhaustion, no retirement and no terminal-failure authority | Explicit exact-result lookup through retained account owner | Original request and snapshot remain unchanged during I/O; full-snapshot CAS on completion | Exact child appends plus queue/job retirement and V1 cleanup receipt in one save; selection unchanged |
+| Missing result/status, generic HTTP error, cancelled lookup, malformed or conflicting authority                                 | No release or replacement authority                         | Preserve the original operation and evidence                                               | Held occupancy remains; neither explicit checking nor reopening invokes a provider                    |
+
+The held-outcome action never calls `analyzeObservation`, begins admission,
+renews a server execution claim, changes the local attempt, uploads media or
+refunds. It uses the existing exact target reader, independently of inference
+consent, and validates the account, original snapshot and full immutable result.
+A completion-save attempt wakes cleanup/library discovery even when it throws;
+that wake does not replay inference. Completed receipt/result equality permits
+local idempotent recovery after a committed save or restart.
+
+Existing V2 client-generated identities have no permanent no-admission seal.
+Quota/invocation retention prunes evidence, and a photo cohort created later
+cannot establish historical non-execution. Therefore absence cannot release an
+uncertain request. A stronger future proof requires a coordinated durable
+identity-registration protocol; current saved requests are not silently
+upgraded. All ordinary access and activation gates remain disabled.
+
+The prepared native `analyzeObservation` transport preserves the complete saved
+request bytes, initiating account and 130-second timeout. It disables automatic
+transport retries and 401 session refresh so the durable owner controls
+ambiguous recovery. Dispatch authorization must match the saved processor and
+still pass current local consent checks. In particular, `recovery_only`
+preflight means an intent exists, not that it has dispatched: an admitted replay
+can still invoke the provider. That authorization cannot be used to submit this
+endpoint. Exact result reads remain separate, and execution receipts never carry
+selection or result authority. This transport alone does not connect ordinary UI
+or queue execution, reserve native funding or open any activation gate.
 
 The service-only `begin_owned_observation_analysis`,
 `advance_owned_observation_analysis`, `claim_observation_analysis_recovery`, and
@@ -12535,19 +12770,19 @@ alone permits missing execution metadata; its exact manifest, ordinal and
 nullability are enforced together. Unknown versions fail closed. The aggregate
 one-MiB snapshot and four-MiB page caps still apply. Readers 7/8 refuse the
 entire history containing an import, including requests whose cursor would skip
-it. Protocol 9 is explicit to this owner history read; it does not alter
+it. Protocols 9/10 are explicit to this owner history read; they do not alter
 Identify, funded-input or photo-resolution protocols. Imported IDs cannot enter
 legacy scan ingestion, quota or settlement; deletion retains an ownerless
 child-ID fence without retaining the private snapshot.
 
 `savedIdentification.ts` owns the executable imported-result and enrollment
 acknowledgement validation; `result.ts`/`page.ts` own version negotiation and
-byte-preserving delivery. Native V56 advertises reader 9 and validates/stores V3
-with nil completion; import time stays separate and private photo resolution
-remains V2-only. State hydration, owner and community review synchronization,
-public/chat projections, explicit deletion, and the other RFC activation gates
-remain required. No enrollment backfill or live app call site is enabled by this
-slice.
+byte-preserving delivery. The original native V56 checkpoint advertised reader 9
+and validated/stored V3 with nil completion; import time stays separate and
+private photo resolution remains V2-only. State hydration, owner and community
+review synchronization, public/chat projections, explicit deletion, and the
+other RFC activation gates remain required. No enrollment backfill or live app
+call site is enabled by this slice.
 
 ### Prepared owner observation state read
 
@@ -12555,7 +12790,8 @@ slice.
 authenticated-only
 `get_owned_observation_analysis_state(p_request jsonb, p_reader integer)`. Both
 `reader_enabled` and the new `state_reader_enabled` must be true; all source
-rollout defaults remain false. Reader 9 is required. The exact request is
+rollout defaults remain false. Reader 9 or 10 is required; the current native
+caller uses 10. The exact request is
 `{schema_version:1, observation_id:<lowercase UUID>, analysis_id:null|<lowercase UUID>}`.
 An analysis cannot equal its observation. The owner is always derived from auth.
 
@@ -12565,10 +12801,23 @@ selecting it. The response contains exactly `schema_version`, `owner_id`,
 `observation_id`, `state_revision`, `selection_initialized:true`,
 `selected_analysis_id`, and `analysis`. The latter contains exactly `snapshot`,
 `review_revision`, and `review_snapshot`. Snapshot is the same immutable
-V1/V2/V3 text as the result-page reader, bounded to one MiB; the entire response
-is bounded to four MiB. Review is the separate seven-field saved authority,
-bounded to 32 KiB. Neither active projection nor arbitrary scan columns are
-returned.
+V1/V2/V3 text for reader 9 or additionally audio V4 for reader 10, as in the
+result-page reader, bounded to one MiB; the entire response is bounded to four
+MiB. Review is the separate seven-field saved authority, bounded to 32 KiB.
+Neither active projection nor arbitrary scan columns are returned.
+
+The prepared native reanalysis recovery endpoint uses this same fixed RPC for an
+explicit saved child. It requires the expected owner and current durable claim,
+disables automatic transport and response-driven 401 recovery, and validates the
+complete state envelope plus exact saved request provenance. It returns only
+immutable snapshot bytes for later atomic completion; it does not apply
+selected-state or preview projections. This read precedes current inference
+consent and file/upload access, permitting recovery after consent withdrawal or
+temporary evidence expiry. Only the bounded PostgREST `P0002` /
+`analysis_history_not_found` pair means target absence. Other errors or HTTP
+status alone cannot authorize execution; local and server deletion fences remain
+required after absence. No wire shape, rollout gate or provider authority
+changes.
 
 `analysisHistory/state.ts` validates this contract, retaining legacy review
 fields without manufacturing a verified identity. Explicit identity and AI
@@ -12588,15 +12837,15 @@ Missing V3 display and ambiguous legacy intent still defer. Normal sync and
 enrollment remain disconnected. Selection transport and a separately injected
 history sheet are prepared behind closed gates; normal UI access is nil. The
 listing consumer retains the existing page revision and ordered analysis IDs
-without changing protocol 9 or its wire shape. V57 additionally caches exact
-per-analysis authority and review/observation revisions, separately from
-immutable result bytes, in the same transaction. Complete V1/V2 results produce
-immutable allowlisted display bytes. An eligible already-selected V3 can capture
-a versioned, provenance-labelled device-local display baseline; this does not
-change server snapshot bytes or protocol 9. Explicit native preview requires
-exactly the acknowledged observation revision and selected ID, never mutates
-parent selection/review, and returns display origin separately. A missing V3
-baseline remains unavailable on that device. Existing selected-review
+without changing the page wire shape. V57 additionally caches exact per-analysis
+authority and review/observation revisions, separately from immutable result
+bytes, in the same transaction. Complete V1/V2 results produce immutable
+allowlisted display bytes. An eligible already-selected V3 can capture a
+versioned, provenance-labelled device-local display baseline; this does not
+change server snapshot bytes or reader capability. Explicit native preview
+requires exactly the acknowledged observation revision and selected ID, never
+mutates parent selection/review, and returns display origin separately. A
+missing V3 baseline remains unavailable on that device. Existing selected-review
 representability and pending-intent guards still apply. The
 [native boundary](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md)
 owns the local admission rules.
@@ -12648,7 +12897,7 @@ current target authority. `ObservationHistorySelectionReceipt` checks the seven
 existing fields, including exact operation, observation, previous and selected
 IDs, the next observation revision, and the expected target review revision.
 `selection-v1.json` is shared by native tests and the Deno transition producer.
-The protocol-9 owner RPC below wraps the existing success shape and adds a
+The reader-9/10 owner RPC below wraps the existing success shape and adds a
 separate strict revision-conflict outcome.
 
 The prepared native owner persists the request before dispatch and reuses it
@@ -12660,11 +12909,11 @@ selection. Local selection remains pending until acknowledgment and awards no
 credit. The
 [native selection boundary](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-selection-and-undo)
 owns persistence, preview freshness, account/deletion checks and rollback.
-Protocol-9 mutation transport and definitive-conflict recovery are prepared;
+Protocol-10 mutation transport and definitive-conflict recovery are prepared;
 workers and UI remain disconnected and all gates remain closed.
 
 `select_owned_observation_analysis(p_request JSONB, p_reader INTEGER)` accepts
-exact reader 9 and the six-key request, bounded to 2,048 database JSON-text
+reader 9 or 10 and the six-key request, bounded to 2,048 database JSON-text
 bytes. Only `authenticated` has execute permission. The server derives ownership
 from `auth.uid()`; no owner parameter is accepted. The private implementation
 remains ungranted to API roles. Outer owner-row, observation advisory and
@@ -12697,21 +12946,35 @@ this selection boundary.
 
 ### Prepared analysis-bound Reject and Undo
 
+Native foreground review admission is prepared behind the disabled UI boundary.
+An immutable preview ticket freezes the owner, observation, analysis, selected
+child, both revisions and result/authority digests. The synchronous tap creates
+one exact operation request; new staging revalidates the complete ticket, idle
+selection and settled legacy review in one local transaction. Exact
+saved-request replay precedes fresh-action validation. Local status
+distinguishes pending, receipt reconciliation, attention and historical
+completion without asserting current authority. Rejection Undo requires a
+reconciled applied same-target Reject receipt and the current ticket's exact
+rejection association/review revision. No idle Auth lease, implicit enrollment,
+optimistic review or selection change is added.
+
 `public.review_owned_observation_analysis(p_request JSONB, p_reader INTEGER)` is
 an authenticated owner RPC with a separate, default-false
 `rejection_api_enabled` hold. Reader and state-reader gates must also be open;
-`p_reader` must equal 9. It has no ordinary native caller yet. The executable
-request and receipt contract lives in
-`functions/_shared/analysisHistory/review.ts`; Identify DTO generation, web and
-admin payloads are unchanged.
+`p_reader` must equal 9. Its prepared native caller is not installed while the
+App activation gate is disabled. The executable request and receipt contract
+lives in `functions/_shared/analysisHistory/review.ts`; Identify DTO generation,
+web and admin payloads are unchanged.
 
 The exact eight-field request contains `schema_version: 1`, `observation_id`,
 `analysis_id`, `operation_id`, `expected_observation_revision`,
 `expected_review_revision`, `action`, and `undo_operation_id`. IDs are lowercase
 UUIDs and revisions are integers from zero through 2,147,483,646. `action` is
-`reject` or `undo`; `undo_operation_id` is null for Reject and the acknowledged
-rejection operation UUID for Undo. Request bytes are bounded to 2 KiB.
-Confirmation, carry, and community actions are deliberately unsupported.
+`reject`, `undo`, or `undo_confirmation`; `undo_operation_id` is null for
+Reject, the acknowledged rejection operation UUID for rejection Undo, or the
+original confirmation UUID for confirmation Undo. Request bytes are bounded to 2
+KiB. Positive confirmation uses its separate endpoint; carry and community
+mutations are unsupported by this RPC.
 
 The RPC locks owner, observation generation, owned live scan, history, and
 target authority in that order. Ownership and the deletion fence are checked
@@ -12738,8 +13001,8 @@ same result's accepted rejection receipt; it clears rejection to unreviewed and
 never reinstates confirmation. It cannot undo an imported rejection without a
 bound receipt. Neither action changes selection or immutable evidence. Every
 successful review advances the observation revision and enqueues reconciliation;
-only a selected result's review changes the active projection. Downstream credit
-and publication reconciliation remains held.
+only a selected result's review changes the active projection. Existing public
+authority invalidation applies; the Field Trip credit consumer remains held.
 
 Legacy `review-scan-identification` and `confirm-scan-species` target lookups
 now call service-only `require_legacy_scan_review` before quota admission or
@@ -12754,6 +13017,105 @@ authority mutations; analysis-bound community authority and its revocation
 behavior remain activation requirements. Privacy/deletion cleanup retains its
 existing path.
 
+### Prepared cross-device rejection Undo discovery
+
+`get_owned_observation_rejection_undo(p_request JSONB, p_reader INTEGER)` is an
+authenticated, mutation-free eligibility lookup. Reader 9 and the existing
+default-false rejection, reader and state-reader gates are required. Its five
+request fields are `schema_version: 1`, exact observation/analysis IDs and
+`expected_observation_revision` / `expected_review_revision`. The 2 KiB request
+and five-second statement limit match confirmation discovery.
+
+The bounded reply echoes the request plus either `status: available` and
+`rejection_operation_id`, or `status: unavailable` and `reason`:
+`community_authority`, `not_rejected`, `receipt_unavailable`,
+`rejection_changed` or `revision_conflict`. No original request, receipt,
+rejected label or provider information is returned.
+`analysisHistory/rejectionUndo.ts` owns the strict TypeScript parser. Native
+`ObservationRejectionUndoLookup` strictly decodes the same bounded reply through
+a fixed five-second RPC with transient, Auth and route retry disabled.
+`ObservationRejectionUndoEligibility` distinguishes completed local receipts
+from exact recovered associations. The recovered staging branch requires no
+original local rejection job; it reconstructs the current ticket and validates
+owner, deletion, selection, legacy-review and unfinished-operation fences inside
+the fresh transaction. Existing local-receipt admission remains unchanged. The
+queue retains at most four lookup scopes through actual account-lease exit; both
+Auth teardown seams cancel and await that owner. History and selected review
+controls share the presentation-scoped proof and unavailable reason.
+
+The lookup and mutation share `internal.observation_rejection_undo_eligibility`
+under canonical owner, ingestion, owned live scan, history and target-authority
+locks. Eligibility matches the same-target applied Reject receipt, its outer
+review revision and the current rejection operation. The original receipt's
+parent revision may be older; the nested AI review counter is independent. The
+displayed current parent and target revisions still must match. No digest
+condition or confirmation-specific rule is added to rejection Undo.
+
+Missing receipt action, outcome or revision now fails closed in both paths; SQL
+null values cannot qualify a malformed association. Exact saved mutation replay
+remains before fresh gates and eligibility, after ownership/deletion checks.
+Lookup never creates a receipt, changes selection, rearms work, invokes
+inference or authorizes replacement. All activation holds remain disabled.
+
+### Durable Undo confirmation
+
+`20261007033012_add_analysis_confirmation_undo.sql` extends the eight-field
+review RPC with `undo_confirmation`, independently held by default-false
+`confirmation_undo_api_enabled` plus the existing reader/state-reader gates. It
+performs no taxonomy verification, provider call, credit charge or refund.
+
+The original applied `confirm_primary` or `confirm_name` receipt must belong to
+this observation and analysis. Its outer `review_revision` must equal current
+analysis authority, which must still name the exact confirmation operation and
+matching confirmed/corrected state, without community authority. Its original
+observation revision may be older after selection or another child's review; the
+nested AI-review revision is a separate counter. The new Undo request CASes the
+currently displayed observation and target review revisions. Exact replay
+precedes fresh gates, after owner/deletion checks.
+
+Undo clears owner confirmation, named correction and verified species identity,
+returning the original immutable AI identification to unreviewed. Selection,
+evidence and confidence remain unchanged; the original receipt remains intact.
+An earlier rejection is never restored. Existing authority triggers update the
+selected projection, invalidate public authority and enqueue reconciliation.
+Field Trip's held downstream consumer remains a separate activation requirement;
+an obligation does not establish live credit revocation.
+
+Authenticated
+`get_owned_observation_confirmation_undo(p_request JSONB,
+p_reader INTEGER)` is
+a mutation-free, five-second lookup accepting readers 9/10 (native sends 10).
+Its exact request has `schema_version: 1`, observation/analysis UUIDs and the
+two expected revisions. Its bounded response echoes those fields plus either
+`status: available`, `confirmation_operation_id`, `confirmation_action`
+(`confirm_primary`/`confirm_name`), or `status: unavailable`, `reason`
+(`community_authority`, `not_confirmed`, `receipt_unavailable`,
+`confirmation_changed`, `revision_conflict`). It discloses no original name,
+request or receipt. Mutation repeats the shared eligibility check; lookup alone
+never authorizes a stale mutation. Imported confirmations without exact receipts
+remain unavailable. The strict executable decoder is
+`functions/_shared/analysisHistory/confirmationUndo.ts`.
+
+Native presentation retains typed local/recovered eligibility with the full
+immutable ticket. Fresh transactional staging rechecks ticket, association, idle
+selection and pending review fences. Recovered eligibility does not require a
+local original confirmation job. Rejection Undo likewise has an explicit
+recovered admission branch; its original local-receipt path remains available.
+The retained lookup owner coalesces at most four exact account/session/
+generation/container scopes, validates after Auth and around awaits, and drains
+before Auth teardown. Transport has no transient, 401 or route retry; decoded
+responses are bounded to 4 KiB. No idle lease or polling is introduced.
+
+Every staging attempt, including a throw, requests one scope-qualified discovery
+wake. Explicit opening/reopening also wakes once. Discovery only resumes
+persisted runnable jobs: it does not restage, mint an operation or rearm held
+work. Commit-then-throw retains the same UUID while open; reopening and startup
+discover that persisted operation. A pre-commit failure creates no work and
+explicit in-memory save retry retains its UUID. Named Undo explains that the
+original AI identification returns before the final tap; primary Undo is direct.
+Existing History, selected menu and Confidence controls share the same retained
+review. The alternatives card and ordinary disabled activation remain unchanged.
+
 ### Prepared analysis-bound confirmation
 
 `confirm-observation-analysis` prepares authenticated, private confirmation for
@@ -12763,18 +13125,46 @@ rollout is enabled. `_shared/analysisHistory/confirmation.ts` owns the strict
 request, preparation envelope and terminal receipt parsers. Identify DTOs,
 web/admin payloads and native schemas are unchanged.
 
-POST accepts exactly eight fields: `schema_version: 1`, `observation_id`,
-`analysis_id`, `operation_id`, `expected_observation_revision`,
-`expected_review_revision`, `action`, and `scientific_name`. IDs are lowercase
-UUIDs, revisions are integers 0–2,147,483,646, and the stored request is bounded
-to 2 KiB. `confirm_primary` requires a null name and derives the verification
-query from that child's immutable species-level primary identification.
-`confirm_name` requires a trimmed, control-free name of 1–160 characters and
-explicitly accepts a verified species, including from a broader primary answer.
-The request cannot supply owner identity, species UUID, taxonomy proof or review
-authority. Both actions require biological evidence with an explicit stored
-primary; imported legacy results without one remain viewable/restorable but
-cannot use this confirmation endpoint. Community authority remains held.
+Schema-1 POST accepts exactly eight fields: `schema_version: 1`,
+`observation_id`, `analysis_id`, `operation_id`,
+`expected_observation_revision`, `expected_review_revision`, `action`, and
+`scientific_name`. IDs are lowercase UUIDs, revisions are integers
+0–2,147,483,646, and the stored request is bounded to 2 KiB. `confirm_primary`
+requires a null name and derives the verification query from that child's
+immutable species-level primary identification. `confirm_name` requires a
+trimmed, control-free name of 1–160 characters and explicitly accepts a verified
+species, including from a broader primary answer. The request cannot supply
+owner identity, species UUID, taxonomy proof or review authority. Both actions
+require biological evidence with an explicit stored primary; imported legacy
+results without one remain viewable/restorable but cannot use this confirmation
+endpoint. Community authority remains held.
+
+A versioned candidate correction accepts schema 2 with the same fields and one
+additional `candidate_reference` object. Its exact fields are `version: 1`,
+`analysis_id` equal to the request target,
+`representation: "stored_species_candidates_v1"`, and raw immutable array
+`ordinal` (0 or 1). The reference is scoped to the saved analysis; it is never a
+filtered display index or a name-based lookup. Both prepare and complete derive
+the query from that member and require exact equality with the non-null outer
+`scientific_name`. The entire reference is retained in the immutable intent and
+terminal receipt. Schema-1 requests and saved receipts keep their exact shape.
+
+Supported candidate evidence is a V1/V2 immutable result with biological,
+explicit species-level primary authority and one or two species-ranked
+candidates. The chosen candidate must have a numeric confidence in [0,1] and a
+trimmed, control-free name within the confirmation query's 160-character bound.
+Rankless legacy arrays, broader primaries, opaque V3 imports, malformed arrays
+and unsupported references fail closed; a name alone cannot establish
+membership. Optional candidate display fields do not establish identity.
+Confirmation Undo validates schema-2 membership again and retains `confirm_name`
+semantics: it removes the owner's correction and exposes the original AI
+identification unreviewed, preserving selection and immutable evidence. This
+native foundation pairs each saved choice with its raw ordinal before display
+filtering and emits schema 2 only for an exact `confirmCandidate` decision.
+Fresh native admission revalidates the complete displayed ticket; durable
+requests and receipts preserve the reference across restart. Protected
+alternatives UI wiring remains a separate checkpoint, with no alternatives-card
+layout change.
 
 The service-only `prepare_observation_analysis_confirmation` RPC acquires owner
 → observation generation → owned live scan → history → target authority locks.
@@ -12798,7 +13188,7 @@ query to that intent. No network call runs while database locks are held.
 Provider executions and complimentary scan credits are untouched: this is
 dictionary verification, not another AI analysis.
 
-HTTP 200 returns the exact eight request fields plus one terminal outcome:
+HTTP 200 returns the exact versioned request fields plus one terminal outcome:
 
 - `applied`, with `observation_revision` and `review_revision`, each exactly one
   greater than requested;
@@ -12832,6 +13222,53 @@ only a selected child's confirmation updates the active projection. A receipt is
 an operation outcome, not current authority: consumers must reread current state
 before display or credit decisions. Native confirmation admission, community
 transitions, downstream reconciliation and activation remain separate work.
+
+### Prepared native analysis-bound review wire
+
+Native `ObservationAnalysisReviewRequest` and `ObservationAnalysisReviewReceipt`
+mirror the rejection and confirmation contracts without enabling an ordinary
+caller. One immutable request retains the caller-supplied observation, analysis,
+operation and both expected revisions. Reject/Undo encode exactly
+`undo_operation_id`; confirmation encodes exactly `scientific_name`, including
+required nulls. Names use the backend's UTF-16 limit and ECMAScript trim set;
+canonically equivalent but byte-distinct names remain different operation
+intent. Saved requests are bounded to 2 KiB, receipts to 4 KiB. Receipt decoding
+binds every field to the original request and admits only outcome-specific keys.
+
+The review overload of `ObservationHistoryMutationTransport` owns only the fixed
+owner RPC (reader 10) and confirmation Edge route, selected by the typed
+decision. It composes the existing private authenticated dispatcher and disables
+transient transport replay and classified-401 recovery. A required
+durable-attempt validator runs after Auth preparation and before actual
+dispatch. The read-only admission RPC capability and wire payloads are
+unchanged. Transport never mints an operation ID, changes selection, projects
+review status, or falls back to legacy review. Prepared native persistence now
+retains the exact request, local fingerprint and terminal receipt across
+restart, with claim/account/deletion fences and a saved applied Reject
+association for Undo. Only one unfinished review is admitted per observation,
+through projection reconciliation. Storage does not treat receipt acceptance as
+current authority. The delivery owner must retain an account lease and reconcile
+current protocol-9 state separately. A nonselected target response cannot
+advance the parent revision while leaving a stale selected projection. The
+prepared native reconciler now reads the exact pair under one account lease and
+applies the selected state before the distinct target cache in one locked
+transaction with receipt completion. Applied receipts bound only their own
+target authority; selected-result review authority remains independent. Failed
+validation or save rolls back the entire projection. The prepared one-operation
+delivery service retains an account lease, replays the exact saved request
+before current-state preflight and acquires a new receipt claim after
+acknowledgement. Received receipts only reconcile; they never dispatch again.
+Exact permanent errors hold work without inventing receipt outcomes; network
+uncertainty and state revision races retain bounded retry. The dedicated native
+scheduler now retains a bounded, account-fenced pass over saved work, restores
+strict owner-qualified deadlines and awaits task cancellation before Auth drain.
+Database uncertainty has a bounded owner/container recovery wake; malformed or
+held jobs cannot be automatically reclaimed. Prepared History and
+selected-Insight review UI are implemented in the complete App-owned
+composition, behind the disabled app-installation and server rollout gates;
+ordinary access is not installed. See the
+[native persistence contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-analysis-bound-review-persistence).
+All activation gates remain false.
 
 ### Private analysis-bound community authority preparation
 
@@ -13406,7 +13843,26 @@ status:"accepted", admitted_at}`.
 Accepted means durable intake, not completed moderation, public availability or
 a scheduled worker. No provider quota, scan credit, storage write or post
 creation occurs here. A later execution/status owner must supply the terminal
-result; no native caller is connected yet.
+result. Prepared native delivery exists, while ordinary UI remains disabled.
+
+New operation admission is also observation-wide: after exact UUID replay, any
+existing intake for that observation rejects a different UUID with
+`analysis_history_operation_conflict`. Pending, held, unknown and terminal
+`needs_action` all retain the original identity. A different historical analysis
+is not another publication target. Terminal remediation does not authorize an
+automatic replacement; explicit supersession requires a separate contract. This
+guard is confined to intake, preserving original moderation/copy recovery.
+
+The prepared service-only database lookup
+`read_owned_observation_publication_target(owner, observation)` uses the same
+owner/deletion lock. It always returns an exact non-null
+`{schema_version:1,operation}` envelope: no intake has `operation:null` only for
+an existing owned observation; one intake has the existing five-field status;
+multiple legacy intakes conflict without choosing a latest row. It exposes no
+consent or private evidence. Exact-ID replay remains available for each original
+legacy operation. The separate prepared HTTP target reader is documented below.
+The native reader currently resolves only local occupancy; preflight is not
+proof that no other operation exists.
 
 At most eight new operations per owner are accepted in a rolling 24-hour window.
 This is intake protection, separate from provider and complimentary-credit
@@ -13993,6 +14449,44 @@ cleanup, so failed cleanup depends on the permanent registry and independent
 remain false. CPU/process-memory qualification and owner/native delivery remain
 pending. This prepared endpoint does not authorize scheduling or deployment.
 
+## Owner publication target recovery
+
+Prepared `POST get-observation-publication-target` accepts only
+`{schema_version:1,observation_id}` within a 1 KiB body. `withEdgeHandler`
+authenticates the owner, and the fixed service repository invokes
+`read_owned_observation_publication_target` with a twelve-second deadline and no
+retry. Success is literal JSON null for an existing owned vacant observation, or
+the unchanged five-field status shape described below. It validates exact keys,
+lowercase identities, schema and closed status values before returning. No
+client-supplied owner, operation, analysis, URL or consent is accepted.
+
+Missing, foreign and deleted observations share opaque 404; duplicate targets
+return 409. Unknown errors and malformed responses return sanitized 503, never
+vacancy. Method/body/auth errors and successful responses all use private
+no-store. The historical analysis may differ from the displayed one; the result
+is neither current authority nor public visibility. No operation or worker is
+created. Existing exact-ID status and its native decoder remain unchanged.
+
+Remote absence is advisory and final admission closes cross-device races. A
+remote status lacks the immutable request fingerprint, so it cannot become a
+synthetic native intent. A locally held losing request after 409 retains its
+original UUID and consent. Explicit remote recovery may display a different
+operation separately, without rebinding, acknowledging or reopening the local
+request. Null or failure after uncertainty never authorizes a successor. The
+prepared native target transport uses a separate exact two-field request and 4
+KiB null-or-status decoder. Empty successful responses cannot mean absence; the
+discovered operation and historical analysis are preserved without becoming
+local consent. Its fixed owner-bound route disables transient, 401 and
+missing-route replay with a thirty-second timeout. The injected queue-retained
+`ObservationPublicationRecoveryOwner` coalesces at most four owner, observation,
+session, generation and container scopes. Its read-only service checks strict
+local target state before and after remote I/O and releases its account lease
+before removing retained work. Auth transitions cancel and await these reads; an
+individual presentation cannot poison another waiter. Prepared History access
+returns local held status and remote historical status separately, without
+saving, acknowledging or waking delivery. Prepared History consent now uses this
+boundary before preflight; ordinary access and all activation gates stay false.
+
 ## Owner publication operation status
 
 Prepared `POST get-observation-publication-status` uses `withEdgeHandler` to
@@ -14016,19 +14510,20 @@ caller input returns 400; known operation/revision conflicts return 409; other
 failures are sanitized 503. Every route response, including auth, preflight,
 method and body failures, uses `Cache-Control: private, no-store`. The RPC is
 bounded to twelve seconds, with no automatic retry and no mutation. Native
-durable delivery is a separate slice. The route is prepared but not released;
-all publication activation gates remain false.
+durable delivery now uses this reader for status-first recovery; ordinary UI
+admission remains separate. The route is prepared but not activated; all
+publication activation gates remain false.
 
 ## Native publication wire boundary
 
 Prepared native admission and status calls now use the existing pinned raw-JSON
 transport with a required expected account at dispatch. Classified-401 recovery
-is deferred to the future durable owner, preventing recursive Auth-drain waits.
-No new retry policy, legacy sharing fallback or operation-ID generator is added.
-The immutable native request validates the same revisions, lowercase UUIDs,
-explicit nulls, ordered 1–6 unique media IDs, 1,000-code-point note bound and
-3,800-byte encoded request cap as the HTTP boundary. Its strict restoration path
-rejects missing/extra fields and Boolean revisions before network dispatch.
+is deferred to the durable owner, preventing recursive Auth-drain waits. No new
+retry policy, legacy sharing fallback or operation-ID generator is added. The
+immutable native request validates the same revisions, lowercase UUIDs, explicit
+nulls, ordered 1–6 unique media IDs, 1,000-code-point note bound and 3,800-byte
+encoded request cap as the HTTP boundary. Its strict restoration path rejects
+missing/extra fields and Boolean revisions before network dispatch.
 
 Admission responses require exact fields, accepted status, valid timestamp and
 matching operation/observation/analysis IDs. Status responses require only the
@@ -14040,6 +14535,3625 @@ missing-account dispatch prevention, and ambiguous admission without automatic
 replay. Prepared local persistence now saves exact consent, then strips raw
 consent after acknowledgement while retaining a versioned local fingerprint and
 minimal terminal status. The fingerprint is not a backend digest or authority.
-Network execution, post-await account/deletion fencing and UI delivery remain
-separate; all activation gates remain false. See
+Native delivery now holds an expected-owner lease, claims durable work before
+I/O and rechecks fresh account/deletion/claim state after suspension. It reads
+status before admission: only HTTP 404 plus `analysis_history_not_found` permits
+the exact original request while that request is retained. Once acknowledged,
+the operation polls status only. Monotonic local claim attempts reject stale
+completion and retry writes; interrupted claims recover after a fixed deadline.
+Permanent local conflicts require attention without synthesizing a server
+receipt. Network uncertainty retains the same operation under bounded backoff;
+Auth cancellation is awaited before replacing the session. Ordinary UI delivery
+remains separate; all activation gates remain false. See
 [the storage contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-publication-persistence).
+
+## Owner publication consent preflight
+
+Prepared `POST prepare-observation-publication-consent` authenticates the owner
+with `withEdgeHandler`. Its exact request is
+`{schema_version:1,observation_id,analysis_id}` (lowercase UUIDs, 1 KiB body).
+The exact response is
+`{schema_version:1,observation_id,analysis_id,
+expected_observation_revision,expected_review_revision,taxonomy_version_id,
+initial_taxon_id:null,media:[{media_id,content_type,byte_count,sha256}]}`.
+The taxonomy UUID is the active version; no name matching invents an initial
+version-bound taxon. No operation, post, URL, storage key, description, note or
+visibility claim is returned. General history and operation-status shapes are
+unchanged. The native consent producer is connected to prepared History UI.
+Ordinary app access remains disabled. Final explicit photo acceptance persists
+one exact operation before delivery; existing or uncertain target occupancy
+blocks new consent.
+
+The service-only `prepare_owned_observation_publication_consent` RPC and the
+existing intent resolver share `internal.lock_publication_consent_eligibility`.
+Owner/generation/deletion locks precede the existing closed publication-intent,
+reader and media-reader gates. Authority is locked before reading current
+revisions. Eligibility remains biological, unreviewed, without community
+authority or human identity, and without an existing Explore post or community
+request. Here unreviewed means `user_review_state=unreviewed`: an AI rejection
+remains eligible for community help while preserving its separate rejection
+authority and returning the advanced review revision. An explicit historical
+analysis can qualify independently of private selection. This boundary prepares
+initial community intake, not later resolved Explore publication. The existing
+resolver still rejects stale revisions before evidence, review or taxonomy
+failures and validates selected ready receipts.
+
+Photo candidates preserve immutable V2 manifest order and metadata (up to 64
+items and 32 MiB total image bytes), omitting descriptions. They do **not**
+prove ready media or reserve publication authority. V1/imported V3 evidence is
+unavailable. The later explicit consent must select exactly 1–6 photos; clients
+must not silently truncate candidates. Admission rechecks current authority,
+revisions, taxonomy, deletion and the exact selected ready receipts. This read
+creates no intent, provider attempt, quota debit or public copy.
+
+Every response includes `Cache-Control: private, no-store`, including auth and
+parser errors. Invalid requests receive 400. Missing, foreign and deleted
+analyses share opaque 404; changed/ineligible review or existing-publication
+conflicts receive 409. Closed gates, unavailable evidence, transport failures
+and malformed server projections return sanitized 503. The RPC transport has a
+12-second deadline without internal retries. All activation gates stay false.
+
+### Native consent preflight transport
+
+`ObservationPublicationConsentRequest` encodes only schema version and the exact
+observation/analysis IDs. `ObservationPublicationConsentSnapshot` correlates
+both IDs and validates the closed eight-field response with a separate 32 KiB
+cap. Existing request/status limits stay at 4 KiB. Initial taxon must be present
+and null; revisions remain bounded integers. Candidate objects preserve server
+order and enforce unique IDs, allowed MIME types, positive integral byte counts,
+32 MiB aggregate content and exactly 64 lowercase SHA-256 characters. Private
+keys/URLs, operation IDs, post IDs and extra fields fail closed.
+
+`prepareObservationPublicationConsent` uses the existing account-bound raw JSON
+bridge with an expected owner and classified-401 recovery disabled. It never
+creates consent, mints an operation UUID, chooses the first six candidates or
+falls back to legacy sharing. The prepared consent service below owns explicit
+final intent; ordinary UI and its foreground session guard remain the next
+integration boundary. The history rollout gate remains closed. Candidate
+metadata is descriptive and does not authorize ready-photo transport or
+publication.
+
+### Native explicit consent persistence
+
+`ObservationPublicationConsentService` requires the immutable displayed review
+ticket, including owner, observation, historical target, selected context, both
+revisions and result/authority digests. It validates that exact ticket before
+and after preflight and requires the server snapshot's revisions to match. It
+never adopts newer authority on behalf of a stale presentation. This native
+admission contract changes no HTTP payload.
+
+New preparation and consent require both settled legacy review and completed
+native analysis-bound review work across the observation. Pending, running,
+waiting, received-but-unreconciled, needs-attention, corrupt or misbound jobs
+cannot authorize new consent. The check runs under the existing persistence
+transaction, alongside selection, enrollment, deletion and foreground-session
+fences; it does not broaden the shared legacy settlement predicate used by
+receipt reconciliation. Final explicit acceptance validates 1–6 distinct
+candidate IDs in user order, fixes initial taxon and public note to null, and
+creates a retained immutable operation. Private notes are not used by this
+photo-only consent flow.
+
+New-intent validation runs inside `ObservationPublicationPersistence.stage`
+after exact-operation replay, before insertion/save, and retains the original
+displayed ticket through final acceptance. An exact saved operation, including a
+terminal receipt, remains recoverable despite subsequent authority changes or
+new pending review. Recovery cannot authorize a different operation UUID. A
+failed save never wakes delivery; success wakes the existing durable scheduler
+without starting feature-owned network work. Ordinary UI wiring and activation
+remain separate.
+
+### Private reanalysis photo upload
+
+Prepared `POST upload-observation-evidence` is owner-authenticated and held by
+`media_enabled = false`. Its bounded binary frame avoids base64 duplication:
+four-byte unsigned big-endian metadata length, 1–4096 UTF-8 JSON metadata bytes,
+then concatenated raw photos in declared order. Exact metadata is
+`{schema_version: 1, observation_id, analysis_id, photos}`; each photo is
+exactly `{media_id, content_type, byte_count}`. IDs are lowercase UUIDs, media
+IDs are unique and distinct from the observation/analysis; the analysis differs
+from the observation. Only 1–5 JPEG/PNG photos and 5 MiB combined raw bytes are
+supported. Unsupported media, incomplete/trailing bytes, extra keys and identity
+aliases fail before writes. The server computes SHA-256 from its owned bytes.
+
+One service-only transaction freezes the ordered descriptor cohort and original
+five-minute deadline before any storage I/O. Changed bytes/order conflict under
+the same analysis ID. Exact retry recovers original objects, never renews
+expiry, and rechecks ownership/deletion. The private immutable cohort survives
+individual receipt cleanup; missing receipts cannot be reallocated by replay.
+After expiry, a new attempt requires an explicitly new child analysis identity.
+No quota is admitted by uploading. Existing `analyze-observation`
+exact-ready-set admission and durable completion remain separate.
+
+The complete response is
+`{schema_version: 1, observation_id, analysis_id, items}`; ordered items contain
+only `{kind: "image", media_id, content_type, byte_count,
+sha256}`. No private
+object ID, storage path, signed URL or public availability is returned.
+Responses are private/no-store. A shared 120-second deadline bounds body
+reading, all RPCs (each also capped at 12 seconds) and conditional storage
+writes/verification. Lost responses retry the identical immutable frame. Partial
+uploads cannot start inference; expiry and permanent erasure-marker cleanup
+remain required. This source addition does not enable a native production
+caller, bucket, worker schedule or rollout gate.
+
+The prepared native `uploadObservationEvidence` caller emits this exact binary
+frame through the existing account-bound authenticated transport. It validates
+IDs and media bounds before dispatch, hashes/prepares off the main actor, and
+requires the schema-1 receipt to match every submitted reference in order and
+content. Its decoder caps receipt admission at 4 KiB. The fixed bridge uses a
+130-second client timeout and disables hidden transport/401 replay; the durable
+caller must retain exact request identity and decide recovery. This transport
+connection does not yet connect ordinary capture/queue reanalysis or activate
+history.
+
+The prepared native `ObservationReanalysisRequest` value represents photo-based
+protocol-8 admission without starting it. It requires a distinct nonnull source
+analysis, preserves ordered descriptions and exact V2 image references, and
+requires the existing recipient preflight's explicit processor expectation. Its
+native fingerprint convention hashes sorted-key UTF-8 JSON of the entire input
+except `request_digest`, with lowercase UUIDs and unescaped slashes. Restoration
+validates the digest and strict executable limits, retaining the original saved
+bytes rather than rebuilding an attempt from current scan content. Server
+identity still compares the complete admitted input; this fingerprint is not
+evidence or provider authority. The strict native execution receipt contains
+only parent ID, child ID and execution state with schema 1; completion requires
+a separate authoritative history read. These value types do not connect capture,
+queue delivery or selection, and do not activate any gate.
+
+The prepared native `ObservationReanalysisExecutionStore` persists local attempt
+claims independently of provider execution identities. Fresh row/job
+compare-and-save rejects stale workers; retry and interrupted recovery retain
+the same immutable request. Native bound metadata version seven adds a durable
+one-time dispatch boundary without changing the HTTP payload. Consumed or older
+version-one unknown requests permit only non-dispatching outcome recovery; an
+absent completed result is not permission to invoke analyze again. Exact
+full-snapshot CAS consumes the boundary before bytes leave, and an ambiguous
+save never grants dispatch. Evidence/consent/reconciliation holds and proven
+terminal failures remain held for explicit remediation. Local execution never
+claims or settles funding. Exact validated completion appends the child, retires
+only its transport work and records temporary-file erasure authority in one
+save, preserving current selection and review authority. Committed replay still
+requires the same owner, exact retained result and a parent without pending
+deletion. This is a prepared persistence boundary, not network dispatch or an
+activated scheduler. Its
+[local ownership contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#durable-execution-claims-and-local-completion)
+owns native claim and recovery details.
+
+For an already-bound native request, current consent authorization preserves the
+saved processor and synchronizes required cloud consent without rerunning
+recipient discovery. Expected owner and durable claim checks surround this work
+and remain in the final dispatch authorization. Required consent and optional
+OpenAI permission can still deny the original request. Recovery-only cannot be
+used as execution permission or to reconstruct an unbound request.
+
+### Prepared immutable Insight admission protocol
+
+The private, service-only database boundary
+`reserve_insight_chat_send_with_context(uuid,uuid,uuid,text,uuid,jsonb,integer)`
+returns the existing admission fields (`conversation_id`, `message`,
+`is_replay`, `sends_today`) plus `context_snapshot`. This is prepared storage,
+not an enabled HTTP contract. Existing `insight-chat` request/response DTOs and
+native callers are unchanged in this slice.
+
+Protocol/context version is exactly 1. `p_displayed_ticket` is JSON null for
+unenrolled observations; enrolled sends supply exactly `analysis_id`,
+`state_revision` and `review_revision` for the displayed selected
+identification. A new request cannot silently adopt newer selection or
+authority. Same-key replay requires original normalized text and ticket, and
+recovers original context even if the gate or authority later changes. Ownership
+and deletion still win. An old admitted question lacking a context row returns
+`field_chat_context_missing`; there is no snapshot backfill or permission to
+redispatch it from current data.
+
+The context contains version, source kind (`legacy_scan_v1` or
+`analysis_history_v1`), original ticket, bounded `scan_context` and an ordered
+`conversation_prefix` of at most 12 `{role,text}` entries, capped at 900
+characters per entry. Source projection excludes media, exact coordinates, raw
+library notes and unrelated payload keys, including nested keys. Historical
+imports with missing encounter data remain unavailable. Internal IDs are
+recovery metadata and must not enter model prompts.
+
+Database denials distinguish invalid input (`22023 field_chat_invalid_request`),
+changed ticket (`40001 field_chat_context_conflict`), changed same-ID intent
+(`23505 field_chat_idempotency_conflict`), missing legacy context
+(`55000
+field_chat_context_missing`), closed/malformed context
+(`55000
+field_chat_context_unavailable`) and absent/deleted ownership
+(`P0002
+field_chat_subject_not_found`). Existing admission errors remain
+authoritative. HTTP status mapping, execution from immutable context and native
+displayed-ticket transport must land before activation. This boundary neither
+retries providers nor changes quota settlement.
+
+### Prepared read-only Insight context resolution
+
+Service-only `get_insight_chat_turn_context(uuid,uuid,uuid,text,jsonb,integer)`
+takes owner, observation, client-message UUID, original normalized question,
+displayed ticket and context version 1. It returns exactly
+`{context_version:1,found:false}` for an absent user turn, or
+`{context_version:1,found:true,message,context_snapshot}` for a stored turn.
+`message` contains exactly `id`, `conversation_id`, `scan_id`, `user_id`,
+`role`, `client_message_id` and `message_text`; role is `user`. The ticket, text
+and joined current ownership must match. A JSON-null legacy ticket (SQL NULL
+through PostgREST) is normalized to stored JSON null. History tickets remain
+exact, closed three-field objects. Total recovery response is capped at 136 KiB;
+the snapshot remains capped at 128 KiB.
+
+The resolver does not admit, consume daily/conversation capacity, inspect
+current history or gates, or authorize provider execution. Owner/deletion checks
+precede saved context. An uncontexted existing user turn holds with
+`55000 field_chat_context_missing`; it is never treated as absent. The internal
+TypeScript adapter maps only exact code/message pairs to missing-subject 404,
+missing-context 409 or idempotency-conflict 409. Unknown errors, malformed data
+and missing RPC routes become unavailable 503, never fresh-send permission. It
+issues one request bounded to five seconds and respects parent cancellation.
+These are prepared internal errors, not a newly activated HTTP endpoint.
+
+After genuine absence, future handler integration must run read-only immutable
+eligibility and existing Pro/quota checks before atomic context admission; no
+recovery probe may consume a slot. Live HTTP/native DTOs remain unchanged.
+
+### Prepared fresh Insight context preflight
+
+Service-only `prepare_insight_chat_send_context(uuid,uuid,jsonb,integer)` takes
+owner, observation, displayed ticket and context version 1. Its closed result is
+`{context_version:1,source_kind,displayed_ticket,scan_context}`, bounded to 128
+KiB. It has no message/conversation identifier or prefix. Explicit legacy null
+supports PostgREST SQL NULL; an enrolled observation requires its exact selected
+analysis/global/review ticket. Missing imported fields remain missing, and
+damaged history cannot use mutable scan data.
+
+The private derivation helper is shared with final atomic admission, which
+revalidates authority after preflight. Preflight consumes no daily/conversation
+capacity or provider quota and grants no execution, eligibility or entitlement.
+Only final admission reads and stores the prior-message prefix; final snapshot
+overflow produces `55000 field_chat_context_unavailable` and rolls back the
+question and admission count. Exact existing-message replay still precedes fresh
+gate/authority checks.
+
+The prepared TypeScript adapter performs one five-second request with
+cancellation and retries disabled. Exact `P0002 field_chat_subject_not_found`
+maps internally to 404, and `40001 field_chat_context_conflict` to 409. Other
+errors, missing routes and malformed results become unavailable 503. The
+connected protected HTTP owner recovers stored turns first, then checks fresh
+immutable eligibility and existing Pro/quota rules before admission. Activation
+remains disabled. Transport-ambiguous admission outcomes retain their original
+identity and unresolved reservation; they do not authorize unconditional refunds
+or successors.
+
+### Prepared immutable Insight semantic adapter
+
+The private version-1 `scan_context` producer now preserves null alternatives
+and each alternative's `taxon_rank`. It rejects malformed candidate containers
+rather than silently discarding evidence. Optional `metrics_qualified` is a
+Boolean computed against original provenance before its allowlist projection:
+missing provenance is false, explicit legacy null retains compatibility, and
+unknown provider/configuration additions cannot become qualified by sanitation.
+Older stored snapshots lack this field and remain unqualified without backfill.
+
+The pure prompt/eligibility adapter accepts decoded prepared or stored context,
+uses existing effective-identification and human/biological rules, and keeps
+missing V3 encounter values unavailable. Its prompt data excludes operational
+IDs, review records and provider configuration. Qualified scores require the
+saved true marker, with no later qualification-policy recomputation; descriptive
+alternatives remain available when scores are omitted. Stored conversation roles
+and text retain their exact order. Preflight has no prefix and cannot fabricate
+an admitted turn. The protected HTTP owner and native transport use this
+boundary; activation remains default-off.
+
+### Prepared immutable Insight admission adapter
+
+The internal admission adapter sends one fixed RPC with a five-second deadline
+and retries disabled. It validates the original six-field owner/scan/message/
+conversation/ticket request, a bounded single-row result, exact message linkage
+and the saved context. An existing returned conversation may differ from the
+proposed UUID. It retains only message identity/text from the database row;
+provider metadata and future table columns do not become prompt context.
+
+Exact SQL error pairs distinguish a rejected transaction from an unknown
+outcome. A rejection is not a statement about previous attempts or authorization
+to refund quota. Lost replies, malformed success and post-dispatch cancellation
+remain unknown. The recovery coordinator may issue one exact read, returning a
+separate recovered-context result on success. It never repeats admission or
+synthesizes missing daily-count/admission receipt fields. An absent read after
+timeout does not prove non-commit; unknown outcomes retain the original identity
+and hold. These adapters do not independently authorize provider execution; the
+connected protected owner still requires the dedicated dispatch grant.
+
+Protected execution additionally requires a dedicated quota admission fence:
+legacy same-ID quota reopening and stale-chat recovery can authorize another
+metered provider attempt, so they are not safe dispatch authority for uncertain
+immutable turns. The implemented fence survives ordinary quota-row pruning and
+preserves account merge/deletion semantics. The protected HTTP owner uses this
+execution contract behind disabled gates; existing legacy funding behavior is
+unchanged.
+
+### Prepared protected Insight quota and context admission
+
+The default-off, service-only
+`reserve_protected_insight_chat_quota(uuid,uuid,uuid,text,jsonb,integer,text)`
+accepts owner, observation, client-message UUID, normalized question, displayed
+ticket, context version 1 and the original IP hash. It rechecks ownership,
+deletion, immutable context and current AI consent before first quota admission.
+Entitlement and provider quota remain owned by the existing quota core; this
+operation consumes no complimentary scan credit. First success returns
+`{status: "reserved", reservation_id, lease_token, lease_expires_at, model}`.
+Every exact retained replay returns only `{status: "held"}` and cannot authorize
+dispatch. `field_chat_execution_unavailable` (55000) is the closed fresh gate;
+`field_chat_execution_held` (55000) preserves retired/unknown work and
+`field_chat_idempotency_conflict` (23505) rejects altered content or same-owner
+request reuse across observations. The protected HTTP owner calls this RPC; the
+native durable transport calls that owner. Neither connection enables the closed
+fresh-execution gate.
+
+`reserve_protected_insight_chat_send_with_context` accepts the seven arguments
+of `reserve_insight_chat_send_with_context` followed by original reservation
+UUID and lease token. It returns the same five-column immutable admission row.
+Fresh admission and first message binding commit together under owner/scan locks
+and quota-before-fence row locking. Exact receipt recovery precedes gate and
+lease checks; erased bindings never reopen. Recovery through the existing
+read-only context resolver remains separate and does not expose execution
+authority.
+
+The unconnected `contextAdmission.ts` still calls the earlier context-only RPC.
+The connected protected HTTP owner uses the funding-bound adapter and dedicated
+one-time dispatch boundary. It never treats generic idempotent quota commit or a
+recovered context as permission to call the provider again. Lost replies retain
+their original identity and hold. No automatic successor/refund is added.
+
+### Prepared one-time Insight provider dispatch
+
+`grant_protected_insight_chat_dispatch(uuid,uuid,uuid,uuid,uuid)` is
+service-only and takes exact owner, observation, client-message, reservation and
+lease UUIDs. Fresh permission atomically consumes a permanent marker and commits
+original provider quota, returning exactly
+`{status: "dispatch_granted", model}`. It requires the original bound immutable
+message/context, active execution gate, live original lease and current consent.
+It does not revalidate against a newer selected identification. Owner and
+deletion checks always apply. A consumed marker returns only `{status: "held"}`
+even after quota pruning or gate closure; no stored grant is replayable. Generic
+finalizer success is not dispatch authority.
+
+The prepared `protectedExecution.ts` adapter uses fixed five-second RPCs with
+transparent retries disabled and caller cancellation before/after each await.
+Quota responses expose only the five-field receipt above; raw quota-core rows,
+additive fields, unknown models and malformed dates/UUIDs are rejected. Dispatch
+responses contain no reusable lease capability. Transport, cancellation, server
+error or decoding uncertainty holds the request and never authorizes a provider
+call, successor or refund. The adapter is not connected to the HTTP handler yet;
+all gates stay false and no public/native wire changes in this slice.
+
+### Protected Insight routing and funded context binding
+
+`get_insight_chat_send_route(owner, scan)` is service-only and returns exactly
+`{requires_context: boolean}`. The handler reads it for sends before mutable
+scan, entitlement or quota work; client ticket omission cannot select legacy
+behavior. Unknown/malformed routing holds with `field_chat_context_unavailable`.
+Until the bounded immutable execution owner is connected, required-context sends
+return 503 `field_chat_context_required`. No protected provider execution is
+enabled. Ordinary unenrolled legacy sends remain available when execution
+rollout is off.
+
+The existing public `reserve_field_chat_send` also enforces this boundary in
+Postgres, covering old deployed handlers and races after route lookup. Generic
+Insight quota commit is fenced again after admission; stale rescue cannot reopen
+protected work. `enroll_owned_observation_history` can return 55000
+`analysis_history_chat_in_progress` for a committed legacy attempt without its
+exact assistant receipt. Retrying enrollment cannot fabricate that receipt or
+release provider quota. Existing enrollment replay remains historical.
+
+`protectedContextAdmission.ts` calls only the funding-bound nine-argument
+`reserve_protected_insight_chat_send_with_context` RPC. It freezes the full
+original request and reservation/lease pair, parses the existing closed
+five-column response, and labels replay separately from fresh admission. Unknown
+writes allow at most one exact context read: recovered or absent context grants
+no dispatch permission, new write or refund. Caller cancellation bounds each
+five-second request, with automatic retry disabled. Unfunded context admission
+is a building block for the atomic deterministic refusal routine below; invoking
+it alone neither completes a refusal nor authorizes provider execution. An
+unknown or partially saved refusal must never become a provider call.
+
+### Prepared exact chat completion and deterministic refusal
+
+`get_insight_chat_turn_completion` takes the original recovery arguments plus
+expected user-message UUID and conversation UUID. Its fixed result is
+`{context_version:1,completed:false}` or
+`{context_version:1,completed:true,message}`. The ten message fields match the
+existing public projection: `id`, `conversation_id`, `scan_id`, `role`, `text`,
+`client_message_id`, `model`, `is_refusal`, `refusal_reason`, `created_at`. Role
+is assistant; the exposed client-message ID is the original request ID, not a
+new operation. Response is bounded to 32 KiB, text to 4,000 characters, model to
+200 and reason to 100. No safety metadata, stored prompt or quota receipt
+escapes. Incomplete grants no permission. Missing or incompatible original
+evidence holds.
+
+`admit_insight_chat_local_refusal` accepts the seven unfunded context-admission
+arguments plus one closed reason: `foraging_or_ingestion`,
+`medical_or_veterinary`, `dangerous_handling`, or `legal_or_collection`. SQL
+owns the fixed answer, null model/usage and exact refusal/request metadata. It
+returns the same completed receipt, never partial success. Normal chat capacity
+is consumed once; provider quota is untouched. Existing incomplete/provider
+turns remain held, and changed text/ticket conflicts. Exact static replay
+precedes fresh gates. Cross-scan request reuse or an existing provider attempt
+cannot become a fresh refusal.
+
+`exactCompletion.ts` uses fixed five-second RPCs, caller cancellation and
+`retry(false)`. It strictly checks deterministic UUID and receipt linkage; the
+refusal decoder also verifies the closed answer/reason/model. A known rejection
+describes only that transaction. Lost, malformed or canceled write replies stay
+unknown and are never automatically retried or refunded. Recovery orchestration
+will read original context and its exact completion; neither absence nor
+incompleteness may authorize a replacement. These adapters remain prepared;
+protected HTTP still holds before mutable reads.
+
+### Prepared original-grant chat reply persistence
+
+Service-only `complete_protected_insight_chat_reply` and
+`get_protected_insight_chat_reply` take the original eight exact-completion
+arguments plus `p_reservation_id`, `p_lease_token` and `p_reply`. The reply is a
+closed object: `answer` (1–4,000 characters), fixed `gemini-2.5-flash` model,
+`is_refusal`, nullable bounded `refusal_reason`, and nullable `usage`.
+Non-refusal reasons must be null. Usage contains exactly five nullable
+nonnegative int32 counts (`prompt_tokens`, `candidate_tokens`,
+`thinking_tokens`, `total_tokens`, `cached_tokens`) and `modality_breakdown`.
+Its four maps (`prompt`, `cached`, `candidates`, `tool`) contain only
+text/image/audio/video/document/unspecified nonnegative int32 counts. Arbitrary
+provider metadata is rejected.
+
+The fixed public completion receipt excludes accounting and private metadata,
+but SQL verifies their full equality on recovery. The prepared
+`protectedReply.ts` adapter freezes all original arguments, disables retries and
+uses a five-second call bound within the parent signal. An unknown write permits
+one exact full-payload read only; absent, changed or uncertain recovery stays
+unknown. It never writes again, dispatches, refunds or creates a successor. The
+protected HTTP execution owner now uses this module.
+
+### Protected Field Chat send HTTP protocol, version one
+
+For server-required immutable sends, `insight-chat` accepts exactly `action`
+(`send`), `context_version` (`1`), lowercase UUID `scan_id`, `conversation_id`
+and `client_message_id`, normalized 1–600-character `message_text`, and an
+explicit `displayed_ticket` (null for a legacy immutable snapshot, otherwise
+exact `analysis_id`, `state_revision`, `review_revision`). No new UUID or ticket
+is inferred after uncertainty. Server routing precedes mutable scan/thread
+reads; client omission cannot choose legacy, and explicit protected fields on a
+legacy route fail closed instead of starting a legacy request.
+
+Success is the closed `{data:{context_version:1,completed:true,message}}`
+receipt, not the legacy conversation envelope. `message` has exactly `id`,
+`conversation_id`, `scan_id`, `role`, `text`, `client_message_id`, `model`,
+`is_refusal`, `refusal_reason`, `created_at`. Its deterministic assistant UUID
+binds returned conversation and original request. The proposed conversation may
+resolve to an existing owned conversation at atomic admission. No context,
+usage, current-selection projection, thread messages or quota estimates are
+returned. Native `decodeProtectedCompletion` validates this separate 32 KiB
+contract, including the fixed provider model and valid local-refusal
+combinations; existing conversation decoding and ordinary access stay unchanged.
+Native persisted send-ticket delivery is still required before coordinated
+activation.
+
+Existing turns recover before fresh eligibility or Pro. Fresh sends preserve
+immutable eligibility → Pro → local safety → protected quota → context admission
+→ one-time grant ordering. All prompts use the final saved context and prefix.
+Unknown admission, provider or completion never authorizes automatic redispatch,
+refund or a replacement request. Incomplete exact recovery returns held (503);
+stale immutable context and request conflicts remain explicit errors. Every
+protected success/error is no-store. The request budget is measured from entry;
+provider dispatch requires five-second grant, 90-second provider and 15-second
+persistence/recovery headroom plus a two-second margin. A confirmed grant
+invokes once within the remaining provider window, preserving completion time.
+Provider HTTP uses actual cancellation, no retries, no redirects and a 32 KiB
+response limit. All activation gates remain false.
+
+The prepared native enrolled subset requires a nonnull selected ticket. It
+bounds revisions to 2,147,483,646, review revision to the displayed global
+revision, and text to 600 UTF-16 code units with exact ECMAScript trim
+semantics. It preserves Unicode bytes and canonical sorted-key JSON in a
+version-one owner-private intent. The canonical SHA is a local drift check only.
+Terminal receipts are validated against the original observation/client-message
+and retained without substituting their resolved conversation for the original
+proposal in a retry.
+
+Native staging is atomic and inert: exact message-ID replay first, then fresh
+selected-result proof/authority, pending-selection/review and unfinished-chat
+checks. Message IDs cannot move between observations. Namespace erasure is part
+of direct, bulk and owner-qualified cloud deletion. No schema shape changes or
+automatic scheduler eligibility are introduced. Native claims and atomic receipt
+acknowledgement are prepared; dedicated transport and lifecycle are connected
+below, while UI remains required before activation. Initial claims accept
+pristine work only. Unknown outcomes hold without a wake deadline; explicit
+replay must match the previous local attempt while preserving the exact original
+request. Claim expiry denies new dispatch but permits an unchanged late receipt.
+Replaced attempts cannot acknowledge, and terminal receipts never reopen. These
+local attempts do not authorize provider successors. No gate is enabled.
+
+The prepared native protected chat transport now sends one exact saved request
+through a closed typed mutation boundary. It bypasses the legacy 45-second
+retrying executor. A scoped pinned session permits 145 seconds and bounds actual
+received bytes to 32 KiB; the ordinary session retains its 90-second resource
+ceiling. Redirects, automatic 401 refresh, transient retry and route retry are
+forbidden. Owner and claim validation follows Auth before dispatch, and a
+separate response fence validates the unchanged attempt. Dispatch requires the
+full 145-second wire budget, 15-second local receipt reserve and two-second
+margin inside the original claim. Late exact replies can still reach atomic
+acknowledgement; the transport does not extend expiry or mint identities.
+Retained delivery and Auth teardown now use this transport through explicit
+injected admission; actual send UI remains unconnected. All activation gates
+remain false.
+
+Native `ProtectedInsightChatReply` retains the validated completion alongside
+original bounded receipt bytes for atomic persistence, preserving required null
+fields. Both session and task authentication challenges share the existing
+certificate-pin validator. Successful JSON MIME validation precedes body
+acceptance, and a final synchronous budget check precedes task start. The scoped
+session has no credential store; ordinary transport policies remain unchanged.
+
+Native `ProtectedInsightChatDeliveryService` reads only terminal local receipts
+before claiming. Initial admission cannot reopen held/running work; explicit
+replay requires the prior exact attempt and unchanged request. The retained
+owner distinguishes cancelled dispatch from valid same-account settlement of a
+known reply. Account/container/claim changes still reject receipt persistence.
+Both Auth quiescence paths await actual lease release. Unknown outcomes have no
+retry deadline, and ordinary scheduler recovery never starts them. Save
+uncertainty checks for a committed exact local receipt before holding the
+original claim. No mutable conversation or observation selection is projected. A
+failed HTTP status never proves no admission or authorizes replacement intent;
+only the exact stale-ticket no-admission receipt described below can retire that
+request. Other uncertain outcomes remain held.
+
+Native restart discovery is local and read-only. It validates all scoped saved
+requests in bounded fetch batches and returns at most 20 immutable completion
+receipts in canonical client-message UUID order, independently of the unique
+unfinished operation. Off-page corruption or multiple unfinished operations
+fails closed; a partial page never grants new-message admission. Historical
+requests keep their original tickets after selection/review changes. Prepared
+selected-chat access validates the actual displayed baseline before constructing
+a new ticket, with a second context check around the exact child read. It is
+installed only in the inert History bundle; ordinary access stays nil and no
+remote read-before-claim path is introduced.
+
+The prepared native composer now stages synchronously before queue handoff and
+retains the original candidate on save uncertainty. Explicit pending delivery
+uses the saved intent without another UUID; held or expired-running recovery
+uses an exact claim. A newly supplied ticket that differs from the session's
+frozen displayed ticket can only read an already saved exact request. Closing
+presentation does not cancel durable delivery. Local pages contain original
+questions and immutable receipts, never a reconstructed mutable thread. These UI
+connections remain behind the disabled complete History installation gate;
+explicit refreshed-authority presentation is prepared; runtime qualification
+remains open.
+
+### Prepared exact chat no-admission proof
+
+The service-only `seal_unadmitted_insight_chat_request` RPC is a separate
+prepared recovery boundary. It accepts the exact original request tuple and
+returns either `{status:"held"}` or the closed six-field receipt with
+`status:"not_admitted"`, `context_version:1`, `scan_id`, `conversation_id`,
+`client_message_id` and `reason:"displayed_identification_changed"`. The server
+independently proves the stale displayed ticket under admission locks and
+permanently prohibits that request from entering any context or quota writer.
+Existing attempt evidence never becomes this receipt. Lost replies use the
+service-only five-second, retry-free `get_insight_chat_no_admission` read with
+the same exact tuple. It returns `not_admitted`, `held`, or `fresh_candidate`;
+the last only permits subsequent fresh preflight, never admission or dispatch. A
+generic error, absent context, timeout or cancellation is not proof. Proposed
+conversation is immutable request correlation only.
+
+The proof neither refunds provider usage nor authorizes another execution. A
+future native consumer may retire only its matching saved request; a new
+question requires a separate explicit tap and current displayed ticket. The
+prepared protected HTTP owner recovers stored completion first and existing
+seals second, before fresh gates/eligibility/Pro. Only a typed stale-ticket
+preflight denial calls the seal writer; a held or unknown write cannot settle.
+The distinct terminal HTTP 200 shape is:
+
+```json
+{
+  "data": {
+    "context_version": 1,
+    "outcome": "not_admitted",
+    "scan_id": "<original observation UUID>",
+    "conversation_id": "<original proposed UUID>",
+    "client_message_id": "<original message UUID>",
+    "reason": "displayed_identification_changed"
+  }
+}
+```
+
+The existing completed-assistant receipt is unchanged. No assistant, thread,
+quota or refund is synthesized. Native now strictly decodes this outcome
+separately and persists it in a version-two intent with an explicit terminal
+kind. Version-one assistant intents remain readable without rewriting. Exact
+same-running-claim acknowledgement atomically saves proof and completes the
+operation; unknown errors remain held. Every nonterminal HTTP call still needs a
+claim. Fresh admission rejects a new UUID with a selection tuple already proved
+stale, across restart and all status pages. Only actual updated authority and a
+new explicit tap can permit a new question. The dedicated retained refresh owner
+validates the original local ticket before state synchronization and the
+returned full ticket before host projection. It closes the stale session without
+rewriting it or automatically opening/sending another question. All activation
+gates remain closed.
+
+### Prepared audio metadata generation
+
+`analysisHistory/audioManifest.ts` defines the isolated manifest-3 metadata
+contract before audio upload, persistence and execution are connected. It is not
+accepted by `parseExecutableAnalysisInput`, reader 9, existing SQL admission or
+the photo upload endpoint. Existing V2 photo bytes and replay remain unchanged.
+
+The exact object is `{schema_version:3,items:[...]}`. Ordered items contain
+exactly one `{kind:"audio",media_id,content_type:"audio/wav",byte_count,sha256}`
+and optional `{kind:"description",text}` entries, at most 64 total. The
+lowercase media UUID differs from observation and child IDs. Declared length is
+46 through 2,700,000 bytes; the digest is 64 lowercase hexadecimal characters.
+Description limits preserve 8,192 Unicode scalars and 16,384 UTF-16 units per
+entry and 32,000 UTF-16 units combined. Parsing owns and freezes descriptors
+without sorting or normalizing text. Paths, URLs, filenames, duration,
+owner/object identities and provider data are not accepted.
+
+This parser validates metadata only. Neither a claimed WAV MIME type nor a
+claimed digest proves content, ownership, readiness or historical provenance.
+`audioContainer.ts` separately verifies the complete mono 44.1 kHz PCM16 RIFF
+container: exact RIFF length, one 16-byte `fmt` chunk, consistent byte rate and
+block alignment, optional one zero-filled `FLLR` chunk (1–4,096 bytes, with zero
+padding), and one final nonempty even-length `data` chunk. Duplicate, unknown,
+private metadata and trailing chunks fail closed. A synthetic macOS Core Audio
+writer produced `fmt` / 4,044-byte `FLLR` / `data`; fixed 44-byte headers alone
+would reject that output. This is format evidence, not iOS/device qualification.
+The verifier never transforms bytes or establishes their digest/readiness.
+
+The prepared native `ObservationAudioContainer.isValid` mirrors these byte rules
+without changing the broader legacy capture validator. Its tests include actual
+`InferenceAudioPreparer` output and exact PCM preservation. This isolated
+validator does not connect native upload, durable preparation or execution, and
+does not authorize a historical media fallback.
+
+The separate prepared cohort RPCs below now allocate immutable receipts with
+fixed expiry. The separate binary upload route below verifies exact WAV bytes
+and their digest. Coordinated admission must still bind the audio provider
+profile before quota. Native sidecars are transient until exact durable
+persistence; retries must not transcode again.
+
+The coordinated audio generation will use input schema 3 / manifest 3 / history
+capability 9 and result schema 4 / reader 10. Result schema 3 already represents
+imported saved identification and must not be repurposed. No current decoder is
+widened by this metadata checkpoint. Durable request canonicalization, native
+DTOs, upload/receipt authorization, SQL admission, result readers and execution
+must be reviewed together before this generation enters a runtime route.
+
+### Prepared audio cohort RPCs
+
+The prepared service-only database boundary comprises
+`reserve_owned_observation_audio_evidence_cohort(p_owner UUID, p_observation UUID,
+p_analysis UUID, p_media UUID, p_bytes INTEGER, p_sha256 TEXT)`
+and
+`complete_owned_observation_audio_evidence_upload(p_owner UUID, p_observation UUID,
+p_analysis UUID, p_media UUID, p_object UUID)`.
+They return the existing private evidence receipt shape to trusted
+orchestration, never directly to a client. MIME is fixed to `audio/wav`; length
+is 46–2,700,000 bytes and SHA-256 is 64 lowercase hexadecimal characters. Caller
+role, owner and deletion are checked; `media_enabled` and default-false
+`prepared_audio_evidence_enabled` are required.
+
+Reservation freezes one media/object identity and five-minute deadline. Exact
+replay returns that original receipt; changed metadata conflicts. Missing or
+expired receipts fail without replacement, including fully ready but unbound
+expired evidence. Completion accepts only the original unexpired cohort/object
+and acknowledges trusted byte verification; it is not evidence that a client
+uploaded valid bytes. The separate authenticated binary route below verifies the
+entire prepared WAV container and exact digest before reservation, writes once,
+and verifies storage before completion.
+
+Audio and photo cohorts cannot share a child identity. Existing photo wire
+versions, descriptors and exact replay stay unchanged. Protected input-3
+admission and reader-10 results now support the gated audio generation; native
+durable audio execution and V4 actions remain held. Expiry cleanup retains the
+immutable cohort/object/deadline and enqueues opaque erasure; parent deletion
+removes private cohort data. Neither expiry, absence nor a successful upload
+permits provider dispatch, a successor operation or refund. The gated backend
+binds the audio provider profile as described below; native durable integration
+remains a later checkpoint. All activation gates remain false.
+
+### Private reanalysis audio upload
+
+Prepared `POST upload-observation-audio` authenticates the caller and derives
+the owner from the verified session. Gateway JWT verification is disabled only
+for the shared handler authentication boundary. The existing `media_enabled` and
+default-false `prepared_audio_evidence_enabled` database gates remain required.
+The endpoint is registered for candidate validation; registration is not rollout
+or deployment authorization.
+
+The body is `application/octet-stream`: four bytes of unsigned big-endian JSON
+metadata length (1–1,024), that many strict UTF-8 bytes, then exactly one WAV.
+Metadata has exactly `{schema_version:1,observation_id,analysis_id,audio}`;
+`audio` has exactly `{media_id,content_type:"audio/wav",byte_count}`. All three
+identities are distinct lowercase UUIDs. This endpoint's wire version 1 is
+separate from the unchanged photo-upload wire. It accepts no client owner,
+object key, URL, digest or provider profile.
+
+The streaming body is bounded to 2,701,028 bytes. The handler owns and validates
+the complete 46–2,700,000-byte WAV before reservation, computes SHA-256 itself,
+and validates the exact private reservation receipt. Storage uses conditional
+write-once plus digest/type/length and erasure-marker verification. A ready
+replay skips writing but still completes through the owner/deletion-fenced RPC.
+The original object and five-minute expiry never change; expired ready evidence
+also fails. Completion must return that same tuple, object, expiry and readiness
+association. Unknown replies never mint another object or dispatch inference.
+
+The success body is exactly
+`{schema_version:1,observation_id,analysis_id,items:[{kind:"audio",media_id,content_type:"audio/wav",byte_count,sha256}]}`.
+No owner, storage identity, URL, readiness timestamp or private metadata is
+returned. Responses are `private, no-store`. The request has a shared 120-second
+abortable body/RPC/storage budget and fixed 12-second RPC bounds with no
+retries. Errors use the existing bounded history codes (400 invalid request, 404
+unknown owned target, 409 operation conflict, otherwise 503 unavailable).
+Cancellation and ambiguous completion require replay of the original bytes and
+identities.
+
+Unready writes abort twelve seconds before fixed receipt expiry, leaving a
+bounded completion-attempt window; insufficient time denies storage. This is not
+a completion guarantee: SQL expiry remains authoritative. A PUT accepted before
+cancellation or a late rejected completion can leave private bytes for
+independent erasure. It never permits replacement or a new expiry.
+
+The separate native `ObservationAudioEvidenceUpload` validates owned WAV bytes
+and hashes them before producing this exact frame. Its fixed
+`uploadObservationAudioEvidence` route validates the expected owner and caller's
+claim before preparation, after preparation, after Auth before dispatch, and
+after the response. It disables transient, 401 and missing-route replay; the 4
+KiB decoder requires the exact audio descriptor and digest. Durable audio
+production and execution remain subsequent checkpoints. Gated backend execution
+and result-4/reader-10 are described below. Upload readiness alone grants
+neither execution nor reader compatibility. Existing photo acceptance and saved
+replay remain unchanged.
+
+### Prepared audio request and draft contract
+
+`analysisHistory/audioAdmission.ts` now owns the isolated input-3 contract. It
+accepts exactly `schema_version`, `observation_id`, `analysis_id`,
+`source_analysis_id`, `request_digest`, `evidence_manifest`,
+`entitlement_protocol`, `identification_protocol`, `history_protocol` and
+`expected_processor_permission`. Versions are exactly 3 / 3 / 6 / 9 for input,
+entitlement, identification and history respectively; the saved processor is
+exactly `google_gemini`. Observation, child and optional source are distinct
+lowercase UUIDs; the digest is lowercase SHA-256. The one audio media identity
+also cannot alias the source analysis.
+
+The manifest uses the existing strict manifest-3 parser. Ordered descriptions
+and audio descriptors are copied and frozen without normalization. No caller
+owner, profile, provider configuration, storage key or URL is accepted. The
+server admission reserves `multimodal_audio_v1`; its name is not a
+client-selected field. Valid metadata proves neither an uploaded WAV nor current
+consent, entitlement, quota or execution authority.
+
+Native `ObservationAudioReanalysisRequest` represents only reanalysis with a
+non-null exact source. It requires the same schema-3/audio contract, pins Gemini
+and history protocol 9 (distinct from result reader 10), rejects source/media
+identity aliases, and preserves ordered descriptions without normalization. Its
+native fingerprint is SHA-256 of sorted-key JSON without escaped slashes,
+excluding `request_digest`. Restoration verifies that fingerprint and retains
+the original saved bytes. A valid request is neither consent nor execution
+authority; dedicated durable audio admission remains unconnected.
+
+New request serialization is deterministic; it must never be used to rewrite
+stored V2 photo requests. The prepared draft revalidates the original saved
+input and preserves its identities, digest and ordered evidence. It reuses the
+canonical Identify/taxonomy result builder, stripping mutable review and funding
+fields. Input and draft reserve 4 KiB below the existing 1 MiB history limit for
+server serialization and completion metadata. This draft is not a result-4
+snapshot or append receipt.
+
+### Gated audio execution and reader 10
+
+Forward migration `20261007171421_prepare_audio_analysis_admission.sql` binds
+input 3 through the existing service-owned begin/advance execution protocol. The
+independent `audio_analysis_enabled` gate defaults false. Existing
+orchestration, admission, dispatch, append, protected-analysis and media gates
+still apply. Exact saved request replay remains ahead of fresh admission.
+Funding reserves the original child under `multimodal_audio_v1` and Gemini;
+callers cannot select a provider profile. Unknown dispatch has no successor.
+
+Initial admission requires the exact ready, unexpired audio cohort and receipt.
+Once admitted, materialization, dispatch and completion permit that same ready
+receipt after its fixed five-minute expiry: they never renew its deadline,
+replace its object or accept changed bytes. Independent unbound expiry cleanup
+excludes intent/result-owned cohorts. Missing receipts, erasure markers and
+account/parent deletion deny access. Native callers must not interpret expiry as
+permission to create replacement evidence.
+
+The provider materializer checks the whole receipt tuple and revalidates the
+owned WAV bytes and SHA-256 after storage retrieval. Description/audio order is
+unchanged. The normal durable outcome/draft/completion protocol applies, and
+completion appends unreviewed authority without changing the current selection.
+Saved photo and audio outcomes recover without materialization or invocation.
+
+Audio's closed manifest-3 `items` shape is distinct from imported saved-result
+manifest 3. Its outer immutable result version is **4**. Page/state reader 10
+accepts V1, V2, imported V3 and audio V4. Readers 7–9 reject an entire history
+containing audio, including pages/cursors or explicit older targets that would
+otherwise omit it. A reader-9 native client is not audio-compatible.
+
+The prepared Swift decoder/cache accepts exact V4 snapshots with one bounded WAV
+reference, matching manifest keys, scalar/UTF-16 limits and ECMAScript
+whitespace rules. It retains the original bytes and exposes no photo reference.
+V58 stores these opaque bytes without a schema-shape change. Native review now
+strictly decodes V4 before constructing its immutable ticket and uses the
+existing reader-10 review, confirmation and both Undo contracts. Recovered Undo
+admission does not require a local original receipt. Candidate selection,
+publication and selected chat remain unavailable for V4; photo loading remains
+V2 only. Explicit audio source preparation retains exact V4 provenance but never
+loads its original WAV; photo preparation still refuses V4. Selection staging
+(including receipt-bound Undo) and persisted replay admit V4 target/current
+results through the same strict retained-evidence and authority checks. Restore
+is available only with an admitted display/authority and no pending selection.
+Acknowledged receipt and current selected state commit atomically; no completion
+automatically selects a new result. Disk reopen preserves exact listing bytes,
+selection and correction. This foundation does not advance any network reader or
+activate audio.
+
+Forward migration `20261007193516_prepare_audio_history_action_readers.sql`
+extends the closed action reader set to 9/10 for selection, review, both Undo
+lookups, confirmation, execution status and retirement. After canonical owner
+and parent locks, reader 9 refuses the whole observation if any completed audio
+result exists—even when replaying a receipt or targeting an older child. The
+private volatile compatibility helper sees changes committed while those locks
+were awaited. Execution status and retirement additionally refuse the exact
+input-3 intent for reader 9 before a result exists. Pending input is not result
+V4. Denial/absence never authorizes dispatch, replacement or retirement.
+
+Reader 10 preserves exact saved receipt replay before fresh rollout gates;
+existing ownership, deletion, revision, funding and immutable request checks are
+unchanged. Native fixed page/state/selection, review/Undo and recovery/status
+transports and the two Edge confirmation calls and retirement call now use 10.
+Enrollment stays 9; photo resolution stays 8. The existing photo completion
+matcher still requires exact V2 evidence. Native V4 review is admitted through
+its strict ticket, and explicit selection/selection Undo now use the existing
+strict projection transaction. Candidate selection, publication and
+selected-chat holds remain. Reader compatibility does not authorize unsupported
+media actions or expand candidate membership. No public payload or persisted
+schema changes.
+
+Native held audio preparation now persists exact child ownership and manifest
+before private WAV writes, with complete locked recovery even for ready replays.
+This separate local envelope cannot enter photo admission or execution; see the
+[V58 audio preparation contract](04-database-schema.md#audio-preparation-intent-in-v58).
+The inert local audio submission primitive versions intent before file writes;
+old held preparations remain inert. The separate local `audio_execution`
+envelope binds exact schema-3 request bytes and the source digest once, after
+current fixed-Gemini authorization. Exact bound replay precedes fresh consent. A
+private attempt CAS and permanent consumed marker separate first dispatch from
+outcome-only recovery; only a successful consume save returns a typed dispatch
+permit. Unknown outcomes cannot acquire another permit. This kernel has no
+transport, scheduler or UI caller. Upload/execution delivery and separate action
+admission remain required before activation. All gates remain false; there is no
+deployment or activation authorization.
+
+The native audio analyze transport is a fixed, retry-free 130-second scoped
+pinned request, separate from the ordinary 90-second session. It requires the
+saved dispatch permit, fixed Gemini permission and a caller-supplied durable
+attempt fence checked after Auth. Responses are streamed with a 4-KiB bound and
+strict status/state pairing (200 complete/failed_terminal; 202 otherwise).
+Account-scoped response validation remains distinct from task cancellation.
+Execution receipts contain no result and grant no further invocation.
+
+Exact V4 settlement uses the saved schema-3 request's parent, child, source,
+digest and whole ordered manifest. Its local transaction appends the immutable
+result, retires only that queue/job and records receipt-bound erasure
+atomically, preserving selection and original evidence. A known result may
+settle after task cancellation but not owner/deletion/source/claim loss. Save
+uncertainty recovers identical bytes; it cannot dispatch. Retained execution,
+outcome-reader wiring and UI integration remain unconnected and all gates remain
+false.
+
+### Native audio outcome reader
+
+The prepared native audio reader uses unchanged reader-10
+`get_owned_observation_analysis_state` for an explicit saved child. It accepts
+only a running consumed audio claim, validates that claim after Auth, and uses a
+five-second, 4 MiB streamed boundary without transient, 401 or route replay. It
+requires the exact owner/observation/child envelope and V4 source, request
+digest and complete ordered manifest before returning the original snapshot.
+Only HTTP 404 carrying the bounded PostgREST `P0002` and
+`analysis_history_not_found` pair means absence; no absence or status receipt
+authorizes inference. Reads require no fresh inference consent.
+
+Known-result settlement is independent of dispatch cancellation but retains
+account, deletion, source and full durable claim checks in atomic completion.
+The reader makes no selection/review changes and grants no new dispatch permit.
+No server wire/schema or activation gate changes; retained native audio delivery
+and its production factory remain unconnected.
+
+### Prepared source discovery contract
+
+The
+[source-occupancy design checkpoint](../rfcs/analysis-source-occupancy-contract-2026-10-08.md)
+is required before ordinary fresh audio entry; the first read-only SQL resolver
+is prepared; reservation now has a separately gated service-only transaction,
+while ordinary entry remains unimplemented. Existing exact-child admission
+reserves quota and cannot be used as read-only discovery. Local missing work
+never proves remote absence. The planned resolver grants no execution authority;
+an independent atomic unfunded claim must fence every competing writer and
+retain durable retirement/completion proof while the owner observation remains
+live. Parent deletion intentionally erases private linked records; exact
+terminal receipt replay remains allowed until deletion. Completed history must
+still allow later explicit reanalysis of the same source. Unknown execution
+remains outcome/status recovery only. Existing saved photo replay stays
+unchanged; all activation gates remain disabled.
+
+`_shared/analysisHistory/sourceDiscovery.ts` now owns the prepared executable
+descriptor contract. The private SQL producer is now
+`get_owned_observation_analysis_source(uuid,jsonb,integer)`; no HTTP route,
+transport or native consumer is connected. It does not change the Identify
+generated DTO block, existing readers or saved request fingerprints. The SQL
+reader is exactly 10. Separate default-false service-only reader-11 routines use
+the fingerprint encoders for source reservation and unfunded retirement.
+Prepared HTTP wrappers and a photo V2/audio V3 durable native handoff with
+retained injected reservation delivery exist. No composition caller is
+installed; native unfunded retirement and ordinary activation remain pending.
+
+The request has exactly `schema_version: 1`, `observation_id` and
+`source_analysis_id`, using distinct canonical lowercase UUIDs. Owner comes from
+verified authentication, outside the request. Every response has those three
+fields plus the exact `owner_id` and a closed `state`:
+
+| State              | Additional fields                        | Meaning                                                                       |
+| ------------------ | ---------------------------------------- | ----------------------------------------------------------------------------- |
+| `advisory_absence` | None                                     | Informational absence, never permission to reserve or mint another operation. |
+| `history_only`     | None                                     | Only conclusively settled history; no latest child or replacement permission. |
+| `existing`         | `analysis_id`, `request_digest`, `phase` | Exactly one unresolved attributable operation; no current recovery consumer.  |
+| `held`             | `reason`                                 | Ambiguous, damaged, incompletely covered or unproven terminal work.           |
+| `unavailable`      | None                                     | Generic unavailability without private error details.                         |
+
+Existing phases are only `reserved`, `admitted`, `dispatched` and `draft`; child
+must differ from parent and source, and digest is exactly 64 lowercase hex
+characters. This digest identifies the original request; it is not a new full
+reservation fingerprint or proof of execution permission. Held reasons are only
+`ambiguous_occupancy`, `malformed_linkage`, `coverage_incomplete` and
+`terminal_unproven`. No variant includes lists, names, media paths, original
+input, funding, provider output, tokens or a dispatch capability.
+
+The byte decoder rejects more than 2,048 actual UTF-8 bytes before parsing,
+invalid UTF-8/JSON and all unknown, missing or extra fields. Both decoding
+boundaries validate the expected owner/observation/source tuple and return
+frozen values. Object parsing is for already bounded transport results; the
+future transport must enforce the same ceiling while streaming. Errors never
+become absence. The SQL resolver owns bounded namespace classification; this
+decoder cannot establish those database facts.
+
+`sourceDiscovery_test.ts` covers all variants, exact scope, forbidden private or
+capability fields, child/digest/phase integrity, malformed envelopes and the
+actual byte limit. The SQL catalog and concurrency tests separately exercise
+authorization, parent locking, deletion, incomplete coverage and exact terminal
+associations.
+
+The service-only SQL RPC takes `p_owner` from a future authenticated Edge owner,
+`p_request` with the exact three request fields above, and `p_reader: 10`.
+Direct `anon`/`authenticated` execution is denied. `source_discovery_enabled`
+defaults false independently of other history gates. Owner → parent-generation →
+scan → history locks precede classification, preserving deletion/account
+ordering. Missing owner, parent or source and a closed gate return generic
+`unavailable`. Malformed requests and unsupported readers retain the existing
+typed errors. No inference-consent, quota reservation, work claim or mutation is
+performed.
+
+This initial resolver **never emits `advisory_absence` or `reserved`**. Empty
+coverage returns `held/coverage_incomplete` until the coordinated source
+reservation and all-writer cutover exist. Nonunique source indexes cover
+existing intent/result rows without making a lifetime one-child-per-source
+constraint or creating new claims. It bounds classification to 64 parent intents
+and 64 source-linked child results, using 65-row sentinels under the parent
+lock; overflow holds, and no partial page authorizes a decision. Parent evidence
+or upload cohorts lacking an attributable intent/result hold the whole parent.
+Malformed parent intent identity, including a bad source before filtering,
+holds. Persisted schema/protocol/provider combinations retain V1/7 and V2/8
+photo Gemini/OpenAI compatibility and V3/9 audio Gemini compatibility.
+
+Exactly one unresolved admitted/dispatched/draft child returns `existing`;
+multiple blockers return `held/ambiguous_occupancy`. Completed classification
+requires the exact intent, retained draft/usage, immutable result, and canonical
+completion snapshot/receipt association. The completion transaction originally
+appends and settles before saving its receipt; a surviving quota row is not
+required. This is source-occupancy classification, not a post-pruning audit of
+all provider accounting. Exact pre-dispatch retirement requires its immutable
+receipt and matching terminal intent with no result, invocation, draft, outcome
+or live work claim. Other failed states remain held. Source-linked results
+without matching complete intent/receipt are held. Canonical receipt framing for
+snapshot versions 1–4 is regression-tested; future codec changes must preserve
+historical receipt bytes. `history_only` remains informational, never
+replacement permission. Five-second SQL timeout bounds reads; callers must not
+reinterpret errors/timeouts as absence.
+
+### Prepared source reservation fingerprint
+
+`_shared/analysisHistory/sourceFingerprint.ts` defines fingerprint version 1 as
+a pure contract consumed by the gated source-reservation SQL. It grants no
+upload or execution authority. The prepared reservation HTTP route consumes it;
+photo V2 has an explicitly injected retained native reservation delivery path.
+No composition caller is installed; ordinary UI, scheduler and execution remain
+disconnected. The ungranted internal SQL encoders and
+`ObservationSourceFingerprint` implement the same pure contract; all three
+languages share checked-in canonical-byte and hash vectors. Existing saved
+request bytes and `request_digest` are preserved verbatim; this fingerprint is
+additional binding, never a replacement for their replay rules. The existing
+server admission checks `request_digest` syntax and exact replay identity; it
+does not prove that native JSON bytes hash to that value. The new fingerprint
+binds the validated semantic fields independently. Do not add JSON digest
+reconstruction or rewriting to saved V2/V3 requests.
+
+Only strictly validated fresh protected-photo input schema 2 and audio input
+schema 3 are supported. Source must be non-null, distinct from observation and
+child, and cannot alias a media ID. V1 saved-photo replay remains on its
+existing path; unsupported fresh representations cannot silently upgrade. The
+profile is derived from the validated schema (`multimodal_photo_v1` or
+`multimodal_audio_v1`), never accepted as another caller field. Existing
+processor, protocol, image/audio count, byte and description bounds apply.
+
+Canonical bytes are concatenated UTF-8 netstrings: each field is its decimal
+UTF-8 byte count, ASCII colon, exact UTF-8 value, then ASCII comma. Counts and
+integers use unsigned minimal decimal ASCII. There is no JSON serialization,
+whitespace normalization or Unicode normalization. NUL and unpaired UTF-16
+surrogates are rejected, since PostgreSQL text cannot preserve them. Framing is
+bounded to 262,144 bytes. SHA-256 of these bytes is 64 lowercase hexadecimal
+characters. The fixed field order is:
+
+1. `merian.analysis-source-reservation`, fingerprint version `1`;
+2. input schema version, observation UUID, child UUID, source UUID, original
+   `request_digest`;
+3. entitlement protocol, identification protocol, history protocol, expected
+   processor permission, derived input profile;
+4. evidence schema version and item count;
+5. each evidence item in original order: `description`, exact text; or media
+   kind, media UUID, content type, byte count, SHA-256.
+
+Owner is excluded from these bytes to preserve immutable request identity across
+an authorized account merge. Owner remains mandatory in authenticated storage,
+lookup and mutation scope; a matching digest never establishes ownership or
+merge permission. Merge conflicts must still abort atomically. Fingerprinting
+proves neither source membership, upload readiness, consent, funding nor
+execution authority. No new request may bypass the future locked all-writer
+reservation transaction.
+
+`fixtures/source-fingerprint-v1.json` contains fixed reviewed byte/hash vectors
+for photo (both Gemini and OpenAI) and audio, with composed/decomposed Unicode,
+a supplementary character, newline and delimiter characters. Tests prove JSON
+key-order independence, ordered-item and field sensitivity, strict denials and
+byte snapshotting before the asynchronous hash. SQL database tests and native
+parity tests consume those same vectors and compare both bytes and hashes. They
+also cover ECMAScript whitespace (including U+0085 and U+FEFF), numeric integer
+normalization, Unicode and media/description bounds. SQL functions are stable
+invoker helpers with empty search paths and no API-role execution grants. Native
+parsing does not reconstruct the legacy JSON request digest or change
+saved-photo decoding. These helpers do not reserve work or authorize any network
+operation.
+
+### Prepared source binding storage boundary
+
+Private source binding and unresolved-occupancy tables now retain validated
+metadata and its version-1 canonical fingerprint. The private tables have no
+API-role grants. Gated service-only reader-11 routines and authenticated HTTP
+wrappers now consume this storage. Native photo V2/audio V3 have a durable
+handoff and retained injected delivery owner; no composition caller is
+installed. Their constraints are not an admission receipt, proof of absence,
+upload permission, funding reservation or execution grant. Existing RPC payloads
+and saved-photo replay remain unchanged.
+
+A storage-integrity prerequisite now rejects legacy scan/job/intent insertion or
+identity changes that reuse any bound child UUID, including cross-owner and
+alternate UUID spellings. It takes owner-before-child locks and requires current
+statement snapshots; Repeatable Read and Serializable identity writes fail
+explicitly. Ordinary scan owner removal does not take a late child lock. This
+adds no reservation, admission or execution authority; the remaining funding and
+protected writers still require coordinated cutover.
+
+A future atomic reservation must write binding and occupancy together after
+complete scope coverage and exact replay checks. Missing occupancy for a
+retained binding remains held unless an exact durable terminal proof explains
+it. Fresh cohort creation can preserve existing RPC signatures by finding the
+authoritative binding for the exact owner/parent/child and validating its
+ordered media projection. Existing unclaimed cohorts are replay-only
+compatibility data, never fresh admission authority. This behavior is a
+remaining coordinated cutover requirement, not yet connected to the upload or
+execution writers.
+
+Parent deletion removes the private storage. Until explicit ownership transfer
+is implemented, source bindings extend the existing guest-history merge hold. No
+automatic expiration, replacement, provider retry or refund is introduced.
+
+### Prepared source reservation and unfunded retirement wire
+
+`sourceReservation.ts` defines the reader **11** contract implemented by
+migration `20261009000303`. The service-only RPCs
+`reserve_owned_observation_analysis_source(uuid,jsonb,integer)` and
+`retire_owned_observation_analysis_source(uuid,jsonb,integer)` use explicit
+owner, request and reader arguments. Both authorize `service_role`, reject
+unsupported readers and frozen snapshots, and have five-second statement
+timeouts. Only service-role execution is granted; private storage/helpers are
+revoked from API roles. Independent `source_reservation_enabled` and
+`source_unfunded_retirement_enabled` gates default false. The prepared
+reservation HTTP boundary is described below. Photo V2/audio V3 durable native
+handoff and retained injected delivery exist, with no installed composition
+caller. Read-only discovery remains reader 10.
+
+`sourceReservationRepository` is the server-only one-call transport for these
+routines. It accepts trusted owner scope and the full original candidate; an
+unfunded retirement additionally requires the caller's stable operation UUID. It
+validates and snapshots before I/O, always passes reader 11, applies a
+five-second abort deadline, and strictly decodes the bounded 2 KiB receipt
+against those original identities. Cancellation, other RPC/network errors, lost
+replies and malformed responses throw `analysis_history_unavailable`; they do
+not fabricate an unavailable/retired receipt. Even a transport that stalls
+cancellation cannot keep the caller waiting beyond the deadline. It performs no
+automatic retry, token refresh, route fallback, UUID generation, refund or
+successor admission. An explicitly returned reserved/held/unavailable receipt is
+an observation, never execution permission. Later explicit recovery must reuse
+the original candidate and retirement operation. The prepared reservation and
+unfunded-retirement routes use this adapter. Photo V2/audio V3 reservation has
+durable injected delivery but no installed composition caller; unfunded
+retirement has no native caller. Neither changes funded execution retirement.
+
+Prepared authenticated `POST reserve-observation-analysis-source` accepts the
+same four-field candidate, never a caller-selected owner. `withEdgeHandler`
+authenticates before body parsing; the route passes only `user.id` to the
+service-only adapter. Actual request bytes are capped at 1 MiB and actual
+streamed upstream responses at 2 KiB, with a five-second RPC timeout. The
+existing default-false SQL reservation gate and owner/deletion checks remain
+mutation authority. This route performs no inference, admission, upload,
+retirement, quota reservation or provider invocation.
+
+Exact reserved/held/unavailable observations return 200, private/no-store.
+Invalid candidate or malformed JSON returns 400, oversized input 413,
+unsupported content type 415, wrong method 405 and unauthenticated calls 401. A
+received `unavailable` observation may conceal foreign/deleted/missing scope.
+Genuine RPC errors, invalid upstream receipts, timeouts and cancellation return
+sanitized 503, never a fabricated vacancy or release receipt. No automatic retry
+or fallback occurs. A lost reply may conceal committed source occupancy:
+recovery must retain the identical candidate; it cannot create a successor. The
+endpoint has a photo V2/audio V3 durable native handoff and retained injected
+service. No composition caller, deployment or activation is installed. Native
+durable retirement admission remains a separate checkpoint.
+
+A received exact `analysis_history_operation_conflict` from the source RPC is
+preserved as a typed conflict (HTTP409 for reservation). It is not a vacancy or
+release receipt and never permits replacement or dispatch. Other RPC failures
+remain sanitized unavailable errors.
+
+Prepared authenticated `POST retire-observation-analysis-source` has a distinct
+public schema-1 envelope with exactly `schema_version`, `candidate` and
+`operation_id`. `candidate` is the full original four-field reservation request;
+the lowercase retirement UUID is frozen before first I/O and retained for exact
+recovery. The endpoint parser snapshots both before awaits, validates the
+candidate fingerprint and requires the operation UUID to differ from the
+observation/source/child identities. It rejects owner, SQL tuple, receipt,
+funding and replacement fields. Only the existing service adapter constructs the
+frozen identity-only reader11 SQL request; the SQL wire is unchanged.
+
+The actual HTTP body cap is 1,048,663 bytes: the original 1,048,576-byte
+candidate budget plus 87 bytes of minimal schema/UUID envelope overhead. The
+shared reader allows harmless JSON whitespace within this bound and rejects the
+next byte. The scoped client caps actual upstream bytes at 2 KiB and one RPC at
+five seconds, including uncooperative cancellation. Only the exact
+`retired_unfunded` receipt returns200; funded `retired_before_dispatch`,
+reserved/held/unavailable, foreign/malformed/oversized or uncertain replies
+return sanitized503. Deterministic operation conflict returns409. Invalid
+body/schema/fingerprint or UUID association returns400, unsupported content
+type415 and oversize413; method/auth failures are405/401. All responses are
+private/no-store.
+
+A lost reply can conceal committed retirement. A later explicit recovery must
+retain the full original candidate and same operation UUID. No error or absent
+result proves release; the route never remints, refunds, creates a successor or
+dispatches. It is separate from reader10 funded `retire-observation-analysis`.
+The independent SQL gate remains false; no native caller, deployment or
+activation is included.
+
+The prepared native `ObservationSourceReservationRequest` accepts only saved
+photo V2 or audio V3 requests. It embeds their original input bytes verbatim,
+preserves the original digest and computes the shared source fingerprint once.
+Restoration requires those saved input bytes and the identical outer candidate;
+it never uses a fresh selection or reserializes the input. The handwritten reply
+retains authenticated owner, full candidate and raw bytes alongside the closed
+observation state. No generated Identify DTO changes.
+
+The native `ObservationSourceReservationTransport` exposes only the fixed
+reservation route, five-second attempt and actual 2 KiB streamed cap. It uses
+the private pinned dispatcher directly with no transient, Auth, route or
+idempotency retry. After Auth, the caller validates dispatch scope; after a
+strict reply, a separate caller fence validates known-answer settlement. An
+exact bounded public409 error with the operation-conflict code preserves a typed
+conflict bound to that candidate and owner, never a receipt. Other errors remain
+uncertain. No composition caller is installed. Native source storage preserves
+the version-9 photo envelope unchanged and adds a closed version-10 audio
+envelope through tagged preparation/proof. Both retain the submitted
+preparation, exact V2/V3 input/candidate bytes and raw response, bounded to 4
+MiB including base64 expansion. Photo staging consumes an exact running
+ready-admission claim; audio staging consumes exact submitted
+`audio_preparation.admission_pending` state and its verified source proof.
+Neither path grants execution: fields stay at needs-attention, zero attempts and
+no deadline. Exact metadata, source proof, owner, parent, child and container
+fence each mutation. Stage replay never resets work; explicit recovery retains
+the candidate and advances only the local claim generation after the previous
+owner drains. Stale claims cannot acknowledge. Known replies survive
+cancellation only under the same settlement scope. Reserved and conflict states
+cannot be rearmed by this store. Older admission/execution/discard decoders
+reject the envelope. Parent erasure atomically retains its owner-bound durable
+parent-deletion task while removing the child; server parent deletion cascades
+through source bindings and occupancy, independently of this metadata.
+
+Audio staging requires exact submitted admission-pending preparation and
+pristine audio paired fields; pending files, hold actions and any existing
+execution binding fail closed. Exact source replay does not rebind execution.
+Existing legacy audio execution/resume decoders continue to reject source
+envelopes. The separate explicit `bindReserved` transaction can consume only an
+exact acknowledged reserved audio snapshot after current fixed-Gemini consent.
+It retains the original saved V3 request bytes, validates source/account/parent/
+child/container and metadata CAS, and writes an idle execution binding without a
+dispatch permit. Exact bound replay preserves attempts and consumption before
+fresh consent. Upload still requires its independent server cohort admission;
+analysis still requires funded admission and dispatch checks. No composition
+caller or automatic transition is installed. No saved V2/V3 request, wire,
+reader, provider profile or SwiftData schema changes. Explicit native delivery
+has a queue-retained single-slot owner and injected service: it claims before
+the single HTTP attempt, revalidates after Auth before bytes, and atomically
+saves a known observation under exact claim/account/source/container fences.
+Connectivity cancellation preserves same-scope known-answer settlement; both
+Auth drains invalidate and await actual account-lease exit. A throwing claim
+save never authorizes sending. Unknown attempts require later explicit
+same-candidate recovery after owner exit, without timers or automatic rearm.
+Ordinary presentation remains disconnected; exact unfunded retirement admission
+remain separate. No source observation can wake preflight, upload or inference;
+all gates remain false.
+
+The reservation request has exactly `schema_version: 1`, `input`,
+`fingerprint_version: 1`, and `fingerprint`. Input is the complete existing
+executable InputV2 photo or InputV3 audio, with a non-null immutable source. The
+1 MiB UTF-8 decoder validates the existing evidence bounds and recomputes the
+canonical SHA-256 fingerprint. It snapshots and deeply freezes validated input
+before the hash await. A supplied digest mismatch fails, and the original
+`request_digest` remains unchanged. The caller never supplies owner identity.
+Receipt decoding also requires the full saved candidate and recomputes its
+fingerprint; a caller-synthesized identity/digest tuple is not an accepted
+expected value. Response bytes and expected requests are snapshotted before that
+hash await. Retirement request construction uses the same verified full
+candidate, and retirement receipt decoding checks both that candidate and the
+original action. The server must repeat fingerprint validation under its
+reservation transaction; successful decoding is not durable admission.
+
+Every response is bounded to 2 KiB and starts with exactly `schema_version: 1`,
+`owner_id`, `observation_id`, `source_analysis_id`, and `state`:
+
+- `reserved` additionally carries `analysis_id`, original `request_digest`,
+  `fingerprint_version: 1`, and `fingerprint`. Every field must match the saved
+  candidate and authenticated owner. It acknowledges the immutable binding and
+  occupancy, not the current execution phase or permission to upload or
+  dispatch.
+- `held` adds only `reason`: `source_occupied`, `ambiguous_occupancy`,
+  `coverage_incomplete`, `malformed_linkage`, or `terminal_unproven`. It never
+  exposes a competing child, digest, input, media, quota, token or capability.
+- `unavailable` has no additional fields. Neither advisory absence nor
+  history-only is a mutation response or permission to create a different child.
+
+The SQL transaction returns exact same-candidate replay before fresh rollout
+gates, after owner/deletion validation. Same child with changed immutable input
+is the existing operation-conflict error, not success or a replacement. Binding
+without occupancy remains held unless an independently verified terminal rule
+applies. A reserved response after a lost reply does not authorize another
+provider invocation or prove that no admission occurred. All writers must
+revalidate their own durable phase and binding.
+
+Unfunded retirement is separate from existing funded execution retirement. Its
+exact request fields are `schema_version: 1`, distinct `operation_id`,
+`observation_id`, `source_analysis_id`, `analysis_id`, original
+`request_digest`, `fingerprint_version: 1`, and `fingerprint`. Both request and
+receipt are bounded to 2 KiB. The only successful receipt adds authenticated
+`owner_id` and `state: "retired_unfunded"`; it must match every original request
+field. The existing `retired_before_dispatch` receipt is not accepted at this
+boundary. Errors, held responses, missing data and cancellation never become a
+retirement receipt. Neither receipt fabricates a result or grants a new
+reservation.
+
+Before producing this receipt, the transaction establishes exact binding and
+complete absence of any cohort, evidence, intent, funding, invocation, work,
+draft or result; atomically prevent all later writers; save the immutable
+operation receipt; and release only its occupancy. The receipt must survive
+occupancy deletion but follow parent deletion. Same operation replay returns the
+saved receipt; changed identity or a different retirement operation conflicts.
+Missing prunable accounting alone is never non-execution proof. Immutable
+`observation_source_unfunded_retirements` storage retains one operation per
+bound child, cascades with the binding on parent deletion, and permits occupancy
+deletion only with exact unused-child proof. Retained bindings continue fencing
+ingestion, evidence, intent, quota and invocation writers. Legacy ingestion IDs
+are normalized as UUIDs. Existing saved photo/audio and funded-retirement
+contracts are unchanged.
+
+### Source reservation terminal replay and successor admission
+
+This October 8 contract decision is implemented by the October 9 paired
+reservation/unfunded-retirement SQL migration. The implementation preserves the
+prepared response variants and reader. The later prepared reservation HTTP and
+unfunded-retirement wrappers are described above. The native reservation bridge
+exists, while durable delivery and native unfunded retirement remain absent. The
+wire above remains authoritative. `reserved` requires both the exact immutable
+binding and its matching live occupancy; acknowledging a binding alone is not
+sufficient. It conveys no admission, execution or retry permission.
+
+After owner/deletion and exact immutable identity checks, classify an existing
+candidate before fresh rollout gates:
+
+| Existing candidate evidence                                              | Reservation response                                   | Permitted client behavior                                                                                         |
+| ------------------------------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Exact binding and matching occupancy                                     | Exact `reserved` receipt                               | Continue only through independently authorized upload/admission/recovery paths.                                   |
+| Exact binding, occupancy absent, independently proven terminal release   | Existing `analysis_history_operation_conflict` error   | Keep the original request; recover its endpoint-specific terminal outcome. Never recreate this child's occupancy. |
+| Exact binding, occupancy absent, missing or inconsistent terminal proof  | `held` with `terminal_unproven` or `malformed_linkage` | Retain the original identity and resolve the existing operation; no replacement.                                  |
+| Same child with changed input, fingerprint, owner, observation or source | Existing `analysis_history_operation_conflict` error   | No mutation or new identity inferred from the error.                                                              |
+
+An operation-conflict error is not a retirement receipt, proof of non-execution
+or permission to remint a UUID. A later explicit new tap may propose a different
+child only after the appropriate durable terminal-proof path has settled the
+original child operation (a funded intent or an unfunded reservation).
+Reopening, retry, timeout, cancellation and generic errors retain the same
+candidate. Exact funded or unfunded retirement receipt replay remains owned by
+its original operation-specific endpoint, with its original operation ID.
+
+A different-child reservation requires one atomic, complete inventory under
+owner/parent/source locks before writing binding and occupancy. Do not pick the
+latest predecessor. Use the existing conservative ceiling of 64 independently
+examined rows per relevant namespace, detecting a 65th row before treating a
+result as complete; an exceeded ceiling returns `coverage_incomplete`, never
+partial-page absence. Inventory retained same-source bindings, occupancy and
+terminal-release receipts, as well as same-source results, parent intents, and
+parent media linkage. Every media row must have validated attribution;
+unattributed cohorts/objects and unbound or malformed history cannot establish
+vacancy. Validate the proposed child's complete legacy, evidence, funding,
+invocation, result and tombstone namespace under child locks as well.
+
+The first paired SQL checkpoint may admit a successor only after all released
+bound predecessors have an exact immutable `retired_unfunded` receipt, or an
+exact `retired_before_dispatch` receipt with matching permanent terminal intent.
+These proofs must agree with retained binding/input/fingerprint and contain no
+execution contradictions; an absent prunable quota or invocation row is never
+the proof. Unfunded proof requires no cohort, evidence, intent, quota, usage,
+invocation, witness, work, draft or result, including absence of legacy child
+scans, ingestion jobs/intents and child tombstones. Funded proof requires the
+exact refunded original quota and no invocation, witness, outcome, draft, result
+or live work. The unfunded receipt is immutable and unique per bound child,
+retains the original retirement operation ID, and follows binding/parent
+deletion. Duplicate or orphan release records hold rather than selecting one.
+Each predecessor's occupancy must already have been released by its atomic
+terminal owner. A conflicting live occupancy returns `source_occupied`; multiple
+unresolved or contradictory records hold without disclosing their identities.
+
+Completed execution remains a supported future predecessor class in the broader
+feature contract, but current completion does not atomically release source
+occupancy. The first paired SQL checkpoint must therefore hold that source. It
+must not infer release from `state=complete`, a result row or a discovery
+`history_only` response. A separately reviewed completion/settlement release
+transaction is required before successors after completion are enabled. This is
+an explicit remaining implementation requirement, not a change to the user's
+ability to request later reanalysis once the complete feature is qualified.
+
+Fresh reservation and unfunded retirement remain default-false service-only SQL
+routines. The prepared reservation and unfunded-retirement HTTP wrappers are
+described above. Photo V2/audio V3 have durable native handoff and retained
+injected delivery; installed composition and native unfunded retirement remain
+separate. Migration `20261009000303` implements permanent unfunded receipts and
+guarded occupancy release. Every parent media namespace has an independent
+65th-row sentinel alongside intents, same-source bindings/releases and results.
+Unbound parent intents or unattributed media hold conservatively. Migration
+`20261009032643` adds qualified completion release as described below.
+Reservation catalog tests live in `observation_source_reservation.sql`;
+two-connection photo/audio races live in
+`observationSourceReservationConcurrencyDb.test.ts`.
+
+### Atomic completion release
+
+Forward migration `20261009032643` implements completion release after the
+source reservation migration `20261009000303`. The independent
+`source_completion_release_enabled` gate defaults to false; reader 11, existing
+completion receipts and all public request/response shapes stay unchanged.
+
+The owner is the existing
+`advance_owned_observation_analysis(..., p_operation = 'complete')` transaction.
+After canonical result append, complimentary settlement, saved completion
+receipt and work-token/expiry clearing, a private helper may establish release
+proof. It runs under the same owner/parent/source/child/intent serialization. No
+separate worker, scheduled task, public recovery operation or provider
+invocation is introduced. Releasing occupancy never selects the new result or
+changes any result's review authority.
+
+The helper distinguishes these outcomes:
+
+| Evidence at original completion                                                          | Result and settlement                            | Source occupancy                                                        |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------- |
+| Gate closed, unbound operation, or no qualified release proof                            | Preserve the existing completion result.         | Retain any existing occupancy.                                          |
+| Exact successful execution/accounting and settlement proof                               | Preserve that same completion result.            | Save immutable proof and delete only its matching occupancy atomically. |
+| Accounting previously recorded `unknown`, or accounting is missing, pruned or mismatched | Preserve a valid late result and its settlement. | Hold; no successor or automatic reconciliation attestation.             |
+
+Expected proof unavailability returns a held decision inside the existing
+transaction; it must not turn a valid late result into a completion failure. Do
+not use a blanket exception handler: ownership, deletion, malformed mutation and
+integrity failures retain their established failure semantics. A storage failure
+while saving a qualified proof cannot commit an unproven occupancy delete. No
+partial proof or release survives transaction rollback.
+
+Eligibility must match the exact immutable binding/input/fingerprint; completed
+intent and saved receipt; canonical child result, source, request digest and
+evidence; original dispatch witness; original committed reservation, lease hash
+and attempt; matching invocation/provider/model/profile/provenance; and its
+successful `identification_invocation` usage event with `ai_outcome = draft`.
+There must be no live work, retirement, failed/refunded funding, contradictory
+provider outcome or mismatched complimentary settlement. A consumed allocation
+must retain `durable_result_complete` with `credit_consumed` true; a released
+allocation is eligible only for the existing `paid_before_completion`
+disposition with `credit_consumed` false. An operation without an allocation
+must independently establish that case from its original funding identity rather
+than treating a missing row as proof.
+
+The usage event records execution disposition. Price-estimation availability is
+a separate fact: a null estimated cost alone does not mean unknown execution.
+Release must not require a price, pricing version or non-null token count,
+reprice historical usage, synthesize missing token counts or replace the saved
+event. Match every persisted normalized usage field to saved provider usage with
+the existing null-preserving `identification_usage_count` semantics, including
+OpenAI output/cache-write/tier metadata or Gemini modality breakdown as
+applicable. Match event owner, child, source key/type/operation, model, plan,
+modality and frozen provenance/binding/profile. Exclude estimated cost and
+pricing version from eligibility; they may only be copied as nullable historical
+facts. The original funding and settlement disposition must still be verified.
+An event whose outcome is `unknown` cannot be promoted by a later successful
+draft: the existing accounting writer returns its original event before
+processing a later outcome.
+
+The private `internal.observation_source_completion_receipts` table retains an
+immutable, child-unique completion-release receipt. Its binding/parent cascade
+owns erasure; it has no foreign key to quota/invocation rows or any
+retention-managed accounting evidence. Current invocation pruning is not a
+usage-ledger deletion policy. Under the original completion transaction, copy
+the checked owner/parent/source/child and versioned request identity,
+reservation and lease hash/attempt, invocation/provenance and accounting
+disposition, canonical result/evidence/receipt digests, and complimentary
+settlement disposition. Do not copy private prose, raw media or quota lease
+tokens. Bound the proof payload to 16 KiB and validate its exact versioned
+shape. Later predecessor verification uses that permanent proof and retained
+immutable product identity; it must not require the accounting rows to remain
+present or inspect today's selected result/review.
+
+Mint proof only when the intent was `draft` before calling
+`internal.complete_observation_analysis`. Retain that pre-transition fact in the
+transaction, then re-read the finalized intent/result after clearing work. A
+post-call `state = complete` check alone cannot authorize proof creation.
+Existing complete intents without it remain held; exact completion replay
+returns its original receipt without backfilling release. No timer, status
+lookup, client retry, lease expiry, gate opening or missing row creates proof.
+Binding retention and every existing writer fence prevent the completed child
+from reopening. New explicit different-child reservation still requires complete
+bounded predecessor/media/legacy inventory. Add the new receipt namespace to
+that inventory. Replace the reservation routine's unconditional same-source
+result blocker with bounded per-result validation: every result must map to its
+exact retained binding and valid completion-release proof. Unbound, mismatched
+or unsupported results remain held. Preserve the separate storage INSERT guard
+that prevents recreating occupancy for a child with an existing result.
+
+Required migration acceptance includes photo/audio success, selection/review
+independence, paid-before-completion settlement, nullable pricing with known
+success, unknown-before-late-draft completion without release,
+missing/mismatched accounting, malformed proof, disabled gates and no
+old-completion backfill. Prove completion versus successor reservation and
+deletion in both winner orders, exact lost-response replay, account-transition
+fencing, proof immutability, parent erasure, and post-release invocation/quota
+retention independence followed by a new explicit reservation. A transaction
+failing proof persistence must leave no partial release. Existing retired and
+unresolved predecessor classes retain their rules.
+
+### Prepared source-bound funding exclusion
+
+The authoritative quota core now denies bound `original_analysis_id` before
+creating complimentary usage or funding. Fresh invocation commitment similarly
+denies a bound original before committing quota or recording dispatch. Exact
+existing invocation replay still returns its saved non-dispatching result first.
+The guard does not treat quota `request_id` as a child: distinct idempotency
+keys for one original analysis remain valid. Fresh guarded work requires current
+statement snapshots. No signature, grant, reservation API, source-aware funding
+exception, provider successor or refund is introduced. Protected writer cutover
+and terminal reservation/retirement remain separate prerequisites.
+
+### Prepared exact source validation
+
+The private source-validation checkpoint
+`20261008191800_centralize_observation_source_binding_validation.sql`
+centralizes owner/deletion/enrollment and exact source membership under owner →
+parent → source locks. Storage inserts retain child-ingestion then
+child-evidence locks before namespace validation. The separate exact-binding
+helper recomputes the fingerprint from complete InputV2/V3, compares the full
+saved input and all scope IDs, and requires matching active occupancy. Missing,
+source-less, mismatched or unoccupied bindings fail closed; the source need not
+be selected. Frozen transaction snapshots are unavailable. Both helpers are
+private, revoked from all API roles, and grant no reservation, funding, release
+or dispatch authority.
+
+Existing terminal or legacy replay must precede this live-binding check. Current
+protected writers are not switched to it until their lock order, cohort binding,
+admission and narrow funding/dispatch exceptions change together. Cohort-only
+enforcement is not a supported activation boundary.
+
+### Prepared immutable cohort source links
+
+Migration `20261008194407_prepare_source_linked_evidence_cohorts.sql` adds
+nullable `binding_analysis_id` to photo and audio upload cohorts. A non-null
+link must name the same child and reference its immutable source binding. The
+private insert backstop checks owner, observation and exact media projection:
+photo order is preserved; audio metadata must match the single saved audio item.
+Descriptions remain in the complete binding and fingerprint, not the upload
+projection. Existing update guards make both links and legacy NULL values
+immutable. Parent deletion can cascade through either history or binding;
+receipt cleanup continues retaining the cohort and its fixed expiry.
+
+This is additive storage groundwork. Existing RPCs still create NULL-linked
+cohorts, with unchanged saved-request replay, receipts, gates and grants. No
+existing cohort is backfilled or upgraded. The validator acquires no late locks
+and grants no occupancy, upload receipt, admission or dispatch. A future linked
+writer must validate live occupancy under the canonical source-before-child
+locks as part of the coordinated reservation/cohort/admission/execution cutover.
+The source link alone never establishes that cutover is complete.
+
+### Prepared source-bound intent fence
+
+`20261008200418_fence_source_bound_analysis_intents.sql` adds a deny-only insert
+backstop for source-bound analysis intents. After owner/parent authorization and
+child-ingestion then child-evidence locks, a bound child requires the exact
+immutable input/fingerprint, owner/parent association, live source occupancy and
+one matching linked photo or audio cohort. NULL-linked legacy cohorts, opposite
+or mixed cohort types, and changed media or descriptions cannot establish this
+chain. Existing ready-evidence checks still apply. The private chain check takes
+no late locks and grants no quota or provider authority.
+
+Fresh insert guards require current statement snapshots (read committed/read
+uncommitted); frozen snapshots cannot prove post-wait namespace absence. A
+legacy unbound insert retains its existing behavior under supported isolation.
+This closes binding-versus-direct-intent races in both commit orders. This
+migration leaves bound-child funding and invocation exclusions unconditional;
+the subsequent initial-admission checkpoint below narrows only funding. No GUC,
+metadata validation success or raw intent row opens a funding exception. The
+future coordinated writer change must move source proof before child and intent
+locks, retain exact replay before fresh gates, and additionally prove intent
+state/context and original quota when opening the narrow funding/dispatch path.
+
+### Source-aware evidence writers
+
+Migration `20261008203348_bind_source_evidence_writers.sql` connects existing
+photo/audio cohort reservation and raw receipt reservation/completion to the
+private source entry helper. A bound child requires exact live binding and
+occupancy under owner/parent → source → child ingestion → child evidence locks.
+New cohorts preserve the binding link and exact ordered photo or single-audio
+projection. Existing NULL-linked cohorts never upgrade. Receipt allocation and
+completion also validate the linked chain; existing expiry, readiness and object
+identity rules remain unchanged. No quota, intent or provider grant is created.
+
+An apparently unbound caller takes child locks then rereads the binding table.
+If a binding appeared while waiting, it fails instead of acquiring a source lock
+late. Conversely, a committed legacy cohort makes a later binding fail its
+existing no-retrofit namespace check. These writers require read committed/read
+uncommitted isolation; repeatable-read and serializable snapshots fail closed,
+including for unbound requests. Legacy saved photo/audio replay retains its
+original receipt, object and deadline under supported isolation.
+
+This is closed bound-branch preparation, not all-writer cutover. Atomic source
+reservation, exact retirement and coordinated admission/funding/execution remain
+required before a new source API can open. No grant, rollout gate, wire field or
+ordinary route is added; existing activation holds remain.
+
+### Source-bound initial admission
+
+Migration `20261008210355_prepare_source_bound_initial_admission.sql` connects
+fresh bound V2/V3 admission to source-before-child/intent locking and narrows
+the quota exclusion for exactly one initial funding transaction. The admission
+context must match owner/child; operation, original child, request ID and
+protocol constants must match. The private intent must be admitted with no saved
+quota, work claim, outcome, invocation, draft, result, retirement or prior
+accounting. Exact live binding, input fingerprint, occupancy and linked media
+projection are mandatory. A context setting alone is insufficient.
+
+The current eleven-argument identification quota wrapper also compares its
+profile, processor permission and identification protocol with the immutable
+input. Mismatch rolls back the transaction. Older identification quota overloads
+and the eight-argument generic quota wrapper reject bound children before and
+after their core call; unbound callers retain their existing behavior. No new
+public signature or privilege is introduced.
+
+A recorded bound intent is recovered under owner/parent authorization before
+live occupancy, evidence expiry and fresh gates. Its original input and quota
+identity must validate. Even an admitted replay returns that saved quota; it
+never invokes generic quota reservation again. Expired, refunded or pruned quota
+therefore cannot mint another lease or attempt. Missing/malformed saved quota
+holds rather than funding. Deletion still wins. Recovery is not dispatch
+permission and does not select or alter an analysis.
+
+This is admission-only preparation. The source-bound invocation exclusion stays
+unconditional; no provider may start through this checkpoint. Atomic source
+reservation, terminal release/retirement and the coordinated execution cutover
+remain required before source access opens. All activation gates remain false.
+
+Admission, including saved receipt replay, requires read-committed or
+read-uncommitted isolation before any source existence lookup. Repeatable-read
+and serializable calls fail closed with
+`analysis_history_current_snapshot_required`; a frozen snapshot cannot hide a
+committed deletion. Saved quota replay does not assert that its original lease
+is still live.
+
+### Source execution lock preparation
+
+Migration `20261008213302_prepare_source_execution_lock_order.sql` installs a
+private entry helper before intent row locks in claim/recovery, dispatch, draft
+recording, completion, failure and the public work-advance owner. V2/V3 append
+uses the same ordering before its own result/child locks. Supported isolation is
+read committed/read uncommitted. Owner/deletion authorization precedes binding
+inspection; bound work takes source, child ingestion and child evidence locks,
+then verifies immutable saved-intent input/fingerprint association.
+
+This helper establishes identity and lock order without requiring live
+occupancy, media rows or unexpired uploads. Existing operation-specific token,
+payload and receipt checks still apply. Apparently unbound calls take child
+locks and reread binding absence; a binding committed during the wait holds
+instead of acquiring a source lock late. Unbound behavior is preserved under
+supported isolation.
+
+This is lock preparation, not execution authority. Source-bound invocation
+remains denied. Original-quota dispatch proof and atomic retirement/release
+remain separate coordinated checkpoints before source access opens. No public
+signature, grant, gate or provider successor is introduced.
+
+### Source-bound generic accounting holds
+
+Migration `20261008220335_hold_source_bound_generic_quota_cleanup.sql` closes
+inherited generic accounting paths before source execution opens. The public
+quota finalizer rejects bound children even with a matching provider context;
+generic expiry refund and terminal quota pruning skip bound children while
+continuing unrelated cleanup. No schedule is created, changed or enabled.
+Generic failure/cancellation and fresh funded retirement hold; exact existing
+terminal/retirement receipt replay remains before the new holds. Unbound
+finalization retains its existing isolation behavior.
+
+Parent deletion retains a separate private refund path only for the exact unused
+original reservation, owner, child, request, lease and attempt. A live-parent
+intent deletion is not that proof. Known invocation/outcome/result evidence
+prevents refund; deletion still erases the intent. The unused-work proof applies
+to all admitted intent erasure because source bindings may be removed earlier in
+the same deletion transaction. Other unbound accounting behavior remains
+unchanged under supported isolation. Immutable binding and occupancy are not
+released by generic accounting cleanup.
+
+Atomic source retirement/release and original-grant dispatch remain required.
+Until their reviewed durable proofs exist, bound quota records intentionally
+stay held instead of being expired, pruned or treated as permission for another
+provider call. Activation gates remain false and ordinary access remains nil.
+
+### Source dispatch witness preparation
+
+Migration `20261008222349_prepare_source_dispatch_witness.sql` adds
+default-false `source_dispatch_enabled`. Fresh bound dispatch requires the
+existing modality, admission, append and dispatch gates, current consent, exact
+live source/input/ occupancy/media chain and the original reserved quota,
+request, child, lease and attempt. The assigned input profile must match the
+immutable input and saved quota. Canonical owner/parent/source/child/intent
+locks precede quota locking.
+
+A private immutable intent-owned witness records original reservation, lease
+digest, attempt, source fingerprint, provenance and creating transaction. The
+invocation writer accepts it only in that transaction; finalization and
+invocation insertion are atomic with the witness and intent transition. A
+retained witness is audit evidence, never reusable dispatch authority. Exact
+invocation replay continues to return `may_dispatch=false` before fresh gates.
+Generic quota finalization remains held. No new public signature or grant is
+introduced.
+
+Witnesses have no quota foreign key and cannot disappear through quota pruning.
+They cascade with intent deletion; the unused-reservation erasure proof rejects
+any witness before that cascade, including an interrupted/tampered partial
+state. Binding deletion therefore cannot hide dispatch evidence and permit a
+refund. Account merge remains held by the existing bound-source guard. Atomic
+retirement and source release remain separate work before source access opens.
+All activation gates remain disabled; uncertain execution permits recovery and
+reconciliation only, never a successor provider invocation.
+
+Fresh invocation also checks the permanent child deletion tombstone after its
+child lock. Once deletion erases binding, intent and witness, a held reservation
+cannot fall through to generic dispatch. Existing invocation replay remains
+non-dispatching.
+
+### Atomic source-bound funded retirement
+
+Migration `20261008223804_prepare_atomic_source_execution_retirement.sql` adds
+default-false `source_retirement_enabled` alongside the existing retirement API
+gate. The existing request, receipt and reader9/10 compatibility are unchanged.
+Read-committed/read-uncommitted isolation is required before ownership locks or
+receipt replay; frozen snapshots fail closed. Owner/deletion and reader checks
+still precede exact receipt recovery. That recovery needs neither live occupancy
+nor the original quota row and does not create another operation.
+
+Fresh retirement uses the live source-before-child lock helper before intent and
+quota locks. Apparently unbound callers reread binding absence after child
+locks. The bound input/source must match the saved intent, and a dispatch
+witness blocks retirement even if accounting still appears reserved. Existing
+exact unused-work, original reservation/lease/attempt and complimentary-credit
+proofs remain. A live worker claim is revoked atomically; it is not itself
+evidence of provider dispatch. Expired original leases may retire only when
+those unused-work proofs hold.
+
+Application atomically refunds through the private quota core, settles the held
+complimentary allocation, writes terminal `retired_before_dispatch` state and
+its permanent receipt, then deletes only the matching occupancy. The storage
+trigger requires the complete binding/input/fingerprint, terminal intent, exact
+receipt, refunded original quota and absence of witness/invocation/result before
+permitting that live-parent occupancy deletion. Any failure rolls back all of
+these changes. Immutable binding and dispatch-witness deletion rules remain
+unchanged. Generic quota cleanup is still held and cannot release occupancy.
+
+This is a closed funded-retirement capability, not source API activation. Source
+reservation, unfunded retirement, native consumption and remaining media
+acceptance remain separate. No new public signature, privilege, provider retry
+or uncertain refund is introduced. All activation gates stay disabled.
+
+### Prepared retained audio source-to-execution coordination
+
+The native `ObservationAudioSourceSubmissionService` uses the existing source
+owner for an explicit reservation attempt followed by fresh Gemini consent and
+exact reserved-source binding. Observed-reserved recovery skips the reservation
+RPC. Held, unavailable and unknown source work may only explicitly recover the
+original candidate; conflict cannot rearm. A known reply saved after dispatch
+cancellation cannot bind. Every await revalidates the exact source snapshot,
+account and container; consent does not substitute for source CAS.
+
+The queue starts the existing audio execution owner only after actual source
+lease exit and only from a binding returned normally. Save-commits-then-throws
+requires explicit later resume; the completion callback never rereads the
+binding to authorize work. Existing upload-cohort admission and analyze funded
+admission/dispatch remain authoritative. The audio owner awaits its existing
+receipt-bound cleanup. The prepared App factory does not install Capture,
+status/resume presentation, ordinary access or scheduling. No wire, reader,
+SwiftData schema or rollout gate changes are included.
+
+### Prepared audio source resume evidence
+
+The private V10 audio source envelope has a dedicated native exact-child reader:
+`ObservationAudioSourceResumeStore` plus retained
+`ObservationAudioSourceResumeReader`. It preserves the original source request,
+state, generation and reply bytes across reopening without inspecting media or
+invoking an endpoint. Off-main proof verification is bracketed by exact snapshot
+and account/source validation. The shared source read forbids saves. The
+retained wrapper releases its account lease only on actual task exit and
+revalidates the snapshot before returning. This is evidence recovery, not source
+admission, execution binding or provider permission; unknown execution remains
+non-dispatching. Legacy readers stay strict. No wire, schema, reader-version,
+activation gate or installed Capture route changes.
+
+### Prepared native source submission boundary
+
+`CaptureAudioSourceReanalysisAccess` exposes separate fresh and exact-source
+resume entry points. `ObservationAudioSourcePreparation` stages the original V3
+candidate after retained file preparation and before reservation transport.
+Saved V10 records bypass files; saved execution records preserve their original
+request and consumed-attempt evidence. Invalid metadata never falls back to
+legacy admission. A save that throws cannot hand off; later explicit recovery
+reads the same child. Source admission remains distinct from execution
+authority. No endpoint, payload, reader version or schema changes are
+introduced. Legacy access/readers remain strict, ordinary routes remain
+uninstalled; explicit host and source status assembly are described below.
+
+The prepared source Capture factory can now construct the existing host through
+a distinct source constructor. Host presentation shares only session/currentness
+and a neutral submission outcome via an exhaustive route switch. It cannot
+convert a source capability into a legacy binding capability. A common bounded
+host owner rejects route changes for an occupied target tuple, preserving one
+frozen candidate across dismissal and reopening. No API or persistence change is
+involved. Source status discovery is available through a separate explicit
+factory; ordinary installation remains disabled.
+
+### Prepared saved audio source status contract
+
+Native source status discovery reads exact V10 work without endpoint calls, file
+preparation, reservation, execution binding or dispatch. Source and legacy
+execution pages share bounded indexing and a four-slot retained owner, but
+route-bound cursors, coalescing scopes and typed results keep their decoders
+separate. Source status is advisory durable evidence. Omitted rows or an empty
+page never authorize replacement, inference or refund.
+
+Only an explicit selected-source continuation opens the existing strict source
+resume admission path. Bound execution stays on its existing recovery path;
+unknown execution permits exact outcome recovery and reconciliation only. No
+wire, reader-version, persistence, activation or ordinary installation changes
+are introduced by the prepared status UI.
+
+### Prepared private video derivation provenance
+
+`analysisHistory/videoProvenance.ts` defines a private, metadata-only
+sub-envelope with `schema_version:1` and
+`preprocessing_version:"retained_clip_v1"`. It is not an evidence manifest,
+result snapshot, executable request or public reader capability. No current
+admission, upload, reader, native queue or provider path accepts this envelope.
+Photo/audio generations and their saved bytes remain unchanged.
+Result/executable request versions and the next public reader must be
+coordinated in subsequent checkpoints; service-only reader 11 cannot be reused
+as a public capability.
+
+The exact top-level keys are `schema_version`, `preprocessing_version`,
+`source`, `parameters`, `frames` and `audio`. Every artifact has exactly
+`media_id`, `content_type`, `byte_count` and lowercase `sha256`. IDs are unique
+across all artifacts and distinct from the observation and analysis. No owner,
+URL, object key, local path, provider, model or input profile is accepted. All
+returned objects and arrays are immutable copies.
+
+- `source` is one retained `video/mp4`, at most 12 MiB, and **must be the actual
+  input from which every saved derivative was made**. It serves playback and
+  provenance, never provider inference. Preparing a separate compressed playback
+  clip while sampling the original recording does not establish this contract.
+- `parameters` contains exactly `timescale:600`,
+  `frame_pipeline:"direct_inference_v1"`, `decode_long_edge:2048`,
+  `duration_ticks` (60–3,000), `sampling:"five_interior_v1"`,
+  `preferred_track_transform:true`, `crop:"square_v1"`,
+  `crop_center_basis_points` (0–10,000), `inference_long_edge` (768 or 1,024),
+  and `encoding_quality_percent:85`. The closed `direct_inference_v1` sequence
+  is: preferred track transform → 2,048-pixel decode long-edge cap → square crop
+  at the recorded normalized vertical center → inference resize → one final
+  WebP/JPEG encode at quality 85. The parser validates the sequence token, not
+  whether bytes were actually produced by that sequence. It is not the legacy
+  multi-encode display-image pipeline.
+- `frames` has exactly five entries in index order 0–4. Each entry has exactly
+  `index`, `source_media_id`, `requested_time_ticks`, `actual_time_ticks` and
+  `artifact`. Requested times are the duration multiplied by 10/30/50/70/90
+  percent, rounded half up to integer ticks and clamped to
+  `[30,duration_ticks-30]`. Actual times independently record the decoder's
+  returned time in the same timebase, rounded to ticks and bounded to
+  `[0,duration_ticks-1]`. Actual times are nondecreasing in frame order and must
+  never be fabricated from requested times. Outputs are WebP or JPEG, with their
+  actual MIME type retained, and at most 5 MiB combined. A failed sample
+  prevents publishing this generation; legacy partial-frame results cannot be
+  relabelled. Repeated actual times/digests can occur for short clips, but
+  artifact IDs remain distinct.
+- `audio` is null or exactly `source_media_id`, `track:"first_audio_track"`,
+  `start_ticks`, `end_ticks`, `sample_rate:44100`, `sample_count`, `channels:1`,
+  `bits_per_sample:16`, `encoding:"pcm_s16le"` and `artifact`. Its saved WAV is
+  at least `44 + 2*sample_count` and at most 2,700,000 bytes. The measured
+  source interval is nonempty and within the clip; it may start after zero or
+  end before the clip. The exact output sample count is 1–220,500 and its
+  duration may differ from the rounded source interval by at most one 600-Hz
+  tick. The dedicated native extractor measures this interval and verifies PCM
+  sample count rather than assuming full-clip coverage. Null freezes the absence
+  of an accepted companion; later retry cannot add one or extract another track.
+
+Parsing validates claimed structure and relationships, not actual derivation,
+MIME, duration, hash correctness, ownership or storage readiness. The temporary
+native cohort producer below retains and verifies the source, captures actual
+timing and validates output bytes. Persisting the whole closed graph remains
+required before admission. Server byte/storage verification and server-owned
+video profile selection remain required. Retry must load the saved outputs and
+exact provenance; neither replay nor reopening permits resampling, re-extraction
+or another provider invocation while the original outcome is unknown.
+Interrupted preprocessing, durable native replay, source-and-derivative erasure
+and public reader rejection require their later integration tests. This
+checkpoint changes no database, captured-media display wire, generated DTO, gate
+or installation.
+
+### Prepared private video manifest V4
+
+`videoManifest.ts` and native `ObservationVideoManifest` define an exact private
+metadata envelope: `schema_version:4`, `provenance` (the closed video provenance
+schema 1 above), and `descriptions` (an ordered array of zero to 64 strings).
+Descriptions preserve all text and ordering; each must contain content under
+ECMAScript trim, be valid Unicode scalar text, and contain at most 8,192 scalars
+and 16,384 UTF-16 units. Combined descriptions are limited to 32,000 UTF-16
+units. The native byte decoder accepts at most 1,044,480 bytes. Its typed
+provenance values preserve source/artifact identity and requested/actual timing
+separately; fixed derivation parameters are validated before construction.
+Original JSON bytes remain available unchanged, without assigning an operation,
+request digest or persistence authority. No generic captured-media or audio type
+substitutes for this graph.
+
+V4 is not an executable input, result snapshot, upload authorization, installed
+queue format or public reader capability. Existing photo/audio and source
+reservation parsers reject it. Source media identity is not a historical source
+analysis ID. The independently supplied observation/analysis IDs fence artifact
+aliases but do not establish owner authorization. Membership and byte/storage
+verification, dedicated production, persistence, server profile selection,
+forward database admission and coordinated reader/result contracts remain later
+checkpoints. No activation gate changes.
+
+### Prepared video reanalysis request V4
+
+`videoAdmission.ts` defines a closed, prepared ten-field input:
+`schema_version:4`, `observation_id`, `analysis_id`, non-null
+`source_analysis_id`, `request_digest`, `evidence_manifest` (private manifest
+V4), `entitlement_protocol:3`, `identification_protocol:6`, `history_protocol:9`
+and `expected_processor_permission:"google_gemini"`. All three analysis-scope
+identities are distinct. The historical source analysis must also differ from
+the retained clip and every derived frame/audio artifact ID. It is never
+interchangeable with a media source link.
+
+The history protocol is the existing consent/capability protocol, not the future
+public result reader. The expected processor is an assertion, not consent,
+model/profile selection, quota or dispatch authority. Server-owned video profile
+selection remains pending. The backend validates the lowercase 64-hex replay
+identifier; it does not reinterpret `request_digest` as server proof of JSON
+hashing. Future source reservation needs its own reviewed semantic fingerprint
+extension; current source fingerprint/reservation stays closed to V4.
+
+Native `ObservationVideoReanalysisRequest` creates a fresh sorted-key JSON body
+(with unescaped slashes), hashes it without `request_digest`, and validates that
+hash when reopening. It revalidates the manifest against the current request's
+identity tuple rather than trusting a previously decoded value's scope. Saved
+request bytes are retained exactly, including whitespace. The typed nested
+manifest is a canonical metadata view; only `body` is the exact replay envelope.
+The byte limit is 1,044,480. Backend fresh serialization is not a replacement
+for saved bytes and neither codec confers durable staging authority.
+
+This format is intentionally absent from executable admission, source
+reservation, queue/transport callers and all Edge handlers. No result version,
+public reader, upload cohort or SQL admission is added here. Live integration
+requires those coordinated server/native contracts together, with default-false
+gates and old photo/audio replay unchanged.
+
+### Prepared video companion byte verification
+
+`videoAudioContainer.verifyPreparedVideoAudio` validates a private V4 manifest
+for the supplied observation/analysis scope and requires its optional audio to
+be present. It bounds and owns a copy of the supplied bytes before any await,
+checks the closed PCM WAV container, compares the actual data-frame count with
+`sample_count`, and verifies exact byte length and SHA-256 against the frozen
+artifact metadata. It returns the owned verified bytes. RIFF or Core Audio FLLR
+padding is never counted as PCM frames. This inspection does not verify the
+claimed source interval or prove that audio was extracted from the retained
+clip.
+
+`audioContainer.inspectPreparedAudioContainer` returns immutable `sampleCount`
+and `dataOffset` for that closed PCM profile. The existing
+`validatePreparedAudioContainer` remains a validation-only wrapper returning
+void; accepted audio bytes and limits are unchanged. Inspection returns no
+reference into the input buffer. The prepared video verifier remains absent from
+live upload/admission/execution paths. MP4 verification, scoped cohort receipts,
+source/reader coordination and retained-source production remain required before
+video can execute.
+
+### Prepared video frame byte verification
+
+`videoFrameContainer.verifyPreparedVideoFrame` parses the closed V4 manifest,
+selects an integer frame index 0–4, bounds and copies the supplied bytes before
+awaiting hashing, then checks exact length, SHA-256, declared MIME and square
+768/1024 dimensions. Returned bytes are owned. Manifest scope separation is not
+ownership authorization; the future authenticated admission owner must establish
+that independently.
+
+`jpegContainer.inspectJpegContainer` supplies bounded JPEG marker, table and
+scan structure inspection. Private video allows at most one each of APP0 JFIF
+with unit or 72 density, the exact dimension-only ImageIO EXIF APP1, and the
+exact empty Photoshop IPTC APP13, all before the frame. Other metadata is
+rejected. The public photo wrapper retains its stricter existing exact minimal
+JFIF policy. WebP requires exact RIFF length and padding, one opaque VP8/VP8L
+still image, optionally preceded by a matching metadata-free VP8X header.
+Animation, alpha, unknown or duplicate chunks, trailing bytes and mismatched
+dimensions fail closed.
+
+This inspection does not decode entropy/pixels, prove clip-to-frame derivation,
+or sanitize images for publication. Fixtures include actual synthetic iOS 27
+simulator ImageIO JPEG output at both supported edges and a separately labeled
+reference-encoder WebP. Native ImageIO WebP and real-device qualification remain
+open. The verifier is not installed in upload or execution; bounded MP4
+verification, immutable cohort receipts and coordinated source/profile/reader
+integration remain prerequisites.
+
+### Retained video envelope inspection
+
+`retainedVideoEnvelope.inspectRetainedVideoEnvelope` is private groundwork for
+bounded ISO-BMFF top-level inspection. It accepts at most the existing 12 MiB
+video cap and 32 boxes, requires complete 8-byte or extended 16-byte headers,
+rejects zero-to-EOF lengths, undersized/overflowing/out-of-range extents and
+partial trailing bytes, and bounds 64-bit sizes before number conversion. The
+retained-output shape requires `ftyp` first and exactly one nonempty `ftyp`,
+`moov` and `mdat`; only optional `free`/`wide` boxes are otherwise allowed. It
+returns frozen type/start/payload-start/end records, with no input byte
+references. Input inspection is synchronous.
+
+Payloads, including `ftyp` brands and the entire `moov` tree, remain opaque.
+Success does not establish self-contained references, track/codec/sample-table
+validity, timing, metadata absence, decodability or source derivation. There is
+no manifest/hash verification of its own or live caller. A deliberately invalid
+media payload passes the envelope-only unit test to freeze this limitation. The
+separate nested inspector below checks `moov`/`trak`, descriptions, `dref`,
+sample extents and a closed metadata policy; envelope success alone still cannot
+qualify source bytes for admission. Actual synthetic iOS 27 simulator
+silent/audio outputs are imported unchanged from native test attachments; both
+contain extended-size `mdat` boxes. These fixtures establish envelope
+compatibility, not device or complete MP4 security qualification. The
+[Apple atom format](https://developer.apple.com/documentation/quicktime-file-format/atoms)
+is a format reference, not an expansion of this closed accepted envelope.
+
+### Retained video nested structure profile
+
+`retainedVideoStructure.inspectRetainedVideoStructure` is a synchronous, private
+structural inspector with no live caller or hashing of its own. It builds on the
+bounded envelope and limits nested boxes to 128 through fixed parent-child
+paths. Unknown, duplicate, misplaced, fragmented and metadata boxes fail closed;
+nested extended-size boxes and unsupported full-box versions are excluded. The
+initial profile fixes observed MP4 brands, static handler text, zero padding,
+reserved fields, and sample-description extensions. It returns only frozen
+`width`, `height`, `durationTicks` and `hasAudio` facts.
+
+Exactly one video and at most one audio track have unique nonzero IDs. Movie
+time is 600 Hz and 60–3,000 ticks. Video dimensions are even 2–2,048 pixels and
+agree between track and sample description; transforms are bounded orthogonal
+matrices. Each track has one self-contained `url` data reference with no URL
+payload and sample-description reference index 1. H.264 configuration requires
+declared Main profile, bounded SPS/PPS NAL framing and matching profile bytes;
+color requires the observed `nclx` 6/1/6 tuple with full-range flag 0, and
+`pasp` requires unit pixel aspect (1/1). The AAC `esds` descriptor is currently
+an exact native template including AAC-LC/44.1-kHz/mono ASC. This is a closed
+compatibility choice, not a general MPEG-4 descriptor decoder. Native `mp4a`
+declares template channel count 2 even though ASC/AVFoundation identify mono;
+the inspector preserves that representation.
+
+One rate-1 edit per track is bounded against media duration. The native audio
+fixture has priming offset **2,112 media ticks** and a 599-tick track inside a
+600-tick movie; zero audio offset or exact movie/audio duration equality is not
+required. Time/sample/chunk tables must agree, with at most 600 video and 1,024
+audio samples; AAC `stts` deltas are exactly 1,024 media ticks. Every sample
+extent lies within the sole `mdat`; sorted extents must cover its payload
+exactly without gaps or overlaps. Sync/dependency tables and the observed AAC
+roll group are checked. No external data references or arbitrary container
+metadata are admitted by this profile.
+
+Compressed sample bytes and SPS bit-level semantics remain undecoded. Successful
+inspection does not prove actual codec decodability, decoded dimensions,
+no-reordering, frame/WAV derivation, producer identity, or ownership. The
+separate byte verifier binds manifest length/digest/duration and audio presence;
+immutable cohort receipts and coordinated source, profile, materialization and
+reader admission remain separate. The fixture corpus covers silent/audio
+one-second 64×64 iOS 27 simulator output and four unchanged 96×64 native
+outputs: rotated silent and reflected stereo-source clips at 0.1 and 5 seconds,
+with retained audio normalized to 44.1-kHz mono. All pass the existing
+structural profile without relaxing it. Minimum/maximum dimension encoders and
+other device/OS variants still require qualification before activation.
+Unsupported output fails closed rather than falling back to envelope-only
+acceptance. Existing executable V4 routes remain closed.
+
+### Prepared native retained clip creation
+
+`ObservationRetainedVideoClipProducer` now prepares an owned local MP4 using the
+explicit encoding and admission limits documented in the camera contract. It
+joins its worker before releasing the producer slot on cancellation. An injected
+asynchronous checkpoint after the first append supports explicit owner
+revalidation; it transfers no AVFoundation state. The successful output lease
+stays temporary until a caller explicitly accepts it. Ordinary access remains
+absent.
+
+This boundary owns retained-clip creation. The prepared frame and audio derivers
+below are coordinated by the temporary cohort preparer; the held persistence
+owner below retains the whole provenance graph. A coordinated server
+byte/cohort/profile/reader contract remains pending. Current synthetic top-level
+topology and track checks are not a server ISO-BMFF allowlist or device
+qualification. Legacy video preparation remains unchanged.
+
+### Prepared native retained-source frames
+
+`ObservationVideoFrameDeriver` now implements the five-frame portion of
+`direct_inference_v1` against the retained MP4: requested ticks and actual
+decoder times remain separate, frames are transformed/cropped, explicitly
+resized to the declared square edge and encoded once, and each saved file has a
+distinct ID, actual MIME, length and SHA-256. The retained source hash is
+verified before and after generation. Its temporary result retains source
+ownership and cleans the entire frame directory on drop.
+
+This does not make a V4 manifest executable: server byte validation,
+source/profile admission and reader coordination remain required. Complete
+held-cohort storage is defined below. No upload, request, schema or activation
+gate is changed by this private native producer.
+
+An exclusive source-use token blocks clip transfer during derivation and while
+the frame result is retained. Dropping the result synchronously releases that
+use; an already-transferred clip cannot begin derivation. No source identity
+becomes authoritative for server admission through this temporary token.
+
+### Prepared native video companion WAV derivation
+
+The inert `ObservationVideoAudioDeriver` now derives the optional companion from
+the exact retained MP4. It validates every decoded buffer as mono, signed packed
+16-bit little-endian PCM at 44.1 kHz, rejects discontinuous timing, and bounds
+output to 220,500 samples. Start/end are measured from reader presentation
+timestamps plus decoded sample duration, converted to the existing 600-Hz
+timebase. Asset duration only bounds the measured interval. No-track nil is
+distinct from an existing-track failure.
+
+Decoded bytes are wrapped directly in the accepted compact WAV header, without
+another transcode or synthetic leading/trailing samples. Native
+`ObservationAudioContainer.inspect` returns sample count and PCM offset while
+retaining the existing compact/FLLR closed-format rules and `isValid` behavior.
+Final inspected count must equal accumulated decoded samples. Source and output
+size/digests accompany the temporary result, which holds exclusive source use.
+This adds no wire version, reader, grant, schema or activation change. Held
+whole-cohort storage is defined below; coordinated server byte admission remains
+pending.
+
+### Prepared complete native video cohort
+
+The uninstalled `ObservationVideoCohortPreparer` now coordinates retained-source
+creation and sequential frame/WAV derivation through one exclusive source-use
+session. The complete temporary result contains the retained source, all five
+ordered frames, optional companion and one exact V4 request. A missing audio
+track freezes null; an existing-track failure aborts the whole cohort.
+
+`ObservationVideoManifest.prepared` writes the existing V4 keys canonically and
+round-trips the strict decoder. It reuses bounded description validation and
+preserves text verbatim. Request construction and exact saved-body restoration
+check the source-analysis alias boundary in addition to manifest identity rules.
+No field, version, reader, endpoint or generated DTO changes. The encoder is
+covered against every accepted shared golden manifest, and
+duplicate/cross-source artifacts are rejected. No server authority follows from
+this local graph.
+
+The source snapshot precedes callbacks, and all files undergo bounded size/hash
+checks after the last callback. Failure/cancellation/drop removes the entire
+owned temporary root; caller input is preserved. No per-file transfer exists.
+The prepared held persistence owner below preserves exact bytes across restart
+and excludes legacy readers. Coordinated server byte/profile/admission
+validation remains required before execution can open.
+
+### Closed local video-preparation envelope
+
+The native-only `ObservationVideoPreparation` codec adds local version 1, kind
+`video_preparation`, closed phases `files_pending`/`files_ready`, canonical
+owner UUID, source snapshot digest, exact UTF-8 `request_body` and ordered
+`files` entries containing `media_id` and `path`. It changes no endpoint, wire
+reader, DTO or database schema. The request body remains byte-identical through
+local encoding/decoding, including noncanonical whitespace; its own V4 digest
+and closed manifest validation still apply. A 2 MiB envelope bound allows JSON
+string escaping while preserving the existing embedded request bound.
+
+Inventory is derived from validated provenance: retained source, five ordered
+frames and optional companion. Paths must exactly equal the child/media-ID
+namespace and type-derived suffix, with no caller path or URL accepted. Owner
+aliases with observation, child, historical source or any artifact are rejected.
+A decoded digest or ready phase is not ownership, byte verification or execution
+authority. The prepared local producer below stages this envelope with
+metadata/file ownership and existing-only recovery. Coordinated remote admission
+remains unavailable.
+
+### Native video preparation source proof
+
+The local envelope can now be reconstructed into a typed `Verified` value only
+against an `ObservationReanalysisSource` with matching parent, historical
+source, owner and exact source-snapshot SHA-256. The future child and all new
+artifacts must not reuse any historical photo/audio media ID. A caller-supplied
+digest or `files_ready` metadata cannot independently establish this
+association.
+
+`captureForVideo` is an explicit entry to the current V1–V4 immutable result
+reader; V5/video-result admission remains pending. Fresh proof validation uses
+existing owner, enrolled-parent, pending-deletion, source-record and exact-byte
+checks. Selection and review revision changes do not retarget or invalidate the
+frozen historical source. Account/session leases, coordinated file ownership,
+legacy-reader exclusion and actual persistence/restart recovery are separate
+requirements. No wire, schema, provider, funding or activation behavior changes.
+
+### Prepared held video durability
+
+The uninstalled native video producer now pairs version-1 preparation metadata
+with the unchanged V58 qualified reanalysis row and observationReanalysisSync
+job. Both phases remain held with zero attempts. Captured-media parity records
+the retained clip, ordered derived images and optional companion; no legacy
+inferenceImagePaths or transport fields are populated. Source occupancy blocks
+new siblings even when their owner/job links are damaged. Exact replay precedes
+fresh occupancy admission, and erasure receipts prevent reinsertion.
+
+Metadata is saved before any private copy. A complete temporary cohort supplies
+the exact request and byte buffers; individual paths never escape. One
+successful copy consumes it. A failed attempt retains the same bytes for
+explicit retry while the owner lives; dropping it removes temporary files.
+Incomplete restart recovery stays held and cannot regenerate evidence; explicit
+held-video discard and parent erasure remain available. Stable root/child
+filesystem locks surround fresh source/account/deletion checks, exclusive byte
+publication and final metadata promotion. A thrown promotion save retains the
+verified cohort because the save may have committed. Existing-only recovery
+verifies the full ordered inventory and original digests; it never creates
+missing work, repairs files, transcodes or invokes a provider. Source
+container/profile qualification is inherited from the preparation producers;
+this local hash-preserving store is not server byte-validation evidence.
+
+Photo preparation/admission/restoration/discard paths reject video metadata;
+ordinary inference remains closed to all qualified reanalysis children. Parent
+linked erasure owns the entire namespace, including frames. Prepared durability
+does not install Capture, automatic discovery, remote binding/admission, V5
+result support or execution. Activation remains disabled.
+
+The held video captured-media projection stores the optional WAV as a separate
+audio entry after all five frames. V58 media entities store only the video path;
+embedding the companion in that entity would lose it on restore. The immutable
+manifest, rather than the display projection, retains its source relationship.
+
+Prepared native video discard accepts only an existing exact local pending/ready
+preparation with no attempt, error, binding or execution state. It atomically
+removes the child/job and saves the existing erasure receipt under the review
+transaction lock. Missing work cannot manufacture a receipt. Exact receipt
+replay precedes source deletion gates, requires absent row/job, and cannot erase
+a result collision. The retained account/preparation owner awaits one
+receipt-bound cleanup attempt after a normally returned commit; uncertain saves
+require exact receipt recovery. This is local-only retirement of never-admitted
+preparation, not a server absence proof, funding refund or authority for
+uncertain-execution redispatch.
+
+### Retained video source byte verification
+
+`retainedVideoContainer.verifyPreparedVideoSource` parses and freezes the entire
+private V4 manifest, checks the source byte count before allocating, and copies
+the input view before its first await. The strict nested inspector must match
+the manifest's 600-Hz duration exactly and contain audio if and only if the
+manifest contains an audio companion. SHA-256 must match the saved source
+artifact. It returns the independently owned copied bytes; caller mutations of
+input bytes or manifest objects during hashing cannot alter the verified result.
+Malformed structure fails even when its digest matches; no envelope fallback is
+permitted.
+
+This helper has no live caller. IDs are validated for manifest identity
+separation; the helper does not authenticate an owner or establish association
+with a saved observation/analysis. It does not decode media, verify derived
+frame pixels or PCM samples, or prove an audio companion's exact extraction
+interval against the retained audio track. Durable source/cohort authority,
+provider profile, upload/admission integration and device qualification remain
+separate requirements. Existing executable photo/audio routes remain unchanged.
+
+### Held video source fingerprint v1
+
+`videoSourceFingerprint.videoSourceCanonicalBytes` and `videoSourceFingerprint`
+define a separate, unregistered V4 semantic binding contract. The TypeScript
+codec, native `ObservationVideoSourceFingerprint` and fixed vectors are prepared
+alongside private SQL `internal.observation_video_source_fingerprint_bytes` and
+`internal.observation_video_source_fingerprint` helpers. The codecs have no
+installed application producer or consumer; the private SQL helpers are
+installed by their migrations with API execution revoked. Parity alone does not
+authorize a producer or consumer. Existing photo/audio fingerprints, original
+request bytes, `request_digest` replay semantics and live reservation/admission
+parsers are unchanged. The codec does not authenticate an owner, verify media
+bytes, reserve occupancy or select an executable provider.
+
+After `parsePreparedVideoAdmission` validation, encode each scalar as a UTF-8
+netstring: decimal UTF-8 byte length, colon, exact scalar text, comma. Numbers
+use nonnegative safe-integer decimal text; booleans below use 1/0. Numeric
+spelling is not bound: `-0`, `0`, `0.0` and `0e0` encode the same integer zero,
+consistent with PostgreSQL JSONB. NUL and lone surrogates are rejected, without
+replacement or Unicode normalization. The complete canonical representation is
+bounded to 262,144 bytes. SHA-256 uses these owned bytes, captured before the
+first await. Object property order is irrelevant; array order remains
+significant. Owner is excluded, preserving the existing account-merge identity
+boundary without conferring merge authority.
+
+The exact scalar sequence is:
+
+1. Domain `merian.analysis-video-source-binding`, fingerprint version 1; request
+   `schema_version`, `observation_id`, `analysis_id`, `source_analysis_id`,
+   `request_digest`, `entitlement_protocol`, `identification_protocol`,
+   `history_protocol`, `expected_processor_permission`.
+2. `multimodal_video_audio_v1` when the manifest has audio, otherwise
+   `multimodal_video_frames_v1`; manifest `schema_version`, provenance
+   `schema_version`, `preprocessing_version`.
+3. Source artifact tuple: `media_id`, `content_type`, `byte_count`, `sha256`.
+4. Parameters: `timescale`, `frame_pipeline`, `decode_long_edge`,
+   `duration_ticks`, `sampling`, `preferred_track_transform` as 1/0, `crop`,
+   `crop_center_basis_points`, `inference_long_edge`,
+   `encoding_quality_percent`.
+5. Frame count (5); for each ordered frame: `index`, `source_media_id`,
+   `requested_time_ticks`, `actual_time_ticks`, then its artifact tuple in the
+   order from item 3.
+6. Audio-present flag (1/0); if present: `source_media_id`, `track`,
+   `start_ticks`, `end_ticks`, `sample_rate`, `sample_count`, `channels`,
+   `bits_per_sample`, `encoding`, then its artifact tuple.
+7. Description count; each description in order, with exact text preserved.
+
+The native codec validates the closed manifest and identity independently of
+saved-request restoration. It binds the original `request_digest` as a replay
+identifier without attempting to recompute it from JSON. Its shared golden
+vectors cover audio, silent and Unicode inputs; numeric spelling has the same
+semantic meaning in TypeScript and Swift. No native caller is installed.
+
+The SQL helpers mirror the closed V4 graph, numeric and text bounds and exact
+netstring sequence. All four routines (including bounded integer/artifact
+helpers) are stable invokers with an empty search path and no execution grants
+to PUBLIC, anon, authenticated or service_role. They read no tables and create
+no binding, occupancy or receipt. Shared golden vectors and mutation cases
+compare SQL bytes/hashes with TypeScript; native tests use the same fixed
+vectors.
+
+The profile string binds declared metadata only. Private cohort storage and
+coverage and separate SQL reservation/recovery are described below. Durable
+retirement, materialization and execution remain separate checkpoints. In
+particular, do not register V4 with the existing photo/audio source reservation
+codec merely because this fingerprint is defined.
+
+### Held video cohort inventory
+
+`videoCohort.preparedVideoCohortItems` and private SQL
+`internal.observation_video_source_cohort_items(jsonb)` project the fully
+validated V4 binding into one ordered inventory. Six items for silent video,
+seven for video with audio: retained source first, five frames in index order,
+optional WAV last. Every item has exactly `role`, `index`, `media_id`,
+`content_type`, `byte_count` and `sha256`. Roles are `source`, `frame`, `audio`;
+`index` is null for source/audio and 0–4 for frames. The full provenance remains
+in the immutable input; this projection never replaces it or its fingerprint.
+
+`matchPreparedVideoCohortItems` compares the whole closed ordered array with
+that projection, rejecting missing, extra, reordered or changed items. The
+returned metadata is an independently frozen snapshot. This is not a receipt: it
+carries no owner, object key, expiry, readiness, byte verification or source to
+derived-output attestation, and grants no upload or execution permission.
+
+The SQL helper is a stable invoker with empty search path and execution revoked
+from PUBLIC and all API roles. The projection writes no durable state. Native
+`ObservationVideoCohortInventory` mirrors the same projection after full V4
+semantic fingerprint validation and checks an entire closed inventory within a 4
+KiB native decoding bound. It does not restore saved request bytes or recompute
+their request digest. The private storage boundary below persists this
+inventory; receipt, upload and lifecycle wiring remain separate. Existing
+photo/audio request and execution contracts are unchanged.
+
+### Held video cohort storage
+
+`internal.observation_video_evidence_upload_cohorts` stores the exact complete
+inventory under a composite immutable source-binding foreign key. Its private
+insert guard validates V4 identity and live occupancy under owner/parent →
+source → child locks, then rejects any existing child use. A separate V4 lock
+helper leaves the photo/audio source lock and request parsers unchanged. The
+binding insert validator alone recognizes the video fingerprint domain.
+
+Video cohorts participate in child-use checks, reservation and discovery
+coverage, including independent 65th-row sentinels. Legacy photo/audio cohort
+inserts cannot claim a V4 binding, including through null legacy linkage.
+Updates and ordinary deletion while the parent lives are denied. The separate
+pre-execution retirement below permits only exact receipt-bound deletion; parent
+tombstoning removes the cohort through the binding foreign key. The table has
+RLS and no API role privileges; both new helpers are private with empty search
+paths.
+
+This is durable metadata, with no installed application writer, object
+allocation, upload deadline, readiness or upload receipt. Separate reader-12
+reservation and pre-execution retirement authorities are described below. Legacy
+retirement, completion and execution paths remain closed to V4. A retained
+cohort prevents generic unused-child absence proof. Adding V4 lifecycle or media
+delivery requires separate reviewed contracts; neither this inventory nor its
+persistence authorizes another provider invocation.
+
+### Prepared video source reservation and recovery wire contract
+
+`videoSourceReservation.ts` defines a separate reader-12, outer-schema-2
+contract. Separate service-only SQL reservation and recovery routines implement
+this wire contract (see below). The video repository and explicit schema2
+reservation HTTP branch are now installed; recovery HTTP, queue and native
+transport callers remain unconnected. Reader-11 photo/audio envelopes remain
+schema 1 with input schema 2/3 and are unchanged. Both legacy reservation and
+executable admission continue to reject V4.
+
+The closed candidate fields are `schema_version: 2`, the complete `input`
+(schema 4), `fingerprint_version: 1` and `fingerprint`. Validation snapshots and
+deeply freezes the input before awaiting its separate video-domain SHA-256. The
+supplied `request_digest` keeps its immutable replay-identifier meaning; the
+server codec does not recompute a native saved-body digest. The envelope is
+bounded to 1 MiB. A future native producer must embed its exact saved input
+bytes, not rebuild them from current selection or a manifest. Parsed semantic
+objects are not a replacement for those saved bytes.
+
+A read-only recovery request has the exact identity fields `schema_version: 2`,
+`observation_id`, `source_analysis_id`, `analysis_id`, `request_digest`,
+`fingerprint_version: 1` and `fingerprint`. Build it from the validated complete
+candidate. The decoder checks the closed shape; the database recovery routine
+independently matches the actual owned binding. It is not vacancy or release
+proof.
+
+Every response, including held/unavailable responses, echoes **all** identity
+fields and `owner_id`. This binds the reply to the exact child and fingerprint,
+not only the parent/source pair. The response and recovery request bounds are 2
+KiB, decoded as strict UTF-8. Reservation and recovery share these closed
+states:
+
+| State         | Required durable meaning before a server may emit it                                                                                            |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reserved`    | Exact owned immutable binding and live occupancy observed under the canonical locks; no upload, admission or execution permission               |
+| `held`        | Conservative hold with exactly one of `source_occupied`, `ambiguous_occupancy`, `coverage_incomplete`, `malformed_linkage`, `terminal_unproven` |
+| `unavailable` | No actionable observation; does not disclose absence, ownership or deletion and never authorizes replacement                                    |
+
+Only `held` has a `reason` field. Unknown states, additional fields, mismatched
+identity/owner, `not_found`, `retired_unfunded`, `complete` and `dispatched` are
+rejected. Durable retirement uses its separate request and receipt decoder
+below. Local held-video discard remains local-only; it cannot establish remote
+absence or release. Unknown execution continues to permit status/outcome
+recovery and reconciliation only. No decoder invokes a provider or schedules,
+rearms, refunds or replaces work.
+
+The fixed `video-source-reservation-v2.json` vectors reference the existing
+ordered-audio, silent and Unicode fingerprint inputs. They freeze identity and
+all seven valid response shapes for SQL/native parity. Server gates and
+mutation-time validation remain prerequisites to connecting an application
+consumer.
+
+### Prepared native video source parity
+
+`ObservationVideoSourceReservation.swift` mirrors the reader-12/schema-2
+prepared contract with a typed reservation transport and an explicit injected
+queue delivery entry point. Scheduler, ordinary UI, recovery, upload progression
+and execution callers remain uninstalled. Input must be bounded strict UTF-8
+before fingerprinting or envelope construction, even when Foundation accepted
+another JSON encoding upstream. Its identity validates the complete V4 semantic
+fingerprint; this is separate from restoring a native saved-body digest. Request
+construction accepts a validated `ObservationVideoReanalysisRequest` and embeds
+its original `body` bytes verbatim. Restoration verifies the original native
+input and compares the entire saved envelope; it never rebuilds input from
+current selection or a manifest.
+
+The identity produces the exact seven-field recovery request. Reservation and
+recovery replies share one bounded, strict-UTF8 decoder, requiring the complete
+identity and owner in every state. Only held replies carry a closed reason.
+Unknown fields, old versions, alternate encodings and unsupported retirement or
+execution states fail closed. These values grant no upload, execution, release
+or absence authority. SQL authority is defined below; live composition and
+lifecycle consumers remain separate prerequisites; legacy photo/audio owners are
+unchanged.
+
+### Prepared video SQL reservation and recovery authority
+
+Migration `20261010040600_prepare_video_source_reservation.sql` implements
+`reserve_owned_observation_video_source(uuid,jsonb,integer)` and
+`get_owned_observation_video_source(uuid,jsonb,integer)` for service role only.
+Both require reader 12 and current-snapshot isolation, validate the closed
+schema-2 request, and return the full identity plus owner for every state.
+Ownership/deletion and canonical owner → observation → source → child locks
+precede durable binding decisions. Recovery recomputes the complete V4
+fingerprint; request identity alone is never authority.
+
+Fresh reservation requires both `source_reservation_enabled` and the new
+default-false `video_source_reservation_enabled`. Exact immutable replay
+precedes those fresh gates. A changed candidate under the same child conflicts.
+Independent 65th-row sentinels cover intents, bindings, results, unfunded
+retirements and photo/audio/video/object evidence. Incomplete coverage or
+occupied sources hold; only a proven unused child can atomically acquire binding
+and occupancy.
+
+Recovery is mutation-free and requires both `source_discovery_enabled` and the
+new default-false `video_source_recovery_enabled`; it does not depend on fresh
+reservation enablement. Missing, foreign or mismatched bindings are unavailable.
+An exact binding without occupancy is held as `terminal_unproven`. Existing V4
+predecessors likewise cannot use the photo/audio release proof to establish
+vacancy. The separately gated pre-execution retirement below supplies V4
+successor proof; no V4 completion proof is installed. Neither routine uploads
+media, consumes quota, invokes a provider or refunds. The source reservation
+route now connects schema2 video through its bounded reader12 repository, as
+described below. Recovery HTTP, native transport and queue delivery remain
+unconnected.
+
+### Prepared video pre-execution retirement contract
+
+`videoSourceRetirement.ts` defines a separate reader-12/schema-2 action for a V4
+source reservation that has never acquired admission or execution state. One
+exact metadata-only V4 cohort may exist; remote objects remain excluded. This is
+implemented by service-only
+`retire_owned_observation_video_source(owner, request,
+reader)` behind
+default-false `video_source_retirement_enabled`. No HTTP route, native delivery
+or queue consumer is installed. Existing reservation/recovery decoders retain
+their three states and reject retirement receipts.
+
+The request contains the exact seven-field video identity plus `operation_id`.
+The operation UUID must differ from observation, source and child. Build it from
+the complete original V4 candidate; freeze the operation and exact request at
+the final decision, then persist before delivery. Request and receipt are each
+bounded to 2 KiB and strict UTF-8. The closed permanent receipt echoes every
+request field plus `owner_id` and `state: "retired_pre_execution"`. The decoder
+binds owner, operation, full candidate identity and validated V4 fingerprint,
+snapshots mutable inputs before hashing, and rejects extra fields or any other
+state. Matching JSON alone cannot authenticate a server receipt or authorize
+release. Fixed audio, silent and Unicode vectors freeze this representation for
+SQL and native parity. Reader-11 photo/audio contracts are unchanged.
+
+An optional V4 cohort must exactly match the binding-derived whole inventory.
+The server retains that inventory (or explicit no-cohort proof) privately with
+the permanent receipt; the bounded wire receipt carries identity only.
+
+The SQL authority enforces the following acceptance contract:
+
+| Contract element | Required never-admitted V4 retirement behavior                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preconditions    | Exact owned immutable V4 binding and matching live occupancy; closed identity and recomputed fingerprint. No child scan/ingestion/tombstone, admission intent, result, photo/audio cohort, evidence object, quota reservation, complimentary usage, invocation, dispatch witness or other terminal receipt. A missing quota row alone is insufficient.                                                                  |
+| Authority        | Authenticated service boundary derives owner. SQL rechecks ownership/deletion and current-snapshot isolation under canonical owner → observation → source → child → operation locks. Fresh retirement has its own default-false gate.                                                                                                                                                                                   |
+| Identity         | Persist the original child/request digest/fingerprint and distinct retirement UUID. Operation identity is immutable; a changed association conflicts. Never create a replacement child while the old outcome is uncertain.                                                                                                                                                                                              |
+| Replay           | Exact permanent receipt replay follows authorization/deletion checks but precedes fresh gates and fresh unused-child admission. Duplicate or lost-reply recovery keeps the same operation. Missing receipt, lookup unavailability or local discard is not vacancy proof.                                                                                                                                                |
+| Postcondition    | In one transaction save the permanent receipt, install the irreversible child retirement fence, remove only its validated V4 cohort metadata, and release only that child's occupancy. All later occupancy, cohort, admission, funding and dispatch paths must reject the retired child before success can return. Selection and immutable original evidence remain unchanged; no refund or provider invocation occurs. |
+
+The release proof must validate the retained receipt and binding under the same
+locks. A new child may reserve the source only after that proof succeeds; its
+identity must be new and its admission independent. Tests must prove retirement
+versus cohort creation/admission/dispatch, duplicate retirement, response loss,
+restart, deletion, forged/cross-child identities and attempted resurrection. A
+foreign, malformed or partially matched cohort, any evidence object, any
+admission/funding record or any uncertain execution remains held. This contract
+does not authorize funded retirement, remote object cleanup or cleanup receipts.
+Unknown execution permits exact status/outcome recovery and reconciliation only,
+never another invocation or refund. Local video discard continues to affect
+local preparation only.
+
+The private `observation_video_source_retirements` row retains either JSON null
+(no cohort) or the exact original ordered inventory. Its insertion guard checks
+all pre-execution namespaces and the optional cohort under canonical locks.
+`observation_video_retirement_record_valid` authorizes controlled live metadata
+removal; `observation_video_source_release_proven` additionally requires absence
+of both live cohort and occupancy. Keeping these predicates separate prevents
+circular deletion proof and prevents a receipt alone from proving vacancy.
+
+Only reader-12 successor reservation uses this V4 proof, with an independent
+65th-row retirement sentinel. Replay and ordinary lookup of the retired child
+remain held; only the exact retirement operation returns its permanent receipt.
+The original binding remains an ingestion fence. Binding/occupancy/cohort,
+shared admission-chain and execution locks explicitly reject retired children.
+Parent erasure cascades the private record; replay still checks ownership and
+deletion first. Legacy release proofs and funded retirement are unchanged.
+
+### Native video pre-execution retirement parity
+
+`ObservationVideoSourceRetirementRequest` and
+`ObservationVideoSourceRetirementReceipt` mirror the separate reader-12/schema-2
+wire. Construction binds a validated original video identity to a distinct
+operation UUID. Restoration validates every closed field against that identity
+and retains the exact persisted bytes, including whitespace; it never generates
+a new operation or rewrites the saved request. The permanent receipt binds
+owner, operation and complete original identity and accepts only
+`retired_pre_execution`. Both boundaries enforce 2 KiB and UTF-8, including
+rejection of BOM-free UTF-16 and UTF-32 that Foundation could otherwise
+auto-detect. Original reply bytes are retained. Reservation/recovery decoders
+still reject retirement states.
+
+These handwritten models are outside the generated Identify DTO block. They
+install no HTTP transport, durable delivery, cleanup, UI, gate or ordinary
+access. Matching JSON alone is not authenticated server provenance and grants no
+local cleanup authority. Shared audio/silent/Unicode vectors verify Swift parity
+with the existing Deno and SQL contract. Native delivery and receipt-bound
+cleanup remain separate reviewed work.
+
+The shared video identity and reservation-reply byte boundaries also reject raw
+NUL bytes before Foundation JSON parsing. This prevents BOM-free UTF-16/32
+autodetection from accepting alternate encodings at a boundary that requires
+UTF-8; escaped JSON Unicode and the shared Unicode vectors remain supported.
+
+### Prepared video whole-inventory upload and receipt contract
+
+`videoEvidence.ts` defines reader-12/schema-2 metadata codecs. The separate SQL
+allocation authority below implements them without installing byte transport.
+`buildVideoEvidenceUploadRequest` validates and snapshots the complete V4
+candidate before hashing. The closed request is its seven-field video source
+identity plus `items`, exactly the six/seven ordered `preparedVideoCohortItems`
+descriptors. The bounded decoder compares both identity and the entire inventory
+against that original candidate. Names, individual item acknowledgements and
+current selection cannot establish membership. The request is at most 4 KiB of
+strict UTF-8 JSON; it contains no owner, object allocation, readiness or binary
+media.
+
+A closed receipt carries the same identity, `owner_id`, `state`, `expires_at`
+and the entire ordered `items`. Every item retains its exact role/index/media
+ID/type/count/digest and adds only `object_id` and nullable `ready_at`. Object
+UUIDs must be canonical, pairwise distinct and different from owner,
+observation, source analysis, child analysis and **every** media ID in the
+cohort. Receipt bytes are bounded to 8 KiB. Dates use exact UTC millisecond
+strings `YYYY-MM-DDTHH:mm:ss.SSSZ`, with years 0001–9999; invalid dates and
+alternate spellings are rejected, not normalized. Every non-null readiness
+timestamp must precede the shared expiry. The server must emit this
+representation in the SQL authority below.
+
+`decodeVideoEvidenceAllocation` represents **fresh allocation** and requires all
+readiness fields null. `decodeVideoEvidenceReceipt` represents later status or
+completion snapshots: `allocated` means at least one item is not ready; `ready`
+requires all items ready. With prior receipt bytes, it requires identical object
+IDs and expiry and preserves every already-completed readiness timestamp. Newly
+completed items may advance from null. The initial allocation remains immutable;
+a status snapshot is a separate observation of mutable readiness. Both current
+and prior JSON are copied before fingerprint hashing can suspend. Shared audio,
+silent and Unicode vectors freeze request/allocation/ready shapes.
+
+These decoders authenticate neither server provenance nor byte correctness.
+Expired snapshots remain decodable for exact recovery inspection; decoding never
+renews an expiry or authorizes upload, admission, cleanup, refund or invocation.
+Ready timestamps are server observations, never client mutation inputs. The SQL
+authority below independently enforces ownership/deletion, exact live source
+occupancy, whole-cohort atomic allocation and replay, retirement/erasure fences
+and deadlines. It retains raw video cohort inventory separately from object
+allocation, since retirement validates that immutable inventory. Completion must
+verify stored bytes before marking readiness; a receipt alone cannot attest that
+frames/audio were derived from the retained source clip.
+
+The codecs provide no endpoint, native consumer, provider profile or storage
+URL/key. The separate default-off SQL authority follows below. Photo/audio
+contracts and saved replay remain unchanged. Byte materialization, native parity
+and coordinated protected execution remain subsequent checkpoints.
+
+### Prepared video evidence allocation authority
+
+Migration `20261010054046_prepare_video_evidence_allocation.sql` installs the
+service-only reader-12 SQL layer for the preceding closed metadata contract.
+Fresh allocation requires both `media_enabled` and the new default-false
+`video_evidence_enabled` gate. The later authenticated video item upload route
+now connects byte verification and private storage. No signed URL issuer, native
+caller or protected execution admission is installed.
+
+`reserve_owned_observation_video_evidence(owner, request, reader)` validates the
+entire displayed identity and ordered inventory under the existing
+owner/parent/source/child/evidence locks. The separate immutable private
+`observation_video_evidence_allocations` row retains all six/seven object UUIDs
+and one five-minute deadline; raw provenance inventory is not rewritten. Object
+allocation uses the established object advisory locks and bounded collision
+retry. Allocation and all generic object rows commit atomically. Exact replay
+returns the same complete receipt, even with fresh-write gates disabled; it
+cannot renew expiry, replace missing rows or mint replacement object IDs.
+
+`complete_owned_observation_video_evidence(owner, request, media, object, reader)`
+acknowledges **one** exact allocated media/object pair after trusted code has
+verified its stored bytes. SQL accepts no readiness timestamp or caller-supplied
+metadata replacement. A fresh acknowledgement requires both gates and an
+unexpired allocation and records server time truncated to milliseconds. It
+returns the entire receipt: `allocated` until every item is ready. Repeated
+acknowledgement preserves the original readiness timestamp and can recover that
+result after gates close. These service routines do not themselves read storage
+or prove derivation; a future verifier must establish exact type/count/digest
+before calling completion.
+
+All recovery still validates owner, deletion, full V4 binding/live occupancy and
+absence of execution/funding conflicts. The shared post-allocation execution
+predicate permits this allocation and its objects; retirement's separate
+pre-execution predicate explicitly rejects any retained allocation. Legacy
+photo/audio admission and provider paths remain closed to V4.
+
+`retire_expired_observation_video_evidence()` is a separate unscheduled service
+routine behind `private_evidence_erasure_enabled`. It locks and validates one
+expired complete allocation, deletes all its generic rows and relies on existing
+delete triggers to enqueue permanent object erasure obligations. A concurrent
+worker rechecks after acquiring the lock and returns zero once whole cleanup has
+committed; a partial inventory still fails closed. It retains raw inventory,
+allocation, binding and occupancy: expiry never restores retirement eligibility
+or releases the source. Legacy single-object expiry helpers and the ordinary
+orphan worker explicitly exclude video allocations. A missing or mismatched
+object is held for investigation rather than replaced or partly cleaned. Parent
+erasure remains the authority for cascading the retained allocation. No storage
+deletion or live erasure qualification is claimed merely by emitting
+obligations.
+
+### Native video upload metadata parity
+
+The handwritten `ObservationVideoEvidenceUploadRequest` derives the closed
+reader-12/schema-2 request from the full V4 input, using the shared native
+identity and cohort inventory. Restoration preserves exact saved bytes after
+validation against that same input. Requests are bounded to 4 KiB; receipts to 8
+KiB. No generated Identify DTO changes are required.
+
+`ObservationVideoEvidenceReceipt` binds owner, complete identity and ordered
+inventory, rejects every object alias, and preserves original response bytes.
+Prior validated snapshots freeze object IDs and expiry and forbid completed
+readiness rollback or replacement. The separate allocation decoder requires all
+readiness null. Timestamp validation uses exact UTC milliseconds and proleptic
+Gregorian years 0001–9999; expired snapshots remain inspectable but grant no new
+permission. Matching metadata proves neither server authentication nor stored
+bytes/source derivation. No live queue or runtime caller is installed; the
+prepared native transport is described below.
+
+### Prepared whole video byte materialization
+
+`analysisHistory/videoMaterialization.ts` accepts the exact reader-12 candidate
+envelope and complete ready receipt. Before storage reads it freezes and checks
+the V4 identity, fingerprint, ordered inventory, owner and readiness. Reads are
+sequential, with the exact item byte count and caller-owned AbortSignal passed
+to an injected adapter. The adapter must enforce that limit before buffering and
+honor cancellation; the helper checks cancellation around every await and
+rejects a size mismatch before allocating its own copy. Existing source, frame
+and audio verifiers recheck containers, metadata and SHA-256. Only a complete
+owned cohort returns; failures never return partial evidence, repair files or
+sample again.
+
+An expired ready receipt remains inspectable for exact recovery and is not new
+upload permission. The caller still owns authentication, current SQL fences and
+a bounded deadline. Container and digest checks do not establish that pixels or
+audio were derived from the claimed source. This prepared helper installs no
+storage adapter, HTTP route, readiness writer, provider invocation or execution
+authority. Source and derived bytes remain separate ordered inventory items.
+
+### Prepared video allocation and readiness RPC adapter
+
+`videoEvidenceRepository.ts` performs one service-only reader-12 RPC per
+explicit reserve or completion call, using a five-second deadline composed with
+caller cancellation. The prepared environment factory uses the existing
+service-role client with a five-second transport timeout and actual 8 KiB
+response-body cap. Injected clients must obey those same transport bounds. The
+authenticated video item upload route installs it through the shared
+coordinator.
+
+Reserve accepts the full immutable candidate and permits allocated, partially
+ready or ready exact replay; it never assumes an all-null fresh allocation.
+Completion validates a saved whole receipt, derives the object UUID from the
+requested media's exact association, and sends no caller timestamp. Its reply
+must preserve every object/deadline and prior completed timestamp and
+acknowledge the target. Other previously-null items may have completed
+concurrently since the saved snapshot; their monotonic progress is valid.
+Caller-owned candidate and receipt bytes cannot change the operation across
+hashing awaits.
+
+Transport errors, malformed/lost replies and cancellation remain unavailable and
+uncertain, with no retry or replacement. A definite operation conflict remains
+explicit. Neither outcome grants upload, provider or cleanup permission. The
+caller must authenticate ownership and verify the exact stored bytes before
+completion; this prepared adapter supplies neither authentication nor byte
+verification and installs no storage writer or execution path.
+
+### Prepared exact video item upload coordinator
+
+`videoUpload.ts` verifies a single saved source/frame/audio item against the
+full immutable candidate before allocation. It validates manifest bounds before
+copying caller bytes and freezes metadata before hashing awaits. The overall
+120-second deadline composes caller cancellation; each injected RPC/write is
+abortable, and no later stage starts after cancellation.
+
+The coordinator validates the complete server receipt and uses only its target
+object. Already-ready exact replay returns without writing, even after expiry.
+Pending items require an unexpired fixed deadline, then one awaited private
+conditional write/HEAD verification before one readiness completion. Returned
+completion must preserve the allocation and acknowledge the target. Failures
+never retry, replace objects, resample media, erase evidence or grant execution.
+A write may have committed when its reply is lost; recovery keeps the same
+allocation. SQL remains authoritative if expiry/deletion/gates change mid-write.
+
+The inert factory composes the bounded video RPC adapter with
+`PrivateHistoryEvidenceStorage.writeOnce`, preserving the private bucket, exact
+`evidence/v1/` object namespace, conditional creation and permanent
+erasure-marker protection. The authenticated video item upload route now
+installs this coordinator, deriving ownership and bounding incoming streaming
+first. No new credentials, URL delivery or native caller is installed. Container
+checks do not prove source derivation; hosted storage and erasure qualification
+remain separate.
+
+### Private video item upload route
+
+`upload-observation-video` accepts owner-authenticated POST only, with exact
+`Content-Type: application/octet-stream`. It is separate from the unchanged
+photo/audio wires. Gateway `verify_jwt = false` delegates authentication to the
+shared `withEdgeHandler`/`requireAuth` boundary, never to payload fields.
+
+Wire1 is a four-byte unsigned big-endian JSON metadata length, that many strict
+UTF-8 bytes, then one exact saved item's bytes. Metadata has exactly
+`schema_version: 1`, `reader_version: 12`, `candidate` (the full schema2 V4
+source reservation envelope) and `media_id`. Metadata is limited
+to1,048,832bytes; total ingress to12MiB plus that limit plus four bytes. The
+stream reader checks actual bytes and Content-Length. The immutable manifest
+then enforces the selected source/frame/audio item's smaller exact byte count
+and container/digest before allocation. No owner, object ID, URL, expiry or
+readiness override is accepted. Unsupported versions and malformed metadata fail
+with400.
+
+The route derives owner from verified identity. Its120-second deadline composes
+request cancellation across authentication, body reading, allocation, private
+write and completion. Video RPCs use a separate service-role client capped at
+five seconds/8KiB. Success returns the existing closed schema2 whole-cohort
+receipt, at most8KiB, with the target ready. Other items may still be pending.
+The same request preserves the allocation and original expiry. Ready target
+replay skips writes even after expiry; SQL still validates owner/deletion/gates.
+There is no standalone allocation-only endpoint in this checkpoint.
+
+All responses carry `Cache-Control: private, no-store` and the shared
+request/error boundary. Statuses include401 auth denial,405 method,415 MIME,413
+body budget, 400 invalid contract,409 definite operation conflict and503
+uncertain/unavailable (including concealed database denial). No diagnostic or
+request body is returned. The route never retries, renews expiry, replaces
+evidence, refunds, or invokes a provider. SQL `media_enabled` and
+`video_evidence_enabled` remain disabled. The explicit retained native upload
+caller is documented below; it grants no new execution permission; device,
+hosted resource/storage/CDN/erasure qualification remains separate.
+
+### Reader12 video source HTTP admission
+
+`reserve-observation-analysis-source` now explicitly dispatches schema2 V4
+candidates to `reserve_owned_observation_video_source` through
+`videoSourceReservationRepository`. Schema1 photo/audio retains the existing
+reader11 codec and RPC without rewriting saved requests. Both use the same
+closed four-field envelope and1MiB body boundary. Unsupported versions, forged
+fingerprints and cross-version input fail with400 before RPC; no parsing or
+transport failure falls back to another protocol.
+
+Verified `user.id` is the only owner. The scoped service client enforces a real
+2KiB response cap and five-second transport deadline. The adapter freezes the
+complete candidate before await, composes a five-second cancellation deadline,
+performs one RPC and decodes a closed full-identity reserved/held/unavailable
+receipt. Definite operation conflict remains409; malformed, lost, cancelled,
+foreign/deleted and other failures remain sanitized503. No automatic retry or
+replacement is allowed. Reservation proves occupancy only, never upload,
+provider execution, quota/refund, retirement or release authority.
+
+The same repository's separate `recover` method sends only the exact seven-field
+identity to mutation-free `get_owned_observation_video_source` with reader12,
+then validates the whole reply against the original candidate and owner. It has
+no installed HTTP/native caller. Unavailable or held observations never prove
+vacancy. Existing video reservation/recovery gates remain false; no SQL,
+photo/audio codec or ordinary access changes are included. Native reservation
+transport is described below; recovery remains uninstalled.
+
+### Prepared native video binary wire
+
+`ObservationVideoEvidenceWireRequest` is the handwritten native Wire1 encoder
+for the prepared `upload-observation-video` endpoint. It takes the original
+validated schema2 reservation envelope, an existing inventory media ID and the
+exact saved item bytes. Metadata embeds the envelope unchanged, including saved
+V4 input formatting, with schema_version1, reader_version12 and lowercase
+media_id. A four-byte unsigned big-endian metadata length precedes UTF-8 JSON;
+the item immediately follows. Metadata is bounded to1,048,832 bytes; the
+complete body to that bound plus four bytes and12MiB. The inventory imposes the
+smaller per-item bound before hashing or body allocation.
+
+Unknown media, incorrect count and mismatched SHA-256 fail locally. Cancellation
+is checked before parsing and after construction. The caller must own an
+off-main preparation task. Rebuilding from the same saved envelope and bytes
+produces the identical wire body without generating any identity, sampling or
+extracting media. Digest equality alone does not establish container validity,
+authentication, allocation, readiness or execution permission. Server validators
+remain required. The retained delivery service below owns preparation and queue
+lifetime; its separate native transport is described below; reader11 photo/audio
+paths and generated Identify DTOs are unchanged.
+
+### Native reader12 video reservation transport
+
+`ObservationSourceReservationTransport.reserve` has a distinct video-request
+overload that posts the exact saved schema2 envelope to
+`reserve-observation-analysis-source`. It uses the existing account-bound
+single-attempt dispatcher, five-second request and actual2KiB response cap.
+There is no generic retry, Auth refresh, reader11 fallback or recovery call. The
+owner and fresh attempt validator are required before dispatch; successful
+replies are closed-decoded against the original video identity and owner, then
+accepted only under the separate settlement validator. A known reply can survive
+dispatch cancellation when that settlement scope remains current.
+
+Only the exact bounded JSON409 conflict envelope becomes
+`ObservationVideoSourceReservationConflict`, retaining the original candidate
+and owner after settlement validation. All other errors remain uncertain;
+neither error nor reserved/held/unavailable grants upload, provider execution,
+release or replacement. The reader11 overload is unchanged. The explicit
+injected queue entry point and retained delivery owner below now compose this
+seam. Scheduler, ordinary UI, recovery HTTP and execution callers remain
+uninstalled. Explicit upload progression is documented below. The saved-cohort
+reader and video upload transport are described below. Gates remain disabled and
+ordinary access nil.
+
+### Native exact video item upload transport
+
+`ObservationVideoEvidenceTransport` accepts an already-prepared immutable Wire1
+request. The caller owns off-main preparation and durable saved media; transport
+never samples, extracts or reconstructs input. One authenticated POST to
+`upload-observation-video` sends the exact body with octet-stream MIME. Its
+separate pinned session has a130-second request/resource deadline (covering the
+server120-second budget) and a streamed8KiB JSON reply cap; ordinary requests
+retain their90-second resource ceiling. No Auth refresh, route retry, generic
+executor replay, provider authorization or idempotency substitution occurs.
+
+Before dispatch, any prior receipt is validated against the original candidate
+and owner. The dispatcher owns the account lease and validates the current
+attempt. A200JSON response must match the complete cohort, maintain prior
+object/expiry/readiness evidence and mark the requested item ready; other items
+may still be pending. Only the separate settlement validator accepts the known
+answer after dispatch cancellation. Every non200, lost, malformed, oversized,
+foreign or unready-target response fails without automatic retry or fallback. No
+upload result grants provider execution, release or refund. The explicit
+retained queue caller is documented below. Gates remain false and ordinary
+access nil.
+
+### Native saved video cohort reader
+
+`ObservationReanalysisFileStore.readVideo` accepts immutable
+`ObservationVideoPreparation` and required before-read/before-return validators.
+It returns `VideoItem` artifact/byte pairs in source, frame and optional audio
+manifest order. The existing shared root and exclusive child locks cover both
+validators and complete-cohort verification. Exact directory membership,
+no-follow reads, declared byte counts, SHA-256 and stable directory identity are
+enforced before any result is returned. Missing, extra, substituted or changed
+files fail without repair, partial output or new preprocessing.
+
+Cancellation is checked before reading, during the bounded cohort read, around
+the return validator and after the awaited read. Both failures and success
+release the filesystem fences. The caller must still revalidate its current
+account/claim after await; returned bytes are not authority to upload or invoke
+a provider. This checks equality with the saved immutable manifest, not fresh
+container/derivation verification or server readiness. No persistence schema
+change is introduced. The explicit reservation and upload services below use
+this reader. Gates and ordinary access remain disabled.
+
+### Native durable video reservation staging
+
+`ObservationVideoSourceReservationStore` transfers an existing verified
+`files_ready` child into closed local version1 kind `video_source_reservation`,
+phase `staged`. `ObservationVideoSourceReservationWork` accepts exactly
+`version`, `kind`, `phase`, `preparation_base64` and `candidate_base64`. The
+canonical base64 preparation must decode as ready; it retains owner, frozen
+source digest, exact V4 request body and ordered file inventory. The candidate
+must exactly equal the schema2 reservation envelope for those saved V4 bytes,
+including their original formatting. Unknown fields, phases, versions,
+noncanonical base64 and mismatched candidates fail. The overall metadata bound
+is4,194,564bytes (both base64 expansions plus256bytes); nested preparation and
+candidate retain their2MiB and1MiB bounds. There is no SwiftData schema or
+remote wire change.
+
+Staging validates the source proof and fresh owner/account, erasure and result
+collision fences under the established transaction lock. It requires the same
+qualified row/job, captured media, needsAttention status and zero-attempt
+fields. It replaces metadata only; selection, source linkage and files stay
+intact. Existing-only read repeats these checks. Exact replay preserves stored
+metadata without saving or rearming. After commit-then-throw, reopening finds
+the same child and candidate. Failure before commit leaves the ready envelope;
+explicit retry uses the same candidate. Reading never invents missing work.
+Persisted text is size-checked before conversion into a byte buffer.
+
+The new kind is explicitly excluded from legacy preparation, admission,
+execution and discard readers. The preparation-specific read/validate/discard
+also rejects it. The source remains occupied locally. Generic status projection
+omits this unsupported held envelope; it does not claim pending execution.
+Parent erasure remains available through existing captured-media/child namespace
+ownership. The local reservation claim and settlement extension is described
+below; delivery, per-child retirement, upload admission and provider execution
+remain separate. The retained owner below validates the complete saved cohort
+and account scope around awaits. No automatic caller, polling, queue wake or
+retry is installed. Gates remain disabled and ordinary access nil.
+
+### Native durable video reservation claim lifecycle
+
+Version 1 staged bytes remain accepted and unchanged. Version 2 is a closed
+local envelope with exactly `version`, `kind`, `phase`, `staged_base64`,
+`attempt_id` and `reply_base64`. Its kind remains `video_source_reservation`. It
+embeds the complete original version 1 bytes verbatim in canonical base64; the
+nested envelope must still validate. Its own bound is 5,595,996 bytes: the
+base64 expansion of the 4,194,564-byte staged bound, the expansion of the
+2,048-byte reply bound and 512 bytes of fixed overhead. Persisted text is
+bounded before copying into Data. Version 2 rejects staged phase and requires a
+canonical lowercase attempt UUID. Running, unknown and conflict require null
+reply; observed requires the original strictly decoded owner/candidate-bound
+reply. No remote payload, schema version or SwiftData entity changes.
+
+`ObservationVideoSourceReservationStore.claim` consumes only an exact staged
+snapshot under the existing transaction lock, persisting running state before
+returning an opaque claim. The snapshot binds container identity, metadata
+bytes, source proof and complete pristine held row/job. Running, unknown and
+terminal states cannot be claimed again. Stage replay returns the current state
+without rearming. A claim save that commits then throws leaves running work held
+on reopening. A save failure before commit leaves staged work available for an
+explicit same-candidate attempt. No provider invocation follows from this claim.
+
+Dispatch validation requires the exact current running snapshot and respects
+cancellation. Holding changes only that claim to unknown and grants no retry.
+Known reply/conflict settlement accepts the original running snapshot or the
+exact unknown envelope derived from it; it cannot consume a different attempt or
+rewritten metadata. The complete candidate and original staged bytes remain
+unchanged. Terminal replay requires the identical attempt, original envelope and
+reply/conflict metadata and performs no save; conflicting outcomes fail. A
+settlement save that commits then throws replays the known answer, preserving
+its raw bytes. The server reply has no attempt ID: this is local claim
+correlation, not proof of a server-side attempt identity.
+
+The shared transaction accepts a typed video reply-or-conflict settlement and
+rejects combinations with legacy retirement or photo/audio settlement. It binds
+owner, observation, source and child before the body; the video store
+additionally binds full candidate and exact claim metadata. Only known answers
+may bypass Task cancellation, using the caller's current settlement scope.
+Source, account, erasure, result and row/job fences remain mandatory. Unknown
+failure under cancellation leaves running work intact. There is no automatic
+rearm, provider retry, refund or remote absence inference. The explicit retained
+owner below composes these APIs; restart outcome recovery, upload progression
+and retirement remain separate checkpoints. Gates remain disabled and ordinary
+access nil.
+
+### Native retained video reservation delivery
+
+`ObservationVideoReservationOwner` owns a single explicit initial video
+reservation slot keyed by the exact staged snapshot, account session, generation
+and container. It rejects non-staged admission; identical active requests
+coalesce, and changed or cancelled requests cannot replace retained work. The
+slot remains occupied through actual account-lease release. Dispatch requires
+connectivity, uncancelled work and current account scope. Known-result
+settlement excludes connectivity and dispatch cancellation, while still
+requiring the original live lease and current session/generation/container. Auth
+invalidation closes both predicates; overlapping drains retain admission closure
+until every captured task exits.
+
+`ObservationVideoReservationService` saves an opaque claim before awaits. Its
+live composition verifies every saved source/frame/audio byte under the existing
+file-store locks without preprocessing again. It revalidates the durable claim
+before and after that read and through the existing reader12 transport's attempt
+validator. It sends the exact saved candidate once. A strictly validated reply
+or typed conflict uses the separate settlement predicate and exact store
+comparison; unknown failures can only hold the original claim. Cancellation or
+stale scope may leave running work intact. Claim save failure dispatches
+nothing, including commit-then-throw. Known-result save failure does not enter
+the unknown-failure path. Reopening running, unknown or terminal work cannot
+start another request.
+
+`OfflineQueueManager.requestVideoSourceReservation` provides the explicit
+injected entry point, retaining the service with its original context. Both
+account transition barriers invalidate and await the owner before releasing
+account work; both network cancellation paths cancel dispatch. Completion is
+published only after actual owner exit and only for the current context/account.
+No scheduler, UI access, upload, restart lookup, provider invocation, refund or
+automatic caller is enabled. Gates remain disabled and ordinary access nil.
+
+### Native reserved video upload handoff
+
+`ObservationVideoUploadWork` is a closed local version 1 envelope with exactly
+`version`, `kind`, `reservation_base64` and `request_base64`; its kind is
+`video_evidence_upload`. It has no phase, attempt, receipt, object IDs, expiry,
+readiness or error state. The nested reservation must be valid version 2
+observed work with an owner-bound reserved reply.
+Staged/running/unknown/conflict and observed held/unavailable are rejected. The
+original reservation UTF-8 bytes remain verbatim, preserving its original V1
+envelope, V4 request, local attempt and raw server answer. The upload request is
+derived solely from that saved V4 input. Restoring its exact saved bytes uses
+the strict upload metadata decoder and requires byte equality with the canonical
+derived request; semantically equivalent reformatting is rejected. Names,
+current selection or newly prepared media cannot replace its inventory.
+
+The maximum envelope is 7,467,048 bytes: canonical base64 expansion of the
+5,595,996-byte reservation bound plus expansion of the 4,096-byte upload
+metadata bound and 256 bytes of fixed overhead. Each nested field is bounded
+before base64 allocation, and persisted text before Data allocation. Unknown
+fields, versions and noncanonical base64 fail closed. Decoding proves structural
+association only; it grants no authenticated remote authority.
+
+`ObservationVideoUploadStore.stage` requires the exact current reserved snapshot
+and same container under the existing local transaction. It revalidates source
+proof, account/owner, result collision, erasure and complete pristine held
+row/job media parity before replacing metadata. It preserves the nested terminal
+reservation rather than overwriting its provenance. Exact handoff replay retains
+the same request and saves nothing. A save that commits then throws can be read
+from a reopened container; failure before commit leaves the original reservation
+available for explicit retry. Existing-only read creates no job, candidate or
+receipt. Cancellation denies staging and discovery.
+
+The existing child stays needs-attention with zero queue attempts. Legacy
+photo/audio/preparation/reservation readers and generic discard cannot consume
+this envelope. Local source occupancy and parent erasure remain unchanged. There
+is no file read, item claim, upload delivery, upload receipt settlement,
+readiness projection, per-child cleanup, retirement or provider execution in
+this boundary. Those require separate retained lifecycle work; saved files must
+be verified again before delivery. No automatic caller or UI access is
+installed. Gates remain disabled and ordinary access nil. No wire payload or
+SwiftData entity changes.
+
+### Native video upload attempt lifecycle
+
+`ObservationVideoUploadLifecycle` reads the original V1 handoff unchanged, or a
+closed V2 envelope with exactly `version`, `kind`, `staged_base64` and
+`attempts`. The kind stays `video_evidence_upload`. The nested V1 bytes remain
+verbatim. V2 requires one through seven attempts, never more than the original
+inventory. Every attempt has exactly canonical `attempt_id`, canonical
+`media_id`, `phase` and nullable canonical `receipt_base64`. Phases are running,
+unknown or observed. Only the last entry can be running/unknown, with no
+receipt. All earlier entries must be observed. Attempt IDs are unique and cannot
+alias the owner, analysis, source, observation, media or original reservation
+attempt. The total bound is 10,034,580 bytes: base64 expansion of the
+7,467,048-byte handoff, seven 8,192-byte receipt expansions with 256-byte
+per-attempt overhead, and 256 fixed bytes. Nested base64 and persisted text are
+bounded before Data allocation.
+
+The local transaction is the claim authority. It compares the exact snapshot,
+container, account/source proof, pristine held row/job and result/erasure
+fences. It appends one running attempt for the first inventory item lacking
+saved ready evidence. It never accepts a caller-selected item or creates another
+child. A claim save that commits then loses its reply leaves running work held;
+read does not reconstruct a dispatch capability. A running or unknown tail
+cannot be reclaimed, reopened into dispatch, or skipped. Queue attempt counters
+remain zero and ordinary inference stays denied.
+
+Known receipt settlement retains the same opaque claim and validates the
+complete original cohort, owner, stable object IDs, fixed expiry and monotonic
+readiness against every earlier receipt. The claimed item must be ready in the
+new receipt. A receipt may also prove later items ready; subsequent claims skip
+those items. Every raw receipt is retained verbatim. Exact duplicate settlement
+saves nothing; a changed receipt or stale claim after a successor is rejected.
+Settlement can replace exact running or same-attempt unknown metadata. Failure
+before commit leaves the old state; commit-then-throw permits exact receipt
+replay.
+
+`settlingVideoUpload` permits transaction cancellation bypass only for a scoped
+known receipt and cannot be mixed with another settlement kind. It never
+bypasses account/source/erasure or exact claim validation. Read, claim,
+validation and unknown hold retain cancellation checks. A network failure or
+unsupported response may only leave/hold the existing attempt; this API supplies
+no retry or replacement. All-ready receipt evidence terminates item claims but
+grants no provider execution or cleanup authority. Retained upload delivery,
+exact recovery, receipt-bound cleanup and protected execution remain separate
+checkpoints. Gates remain disabled and ordinary access nil. No wire contract or
+SwiftData entity changes.
+
+### Native retained video upload delivery
+
+`ObservationVideoUploadService` runs only inside the explicit
+`ObservationVideoUploadOwner` scope keyed by exact lifecycle snapshot, account
+session, generation and container. It saves each initial next-item claim before
+awaiting preparation or transport. The live preparation seam reads and verifies
+the complete original saved cohort under the existing file locks, selects only
+the claimed media ID, and constructs Wire1 on a cancellable utility task from
+the original reservation candidate bytes. It revalidates cancellation, account,
+connectivity and exact durable claim after read/preparation awaits and before
+transport. Returned prepared wire must match the saved candidate, metadata
+request and claimed item. Missing/damaged media denies delivery; no
+preprocessing, replacement evidence or replacement operation is generated.
+
+Each upload receives the exact previously saved whole-cohort receipt. Known
+response settlement has a distinct account/container/session predicate and
+separate error path: failed settlement persistence cannot become an unknown
+network failure. Once durable, partial progress can authorize the next
+internally derived item under a fresh dispatch check. The loop is bounded by the
+original item count; every accepted receipt makes its target ready. All-ready
+returns without another claim. Unknown failures may hold the exact attempt;
+cancellation or lost dispatch authority can leave running work held. Neither
+state can rearm. Reopening grants discovery only, not a recovered dispatch
+capability.
+
+The owner coalesces only the same active key and holds one slot through actual
+lease exit. Connectivity cancellation closes dispatch while known same-account
+settlement remains possible. Auth invalidation denies both. Overlapping drains
+close admission until all captured tasks exit. The queue's explicit injected
+`requestVideoEvidenceUpload` checks current context/account and
+online/unconstrained state; both Auth barriers invalidate and await it, and both
+connectivity paths cancel it. Completion follows lease release and only reaches
+the same current context/account. No automatic caller, scheduler admission or
+ordinary UI access is enabled.
+
+Upload-ready receipts do not authorize deletion of local source or derived
+media. The service retains all cohort files. Existing parent erasure remains
+independent; future per-child cleanup must obtain its own durable
+execution/retirement/erasure authority and await receipt-bound deletion. No
+provider invocation, cleanup receipt, refund, gate activation or hosted
+scheduling is added by this checkpoint.
+
+### Video upload route acceptance boundary
+
+Synthetic tests now traverse the real route composition through owned
+allocation, conditional private object write, trusted HEAD tuple validation and
+exact reader12 completion for source, frame and audio items. Existing-object 412
+still requires matching HEAD; a length mismatch or erased marker forbids
+completion. Simulated completion response loss does not create another object or
+invoke a provider: exact ready replay observes the saved cohort and skips the
+write. The exact Wire1 metadata ceiling is exercised with legal JSON whitespace;
+one extra byte fails before RPC. This is local composition evidence, not hosted
+runtime/storage/CDN/erasure or device qualification. Execution admission still
+rejects V4 until its separate backend contract is established. Gates and
+ordinary access remain disabled.
+
+### Prepared video ready-evidence execution prerequisite
+
+The private SQL `assert_ready_video_analysis_evidence` guard verifies the exact
+saved V4 input, original source occupancy and complete ready, unexpired
+allocated cohort under canonical locks. It rejects partial or missing evidence,
+changed identity, metadata, object IDs, mixed legacy cohorts and permanent
+erasure. Only read-committed snapshots are supported. The assertion grants no
+durable authority beyond its calling transaction and is unavailable to API
+roles.
+
+Future admission/dispatch must call this guard in the transaction that changes
+execution state, alongside its own gate, namespace, quota and claim checks.
+Calling it separately cannot authorize a provider call. V4 remains rejected by
+executable input parsing; no public payload, provider invocation, completion,
+refund, cleanup permission or expiry bypass is introduced.
+
+### Prepared private V4 initial funding
+
+Private `admit_video_observation_analysis(owner, input, ip_hash)` atomically
+inserts the exact bound V4 intent and makes its single initial quota
+reservation. The default-off `video_analysis_enabled` flag is independent of
+upload gates. Fresh admission also requires admission/protected/media gates,
+verified legal and processor eligibility through the existing quota boundary,
+and the exact complete ready, unexpired cohort. Profiles remain
+`multimodal_video_frames_v1` or `multimodal_video_audio_v1` according to the
+saved provenance graph.
+
+Saved input and original reservation/lease/request identity must match on
+replay. An exact replay returns the original saved quota even after expiry or
+gate closure; it neither reserves again nor confers dispatch authority.
+Ownership and deletion checks precede replay. Unknown execution is
+recovery-only. This function is inaccessible to API roles and is not wired to
+public begin or advance; V4 remains rejected by executable parsing. Public
+claim/dispatch and result, reader and completion integration are still required
+before an API execution path can open.
+
+### Private V4 dispatch preparation
+
+The ungranted SQL helpers
+`claim_video_observation_analysis(owner, observation,
+analysis)` and
+`dispatch_video_observation_analysis(owner, observation,
+analysis, work_token, provenance)`
+prepare V4 execution without adding public RPC or Edge callers. Fresh operations
+require the separate default-off `video_dispatch_enabled` flag, existing
+modality/admission/source-dispatch controls, exact ready/unexpired evidence,
+original attempt-one funding and processor consent. Claim replacement is
+restricted to admitted work and never renews the quota lease. Dispatch validates
+the current work token and commits one invocation with its immutable transaction
+witness.
+
+Only the first successful dispatch returns `may_dispatch=true`. A matching
+replay returns the same invocation with `may_dispatch=false`, even after media
+expiry or closed fresh gates. Changed work token or provenance is rejected.
+Unknown execution cannot be claimed again and remains charged/held. No result
+settlement, refund, occupancy release or cleanup authority is introduced. Public
+begin/advance/recovery and executable V4 parsing remain unavailable;
+result/reader/settlement contracts are required before connecting a caller.
+
+### Private V4 received-outcome recovery
+
+The ungranted SQL writer
+`record_video_observation_outcome(owner, observation,
+analysis, quota_token, value)`
+retains the existing `SavedAnalysisOutcome` version-one envelope: exact
+provenance, outcome and usage. Its JSONB text is at most 1 MiB; usage is an
+object of known accounting fields at most 2 KiB. Outcome is exactly a draft with
+an object result, refusal, or invalid_output. The writer checks the immutable
+dispatch witness and original invocation/provenance before the first save. It
+does not validate result semantics or normalize/account usage. Exact replay
+requires the unchanged saved value and original quota token, and does not depend
+on invocation retention. A late answer can be saved after fresh gates close or
+work/media expire. Owner deletion still denies every access.
+
+Private `read_video_observation_outcome(owner, observation, analysis)` returns
+`state`, original `input`, and `provider_outcome` only. A null outcome means no
+received answer is stored for that dispatched identity; it never permits another
+provider call. No quota/work token is exposed, no claim is renewed and no credit
+is settled or refunded. V4 is excluded from legacy recovery discovery. There is
+no public wire, native consumer or executable parser change. Known-result
+settlement, result validation and public reader integration remain held.
+
+### Prepared V4 semantic draft
+
+`buildPreparedVideoDraft(savedInputBytes, result, species)` reparses the bounded
+original V4 input and returns a pure storage draft with its original
+observation, child, source, request digest and complete video evidence graph.
+Frame order, optional audio, descriptions, digests and derivation metadata
+retain their values; JSON object-key order is not an identity or
+byte-preservation guarantee. The saved request bytes are not rewritten. The
+shared canonical Identify validator binds result scan identity, validates result
+semantics, strips mutable review and funding fields, and adds only the
+independently resolved matching taxonomy link. The prepared draft retains the
+existing 1 MiB minus 4 KiB metadata reserve.
+
+Draft schema4 is the input generation, not a public result snapshot version.
+Result snapshot4 already represents prepared audio; future video result
+publication requires a distinct version and reader contract. This builder has no
+executable caller, SQL write, accounting, append, settlement, occupancy release
+or cleanup authority. Public executable V4 parsing remains denied. The private
+draft persistence boundary below binds the canonical result, except its
+independently verified species link, to the exact saved received outcome before
+any known-result settlement. The separate prepared V4 outcome normalizer below
+uses visual evidence for five frames and audio evidence only for the saved
+optional audio branch; it remains disconnected from public execution.
+
+The canonical result import also makes `upload-observation-video` a transitive
+Identify-contract dependency through its shared admission module. The deployment
+graph test includes that route; this dependency does not activate execution.
+
+### Private V4 draft persistence
+
+The ungranted
+`record_video_observation_draft(owner, observation, analysis,
+quota_token, draft)`
+accepts the prepared builder's exact identity/evidence and requires a saved
+draft outcome. Its result minus `species_id` must equal the saved result; the
+independently checked dictionary link is the only enrichment. Result provenance
+must equal both outcome and immutable dispatch witness. Missing, refused or
+invalid outcomes cannot be promoted. Exact replay accepts only the already saved
+draft and still applies owner/source deletion fencing.
+
+This stores evidence only: state stays `dispatched`, usage remains unsettled and
+there is no credit settlement, completion receipt, result append, occupancy
+release or provider retry. It accepts late known evidence after expiry and after
+invocation retention. Full semantic validation belongs to the Edge builder; SQL
+adds identity/taxonomy/projection checks. The helper has no public wire or
+native caller. Future known-result accounting and settlement remain separate.
+
+### Private V4 accounting preparation
+
+The ungranted
+`account_video_observation_draft(owner, observation, analysis,
+quota_token)`
+accepts only an exact saved successful draft and its original committed
+execution. A successful ledger projection is independently checked after
+idempotent accounting; an already reconciled unknown event, mismatched usage or
+missing original invocation keeps the child held. It never overwrites an event,
+creates another invocation or refunds a reservation.
+
+The private immutable proof permits exact replay after invocation retention.
+First accounting atomically records that proof, saves received usage and
+advances only to `draft`. Credit remains held until future durable completion;
+no result/receipt append, source release, public/native caller or activation is
+installed. Refusal/invalid-output terminal settlement is prepared separately
+below. This private accounting receipt adds no public DTO or reader version.
+
+### Private V4 terminal settlement preparation
+
+The ungranted
+`settle_video_observation_terminal(owner, observation, analysis,
+quota_token)`
+consumes only saved `refusal` or `invalid_output` evidence. The caller cannot
+supply a replacement reason or usage. It checks original committed execution and
+exact ledger facts before atomically releasing a held complimentary allocation,
+recording `failed_terminal` with the mapped reason and usage, clearing the work
+claim and saving immutable proof. Paid admission requires proof that no
+allocation exists.
+
+Replay returns the original terminal proof after invocation pruning and does not
+repeat settlement or change entitlement epoch. Uncertain execution, missing
+original invocation, contradictory accounting or an already settled allocation
+without proof stays held. Quota is never refunded; result, completion receipt,
+source occupancy and erasure are unchanged. Existing generic RPCs remain closed
+to V4. There is no new public DTO, HTTP/native caller or activation. Successful
+video completion is prepared below; source release remains separate.
+
+### Private V4 successful completion preparation
+
+The ungranted
+`complete_video_observation_analysis(owner, observation, analysis, quota_token)`
+accepts an already accounted canonical video draft. It requires the original
+committed quota and exact immutable accounting proof, then validates the
+retained ready cohort and dictionary/projection before atomically appending
+result snapshot5, blank review authority, credit settlement and a saved receipt.
+Video input/draft4 is distinct from audio result4. No provider call or ledger
+rewrite occurs. Missing/erased evidence remains a denial; expiry or closed
+fresh-dispatch gates alone do not discard a known accounted result.
+
+The receipt retains the existing private shape: `snapshot` (exact JSON text),
+`plan_used`, `credit_consumed`, and `entitlement_after`. Complimentary funding
+is consumed at durable completion, or released with `paid_before_completion` if
+the owner upgraded. Paid admission has no allocation. Replay returns those exact
+saved bytes after invocation retention without changing entitlement epoch or
+current selection/review. Deletion still fences replay.
+
+Public history page/state reader11 admits result snapshot5 alongside snapshots
+1–4. Snapshot5 requires manifest4 with the closed video provenance graph and a
+nonnull source analysis distinct from every artifact ID. Deno and native readers
+retain original snapshot bytes; parsed metadata is not rewritten into storage.
+Native storage uses existing opaque fields without a schema shape change. Older
+readers still reject the whole history, including older cursor pages and
+selected children. Reader11 applies only to these named read RPCs; enrollment,
+selection, review and execution keep their existing protocols and restrictions.
+Actions still reject video histories and explicit pending V4 children. This does
+not advance the app-wide Identify header or the separate evidence/source
+protocols. No HTTP/native completion caller or source-release proof is
+installed; occupancy stays held and activation gates remain disabled.
+
+### Prepared video completion source release
+
+The private V4 completion owner may now establish a separate durable source
+release proof in the same transaction. This introduces no public RPC, DTO or
+reader version. Existing `source_completion_release_enabled` stays false.
+Successful proof storage and exact occupancy deletion are atomic with result
+append, credit settlement and saved completion receipt; persistence failure
+rolls back all of them. Closed release gate or unavailable proof retains
+occupancy, and replay never backfills a completion that originally held.
+
+Video release uses its immutable accounting receipt plus exact completed product
+and settled funding identity. Unlike the original photo/audio candidate, it does
+not depend on a live invocation or recheck fresh admission expiry. Pruned
+invocation, expired admission and closed dispatch/media gates do not discard an
+accounted known result. Unknown or mismatched execution never authorizes
+release, another provider invocation or a refund.
+
+The permanent proof excludes mutable selection, review and current entitlement.
+Retained evidence is not erased. Reader12 video reservation admits a new
+same-source identity only when all predecessor results/bindings have exact
+release proof and complete bounded coverage. Existing completed identity remains
+held; page/state reader11 remains read-only. External qualification and Field
+Trip reconciliation are separate requirements.
+
+### Prepared V4 received-outcome normalization
+
+`capturePreparedVideoOutcome` strictly reparses the saved V4 input and binds its
+optional audio branch to the original video quota profile and Gemini execution
+configuration. Five frames always supply visual evidence; audio is present only
+when the validated graph contains its audio artifact. The shared result policy
+uses the original tier's diagnostic threshold. Silent video uses visual
+normalization; video with audio uses blended normalization, including structured
+human handling, without requiring the audio-only discriminator.
+
+The pure helper preserves schema-one saved outcome, provenance and usage and
+binds the normalized result to the observation. Safety rejection becomes
+refusal; malformed or oversized received results become invalid output. Unknown
+execution and operational failure produce no saved outcome. The helper performs
+no I/O, provider invocation, taxonomy lookup, accounting, refund or settlement;
+callers must still bind the original saved input/quota and immutable dispatch
+witness. It does not rewrite saved input or already saved outcomes.
+
+Generic capture and the claimed generic executor explicitly reject V4 before
+performing work. Public executable parsing, begin/advance/recovery RPCs and
+native execution remain closed to V4. Gates remain disabled and ordinary access
+nil. This prepares producer normalization within video acceptance; it is not
+runtime or device qualification.
+
+### Prepared service-only video execution composition
+
+The SQL service boundary for V4 input consists of
+`begin_owned_observation_video_analysis(owner,input,ip_hash)`,
+`list_observation_video_analysis_recovery()`,
+`claim_observation_video_analysis_recovery(owner,observation,analysis)` and
+`advance_owned_observation_video_analysis(owner,observation,analysis,work,operation,payload)`.
+Only `service_role` can execute them. Both orchestration gates default false;
+these routines are not authenticated client APIs or deployed worker scheduling.
+
+Begin returns `{state,claimed:false}` or a claimed120-second work lease with
+`work_token`, exact `input` and original `quota`. Recovery additionally returns
+`provider_outcome` and nullable `draft`; it only claims a durable received
+outcome or accounted draft. Discovery returns at most32 owner/parent/child
+identities and grants no authority. Unknown dispatch never becomes fresh work.
+
+Advance accepts a closed operation set. `materialize` returns the exact ready
+video evidence receipt under fresh dispatch validation. `dispatch` accepts
+`{provenance}` and returns the immutable invocation decision. `outcome` accepts
+`{quota_token,value}` under the original quota token, including after worker
+expiry; the value is the bounded canonical received outcome. `draft` accepts
+`{draft}`. `resolve_species`, `account`, `complete`, `fail` and `release` accept
+only `{}`. Except late outcome, each operation requires the exact live work
+token. Species resolution returns null or dictionary identity only. Account,
+complete and fail return their existing durable proofs/receipt. Draft returns
+the unchanged dispatched state; outcome/release return `{}`.
+
+Known-result operations do not invoke a provider, refresh quota or refund
+unknown execution. They retain each private owner's identity, deletion,
+accounting and retained-evidence guards. Release only clears work and delays
+recovery60 seconds. Worker inputs, quota, outcome and object inventory are
+private and must never reach client responses or logs. Legacy execution APIs
+continue denying V4; reader11 completed-result support is unchanged. Edge/native
+execution composition and integrated acceptance remain required. See the
+[database owner](04-database-schema.md#service-only-v4-orchestration).
+
+Video `resolve_species` only reads a case-normalized, unambiguous existing
+public biological dictionary identity with a GBIF key. Missing, unverified or
+ambiguous identity fails closed without inserting model-authored taxonomy. Any
+dictionary materialization belongs to the established verified resolver; it is
+not provider retry authority.
+
+### Gated video Edge execution
+
+`analyze-observation-video` accepts only the closed V4 admission JSON through
+`parsePreparedVideoAdmission`, with a 1 MiB JSON body limit and verified JWT
+owner. It calls the service-only video begin RPC; neither caller owner nor
+private work, quota, outcome or inventory fields are accepted. Its closed
+response is `{schema_version:1,observation_id,analysis_id,state}` with
+private/no-store headers: 200 for complete/failed_terminal and 202 for
+admitted/dispatched/draft. Invalid input is 400, unavailable/foreign history
+404, immutable admission conflict 409, and uncertain execution or worker
+conflict 503. Recover the saved identity after uncertainty; a request is never
+authority for another provider invocation.
+
+The separate video worker snapshots and bounds private claims, verifies the
+original quota/graph/Gemini binding, and validates the entire retained source,
+five frames and optional WAV before dispatch. The source MP4 is verified but
+never sent to the provider. Ordered descriptions, five immutable derived frames
+and optional derived audio are the only model evidence. Frame/audio lineage and
+capture counts remain explicit. A positive durable dispatch decision permits one
+invoke. Unknown, thrown or operational outcomes remain held without refund.
+Received outcomes persist under the original quota token before taxonomy,
+draft/accounting and completion. Known-result recovery never prepares a provider
+or rereads media. Lease release is awaited and cannot mask the original failure.
+
+`recover-observation-video-analyses` requires exact environment-resolved service
+authorization and a closed empty JSON object, at most1024 bytes. It returns only
+`{attempted,completed}`. Discovery admits at most32 identities; no new job
+starts after the40-second discovery-pass deadline. Each RPC has the
+existing12-second bound; this is not a hard40-second total runtime ceiling. One
+bad/stale claim cannot starve the remaining list. Only claimed dispatched/draft
+work advances; initial claims and unknown execution cannot invoke a provider
+through recovery. The existing generic recovery route retains its10-candidate
+default.
+
+Submission body/materialization/pre-invoke checks share request cancellation and
+a110-second deadline; cohort reads also have a20-second deadline. Provider
+execution retains the shared adapter's own deadline. Once an outcome is
+received, persistence and known-result settlement proceed under their own
+bounded RPCs, even after request cancellation. Service recovery body ingestion
+has a5-second bound. There is no detached required cleanup.
+
+Both orchestration gates and every existing activation gate remain disabled.
+These separate source routes supersede the earlier no-Edge-consumer preparation
+status; generic execution/parsers still reject V4. Native execution, integrated
+acceptance and external runtime/device qualification remain pending. No function
+deployment, scheduling or ordinary native access is installed by this change.
+
+### Native ready-video execution ownership
+
+`ObservationVideoExecutionWork` is a closed version1 `video_execution` local
+successor of the exact fully ready upload lifecycle. It retains that envelope,
+all reservation/request/receipt bytes, source snapshot digest and file identity.
+It cannot be constructed from partial or unknown upload progress. Its bounded
+base64 envelope is derived from the upload lifecycle maximum; decoding does not
+grant dispatch permission.
+
+`ObservationVideoExecutionStore` stages only an existing held V58 child/job with
+matching source proof, owner/account, container, pristine row/job, result and
+erasure fences. Exact handoff replay precedes consent and saves nothing. Fresh
+staging and consumption require current fixed-Gemini authorization outside the
+persistence lock. Fresh stage, claim, consume and dispatch validation require
+the saved receipt to remain unexpired; existing-state reads/replay preserve
+evidence after expiry without renewing authority.
+
+The only initial claim changes idle to running with one immutable, disjoint UUID
+attempt. Consumption durably saves an irreversible flag before returning a
+privately constructed dispatch permit. A failed save returns no permit,
+including when the save committed before throwing. Running/held work cannot
+claim again; read/reopen cannot recreate a permit. Hold preserves the original
+attempt and consumption, with no reset, retry, provider invocation or refund.
+Interrupted unconsumed work also stays held pending a future explicit safe
+recovery boundary.
+
+This checkpoint supplies the local prerequisite only. No HTTP transport, queue
+execution owner, outcome settlement/cleanup, scheduler discovery or ordinary UI
+installation is attached. Existing preparation/upload/generic readers reject the
+successor; source files and source occupancy remain retained. The V58 persisted
+schema is unchanged because existing opaque job metadata owns the envelope.
+Gates remain disabled, ordinary access nil. Native delivery and integrated,
+external and device acceptance remain separate.
+
+### Native video submission transport
+
+`ObservationVideoAnalysisTransport.submit` accepts the private permit produced
+only after durable execution consumption and fixed-Gemini dispatch
+authorization. It POSTs the exact saved V4 bytes to the fixed
+`analyze-observation-video` route, with entitlement3, current identification
+protocol and recipient headers. The existing Auth dispatcher retains account
+ownership across I/O and revalidates consent and the caller's dispatch fence
+immediately before sending. No logical retry,401 refresh, generic analysis route
+or service recovery endpoint is used.
+
+A dedicated pinned session bounds request/resource/wall-clock duration to130
+seconds; the shared ordinary90-second resource ceiling is unchanged. The
+streamed response limit is4096 bytes, including declared-size rejection. The
+closed version1 receipt must match observation/analysis IDs, a supported state
+and JSON MIME. Complete/failed_terminal require HTTP200; admitted/dispatched/
+draft require HTTP202. Unknown fields, versions, states and identity/status
+mismatches are rejected. After validation, known-response settlement uses its
+separate caller fence without reapplying dispatch cancellation.
+
+This adds an inert transport, not a queue execution installation. Its caller
+must validate the current saved permit and retain uncertain consumed work;
+transport errors and nonterminal receipts never authorize resubmission or
+refund. Completed receipts contain no result, and failed_terminal is not a
+cleanup proof. Exact reader11 history state is the existing completed-result
+recovery seam; the private provider outcome RPC remains inaccessible. Retained
+queue composition, awaited receipt-bound file cleanup and integrated acceptance
+remain pending. Exact V5 binding and local completion are defined below. Legacy
+execution readers and generic action gates remain closed to video; activation
+gates stay disabled and ordinary access stays nil.
+
+### Native video result completion
+
+`ObservationReanalysisResult.decode(_:matching:)` binds a completed V5 snapshot
+to the original V4 video request before local mutation: parent, child, source,
+request digest and canonical evidence manifest must match. The shared strict
+snapshot parser validates the complete result, provider and video provenance;
+original result bytes are preserved.
+
+`ObservationVideoExecutionStore.complete` accepts only consumed running/held
+work with the exact saved metadata, preparation proof and container. Within the
+shared persistence transaction it revalidates account, immutable source, parent,
+child namespace, row/job and erasure scope. It atomically appends the result,
+records `ObservationReanalysisErasureReceipt`, removes the child queue row/job
+and preferred-goal hint, and leaves selection and source bytes unchanged. An
+already-synced result must be byte-identical with matching owner, parent,
+version and completion time. A completion replay requires that exact result, the
+exact durable receipt and no remaining queue pair. Conflicts never retire work.
+Save-before-throw and save-after-commit ambiguity preserve this boundary.
+
+Received-outcome settlement does not reapply task cancellation, expired upload
+credentials or fresh dispatch consent; current account/source scope remains
+mandatory before mutation and immediately before save. No dispatch permit,
+retry, refund, file deletion or remote retirement is created. After commit the
+future retained execution owner must await receipt-bound cleanup. The committed
+receipt persists across disk reopen while the queue pair remains absent; the
+future retained cleanup owner must restore it through the existing receipt
+format. This checkpoint adds no separate receipt-recovery API. Queue composition
+and reader11 lease fences remain separate work; activation and ordinary access
+remain disabled.
+
+`ObservationVideoExecutionStore.readSyncedForSettlement` recovers only consumed
+running/held work with an already-stored V5 result bound to its exact request.
+It checks the result's owner, parent, version, time and bytes, plus current
+source/account/namespace/row/job scope. This permits completion after sync and
+restart while ordinary reads remain closed on result collisions. Missing or
+mismatched results and unconsumed work are rejected; no claim or dispatch permit
+is returned. Completion still rechecks exact result bytes before retirement.
+
+Synced settlement compares the result parent with the exact enrolled parent's
+stored ID, including supported historical uppercase UUIDs. Queue identity stays
+normalized. Case-folding a mismatched child-parent reference is not allowed.

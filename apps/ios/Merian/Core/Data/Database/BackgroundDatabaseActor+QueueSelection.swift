@@ -92,6 +92,7 @@ extension BackgroundDatabaseActor {
 
             inspectedCount += page.count
             for scan in page {
+                guard scan.permitsOrdinaryInference else { continue }
                 guard scan.queueNextRetryAt == nil
                         || (scan.queueNextRetryAt ?? now) <= now,
                       !excludingScanIds.contains(scan.id) else {
@@ -189,6 +190,7 @@ extension BackgroundDatabaseActor {
 
             let now = Date()
             for scan in scans {
+                guard scan.permitsOrdinaryInference else { continue }
                 let snapshot = scan.capturedMediaSnapshot
                 let imagePaths = scan.inferenceImagePaths?.isEmpty == false
                     ? scan.inferenceImagePaths ?? []

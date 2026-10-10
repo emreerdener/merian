@@ -1,5 +1,7 @@
-// Prepared internal seam only. No endpoint, worker schedule or API execution
-// grant exists yet. Verified-session identity must be supplied by its future owner.
+import { MEDIA_BUDGETS } from "../mediaBudgets.ts";
+
+// Private primitive seam. The authenticated upload owner reserves full cohorts;
+// this per-item helper alone is never an API admission boundary.
 export const EVIDENCE_MAX_BYTES = 32 * 1024 * 1024;
 export const EVIDENCE_TYPES = [
   "image/jpeg",
@@ -37,7 +39,11 @@ export interface EvidenceRepository {
   finishErasure(claim: EvidenceErasure, success: boolean): Promise<boolean>;
 }
 export interface EvidenceStorage {
-  writeOnce(receipt: EvidenceReceipt, bytes: Uint8Array): Promise<void>;
+  writeOnce(
+    receipt: EvidenceReceipt,
+    bytes: Uint8Array,
+    signal?: AbortSignal,
+  ): Promise<void>;
   signedRead(receipt: EvidenceReceipt): Promise<string>;
   erase(objectId: string): Promise<void>;
 }
@@ -57,6 +63,56 @@ export function parseEvidenceReceipt(
   value: unknown,
   identity: EvidenceIdentity,
   upload?: EvidenceUpload,
+): EvidenceReceipt {
+  return parseReceipt(
+    value,
+    identity,
+    upload,
+    EVIDENCE_TYPES,
+    1,
+    EVIDENCE_MAX_BYTES,
+  );
+}
+export function parseAudioEvidenceReceipt(
+  value: unknown,
+  identity: EvidenceIdentity,
+  upload: EvidenceUpload,
+): EvidenceReceipt {
+  const keys = [
+    "owner_id",
+    "observation_id",
+    "analysis_id",
+    "media_id",
+    "content_type",
+    "byte_count",
+    "sha256",
+    "object_id",
+    "expires_at",
+    "ready_at",
+  ];
+  if (
+    !value || typeof value !== "object" || Array.isArray(value) ||
+    Object.keys(value).length !== keys.length ||
+    !keys.every((key) => Object.hasOwn(value, key))
+  ) {
+    throw new Error("invalid_history_evidence");
+  }
+  return parseReceipt(
+    value,
+    identity,
+    upload,
+    ["audio/wav"],
+    46,
+    MEDIA_BUDGETS.maxAudioRawBytes,
+  );
+}
+function parseReceipt(
+  value: unknown,
+  identity: EvidenceIdentity,
+  upload: EvidenceUpload | undefined,
+  types: readonly string[],
+  minimum: number,
+  maximum: number,
 ): EvidenceReceipt {
   validateIdentity(identity);
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -80,9 +136,9 @@ export function parseEvidenceReceipt(
     )
   ) throw new Error("invalid_history_evidence");
   if (
-    !(EVIDENCE_TYPES as readonly string[]).includes(row.content_type) ||
-    !Number.isSafeInteger(row.byte_count) || row.byte_count < 1 ||
-    row.byte_count > EVIDENCE_MAX_BYTES ||
+    !types.includes(row.content_type) ||
+    !Number.isSafeInteger(row.byte_count) || row.byte_count < minimum ||
+    row.byte_count > maximum ||
     typeof row.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(row.sha256) ||
     typeof row.expires_at !== "string" ||
     !Number.isFinite(Date.parse(row.expires_at)) ||

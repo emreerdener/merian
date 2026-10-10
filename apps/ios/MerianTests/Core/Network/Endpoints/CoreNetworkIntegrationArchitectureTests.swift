@@ -83,9 +83,9 @@ struct CoreNetworkIntegrationArchitectureTests {
         // Reviewed library transitions add durable recovery, account isolation,
         // mutation admission and transfer-status composition. Private transition
         // state stays in the existing facade; extracted owners retain the 600-line
-        // ceiling above. This is a feature budget, not a new oversized exemption.
+        // ceiling above. The async purge adds one post-await session fence line.
         #expect(
-            authProductionLineCount <= 7_886,
+            authProductionLineCount <= 7_887,
             "Auth production grew beyond its reviewed budget"
         )
         #expect(
@@ -99,7 +99,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(
             authProductionLineCount
                 + purchaseIdentityProductionLineCount
-                + facadeLineCount <= 13_694,
+                + facadeLineCount <= 13_695,
             "The Auth facade extraction surfaces grew in aggregate"
         )
         let models = try networkSource(
@@ -4186,7 +4186,9 @@ struct CoreNetworkIntegrationArchitectureTests {
         expectOwners(
             containing: "DetachedWork.value(",
             in: sources,
-            equal: ["Endpoints/MerianNetworkClient+Inference.swift"]
+            equal: ["Endpoints/MerianNetworkClient+Inference.swift",
+                    "Endpoints/MerianNetworkClient+ObservationAudioEvidence.swift",
+                    "Endpoints/MerianNetworkClient+ObservationEvidence.swift"]
         )
         #expect(sources.values.allSatisfy { !$0.contains("Task.detached") })
     }
@@ -4286,11 +4288,14 @@ struct CoreNetworkIntegrationArchitectureTests {
         // work; refreshing these sessions could recursively await their own task.
         #expect(unauthorizedRecoveryOptOutOwners == [
             "Endpoints/MerianNetworkClient+AIReview.swift",
+            "Endpoints/MerianNetworkClient+ObservationEvidence.swift",
             "Endpoints/MerianNetworkClient+ObservationPublication.swift",
+            "Endpoints/MerianNetworkClient+ReanalysisRecovery.swift",
             "MerianNetworkClient.swift",
             "Endpoints/MerianNetworkClient+Collections.swift",
             "Endpoints/MerianNetworkClient+Inference.swift",
-            "Endpoints/MerianNetworkClient+ScanLifecycle.swift"
+            "Endpoints/MerianNetworkClient+ScanLifecycle.swift",
+            "Transport/ObservationHistoryMutationTransport.swift"
         ])
         #expect(dispatcher.contains("final class AuthenticatedTransportDispatcher"))
         #expect(dispatcher.contains("private let sessionTransport: PinnedNetworkTransport"))
@@ -4324,20 +4329,19 @@ struct CoreNetworkIntegrationArchitectureTests {
             ).count == 3
         )
         #expect(pinnedTransport.contains("private final class MerianTLSDelegate"))
-        #expect(client.contains("private let sessionTransport: PinnedNetworkTransport"))
-        #expect(
-            client.contains(
-                "private let authenticatedTransport: AuthenticatedTransportDispatcher"
-            )
-        )
-        #expect(client.contains("AuthenticatedRequestExecutor("))
-        #expect(client.contains("dependencies: .live("))
-        #expect(
-            client.components(separatedBy: "PinnedNetworkTransport()").count
-                == 2
-        )
-        #expect(client.contains("self.sessionTransport = sessionTransport"))
-        #expect(client.contains("sessionTransport: sessionTransport"))
+        let assembly = client
+        #expect(assembly.contains("private final class NetworkTransportAssembly"))
+        #expect(client.contains("private let transport: NetworkTransportAssembly"))
+        #expect(assembly.contains("private let sessionTransport: PinnedNetworkTransport"))
+        #expect(assembly.contains("private let authenticatedTransport: AuthenticatedTransportDispatcher"))
+        #expect(assembly.contains("private let baseURL: String"))
+        #expect(assembly.contains("AuthenticatedRequestExecutor.live(using: authenticatedTransport)"))
+        #expect(client.contains("transport.execute("))
+        #expect(executor.contains("Self(dependencies: .live("))
+        #expect(assembly.components(separatedBy: "PinnedNetworkTransport()").count == 2)
+        #expect(assembly.components(separatedBy: "AuthenticatedTransportDispatcher(sessionTransport:").count == 2)
+        #expect(assembly.contains("self.sessionTransport = sessionTransport"))
+        #expect(assembly.contains("sessionTransport: sessionTransport"))
         #expect(!dispatcher.contains("PinnedNetworkTransport()"))
         #expect(!pinnedTransport.contains("SupabaseManager"))
         for forbiddenToken in [
@@ -4470,6 +4474,24 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(pinnedTransportTests.contains("systemTrustIsValid: false"))
     }
 
+    @Test func analysisReviewTransportHasOnlyTypedDomainAccess() throws {
+        let sources = try networkSources()
+        let consumers = Set(sources.compactMap { path, text in
+            text.contains("observationHistoryMutationTransport") ? path : nil
+        })
+        #expect(consumers == ["MerianNetworkClient.swift", "Endpoints/MerianNetworkClient+ObservationAnalysisReview.swift",
+            "Endpoints/MerianNetworkClient+ProtectedInsightChat.swift"])
+        let transport = try networkSource("Transport/ObservationHistoryMutationTransport.swift")
+        #expect(transport.contains("private let dispatcher: AuthenticatedTransportDispatcher"))
+        let pinned = try networkSource("Transport/PinnedNetworkTransport.swift")
+        #expect(pinned.contains("tlsDelegate.urlSession(session, didReceive: challenge, completionHandler: completionHandler)"))
+        #expect(pinned.contains("configuration.urlCredentialStorage = nil"))
+        #expect(transport.contains("allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false"))
+        let reads = try networkSource("Transport/AdmissionRPCRequestPolicy.swift")
+        #expect(!reads.contains("review_owned_observation_analysis"))
+        #expect(!reads.contains("confirm-observation-analysis"))
+    }
+
     private static let endpointOwnerFilenames: Set<String> = [
         "MerianNetworkClient+AIReview.swift",
         "MerianNetworkClient+AccountDeletion.swift",
@@ -4486,9 +4508,14 @@ struct CoreNetworkIntegrationArchitectureTests {
         "MerianNetworkClient+IdentificationPreflight.swift",
         "MerianNetworkClient+MediaStorage.swift",
         "MerianNetworkClient+Notifications.swift",
+        "MerianNetworkClient+ObservationAnalysisReview.swift",
+        "MerianNetworkClient+ObservationAudioEvidence.swift",
+        "MerianNetworkClient+ObservationEvidence.swift",
         "MerianNetworkClient+ObservationPublication.swift",
         "MerianNetworkClient+ProductFeedback.swift",
+        "MerianNetworkClient+ProtectedInsightChat.swift",
         "MerianNetworkClient+PublicProfile.swift",
+        "MerianNetworkClient+ReanalysisRecovery.swift",
         "MerianNetworkClient+ScanEnrichment.swift",
         "MerianNetworkClient+ScanLifecycle.swift",
         "MerianNetworkClient+ScanPublication.swift",
@@ -4505,7 +4532,14 @@ struct CoreNetworkIntegrationArchitectureTests {
         "EdgeFunctionErrorPolicy.swift",
         "EdgeFunctionRoutePolicy.swift",
         "IdentificationBenchmarkRecord.swift",
-        "PinnedNetworkTransport.swift"
+        "ObservationAudioAnalysisTransport.swift",
+        "ObservationAudioOutcomeTransport.swift",
+        "ObservationHistoryMutationTransport.swift",
+        "ObservationSourceReservationTransport.swift",
+        "ObservationVideoAnalysisTransport.swift",
+        "ObservationVideoEvidenceTransport.swift",
+        "PinnedNetworkTransport.swift",
+        "AccountDeletionRecoveryTransport.swift"
     ]
 
     private static let authFoundationPaths: Set<String> = [

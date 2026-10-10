@@ -43,7 +43,7 @@ jobs:
 
       - name: Summarize workflow context
         env:
-          WORKFLOW_PURPOSE: "Compile all test targets in independent unit and UI jobs, execute the complete iOS unit-test target and deterministic analyzing, live-to-queue, queued-retry, and queued-completion UI smokes, then produce a validation-only Release archive with a validated app privacy manifest from the exact workflow SHA."
+          WORKFLOW_PURPOSE: "Compile all test targets in independent unit and UI jobs, execute the complete iOS unit-test target and deterministic analyzing, live-to-queue, queued-retry, queued-completion, and protected-chat UI smokes, then produce a validation-only Release archive with a validated app privacy manifest from the exact workflow SHA."
           WORKFLOW_REASON: "The final check reports on every pull request so it can be required safely; macOS jobs run only for iOS/watch/project/build-tooling inputs, every merge-queue commit, and manual dispatch."
         run: bash scripts/ci-run-summary.sh
 
@@ -496,7 +496,7 @@ jobs:
 
       - name: Run critical scan UI smokes
         id: xcode-critical-scan-ui
-        timeout-minutes: 20
+        timeout-minutes: 25
         run: |
           set -o pipefail
           xcode_project="Merian.xcodeproj"
@@ -524,6 +524,8 @@ jobs:
             -only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue \
             -only-testing:merianUITests/merianUITests/testQueuedRetryPresentationUsesSafeActionableCopy \
             -only-testing:merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff \
+            -only-testing:merianUITests/merianUITests/testExactQuestionPersistsAndReopeningKeepsPendingIdentity \
+            -only-testing:merianUITests/merianUITests/testStaleQuestionRequiresExplicitRefreshBeforeFreshChat \
             2>&1 | tee "$XCODE_UI_BUILD_LOG"
 
       - name: Validate and summarize critical scan UI smokes
@@ -556,6 +558,8 @@ jobs:
             --arg live_handoff_case "testLiveInsightConnectivityFailureTransitionsToDurableQueue" \
             --arg retry_case "testQueuedRetryPresentationUsesSafeActionableCopy" \
             --arg completion_case "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff" \
+            --arg protected_chat_case "testExactQuestionPersistsAndReopeningKeepsPendingIdentity" \
+            --arg refresh_chat_case "testStaleQuestionRequiresExplicitRefreshBeforeFreshChat" \
             --arg xcode "$(xcodebuild -version 2>/dev/null | paste -sd ' ' - || true)" \
             '{
               source_sha: $sha,
@@ -563,7 +567,7 @@ jobs:
               simulator_destination: $destination,
               test_step_outcome: $outcome,
               required_suite: $suite,
-              required_cases: [$analyzing_case, $live_handoff_case, $retry_case, $completion_case],
+              required_cases: [$analyzing_case, $live_handoff_case, $retry_case, $completion_case, $protected_chat_case, $refresh_chat_case],
               xcode: $xcode
             }' > "$XCODE_UI_EVIDENCE"
 
@@ -604,8 +608,10 @@ jobs:
               "testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow" \
               "testLiveInsightConnectivityFailureTransitionsToDurableQueue" \
               "testQueuedRetryPresentationUsesSafeActionableCopy" \
-              "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff"
-            echo "- Exact analyzing, live-to-queue, retry, and completion UX regressions: \`passed\`" \
+              "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff" \
+              "testExactQuestionPersistsAndReopeningKeepsPendingIdentity" \
+              "testStaleQuestionRequiresExplicitRefreshBeforeFreshChat"
+            echo "- Exact analyzing, live-to-queue, retry, completion, protected chat, and explicit refresh UX regressions: \`passed\`" \
               >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -920,6 +926,15 @@ jobs:
             "-seedNonBiologicalCollectionRoute" \
             "-seedPrivateScanMapFlow" \
             "-seedIdentificationHistory" \
+            "-seedSavedAudioChooser" \
+            "-seedAudioReanalysisSheet" \
+            "-seedSavedReanalysisFailure" \
+            "-seedProtectedInsightChat" \
+            "-seedProtectedChatStale" \
+            "-seedPublicationConsentChooser" \
+            "-seedSelectedNameConfirmation" \
+            "-seedConfirmationUndo" \
+            "-seedCandidateConfirmation" \
             "-seedWhatsNewLaunch" \
             "ui_test_queued_audio_handoff" \
             "ui_test_queued_retry_attention" \
@@ -1122,8 +1137,8 @@ jobs:
               "Full iOS tests: ${UNIT_TEST_RESULT:-unknown};" \
               "critical scan UI smokes: ${UI_TEST_RESULT:-unknown};" \
               "current-SHA Release archive: ${RELEASE_ARCHIVE_RESULT:-unknown}." >&2
-            echo "The complete unit target, all four critical scan UI smokes, and current-SHA Release archive must all pass." >&2
+            echo "The complete unit target, all six critical scan UI smokes, and current-SHA Release archive must all pass." >&2
             exit 1
           fi
 
-          echo "The exact workflow SHA passed the complete iOS unit target, all four critical scan UI smokes, and Release archive validation."
+          echo "The exact workflow SHA passed the complete iOS unit target, all six critical scan UI smokes, and Release archive validation."

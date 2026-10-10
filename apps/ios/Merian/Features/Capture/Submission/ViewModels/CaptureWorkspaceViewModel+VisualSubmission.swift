@@ -36,6 +36,10 @@ extension CaptureWorkspaceViewModel {
 
         let analysisTappedAt = CFAbsoluteTimeGetCurrent()
         guard canSubmitDraft else { return }
+        let refinementScanId = baseRefinementContext?.scanId
+        guard refinementScanId.map({ ObservationHistoryEnrollmentService.permitsLegacyMutation(
+            scanID: $0, container: modelContext.container
+        ) }) ?? true else { return }
         let submittedGeneration = draftSession.generation
         let stagedNodes = stagedCapture.orderedNodes
         let admissionSnapshot = CaptureSubmissionAdmissionSnapshot(stagedCapture)
@@ -71,7 +75,11 @@ extension CaptureWorkspaceViewModel {
         }
         // The preview crosses a network boundary. Never clear or submit a
         // staging buffer the user changed while that caller-scoped read ran.
-        guard isDraftReadyForSubmission, draftSession.generation == submittedGeneration,
+        guard baseRefinementContext?.scanId == refinementScanId,
+              refinementScanId.map({ ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                  scanID: $0, container: modelContext.container
+              ) }) ?? true,
+              isDraftReadyForSubmission, draftSession.generation == submittedGeneration,
               !shouldFinishAutomaticAttempt || shouldAutoSubmitStagedCapture,
               CaptureSubmissionAdmissionSnapshot(stagedCapture) ==
                 admissionSnapshot else {

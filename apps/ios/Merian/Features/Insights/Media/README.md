@@ -190,6 +190,12 @@ those reset rules. The interaction state also retains the last confirmed
 canonical scan ID through a transient nil-owner window and treats casing-only ID
 changes as equivalent, while a genuinely different scan prunes the prior state.
 
+The analyzing overlay disables hit testing on its entire host for audio, video,
+description and unfocused-photo decoration. Only a still-photo focus region
+keeps overlay hit testing enabled for its drag and resize handles. Disabling
+individual animation leaves is insufficient to guarantee that the full-size
+container passes touches to the underlying media controls.
+
 Audio pages expose a filename-scoped playback-control accessibility identifier
 only after the source has produced both a valid `AVAudioPlayer` and decoded
 spectrogram columns. The seeded queued-audio UI regression writes a real PCM WAV

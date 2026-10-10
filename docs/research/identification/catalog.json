@@ -1044,6 +1044,16 @@
       "path": "docs/rfcs/identification-gemini-photo-return-2026-10-03.md",
       "title": "Prepared Gemini photo return based on beta feedback",
       "role": "Product routing decision and prepared migration; not a new paid study or benchmark qualification."
+    },
+    {
+      "path": "docs/rfcs/identification-history-integrated-review-plan-2026-10-07.md",
+      "title": "Identification-history integrated review plan",
+      "role": "Supporting feature integration review; software validation only, not an identification experiment or production qualification."
+    },
+    {
+      "path": "docs/rfcs/identification-history-integrated-review-results-2026-10-07.md",
+      "title": "Integrated identification-history review results",
+      "role": "Supporting feature integration review; software validation only, not an identification experiment or production qualification."
     }
   ]
 }

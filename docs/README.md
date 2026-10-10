@@ -31,7 +31,7 @@ boundaries, and the [codebase map](./codebase-map.md) inventories source owners.
 | Database and Edge Functions             | [`services/supabase`](../services/supabase/README.md)                                                     |
 
 The app and widget target iOS 17.2; the companion targets watchOS 10.0. The
-active SwiftData schema is `MerianSchemaV57`. The
+active SwiftData schema is `MerianSchemaV58`. The
 [schema contract](./backend-and-data/04-database-schema.md) and
 [startup recovery guide](./backend-and-data/08-startup-store-recovery.md) own
 migration and install-over requirements.
@@ -54,6 +54,14 @@ controls.** The
 owns the verdict. Internal test builds may continue; that does not authorize
 production submission or public release.
 
+- [Identification-history integrated review plan](./rfcs/identification-history-integrated-review-plan-2026-10-07.md)
+  defines the final cross-surface review, evidence ledger and completion
+  criteria. The
+  [integrated review results](./rfcs/identification-history-integrated-review-results-2026-10-07.md)
+  record findings, repairs, validation and remaining qualification.
+- [Identification-history device review](./development-guides/24-identification-history-device-review.md)
+  provides Xcode launch profiles, guided fixture steps and a concise result
+  template.
 - [Testing strategy](./development-guides/08-testing-strategy.md) owns the
   compiled **iOS Build and Test** gate and **Supabase Candidate Validation**.
   Candidate validation uses a disposable database without production secrets or
@@ -106,22 +114,32 @@ production submission or public release.
 
 - [Reversible reanalysis and identification history](./rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md)
   defines the agreed stable-observation model, full analysis history, revisioned
-  restoration, funding and deletion boundaries, and staged acceptance gates. A
-  private backend foundation, native legacy-deletion refusal holds, and the
-  [V57 authority/display storage](./backend-and-data/04-database-schema.md#v57-per-analysis-authority-and-display-storage),
-  protocol-9 native admission, private photo resolution, saved-baseline import,
-  explicit previews, device-local saved-display capture, prepared native
-  enrollment admission with durable interruption/deletion protection, durable
-  native selection/Undo requests, owner selection transport with durable
-  conflict recovery, and funded child-analysis recovery are prepared locally. A
-  bounded native history list with preview, explicit selection and receipt-bound
-  Undo is also prepared behind injected access. Reader, append, enrollment and
-  selection gates remain disabled. Normal app access still uses replacement
-  reanalysis; the
-  [history sheet](./features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet)
-  is available only through the explicit Debug UI-test fixture. See the
+  restoration, funding and deletion boundaries, and staged acceptance gates. The
+  gated implementation now includes immutable append-only reanalysis, durable
+  enrollment/selection/review recovery, explicit private-photo publication
+  consent and immutable Field Chat. Durable confirmation Undo supports exact
+  primary/name receipts, including server eligibility recovery after reinstall;
+  it preserves selection and never restores an earlier rejection. The
+  [integrated review and Undo addendum](./rfcs/identification-history-integrated-review-results-2026-10-07.md#undo-confirmation-addendum--october-7-2026)
+  record candidate evidence without implying production readiness. Ordinary app
+  history access remains disabled; existing guided Debug profiles cover selected
+  prepared workflows, not every implemented action. The
+  [Undo verification matrix](./development-guides/08-testing-strategy.md#durable-confirmation-undo-verification)
+  records direct primary/name Undo UI and joined-presentation cancellation
+  coverage, with stale/imported UI and external qualification kept explicit.
+  Recovered rejection Undo, immutable candidate correction and evidence-based
+  retirement/outcome checks are implemented behind the same disabled access. The
+  [capability checkpoint](./rfcs/identification-history-integrated-review-results-2026-10-07.md#capability-checkpoint-through-e5bbb1783)
+  separates that work from the remaining audio/video integration. The
+  [prepared audio contract](./backend-and-data/05-api-contracts.md#prepared-audio-metadata-generation)
+  now includes gated backend upload/admission/execution and a prepared native V4
+  decoder/cache. Reader-10 action compatibility and durable native audio
+  input/execution are prepared, with real-persistence Debug UI recovery
+  coverage. Ordinary fresh entry remains held on the planned
+  [source-occupancy recovery contract](./rfcs/analysis-source-occupancy-contract-2026-10-08.md);
+  all activation gates remain false. See the
   [current schema](./backend-and-data/04-database-schema.md#prepared-observation-analysis-history),
-  [verification scope](./development-guides/08-testing-strategy.md#observation-analysis-history-preparation),
+  [device checklist](./development-guides/24-identification-history-device-review.md)
   and
   [activation hold](./backend-and-data/06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
 

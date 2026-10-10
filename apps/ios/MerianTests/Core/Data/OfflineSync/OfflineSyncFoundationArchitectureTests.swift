@@ -313,7 +313,37 @@ struct OfflineSyncFoundationArchitectureTests {
         "struct IdentificationReviewSyncService":
             "Services/IdentificationReviewSyncService.swift",
         "func syncPendingIdentificationReviews":
-            "Services/OfflineQueueManager+IdentificationReview.swift"
+            "Services/OfflineQueueManager+IdentificationReview.swift",
+        "struct ObservationPublicationDeliveryService":
+            "Services/ObservationPublicationDeliveryService.swift",
+        "final class ObservationPublicationDeliveryOwner":
+            "Services/ObservationPublicationDeliveryOwner.swift",
+        "final class ObservationReanalysisAdmissionRuntime":
+            "Services/ObservationReanalysisAdmissionRuntime.swift",
+        "struct ObservationReanalysisAdmissionBackoff":
+            "Services/ObservationReanalysisAdmissionRuntime.swift",
+        "func requestReanalysisAdmissionRecovery":
+            "Services/OfflineQueueManager+ReanalysisAdmission.swift",
+        "func requestReanalysisStartupRecovery":
+            "Services/OfflineQueueManager+ReanalysisAdmission.swift",
+        "struct ObservationReanalysisExecutionService":
+            "Services/ObservationReanalysisExecutionService.swift",
+        "func requestSourceReservation":
+            "Services/OfflineQueueManager+SourceReservation.swift",
+        "final class ObservationSourceReservationOwner":
+            "Services/ObservationSourceReservationOwner.swift",
+        "func requestAudioSourceSubmission":
+            "Services/OfflineQueueManager+AudioSourceSubmission.swift",
+        "func requestAudioExecution":
+            "Services/OfflineQueueManager+AudioExecution.swift",
+        "final class ObservationAudioExecutionOwner":
+            "Services/ObservationAudioExecutionOwner.swift",
+        "final class ObservationReanalysisExecutionOwner":
+            "Services/ObservationReanalysisExecutionOwner.swift",
+        "func requestReanalysisExecutionRecovery":
+            "Services/OfflineQueueManager+ReanalysisExecution.swift",
+        "func syncObservationPublications":
+            "Services/OfflineQueueManager+ObservationPublication.swift"
     ]
 
     private static let focusedOwnerDirectories: Set<String> = [
@@ -325,6 +355,26 @@ struct OfflineSyncFoundationArchitectureTests {
     ]
 
     private static let extractedOwnerPaths: Set<String> = [
+        "Services/ProtectedInsightChatDeliveryService.swift",
+        "Services/ObservationSourceReservationOwner.swift",
+        "Services/ObservationVideoReservationOwner.swift",
+        "Services/OfflineQueueManager+VideoReservation.swift",
+        "Services/ObservationVideoUploadOwner.swift",
+        "Services/OfflineQueueManager+VideoUpload.swift",
+        "Services/OfflineQueueManager+SourceReservation.swift",
+        "Services/ObservationAudioExecutionOwner.swift",
+        "Services/OfflineQueueManager+AudioExecution.swift",
+        "Services/OfflineQueueManager+AudioSourceSubmission.swift",
+        "Services/ProtectedInsightChatDeliveryOwner.swift",
+        "Services/OfflineQueueManager+ProtectedChat.swift",
+        "Services/OfflineQueueManager+AnalysisReview.swift",
+        "Services/ObservationAnalysisReviewDeliveryOwner.swift",
+        "Services/ObservationAnalysisReviewDrain.swift",
+        "Services/ObservationAnalysisReviewDeliveryService.swift",
+        "Policies/ObservationAnalysisReviewDeliveryPolicy.swift",
+        "Services/ObservationReanalysisAdmissionRuntime.swift",
+        "Services/OfflineQueueManager+ReanalysisAdmission.swift",
+        "Services/ObservationReanalysisExecutionService.swift",
         "Persistence/LibraryMutationInventory.swift",
         "Services/LibraryDetailsSyncService.swift",
         "Coordinators/GenerationTaskRegistry.swift",
@@ -350,10 +400,16 @@ struct OfflineSyncFoundationArchitectureTests {
         "Policies/ScanConnectivityFailurePolicy.swift",
         "Services/OfflineQueueManager+Diagnostics.swift",
         "Services/IdentificationReviewSyncService.swift",
-        "Services/OfflineQueueManager+IdentificationReview.swift"
+        "Services/OfflineQueueManager+IdentificationReview.swift",
+        "Services/ObservationPublicationDeliveryService.swift",
+        "Services/ObservationPublicationDeliveryOwner.swift",
+        "Services/ObservationReanalysisExecutionOwner.swift",
+        "Services/OfflineQueueManager+ReanalysisExecution.swift",
+        "Services/OfflineQueueManager+ObservationPublication.swift"
     ]
 
     private static let modelAndPolicyPaths: Set<String> = [
+        "Policies/ObservationAnalysisReviewDeliveryPolicy.swift",
         "Models/CollectionSyncSnapshot.swift",
         "Models/ExtractedScanData.swift",
         "Models/InferenceOwnershipModels.swift",
@@ -372,10 +428,35 @@ struct OfflineSyncFoundationArchitectureTests {
     ]
 
     private static let expectedImportsByPath: [String: Set<String>] = [
+        "Services/ProtectedInsightChatDeliveryService.swift": ["import Foundation", "import SwiftData"],
+        "Services/ObservationSourceReservationOwner.swift": ["import Foundation"],
+        "Services/ObservationVideoReservationOwner.swift": ["import Foundation"],
+        "Services/OfflineQueueManager+VideoReservation.swift": ["import Foundation", "import SwiftData"],
+        "Services/ObservationVideoUploadOwner.swift": ["import Foundation"],
+        "Services/OfflineQueueManager+VideoUpload.swift": ["import Foundation", "import SwiftData"],
+        "Services/OfflineQueueManager+SourceReservation.swift": ["import Foundation", "import SwiftData"],
+        "Services/ObservationAudioExecutionOwner.swift": ["import Foundation"],
+        "Services/OfflineQueueManager+AudioExecution.swift": ["import Foundation", "import SwiftData"],
+        "Services/OfflineQueueManager+AudioSourceSubmission.swift": ["import Foundation", "import SwiftData"],
+        "Services/ProtectedInsightChatDeliveryOwner.swift": ["import Foundation"],
+        "Services/OfflineQueueManager+ProtectedChat.swift": ["import Foundation", "import SwiftData"],
+        "Services/OfflineQueueManager+AnalysisReview.swift": ["import Foundation", "import SwiftData"],
+        "Services/ObservationAnalysisReviewDeliveryOwner.swift": ["import Foundation"],
+        "Services/ObservationAnalysisReviewDrain.swift": ["import Foundation", "import SwiftData"],
+        "Services/ObservationAnalysisReviewDeliveryService.swift": ["import Foundation", "import Supabase", "import SwiftData"],
+        "Policies/ObservationAnalysisReviewDeliveryPolicy.swift": ["import Foundation"],
+        "Services/ObservationReanalysisAdmissionRuntime.swift": ["import Foundation", "import SwiftData"],
+        "Services/OfflineQueueManager+ReanalysisAdmission.swift": ["import Foundation"],
+        "Services/ObservationReanalysisExecutionService.swift": ["import Foundation", "import SwiftData"],
         "Persistence/LibraryMutationInventory.swift": ["import Foundation", "import SwiftData"],
         "Services/LibraryDetailsSyncService.swift": ["import Foundation", "import SwiftData"],
         "Services/IdentificationReviewSyncService.swift": ["import Foundation", "import Supabase", "import SwiftData"],
         "Services/OfflineQueueManager+IdentificationReview.swift": ["import Foundation", "import SwiftData"],
+        "Services/ObservationPublicationDeliveryService.swift": ["import Foundation", "import SwiftData"],
+        "Services/ObservationPublicationDeliveryOwner.swift": ["import Foundation"],
+        "Services/ObservationReanalysisExecutionOwner.swift": ["import Foundation"],
+        "Services/OfflineQueueManager+ReanalysisExecution.swift": ["import Foundation", "import SwiftData"],
+        "Services/OfflineQueueManager+ObservationPublication.swift": ["import Foundation", "import SwiftData"],
         "Coordinators/GenerationTaskRegistry.swift": ["import Foundation"],
         "Models/CollectionSyncSnapshot.swift": ["import Foundation"],
         "Models/ExtractedScanData.swift": [

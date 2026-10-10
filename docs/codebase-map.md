@@ -573,7 +573,11 @@ record, capability, media, content, and presentation projections; and `Views/`,
 `Components/`, and `Modifiers/` retain composition, navigation, presentation,
 focus, scrolling, animation, and dismissal timing. `InsightContentPresentation`
 and `InsightShellPresentation` are the two typed modal slots.
-`InsightSheetViewModel+MediaPresentation.swift` and
+`SelectedAnalysisReviewHost` retains the prepared selected-result review ticket,
+exact-save uncertainty and receipt observation; the Shell's review action
+adapter persists synchronous taps through that model. Protected enrollment
+withholds legacy review controls and delayed callbacks. Ordinary access remains
+disabled. `InsightSheetViewModel+MediaPresentation.swift` and
 `+PresentationIdentity.swift` own the former display aggregate's media and
 identity seams; `InsightSheetView+Content.swift` owns root content/toast
 routing, not Field-trip domain policy. Shell views and view models issue no
@@ -1293,10 +1297,15 @@ first-use initialization, exact Supabase host/subdomain policy, required
 platform trust plus pin validation, fail-closed unreadable/unmatched-chain
 handling, TLS delegate, raw and caller-deadline dispatch, and DEBUG override;
 `AuthenticatedTransportDispatcher` owns each attempt's Auth/session fence and
-upload delegate. `MerianNetworkClient.swift` retains configuration diagnostics
-and injects both owners behind typed-response, body-ignoring, encoded-body, and
-raw-response JSON POST bridges. Its only non-Edge PostgREST bridge admits the
-exact authenticated scan-admission RPC and applies the caller's two-second,
+upload delegate. The file-private `NetworkTransportAssembly` in
+`MerianNetworkClient.swift` retains and injects both owners behind
+typed-response, body-ignoring, encoded-body, and raw-response JSON POST bridges.
+Its generic request methods remain inaccessible outside that file. Fixed audio
+factories share its dispatcher.
+`Transport/AccountDeletionRecoveryTransport.swift` owns the public
+capability-only recovery policy and configuration-before-body check, using the
+same pinned session without user Auth. Its only non-Edge PostgREST bridge admits
+the exact authenticated scan-admission RPC and applies the caller's two-second,
 no-cache/no-retry policy through that same pinned transport. Fixed-result
 Dictionary/stats bridges exclusively access the client's private cache instance,
 validating each loaded response before insertion; their typed GET helper remains
@@ -1318,11 +1327,12 @@ only request/file inputs and response values, adding no Auth/retry policy.
 `CoreNetworkIntegrationArchitectureTests.swift` freezes the exact 18
 endpoint-owner inventory, prevents duplicate aggregate endpoint methods, applies
 the 600-line ceiling across the extracted Auth, Endpoint, Inference, Media,
-Recovery, and Transport owners plus the client façade, and requires exactly six
-Transport files: three stateless policies, the request-scoped executor, the
-pinned session, and the authenticated dispatcher. It also freezes the sixty-one
-Auth foundation paths and caps Auth, Purchase Identity, `SupabaseManager.swift`,
-and their combined production surface at 7,763, 2,016, 3,482, and 13,261 lines,
+Recovery, and Transport owners plus the client façade, and freezes the exact
+Transport owner inventory, including the scoped
+`ObservationAudioAnalysisTransport`, `ObservationSourceReservationTransport` and
+`ObservationVideoEvidenceTransport`. It also freezes the sixty-one Auth
+foundation paths and caps Auth, Purchase Identity, `SupabaseManager.swift`, and
+their combined production surface at 7,763, 2,016, 3,482, and 13,261 lines,
 respectively. The guard includes the effect-free observable owner for
 transition, generation, transition-analytics, exact-session lease/drain, and
 local sign-out state plus the focused listener/current-state adapter,
@@ -1600,6 +1610,15 @@ is durable and save transferred metadata before the engine asks
 deletion/outbox transaction and optional post-commit cleanup handle. See the
 [Core Data guide](../apps/ios/Merian/Core/Data/README.md) and
 [app lifecycle contract](development-guides/02-app-lifecycle.md).
+
+The prepared identification-history path is assembled by
+`App/Composition/PreparedHistoryReanalysisComposition.swift`. It supplies one
+explicit account, private photo loader and queue preparation owner to History,
+read-only reanalysis status and historical Capture. Its AppDI factory starts no
+work, and ordinary live access remains absent while qualification continues.
+Historical submission preserves the original observation and selected result.
+See the [App ownership guide](../apps/ios/Merian/App/README.md) and
+[Insight history contract](features-and-hardware/05-insight-sheet.md).
 
 `Core/Media/MediaExportService.swift` is the shared Insight/Scans export
 boundary. Its private actor processes Sendable requests sequentially, keeps
@@ -2515,10 +2534,11 @@ non-caching, and non-retrying.
   strict response headers, CSRF/origin-checked Server Actions, and no
   service-role key. Its dependency-security tests and
   `.github/workflows/admin-quality.yml` enforce a frozen install, reviewed
-  Next.js/PostCSS/Sharp floors, blocking dependency audit, tests, type-check,
-  and production build for every pull request and affected `main` changes.
-  Repository rules must require the resulting status, and the separate Vercel
-  project must use it as a required Deployment Check before domain promotion.
+  Next.js/PostCSS/Sharp/source-map-js floors, blocking dependency audit, tests,
+  type-check, and production build for every pull request and affected `main`
+  changes. Repository rules must require the resulting status, and the separate
+  Vercel project must use it as a required Deployment Check before domain
+  promotion.
 - `services/supabase/migrations/20260719161112_add_internal_admin_foundation.sql`:
   internal membership/session/audit/review/feedback/pricing schema, narrow admin
   RPCs, reversible post moderation, and canonical AI usage ledger.
@@ -3018,6 +3038,59 @@ outcomes/drafts. Their false orchestration gate and SQL work claims are separate
 from native history reads, selection and legacy scan replacement. Neither
 endpoint is deployed or scheduled by this implementation.
 
+`reserve-observation-analysis-source` wraps the reader11 source reservation RPC
+with authenticated owner scope, a1MiB request bound and a scoped5s/2KiB service
+transport. `_shared/analysisHistory/sourceReservation{,Repository}.ts` own the
+exact candidate fingerprint and receipt boundary. This prepared route grants no
+upload, inference admission or dispatch authority; durable native consumers
+remain separate and the SQL reservation gate remains false.
+
+Native
+`Core/Network/Models/ObservationAnalysis/ObservationSourceReservation.swift`
+owns the immutable saved-input wrapper and strict owner/candidate-bound reply.
+`Transport/ObservationSourceReservationTransport.swift` owns the fixed
+five-second reservation bridge through the private pinned dispatcher. The codec
+and bridge are consumed by the explicit source-reservation services, including
+the separately retained video entry point. Video scheduler, ordinary UI,
+recovery, upload progression and execution callers remain uninstalled.
+`Core/Data/AnalysisHistory/ObservationSourceReservationWork` and
+`ObservationSourceReservationStore` share tagged preparation/proof through
+`ObservationSourceReservationPreparation`: unchanged photo version-9 and new
+audio version-10 metadata, exact ready-state staging and generation/CAS
+settlement. `ObservationAudioExecutionIntent.init(reserved:)` and
+`ObservationAudioExecutionStore.bindReserved` add the explicit exact-byte audio
+handoff after fresh consent and transaction-level source CAS, without dispatch
+permission. The explicit retained delivery service and owner below remain
+separate; ordinary UI and composition remain separate. No receipt state grants
+execution permission.
+
+`Core/Data/AnalysisHistory/ObservationVideoSourceReservationStore.swift` owns
+separate closed video staging and claim metadata, existing-only reads and exact
+known-result settlement. It preserves original staged bytes across one durable
+attempt; uncertain work cannot rearm. ObservationVideoReservationService
+composes one saved claim, verified cohort read and reservation transport attempt
+through the queue-retained ObservationVideoReservationOwner. Upload progression
+and execution remain separate checkpoints. Legacy photo/audio reservation
+envelopes are unchanged.
+
+`retire-observation-analysis-source` separately wraps unfunded reader11
+retirement. Its endpoint-owned `request.ts` snapshots the full original
+candidate and stable operation; the shared repository builds the frozen SQL
+tuple. The outer body cap preserves the original candidate budget plus87bytes of
+envelope overhead. The independent retirement gate stays false and native
+admission remains separate; no funded execution retirement or provider dispatch
+occurs.
+
+`retire-observation-analysis` separately authenticates explicit retirement of an
+exact admitted, never-dispatched operation. Its service-only SQL routine
+atomically prevents dispatch and saves a permanent receipt. The endpoint owns a
+scoped five-second/4-KiB transport and never supplies inference permission.
+`execution_retirement_api_enabled` stays false. Native retained delivery now
+recovers the exact result or retirement proof without inference. Prepared status
+controls stage only fresh admitted work or explicitly rearm the same held
+retirement; actual owner exit refreshes their local projection without polling.
+No deployment or scheduling is authorized.
+
 ## Guest library transition owners
 
 The [canonical contract](./backend-and-data/21-guest-library-transitions.md)
@@ -3064,3 +3137,63 @@ remains nil. The
 and
 [product contract](features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet)
 own the details.
+
+The inert source-reservation delivery boundary is owned by
+`Core/Data/AnalysisHistory/ObservationSourceReservationService.swift` (exact
+tagged photo/audio claim, one transport attempt and bounded observation
+settlement) and
+`Core/Data/OfflineSync/Services/ObservationSourceReservationOwner.swift`
+(retained account lease, coalescing and Auth drain). The queue's
+source-reservation extension exposes only explicit injected admission; no
+ordinary UI or automatic scheduler is connected.
+
+`ObservationAudioSourceSubmissionService` and the queue's
+`+AudioSourceSubmission` extension coordinate those existing source and audio
+owners in sequence. Exact reservation/consent/binding stays under the source
+lease; a normally returned binding can start audio only after source exit.
+`PreparedHistoryReanalysisComposition.audioSourceStart` is the inert live
+factory. Capture and V10 saved-request presentation remain separate integration
+work; this boundary adds no owner or scheduler.
+
+`ObservationAudioSourceResumeStore.swift` owns strict V10 saved-audio source
+reads and the preparation-owner/account-lease wrapper
+`ObservationAudioSourceResumeReader`. It returns exact evidence only; legacy
+resume/status readers and execution owners remain separate. See the Analysis
+History README for mutation-free reads and post-await snapshot fencing.
+
+### Private video ingress
+
+`services/supabase/functions/upload-observation-video` owns authenticated
+bounded binary ingress for one saved video inventory item. It composes the
+shared video upload coordinator and bounded video RPC repository, preserving the
+existing private storage and erasure namespace. Gates remain disabled; no native
+or provider caller is enabled. See the
+[API contract](backend-and-data/05-api-contracts.md#private-video-item-upload-route).
+
+The existing `reserve-observation-analysis-source` route also admits schema2
+video through `videoSourceReservationRepository` and its reader12 reserve RPC.
+Schema1 photo/audio keeps reader11 routing. The adapter prepares separate exact
+read-only recovery, currently without an HTTP/native caller. See the
+[reader12 admission contract](backend-and-data/05-api-contracts.md#reader12-video-source-http-admission).
+
+`Core/Data/AnalysisHistory/ObservationVideoUploadStore.swift` owns the held
+reserved-to-upload handoff: exact terminal reservation bytes, a derived upload
+metadata request, closed bounded encoding and existing-only stage/read APIs. It
+grants no item claim, receipt settlement, dispatch or cleanup authority; the
+[API handoff contract](backend-and-data/05-api-contracts.md#native-reserved-video-upload-handoff)
+owns those boundaries.
+
+`Core/Data/AnalysisHistory/ObservationVideoUploadLifecycle.swift` owns the
+bounded V2 item-attempt ledger and existing-only claim/hold/receipt settlement
+store. It preserves the original handoff and all observed receipts while unknown
+work remains non-dispatching. The
+[canonical lifecycle contract](backend-and-data/05-api-contracts.md#native-video-upload-attempt-lifecycle)
+defines its transaction and cancellation authority.
+
+`ObservationVideoUploadService` and the queue's `ObservationVideoUploadOwner` /
+`OfflineQueueManager+VideoUpload` connect durable ordered item claims to exact
+saved-file verification and the dedicated Wire1 transport. They retain account
+lifetime, separate dispatch/known-settlement predicates and all local media.
+[Native video upload delivery](backend-and-data/05-api-contracts.md#native-retained-video-upload-delivery)
+is the canonical owner; upload readiness grants no cleanup or inference
+authority.

@@ -464,11 +464,16 @@ assert_contains "MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY"
 assert_contains "bash scripts/validate-ios-critical-test-results.sh"
 assert_contains "bash scripts/validate-ios-focused-test-results.sh"
 assert_contains 'Critical scan-flow regressions: \`passed\`'
-assert_contains 'Exact analyzing, live-to-queue, retry, and completion UX regressions: \`passed\`'
+assert_contains 'Exact analyzing, live-to-queue, retry, completion, protected chat, and explicit refresh UX regressions: \`passed\`'
 assert_contains "-only-testing:merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow"
 assert_contains "-only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue"
 assert_contains "-only-testing:merianUITests/merianUITests/testQueuedRetryPresentationUsesSafeActionableCopy"
 assert_contains "-only-testing:merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff"
+assert_contains "-only-testing:merianUITests/merianUITests/testExactQuestionPersistsAndReopeningKeepsPendingIdentity"
+assert_contains '--arg protected_chat_case "testExactQuestionPersistsAndReopeningKeepsPendingIdentity"'
+assert_contains "-only-testing:merianUITests/merianUITests/testStaleQuestionRequiresExplicitRefreshBeforeFreshChat"
+assert_contains '--arg refresh_chat_case "testStaleQuestionRequiresExplicitRefreshBeforeFreshChat"'
+assert_contains '$retry_case, $completion_case, $protected_chat_case, $refresh_chat_case]'
 assert_contains 'echo "XCODE_UI_RESULT_BUNDLE=$RUNNER_TEMP/ios-critical-scan-ui.xcresult"'
 assert_contains '${{ runner.temp }}/ios-critical-scan-ui.xcresult'
 assert_contains "bash scripts/extract-ios-test-failure-diagnostics.sh"
@@ -486,8 +491,8 @@ assert_release_seed_denylist_matches_debug_source
 assert_count 1 "ios-release-main-binary-strings.txt"
 assert_contains "ui_test_seed_markers_absent: true"
 assert_contains "Debug-only UI-test seed markers: absent"
-assert_contains "deterministic analyzing, live-to-queue, queued-retry, and queued-completion UI smokes"
-assert_count 2 "all four critical scan UI smokes"
+assert_contains "deterministic analyzing, live-to-queue, queued-retry, queued-completion, and protected-chat UI smokes"
+assert_count 2 "all six critical scan UI smokes"
 assert_contains "production-readiness:"
 assert_contains "if: always()"
 assert_contains 'UNIT_TEST_RESULT" != "success'
@@ -609,7 +614,7 @@ for scope_result in failure cancelled skipped ""; do
   fi
 done
 
-# Boot has its own deadline. Four three-minute test allowances leave eight
+# Boot has its own deadline. Six three-minute test allowances leave seven
 # minutes for runner startup and result finalization before the outer deadline.
 # A passed console suite is insufficient: Xcode must still finalize its result.
 assert_count 1 "-collect-test-diagnostics never"
@@ -624,7 +629,7 @@ awk '
   in_ui_step && $1 == "-maximum-test-execution-time-allowance" { maximum_allowance = $2 }
   in_ui_step && NF == 3 && $1 == "-collect-test-diagnostics" \
     && $2 == "never" && $3 == "\\" { diagnostics_disabled += 1 }
-  END { exit !(boot_timeout == 5 && ui_timeout == 20 && diagnostics_disabled == 1 \
+  END { exit !(boot_timeout == 5 && ui_timeout == 25 && diagnostics_disabled == 1 \
     && timeouts_enabled == 1 && default_allowance == 180 && maximum_allowance == 180) }
 ' "$workflow" \
   || fail "Critical UI smokes must bound boot and individual tests, leaving time to finalize results."
@@ -638,11 +643,11 @@ fi
 # Building and running the whole unit-test target is deliberate. A selector
 # below the target level can silently remove Camera, inference, or offline-sync
 # coverage while leaving xcodebuild green. The UI bundle is compiled in full,
-# then exactly four deterministic critical-path regressions are executed.
+# then exactly six deterministic critical-path regressions are executed.
 assert_count 1 "-only-testing:merianPerformanceTests"
 assert_count 2 "-only-testing:merianTests"
-assert_count 5 "-only-testing:merianUITests"
-assert_count 4 "-only-testing:merianUITests/"
+assert_count 7 "-only-testing:merianUITests"
+assert_count 6 "-only-testing:merianUITests/"
 if grep -Fq -- "-only-testing:merianTests/" "$workflow"; then
   fail "The production gate must not narrow merianTests to selected suites."
 fi
@@ -1382,6 +1387,9 @@ for startup_scope_path in \
   "apps/ios/Merian/Models/Schema/SchemaV56ScanSnapshots.swift" \
   "apps/ios/Merian/Models/Schema/SchemaV56QueueSnapshots.swift" \
   "apps/ios/Merian/Models/Schema/SchemaV57.swift" \
+  "apps/ios/Merian/Models/Schema/SchemaV57ScanSnapshots.swift" \
+  "apps/ios/Merian/Models/Schema/SchemaV57QueueSnapshots.swift" \
+  "apps/ios/Merian/Models/Schema/SchemaV58.swift" \
   "apps/ios/MerianTests/Models/LocalAnalysisStateRecordTests.swift" \
   "apps/ios/Merian/Core/UI/Components/AsyncLocalImageView.swift" \
   "apps/ios/Merian/Core/UI/Modifiers/ImageRecoveryReloadModifier.swift" \

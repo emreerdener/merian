@@ -15,12 +15,14 @@ extension BackgroundDatabaseActor {
         /// Persisted scan rows actually removed by this transaction.
         let deletedRecordCount: Int
         let localMediaPaths: [String]
+        var childIDs: [String] = []
     }
 
-    private struct NonBiologicalDeletionCommit {
+    struct NonBiologicalDeletionCommit: Sendable {
         let committedErasureCount: Int
         let deletedRecordCount: Int
         let localMediaPaths: [String]
+        var childIDs: [String] = []
     }
 
     /// Deletes non-biological scans and queues their cloud erasure atomically.
@@ -33,6 +35,14 @@ extension BackgroundDatabaseActor {
         try commitNonBiologicalScanDeletion(payloads: payloads, requestingAccountID: requestingAccountID,
                                            origin: .explicitUserDeletion)
             .localMediaPaths
+    }
+
+    /// Returns transport cleanup only after the same durable parent/child commit.
+    func bulkDeleteNonBiologicalScansWithQueueCleanup(
+        payloads: [ScanErasurePayload], requestingAccountID: UUID? = nil
+    ) throws -> NonBiologicalDeletionCommit {
+        try commitNonBiologicalScanDeletion(payloads: payloads, requestingAccountID: requestingAccountID,
+                                           origin: .explicitUserDeletion)
     }
 
     private func commitNonBiologicalScanDeletion(
@@ -54,6 +64,7 @@ extension BackgroundDatabaseActor {
         var committedErasureCount = 0
         var deletedRecordCount = 0
         var localMediaPathsToDelete: [String] = []
+        var childIDs: [String] = []
 
         do {
             for payload in payloads {
@@ -78,7 +89,11 @@ extension BackgroundDatabaseActor {
                 if origin == .explicitUserDeletion {
                     try ObservationHistoryEnrollmentIntent.supersedeForExplicitDeletion(scanId, context: context)
                 }
+                let children = try ObservationReanalysisErasure.removeChildren(of: scanId, context: context)
+                childIDs += children.childIDs
                 try ObservationPublicationPersistence.removeForDeletion(scanId, context: context)
+                try ObservationAnalysisReviewPersistence.removeForDeletion(scanId, context: context)
+                try ProtectedInsightChatPersistence.removeForDeletion(scanId, context: context)
                 if let record {
                     context.delete(record)
                     deletedRecordCount += 1
@@ -98,7 +113,7 @@ extension BackgroundDatabaseActor {
             return NonBiologicalDeletionCommit(
                 committedErasureCount: committedErasureCount,
                 deletedRecordCount: deletedRecordCount,
-                localMediaPaths: localMediaPathsToDelete
+                localMediaPaths: localMediaPathsToDelete, childIDs: childIDs
             )
         } catch {
             context.rollback()
@@ -155,7 +170,7 @@ extension BackgroundDatabaseActor {
         return ExpiredNonBiologicalPurgeResult(
             committedErasureCount: commit.committedErasureCount,
             deletedRecordCount: commit.deletedRecordCount,
-            localMediaPaths: commit.localMediaPaths
+            localMediaPaths: commit.localMediaPaths, childIDs: commit.childIDs
         )
     }
 }

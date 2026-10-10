@@ -645,6 +645,15 @@ unchanged while free-form intervention notes and account context are cleared.
 `replay-scan-ingestion` treats that state as terminal and cannot dispatch
 another AI request for a deleted account's scan.
 
+Prepared migration `20261005151359_retain_acknowledged_observation_science.sql`
+adds an explicit scientific allowlist for enrolled observations only. It
+preserves original AI facts and materializes the selected acknowledged
+interpretation as a separate, closed scalar `scans.retained_identification`
+before private-history cascade. Raw review state, private payloads and media
+clear; owner-first locks serialize selection/review/deletion, and detached
+enrolled rows are immutable. All gates remain off and no client response
+changes.
+
 The complete retained-versus-cleared field boundary, visibility rules, change
 procedure, and verification requirements are canonicalized in
 [`docs/backend-and-data/17-scientific-observation-retention.md`](../../docs/backend-and-data/17-scientific-observation-retention.md).
@@ -3113,8 +3122,15 @@ owner receipt resolution and an erasure worker seam. Its media gates remain
 closed; read adapter/endpoint source is prepared, with no deployed route or
 worker schedule, and result V1 append still accepts descriptions only. The
 separate gated V2 photo binder now joins ready receipts to funded completion;
-native protocol-9 history accepts V1/V2/V3 while private photo resolution
-remains V2-only on protocol 8. See the canonical
+native protocol-10 history accepts V1/V2/V3/V4 while private photo resolution
+remains V2-only on protocol 8. The separate default-off backend audio path binds
+input 3 to immutable WAV receipts and emits result 4 for reader 10. Action RPCs
+accept readers 9/10 with whole-audio-history refusal for reader 9. Native V4
+review and receipt-bound confirmation/rejection Undo use strict reader-10
+tickets. Explicit V4 selection/selection Undo use the existing retained
+projection and receipt transaction. Candidate selection, publication and
+selected chat remain unavailable for V4; prepared audio execution remains
+default-off. No audio activation is authorized. See the canonical
 [protected evidence lifecycle](../../docs/backend-and-data/05-api-contracts.md#prepared-protected-evidence-lifecycle).
 
 The prepared `analysisHistory/intent.ts` owner and funded-child migration now
@@ -3154,7 +3170,7 @@ observation revision. Its independent `state_reader_enabled` gate remains false.
 No local authority persistence or restore caller is connected. See the
 [state contract](../../docs/backend-and-data/05-api-contracts.md#prepared-owner-observation-state-read).
 
-Prepared protocol-9 selection now has an authenticated owner RPC,
+Prepared reader-9/10 selection now has an authenticated owner RPC,
 `select_owned_observation_analysis`, and native live adapter. The new
 `selection_api_enabled` gate remains false. Exact durable success and
 revision-conflict outcomes share one immutable ledger and replay after admission
@@ -3163,7 +3179,7 @@ a current-state read. No ordinary Restore/Undo caller or reconciliation worker
 is enabled. See the
 [selection contract](../../docs/backend-and-data/05-api-contracts.md#prepared-native-selection-requests-and-undo-receipts).
 
-Prepared protocol-9 owner review now includes
+Prepared reader-9/10 owner review now includes
 `review_owned_observation_analysis` for Reject/Undo, a private immutable outcome
 ledger, and a separate default-false `rejection_api_enabled` gate. Legacy review
 and community writers refuse enrolled observations rather than transferring
@@ -3173,6 +3189,11 @@ checks remain authoritative. See the
 [analysis-bound review contract](../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-reject-and-undo).
 Native review admission, community/publication integration and ordinary history
 activation remain outstanding. Confirmation is separately prepared below.
+
+The prepared rejection recovery lookup shares mutation-time target/receipt
+eligibility while exposing no receipt body. Its existing rejection/reader gates
+remain disabled; cross-device native admission is a separate checkpoint. See the
+[rejection recovery contract](../../docs/backend-and-data/05-api-contracts.md#prepared-cross-device-rejection-undo-discovery).
 
 ## Prepared analysis-bound confirmation
 
@@ -3184,6 +3205,14 @@ or transfers authority between results. The
 [canonical API contract](../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-confirmation)
 owns held legacy/community behavior, retry semantics and remaining native and
 rollout work. This source preparation authorizes no deployment or activation.
+
+The candidate-provenance backend checkpoint adds schema-2 `confirm_name` with an
+analysis-scoped raw ordinal and fixed representation. Both phases validate
+membership in the immutable species-candidate array; receipts preserve the
+reference, and confirmation Undo validates the same association. Schema-1
+requests replay unchanged. Rankless legacy and opaque imported candidates stay
+unsupported. The native producer and existing alternatives-control wiring are
+separate checkpoints; this changes no card layout or activation gate.
 
 ## Private community authority foundation
 
@@ -3220,9 +3249,11 @@ publisher integration.
 Private pre-I/O preparation now freezes a caller operation, named-result
 revisions and exact owned V2 photo receipt tuples. Historical retry and fresh
 revalidation are separate; neither permits media publication. The new gate
-defaults false and no API caller is granted. The prepared moderation and copy
-workers below consume this intent behind closed gates. Native operation recovery
-and authorized runtime qualification remain required. See the
+defaults false and preparation helpers remain private. The separate
+authenticated consent preflight exposes only descriptive metadata under the same
+locked eligibility. The prepared moderation and copy workers below consume this
+intent behind closed gates. Native consent/UI integration and authorized runtime
+qualification remain required. See the
 [intent contract](../../docs/backend-and-data/05-api-contracts.md#prepared-protected-photo-publication-intent).
 
 ## Prepared photo moderation lifecycle
@@ -3282,6 +3313,18 @@ survive the staging deadline; actual removal queues permanent erasure, while
 reversible health quarantine keeps recovery possible. See the
 [atomic binding contract](../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-public-photo-binding).
 
+## Prepared private-evidence erasure worker
+
+`erase-observation-evidence` connects one locked expired-cohort retirement and
+one opaque private outbox claim to permanent marker PUT/HEAD and exact-token
+settlement. Its independent gate defaults false. One 90-second request respects
+the original 60-second claim, reserves completion time and propagates storage
+cancellation. It accepts no caller object keys, emits aggregate counts only, and
+never dispatches inference or charges credits. No schedule or activation is
+included; configured source participates in normal future main deployment. See
+the [worker README](functions/erase-observation-evidence/README.md) and
+[canonical contract](../../docs/backend-and-data/05-api-contracts.md#prepared-private-evidence-cleanup-rpcs).
+
 ## Prepared public-photo erasure worker
 
 `erase-publication-photos` performs one service-authenticated registry claim,
@@ -3298,8 +3341,8 @@ The prepared `photoCopyExecution.ts` owner now connects reservation, verified
 private bytes, conditional writes and bounded completion recovery through
 explicitly scoped repository callbacks. Failed writes/completions attempt
 targeted registry cleanup even after deletion, without erasing a valid bound
-publication. Live repository and authenticated operation admission remain
-unconnected. See the
+publication. The scoped copy repository and service worker now connect this
+owner beneath authenticated durable intake; activation remains disabled. See the
 [copy execution contract](../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-copy-execution).
 
 ## Prepared durable publication intake
@@ -3308,8 +3351,9 @@ unconnected. See the
 consent before external work, returning an immutable acceptance receipt.
 `publicationOperation.ts` owns strict parsing; the default-off service RPC and
 private records preserve replay, original hash and deletion fences. Acceptance
-never authorizes copying or means publication completed. Live execution/status
-workers and native delivery remain required. See the
+never authorizes copying or means publication completed. Prepared
+moderation/copy workers, owner status and native durable delivery are connected
+behind closed activation gates; ordinary UI admission remains separate. See the
 [intake contract](../../docs/backend-and-data/05-api-contracts.md#prepared-authenticated-publication-operation-intake).
 
 ## Prepared publication worker ownership
@@ -3318,9 +3362,9 @@ Separate private work records now provide bounded discovery, scoped expiring
 claims and gate-independent release/status beneath immutable intake. Only a
 durable cohort receipt establishes historical admission; orchestration leases
 confer no provider or public-copy authority. The execution gate remains false,
-and the prepared moderation worker is connected; owner status and native
-delivery remain unconnected. Optional public notes still require their own
-moderation boundary. See the
+and prepared moderation/copy workers, owner status and native durable delivery
+are connected; ordinary UI admission remains separate. Optional public notes
+still require their own moderation boundary. See the
 [worker contract](../../docs/backend-and-data/05-api-contracts.md#prepared-publication-operation-worker-ownership).
 
 ## Scoped moderation recovery and preflight
@@ -3340,8 +3384,9 @@ now uses this path; gates stay false. See the
 
 Durable provider outcomes now remove completed or refused operations from
 moderation discovery. `photos_approved` is historical provider state only;
-`needs_action` never schedules a successor or refunds unknown dispatch.
-Copy/note execution and native delivery remain unconnected. All activation gates
+`needs_action` never schedules a successor or refunds unknown dispatch. Prepared
+copy execution and native durable delivery consume these outcomes; exact-note
+moderation and ordinary UI admission remain separate. All activation gates
 remain false.
 
 See the
@@ -3453,5 +3498,38 @@ retires copy work before best-effort cleanup. See its
 owner status for an exact saved operation. Auth-derived ownership, deletion
 fences, strict decoding, bounded reads and private no-store apply. Historical
 admission is not current visibility. No private reason, media or post ID is
-returned. Native delivery and activation remain separate. See the
+returned. Native durable delivery recovers this status before exact admission
+and remains status-only after acknowledgement. Ordinary UI admission and
+activation remain separate. See the
 [status contract](../../docs/backend-and-data/05-api-contracts.md#owner-publication-operation-status).
+
+## Prepared owner consent preflight
+
+`prepare-observation-publication-consent` reads one explicit analysis with owner
+and deletion fences, returning exact revisions, active taxonomy, a fixed-null
+initial taxon and ordered V2 photo candidates. It creates no operation and
+confers no ready-media authority; final 1–6 selection still passes exact intent
+admission. Default-false gates remain closed. Native consent/UI integration is
+next. See the
+[canonical contract](../../docs/backend-and-data/05-api-contracts.md#owner-publication-consent-preflight).
+
+### Private reanalysis photo ingress
+
+The prepared owner-authenticated
+[`upload-observation-evidence`](functions/upload-observation-evidence/README.md)
+accepts a bounded raw-byte cohort, computes digests, atomically freezes ordered
+receipts and their deadline, then verifies conditional private writes. Immutable
+cohort metadata prevents analysis identity reuse after abandoned-object cleanup.
+It returns only V2 content references. Native append-only capture/queue wiring
+and private storage/erasure qualification remain outstanding; all activation
+controls remain disabled.
+
+## Prepared owner publication target recovery
+
+`get-observation-publication-target` resolves observation-wide occupancy under
+authenticated owner/deletion fences. It returns literal null only for a valid
+owned vacant observation, one original sanitized status, or a conflict for
+legacy duplicates. It never selects the latest operation, exposes consent or
+creates work. Native target transport remains unconnected and all gates stay
+false. See the
+[target recovery contract](../../docs/backend-and-data/05-api-contracts.md#owner-publication-target-recovery).

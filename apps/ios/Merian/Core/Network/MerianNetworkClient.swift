@@ -9,28 +9,26 @@ final class MerianNetworkClient {
     static let shared = MerianNetworkClient()
 
     private let supabaseUrl = MerianEnvironment.supabaseUrl
-    private let supabaseAnonKey = MerianEnvironment.supabaseAnonKey
     /// No caller can access this memo or insert a response outside the validated request boundary.
     private let speciesDictionaryResponses = SpeciesDictionaryResponseCache()
-    private let sessionTransport: PinnedNetworkTransport
-    private let authenticatedTransport: AuthenticatedTransportDispatcher
+    private let transport: NetworkTransportAssembly
+    var observationHistoryMutationTransport: ObservationHistoryMutationTransport { transport.history }
+    func reanalysisStatusTransport() -> ObservationReanalysisStatusTransport { transport.reanalysisStatus() }
+    func analysisRetirementTransport() -> ObservationAnalysisRetirementTransport { transport.retirement() }
+    func audioAnalysisTransport() -> ObservationAudioAnalysisTransport { transport.audioAnalysis() }
+    func audioOutcomeTransport() -> ObservationAudioOutcomeTransport { transport.audioOutcome() }
+    func sourceReservationTransport() -> ObservationSourceReservationTransport { transport.sourceReservation() }
 
-    init() {
-        let sessionTransport = PinnedNetworkTransport()
-        self.sessionTransport = sessionTransport
-        authenticatedTransport = AuthenticatedTransportDispatcher(
-            sessionTransport: sessionTransport
-        )
-    }
+    init() { transport = NetworkTransportAssembly(baseURL: supabaseUrl, publishableKey: MerianEnvironment.supabaseAnonKey) }
 
     // MARK: - Test Transport Overrides
 
     #if DEBUG
     /// Allows test suites to inject ephemeral configurations (like MockURLProtocol).
     var overridingSession: URLSession? {
-        get { sessionTransport.overridingSession }
+        get { transport.overridingSession }
         set {
-            sessionTransport.overridingSession = newValue
+            transport.overridingSession = newValue
             resetSpeciesDictionaryCacheForTesting()
         }
     }
@@ -43,16 +41,16 @@ final class MerianNetworkClient {
     /// intentionally has no live Supabase SDK session. Production never reads
     /// this seam.
     var overridingAuthUserID: UUID? {
-        get { authenticatedTransport.overridingAuthUserID }
-        set { authenticatedTransport.overridingAuthUserID = newValue }
+        get { transport.overridingAuthUserID }
+        set { transport.overridingAuthUserID = newValue }
     }
 
     /// Lets the 401 recovery regression exercise the real request replay branch
     /// without refreshing or replacing a developer's persisted simulator session.
     var overridingAuthSessionRefresh: (@Sendable () async -> Bool)? {
-        get { authenticatedTransport.overridingAuthSessionRefresh }
+        get { transport.overridingAuthSessionRefresh }
         set {
-            authenticatedTransport.overridingAuthSessionRefresh = newValue
+            transport.overridingAuthSessionRefresh = newValue
         }
     }
     #endif
@@ -104,7 +102,7 @@ final class MerianNetworkClient {
         let (data, _) = try await SpeciesDictionaryRequestCoordinator.performRequest(
             function: function, cache: speciesDictionaryResponses,
             expectedAuthUserID: expectedAuthUserID,
-            currentViewerID: { [self] in try await authenticatedTransport.requestPayloadAuthUserID() }
+            currentViewerID: { [self] in try await transport.requestPayloadAuthUserID() }
         ) { [self] viewerID in
             try await performAuthenticatedRequest(
                 url: url, method: "POST", body: body,
@@ -176,7 +174,7 @@ final class MerianNetworkClient {
         if let expectedAuthUserID {
             authUserID = expectedAuthUserID
         } else {
-            authUserID = try await authenticatedTransport
+            authUserID = try await transport
                 .requestPayloadAuthUserID()
         }
         let bodyData = try JSONEncoder().encode(body(authUserID))
@@ -193,13 +191,13 @@ final class MerianNetworkClient {
     /// encode the UUID but cannot observe or retain Auth session/lease state;
     /// the status endpoint binds the encoded owner back to private transport.
     func authenticatedUserIDForOwnedScanRecovery() async throws -> UUID {
-        try await authenticatedTransport.requestPayloadAuthUserID()
+        try await transport.requestPayloadAuthUserID()
     }
 
     /// Value-only account boundary for inference payload construction. The
     /// endpoint can encode this UUID but cannot retain Auth session or lease state.
     func authenticatedUserIDForInferenceRequest() async throws -> UUID {
-        try await authenticatedTransport.requestPayloadAuthUserID()
+        try await transport.requestPayloadAuthUserID()
     }
 
     /// Fixed-route prewarm for the pinned inference connection pool. The
@@ -212,7 +210,7 @@ final class MerianNetworkClient {
             timeoutInterval: 5
         )
         request.httpMethod = "OPTIONS"
-        _ = try await sessionTransport.data(for: request)
+        _ = try await transport.data(for: request)
     }
 
     /// Dispatches only the authenticated, non-reserving admission RPC over the
@@ -223,15 +221,17 @@ final class MerianNetworkClient {
         timeoutInterval: TimeInterval
     ) async throws -> (Data, URLResponse) {
         try AdmissionRPCRequestPolicy.validateAllowanceRequest(request, baseURL: supabaseUrl)
-        return try await sessionTransport.data(
+        return try await transport.data(
             for: request,
             timeoutInterval: timeoutInterval
         )
     }
 
     /// Fixed read-only RPC through the same account-bound, pinned dispatcher.
-    func performIdentificationRecipientPreflight(body: Data, expectedAuthUserID: UUID) async throws -> Data {
-        let url = try AdmissionRPCRequestPolicy.url(baseURL: supabaseUrl, route: .recipient)
+    func performOwnedIdentificationRead(body: Data, expectedAuthUserID: UUID,
+                                        route: AdmissionRPCRequestPolicy.Route = .recipient) async throws -> Data {
+        guard route == .recipient || route == .reanalysisRecipient || route == .analysisState else { throw MerianError.invalidURL }
+        let url = try AdmissionRPCRequestPolicy.url(baseURL: supabaseUrl, route: route)
         let (data, _) = try await performAuthenticatedRequest(
             url: url, method: "POST", body: body, timeoutInterval: 5,
             allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false,
@@ -250,7 +250,7 @@ final class MerianNetworkClient {
         identificationAuthorization: IdentificationDispatchAuthorization
     ) async throws -> URLRequest {
         let url = try endpointURL(function)
-        return try await authenticatedTransport.makeAuthenticatedJSONRequest(
+        return try await transport.makeAuthenticatedJSONRequest(
             url: url,
             bodyData: bodyData,
             idempotencyKey: idempotencyKey,
@@ -313,11 +313,11 @@ final class MerianNetworkClient {
     /// Raw signed uploads reuse the pinned session without Edge authentication,
     /// response decoding, retry, or cancellation translation.
     func performPresignedUpload(request: URLRequest) async throws -> (Data, URLResponse) {
-        try await sessionTransport.data(for: request)
+        try await transport.data(for: request)
     }
 
     func performPresignedUpload(request: URLRequest, fileURL: URL) async throws -> (Data, URLResponse) {
-        try await sessionTransport.upload(for: request, fromFile: fileURL)
+        try await transport.upload(for: request, fromFile: fileURL)
     }
 
     /// Returns JSON response bytes for endpoint-owned explicit-key decoding.
@@ -340,6 +340,14 @@ final class MerianNetworkClient {
                 allowsUnauthorizedSessionRecovery,
             expectedAuthUserID: expectedAuthUserID
         )
+        return data
+    }
+
+    /// Closed observation routes; the durable owner alone retries ambiguous outcomes.
+    func performAuthenticatedObservationRequest(_ operation: ObservationOperation, body: Data, expectedAuthUserID: UUID) async throws -> Data {
+        let url = try endpointURL(operation.function)
+        let (data, _) = try await transport.execute(
+            operation.request(url: url, body: body, ownerID: expectedAuthUserID))
         return data
     }
 
@@ -385,13 +393,7 @@ final class MerianNetworkClient {
     func performAccountDeletionRecoveryJSONPost(
         body: () throws -> Data
     ) async throws -> (data: Data, statusCode: Int) {
-        let url = try endpointURL("recover-account-deletion")
-        let bodyData = try body()
-        let (data, response) = try await performPublicAccountDeletionRecoveryRequest(
-            url: url,
-            body: bodyData
-        )
-        return (data, response.statusCode)
+        return try await transport.recovery.post(body: body)
     }
 
     /// Preserves endpoint-configuration failure precedence before validation or
@@ -415,7 +417,7 @@ final class MerianNetworkClient {
         try await SpeciesDictionaryRequestCoordinator.loadEntry(
             cache: speciesDictionaryResponses,
             requestedSpeciesId: requestedSpeciesId, requestedScientificName: requestedScientificName,
-            currentViewerID: { [self] in try await authenticatedTransport.requestPayloadAuthUserID() },
+            currentViewerID: { [self] in try await transport.requestPayloadAuthUserID() },
             loadResponse: { [self] viewerID in
                 try await performAuthenticatedJSONPost(
                     function: "species-dictionary-for-viewer", payload: payload,
@@ -490,24 +492,10 @@ final class MerianNetworkClient {
         authTransitionOwner: AuthTransitionToken? = nil,
         expectedAuthUserID: UUID? = nil,
         measurementContext: IdentificationMeasurementContext? = nil,
-        identificationAuthorization: IdentificationDispatchAuthorization? = nil
+        identificationAuthorization: IdentificationDispatchAuthorization? = nil,
+        contentType: AuthenticatedRequestExecutor.ContentType = .json
     ) async throws -> (Data, HTTPURLResponse) {
-        let executor = AuthenticatedRequestExecutor(
-            dependencies: .live(
-                requestPayloadAuthUserID: { [self] in
-                    try await self.authenticatedTransport
-                        .requestPayloadAuthUserID()
-                },
-                performTransport: { [self] attempt in
-                    try await self.authenticatedTransport.perform(attempt)
-                },
-                refreshOrdinarySession: { [self] in
-                    await self.authenticatedTransport
-                        .refreshActiveSessionForRetry()
-                }
-            )
-        )
-        return try await executor.execute(
+        return try await transport.execute(
             AuthenticatedRequestExecutor.Request(
                 url: url,
                 method: method,
@@ -521,76 +509,68 @@ final class MerianNetworkClient {
                 onRequestBodySent: onRequestBodySent,
                 authTransitionOwner: authTransitionOwner,
                 expectedAuthUserID: expectedAuthUserID,
+                contentType: contentType,
                 measurementContext: measurementContext,
                 identificationAuthorization: identificationAuthorization
             )
         )
     }
 
-    // MARK: - Account Deletion Recovery Transport
+}
 
-    private func performPublicAccountDeletionRecoveryRequest(
-        url: URL,
-        body: Data,
-        isRetry: Bool = false
-    ) async throws -> (Data, HTTPURLResponse) {
-        try Task.checkCancellation()
-        var request = URLRequest(
-            url: url,
-            cachePolicy: .reloadIgnoringLocalCacheData,
-            timeoutInterval: 20
-        )
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
-        request.httpBody = body
+/// One private pinned session and Auth dispatcher per client, shared by closed domain transports.
+/// Ordinary request policy remains in the existing executor; this owner adds no routes or retries.
+private final class NetworkTransportAssembly {
+    private let baseURL: String
+    private let sessionTransport: PinnedNetworkTransport
+    private let authenticatedTransport: AuthenticatedTransportDispatcher
+    let recovery: AccountDeletionRecoveryTransport
+    let history: ObservationHistoryMutationTransport
 
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await sessionTransport.data(for: request)
-        } catch let urlError as URLError {
-            try Task.checkCancellation()
-            let transientCodes: Set<URLError.Code> = [
-                .timedOut,
-                .networkConnectionLost,
-                .cannotConnectToHost,
-                .dnsLookupFailed,
-                .notConnectedToInternet
-            ]
-            if transientCodes.contains(urlError.code), !isRetry {
-                try await Task.sleep(for: .seconds(2))
-                return try await performPublicAccountDeletionRecoveryRequest(
-                    url: url,
-                    body: body,
-                    isRetry: true
-                )
-            }
-            throw urlError
-        }
-
-        try Task.checkCancellation()
-        guard data.count <= 64 * 1024,
-              let httpResponse = response as? HTTPURLResponse else {
-            throw MerianError.invalidResponse
-        }
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode >= 500, !isRetry {
-                try await Task.sleep(for: .seconds(2))
-                return try await performPublicAccountDeletionRecoveryRequest(
-                    url: url,
-                    body: body,
-                    isRetry: true
-                )
-            }
-            let message = String(data: data, encoding: .utf8) ?? ""
-            throw MerianError.httpError(
-                statusCode: httpResponse.statusCode,
-                message: message
-            )
-        }
-        return (data, httpResponse)
+    init(baseURL: String, publishableKey: String) {
+        self.baseURL = baseURL
+        let sessionTransport = PinnedNetworkTransport()
+        self.sessionTransport = sessionTransport
+        recovery = AccountDeletionRecoveryTransport(baseURL: baseURL, publishableKey: publishableKey, sessionTransport: sessionTransport)
+        authenticatedTransport = AuthenticatedTransportDispatcher(sessionTransport: sessionTransport)
+        history = ObservationHistoryMutationTransport(baseURL: baseURL, dispatcher: authenticatedTransport)
     }
 
+    func reanalysisStatus() -> ObservationReanalysisStatusTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
+    func retirement() -> ObservationAnalysisRetirementTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
+    func audioAnalysis() -> ObservationAudioAnalysisTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
+    func audioOutcome() -> ObservationAudioOutcomeTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
+    func sourceReservation() -> ObservationSourceReservationTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
+
+    func execute(_ request: AuthenticatedRequestExecutor.Request) async throws -> (Data, HTTPURLResponse) {
+        try await AuthenticatedRequestExecutor.live(using: authenticatedTransport).execute(request)
+    }
+    func requestPayloadAuthUserID() async throws -> UUID { try await authenticatedTransport.requestPayloadAuthUserID() }
+    func makeAuthenticatedJSONRequest(url: URL, bodyData: Data, idempotencyKey: String,
+                                      expectedAuthUserID: UUID, identificationAuthorization: IdentificationDispatchAuthorization) async throws -> URLRequest {
+        try await authenticatedTransport.makeAuthenticatedJSONRequest(url: url, bodyData: bodyData, idempotencyKey: idempotencyKey,
+            expectedAuthUserID: expectedAuthUserID, identificationAuthorization: identificationAuthorization)
+    }
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) { try await sessionTransport.data(for: request) }
+    func data(for request: URLRequest, timeoutInterval: TimeInterval) async throws -> (Data, URLResponse) {
+        try await sessionTransport.data(for: request, timeoutInterval: timeoutInterval)
+    }
+    func upload(for request: URLRequest, fromFile file: URL) async throws -> (Data, URLResponse) {
+        try await sessionTransport.upload(for: request, fromFile: file)
+    }
+
+    #if DEBUG
+    var overridingSession: URLSession? {
+        get { sessionTransport.overridingSession }
+        set { sessionTransport.overridingSession = newValue }
+    }
+    var overridingAuthUserID: UUID? {
+        get { authenticatedTransport.overridingAuthUserID }
+        set { authenticatedTransport.overridingAuthUserID = newValue }
+    }
+    var overridingAuthSessionRefresh: (@Sendable () async -> Bool)? {
+        get { authenticatedTransport.overridingAuthSessionRefresh }
+        set { authenticatedTransport.overridingAuthSessionRefresh = newValue }
+    }
+    #endif
 }

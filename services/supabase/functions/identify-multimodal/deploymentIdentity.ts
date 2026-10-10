@@ -2,4 +2,4 @@
 // Excludes this file from its own runtime-graph digest. Not a Git revision.
 
 export const IDENTIFICATION_BUNDLE_SHA256 =
-  "5a4ab7015437f87fdd9658733e1f6e1ab4093262bf46e63ca4329112678110f3";
+  "00de0f7ed1724f5e349004fac500c690e72a70e4b77ca609e22a6592cfec1da5";

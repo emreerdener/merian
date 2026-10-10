@@ -41,6 +41,8 @@ extension AppRoute {
             return Self.normalizedIdentifier(lhsScanID) ==
                 Self.normalizedIdentifier(rhsScanID)
                 && lhsEntryPoint == rhsEntryPoint
+        case let (.historicalReanalysis(lhs), .historicalReanalysis(rhs)):
+            return lhs == rhs
         case let (.scansLibraryRecovery(lhs), .scansLibraryRecovery(rhs)):
             return Self.normalizedIdentifier(lhs.ownerUserId) ==
                 Self.normalizedIdentifier(rhs.ownerUserId)
@@ -56,7 +58,7 @@ extension AppRoute {
     var isAccountSensitive: Bool {
         switch self {
         case .scan, .communityIdentification, .achievement, .captureGoal,
-             .fieldTrips, .recallLastFind, .refinement, .nonBiologicalScans,
+             .fieldTrips, .recallLastFind, .refinement, .historicalReanalysis, .nonBiologicalScans,
              .scansLibrary, .scansLibraryRecovery, .proAccessRequired:
             return true
         case .explorePost, .speciesDictionary, .identifyNature, .openScanner,
