@@ -964,3 +964,14 @@ actual lease exit; overlapping drains cannot reopen admission early.
 current-account predicate. It has no scheduler, automatic wake, idle lease,
 presentation caller or execution handoff. The service cannot authorize upload,
 funding, inference, replacement or refund.
+
+### Explicit video source reservation
+
+`Services/ObservationVideoReservationOwner.swift` retains one exact staged video
+reservation through account-lease exit. `OfflineQueueManager+VideoReservation`
+exposes the explicit injected service entry point. Account session, generation,
+container and exact candidate determine coalescing. Connectivity cancellation
+stops dispatch; current-account known settlement remains available. Both Auth
+barriers invalidate and drain the owner, and overlapping drains block admission.
+There is no scheduler or ordinary UI caller. See the
+[reservation delivery contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-retained-video-reservation-delivery).

@@ -12474,3 +12474,18 @@ and the expanded maximum envelope. Existing video durability/preparation and
 photo/audio source-store suites remain regression selectors for the shared
 transaction. These are local persistence checks, not transport delivery or
 activation proof.
+
+### Retained video reservation delivery coverage
+
+`ObservationVideoReservationDeliveryTests` exercises a verified saved cohort
+followed by one exact candidate dispatch, all reply states, typed conflict,
+unknown transport failure and known reply after cancellation. Account changes
+and missing files, cancellation or erasure around the cohort-read boundary deny
+dispatch or settlement. Claim and settlement save failures cover both sides of
+commit. Running, unknown and terminal snapshots never rearm. Owner tests check
+exact coalescing, changed generation, cancellation versus settlement authority,
+overlapping Auth drains and account-lease release before completion. Wiring
+checks cover both Auth barriers and both connectivity cancellation paths while
+excluding scheduler admission. Existing lifecycle, source-owner and reader12
+transport suites remain regression selectors. These checks establish explicit
+native delivery, not hosted runtime, upload progression or activation.

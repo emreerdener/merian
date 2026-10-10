@@ -3050,7 +3050,9 @@ Native
 owns the immutable saved-input wrapper and strict owner/candidate-bound reply.
 `Transport/ObservationSourceReservationTransport.swift` owns the fixed
 five-second reservation bridge through the private pinned dispatcher. The codec
-and bridge have no installed composition caller.
+and bridge are consumed by the explicit source-reservation services, including
+the separately retained video entry point. Video scheduler, ordinary UI,
+recovery, upload progression and execution callers remain uninstalled.
 `Core/Data/AnalysisHistory/ObservationSourceReservationWork` and
 `ObservationSourceReservationStore` share tagged preparation/proof through
 `ObservationSourceReservationPreparation`: unchanged photo version-9 and new
@@ -3065,9 +3067,11 @@ execution permission.
 `Core/Data/AnalysisHistory/ObservationVideoSourceReservationStore.swift` owns
 separate closed video staging and claim metadata, existing-only reads and exact
 known-result settlement. It preserves original staged bytes across one durable
-attempt; uncertain work cannot rearm. Network delivery, upload progression and
-execution remain separate checkpoints. Legacy photo/audio reservation envelopes
-are unchanged.
+attempt; uncertain work cannot rearm. ObservationVideoReservationService
+composes one saved claim, verified cohort read and reservation transport attempt
+through the queue-retained ObservationVideoReservationOwner. Upload progression
+and execution remain separate checkpoints. Legacy photo/audio reservation
+envelopes are unchanged.
 
 `retire-observation-analysis-source` separately wraps unfunded reader11
 retirement. Its endpoint-owned `request.ts` snapshots the full original

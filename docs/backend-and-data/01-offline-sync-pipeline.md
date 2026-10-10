@@ -2839,3 +2839,15 @@ cancels only its waiter; queue-retained tasks and durable work remain separately
 owned. Opening a model has no idle lease, timer, automatic rearm or dispatch.
 Account scope still comes from the injected access; the model never adopts a new
 account generation. All installation gates remain false.
+
+### Retained video reservation boundary
+
+The queue owns one explicit initial video reservation task independently of
+presentation. It saves its claim, verifies the complete saved cohort, and sends
+one exact reader12 candidate. Known settlement may complete after connectivity
+cancellation under the original account lease; Auth invalidation prevents it.
+Both account-transition barriers await actual retained-task exit. Running,
+unknown and terminal work never redispatch through this entry point. Upload,
+execution and restart lookup remain separate; no scheduler or ordinary UI access
+is enabled. See the
+[canonical contract](05-api-contracts.md#native-retained-video-reservation-delivery).

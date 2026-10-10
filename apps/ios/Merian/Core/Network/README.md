@@ -4210,11 +4210,13 @@ is installed and the list is not a receipt, ownership or readiness proof. See
 `Models/ObservationAnalysis/ObservationVideoSourceReservation.swift` owns the
 separate reader-12/schema-2 native identity, exact saved-input envelope and
 full-identity reply decoder. Recovery uses that same identity and reply shape. A
-typed reservation transport consumes these values; no queue caller is installed.
-They confer no upload, execution or release authority. See the prepared video
-source contract in `docs/backend-and-data/05-api-contracts.md` and
-shared-fixture coverage in the canonical testing strategy. Existing photo/audio
-reservation owners remain unchanged.
+typed reservation transport consumes these values through the explicit injected
+video reservation service and retained queue owner. No scheduler, ordinary UI,
+recovery, upload progression or execution caller is installed. They confer no
+upload, execution or release authority. See the prepared video source contract
+in `docs/backend-and-data/05-api-contracts.md` and shared-fixture coverage in
+the canonical testing strategy. Existing photo/audio reservation owners remain
+unchanged.
 
 ## Prepared video retirement models
 

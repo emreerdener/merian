@@ -16971,14 +16971,16 @@ consumer.
 ### Prepared native video source parity
 
 `ObservationVideoSourceReservation.swift` mirrors the reader-12/schema-2
-prepared contract with a typed reservation transport but no queue caller. Input
-must be bounded strict UTF-8 before fingerprinting or envelope construction,
-even when Foundation accepted another JSON encoding upstream. Its identity
-validates the complete V4 semantic fingerprint; this is separate from restoring
-a native saved-body digest. Request construction accepts a validated
-`ObservationVideoReanalysisRequest` and embeds its original `body` bytes
-verbatim. Restoration verifies the original native input and compares the entire
-saved envelope; it never rebuilds input from current selection or a manifest.
+prepared contract with a typed reservation transport and an explicit injected
+queue delivery entry point. Scheduler, ordinary UI, recovery, upload progression
+and execution callers remain uninstalled. Input must be bounded strict UTF-8
+before fingerprinting or envelope construction, even when Foundation accepted
+another JSON encoding upstream. Its identity validates the complete V4 semantic
+fingerprint; this is separate from restoring a native saved-body digest. Request
+construction accepts a validated `ObservationVideoReanalysisRequest` and embeds
+its original `body` bytes verbatim. Restoration verifies the original native
+input and compares the entire saved envelope; it never rebuilds input from
+current selection or a manifest.
 
 The identity produces the exact seven-field recovery request. Reservation and
 recovery replies share one bounded, strict-UTF8 decoder, requiring the complete
@@ -17405,11 +17407,11 @@ Only the exact bounded JSON409 conflict envelope becomes
 `ObservationVideoSourceReservationConflict`, retaining the original candidate
 and owner after settlement validation. All other errors remain uncertain;
 neither error nor reserved/held/unavailable grants upload, provider execution,
-release or replacement. The reader11 overload is unchanged. This is an inert
-transport seam: no live queue/composition caller is installed. Recovery HTTP,
-durable delivery remains a separate checkpoint; the saved-cohort reader and
-video upload transport are described below. Gates remain disabled and ordinary
-access nil.
+release or replacement. The reader11 overload is unchanged. The explicit
+injected queue entry point and retained delivery owner below now compose this
+seam. Scheduler, ordinary UI, recovery HTTP, upload progression and execution
+callers remain uninstalled. The saved-cohort reader and video upload transport
+are described below. Gates remain disabled and ordinary access nil.
 
 ### Native exact video item upload transport
 
@@ -17484,9 +17486,9 @@ omits this unsupported held envelope; it does not claim pending execution.
 Parent erasure remains available through existing captured-media/child namespace
 ownership. The local reservation claim and settlement extension is described
 below; delivery, per-child retirement, upload admission and provider execution
-remain separate. The future retained owner must validate the complete saved
-cohort and account scope around awaits. No automatic caller, polling, queue wake
-or retry is installed. Gates remain disabled and ordinary access nil.
+remain separate. The retained owner below validates the complete saved cohort
+and account scope around awaits. No automatic caller, polling, queue wake or
+retry is installed. Gates remain disabled and ordinary access nil.
 
 ### Native durable video reservation claim lifecycle
 
@@ -17529,6 +17531,40 @@ additionally binds full candidate and exact claim metadata. Only known answers
 may bypass Task cancellation, using the caller's current settlement scope.
 Source, account, erasure, result and row/job fences remain mandatory. Unknown
 failure under cancellation leaves running work intact. There is no automatic
-rearm, provider retry, refund, remote absence inference, transport owner or
-queue registration. Restart outcome recovery, upload progression and retirement
-remain separate checkpoints. Gates remain disabled and ordinary access nil.
+rearm, provider retry, refund or remote absence inference. The explicit retained
+owner below composes these APIs; restart outcome recovery, upload progression
+and retirement remain separate checkpoints. Gates remain disabled and ordinary
+access nil.
+
+### Native retained video reservation delivery
+
+`ObservationVideoReservationOwner` owns a single explicit initial video
+reservation slot keyed by the exact staged snapshot, account session, generation
+and container. It rejects non-staged admission; identical active requests
+coalesce, and changed or cancelled requests cannot replace retained work. The
+slot remains occupied through actual account-lease release. Dispatch requires
+connectivity, uncancelled work and current account scope. Known-result
+settlement excludes connectivity and dispatch cancellation, while still
+requiring the original live lease and current session/generation/container. Auth
+invalidation closes both predicates; overlapping drains retain admission closure
+until every captured task exits.
+
+`ObservationVideoReservationService` saves an opaque claim before awaits. Its
+live composition verifies every saved source/frame/audio byte under the existing
+file-store locks without preprocessing again. It revalidates the durable claim
+before and after that read and through the existing reader12 transport's attempt
+validator. It sends the exact saved candidate once. A strictly validated reply
+or typed conflict uses the separate settlement predicate and exact store
+comparison; unknown failures can only hold the original claim. Cancellation or
+stale scope may leave running work intact. Claim save failure dispatches
+nothing, including commit-then-throw. Known-result save failure does not enter
+the unknown-failure path. Reopening running, unknown or terminal work cannot
+start another request.
+
+`OfflineQueueManager.requestVideoSourceReservation` provides the explicit
+injected entry point, retaining the service with its original context. Both
+account transition barriers invalidate and await the owner before releasing
+account work; both network cancellation paths cancel dispatch. Completion is
+published only after actual owner exit and only for the current context/account.
+No scheduler, UI access, upload, restart lookup, provider invocation, refund or
+automatic caller is enabled. Gates remain disabled and ordinary access nil.
