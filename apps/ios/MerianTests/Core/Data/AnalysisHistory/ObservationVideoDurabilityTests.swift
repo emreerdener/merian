@@ -50,6 +50,16 @@ struct ObservationVideoDurabilityTests {
         #expect(try await producer(seed).prepare(seed.preparation, source: seed.source, cohort: seed.cohort,
             container: seed.container, isCurrent: { true }) == .ready)
         try assertBytes(seed)
+        let store = ObservationReanalysisFileStore(documents: seed.root)
+        var readChecks = 0, returnChecks = 0
+        let saved = try await store.readVideo(preparation: seed.preparation,
+            validateBeforeRead: { readChecks += 1 }, validateBeforeReturn: { returnChecks += 1 })
+        #expect(saved.map(\.artifact) == seed.preparation.files.map(\.artifact))
+        #expect(saved.count == (audio ? 7 : 6) && readChecks == 1 && returnChecks == 1)
+        for (item, file) in zip(saved, seed.preparation.files) {
+            #expect(item.bytes == (try Data(contentsOf: seed.root.appendingPathComponent(file.path))))
+        }
+        #expect(try await store.readVideo(preparation: seed.preparation, validateBeforeRead: {}, validateBeforeReturn: {}) == saved)
         #expect(try seed.media.outputFiles().isEmpty)
         let reopened = try ObservationPublicationPersistenceTests().container(url: seed.storeURL, seed: false)
         #expect(try await producer(seed).prepare(seed.preparation, source: seed.source, cohort: nil,
@@ -96,14 +106,16 @@ struct ObservationVideoDurabilityTests {
         try assertBytes(seed)
     }
 
-    @Test(arguments: ["missing", "changed", "extra", "symlink"])
+    @Test(arguments: ["missing", "changed", "digest", "extra", "symlink", "audio"])
     func recoveryNeverRepairsIncompleteCohort(damage: String) async throws {
         let seed = try await seed(); defer { seed.remove() }
         _ = try await producer(seed).prepare(seed.preparation, source: seed.source, cohort: seed.cohort, container: seed.container, isCurrent: { true })
-        let file = seed.root.appendingPathComponent(seed.preparation.files[1].path)
+        let reference = seed.preparation.files[damage == "audio" ? seed.preparation.files.count - 1 : 1]
+        let file = seed.root.appendingPathComponent(reference.path)
         switch damage {
-        case "missing": try FileManager.default.removeItem(at: file)
+        case "missing", "audio": try FileManager.default.removeItem(at: file)
         case "changed": try Data([0]).write(to: file)
+        case "digest": try Data(repeating: 0, count: reference.artifact.byteCount).write(to: file)
         case "extra": try Data([0]).write(to: file.deletingLastPathComponent().appendingPathComponent("extra"))
         default:
             try FileManager.default.removeItem(at: file)
@@ -112,8 +124,12 @@ struct ObservationVideoDurabilityTests {
         await #expect(throws: (any Error).self) {
             try await producer(seed).prepare(seed.preparation, source: seed.source, cohort: nil, container: seed.container, isCurrent: { true })
         }
+        await #expect(throws: (any Error).self) {
+            try await ObservationReanalysisFileStore(documents: seed.root).readVideo(preparation: seed.preparation,
+                validateBeforeRead: {}, validateBeforeReturn: { Issue.record("Damaged cohort returned bytes") })
+        }
         #expect(try seed.media.outputFiles().isEmpty)
-        if damage == "missing" { #expect(!FileManager.default.fileExists(atPath: file.path)) }
+        if damage == "missing" || damage == "audio" { #expect(!FileManager.default.fileExists(atPath: file.path)) }
         #expect(try ObservationVideoPreparationStore.read(seed.proof, container: seed.container, isCurrent: { true }) == .ready)
     }
 
@@ -252,6 +268,54 @@ struct ObservationVideoDurabilityTests {
         let seed = try await seed(); defer { seed.remove() }
         #expect(throws: (any Error).self) { try ObservationVideoPreparationStore.discard(seed.proof, container: seed.container, isCurrent: { true }) }
         #expect(try ModelContext(seed.container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+    }
+
+    @Test(arguments: ["before", "return", "cancel", "cancelReturn"])
+    func savedReadRequiresBothScopesAndCancellation(kind: String) async throws {
+        let seed = try await seed(); defer { seed.remove() }
+        _ = try await producer(seed).prepare(seed.preparation, source: seed.source, cohort: seed.cohort,
+            container: seed.container, isCurrent: { true })
+        let store = ObservationReanalysisFileStore(documents: seed.root)
+        let task = Task { @MainActor in
+            if kind == "cancel" { withUnsafeCurrentTask { $0?.cancel() } }
+            return try await store.readVideo(preparation: seed.preparation, validateBeforeRead: {
+                if kind == "before" { throw Simulated.save }
+            }, validateBeforeReturn: {
+                if kind == "before" || kind == "cancel" { Issue.record("Invalid scope reached return fence") }
+                if kind == "return" { throw Simulated.save }
+                if kind == "cancelReturn" { withUnsafeCurrentTask { $0?.cancel() } }
+            })
+        }
+        await #expect(throws: (any Error).self) { try await task.value }
+        // Failed reads release locks and do not erase or mutate the retained bytes.
+        let retry = try await store.readVideo(preparation: seed.preparation, validateBeforeRead: {}, validateBeforeReturn: {})
+        #expect(retry.map(\.artifact) == seed.preparation.files.map(\.artifact))
+        try assertBytes(seed)
+    }
+
+    @Test func savedReadHoldsRootAndChildLocksThroughReturnFence() async throws {
+        let seed = try await seed(); defer { seed.remove() }
+        _ = try await producer(seed).prepare(seed.preparation, source: seed.source, cohort: seed.cohort,
+            container: seed.container, isCurrent: { true })
+        let directory = seed.root.appendingPathComponent(seed.preparation.files[0].path).deletingLastPathComponent()
+        let assertLocked: @MainActor @Sendable () throws -> Void = {
+            for path in [seed.root.path, directory.path] {
+                let descriptor = open(path, O_RDONLY | O_DIRECTORY)
+                #expect(descriptor >= 0)
+                defer { close(descriptor) }
+                #expect(flock(descriptor, LOCK_EX | LOCK_NB) != 0)
+            }
+        }
+        _ = try await ObservationReanalysisFileStore(documents: seed.root).readVideo(preparation: seed.preparation,
+            validateBeforeRead: assertLocked, validateBeforeReturn: assertLocked)
+        let lock = open(directory.path, O_RDONLY | O_DIRECTORY)
+        #expect(lock >= 0); defer { close(lock) }
+        #expect(flock(lock, LOCK_EX | LOCK_NB) == 0)
+        await #expect(throws: ObservationReanalysisFileStore.Failure.busy) {
+            try await ObservationReanalysisFileStore(documents: seed.root).readVideo(preparation: seed.preparation,
+                validateBeforeRead: { Issue.record("Busy child reached read fence") }, validateBeforeReturn: {})
+        }
+        #expect(flock(lock, LOCK_UN) == 0)
     }
 
 }

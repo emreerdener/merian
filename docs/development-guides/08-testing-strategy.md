@@ -12432,3 +12432,15 @@ exercise12MiB source bytes. Exact maximum-metadata boundary and real allocated
 route write/HEAD/completion remain separate integration coverage. These tests
 prove the inert native transport, not live durable queue delivery or hosted
 qualification.
+
+### Exact saved video cohort read coverage
+
+`ObservationVideoDurabilityTests` exercises audio and silent ordered byte reads,
+repeated exact reads, missing frame/audio, changed size, same-size digest
+damage, extra files and symlinks. Before-read/return scope failures,
+pre-cancellation and cancellation at return yield no cohort and leave bytes
+available for exact retry. Root and child locks remain held through both
+validators; a held child lock rejects another reader before scope callbacks.
+Existing file-store tests cover shared lock and namespace behavior. These reads
+verify saved-byte equality only, not provider execution, server readiness or
+live durable delivery.

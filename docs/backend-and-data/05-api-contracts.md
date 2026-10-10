@@ -17407,9 +17407,9 @@ and owner after settlement validation. All other errors remain uncertain;
 neither error nor reserved/held/unavailable grants upload, provider execution,
 release or replacement. The reader11 overload is unchanged. This is an inert
 transport seam: no live queue/composition caller is installed. Recovery HTTP,
-saved-cohort reading and durable delivery remain separate checkpoints; video
-upload transport is described below. Gates remain disabled and ordinary access
-nil.
+durable delivery remains a separate checkpoint; the saved-cohort reader and
+video upload transport are described below. Gates remain disabled and ordinary
+access nil.
 
 ### Native exact video item upload transport
 
@@ -17431,3 +17431,23 @@ answer after dispatch cancellation. Every non200, lost, malformed, oversized,
 foreign or unready-target response fails without automatic retry or fallback. No
 upload result grants provider execution, release or refund. No live queue caller
 is installed. Gates remain false and ordinary access nil.
+
+### Native saved video cohort reader
+
+`ObservationReanalysisFileStore.readVideo` accepts immutable
+`ObservationVideoPreparation` and required before-read/before-return validators.
+It returns `VideoItem` artifact/byte pairs in source, frame and optional audio
+manifest order. The existing shared root and exclusive child locks cover both
+validators and complete-cohort verification. Exact directory membership,
+no-follow reads, declared byte counts, SHA-256 and stable directory identity are
+enforced before any result is returned. Missing, extra, substituted or changed
+files fail without repair, partial output or new preprocessing.
+
+Cancellation is checked before reading, during the bounded cohort read, around
+the return validator and after the awaited read. Both failures and success
+release the filesystem fences. The caller must still revalidate its current
+account/claim after await; returned bytes are not authority to upload or invoke
+a provider. This checks equality with the saved immutable manifest, not fresh
+container/derivation verification or server readiness. No persistence schema
+change or live video delivery caller is installed. Gates and ordinary access
+remain disabled.

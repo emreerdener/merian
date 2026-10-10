@@ -56,6 +56,29 @@ actor ObservationReanalysisFileStore {
                                     validateBeforeRead: validateBeforeRead, verifyContainer: { _, _ in }) { _ in try commit() }
     }
 
+    struct VideoItem: Equatable, Sendable {
+        let artifact: ObservationVideoProvenance.Artifact
+        let bytes: Data
+    }
+
+    /// Exact saved cohort in manifest order, never a new derivation or server readiness proof.
+    /// The retained delivery owner must revalidate its account/claim after this await.
+    func readVideo(preparation: ObservationVideoPreparation,
+                   validateBeforeRead: @MainActor @Sendable () throws -> Void,
+                   validateBeforeReturn: @MainActor @Sendable () throws -> Void) async throws -> [VideoItem] {
+        let files = preparation.files
+        let result = try await withVerifiedFiles(child: preparation.identity.analysisID, references: videoReferences(preparation),
+            validateBeforeRead: validateBeforeRead, verifyContainer: { _, _ in }) { buffers in
+                try Task.checkCancellation()
+                try validateBeforeReturn()
+                try Task.checkCancellation()
+                guard buffers.count == files.count else { throw Failure.incomplete }
+                return zip(files, buffers).map { VideoItem(artifact: $0.0.artifact, bytes: $0.1) }
+            }
+        try Task.checkCancellation()
+        return result
+    }
+
     private func videoReferences(_ preparation: ObservationVideoPreparation) -> [FileReference] {
         preparation.files.map { FileReference(name: URL(fileURLWithPath: $0.path).lastPathComponent,
                                               byteCount: $0.artifact.byteCount, sha256: $0.artifact.sha256) }

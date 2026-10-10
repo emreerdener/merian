@@ -2089,3 +2089,14 @@ without recreating the child. Cleanup failure or cancellation retains the
 receipt for existing local recovery. Source and sibling files are never deletion
 targets. The path is prepared only; Capture and automatic video delivery remain
 absent.
+
+## Exact saved video cohort reads
+
+`ObservationReanalysisFileStore.readVideo` returns ordered `VideoItem` values
+(artifact plus exact bytes) using the same complete-inventory, size/hash,
+no-follow and stable root/child locks as video recovery. Both scope validators
+run while locks are held; cancellation before/after the return validator rejects
+the result. Reads do not create, repair, erase or rederive media. The delivery
+owner must revalidate its account/claim after awaiting the read. No live video
+delivery owner or server readiness authority is installed. See the
+[canonical saved-reader contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-saved-video-cohort-reader).
