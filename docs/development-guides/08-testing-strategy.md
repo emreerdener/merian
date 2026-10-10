@@ -12140,3 +12140,15 @@ register the suite, guarded by `workflowSecurity.test.ts`. These checks do not
 prove authentication, saved analysis association, decoded content or companion
 derivation. No live endpoint uses the helper and no activation qualification is
 implied.
+
+### Held video source fingerprint vectors
+
+`videoSourceFingerprint_test.ts` checks fixed canonical UTF-8 bytes and SHA-256
+vectors for audio, silent and Unicode-description V4 inputs. The fixtures were
+encoded independently of the production TypeScript helper. Tests cover JSON
+property order, original request preservation, mutation after the hash call,
+every semantic leaf being bound or rejected, ordered descriptions, aliases,
+unsupported text and schema separation. Existing photo/audio golden bytes remain
+unchanged, and the executable input parser continues rejecting V4. Candidate CI
+registers both type checks and tests. These are TypeScript contract tests;
+Swift/SQL parity and any live reservation/admission qualification remain open.

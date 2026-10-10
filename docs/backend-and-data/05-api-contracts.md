@@ -16796,3 +16796,50 @@ frame pixels or PCM samples, or prove an audio companion's exact extraction
 interval against the retained audio track. Durable source/cohort authority,
 provider profile, upload/admission integration and device qualification remain
 separate requirements. Existing executable photo/audio routes remain unchanged.
+
+### Held video source fingerprint v1
+
+`videoSourceFingerprint.videoSourceCanonicalBytes` and `videoSourceFingerprint`
+define a separate, unregistered V4 semantic binding contract. The TypeScript
+codec and fixed vectors are prepared; Swift and SQL parity remain required
+before any producer or consumer may use this identity. Existing photo/audio
+fingerprints, original request bytes, `request_digest` replay semantics and live
+reservation/admission parsers are unchanged. The codec does not authenticate an
+owner, verify media bytes, reserve occupancy or select an executable provider.
+
+After `parsePreparedVideoAdmission` validation, encode each scalar as a UTF-8
+netstring: decimal UTF-8 byte length, colon, exact scalar text, comma. Numbers
+use nonnegative safe-integer decimal text; booleans below use 1/0. NUL, lone
+surrogates and negative zero scalar values are rejected, without replacement or
+Unicode normalization. The complete canonical representation is bounded to
+262,144 bytes. SHA-256 uses these owned bytes, captured before the first await.
+Object property order is irrelevant; array order remains significant. Owner is
+excluded, preserving the existing account-merge identity boundary without
+conferring merge authority.
+
+The exact scalar sequence is:
+
+1. Domain `merian.analysis-video-source-binding`, fingerprint version 1; request
+   `schema_version`, `observation_id`, `analysis_id`, `source_analysis_id`,
+   `request_digest`, `entitlement_protocol`, `identification_protocol`,
+   `history_protocol`, `expected_processor_permission`.
+2. `multimodal_video_audio_v1` when the manifest has audio, otherwise
+   `multimodal_video_frames_v1`; manifest `schema_version`, provenance
+   `schema_version`, `preprocessing_version`.
+3. Source artifact tuple: `media_id`, `content_type`, `byte_count`, `sha256`.
+4. Parameters: `timescale`, `frame_pipeline`, `decode_long_edge`,
+   `duration_ticks`, `sampling`, `preferred_track_transform` as 1/0, `crop`,
+   `crop_center_basis_points`, `inference_long_edge`,
+   `encoding_quality_percent`.
+5. Frame count (5); for each ordered frame: `index`, `source_media_id`,
+   `requested_time_ticks`, `actual_time_ticks`, then its artifact tuple in the
+   order from item 3.
+6. Audio-present flag (1/0); if present: `source_media_id`, `track`,
+   `start_ticks`, `end_ticks`, `sample_rate`, `sample_count`, `channels`,
+   `bits_per_sample`, `encoding`, then its artifact tuple.
+7. Description count; each description in order, with exact text preserved.
+
+The profile string binds declared metadata only. Swift/SQL parity, video cohort
+coverage, durable reservation/recovery/retirement, materialization and execution
+are separate checkpoints. In particular, do not register V4 with the existing
+photo/audio source reservation codec merely because this fingerprint is defined.

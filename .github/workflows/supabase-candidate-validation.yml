@@ -183,6 +183,7 @@ jobs:
             supabase/functions/_shared/analysisHistory/retainedVideoEnvelope_test.ts \
             supabase/functions/_shared/analysisHistory/retainedVideoStructure_test.ts \
             supabase/functions/_shared/analysisHistory/retainedVideoContainer_test.ts \
+            supabase/functions/_shared/analysisHistory/videoSourceFingerprint_test.ts \
             supabase/functions/resolve-history-photo/handler_test.ts \
             supabase/functions/analyze-observation/handler_test.ts \
             supabase/functions/recover-observation-analyses/handler_test.ts \
@@ -388,6 +389,7 @@ jobs:
             supabase/functions/_shared/analysisHistory/retainedVideoEnvelope_test.ts \
             supabase/functions/_shared/analysisHistory/retainedVideoStructure_test.ts \
             supabase/functions/_shared/analysisHistory/retainedVideoContainer_test.ts \
+            supabase/functions/_shared/analysisHistory/videoSourceFingerprint_test.ts \
             supabase/functions/resolve-history-photo/handler_test.ts \
             supabase/functions/analyze-observation/handler_test.ts \
             supabase/functions/recover-observation-analyses/handler_test.ts \

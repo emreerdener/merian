@@ -1140,3 +1140,11 @@ rejects malformed structure even with a matching digest. It is uninstalled and
 provides no ownership, saved-analysis association, decode/derivation or
 admission authority. See the
 [source byte contract](../../../../../docs/backend-and-data/05-api-contracts.md#retained-video-source-byte-verification).
+
+`videoSourceFingerprint` defines an unregistered V4 canonical-byte contract in
+its own versioned domain, binding complete source/frame/audio provenance and
+ordered descriptions. It leaves existing source reservation and executable input
+parsing photo/audio-only. Its fixed vectors prepare Swift/SQL parity; that
+parity and durable video cohort/recovery coverage are required before any
+consumer connects. See the
+[held fingerprint field order](../../../../../docs/backend-and-data/05-api-contracts.md#held-video-source-fingerprint-v1).
