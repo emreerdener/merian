@@ -12164,3 +12164,10 @@ contract and `observation_video_source_fingerprint.sql` catalog fixture enforce
 private stable invoker routines and actual denial for API roles. Run on a fresh
 disposable database before claiming SQL parity; live reservation/admission
 qualification remains separate.
+
+The candidate shared-helper step grants read access to the exact held-video
+fingerprint migration file in addition to its existing function/web roots.
+`workflowSecurity.test.ts` guards that permission within the helper step itself:
+registering a migration test in its file list does not grant its filesystem
+access. Validate this step with its checked-in Deno permissions; a successful
+full-suite run with broader permissions does not prove the candidate step runs.

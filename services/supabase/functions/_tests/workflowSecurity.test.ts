@@ -273,6 +273,15 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
       `${suite} must run in both candidate type-check and helper-test lists`,
     );
   }
+  const helperStep = candidateWorkflow.split(
+    "- name: Test shared Edge helpers",
+  )[1]
+    ?.split("- name:")[0];
+  assert(helperStep, "Candidate helper step must remain explicit");
+  assertStringIncludes(
+    helperStep,
+    "--allow-read=supabase/functions,../apps/web,supabase/migrations/20261010005747_prepare_video_source_fingerprint_parity.sql",
+  );
   assertStringIncludes(candidateWorkflow, "  merge_group:");
   assertStringIncludes(candidateWorkflow, "  workflow_dispatch:");
   assertStringIncludes(candidateWorkflow, "  workflow_call:");

@@ -343,7 +343,7 @@ jobs:
         run: |
           deno test --frozen --config supabase/functions/deno.json \
             --allow-env \
-            --allow-read=supabase/functions,../apps/web \
+            --allow-read=supabase/functions,../apps/web,supabase/migrations/20261010005747_prepare_video_source_fingerprint_parity.sql \
             supabase/functions/_shared/http_test.ts \
             supabase/functions/_shared/outbound_test.ts \
             supabase/functions/_shared/posthog_test.ts \
