@@ -12183,5 +12183,11 @@ denial paths. Its database tests run only with the disposable database URL. The
 migration contract and pgTAP catalog test verify the private stable invoker
 boundary. All three TypeScript suites appear in both candidate lists; the helper
 step grants only the exact additional inventory migration file for its static
-test, with step-scoped permission and registration regression guards. Native
-parity and durable upload/retirement coverage remain separate.
+test, with step-scoped permission and registration regression guards. Durable
+upload/retirement coverage remains separate.
+
+`ObservationVideoCohortInventoryTests` verifies the same audio/silent/Unicode
+fixtures in Swift, whole-list count/order/closed keys, scalar type and byte
+bounds, full-input validation and unchanged request metadata. These tests prove
+pure inventory parity; durable upload/retirement and device qualification remain
+separate.

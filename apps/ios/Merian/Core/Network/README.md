@@ -4196,3 +4196,11 @@ vectors; durable video coverage and lifecycle contracts are still required
 before any caller is installed. Existing photo/audio source codecs remain
 unchanged. See
 [the held fingerprint contract](../../../../../docs/backend-and-data/05-api-contracts.md#held-video-source-fingerprint-v1).
+
+### Held video cohort inventory
+
+`ObservationVideoCohortInventory` projects full validated V4 metadata into the
+shared source/five-frame/optional-audio list. Its bounded whole-list matcher
+rejects partial or changed coverage. No endpoint, queue or persistence consumer
+is installed and the list is not a receipt, ownership or readiness proof. See
+[the inventory contract](../../../../../docs/backend-and-data/05-api-contracts.md#held-video-cohort-inventory).

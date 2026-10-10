@@ -16880,6 +16880,9 @@ derived-output attestation, and grants no upload or execution permission.
 
 The SQL helper is a stable invoker with empty search path and execution revoked
 from PUBLIC and all API roles. No table or live consumer is introduced. Native
-inventory parity, durable cohort storage and writer/coverage/release/retirement
-coordination remain required before wiring. Existing photo/audio contracts are
-unchanged.
+`ObservationVideoCohortInventory` mirrors the same projection after full V4
+semantic fingerprint validation and checks an entire closed inventory within a 4
+KiB native decoding bound. It does not restore saved request bytes or recompute
+their request digest. Durable cohort storage and
+writer/coverage/release/retirement coordination remain required before wiring.
+Existing photo/audio contracts are unchanged.

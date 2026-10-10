@@ -1150,7 +1150,8 @@ is still required before any consumer connects. See the
 [held fingerprint field order](../../../../../docs/backend-and-data/05-api-contracts.md#held-video-source-fingerprint-v1).
 
 `videoCohort.ts` owns the held V4 ordered artifact inventory and exact
-whole-list metadata matcher. The private SQL projection mirrors it. Neither
-establishes a receipt or upload authority; native parity and durable cohort
-lifecycle remain required. See the
+whole-list metadata matcher. The private SQL projection and native
+`ObservationVideoCohortInventory` mirror it using the same fixed vectors. None
+establishes a receipt or upload authority; durable cohort lifecycle remains
+required. See the
 [inventory contract](../../../../../docs/backend-and-data/05-api-contracts.md#held-video-cohort-inventory).
