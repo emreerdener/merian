@@ -4225,3 +4225,12 @@ unchanged. They install no endpoint, queue or cleanup consumer. The
 [canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-video-pre-execution-retirement-parity)
 owns bounds, compatibility and authority; shared-vector tests live in
 `ObservationVideoSourceRetirementTests`.
+
+## Prepared video upload metadata
+
+`ObservationVideoEvidenceUploadRequest` derives the exact reader-12/schema-2
+identity and whole immutable inventory. Saved request bytes remain unchanged.
+`ObservationVideoEvidenceReceipt` validates the complete allocation/status
+snapshot, fixed object IDs/deadline, strict UTC milliseconds and monotonic
+per-item readiness. Fresh allocation decoding requires every item unready. These
+values install no transport, queue, storage verifier or provider caller.

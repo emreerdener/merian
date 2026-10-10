@@ -17208,3 +17208,21 @@ object is held for investigation rather than replaced or partly cleaned. Parent
 erasure remains the authority for cascading the retained allocation. No storage
 deletion or live erasure qualification is claimed merely by emitting
 obligations.
+
+### Native video upload metadata parity
+
+The handwritten `ObservationVideoEvidenceUploadRequest` derives the closed
+reader-12/schema-2 request from the full V4 input, using the shared native
+identity and cohort inventory. Restoration preserves exact saved bytes after
+validation against that same input. Requests are bounded to 4 KiB; receipts to 8
+KiB. No generated Identify DTO changes are required.
+
+`ObservationVideoEvidenceReceipt` binds owner, complete identity and ordered
+inventory, rejects every object alias, and preserves original response bytes.
+Prior validated snapshots freeze object IDs and expiry and forbid completed
+readiness rollback or replacement. The separate allocation decoder requires all
+readiness null. Timestamp validation uses exact UTC milliseconds and proleptic
+Gregorian years 0001–9999; expired snapshots remain inspectable but grant no new
+permission. Matching metadata proves neither server authentication nor stored
+bytes/source derivation. No native transport, queue or runtime caller is
+installed.

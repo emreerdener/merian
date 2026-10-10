@@ -12334,3 +12334,13 @@ post-allocation execution predicates. Candidate workflow selectors include the
 runtime and migration-contract suites. Tests establish SQL behavior only;
 storage byte verification, source derivation, native delivery and device/hosted
 qualification remain separate acceptance requirements.
+
+### Native video upload metadata parity
+
+`ObservationVideoEvidenceUploadTests` loads the shared audio/silent/Unicode
+request and allocation/ready vectors. It covers exact saved bytes, closed
+shapes, owner association, whole-inventory ordering, object aliases, partial
+readiness, monotonic prior snapshots, fresh-allocation restrictions and bounded
+UTF-8. Timestamp cases include invalid calendar dates, year zero, leap-century
+rules and readiness at expiry. This is codec coverage; it does not qualify
+transport, byte verification, queue delivery or device/hosted execution.
