@@ -17773,3 +17773,26 @@ Unknown execution cannot be claimed again and remains charged/held. No result
 settlement, refund, occupancy release or cleanup authority is introduced. Public
 begin/advance/recovery and executable V4 parsing remain unavailable;
 result/reader/settlement contracts are required before connecting a caller.
+
+### Private V4 received-outcome recovery
+
+The ungranted SQL writer
+`record_video_observation_outcome(owner, observation,
+analysis, quota_token, value)`
+retains the existing `SavedAnalysisOutcome` version-one envelope: exact
+provenance, outcome and usage. Its JSONB text is at most 1 MiB; usage is an
+object of known accounting fields at most 2 KiB. Outcome is exactly a draft with
+an object result, refusal, or invalid_output. The writer checks the immutable
+dispatch witness and original invocation/provenance before the first save. It
+does not validate result semantics or normalize/account usage. Exact replay
+requires the unchanged saved value and original quota token, and does not depend
+on invocation retention. A late answer can be saved after fresh gates close or
+work/media expire. Owner deletion still denies every access.
+
+Private `read_video_observation_outcome(owner, observation, analysis)` returns
+`state`, original `input`, and `provider_outcome` only. A null outcome means no
+received answer is stored for that dispatched identity; it never permits another
+provider call. No quota/work token is exposed, no claim is renewed and no credit
+is settled or refunded. V4 is excluded from legacy recovery discovery. There is
+no public wire, native consumer or executable parser change. Known-result
+settlement, result validation and public reader integration remain held.

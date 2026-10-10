@@ -109,3 +109,32 @@ Deno.test("video claim and dispatch remain private without public execution wiri
     ]
   ) assert(sql.includes(boundary), boundary);
 });
+
+Deno.test("video received outcome is private and cannot grant settlement or provider retry", async () => {
+  const sql = await Deno.readTextFile(
+    new URL(
+      "../../migrations/20261010150954_prepare_private_video_outcome_recovery.sql",
+      import.meta.url,
+    ),
+  );
+  assert(!/\bGRANT\b|CREATE (?:OR REPLACE )?FUNCTION public\./.test(sql));
+  for (
+    const required of [
+      "lock_video_observation_analysis",
+      "assert_video_analysis_dispatch_identity",
+      "record_video_observation_outcome",
+      "read_video_observation_outcome",
+      "saved.provider_outcome IS DISTINCT FROM p_value",
+      "saved.state<>'dispatched'",
+      "FOR KEY SHARE",
+      "octet_length(p_value::TEXT)>1048576",
+      "public.list_observation_analysis_recovery()",
+      "AND input_snapshot->''schema_version''<>''4''::JSONB",
+    ]
+  ) assert(sql.includes(required));
+  assert(
+    !/PERFORM internal\.(?:complete_identification_usage|settle_complimentary_analysis|fail_observation_analysis)/
+      .test(sql),
+  );
+  assert(!/SET work_token|may_dispatch.*TRUE|DELETE FROM/.test(sql));
+});

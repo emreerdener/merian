@@ -1255,3 +1255,10 @@ transaction witness. They have no API grants or HTTP caller. Unknown execution
 stays held; replay never dispatches. Generic execution and V4 parsing remain
 unchanged until result/reader/settlement contracts are ready. See the
 [private dispatch boundary](../../../../../docs/backend-and-data/05-api-contracts.md#private-v4-dispatch-preparation).
+
+Private SQL now retains exact received V4 outcomes and offers identity-bound
+read recovery without claiming work or settling credits. Legacy recovery
+discovery excludes V4 until its consumer is ready. Existing
+`SavedAnalysisOutcome` envelope shape is reused only for bounded retention;
+result validation and known-result settlement remain uninstalled. See the
+[received-outcome contract](../../../../../docs/backend-and-data/05-api-contracts.md#private-v4-received-outcome-recovery).

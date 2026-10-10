@@ -8232,3 +8232,24 @@ The migration also repairs the previous private admission helper forward: V4
 fingerprint validation is performed without assigning its unused return value.
 This removes a database-lint warning without changing admission behavior or
 rewriting the applied migration.
+
+### Private V4 received-outcome retention
+
+`record_video_observation_outcome` stores one bounded immutable received answer
+on the existing intent after canonical owner/source locks and original dispatch
+witness checks. The original quota token and matching live invocation are
+required for the first answer. An exact invocation key-share lock lasts through
+commit, serializing first capture with retention deletion. Exact stored replay
+survives invocation retention; a changed answer is rejected. Work/media expiry
+and closed fresh-dispatch gates do not discard a late answer.
+`read_video_observation_outcome` returns only exact state, input and saved
+outcome after the same identity fence, including null for a dispatched execution
+with no received answer. It creates no work claim or absence proof. Both
+routines and their dispatch assertion are private, with empty search paths and
+ten-second limits.
+
+The existing bounded legacy recovery list excludes V4 until its settlement
+consumer exists. No invocation, accounting, credit, draft, result, receipt,
+occupancy or erasure state changes when capturing/reading this evidence. Payload
+retention is not semantic result validation or settlement; those remain required
+before public execution can open.

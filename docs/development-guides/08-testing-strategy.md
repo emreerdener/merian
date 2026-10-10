@@ -12595,3 +12595,20 @@ by these tests. `workflowSecurity.test.ts` locks the full allowlist, including
 ready-evidence, initial admission and private dispatch migrations. Verify the
 helper command with those restricted permissions; a broad local `--allow-read`
 run cannot establish CI permission coverage.
+
+### Private V4 outcome verification
+
+Video database fixtures cover exact outcome capture/read for all three video
+variants, including draft/refusal/invalid_output, unknown execution with no
+answer, owner mismatch, wrong original token, malformed and oversized envelopes,
+late answers after expiry/gate closure, immutable replay and owner deletion. A
+two-session test proves duplicate outcome capture blocks until the first commit.
+Invocation deletion denies a first answer but preserves identical saved replay.
+Two-session capture-first and deletion-first tests prove this ordering under
+real blocking. Direct generic claim and advance remain denied after outcome
+capture. They assert committed quota and held complimentary credit remain
+unchanged, no new dispatch claim can be acquired, and V4 never enters legacy
+recovery discovery. Catalog tests cover every API-role denial and bounded
+definer configuration; static contracts forbid grants or settlement calls. The
+exact CI migration read allowlist includes this new migration. These are
+received-evidence checks, not semantic result or settlement qualification.

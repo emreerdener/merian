@@ -1419,3 +1419,389 @@ Deno.test({
     }
   },
 });
+
+for (let variant = 0; variant < 3; variant++) {
+  Deno.test({
+    name:
+      `private video received outcome stays immutable and recovery-only variant=${variant}`,
+    ignore: !url,
+    async fn() {
+      const db = await connect();
+      await db.queryArray("BEGIN");
+      try {
+        await fixture(db);
+        const f = await fundedVideo(db, variant);
+        const token = (f.admitted.quota as { lease_token: string }).lease_token;
+        const read = (owner = f.owner) =>
+          db.queryObject<{ value: Record<string, unknown> }>(
+            "SELECT internal.read_video_observation_outcome($1,$2,$3) value",
+            [owner, f.parent, f.child],
+          );
+        const outcome = {
+          schema_version: 1,
+          provenance: f.provenance,
+          outcome: variant === 0
+            ? {
+              kind: "draft",
+              result: { identification_provenance: f.provenance },
+            }
+            : { kind: variant === 1 ? "refusal" : "invalid_output" },
+          usage: {},
+        };
+        const record = (value: unknown = outcome, quota = token) =>
+          db.queryArray(
+            "SELECT internal.record_video_observation_outcome($1,$2,$3,$4,$5::jsonb)",
+            [f.owner, f.parent, f.child, quota, JSON.stringify(value)],
+          );
+        await denied(db, () => read());
+        await denied(db, () => record());
+        await db.queryArray(
+          "UPDATE internal.observation_history_rollout SET video_dispatch_enabled=true",
+        );
+        const claim = (await claimVideo(db, f)).rows[0].value;
+        await dispatchVideo(db, f, claim.work_token);
+        assertEquals((await read()).rows[0].value.provider_outcome, null);
+        await denied(db, () => read(crypto.randomUUID()));
+        await denied(db, () => record(outcome, crypto.randomUUID()));
+        for (
+          const malformed of [
+            null,
+            { ...outcome, extra: true },
+            { ...outcome, schema_version: 2 },
+            { ...outcome, provenance: {} },
+            { ...outcome, outcome: { kind: "timeout" } },
+            { ...outcome, outcome: { kind: "draft", result: null } },
+            { ...outcome, outcome: { kind: "refusal", extra: true } },
+            { ...outcome, usage: { extra: 1 } },
+            { ...outcome, usage: { service_tier: "a".repeat(2048) } },
+            {
+              ...outcome,
+              outcome: {
+                kind: "draft",
+                result: { large: "a".repeat(1048576) },
+              },
+            },
+          ]
+        ) {
+          await denied(db, () => record(malformed));
+        }
+        await age(db, f.child);
+        await db.queryArray(
+          "UPDATE internal.observation_history_rollout SET video_dispatch_enabled=false,dispatch_enabled=false,admission_enabled=false,media_enabled=false",
+        );
+        await db.queryArray(
+          "UPDATE internal.observation_analysis_intents SET work_expires_at=clock_timestamp()-interval '1 second' WHERE analysis_id=$1",
+          [f.child],
+        );
+        await db.queryArray("SAVEPOINT retained_invocation");
+        await db.queryArray(
+          "DELETE FROM internal.identification_invocations WHERE scan_id=$1",
+          [f.child],
+        );
+        await denied(db, () => record());
+        await db.queryArray("ROLLBACK TO SAVEPOINT retained_invocation");
+        await record();
+        await record();
+        await db.queryArray(
+          "DELETE FROM internal.identification_invocations WHERE scan_id=$1",
+          [f.child],
+        );
+        await record();
+        const recovered = (await read()).rows[0].value;
+        assertEquals(recovered, {
+          state: "dispatched",
+          input: f.c.input,
+          provider_outcome: outcome,
+        });
+        assertEquals((await claimVideo(db, f)).rows[0].value.claimed, false);
+        await denied(
+          db,
+          () => record({ ...outcome, usage: { input_tokens: 1 } }),
+        );
+        await db.queryArray(
+          "UPDATE internal.observation_history_rollout SET orchestration_enabled=true",
+        );
+        await denied(
+          db,
+          () =>
+            db.queryArray(
+              "SELECT public.claim_observation_analysis_recovery($1,$2,$3)",
+              [f.owner, f.parent, f.child],
+            ),
+        );
+        await denied(
+          db,
+          () =>
+            db.queryArray(
+              "SELECT public.advance_owned_observation_analysis($1,$2,$3,$4,'release','{}'::jsonb)",
+              [f.owner, f.parent, f.child, claim.work_token],
+            ),
+        );
+        const listed =
+          (await db.queryObject<{ value: Array<{ analysis_id: string }> }>(
+            "SELECT public.list_observation_analysis_recovery() value",
+          )).rows[0].value;
+        assert(!listed.some((x) => x.analysis_id === f.child));
+        const state = (await db.queryObject<
+          { quota: string; credit: string; usage: unknown }
+        >(
+          "SELECT q.state quota,c.state credit,i.provider_usage usage FROM internal.observation_analysis_intents i JOIN internal.ai_quota_reservations q ON q.original_analysis_id=i.analysis_id JOIN internal.complimentary_scan_usage c ON c.client_scan_id=i.analysis_id WHERE i.analysis_id=$1",
+          [f.child],
+        )).rows[0];
+        assertEquals(state, {
+          quota: "committed",
+          credit: "held",
+          usage: null,
+        });
+        await db.queryArray("SELECT public.apply_user_tombstone($1)", [
+          f.owner,
+        ]);
+        await denied(db, () => read());
+        await denied(db, () => record());
+      } finally {
+        await db.queryArray("ROLLBACK");
+        await db.end();
+      }
+    },
+  });
+}
+
+Deno.test({
+  name: "private video concurrent outcome capture keeps one immutable answer",
+  ignore: !url,
+  async fn() {
+    const first = await connect(), second = await connect();
+    const dispatchGates = [
+      ...gates,
+      "admission_enabled",
+      "protected_analysis_enabled",
+      "video_analysis_enabled",
+      "source_dispatch_enabled",
+      "dispatch_enabled",
+      "video_dispatch_enabled",
+    ];
+    let prior: Record<string, boolean> | undefined;
+    let entitlement: { mode: string; protocol: number } | undefined;
+    let owner: string | undefined;
+    try {
+      await fixture(first);
+      prior = (await first.queryObject<Record<string, boolean>>(
+        `SELECT ${
+          dispatchGates.join(",")
+        } FROM internal.observation_history_rollout`,
+      )).rows[0];
+      entitlement =
+        (await first.queryObject<{ mode: string; protocol: number }>(
+          "SELECT entitlement_mode mode,required_client_protocol protocol FROM internal.entitlement_rollout_config WHERE config_key='current'",
+        )).rows[0];
+      const f = await fundedVideo(first, 1);
+      owner = f.owner;
+      await first.queryArray(
+        "UPDATE internal.observation_history_rollout SET video_dispatch_enabled=true",
+      );
+      const claim = (await claimVideo(first, f)).rows[0].value;
+      await dispatchVideo(first, f, claim.work_token);
+      const outcome = {
+        schema_version: 1,
+        provenance: f.provenance,
+        outcome: { kind: "refusal" },
+        usage: {},
+      };
+      const record = (db: Client) =>
+        db.queryArray(
+          "SELECT internal.record_video_observation_outcome($1,$2,$3,$4,$5::jsonb)",
+          [
+            f.owner,
+            f.parent,
+            f.child,
+            (f.admitted.quota as { lease_token: string }).lease_token,
+            JSON.stringify(outcome),
+          ],
+        );
+      await first.queryArray("BEGIN");
+      await second.queryArray("BEGIN");
+      await record(first);
+      const pid = (await second.queryObject<{ pid: number }>(
+        "SELECT pg_backend_pid() pid",
+      )).rows[0].pid;
+      const pending = record(second).then(
+        (value) => ({ value }),
+        (error) => ({ error }),
+      );
+      let blocked = false;
+      for (let n = 0; n < 100 && !blocked; n++) {
+        blocked = (await first.queryObject<{ blocked: boolean }>(
+          "SELECT cardinality(pg_blocking_pids($1))>0 blocked",
+          [pid],
+        )).rows[0].blocked;
+        if (!blocked) await new Promise((r) => setTimeout(r, 5));
+      }
+      assert(blocked, "duplicate outcome must await original commit");
+      await first.queryArray("COMMIT");
+      const result = await pending;
+      assert("value" in result);
+      await second.queryArray("COMMIT");
+      const read = (await first.queryObject<{ value: Record<string, unknown> }>(
+        "SELECT internal.read_video_observation_outcome($1,$2,$3) value",
+        [f.owner, f.parent, f.child],
+      )).rows[0].value;
+      assertEquals(read.provider_outcome, outcome);
+      assertEquals(read.state, "dispatched");
+    } finally {
+      await first.queryArray("ROLLBACK").catch(() => {});
+      await second.queryArray("ROLLBACK").catch(() => {});
+      if (owner) {
+        await first.queryArray("SELECT public.apply_user_tombstone($1)", [
+          owner,
+        ]).catch(() => {});
+        await first.queryArray("DELETE FROM auth.users WHERE id=$1", [owner])
+          .catch(() => {});
+      }
+      if (prior) {
+        await first.queryArray(
+          `UPDATE internal.observation_history_rollout SET ${
+            dispatchGates.map((g, i) => `${g}=$${i + 1}`).join(",")
+          }`,
+          dispatchGates.map((g) => prior![g]),
+        );
+      }
+      if (entitlement) {
+        await first.queryArray(
+          "UPDATE internal.entitlement_rollout_config SET entitlement_mode=$1,required_client_protocol=$2 WHERE config_key='current'",
+          [entitlement.mode, entitlement.protocol],
+        );
+      }
+      await first.end();
+      await second.end();
+    }
+  },
+});
+
+for (const captureFirst of [true, false]) {
+  Deno.test({
+    name:
+      `private video outcome and invocation retention serialize captureFirst=${captureFirst}`,
+    ignore: !url,
+    async fn() {
+      const first = await connect(), second = await connect();
+      const dispatchGates = [
+        ...gates,
+        "admission_enabled",
+        "protected_analysis_enabled",
+        "video_analysis_enabled",
+        "source_dispatch_enabled",
+        "dispatch_enabled",
+        "video_dispatch_enabled",
+      ];
+      let prior: Record<string, boolean> | undefined;
+      let entitlement: { mode: string; protocol: number } | undefined;
+      let owner: string | undefined;
+      try {
+        await fixture(first);
+        prior = (await first.queryObject<Record<string, boolean>>(
+          `SELECT ${
+            dispatchGates.join(",")
+          } FROM internal.observation_history_rollout`,
+        )).rows[0];
+        entitlement =
+          (await first.queryObject<{ mode: string; protocol: number }>(
+            "SELECT entitlement_mode mode,required_client_protocol protocol FROM internal.entitlement_rollout_config WHERE config_key='current'",
+          )).rows[0];
+        const f = await fundedVideo(first, 1);
+        owner = f.owner;
+        await first.queryArray(
+          "UPDATE internal.observation_history_rollout SET video_dispatch_enabled=true",
+        );
+        const claim = (await claimVideo(first, f)).rows[0].value;
+        await dispatchVideo(first, f, claim.work_token);
+        const outcome = {
+          schema_version: 1,
+          provenance: f.provenance,
+          outcome: { kind: "refusal" },
+          usage: {},
+        };
+        const record = (db: Client) =>
+          db.queryArray(
+            "SELECT internal.record_video_observation_outcome($1,$2,$3,$4,$5::jsonb)",
+            [
+              f.owner,
+              f.parent,
+              f.child,
+              (f.admitted.quota as { lease_token: string }).lease_token,
+              JSON.stringify(outcome),
+            ],
+          );
+        await first.queryArray("BEGIN");
+        await second.queryArray("BEGIN");
+        if (captureFirst) await record(first);
+        else {await first.queryArray(
+            "DELETE FROM internal.identification_invocations WHERE scan_id=$1",
+            [f.child],
+          );}
+        const pid = (await second.queryObject<{ pid: number }>(
+          "SELECT pg_backend_pid() pid",
+        )).rows[0].pid;
+        const pending = (captureFirst
+          ? second.queryArray(
+            "DELETE FROM internal.identification_invocations WHERE scan_id=$1",
+            [f.child],
+          )
+          : record(second)).then(
+            (value) => ({ value }),
+            (error) => ({ error }),
+          );
+        let blocked = false;
+        for (let n = 0; n < 100 && !blocked; n++) {
+          blocked = (await first.queryObject<{ blocked: boolean }>(
+            "SELECT cardinality(pg_blocking_pids($1))>0 blocked",
+            [pid],
+          )).rows[0].blocked;
+          if (!blocked) await new Promise((r) => setTimeout(r, 5));
+        }
+        assert(blocked, "duplicate outcome must await original commit");
+        await first.queryArray("COMMIT");
+        const result = await pending;
+        if (captureFirst) {
+          assert("value" in result);
+          await second.queryArray("COMMIT");
+        } else {
+          assert("error" in result);
+          await second.queryArray("ROLLBACK");
+        }
+        const read =
+          (await first.queryObject<{ value: Record<string, unknown> }>(
+            "SELECT internal.read_video_observation_outcome($1,$2,$3) value",
+            [f.owner, f.parent, f.child],
+          )).rows[0].value;
+        assertEquals(read.provider_outcome, captureFirst ? outcome : null);
+        assertEquals(read.state, "dispatched");
+      } finally {
+        await first.queryArray("ROLLBACK").catch(() => {});
+        await second.queryArray("ROLLBACK").catch(() => {});
+        if (owner) {
+          await first.queryArray("SELECT public.apply_user_tombstone($1)", [
+            owner,
+          ]).catch(() => {});
+          await first.queryArray("DELETE FROM auth.users WHERE id=$1", [owner])
+            .catch(() => {});
+        }
+        if (prior) {
+          await first.queryArray(
+            `UPDATE internal.observation_history_rollout SET ${
+              dispatchGates.map((g, i) => `${g}=$${i + 1}`).join(",")
+            }`,
+            dispatchGates.map((g) => prior![g]),
+          );
+        }
+        if (entitlement) {
+          await first.queryArray(
+            "UPDATE internal.entitlement_rollout_config SET entitlement_mode=$1,required_client_protocol=$2 WHERE config_key='current'",
+            [entitlement.mode, entitlement.protocol],
+          );
+        }
+        await first.end();
+        await second.end();
+      }
+    },
+  });
+}
