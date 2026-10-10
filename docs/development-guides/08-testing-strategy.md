@@ -12532,3 +12532,17 @@ Source assertions retain both Auth and connectivity barriers. Lifecycle,
 reservation delivery and video transport tests remain regression selectors. This
 is native prepared delivery acceptance, not hosted storage, provider execution,
 cleanup or activation qualification.
+
+### Video upload route composition acceptance
+
+The `upload-observation-video` route suite exercises the real dependency
+composition with synthetic fetch: owned reader12 allocation, exact conditional
+source/frame/audio PUT, HEAD tuple verification, exact completion arguments and
+preserved whole-cohort receipt. Both new-object 200 and existing-object 412
+require HEAD. Length mismatch and erased markers prevent completion. A
+completion reply lost after simulated durable readiness returns unavailable; an
+exact replay performs reservation only, without rewriting storage. The handler
+suite accepts metadata padded to the exact 1,048,832-byte ceiling and rejects
+one extra byte before dependency calls. These checks close local allocated-route
+and metadata-boundary coverage; they do not qualify deployed storage, CDN,
+erasure, resource limits or provider execution.

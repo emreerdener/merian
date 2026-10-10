@@ -17700,3 +17700,17 @@ independent; future per-child cleanup must obtain its own durable
 execution/retirement/erasure authority and await receipt-bound deletion. No
 provider invocation, cleanup receipt, refund, gate activation or hosted
 scheduling is added by this checkpoint.
+
+### Video upload route acceptance boundary
+
+Synthetic tests now traverse the real route composition through owned
+allocation, conditional private object write, trusted HEAD tuple validation and
+exact reader12 completion for source, frame and audio items. Existing-object 412
+still requires matching HEAD; a length mismatch or erased marker forbids
+completion. Simulated completion response loss does not create another object or
+invoke a provider: exact ready replay observes the saved cohort and skips the
+write. The exact Wire1 metadata ceiling is exercised with legal JSON whitespace;
+one extra byte fails before RPC. This is local composition evidence, not hosted
+runtime/storage/CDN/erasure or device qualification. Execution admission still
+rejects V4 until its separate backend contract is established. Gates and
+ordinary access remain disabled.

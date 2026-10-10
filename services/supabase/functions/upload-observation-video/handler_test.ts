@@ -126,3 +126,46 @@ Deno.test("video handler keeps conflict distinct and conceals unexpected diagnos
     assertEquals((await response.text()).includes("private diagnostic"), false);
   }
 });
+
+Deno.test("video wire exact metadata ceiling accepts padding and rejects one extra byte before IO", async () => {
+  const f = await videoByteFixture(false);
+  const json = new TextEncoder().encode(
+    JSON.stringify({
+      schema_version: 1,
+      reader_version: 12,
+      candidate: f.input,
+      media_id: f.receipt.items[0].media_id,
+    }),
+  );
+  for (const excess of [0, 1]) {
+    const size = VIDEO_UPLOAD_METADATA_MAX_BYTES + excess;
+    const body = new Uint8Array(4 + size + f.bytes[0].length);
+    new DataView(body.buffer).setUint32(0, size);
+    body.fill(32, 4, 4 + size);
+    body.set(json, 4);
+    body.set(f.bytes[0], 4 + size);
+    let calls = 0;
+    const deps: VideoUploadDependencies = {
+      reserve: () => {
+        calls++;
+        return Promise.resolve(f.receipt);
+      },
+      write: () => {
+        throw new Error("unexpected write");
+      },
+      complete: () => {
+        throw new Error("unexpected completion");
+      },
+    };
+    const response = await uploadObservationVideo(
+      req(),
+      body,
+      owner,
+      deps,
+      new AbortController().signal,
+    );
+    assertEquals(response.status, excess === 0 ? 200 : 400);
+    assertEquals(calls, excess === 0 ? 1 : 0);
+    await response.body?.cancel();
+  }
+});

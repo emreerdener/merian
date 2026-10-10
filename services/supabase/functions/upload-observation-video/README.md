@@ -2,8 +2,9 @@
 
 `upload-observation-video` is an owner-authenticated POST binary endpoint for
 one exact saved source clip, frame or extracted audio item. `media_enabled` and
-`video_evidence_enabled` remain false. No native caller, provider dispatch,
-credit action, activation or deployment is added.
+`video_evidence_enabled` remain false. The explicit prepared native upload
+service is connected; ordinary access and scheduler admission remain disabled.
+No provider dispatch, credit action, activation or deployment is added.
 
 `index.ts` registers the shared error boundary. `route.ts` owns authentication,
 MIME/method checks and bounded streaming with a 120-second cancellation deadline
@@ -25,5 +26,12 @@ fallback is introduced.
 See the
 [wire contract](../../../../docs/backend-and-data/05-api-contracts.md#private-video-item-upload-route).
 Handler and route tests cover closed framing, authentication, owner-derived RPC
-arguments, bounded ingress, cancellation and ready replay. Hosted runtime,
-storage/CDN/erasure and device qualification remain separate.
+arguments, bounded ingress, cancellation and ready replay. The actual route
+composition is also tested with synthetic fetch through allocation, conditional
+PUT (200 or existing-object 412), trusted HEAD verification and completion for
+source/frame/audio targets. Invalid HEAD metadata and erasure markers prevent
+completion. A lost completion reply leaves uncertainty; exact ready replay reads
+the durable allocation and skips storage writes. Exact metadata-ceiling padding
+is accepted and one extra byte fails before RPC. No fixture uses hosted storage
+or a provider. Hosted runtime, storage/CDN/erasure and device qualification
+remain separate.

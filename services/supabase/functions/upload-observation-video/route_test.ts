@@ -9,7 +9,15 @@ const authenticated = () =>
   Promise.resolve({ user: { id: owner } as User, response: null });
 async function environment(work: () => Promise<void>) {
   const saved = new Map(
-    ["SUPABASE_URL", "SUPABASE_SERVER_API_KEY"].map((
+    [
+      "SUPABASE_URL",
+      "SUPABASE_SERVER_API_KEY",
+      "R2_ACCOUNT_ID",
+      "R2_HISTORY_BUCKET_NAME",
+      "R2_BUCKET_NAME",
+      "R2_HISTORY_WRITE_ACCESS_KEY_ID",
+      "R2_HISTORY_WRITE_SECRET_ACCESS_KEY",
+    ].map((
       key,
     ) => [key, Deno.env.get(key)]),
   );
@@ -18,6 +26,11 @@ async function environment(work: () => Promise<void>) {
     "SUPABASE_SERVER_API_KEY",
     "sb_secret_" + "synthetic_test_only".repeat(3),
   );
+  Deno.env.set("R2_ACCOUNT_ID", "0".repeat(32));
+  Deno.env.set("R2_HISTORY_BUCKET_NAME", "synthetic-private-history");
+  Deno.env.set("R2_BUCKET_NAME", "synthetic-public-scans");
+  Deno.env.set("R2_HISTORY_WRITE_ACCESS_KEY_ID", "synthetic-test-only");
+  Deno.env.set("R2_HISTORY_WRITE_SECRET_ACCESS_KEY", "synthetic-test-only");
   try {
     await work();
   } finally {
@@ -131,37 +144,49 @@ Deno.test("video route actual bounded RPC derives owner reader12 and preserves r
 });
 Deno.test("video route cancellation stops stalled auth and body without storage", async () => {
   await environment(async () => {
-    for (const stage of ["auth", "body"]) {
-      const controller = new AbortController();
-      let cancelled = false;
-      const body = new ReadableStream<Uint8Array>({
-        pull() {
-          if (stage === "body") controller.abort();
-        },
-        cancel() {
-          cancelled = true;
-        },
-      }, { highWaterMark: 0 });
-      const request = new Request("https://example.invalid", {
-        method: "POST",
-        headers: { "content-type": "application/octet-stream" },
-        body,
-        signal: controller.signal,
-      });
-      const response = await videoUploadRoute(
-        request,
-        stage === "auth"
-          ? () => {
-            controller.abort();
-            return new Promise(() => {});
-          }
-          : authenticated,
-      );
-      assertEquals(response.status, 503);
-      await response.body?.cancel();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      if (stage === "body") assertEquals(cancelled, true);
-      else await request.body?.cancel();
+    const original = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = () => {
+      calls++;
+      throw new Error("Unexpected storage or RPC call during cancellation");
+    };
+    try {
+      for (const stage of ["auth", "body"]) {
+        const controller = new AbortController();
+        let cancelled = false;
+        const body = new ReadableStream<Uint8Array>({
+          pull() {
+            if (stage === "body") controller.abort();
+          },
+          cancel() {
+            cancelled = true;
+          },
+        }, { highWaterMark: 0 });
+        const request = new Request("https://example.invalid", {
+          method: "POST",
+          headers: { "content-type": "application/octet-stream" },
+          body,
+          signal: controller.signal,
+        });
+        const response = await videoUploadRoute(
+          request,
+          stage === "auth"
+            ? () => {
+              controller.abort();
+              return new Promise(() => {});
+            }
+            : authenticated,
+        );
+        assertEquals(response.status, 503);
+        assertEquals(calls, 0);
+        await response.body?.cancel();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        if (stage === "body") assertEquals(cancelled, true);
+        else await request.body?.cancel();
+      }
+      assertEquals(calls, 0);
+    } finally {
+      globalThis.fetch = original;
     }
   });
 });
@@ -247,6 +272,155 @@ Deno.test("video route enforces actual streamed bytes and declared length mismat
       await response.body?.cancel();
       await new Promise((r) => setTimeout(r, 0));
       if (oversize) assertEquals(cancelled, true);
+    }
+  });
+});
+
+Deno.test("video route allocated write HEAD and completion preserve exact cohort across lost replies", async () => {
+  await environment(async () => {
+    for (
+      const mode of [
+        "source",
+        "frame",
+        "audio",
+        "existing",
+        "bad-head",
+        "erased",
+        "lost-complete",
+      ]
+    ) {
+      const f = await videoByteFixture(true);
+      const index = mode === "frame" ? 1 : mode === "audio" ? 6 : 0;
+      const item = f.receipt.items[index];
+      const allocated = {
+        ...f.receipt,
+        state: "allocated",
+        expires_at: "2099-01-01T00:00:00.000Z",
+        items: f.receipt.items.map((item) => ({
+          ...item,
+          ready_at: null as string | null,
+        })),
+      };
+      const completed = {
+        ...allocated,
+        items: allocated.items.map((item, i) => ({
+          ...item,
+          ready_at: i === index ? "2026-01-01T00:00:00.000Z" : null,
+        })),
+      };
+      const body = frame({
+        schema_version: 1,
+        reader_version: 12,
+        candidate: f.input,
+        media_id: item.media_id,
+      }, f.bytes[index]);
+      const events: string[] = [];
+      const original = globalThis.fetch;
+      let durable = false;
+      globalThis.fetch = async (input, init) => {
+        const request = new Request(input, init);
+        const url = new URL(request.url);
+        if (
+          url.pathname.endsWith("/reserve_owned_observation_video_evidence")
+        ) {
+          events.push("reserve");
+          const args = await request.json();
+          assertEquals(args.p_owner, owner);
+          assertEquals(args.p_reader, 12);
+          assertEquals(args.p_request.fingerprint, f.input.fingerprint);
+          return new Response(JSON.stringify(durable ? completed : allocated), {
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (url.hostname.endsWith(".r2.cloudflarestorage.com")) {
+          assertEquals(url.pathname.includes(item.object_id), true);
+          assertEquals(
+            url.pathname.startsWith("/synthetic-private-history/"),
+            true,
+          );
+          events.push(request.method);
+          if (request.method === "PUT") {
+            assertEquals(request.headers.get("if-none-match"), "*");
+            assertEquals(
+              request.headers.get("content-type"),
+              item.content_type,
+            );
+            assertEquals(request.headers.get("x-amz-meta-sha256"), item.sha256);
+            assertEquals(
+              new Uint8Array(await request.arrayBuffer()),
+              f.bytes[index],
+            );
+            return new Response(null, {
+              status: mode === "existing" ? 412 : 200,
+            });
+          }
+          assertEquals(request.method, "HEAD");
+          return new Response(null, {
+            headers: {
+              "content-type": item.content_type,
+              "content-length": String(
+                mode === "bad-head" ? item.byte_count + 1 : item.byte_count,
+              ),
+              "x-amz-meta-sha256": item.sha256,
+              ...(mode === "erased" ? { "x-amz-meta-erased": "true" } : {}),
+            },
+          });
+        }
+        assertEquals(
+          url.pathname.endsWith("/complete_owned_observation_video_evidence"),
+          true,
+        );
+        events.push("complete");
+        const args = await request.json();
+        assertEquals(args.p_owner, owner);
+        assertEquals(args.p_reader, 12);
+        assertEquals(args.p_media, item.media_id);
+        assertEquals(args.p_object, item.object_id);
+        assertEquals(args.p_request.fingerprint, f.input.fingerprint);
+        assertEquals(Object.hasOwn(args, "p_ready_at"), false);
+        durable = true;
+        if (mode === "lost-complete") {
+          throw new TypeError("synthetic lost reply");
+        }
+        return new Response(JSON.stringify(completed), {
+          headers: { "content-type": "application/json" },
+        });
+      };
+      try {
+        const call = () =>
+          videoUploadRoute(
+            new Request("https://example.invalid", {
+              method: "POST",
+              headers: { "content-type": "application/octet-stream" },
+              body,
+            }),
+            authenticated,
+          );
+        const response = await call();
+        const failed = ["bad-head", "erased", "lost-complete"].includes(mode);
+        assertEquals(response.status, failed ? 503 : 200);
+        assertEquals(
+          response.headers.get("cache-control"),
+          "private, no-store",
+        );
+        if (!failed) assertEquals(await response.json(), completed);
+        else await response.body?.cancel();
+        assertEquals(events, [
+          "reserve",
+          "PUT",
+          "HEAD",
+          ...(["bad-head", "erased"].includes(mode) ? [] : ["complete"]),
+        ]);
+        if (mode === "lost-complete") {
+          events.length = 0;
+          const replay = await call();
+          assertEquals(replay.status, 200);
+          assertEquals(await replay.json(), completed);
+          assertEquals(events, ["reserve"]);
+        }
+      } finally {
+        globalThis.fetch = original;
+      }
     }
   });
 });
