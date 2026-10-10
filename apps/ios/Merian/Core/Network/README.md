@@ -4204,3 +4204,14 @@ shared source/five-frame/optional-audio list. Its bounded whole-list matcher
 rejects partial or changed coverage. No endpoint, queue or persistence consumer
 is installed and the list is not a receipt, ownership or readiness proof. See
 [the inventory contract](../../../../../docs/backend-and-data/05-api-contracts.md#held-video-cohort-inventory).
+
+### Prepared video source reservation
+
+`Models/ObservationAnalysis/ObservationVideoSourceReservation.swift` owns the
+separate reader-12/schema-2 native identity, exact saved-input envelope and
+full-identity reply decoder. Recovery uses that same identity and reply shape.
+These are prepared values without a transport or queue consumer; they confer no
+upload, execution or release authority. See the prepared video source contract
+in `docs/backend-and-data/05-api-contracts.md` and shared-fixture coverage in
+the canonical testing strategy. Existing photo/audio reservation owners remain
+unchanged.

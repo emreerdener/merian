@@ -12222,3 +12222,15 @@ shared type checks and the bounded helper test list.
 This is codec coverage only. No SQL/native parity, durable reservation/recovery,
 retirement, transport, queue, media delivery or provider execution is claimed by
 these tests. Existing database storage evidence remains a separate checkpoint.
+
+### Prepared native video reservation parity
+
+`ObservationVideoSourceReservationTests` consumes the shared audio, silent and
+Unicode fingerprint/reservation vectors, matching every identity and all seven
+reply shapes. It verifies exact saved-input embedding and envelope replay,
+unchanged legacy rejection of V4, all-state identity/owner association, closed
+states/reasons, strict scalar types, byte bounds and UTF8-only decoding. Run it
+with the video fingerprint, reanalysis-request and legacy source-reservation
+suites through the managed local iOS build wrapper. This covers pure codecs; it
+does not qualify a server reservation, queue consumer, retirement, upload or
+provider execution path.

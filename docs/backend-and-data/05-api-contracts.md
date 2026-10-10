@@ -16963,3 +16963,24 @@ ordered-audio, silent and Unicode fingerprint inputs. They freeze identity and
 all seven valid response shapes for later SQL/native parity. That parity, server
 gates and mutation-time validation remain prerequisites to connecting a
 consumer; this checkpoint introduces no producer or service grant.
+
+### Prepared native video source parity
+
+`ObservationVideoSourceReservation.swift` mirrors the reader-12/schema-2
+prepared contract without an installed transport or queue consumer. Input must
+be bounded strict UTF-8 before fingerprinting or envelope construction, even
+when Foundation accepted another JSON encoding upstream. Its identity validates
+the complete V4 semantic fingerprint; this is separate from restoring a native
+saved-body digest. Request construction accepts a validated
+`ObservationVideoReanalysisRequest` and embeds its original `body` bytes
+verbatim. Restoration verifies the original native input and compares the entire
+saved envelope; it never rebuilds input from current selection or a manifest.
+
+The identity produces the exact seven-field recovery request. Reservation and
+recovery replies share one bounded, strict-UTF8 decoder, requiring the complete
+identity and owner in every state. Only held replies carry a closed reason.
+Unknown fields, old versions, alternate encodings and unsupported retirement or
+execution states fail closed. These values grant no upload, execution, release
+or absence authority. SQL authority, mutation-time validation and lifecycle
+consumers remain separate prerequisites; legacy photo/audio owners are
+unchanged.
