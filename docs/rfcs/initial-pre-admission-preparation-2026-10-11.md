@@ -1,5 +1,16 @@
 # IC-1 durable preparation before initial admission
 
+October 11 follow-up: the inactive whole-cohort media allocator and permanent
+source-retirement metadata now have a candidate implementation in migration
+`20261011194522`, following the source-declaration prerequisite. The historical
+status below describes the earlier boundary. Current behavior is specified by
+[the database lifecycle contract](../backend-and-data/04-database-schema.md#inactive-media-preparation-allocation-and-retirement)
+and
+[media API contract](../backend-and-data/05-api-contracts.md#inactive-media-source-candidate-contract).
+Candidate evidence lives in `.artifacts/initial-media-source-lifecycle/`;
+runtime, physical storage, grants/outcomes, M1 handoff and full S0 remain
+unqualified. No activation or live installation is implied.
+
 Status: coordinated design agreement, October 11, 2026. Baseline
 `9bcd7f0c96d7912003f9b96a118181c57c7b788f`. History primary is the sole
 implementation writer. Exact interface acceptance is recorded in

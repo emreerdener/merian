@@ -18404,10 +18404,10 @@ M2 or hosted qualification alone cannot close it.
 ### Inactive media-source candidate contract
 
 The private preparation-candidate v2 now has a separately validated declaration
-shape `{version: 2, variant: "media_sources", source_plan: ...}`. This is a pure
-contract prerequisite; the existing `create_initial_preparation_intent`
-continues to accept only `no_media`. No HTTP/native DTO or installed service
-writer consumes the new shape, and no storage may start from validation alone.
+shape `{version: 2, variant: "media_sources", source_plan: ...}`. The inactive
+`create_initial_preparation_intent` has an explicit media branch alongside the
+unchanged `no_media` path. No HTTP/native DTO or installed service writer
+consumes this shape, and validation/allocation conveys no storage authority.
 
 The closed source plan retains `schema_version: 1` as its own shape version,
 route (`identify` or `identify-multimodal`), exact ordered descriptions, owner
@@ -18431,10 +18431,47 @@ bounded IC-1 encoding, with digest domain
 source declarations from unchanged no-media vectors.
 
 `validateInitialMediaSourceCandidate` and the SQL private parser validate this
-shape only. Media assignment remains unconstructible in the installed resolver:
-no synthetic profile, Darwin reference, backend or caller digest can confer
-eligibility. The allocator must later jointly freeze a complete server-qualified
-whole-cohort assignment, original deadline and source candidate, claim the
-existing global fence and register destinations before I/O. That implementation,
-C1/erasure integration, preparation grants/outcomes, M1 handoff and runtime
-qualification remain open. No final-funding path accepts unresolved sources.
+shape only. The dormant allocator selects one whole-cohort profile from empty
+server-only catalogs. Profiles bind exact artifact/runtime/ABI, validator,
+transform/configuration identities, roles/types/options, per-role and aggregate
+resource limits, and a separate qualified specification/evidence identity. A
+trusted immutable installation receipt must match the profile and review
+revision. Raw MP4 is source-only. Audio-only evidence cannot authorize a mixed
+cohort; no caller-supplied digest or Darwin result grants eligibility.
+
+The closed media assignment v2 retains complete inference/accounting fields and
+adds `variant: media_sources`, `source_plan_digest`, and `preparation`
+containing `kind`, `profile_digest`, `installation_digest`,
+`backend_installation_digest`, `selector_generation`, `backend_generation` and
+ordered `source_mapping`. Each mapping has exact `ordinal`, `source`, `role`,
+unique `object_id` and `prepared_destination: null`. Candidate/assignment
+identities retain their v2 digest domains.
+Profile/specification/source-plan/installation/backend identities use
+`merian.initial-analysis.media.<domain>.v1\n` over canonical bytes. The
+checked-in schemas are authoritative for every bound and closed field.
+
+Create and status return a separate closed media response:
+`{version: 2, variant: "media_sources", outcome: "allocated" | "blocked",
+authority: "none", candidate_digest, assignment_digest, assignment, expires_at}`.
+The assignment is the original saved value even after defaults change or
+eligibility is revoked. The original expiry never renews. Observed expiry calls
+C1 and returns only
+`{version: 2, variant: "media_sources", outcome: "expired",
+authority: "none"}`.
+Subsequent cancelled/deleted recovery retains existing terminal errors; it never
+creates replacement destinations. Existing no-media response bytes remain
+unchanged. Closed allocation responses do not imply upload, transformation,
+funding or provider permission. Media finalization remains denied.
+
+The separate fixed cleanup RPCs operate only on retired source-registry rows.
+Claim returns `{version: 1, outcome: "empty"}` or `outcome: "claimed"` with an
+`object` containing opaque scan/object/backend-generation IDs, claim token and
+millisecond lease expiry. Finish accepts exact object/token plus success and
+returns `acknowledged` only for success, `released` for a failed live attempt,
+or `stale` for a noncurrent/expired token. No storage worker or backend
+credentials are exposed by these responses. Confirmed irreversible same-key
+markers require separate real backend qualification; a metadata claim is not
+erasure evidence.
+
+Runtime/grants/outcomes, source verification, byte-preserving M1 handoff and
+full S0 remain open. No final-funding path accepts unresolved sources.

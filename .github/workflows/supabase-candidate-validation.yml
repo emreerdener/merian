@@ -637,6 +637,13 @@ jobs:
           supabase db advisors --local --type performance \
             --level warn --fail-on error
 
+      - name: Qualify initial media source contention
+        # Synthetic installations remain local and revoked; run last because
+        # this suite intentionally retains permanent content-free test fences.
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 python3 supabase/scripts/test_initial_media_source_contention.py \
+            --disposable-container supabase_db_merian
+
       - name: Stop disposable database
         if: always()
         env:

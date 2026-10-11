@@ -313,6 +313,23 @@ remote provider erasure or installed-device recovery.
 
 ### Unfunded initial preparation evidence
 
+The inactive media-source variant extends this private lifetime to exact source
+declarations, selected profile/assignment identities and ordered destination
+mapping. C1, observed expiry, pre-row scan deletion and both supported/raw
+account erasure retire every source destination before deleting private
+evidence. Permanent registry/fence rows retain only opaque
+operation/object/backend IDs and irreversible cleanup state, never source
+hashes, submitted descriptions or owner identity. They survive private cascades
+solely to prevent late-write resurrection and finish cleanup. Revoked catalogs
+do not block erasure.
+
+Cleanup leases are metadata only. Acknowledgement requires the exact live token
+and reported success; failure releases the lease, and stale tokens do nothing.
+No storage transport is installed. Future physical qualification must prove that
+a permanent same-key marker atomically removes/fences existing readable data and
+all late conditional writes/copies, including physical versions. DELETE followed
+by a marker PUT is insufficient; no SQL test establishes this storage property.
+
 The inactive no-media v2 preparation owner retains canonical submitted input,
 its complete saved assignment, their digests and a fixed 300-second deadline
 before any funding or scan row exists. These are private operational evidence,

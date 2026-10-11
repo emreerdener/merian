@@ -18,8 +18,9 @@ SELECT extensions.ok(NOT has_function_privilege(role_name,signature,'EXECUTE'),'
  FROM unnest(ARRAY['anon','authenticated','service_role']) role_name CROSS JOIN unnest(ARRAY[
  'internal.initial_media_source_candidate_schema_v2()','internal.initial_media_source_semantics(jsonb)','internal.parse_initial_media_source_candidate(text)']) signature;
 SELECT extensions.is((SELECT initial_analysis_lifecycle_enabled FROM internal.initial_analysis_rollout),FALSE,'activation remains false');
--- Real service-only entrypoint denies shape before any global namespace claim,
--- even with its test-local gate enabled. No owner is fabricated by parsing.
+-- The later dormant allocator recognizes the shape but still requires a real
+-- owner before any global claim. Parsing cannot fabricate one. Whole-cohort
+-- empty-catalog and closed-gate behavior is in initial_media_source_lifecycle.sql.
 SELECT set_config('request.jwt.claim.role','service_role',TRUE);
 UPDATE internal.initial_analysis_rollout SET initial_analysis_lifecycle_enabled=TRUE;
 CREATE TEMP TABLE counts_before AS SELECT
@@ -29,7 +30,7 @@ CREATE TEMP TABLE counts_before AS SELECT
  (SELECT count(*) FROM internal.initial_analysis_media_registry) objects;
 SELECT extensions.throws_ok(format('SELECT public.create_initial_preparation_intent(%L,%L,%L)',
  '00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101',item->>'canonical'),
- '22023','initial_analysis_input_invalid','installed create rejects media '||(item->>'name'))
+ 'P0002','initial_analysis_owner_unavailable','media allocation cannot fabricate owner '||(item->>'name'))
  FROM source_vectors CROSS JOIN LATERAL jsonb_array_elements(v->'valid') item;
 SELECT extensions.throws_ok(format('SELECT internal.parse_initial_input(%L)',item->>'canonical'),
  '22023','initial_analysis_input_invalid','source plan cannot become admitted input '||(item->>'name'))

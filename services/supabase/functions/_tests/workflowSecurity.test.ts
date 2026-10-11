@@ -1337,3 +1337,30 @@ Deno.test("video source RPC suite remains in both candidate selectors", async ()
     2,
   );
 });
+
+Deno.test("candidate gate executes source contention only inside the disposable database lifetime", async () => {
+  const source = await Deno.readTextFile(
+    new URL("supabase-candidate-validation.yml", workflowsDirectory),
+  );
+  const start = source.indexOf("- name: Start disposable database");
+  const catalogs = source.indexOf(
+    "- name: Validate database security catalogs",
+  );
+  const suite = source.indexOf(
+    "- name: Qualify initial media source contention",
+  );
+  const stop = source.indexOf("- name: Stop disposable database");
+  assertEquals(
+    start >= 0 && catalogs > start && suite > catalogs && stop > suite,
+    true,
+  );
+  const step = source.slice(suite, stop);
+  assertStringIncludes(
+    step,
+    "PYTHONDONTWRITEBYTECODE=1 python3 supabase/scripts/test_initial_media_source_contention.py",
+  );
+  assertStringIncludes(step, "--disposable-container supabase_db_merian");
+  assertEquals(step.includes("secrets."), false);
+  assertEquals(step.includes("continue-on-error:"), false);
+  assertStringIncludes(source, "permissions:\n  contents: read");
+});

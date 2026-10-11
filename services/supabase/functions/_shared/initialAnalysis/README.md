@@ -283,18 +283,41 @@ preparation/transport/handoff and full S0 remain separate open work.
 ## Inactive media-source contract
 
 `media-source-candidate-schema-v2.json` and `mediaSourceCandidate.ts` define a
-source-declaration variant of the private preparation candidate. They do not
-extend the installed no-media creator. Each original source role has exact
-metadata, indices and transform options, with `prepared_output.state` fixed to
-`unresolved`. There is no fabricated prepared hash or empty successful output.
-The separate source semantic validator preserves existing initial route,
-ordered-text/timeline, capture association and aggregate source limits without
-constructing a pretend admitted input-v1 value.
+source-declaration variant of the private preparation candidate. The dormant
+database creator handles it in an explicit media branch; no installed handler or
+native caller consumes it. Each original source role has exact metadata, indices
+and transform options, with `prepared_output.state` fixed to `unresolved`. There
+is no fabricated prepared hash or empty successful output. The separate source
+semantic validator preserves existing initial route, ordered-text/timeline,
+capture association and aggregate source limits without constructing a pretend
+admitted input-v1 value.
 
-SQL exposes only revoked private pure validators. No allocator, intent writer,
-assignment resolver, profile registration, storage destination, execution grant
-or transport is added. The production preparation selector remains absent; media
-cannot enter the no-media creator/finalizer or M1. Video associations in the
-schema are declarations only, not verified derivation or enabled video support.
+`mediaPreparationProfile.ts`, `mediaAssignment.ts` and
+`mediaPreparationResponse.ts` validate whole-cohort profile identity, exact
+saved source mapping and closed metadata-only responses. Empty private catalogs
+make fresh selection unavailable. Trusted database-owner installation receipts
+record reviewed qualification; they do not independently prove runtime or
+storage properties. The migration installs no profile, receipt, backend or
+selection.
+
+An accepted dormant allocation freezes source candidate, complete inference and
+preparation assignment, fixed original-source object IDs and original deadline
+in one transaction. Recovery returns those saved identities before fresh
+selection. Revocation returns blocked metadata without replacing them. No
+prepared output, upload grant, funding, provider dispatch or M1 handoff exists.
+C1, expiry and strong erasure retire the permanent source registry before
+private candidate/assignment/mapping deletion. Cleanup is a separate
+metadata-only lease/acknowledgement owner with no installed transport or
+scheduler.
+
+Run `tests/initial_media_source_lifecycle.sql` for shared vectors and
+rollback-only lifecycle tests. Run
+`scripts/test_initial_media_source_contention.py --disposable-container <local-container>`
+on a freshly migrated disposable local database for deterministic opposed lock
+schedules. The runner uses synthetic installations, retires them and restores
+the disabled gate; reset that disposable database before another suite.
+Candidate CI executes it explicitly after database/Edge/advisor checks and
+before teardown. These tests are not runtime, provider or physical-erasure
+qualification. Video associations remain declarations, not verified derivation.
 See the
 [service contract](../../../../../docs/backend-and-data/05-api-contracts.md#inactive-media-source-candidate-contract).

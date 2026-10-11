@@ -166,9 +166,11 @@ SELECT extensions.throws_ok($$SELECT public.create_initial_preparation_intent('0
  '55000','initial_analysis_cancelled','terminal identity cannot recreate an intent');
 SELECT public.create_initial_preparation_intent('00000000-0000-4000-8000-00000000e002','00000000-0000-4000-8000-00000000e103',pg_temp.preparation_candidate());
 -- Privileged fixture-only time travel; production immutability was checked above.
+SET CONSTRAINTS ALL IMMEDIATE;
 ALTER TABLE internal.initial_analysis_preparation_intents DISABLE TRIGGER guard_initial_preparation_storage;
 UPDATE internal.initial_analysis_preparation_intents SET created_at='2000-01-01T00:00:00Z',expires_at='2000-01-01T00:05:00Z' WHERE scan_id='00000000-0000-4000-8000-00000000e103';
 ALTER TABLE internal.initial_analysis_preparation_intents ENABLE TRIGGER guard_initial_preparation_storage;
+SET CONSTRAINTS ALL DEFERRED;
 SELECT set_config('merian.test_funding_tripwire','on',TRUE);
 SELECT extensions.is(public.get_initial_preparation_status('00000000-0000-4000-8000-00000000e002','00000000-0000-4000-8000-00000000e103')->>'outcome','expired','expiry retires unfunded owner without accounting');
 SELECT set_config('merian.test_funding_tripwire','off',TRUE);

@@ -1,0 +1,275 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "spec": {
+      "type": "object",
+      "properties": {
+        "profile_id": {
+          "type": "string",
+          "max_bytes": 64,
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "profile_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "input_profile": {
+          "type": "string",
+          "max_bytes": 128,
+          "enum": [
+            "vision_compat_v1",
+            "multimodal_photo_v1",
+            "multimodal_audio_v1",
+            "multimodal_photo_audio_v1",
+            "multimodal_video_frames_v1",
+            "multimodal_video_audio_v1"
+          ]
+        },
+        "route": {
+          "type": "string",
+          "max_bytes": 128,
+          "enum": [
+            "identify",
+            "identify-multimodal"
+          ]
+        },
+        "focus_policy": {
+          "type": "string",
+          "max_bytes": 128,
+          "enum": [
+            "input_v1_bounds"
+          ]
+        },
+        "runtime": {
+          "type": "object",
+          "properties": {
+            "engine": {
+              "type": "string",
+              "max_bytes": 128,
+              "enum": [
+                "deno"
+              ]
+            },
+            "version": {
+              "type": "string",
+              "max_bytes": 64,
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "platform": {
+              "type": "string",
+              "max_bytes": 64,
+              "pattern": "^[a-z][a-z0-9_]{0,63}$"
+            },
+            "abi": {
+              "type": "string",
+              "max_bytes": 64,
+              "pattern": "^[a-z][a-z0-9_]{0,63}$"
+            },
+            "protocol": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            }
+          }
+        },
+        "artifact": {
+          "type": "object",
+          "properties": {
+            "sha256": {
+              "type": "string",
+              "max_bytes": 64,
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "byte_count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 67108864
+            }
+          }
+        },
+        "identities": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string",
+              "max_bytes": 64,
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "validator": {
+              "type": "string",
+              "max_bytes": 64,
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "transform": {
+              "type": "string",
+              "max_bytes": 64,
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "configuration": {
+              "type": "string",
+              "max_bytes": 64,
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "role": {
+                "type": "string",
+                "max_bytes": 128,
+                "enum": [
+                  "photo",
+                  "recording",
+                  "video_frame",
+                  "video_audio",
+                  "raw_video"
+                ]
+              },
+              "source_types": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "max_bytes": 128,
+                  "enum": [
+                    "image/jpeg",
+                    "image/png",
+                    "image/webp",
+                    "image/heic",
+                    "image/heif",
+                    "audio/wav",
+                    "video/mp4"
+                  ]
+                },
+                "max_items": 5
+              },
+              "transform": {
+                "type": "string",
+                "max_bytes": 128,
+                "enum": [
+                  "identity_v1",
+                  "video_frame_v1",
+                  "initial_audio_v1"
+                ]
+              },
+              "target_sample_rate": {
+                "type": "integer",
+                "minimum": 8000,
+                "maximum": 192000,
+                "nullable": true
+              },
+              "preserve_short_video_context": {
+                "type": "boolean",
+                "nullable": true
+              },
+              "max_count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 8
+              },
+              "limits": {
+                "type": "object",
+                "properties": {
+                  "source_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20971520
+                  },
+                  "output_bytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 20971520
+                  },
+                  "cpu_ms": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 300000
+                  },
+                  "heap_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1073741824
+                  },
+                  "wall_ms": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 300000
+                  }
+                }
+              }
+            }
+          },
+          "max_items": 5
+        },
+        "max_sources": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "source_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20971520
+            },
+            "output_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 20971520
+            },
+            "cpu_ms": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 300000
+            },
+            "heap_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1073741824
+            },
+            "wall_ms": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 300000
+            }
+          }
+        }
+      }
+    },
+    "qualification": {
+      "type": "object",
+      "properties": {
+        "spec_digest": {
+          "type": "string",
+          "max_bytes": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "evidence_digest": {
+          "type": "string",
+          "max_bytes": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "harness_digest": {
+          "type": "string",
+          "max_bytes": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_revision": {
+          "type": "string",
+          "max_bytes": 40,
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    }
+  }
+}

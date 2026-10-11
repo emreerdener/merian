@@ -8674,10 +8674,55 @@ source-association rules as TypeScript, including explicit unresolved output and
 nonempty sources. It performs no storage, lock acquisition, namespace claim,
 funding, registration or execution. No table, trigger, public routine or grant
 is added. Existing no-media preparation and admitted v1/M1/M2 contracts remain
-unchanged and reject the new source shape at their entry boundary.
+unchanged. The later allocator migration below adds a separate media branch to
+the inactive preparation creator, while admitted v1/M1/M2 reject this shape.
 
 The [API contract](05-api-contracts.md#inactive-media-source-candidate-contract)
-owns fields and limits. This does not complete the separately required durable
-source lifecycle or attest source bytes. Server-qualified assignment, source
-destinations, cancellation/erasure integration and executable runtime
-consumption remain prerequisites before source retention.
+owns fields and limits. These validators do not attest source bytes.
+
+### Inactive media preparation allocation and retirement
+
+`20261011194522` adds empty private immutable profile, installation-receipt,
+backend-generation and selector-generation catalogs, separate mutable
+eligibility and current-selection pointers, and a subordinate permanent source
+fence/registry with private ordered mapping. All direct API-role access is
+revoked and RLS enabled. Catalog installation is reviewed database-owner SQL
+under separate exact-target release authorization; no callable installer or seed
+confers qualification. Eligibility can only move from eligible to revoked.
+
+The existing private preparation intent accepts a discriminated closed pair:
+unchanged no-media v2, or media-source v2 with exact candidate and source-plan
+digests and a full ordered source-to-object mapping. Guarded insertion
+recomputes the selected assignment; deferred constraints require all and only
+its original source destinations. Object identity is permanent and globally
+unique, and private mapping has a composite operation/object FK. There are no
+prepared output destinations. A current pointer and exact eligibility rows are
+locked with first-acquisition NOWAIT/FOUND checks before mutation; missing or
+unusable whole-cohort selection cannot claim an operation or funding.
+
+Fresh allocation uses the existing owner/ingestion lock scope and creates global
+exclusion, private intent, source fence, registry and mapping atomically. Exact
+replay and status use the saved assignment before current selection. Revocation
+changes response eligibility, never identity or deadline. The media finalizer
+always rejects; existing no-media admission stays separate.
+
+C1 permits dispatch-prevented classification only with complete, unissued,
+unfunded source proof and no admitted M1 allocation. Uncertain proof remains
+unknown/held. C1/expiry, pre-row scan erasure, scan transitions, supported
+account detachment and raw owner deletion retire every sorted source object
+before private deletion. A guarded intent delete defends the same boundary; no
+generic handoff exception exists. Permanent registry rows cannot delete or
+reopen.
+
+`claim_initial_preparation_source_erasure` and
+`finish_initial_preparation_source_erasure` are fixed service-only,
+metadata-only owners. Claims use SKIP LOCKED and a one-minute token; completion
+accepts only a live exact token. Success marks a permanent marker acknowledged;
+failure releases the lease for retry; stale completion changes nothing. Cleanup
+acquires no owner/catalog lock after the object lock. No transport is installed.
+A future qualified backend must atomically fence both existing data and every
+late write with a permanent same-key marker, including physical-version
+retention; SQL acknowledgement alone proves none of those external properties.
+The database owner remains trusted to perform legal metadata transitions,
+including closing a live claim. Service-role success is likewise a trusted
+assertion; neither path independently verifies storage.
