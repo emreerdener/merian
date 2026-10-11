@@ -8773,3 +8773,34 @@ authorized external process. Worker quiescence remains a separate cutover
 requirement. Media admission, funding and M1 handoff still reject, even after a
 complete outcome. No profile/backend/runtime installation or live route is
 added.
+
+### Inactive handoff metadata and budget codec
+
+`20261011224842` adds seven pure invoker helpers in `internal`, revoked from
+PUBLIC and all API roles. The embedded closed schema and synthetic vectors match
+`handoff-profile-schema-v1.json` and its Deno codec. Canonical profile and
+composite protocol documents have a 16 KiB bound. Domain-separated digests bind
+exact canonical declaration bytes; profile validation checks declared component
+digest identities, unique supported content-type pairs, cohort limits and the
+eight-phase sum. These checks validate declarations only; they do not verify
+retained source, installation or adapter bytes.
+
+The issue budget requires `45,000 + preparation_wall_ms + total_ms` strictly
+less than the remaining original expiry. Admission cutoffs cumulatively add the
+eight ordered phases, with the total strictly below the remaining expiry.
+Numeric times must be nonnegative safe integers within an original window of at
+most five minutes. Arithmetic uses exact differences at the safe-integer
+boundary. These helpers do not sample the clock, acquire locks, qualify
+adapters, install catalogs, bind a saved assignment, fund an operation or
+authorize transfer. Their future callers must establish the original identity
+and authoritative locked time.
+
+The [handoff RFC](../rfcs/initial-preparation-handoff-2026-10-11.md) still
+describes those later dependencies. No existing preparation or admitted-media
+path calls these helpers; activation and ordinary access remain unchanged.
+
+SQL's direct NUMERIC clock arguments validate values, not their lexical
+spelling. NUMERIC has no negative-zero state; its zero is accepted. Deno
+separately rejects IEEE-754 negative zero in direct clock arguments. Both
+canonical text parsers reject lexical `-0`; no accepted wire spelling is widened
+by this distinction.

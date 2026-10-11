@@ -376,3 +376,11 @@ not become qualified for admission through these helpers. See the
 [metadata contract](../../../../../docs/backend-and-data/05-api-contracts.md#inactive-handoff-metadata-and-budget-contract)
 and the
 [accepted handoff design](../../../../../docs/rfcs/initial-preparation-handoff-2026-10-11.md).
+
+The private SQL handoff codec in migration `20261011224842` mirrors the accepted
+Deno schema, domain-separated digests and strict issue/admission budget
+arithmetic. `initialHandoffContractMigration.test.ts` pins both schema and
+shared vectors; `tests/initial_handoff_contract.sql` exercises parsing,
+arithmetic and revoked role access. This remains pure metadata validation,
+without catalog installation, saved-assignment binding, actual cohort
+qualification or funding authority.
