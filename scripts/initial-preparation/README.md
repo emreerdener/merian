@@ -60,3 +60,20 @@ requires observed RSS samples and direct-child reaping with no surviving process
 group. The 64 MiB V8 heap limit and sampled 256 MiB group RSS ceiling are **not
 a hard native-memory bound**. Hosted isolation and broader media formats remain
 unqualified.
+
+## Prepared validated-WAV source profile
+
+`wav-validation-bootstrap.ts` is the source adapter for the proposed finite
+`validated-wav-darwin-arm64-v1` profile. Its v2 synthetic protocol uses exact
+compact JSON spelling and canonical Base64, validates one private copied view
+before transforming it, and preserves the explicit video-companion fallback
+option. Only typed structural rejection and known existing transform denials
+produce stage-specific negative diagnostics; unexpected errors fail generically.
+
+Portable adapter and process protocol tests run in
+`make test-initial-preparation`. They do not register or qualify a new artifact.
+The historical registry and bootstrap remain unchanged. The later closed-profile
+harness must pin prior committed new source blobs separately from archived
+transform inputs, reproduce two builds and execute the full qualification. See
+the
+[profile contract](../../docs/rfcs/initial-wav-artifact-profile-2026-10-11.md).

@@ -1,6 +1,9 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import { processWavBuffer } from "../audioProcessing.ts";
-import { inspectInitialWavStructure } from "./wavValidation.ts";
+import {
+  InitialWavStructureError,
+  inspectInitialWavStructure,
+} from "./wavValidation.ts";
 
 function chunk(id: string, bytes: Uint8Array): Uint8Array<ArrayBuffer> {
   const result = new Uint8Array(8 + bytes.length + bytes.length % 2);
@@ -45,7 +48,7 @@ function fixture(format = 1, channels = 1, rate = 16_000, frames = 8_000) {
 function rejects(bytes: Uint8Array<ArrayBuffer>) {
   assertThrows(
     () => inspectInitialWavStructure(bytes),
-    Error,
+    InitialWavStructureError,
     "Invalid initial WAV structure",
   );
 }

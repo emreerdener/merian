@@ -12,8 +12,16 @@ export interface InitialWavStructure {
   readonly frameCount: number;
 }
 
+/** Only this type denotes an expected structural denial, never a decoder crash. */
+export class InitialWavStructureError extends Error {
+  constructor() {
+    super("Invalid initial WAV structure");
+    this.name = "InitialWavStructureError";
+  }
+}
+
 function invalid(): never {
-  throw new Error("Invalid initial WAV structure");
+  throw new InitialWavStructureError();
 }
 
 /** Inspect exactly this view, synchronously, with no source-derived allocation. */
