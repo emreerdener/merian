@@ -75,6 +75,22 @@ saved input with null fresh-admission authority, skips current assets and cannot
 allocate, dispatch or refund. Durable native input/operation storage and the
 future status/result recovery API remain separate requirements.
 
+## Inactive initial WAV structural validation
+
+`wavValidation.ts:inspectInitialWavStructure` implements the pure internal
+`initial-wav-structure-v1` contract. It synchronously checks the exact private
+caller-owned byte view, rejects shared storage, validates RIFF/chunk extents,
+PCM16/float32 framing and all float samples, and returns only frozen primitive
+metadata. Bounded opaque metadata and valid initial rates/channels remain
+supported. Structural acceptance does not bypass existing transform budgets.
+
+No live handler or `prepareInitialAdmission` imports it. Later integration must
+validate and transform the same private snapshot and qualify a new measured
+closure; neither the historical M3 artifact nor saved admission tuples may be
+relabelled. Source-copy race proof, other media validation and full initial
+execution remain open. See the
+[WAV interface RFC](../../../../../docs/rfcs/initial-wav-validation-interface-2026-10-11.md).
+
 ## Configuration retention
 
 `configuration-assets-v1.json` pins 60 transitive source/configuration assets at
