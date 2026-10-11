@@ -41,6 +41,16 @@ class RetainedInputTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'unregistered_artifact'):
             a.verify_artifact(b'tampered artifact', entry)
 
+    def test_validated_profile_committed_inputs_and_historical_archive(self):
+        entry = a.select_version(a.VALIDATED)
+        self.assertEqual(a.sha(a.read_bootstrap(entry)), entry['bootstrap_sha256'])
+        self.assertEqual(a.sha(a.read_validator(entry)), entry['validator']['sha256'])
+        source = a.REPO / '.artifacts/initial-analysis-source-archive/archives' / (a.ARCHIVE_HASH + '.json')
+        files = a.verify_archive(a.read_regular(source, 2097152), entry)
+        self.assertNotIn(a.VALIDATOR, files)
+        with self.assertRaises(ValueError):
+            a.read_validator(dict(entry, validator=dict(entry['validator'], sha256='0' * 64)))
+
 
 if __name__ == '__main__':
     unittest.main()

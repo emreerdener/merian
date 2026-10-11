@@ -61,9 +61,9 @@ group. The 64 MiB V8 heap limit and sampled 256 MiB group RSS ceiling are **not
 a hard native-memory bound**. Hosted isolation and broader media formats remain
 unqualified.
 
-## Prepared validated-WAV source profile
+## Validated-WAV local profile
 
-`wav-validation-bootstrap.ts` is the source adapter for the proposed finite
+`wav-validation-bootstrap.ts` is the source adapter for the finite
 `validated-wav-darwin-arm64-v1` profile. Its v2 synthetic protocol uses exact
 compact JSON spelling and canonical Base64, validates one private copied view
 before transforming it, and preserves the explicit video-companion fallback
@@ -72,8 +72,26 @@ produce stage-specific negative diagnostics; unexpected errors fail generically.
 
 Portable adapter and process protocol tests run in
 `make test-initial-preparation`. They do not register or qualify a new artifact.
-The historical registry and bootstrap remain unchanged. The later closed-profile
-harness must pin prior committed new source blobs separately from archived
-transform inputs, reproduce two builds and execute the full qualification. See
-the
+The historical registry and bootstrap remain unchanged. The closed-profile
+harness pins prior committed new source blobs separately from archived transform
+inputs, reproduces two builds and executes the full qualification. See the
 [profile contract](../../docs/rfcs/initial-wav-artifact-profile-2026-10-11.md).
+
+The prepared `validated-wav-darwin-arm64-v1` registry profile now pins source
+anchor `e4fc83d27` separately from the unchanged historical transform archive.
+Its `validator` binding carries path/commit/blob/SHA256/byte count, and the new
+bootstrap also has an explicit byte count. The harness derives graph and cache
+allowlists from the selected finite profile, never from arbitrary registry
+paths. Both profiles share the same process and cleanup controls.
+
+The registered artifact is 16,647 bytes with SHA256
+`cf2df93f4bdcdea853ae7d9c0e1432149cec470270880ca87dcb3b43f51a2f64`. Two fresh
+builds reproduced it and local synthetic execution passed all 13 WAV/protocol
+cases plus shared process controls. Build-only evidence remains separate and
+cannot itself qualify an artifact. Its qualification checks exact v2 response
+spelling and stage-specific exits for structure versus known transform denials,
+PCM/float output, fallback on/off, and strict protocol rejection. The historical
+profile also passed executable qualification after these shared harness changes,
+retaining its original 12,296-byte artifact and registered digest. Future shared
+harness changes require that regression again. Neither profile updates saved
+admission or installs a runtime caller.

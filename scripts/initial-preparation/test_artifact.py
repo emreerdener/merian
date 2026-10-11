@@ -222,5 +222,65 @@ class ArtifactTests(unittest.TestCase):
             spawn.assert_not_called()
 
 
+    def test_validated_profile_has_closed_independent_source_bindings(self):
+        entry = a.select_version(a.VALIDATED)
+        self.assertEqual(entry['inputs'], self.entry['inputs'])
+        self.assertEqual(entry['archive_sha256'], self.entry['archive_sha256'])
+        self.assertNotEqual(entry['bootstrap_path'], self.entry['bootstrap_path'])
+        self.assertEqual(a.profile_paths(a.VALIDATED), (a.VALIDATED_BOOTSTRAP, a.CLOSURE + [a.VALIDATOR]))
+        for changes in [dict(id='future'), dict(bootstrap_path=a.BOOTSTRAP),
+                        dict(bootstrap_bytes=True), dict(validator={}), dict(extra=True)]:
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                a.validate_entry(dict(entry, **changes))
+        for changes in [dict(path='../escape.ts'), dict(commit='HEAD'),
+                        dict(blob_sha1='--help'), dict(sha256='0'), dict(byte_count=True), dict(extra=1)]:
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                a.validate_entry(dict(entry, validator=dict(entry['validator'], **changes)))
+
+    def test_validated_committed_sources_are_separately_checked(self):
+        entry = a.select_version(a.VALIDATED)
+        with patch.object(a, 'read_committed', return_value=b'checked') as read:
+            candidate = copy.deepcopy(entry)
+            candidate['bootstrap_bytes'] = len(b'checked')
+            self.assertEqual(a.read_bootstrap(candidate), b'checked')
+            self.assertEqual(read.call_args.args[0], a.VALIDATED_BOOTSTRAP)
+            candidate['validator']['byte_count'] = len(b'checked')
+            self.assertEqual(a.read_validator(candidate), b'checked')
+            self.assertEqual(read.call_args.args[0], a.VALIDATOR)
+            with self.assertRaisesRegex(ValueError, 'validator_bytes'):
+                a.read_validator(entry)
+            with self.assertRaisesRegex(ValueError, 'bootstrap_bytes'):
+                a.read_bootstrap(entry)
+
+    def test_profile_cache_allowlist_does_not_expand_historical_profile(self):
+        cwd = pathlib.Path('/private/synthetic')
+        item = dict(path='gen/file/' + str(cwd / a.VALIDATOR).lstrip('/') + '.js', type='file', bytes=1)
+        with self.assertRaises(ValueError):
+            a.validate_cache([item], cwd / 'cache', cwd, cwd / 'deno', 'build')
+        a.validate_cache([item], cwd / 'cache', cwd, cwd / 'deno', 'build', a.VALIDATED)
+        with patch.object(a.subprocess, 'Popen') as spawn:
+            with self.assertRaisesRegex(ValueError, 'unknown_version'):
+                a.run(['unused', 'run'], cwd, cwd, profile='future')
+            spawn.assert_not_called()
+
+    def test_validated_output_requires_exact_wire_types_bytes_and_option(self):
+        source, output = b'synthetic input', b'synthetic output'
+        answer = dict(version=2, operation='validated_wav16k',
+                      preserve_source_when_trimmed_too_short=True,
+                      input_bytes=len(source), input_sha256=a.sha(source),
+                      output_bytes=len(output), output_sha256=a.sha(output),
+                      base64=base64.b64encode(output).decode(), complete=True)
+        raw = a.compact(answer) + b'\n'
+        self.assertEqual(a.validate_validated_answer(raw, source, True), output)
+        for altered in [raw.replace(b'"version":2', b'"version":2,"version":2'), raw + b' ',
+                        raw.replace(b':true', b':1'), a.compact(dict(answer, extra=1)) + b'\n']:
+            with self.assertRaises(ValueError):
+                a.validate_validated_answer(altered, source, True)
+        for changes in [dict(input_sha256='0'*64), dict(output_sha256='0'*64),
+                        dict(output_bytes=True), dict(preserve_source_when_trimmed_too_short=False)]:
+            with self.assertRaises(ValueError):
+                a.validate_validated_answer(a.compact(dict(answer, **changes)) + b'\n', source, True)
+
+
 if __name__ == '__main__':
     unittest.main()

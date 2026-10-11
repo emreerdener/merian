@@ -28,7 +28,18 @@ PROVENANCE_HASH = '45e8f871377a4e9d1a9a128e96d86f40f7cede194fc03ee31eecb68d6b2b0
 ESBUILD_HASH = '58d144357454bca840167171380785b133b1e5e682d0c51afa8c80158bfd3f8a'
 PREFIX = 'services/supabase/functions/'
 LOCK = REPO / '.artifacts/initial-preparation-artifact/.harness.lock'
+HISTORICAL = 'wav-feasibility-darwin-arm64-v1'
+VALIDATED = 'validated-wav-darwin-arm64-v1'
+VALIDATOR = PREFIX + '_shared/initialAnalysis/wavValidation.ts'
+VALIDATED_BOOTSTRAP = 'scripts/initial-preparation/wav-validation-bootstrap.ts'
 CLOSURE = [PREFIX + x for x in ['_shared/audioProcessing.ts', 'audio-spec/wav.ts', 'audio-spec/resample.ts', '_shared/encoding.ts', '_shared/mediaBudgets.ts', '_shared/http.ts']]
+
+def profile_paths(version):
+    if version == HISTORICAL:
+        return BOOTSTRAP, CLOSURE
+    if version == VALIDATED:
+        return VALIDATED_BOOTSTRAP, CLOSURE + [VALIDATOR]
+    raise ValueError('unknown_version')
 
 @contextlib.contextmanager
 def execution_lock():
@@ -73,7 +84,7 @@ def select_version(version):
     if len(selected) != 1:
         raise ValueError('unknown_version')
     entry = selected[0]
-    if entry['platform'] != 'darwin-arm64' or entry['build_policy'] != POLICY or entry['bootstrap_path'] != BOOTSTRAP or (entry['archive_sha256'] != ARCHIVE_HASH) or (entry['deno_sha256'] != DENO_HASH) or (entry['esbuild_sha256'] != ESBUILD_HASH):
+    if entry['platform'] != 'darwin-arm64' or entry['build_policy'] != POLICY or entry['bootstrap_path'] != profile_paths(entry['id'])[0] or (entry['archive_sha256'] != ARCHIVE_HASH) or (entry['deno_sha256'] != DENO_HASH) or (entry['esbuild_sha256'] != ESBUILD_HASH):
         raise ValueError('unsupported_tuple')
     if not re.fullmatch('[0-9a-f]{40}', entry.get('bootstrap_commit') or ''):
         raise ValueError('bootstrap_revision')
@@ -81,9 +92,11 @@ def select_version(version):
 
 def validate_entry(entry):
     keys = {'id', 'platform', 'bootstrap_commit', 'bootstrap_path', 'bootstrap_blob_sha1', 'bootstrap_sha256', 'archive_sha256', 'archive_revision', 'configuration_digest', 'inputs', 'deno_sha256', 'esbuild_sha256', 'toolchain_provenance_sha256', 'build_policy', 'artifact_sha256', 'artifact_bytes'}
+    if isinstance(entry, dict) and entry.get('id') == VALIDATED:
+        keys.update({'validator', 'bootstrap_bytes'})
     if not isinstance(entry, dict) or set(entry) != keys:
         raise ValueError('registry_entry')
-    for key in keys - {'inputs', 'artifact_sha256', 'artifact_bytes'}:
+    for key in keys - {'inputs', 'artifact_sha256', 'artifact_bytes', 'validator', 'bootstrap_bytes'}:
         if not isinstance(entry[key], str):
             raise ValueError('registry_type')
     for key in ['bootstrap_commit', 'bootstrap_blob_sha1', 'archive_revision']:
@@ -99,28 +112,65 @@ def validate_entry(entry):
     for item in entry['inputs']:
         if not isinstance(item, dict) or set(item) != {'path', 'sha256', 'byte_count'} or not isinstance(item['path'], str) or not isinstance(item['sha256'], str) or not re.fullmatch('[0-9a-f]{64}', item['sha256']) or type(item['byte_count']) is not int or not 0 < item['byte_count'] <= 1048576:
             raise ValueError('registry_input')
+    bootstrap, _ = profile_paths(entry['id'])
+    if entry['bootstrap_path'] != bootstrap:
+        raise ValueError('unsupported_tuple')
+    if entry['id'] == VALIDATED:
+        validate_validator(entry['validator'])
+        if type(entry['bootstrap_bytes']) is not int or not 0 < entry['bootstrap_bytes'] <= 65536:
+            raise ValueError('bootstrap_bytes')
     if entry['artifact_sha256'] is None and entry['artifact_bytes'] is None:
         return
     if not isinstance(entry['artifact_sha256'], str) or not re.fullmatch('[0-9a-f]{64}', entry['artifact_sha256']) or type(entry['artifact_bytes']) is not int or not 0 < entry['artifact_bytes'] < 100000:
         raise ValueError('registry_artifact')
 
-def read_bootstrap(entry):
-    """Read only the pre-existing regular Git blob selected by the saved tuple."""
+def validate_validator(record):
+    if not isinstance(record, dict) or set(record) != {'path', 'commit', 'blob_sha1', 'sha256', 'byte_count'} or record['path'] != VALIDATOR:
+        raise ValueError('validator_identity')
+    for key in ['commit', 'blob_sha1']:
+        if not isinstance(record[key], str) or not re.fullmatch('[0-9a-f]{40}', record[key]):
+            raise ValueError('validator_identity')
+    if not isinstance(record['sha256'], str) or not re.fullmatch('[0-9a-f]{64}', record['sha256']) or type(record['byte_count']) is not int or not 0 < record['byte_count'] <= 65536:
+        raise ValueError('validator_identity')
 
+
+def read_committed(path, commit, blob, digest):
+    """Closed callers supply fixed paths; never resolve a checkout/latest file."""
     def git(*args):
         result = subprocess.run(['/usr/bin/git', '--no-replace-objects', '-C', str(REPO), *args], capture_output=True, timeout=5, env={'PATH': '/usr/bin:/bin'})
         if result.returncode or len(result.stdout) > 65536:
             raise ValueError('bootstrap_git')
         return result.stdout
-    if not re.fullmatch('[0-9a-f]{40}', entry['bootstrap_blob_sha1']) or git('cat-file', '-t', entry['bootstrap_commit']) != b'commit\n':
+    if not re.fullmatch('[0-9a-f]{40}', commit) or not re.fullmatch('[0-9a-f]{40}', blob) or git('cat-file', '-t', commit) != b'commit\n':
         raise ValueError('bootstrap_commit')
-    tree = git('ls-tree', '-z', entry['bootstrap_commit'], '--', BOOTSTRAP)
-    expected = ('100644 blob ' + entry['bootstrap_blob_sha1'] + '\t' + BOOTSTRAP + '\x00').encode()
-    if tree != expected or int(git('cat-file', '-s', entry['bootstrap_blob_sha1'])) > 65536:
+    tree = git('ls-tree', '-z', commit, '--', path)
+    expected = ('100644 blob ' + blob + '\t' + path + '\x00').encode()
+    if tree != expected or int(git('cat-file', '-s', blob)) > 65536:
         raise ValueError('bootstrap_blob')
-    data = git('cat-file', 'blob', entry['bootstrap_blob_sha1'])
-    if sha(data) != entry['bootstrap_sha256']:
+    data = git('cat-file', 'blob', blob)
+    if sha(data) != digest:
         raise ValueError('bootstrap_digest')
+    return data
+
+
+def read_bootstrap(entry):
+    path, _ = profile_paths(entry['id'])
+    if entry['bootstrap_path'] != path:
+        raise ValueError('unsupported_tuple')
+    data = read_committed(path, entry['bootstrap_commit'], entry['bootstrap_blob_sha1'], entry['bootstrap_sha256'])
+    if entry['id'] == VALIDATED and len(data) != entry['bootstrap_bytes']:
+        raise ValueError('bootstrap_bytes')
+    return data
+
+
+def read_validator(entry):
+    if entry['id'] != VALIDATED:
+        raise ValueError('unsupported_tuple')
+    record = entry['validator']
+    validate_validator(record)
+    data = read_committed(VALIDATOR, record['commit'], record['blob_sha1'], record['sha256'])
+    if len(data) != record['byte_count']:
+        raise ValueError('validator_bytes')
     return data
 
 def verify_archive(data, entry):
@@ -199,14 +249,15 @@ def verify_regular(path, digest, mode):
     if not sha(read_regular(path, 180 * 1024 ** 2)) == digest:
         raise ValueError('qualification_check_failed')
 
-def validate_cache(items, cache, cwd, executable, phase):
+def validate_cache(items, cache, cwd, executable, phase, profile=HISTORICAL):
     if not (len(items) <= 32 and sum((i.get('bytes', 0) for i in items)) <= 16 * 1024 ** 2):
         raise ValueError('qualification_check_failed')
     databases = {'dep_analysis_cache_v2', 'node_analysis_cache_v2'}
     if phase == 'runtime':
         databases.add('v8_code_cache_v2')
     allowed = {name + suffix for name in databases for suffix in ['', '-shm', '-wal']}
-    generated = {'gen/file/' + str(cwd / path).lstrip('/') + '.js' for path in CLOSURE + [BOOTSTRAP]}
+    bootstrap, closure = profile_paths(profile)
+    generated = {'gen/file/' + str(cwd / path).lstrip('/') + '.js' for path in closure + [bootstrap]}
     for item in items:
         path = item['path']
         if item['type'] == 'symlink':
@@ -269,7 +320,8 @@ def locked_tree(root):
 
 
 def run(args, cwd, cache, data=b'', timeout=15, limit=1048576, inputs=None,
-        cancelled=lambda: False, cancel_after_output=None):
+        cancelled=lambda: False, cancel_after_output=None, profile=HISTORICAL):
+    profile_paths(profile)  # Reject unknown profiles before any spawn.
     if not isinstance(data, bytes) or len(data) > 300000 or not 0 < timeout <= 15 or not 0 < limit <= 1048576:
         raise ValueError('process_bounds')
     for path, digest in (inputs or {}).items():
@@ -374,7 +426,7 @@ def run(args, cwd, cache, data=b'', timeout=15, limit=1048576, inputs=None,
         raise RuntimeError('process_group_survived')
     items = inventory(cache)
     validate_cache(items, cache, cwd, pathlib.Path(args[0]),
-                   'runtime' if args[1] == 'run' else 'build')
+                   'runtime' if args[1] == 'run' else 'build', profile)
     return ({'args': list(map(str, args)), 'exit': code, 'failure': failure,
              'elapsed_ms': round((time.monotonic() - start) * 1000),
              'sampled_peak_group_rss': peak, 'rss_samples': samples,
@@ -401,8 +453,100 @@ def wav(rate, samples):
     data = struct.pack('<' + 'h' * len(samples), *samples)
     return b'RIFF' + struct.pack('<I', 36 + len(data)) + b'WAVEfmt ' + struct.pack('<IHHIIHH', 16, 1, 1, rate, rate * 2, 2, 16) + b'data' + struct.pack('<I', len(data)) + data
 
+def compact(value):
+    return json.dumps(value, separators=(',', ':')).encode()
+
+
+def validated_request(source, fallback=False):
+    return compact(dict(version=2, operation='validated_wav16k',
+                        base64=base64.b64encode(source).decode(),
+                        preserve_source_when_trimmed_too_short=fallback))
+
+
+def validate_validated_answer(raw, source, fallback):
+    if len(raw) > 1048576 or type(fallback) is not bool:
+        raise ValueError('output_protocol')
+    answer = json.loads(raw)
+    keys = ['version', 'operation', 'preserve_source_when_trimmed_too_short',
+            'input_bytes', 'input_sha256', 'output_bytes', 'output_sha256', 'base64', 'complete']
+    if not isinstance(answer, dict) or list(answer) != keys or not isinstance(answer['base64'], str):
+        raise ValueError('output_protocol')
+    output = base64.b64decode(answer['base64'], validate=True)
+    expected = dict(version=2, operation='validated_wav16k',
+                    preserve_source_when_trimmed_too_short=fallback,
+                    input_bytes=len(source), input_sha256=sha(source),
+                    output_bytes=len(output), output_sha256=sha(output),
+                    base64=base64.b64encode(output).decode(), complete=True)
+    # Exact spelling checks types as well as duplicate keys, order and pad bits.
+    if raw != compact(expected) + b'\n' or not output:
+        raise ValueError('output_identity')
+    return output
+
+
+def float_wav(rate, channels, sample=0.25):
+    data = struct.pack('<f', sample) * rate * channels
+    return (b'RIFF' + struct.pack('<I', 36 + len(data)) + b'WAVEfmt ' +
+            struct.pack('<IHHIIHH', 16, 3, channels, rate, rate * channels * 4,
+                        channels * 4, 32) + b'data' + struct.pack('<I', len(data)) + data)
+
+
+def qualify_validated(invoke, executable, flags, execution, root, artifact, artifact_bytes):
+    evidence = []
+    def execute(name, request, code, stage=None, expected=None, source=None, fallback=False):
+        with locked_tree(execution):
+            result, raw = invoke([executable, *flags, 'artifact.js'], execution,
+                                 root / ('cache-validated-' + name), request,
+                                 inputs={artifact: sha(artifact_bytes)})
+        if not expected_exit(result, code):
+            raise ValueError('validated_exit')
+        if code == 0:
+            output = validate_validated_answer(raw, source, fallback)
+            if output != expected or result['stderr']:
+                raise ValueError('validated_output')
+            result['stdout'] = '[synthetic output verified; bytes omitted]'
+        elif stage is not None:
+            denial = dict(version=2, status='rejected', stage=stage,
+                          transform_started=stage == 'transform')
+            if raw or result['stderr'].encode() != compact(denial) + b'\n':
+                raise ValueError('validated_stage')
+        elif raw or result['stderr']:
+            raise ValueError('validated_protocol')
+        evidence.append(dict(case=name, request_sha256=sha(request),
+                             expected_exit=code, expected_stage=stage, result=result))
+
+    normal = wav(32000, [8192] * 32000)
+    expected = wav(16000, [8192] * 16000)
+    execute('pcm16', validated_request(normal), 0, expected=expected, source=normal)
+    for channels in (1, 2, 3):
+        source = float_wav(8000, channels)
+        execute('float-' + str(channels), validated_request(source), 0,
+                expected=expected, source=source)
+    samples = [0] * 16000
+    samples[7000:7300] = [8192] * 300
+    short_sound = wav(16000, samples)
+    execute('fallback-off', validated_request(short_sound), 3, 'transform')
+    execute('fallback-on', validated_request(short_sound, True), 0,
+            expected=short_sound, source=short_sound, fallback=True)
+    bad_size = bytearray(normal)
+    struct.pack_into('<I', bad_size, 4, 0)
+    bad_frame = bytearray(normal)
+    struct.pack_into('<H', bad_frame, 32, 3)
+    nonfinite = bytearray(float_wav(8000, 2))
+    struct.pack_into('<f', nonfinite, 48, float('nan'))
+    for name, source in [('extent', bad_size), ('frame', bad_frame), ('nonfinite', nonfinite)]:
+        execute(name, validated_request(source), 2, 'validation')
+    execute('work-budget', validated_request(wav(1, [8192] * 8000)), 3, 'transform')
+    canonical = validated_request(normal)
+    for name, request in [('duplicate', canonical.replace(b'"version":2', b'"version":2,"version":2')),
+                          ('whitespace', canonical + b'\n'), ('utf8', b'\xff')]:
+        execute(name, request, 1)
+    return evidence
+
 def qualify(options):
     entry = select_version(options.version)
+    bootstrap_path, closure = profile_paths(entry['id'])
+    def invoke(*args, **kwargs):
+        return run(*args, profile=entry['id'], **kwargs)
     if not options.build_only and (not entry['artifact_sha256'] or not entry['artifact_bytes']):
         raise ValueError('unregistered_artifact')
     if platform.system() != 'Darwin' or platform.machine() != 'arm64':
@@ -435,7 +579,10 @@ def qualify(options):
     archive_bytes = read_regular(options.archive, 2097152)
     files = verify_archive(archive_bytes, entry)
     bootstrap = read_bootstrap(entry)
+    if entry['id'] == VALIDATED:
+        files[VALIDATOR] = read_validator(entry)
     evidence = {'scope': 'local synthetic preparation only; no hosted or provider integration', 'deno_sha256': DENO_HASH, 'esbuild_sha256': ESBUILD_HASH, 'archive_sha256': ARCHIVE_HASH, 'bootstrap_sha256': sha(bootstrap), 'network_policy': '(version 1)(allow default)(deny network*)', 'builds': [], 'executions': []}
+    evidence['new_source_bindings'] = {'validator': entry['validator']} if entry['id'] == VALIDATED else {}
     evidence.update({'receipt_format': 1, 'status': 'unqualified_build_only' if options.build_only else 'qualification_in_progress', 'selected_version': entry['id'], 'registry_entry': entry, 'harness_sha256': sha(read_regular(pathlib.Path(__file__), 100000))})
     pkg = read_regular(toolchain / 'package.tgz', 16 * 1024 ** 2)
     meta = json.loads(read_regular(toolchain / 'registry-metadata.json', 65536))
@@ -467,7 +614,7 @@ def qualify(options):
         report_root = p / 'toolchain-report'
         report_root.mkdir()
         with locked_tree(report_root):
-            report, raw = run([executable, '--version'], report_root, p / 'version-cache')
+            report, raw = invoke([executable, '--version'], report_root, p / 'version-cache')
         if not expected_exit(report, 0):
             raise ValueError('toolchain_report')
         evidence.update(verify_toolchain_report(raw))
@@ -486,28 +633,28 @@ def qualify(options):
             before = inventory(cache)
             if not (len(before) == 1 and before[0]['sha256'] == ESBUILD_HASH):
                 raise ValueError('qualification_check_failed')
-            for path in CLOSURE + [PREFIX + 'deno.json', PREFIX + 'dependencies.lock']:
+            for path in closure + [PREFIX + 'deno.json', PREFIX + 'dependencies.lock']:
                 target = tree / path
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(files[path])
                 target.chmod(256)
-            (tree / BOOTSTRAP).parent.mkdir(parents=True, exist_ok=True)
-            (tree / BOOTSTRAP).write_bytes(bootstrap)
-            (tree / BOOTSTRAP).chmod(256)
-            measured_inputs = {tree / path: sha(files[path]) for path in CLOSURE + [PREFIX + 'deno.json', PREFIX + 'dependencies.lock']}
-            measured_inputs[tree / BOOTSTRAP] = sha(bootstrap)
+            (tree / bootstrap_path).parent.mkdir(parents=True, exist_ok=True)
+            (tree / bootstrap_path).write_bytes(bootstrap)
+            (tree / bootstrap_path).chmod(256)
+            measured_inputs = {tree / path: sha(files[path]) for path in closure + [PREFIX + 'deno.json', PREFIX + 'dependencies.lock']}
+            measured_inputs[tree / bootstrap_path] = sha(bootstrap)
             config = ['--config', PREFIX + 'deno.json', '--frozen', '--no-remote', '--no-npm', '--deny-import']
             with locked_tree(tree):
-                (graph, raw) = run([executable, 'info', '--json', *config, BOOTSTRAP], tree, cache, inputs=measured_inputs)
+                (graph, raw) = invoke([executable, 'info', '--json', *config, bootstrap_path], tree, cache, inputs=measured_inputs)
                 if not graph['exit'] == 0:
                     raise ValueError('qualification_check_failed')
                 modules = json.loads(raw)['modules']
                 actual = {pathlib.Path(m['specifier'].removeprefix('file://')).relative_to(tree).as_posix() for m in modules}
-                if not actual == set(CLOSURE + [BOOTSTRAP]):
+                if not actual == set(closure + [bootstrap_path]):
                     raise ValueError('qualification_check_failed')
                 graph['stdout'] = '[resolved local modules verified; lock-derived package metadata omitted]'
                 graph['verified_modules'] = sorted(actual)
-                (result, _) = run([executable, 'bundle', *config, '--packages', 'bundle', '--platform', 'deno', '--format', 'esm', '--output', str(work / 'artifact.js'), BOOTSTRAP], tree, cache, inputs=measured_inputs)
+                (result, _) = invoke([executable, 'bundle', *config, '--packages', 'bundle', '--platform', 'deno', '--format', 'esm', '--output', str(work / 'artifact.js'), bootstrap_path], tree, cache, inputs=measured_inputs)
                 if not result['exit'] == 0:
                     raise ValueError('qualification_check_failed')
             artifact = read_regular(work / 'artifact.js', 100000)
@@ -516,7 +663,7 @@ def qualify(options):
             if not (b'import(' not in artifact and b'from "' not in artifact and (str(tree).encode() not in artifact)):
                 raise ValueError('qualification_check_failed')
             artifacts.append(artifact)
-            evidence['builds'].append({'seed_before': before, 'input_inventory': [{'path': path, 'bytes': len(files[path]), 'sha256': sha(files[path])} for path in CLOSURE + [PREFIX + 'deno.json', PREFIX + 'dependencies.lock']], 'graph': graph, 'bundle': result, 'artifact_sha256': sha(artifact), 'artifact_bytes': len(artifact)})
+            evidence['builds'].append({'seed_before': before, 'input_inventory': [{'path': path, 'bytes': len(files[path]), 'sha256': sha(files[path])} for path in closure + [PREFIX + 'deno.json', PREFIX + 'dependencies.lock']], 'graph': graph, 'bundle': result, 'artifact_sha256': sha(artifact), 'artifact_bytes': len(artifact)})
         if not artifacts[0] == artifacts[1]:
             raise ValueError('qualification_check_failed')
         if not options.build_only:
@@ -531,18 +678,21 @@ def qualify(options):
         artifact.write_bytes(artifacts[0])
         artifact.chmod(256)
         flags = ['run', '--no-config', '--no-lock', '--no-remote', '--no-npm', '--no-check', '--no-prompt', '--deny-read', '--deny-write', '--deny-net', '--deny-env', '--deny-run', '--deny-ffi', '--deny-import', '--v8-flags=--max-old-space-size=64']
-        for (op, source, expected) in [('identity', b'synthetic-identity', b'synthetic-identity'), ('wav16k', wav(32000, [8192] * 32000), wav(16000, [8192] * 16000))]:
-            req = json.dumps({'version': 1, 'operation': op, 'base64': base64.b64encode(source).decode()}).encode()
-            with locked_tree(execution):
-                (result, raw) = run([executable, *flags, 'artifact.js'], execution, p / f'cache-{op}', req, inputs={artifact: sha(artifacts[0])})
-            if not result['exit'] == 0:
-                raise ValueError('qualification_check_failed')
-            answer = json.loads(raw)
-            output = validate_answer(answer, op, source)
-            if not output == expected:
-                raise ValueError('qualification_check_failed')
-            result['stdout'] = '[synthetic output verified; bytes omitted]'
-            evidence['executions'].append({'operation': op, 'input_sha256': sha(source), 'output_sha256': sha(output), 'result': result})
+        if entry['id'] == VALIDATED:
+            evidence['executions'] = qualify_validated(invoke, executable, flags, execution, p, artifact, artifacts[0])
+        else:
+            for (op, source, expected) in [('identity', b'synthetic-identity', b'synthetic-identity'), ('wav16k', wav(32000, [8192] * 32000), wav(16000, [8192] * 16000))]:
+                req = json.dumps({'version': 1, 'operation': op, 'base64': base64.b64encode(source).decode()}).encode()
+                with locked_tree(execution):
+                    (result, raw) = invoke([executable, *flags, 'artifact.js'], execution, p / f'cache-{op}', req, inputs={artifact: sha(artifacts[0])})
+                if not result['exit'] == 0:
+                    raise ValueError('qualification_check_failed')
+                answer = json.loads(raw)
+                output = validate_answer(answer, op, source)
+                if not output == expected:
+                    raise ValueError('qualification_check_failed')
+                result['stdout'] = '[synthetic output verified; bytes omitted]'
+                evidence['executions'].append({'operation': op, 'input_sha256': sha(source), 'output_sha256': sha(output), 'result': result})
         missing = p / 'missing'
         missing.mkdir()
         (missing / 'input.ts').write_text('export const probe=1;\n')
@@ -557,7 +707,7 @@ def qualify(options):
         previous_cache = os.environ.get('DENO_DIR')
         os.environ['DENO_DIR'] = str(ambient)
         try:
-            (result, _) = run([executable, 'bundle', '--no-config', '--no-lock', '--no-remote', '--no-npm', '--deny-import', '--output', 'output.js', 'input.ts'], missing, missing / 'cache')
+            (result, _) = invoke([executable, 'bundle', '--no-config', '--no-lock', '--no-remote', '--no-npm', '--deny-import', '--output', 'output.js', 'input.ts'], missing, missing / 'cache')
         finally:
             if previous_cache is None:
                 os.environ.pop('DENO_DIR', None)
@@ -581,7 +731,7 @@ def qualify(options):
             testpath.write_text(code)
             testpath.chmod(256)
             with locked_tree(execution):
-                (result, raw) = run([executable, *flags, testpath.name], execution, p / f'cache-{name}', timeout=0.3 if name == 'timeout' else 5, limit=16384, inputs={testpath: sha(code.encode())}, cancel_after_output=b'started\n' if name == 'cancel' else None)
+                (result, raw) = invoke([executable, *flags, testpath.name], execution, p / f'cache-{name}', timeout=0.3 if name == 'timeout' else 5, limit=16384, inputs={testpath: sha(code.encode())}, cancel_after_output=b'started\n' if name == 'cancel' else None)
             if not (result['exit'] == wanted_exit and result['failure'] == wanted_failure and result['reaped'] and result['process_group_gone'] and result['rss_samples'] > 0):
                 raise ValueError('qualification_check_failed')
             if name == 'cancel' and not raw.startswith(b'started\n'):
@@ -592,7 +742,7 @@ def qualify(options):
             evidence['negative_probes'].append({'name': name, 'fixture_sha256': sha(code.encode()), 'result': result})
         for (name, request) in [('unknown', {'version': 1, 'operation': 'newest', 'base64': ''}), ('extra', {'version': 1, 'operation': 'identity', 'base64': '', 'extra': True}), ('wav', {'version': 1, 'operation': 'wav16k', 'base64': ''}), ('version', {'version': 2, 'operation': 'identity', 'base64': ''}), ('excess', {'version': 1, 'operation': 'identity', 'base64': 'A' * 270000})]:
             with locked_tree(execution):
-                (result, _) = run([executable, *flags, 'artifact.js'], execution, p / f'cache-invalid-{name}', json.dumps(request).encode(), inputs={artifact: sha(artifacts[0])})
+                (result, _) = invoke([executable, *flags, 'artifact.js'], execution, p / f'cache-invalid-{name}', json.dumps(request).encode(), inputs={artifact: sha(artifacts[0])})
             if not (expected_exit(result, 1) and not result['stdout']):
                 raise ValueError('qualification_check_failed')
             evidence['negative_probes'].append({'name': name, 'result': result})

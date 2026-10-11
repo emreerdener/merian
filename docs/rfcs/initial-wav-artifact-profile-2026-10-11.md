@@ -1,6 +1,8 @@
 # Local initial WAV validation and transform profile
 
-Status: proposed finite profile, October 11, 2026. This extends the accepted
+Status: finite local profile implemented and synthetically qualified, October
+11, 2026; accepted by initial-engine and independent read-only review. This
+extends the accepted
 [WAV structural contract](initial-wav-validation-interface-2026-10-11.md) and
 [local artifact experiment](initial-preparation-artifact-interface-2026-10-11.md).
 It does not qualify or install initial admission, provider execution or a hosted
@@ -122,3 +124,27 @@ members plus pinned new blobs. The local copy test does not prove later
 retained-object loading, admission binding, device recovery or provider
 behavior. Production stays disabled. Publishing, deployment, installation and
 activation remain separately unauthorized.
+
+## Local executable evidence
+
+The source anchor is `e4fc83d27329b1133eab3fbfe8368d58c96ff4fc`. The finite
+registry pins its adapter and validator separately from the historical archive.
+Two fresh builds produced an identical eight-module artifact of 16,647 bytes:
+`cf2df93f4bdcdea853ae7d9c0e1432149cec470270880ca87dcb3b43f51a2f64`. The
+unexecuted build-only receipt was independently reviewed before registration.
+
+Local synthetic runtime receipt
+`5fd762611721100f2f733bd6438ae318b10f6868b5f4e5bdb2e4735ad480f71b` passes all 13
+PCM/float/fallback/structure/budget/protocol cases and shared permission, cache,
+deadline, cancellation, output and reaping controls. Historical regression
+receipt `32f0278a850ce042369d107bd298a5959ef7c7bb795e3847400ca78974367be0`
+preserves the original registered 12,296-byte artifact and passes its execution
+and process-control checks through the same harness. Both receipts bind harness
+SHA256 `5529c3292408e4bb2b1722276007227deab5b458e5f912b8665ed80e901c66b7`. They
+are retained under `.artifacts/initial-wav-artifact/`; exact checkpoint and
+review status is recorded there.
+
+This evidence covers local synthetic WAV preparation only. Saved admission
+identity, retained-object verification, other media, route integration, full S0,
+installed/hosted qualification and final candidate CI remain open. There is no
+live caller or activation change.
