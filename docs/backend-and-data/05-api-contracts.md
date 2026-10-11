@@ -18241,14 +18241,23 @@ discarded. Late streams are cancelled and cannot launch a write or return a
 binding after cancellation. These local deadlines do not prove server rollback.
 Asset failures before admission hold configuration unavailable; issued-write
 uncertainty remains `unknown(write_outcome_unknown)`, with no retry, refund or
-invocation. The immutable deployable archive resolver and executing-code
-attestation remain unimplemented installation prerequisites. `recoverAdmission`
-uses the exact persisted canonical input and digest with null fresh-asset/IP
-authority. SQL can return only an existing exact binding: absence cannot
-allocate. Transport errors, malformed envelopes and mismatched bindings remain
-unknown. Closed known denials map to conflict, unavailable, deleted, owner
-unavailable, invalid input, configuration unavailable or experiment unavailable.
-Comparison namespaces remain held without markers.
+invocation. The inactive source-archive resolver now verifies exact retained Git
+source/config bytes, including the frozen lock and external-specifier inventory,
+before exposing any copied asset stream. Its deterministic format-1 JSON has a 2
+MiB encoded ceiling and retains the existing per-member/count/raw aggregate
+bounds; only the known saved catalog digest and revision resolve. Unknown,
+missing, altered, duplicated or noncanonical members hold without network or
+current-code fallback. Local publication uses a verified raw archive SHA256
+content address, distinct from admission's asset-manifest digest, and atomic
+no-replace creation. This is source retention, not vendored dependencies, a
+runnable deployment artifact or executing-code attestation; those installation
+prerequisites remain open. `recoverAdmission` uses the exact persisted canonical
+input and digest with null fresh-asset/IP authority. SQL can return only an
+existing exact binding: absence cannot allocate. Transport errors, malformed
+envelopes and mismatched bindings remain unknown. Closed known denials map to
+conflict, unavailable, deleted, owner unavailable, invalid input, configuration
+unavailable or experiment unavailable. Comparison namespaces remain held without
+markers.
 
 Admission replay precedes current configuration/gates/lease expiry but still
 requires live ownership and deletion fences. It is separate from future

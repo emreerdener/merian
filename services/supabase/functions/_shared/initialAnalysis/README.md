@@ -82,10 +82,52 @@ specifiers and the frozen dependency lock. Its domain-separated digest is stored
 with the SQL rollout and admission. `verifyInitialConfigurationAssets` requires
 exact streamed bytes at that revision through `git_blob_sha256_v1`; missing,
 changed or unrecognized assets hold. It never silently substitutes current code.
-The initial-engine release archive owns retention. This checkpoint validates
-source resolution; the deployable immutable archive resolver, production
-bundle/dependency archival and execution-time resolution of the saved manifest
-still require implementation and qualification.
+The initial-engine release archive owns retention. `sourceArchive.ts` and
+`scripts/build_initial_source_archive.ts` now implement local source/config
+archive construction and resolution. The builder reads only regular Git blobs at
+the saved revision, with replacement objects disabled; dirty checkout files,
+symlinks, missing members and altered bytes cannot supply authority. A finite
+resolver supports only the exact retained catalog and requested revision. It
+verifies the entire archive before exposing copied member streams, without
+network access, current-source fallback, dynamic import or evaluation.
+
+Format 1 contains the exact catalog (including lock and external-specifier
+inventory) and catalog-ordered `path`, `sha256`, `byte_count`, `base64` members.
+Explicit JSON field order, canonical base64 and a single trailing LF define the
+only accepted spelling; duplicate/extra/missing fields or members, alternate
+spellings and malformed UTF-8 reject. Encoded JSON is capped at 2 MiB and raw
+members retain the 128 KiB / 64 files / 1 MiB limits. Offline Git construction
+has a 60-second whole-build deadline; resolution has a five-second whole-archive
+deadline, composed with caller cancellation and existing stream work limits. The
+ordinary admission catalog budget remains five seconds.
+
+Run the local builder with one existing operator-owned output directory:
+
+```bash
+deno run --frozen --deny-net --deny-env --allow-run=git \
+  --allow-read=. --allow-write=<output-directory> \
+  --config services/supabase/functions/deno.json \
+  services/supabase/scripts/build_initial_source_archive.ts <output-directory>
+```
+
+The CLI emits only byte count and public source digests. It syncs an exclusive
+private temporary file, then publishes with an atomic no-replace hard link to
+`<archive_sha256>.json`. An existing content address must verify identically;
+corrupt files or symlinks reject without replacement. The raw archive SHA256 is
+distinct from the domain-separated asset-manifest digest stored by admission.
+This operation assumes a trusted local directory and filesystem; it is not
+hosted retention or power-loss durability qualification. Local publication
+checks cancellation between filesystem operations. A blocked filesystem write,
+sync, open or link cannot be preempted: the construction/resolution deadlines do
+not guarantee a wall-clock bound for publication. Cancellation after a link may
+leave the complete content-addressed artifact; inspect and verify that exact
+address before treating any local failure as absence.
+
+The archive does not vendor external dependency bytes or prove which executable
+preprocessor/provider runs. Runnable bundle/dependency archival, runtime image
+and bootstrap attestation, immutable hosted retention and execution-time
+resolution still require implementation and qualification. No live installer
+uses this source resolver.
 
 SQL freezes an explicit allowlist of provider-assignment selectors, model,
 effective tier and null experiment alongside durable original funding identity
