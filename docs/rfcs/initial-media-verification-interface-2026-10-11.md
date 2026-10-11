@@ -6,6 +6,16 @@ initial-engine owner and independent project reviewer must accept this exact
 interface and final candidate evidence. No route, native installation, backend
 selection, provider invocation or hosted operation is authorized.
 
+## Coordinated v2 follow-up
+
+The
+[durable pre-admission preparation contract](initial-pre-admission-preparation-2026-10-11.md)
+specifies the later v2-only global-fence, no-funding cancellation and
+expiry/handoff checks. It explicitly distinguishes successful pre-storage
+cleanup from logical C1 abandonment, including when an M2 receipt exists. Those
+additions are a design agreement, not implemented behavior or changes to
+existing v1 saved bindings, response envelopes or receipt meaning.
+
 ## Preparation and durable verification
 
 M1 metadata is not preparation authority. Add fixed service-only operations,

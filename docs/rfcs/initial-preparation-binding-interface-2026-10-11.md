@@ -6,6 +6,19 @@ accepted the immediate reference scope before implementation. History primary
 owns writes. This document specifies the next bounded dependency within S0, not
 a new product slice.
 
+## Follow-up ordering contract
+
+The
+[durable pre-admission preparation contract](initial-pre-admission-preparation-2026-10-11.md)
+records the coordinated correction to the future admission and
+retained-derivation ordering below. It requires durable original/prepared bytes
+and a preparation outcome before funding, then exact M1/M2 handoff without a
+second transform. The accepted finite reference implementation and its
+qualification remain unchanged. The coordinated follow-up supersedes the future
+process-local handoff and retained retransformation proposal below. Executable
+schema and transport acceptance remain separate; the sections below preserve the
+earlier proposal.
+
 ## Separate identity from permission
 
 The accepted `validated-wav-darwin-arm64-v1` profile is local synthetic evidence

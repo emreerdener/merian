@@ -7,6 +7,16 @@ union; all other IC-1 requirements remain in force. It defines the first
 prepared cancellation response, version 1, before any installed consumer or
 activation. Implementation and executable acceptance remain separate.
 
+## Coordinated v2 follow-up
+
+The
+[durable pre-admission preparation contract](initial-pre-admission-preparation-2026-10-11.md)
+specifies the later v2-only global-fence, no-funding cancellation and
+expiry/handoff checks. It explicitly distinguishes successful pre-storage
+cleanup from logical C1 abandonment, including when an M2 receipt exists. Those
+additions are a design agreement, not implemented behavior or changes to
+existing v1 saved bindings, response envelopes or receipt meaning.
+
 ## Fixed boundary and precedence
 
 `cancel_initial_analysis(owner, scan)` is a fixed service-only operation. The
