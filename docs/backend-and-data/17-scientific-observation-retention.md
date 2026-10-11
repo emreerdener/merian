@@ -285,6 +285,27 @@ photo erasure; generation-bound unbound expiry also handles abandoned ready
 uploads. No cleanup scheduler is activated. The scientific
 allowlist/materialization activation prerequisite remains unchanged.
 
+## Inactive initial-analysis private evidence
+
+The IC-1 storage foundation adds private initial submission, ordered
+description, result/provenance and receipt containers. They are inaccessible to
+all API roles, have no live writer, and sit behind a default-false lifecycle
+gate. Their contents are not scientific-retention fields. Permanent scan fences
+erase the whole private chain even before a scan row exists; scan detachment and
+account deletion do the same for enrolled and unenrolled observations. Account
+erasure records only ownerless completed generation IDs to prevent later
+evidence resurrection. No submitted text, result payload, digest or receipt
+survives in those markers.
+
+Immutability permits this authoritative erasure. A pending account-deletion job
+blocks new evidence while the user row still exists. A source account with
+private initial evidence cannot be generically merged/reparented. Existing
+scientific scalar retention remains unchanged. The legacy pre-row scan-deletion
+API is not extended by this foundation; the fixed initial cancellation
+operation, atomic completion, route/worker cutover and imported V3 description
+erasure still require subsequent gated implementation. Local storage tests do
+not qualify remote provider erasure or installed-device recovery.
+
 ## Related documents
 
 - [Supabase Edge and database architecture](./02-supabase-edge-and-database.md)

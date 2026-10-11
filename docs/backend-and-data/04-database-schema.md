@@ -8414,3 +8414,60 @@ public biological dictionary identity with a GBIF key. Missing, unverified or
 ambiguous identity fails closed without inserting model-authored taxonomy. Any
 dictionary materialization belongs to the established verified resolver; it is
 not provider retry authority.
+
+## Initial-analysis private storage foundation (inactive)
+
+Migration `20261011055729_prepare_initial_analysis_private_storage.sql` begins
+IC-1 S0 with private immutable `internal.initial_analysis_submissions`,
+`initial_analysis_results`, and `initial_analysis_completions` containers. The
+submission owns exact ordered description strings plus bounded input,
+configuration and funding JSON. Result and receipt rows use composite foreign
+keys to preserve the original scan/owner/result association and cascade
+together. Only the submission references the live user; a row-sensitive
+`preserve` Ghost merge policy prevents generic reassignment. All tables enable
+RLS and deny every API role, including `service_role`. Trigger functions are
+also ungranted.
+
+`internal.initial_analysis_rollout.initial_analysis_lifecycle_enabled` defaults
+false. No admission, dispatch, completion, status or cancellation RPC is
+installed by this migration. Existing initial routes and workers do not write
+these containers. Enabling the flag alone does not install a writer. The
+containers do not establish canonical input/digest encoding, validated provider
+results, original funding/dispatch proof, or atomic accounting/scan completion.
+Those require subsequent fixed operations and coordinated all-route/worker
+integration under IC-1 before execution can be enabled. There is no initial
+description sidecar or history-import change in this increment.
+
+Insertion requires READ COMMITTED, the gate, a live owner locked FOR UPDATE, the
+existing scan-ingestion advisory, then any scan/history row locks. It rejects
+retrofitting a submission to an existing scan, permanent deleted IDs and active
+account-deletion jobs. Updates always reject; deletes require an erased owner or
+permanent deletion fence. The existing permanent scan-tombstone namespace erases
+the private chain before or after scan creation. Account erasure leaves only
+ownerless completed generation IDs, never private content or digests.
+
+The scan detach/delete BEFORE guard uses owner NOWAIT and an advisory try-lock;
+contention aborts privileged scan-first writes before history/accounting
+cascades. The tombstone BEFORE guard tries the advisory whenever no scan is
+visible or initial evidence exists, preventing an uncommitted first admission
+from surviving a concurrent fence. In one SQL snapshot, an existing scan without
+initial evidence preserves prior legacy/history-only wait behavior: admission
+rejects existing scans, and scan insertion shares the owner/advisory scope.
+Supported owner-first deletion paths reenter their locks. Tombstone fanout can
+invoke existing history-intent settlement, evidence and child-generation fences;
+these transitive calls must be included in contention qualification. Direct
+privileged DML tests are defense-in-depth checks, not new supported APIs.
+
+`tests/initial_analysis_storage.sql` checks effective privileges, immutable
+exact text, association and pre-row/enrolled/unenrolled erasure. The matching
+migration contract and `initialAnalysisStorageConcurrencyDb.test.ts` cover gate
+boundaries, both-order private-result versus deletion races, funded
+child/evidence fanout, and fail-fast rollback for privileged fence/detach/delete
+contention. These checks do not qualify the deferred S0 execution interface or
+installed app.
+
+Raw user deletion with initial evidence on still-owned scans rejects until the
+supported `apply_user_tombstone` path detaches and settles them. This prevents
+funded-child cleanup from updating the user tuple during its own deletion.
+Pre-row owner deletion remains supported; raw privileged DML is not a new
+account-deletion API.
