@@ -344,6 +344,13 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
     2,
     "Initial admission parity must run in both candidate type-check and helper-test lists",
   );
+  assertEquals(
+    candidateWorkflow.split(
+      "supabase/functions/_shared/initialAnalysis/transport_test.ts",
+    ).length - 1,
+    2,
+    "Initial transport must run in both candidate type-check and helper-test lists",
+  );
   const helperStep = candidateWorkflow.split(
     "- name: Test shared Edge helpers",
   )[1]

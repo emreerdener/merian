@@ -13,14 +13,15 @@ import {
 } from "./preparation.ts";
 import { validateInitialInput } from "./schema.ts";
 
-interface RpcClient {
-  rpc(
-    name: "admit_initial_analysis",
-    args: Record<string, unknown>,
-  ): PromiseLike<
-    { data: unknown; error: null | { code?: string; message?: string } }
-  >;
-}
+import {
+  assertInitialAdmissionTransport,
+  INITIAL_ADMISSION_TIMEOUT_MS,
+  initialAbortable,
+  type InitialAdmissionTransport,
+  type InitialAssetReader,
+  initialDeadline,
+} from "./transport.ts";
+
 export interface InitialAdmissionBinding {
   readonly version: 1;
   readonly owner_id: string;
@@ -61,43 +62,72 @@ const unknown: InitialAdmissionOutcome = Object.freeze({
  */
 export class InitialAnalysisLifecycleRepository {
   constructor(
-    private readonly client: RpcClient,
-    private readonly readAsset: (
-      path: string,
-      revision: string,
-    ) => Promise<Uint8Array>,
-  ) {}
+    private readonly client: InitialAdmissionTransport,
+    private readonly readAsset: InitialAssetReader,
+  ) {
+    assertInitialAdmissionTransport(client);
+  }
+
+  private bounded(
+    caller: AbortSignal,
+    run: (signal: AbortSignal) => Promise<InitialAdmissionOutcome>,
+  ): Promise<InitialAdmissionOutcome> {
+    return initialDeadline(caller, INITIAL_ADMISSION_TIMEOUT_MS, run);
+  }
 
   async admit(
     owner: string,
     scan: string,
     input: PreparedInitialAdmission,
     ipHash: string,
+    caller: AbortSignal,
   ): Promise<InitialAdmissionOutcome> {
     assertPreparedInitialAdmission(input);
-    try {
-      await verifyInitialConfigurationAssets(this.readAsset);
-    } catch {
-      return { outcome: "held", reason: "configuration_unavailable" };
-    }
-    return this.call(
-      owner,
-      scan,
-      input.canonicalInput,
-      input.submissionDigest,
-      INITIAL_CONFIGURATION_ASSET_DIGEST,
-      ipHash,
-    );
+    return await this.bounded(caller, async (signal) => {
+      try {
+        await initialDeadline(
+          signal,
+          5_000,
+          (assetSignal) =>
+            verifyInitialConfigurationAssets(this.readAsset, assetSignal),
+        );
+      } catch {
+        return { outcome: "held", reason: "configuration_unavailable" };
+      }
+      return this.call(
+        owner,
+        scan,
+        input.canonicalInput,
+        input.submissionDigest,
+        INITIAL_CONFIGURATION_ASSET_DIGEST,
+        ipHash,
+        signal,
+      );
+    });
   }
+
   recoverAdmission(
     owner: string,
     scan: string,
     canonicalInput: string,
     submissionDigest: string,
+    caller: AbortSignal,
   ): Promise<InitialAdmissionOutcome> {
     // NULL fresh-asset authority forces SQL to return only an existing binding.
     // This path does not load assets, reprocess media or consult new defaults.
-    return this.call(owner, scan, canonicalInput, submissionDigest, null, null);
+    return this.bounded(
+      caller,
+      (signal) =>
+        this.call(
+          owner,
+          scan,
+          canonicalInput,
+          submissionDigest,
+          null,
+          null,
+          signal,
+        ),
+    );
   }
   private async call(
     owner: string,
@@ -106,6 +136,7 @@ export class InitialAnalysisLifecycleRepository {
     digest: string,
     assets: string | null,
     ip: string | null,
+    signal: AbortSignal,
   ): Promise<InitialAdmissionOutcome> {
     if (!uuid.test(owner) || !uuid.test(scan) || !sha.test(digest)) {
       return { outcome: "held", reason: "invalid_input" };
@@ -115,14 +146,20 @@ export class InitialAnalysisLifecycleRepository {
         validateInitialInput(parseInitialCanonicalText(canonical)) !==
           canonical || await initialDigest("input", canonical) !== digest
       ) return { outcome: "held", reason: "invalid_input" };
-      const response = await this.client.rpc("admit_initial_analysis", {
-        p_owner: owner,
-        p_scan: scan,
-        p_canonical_input: canonical,
-        p_submission_digest: digest,
-        p_assets_digest: assets,
-        p_ip_hash: ip,
-      });
+      const response = await initialDeadline(
+        signal,
+        12_000,
+        (rpcSignal) =>
+          initialAbortable(rpcSignal, () =>
+            this.client.call({
+              p_owner: owner,
+              p_scan: scan,
+              p_canonical_input: canonical,
+              p_submission_digest: digest,
+              p_assets_digest: assets,
+              p_ip_hash: ip,
+            }, rpcSignal)),
+      );
       if (response.error) {
         const reasons: Record<
           string,

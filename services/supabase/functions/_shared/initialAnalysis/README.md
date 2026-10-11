@@ -41,16 +41,38 @@ Account deletion cascades owner quota and usage rows; it does not refund or
 reclassify unknown execution. Unknown execution never permits a second provider
 call or refund.
 
-The repository issues one logical adapter call and performs no retry itself. Its
-injected PromiseLike RPC and asset reader do not yet enforce transport
-deadlines, cancellation or disabled underlying retries. A bounded,
-cancellation-aware, no-retry transport is an unsatisfied live-installation
-prerequisite; a timeout must remain unknown and cannot prove a write was
-cancelled. Lost acknowledgement is unknown. `recoverAdmission` uses saved exact
-input and null fresh-admission authority; absent or deleted evidence cannot be
-reconstructed. Neither response is a dispatch grant. Durable native
-input/operation storage and the future status/result recovery API remain
-separate requirements.
+The repository requires a caller cancellation signal and the branded fixed
+transport from `createInitialAdmissionTransport`. It uses one raw POST to
+`/rest/v1/rpc/admit_initial_analysis`, the existing service-key header policy,
+no SDK/session refresh or retry loop, and `redirect: error`. Endpoint
+configuration must be a bare HTTPS origin (HTTP is restricted to loopback). It
+is not selected by request data. The injected fetch is a trusted test/host
+dependency and must retain native fetch's single-request semantics.
+
+One 20-second overall deadline covers asset resolution, identity verification,
+request and response decoding. A five-second sub-budget covers the entire asset
+catalog; the RPC and streamed response share a twelve-second sub-budget, leaving
+three seconds for bounded local validation and return. Neither asset iteration
+nor recovery resets an in-progress operation's deadline. The caller can shorten
+every budget. Deadline timers and abort listeners are released when their owner
+finishes. Absolute monotonic deadlines are checked at I/O and read boundaries
+even when timer callbacks are delayed. Each stream allows at most 4,096 chunks
+and 32 consecutive empty chunks; empty chunks are not retained. Actual asset
+streams are limited to 128 KiB each, at most 64 assets and 1 MiB total; the
+current retained catalog is about 395 KiB. Both success and error response
+bodies are limited to 8 KiB of actual streamed bytes before strict UTF-8 and
+JSON decoding. Readers cancel on failure and release their locks without waiting
+indefinitely for cancellation acknowledgement.
+
+Asset failure before the write holds configuration unavailable. Once write I/O
+may have started, cancellation, timeout, lost/malformed replies and unrecognized
+HTTP failures remain unknown. Exact validated SQL denials retain their known
+meaning. Late asset or fetch completion is discarded and its stream cancelled;
+it cannot launch admission, publish a binding or trigger a retry. Stopping a
+local wait does not prove database rollback. `recoverAdmission` uses the exact
+saved input with null fresh-admission authority, skips current assets and cannot
+allocate, dispatch or refund. Durable native input/operation storage and the
+future status/result recovery API remain separate requirements.
 
 ## Configuration retention
 
@@ -58,11 +80,12 @@ separate requirements.
 revision `86e007a5f1b2ae3064bbe21f9fd140a4b3dead4b`, plus external dependency
 specifiers and the frozen dependency lock. Its domain-separated digest is stored
 with the SQL rollout and admission. `verifyInitialConfigurationAssets` requires
-exact bytes at that revision through `git_blob_sha256_v1`; missing, changed or
-unrecognized assets hold. It never silently substitutes current code. The
-initial-engine release archive owns retention. This checkpoint validates source
-resolution; production bundle/dependency archival and execution-time resolution
-of the saved manifest still require implementation and qualification.
+exact streamed bytes at that revision through `git_blob_sha256_v1`; missing,
+changed or unrecognized assets hold. It never silently substitutes current code.
+The initial-engine release archive owns retention. This checkpoint validates
+source resolution; the deployable immutable archive resolver, production
+bundle/dependency archival and execution-time resolution of the saved manifest
+still require implementation and qualification.
 
 SQL freezes an explicit allowlist of provider-assignment selectors, model,
 effective tier and null experiment alongside durable original funding identity
@@ -91,6 +114,8 @@ not a supported rollout. Fresh libraries remove older-scan compatibility duties,
 not contention or erasure duties.
 
 `admission_test.ts` covers the private codec/repository and byte preparation.
+`transport_test.ts` covers cancellation/deadlines, actual streamed limits, no
+retries, late callback suppression and recovery after lost acknowledgement.
 `initialAnalysisAdmissionDb.test.ts` covers TS/SQL vectors, retained profiles
 and observed database races. `tests/initial_analysis_admission.sql` covers
 effective privileges, exact replay, rollback, namespace/expiry holds and

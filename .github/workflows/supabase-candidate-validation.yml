@@ -156,6 +156,7 @@ jobs:
             supabase/functions/_shared/complimentaryScans.ts \
             supabase/functions/_shared/complimentaryScans_test.ts \
             supabase/functions/_shared/initialAnalysis/admission_test.ts \
+            supabase/functions/_shared/initialAnalysis/transport_test.ts \
             supabase/functions/_shared/analysisHistory/history_test.ts \
             supabase/functions/_shared/analysisHistory/authority_test.ts \
             supabase/functions/_shared/analysisHistory/reader_test.ts \
@@ -385,6 +386,7 @@ jobs:
             supabase/functions/_shared/audioModeration_test.ts \
             supabase/functions/_shared/complimentaryScans_test.ts \
             supabase/functions/_shared/initialAnalysis/admission_test.ts \
+            supabase/functions/_shared/initialAnalysis/transport_test.ts \
             supabase/functions/_shared/analysisHistory/history_test.ts \
             supabase/functions/_shared/analysisHistory/authority_test.ts \
             supabase/functions/_shared/analysisHistory/reader_test.ts \

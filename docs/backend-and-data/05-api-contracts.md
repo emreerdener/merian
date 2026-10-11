@@ -18227,17 +18227,28 @@ already-normalized strings. Canonicalization never silently trims or normalizes
 Unicode. Missing chronology must be resolved by the future route adapter or
 held, not invented by admission.
 
-Fresh admission verifies retained configuration assets before one logical
-adapter call. The injected transport and asset resolver are not yet
-deadline/cancellation bounded or proven free of underlying retries; those are
-mandatory before live installation. An uncertain write remains
-`unknown(write_outcome_unknown)`; it does not retry, refund or invoke.
-`recoverAdmission` uses the exact persisted canonical input and digest with null
-fresh-asset/IP authority. SQL can return only an existing exact binding: absence
-cannot allocate. Transport errors, malformed envelopes and mismatched bindings
-remain unknown. Closed known denials map to conflict, unavailable, deleted,
-owner unavailable, invalid input, configuration unavailable or experiment
-unavailable. Comparison namespaces remain held without markers.
+Fresh admission verifies retained configuration asset streams before one fixed
+POST to `admit_initial_analysis`. The prepared service transport uses the
+existing service-key policy, raw fetch with redirects rejected and no SDK,
+auth-refresh or transient retry. A required caller signal composes with one
+20-second overall deadline, a five-second catalog sub-budget and a twelve-second
+RPC/response sub-budget. Asset streams are bounded to 128 KiB each, 64 entries
+and 1 MiB total; success and error response streams are bounded to 8 KiB before
+strict UTF-8 and JSON decoding. Absolute monotonic deadlines are checked before
+I/O and each stream read; at most 4,096 chunks and 32 consecutive empty chunks
+bound nonprogress even if timer callbacks are delayed. Empty chunks are
+discarded. Late streams are cancelled and cannot launch a write or return a
+binding after cancellation. These local deadlines do not prove server rollback.
+Asset failures before admission hold configuration unavailable; issued-write
+uncertainty remains `unknown(write_outcome_unknown)`, with no retry, refund or
+invocation. The immutable deployable archive resolver and executing-code
+attestation remain unimplemented installation prerequisites. `recoverAdmission`
+uses the exact persisted canonical input and digest with null fresh-asset/IP
+authority. SQL can return only an existing exact binding: absence cannot
+allocate. Transport errors, malformed envelopes and mismatched bindings remain
+unknown. Closed known denials map to conflict, unavailable, deleted, owner
+unavailable, invalid input, configuration unavailable or experiment unavailable.
+Comparison namespaces remain held without markers.
 
 Admission replay precedes current configuration/gates/lease expiry but still
 requires live ownership and deletion fences. It is separate from future
