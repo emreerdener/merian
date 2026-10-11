@@ -73,6 +73,28 @@ needs every affected overload/caller/trigger schedule, nested lock modes, and
 deterministic policy/entitlement, same-ID, cancellation and zero-mutation
 mismatch evidence for the completed shared projection.
 
+The next shared-selector increment extracts the original policy lookup into
+`internal.resolve_quota_policy` and the current eleven-argument identification
+wrapper's binding lookup into
+`internal.resolve_identification_provider_binding`. Both are private invoker
+functions, revoked from API roles. They return the complete existing catalog row
+and retain the original row lock and denial precedence. The four-argument quota
+core calls the policy helper; the eight-argument entitlement owner delegates to
+that core. The current identification wrapper calls the binding helper at its
+original post-quota position. Older identification overloads and advisory
+preflight are unchanged.
+
+This step intentionally does not move locks or change consent/protocol checking,
+retry behavior or funding mutation. In particular, the binding helper still runs
+after funding in the existing path. It is not a pre-funding comparison or
+complete assignment snapshot. The next composition must load an original saved
+private assignment under live ownership/deletion/cancellation guards, establish
+all current decision rows in the reviewed lock order, then compare before the
+first hold/epoch/reservation/counter mutation. Caller-supplied JSON or rollback
+after a mismatch cannot substitute for that boundary. Full closed snapshot
+schema, policy-writer contention and zero-mutation comparison tests remain
+required before preparation persistence can use these helpers.
+
 ## One operation, separate storage phases
 
 The logical identity remains `(owner_id, scan_id)` with

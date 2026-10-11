@@ -8512,7 +8512,19 @@ later prepared C1 cancellation owner settles exact unused funding before
 evidence erasure; supported account detachment uses it before cascading owner
 quota/usage. Neither path authorizes a retry or refund of unknown execution.
 
-### Prepared initial cancellation lifecycle
+### Prepared initial assignment selectors
+
+Migration `20261011173412_extract_initial_assignment_policy_selectors.sql`
+extracts private invoker-only policy and provider-binding selectors from the
+existing four-argument quota core and current eleven-argument identification
+wrapper. `resolve_quota_policy` retains the policy row lock and
+missing/disabled/disallowed error precedence;
+`resolve_identification_provider_binding` retains the complete five-field key
+and binding row lock. Neither mutates funding or grants execution. Calls stay at
+the original positions, including post-funding binding selection. Legacy
+identification overloads, advisory preflight and all public signatures remain
+unchanged. A complete saved assignment and comparison before funding are still
+separate required IC-1 work, not delivered by this extraction.
 
 Migration `20261011164435_extract_initial_assignment_entitlement_projection.sql`
 factors the existing fresh entitlement classifier into private, invoker-only
@@ -8526,6 +8538,8 @@ existing owner. This is the first shared assignment prerequisite, not a complete
 preparation assignment or assertion-before-funding contract; those remain
 tracked in the
 [pre-admission RFC](../rfcs/initial-pre-admission-preparation-2026-10-11.md).
+
+### Prepared initial cancellation lifecycle
 
 Migration `20261011092418_prepare_initial_analysis_cancellation.sql` adds
 `internal.initial_analysis_lifecycle_fences` (only logical UUID and state) and
