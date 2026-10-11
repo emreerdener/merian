@@ -10214,20 +10214,32 @@ and
 
 The
 [history contract owner](../../services/supabase/functions/_shared/analysisHistory/README.md)
-defines bounded version-1 identity, selection, pagination and chat-context
-parsers. These are private preparation contracts, not deployed routes or
-generated native DTOs. Explicit history reader protocols 7, 8, 9 and backend 10
-do not change the current Identify reader capability. Native advertises protocol
-9 for history reads only; V56 admits saved imports with unknown completion
-dates. Enrollment still requires state/authority hydration. A separate
-owner-only history read RPC is prepared behind a default-false reader gate; no
-history selection/deletion RPC is exposed and no chat endpoint persists this
-context yet. The
+defines bounded identity, selection, pagination and chat-context contracts.
+Explicit history readers 7–11 support their versioned snapshot capabilities;
+these do not change the general Identify reader. Current native page/state
+requests use reader 11 for V1–V5, selection/review use reader 10, enrollment
+uses reader 9, and private photo resolution remains reader 8. Saved imports
+retain unknown original completion dates. V5 is read-only: selection, review,
+source reuse, publication and selected chat are unavailable. Explicit
+queue-level video execution does not install a user-facing editor route.
+
+Prepared read, selection, review and protected-chat owners remain behind their
+independent activation controls; ordinary native access is nil. Enrollment still
+requires state/authority hydration. The
 [schema contract](./04-database-schema.md#prepared-observation-analysis-history)
-owns prepared storage and transaction behavior; connected API/DTO changes remain
-under the
-[activation hold](./06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
-The legacy deletion refusal below remains mandatory.
+owns prepared storage and transaction behavior. These implemented preparation
+boundaries do not imply deployment or activation; the
+[activation hold](./06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold)
+and legacy deletion refusal below remain mandatory.
+
+V2 photo descriptions use the same ECMAScript `String.trim` content predicate in
+backend manifests and native preparation, saved requests and history readers.
+U+0085 is content; U+FEFF alone is whitespace. Validation preserves exact
+ordered text bytes without trimming or Unicode normalization. Shared vectors in
+`analysisHistory/fixtures/v2-description-whitespace.json` cover both runtimes;
+existing per-item and aggregate size limits remain unchanged. This parity does
+not enable description-only historical children, which still require a separate
+source-bound native/backend integration.
 
 ### Prepared owner analysis history reader
 

@@ -13,6 +13,11 @@ disconnected. The backend reader, enrollment and selection gates remain false.
   server snapshot bytes. Observation, analysis and optional source-analysis IDs
   must be distinct, matching the shared backend identity parser. It does not
   treat a URL as proof of media ownership or availability.
+- V2 photo descriptions share the existing ECMAScript whitespace predicate
+  across preparation, saved requests and history decoding. Shared native/Deno
+  vectors include U+0085 and U+FEFF and assert exact text preservation; the
+  validator never trims or normalizes saved text. Description-only child
+  analyses remain unsupported by this photo path.
 - The prepared result decoder also accepts audio result V4 with a closed
   manifest-3 WAV reference, separate from photo references. It preserves exact
   ordered description/audio bytes, matches the backend's ECMAScript whitespace

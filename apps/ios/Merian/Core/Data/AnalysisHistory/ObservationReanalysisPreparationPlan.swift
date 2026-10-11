@@ -22,7 +22,7 @@ struct ObservationReanalysisPreparationPlan: Sendable {
         for choice in choices {
             switch choice {
             case let .description(text):
-                guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.unicodeScalars.count <= 8192,
+                guard ObservationHistoryAudioReference.hasDescriptionContent(text), text.unicodeScalars.count <= 8192,
                       text.utf16.count <= 16384, text.utf16.count <= 32000 - textUnits else { throw MerianError.invalidResponse }
                 textUnits += text.utf16.count; items.append(.description(text))
             case let .photo(photo):

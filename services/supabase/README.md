@@ -3122,15 +3122,17 @@ owner receipt resolution and an erasure worker seam. Its media gates remain
 closed; read adapter/endpoint source is prepared, with no deployed route or
 worker schedule, and result V1 append still accepts descriptions only. The
 separate gated V2 photo binder now joins ready receipts to funded completion;
-native protocol-10 history accepts V1/V2/V3/V4 while private photo resolution
-remains V2-only on protocol 8. The separate default-off backend audio path binds
-input 3 to immutable WAV receipts and emits result 4 for reader 10. Action RPCs
-accept readers 9/10 with whole-audio-history refusal for reader 9. Native V4
-review and receipt-bound confirmation/rejection Undo use strict reader-10
-tickets. Explicit V4 selection/selection Undo use the existing retained
-projection and receipt transaction. Candidate selection, publication and
-selected chat remain unavailable for V4; prepared audio execution remains
-default-off. No audio activation is authorized. See the canonical
+native page/state reader 11 accepts V1–V5 while private photo resolution remains
+V2-only on protocol 8. The separate default-off backend audio path binds input 3
+to immutable WAV receipts and emits result 4 for reader 10. Action RPCs accept
+readers 9/10 with whole-audio-history refusal for reader 9. Native V4 review and
+receipt-bound confirmation/rejection Undo use strict reader-10 tickets. Explicit
+V4 selection/selection Undo use the existing retained projection and receipt
+transaction. Candidate selection, publication and selected chat remain
+unavailable for V4; prepared audio execution remains default-off. V5 history is
+read-only: selection, review, source reuse, publication and selected chat remain
+unavailable. Queue-level video execution does not install a video editor route.
+No activation is authorized. See the canonical
 [protected evidence lifecycle](../../docs/backend-and-data/05-api-contracts.md#prepared-protected-evidence-lifecycle).
 
 The prepared `analysisHistory/intent.ts` owner and funded-child migration now
@@ -3139,10 +3141,11 @@ append a result with shared complimentary settlement. Admission/dispatch gates
 remain closed; there is no live provider or recovery caller. See the
 [private lifecycle contract](../../docs/backend-and-data/05-api-contracts.md#prepared-funded-child-analysis-lifecycle).
 
-The prepared protocol-8 read slice adds mixed immutable V1/V2 owner pages,
-`resolve-history-photo` authenticated temporary photo delivery, and native
-`ObservationHistoryPhotoReference` / `ObservationHistoryPhotoLoader` validation.
-All gates remain closed and no UI is connected. The canonical contract is
+The original prepared protocol-8 read slice added mixed immutable V1/V2 owner
+pages, `resolve-history-photo` authenticated temporary photo delivery, and
+native `ObservationHistoryPhotoReference` / `ObservationHistoryPhotoLoader`
+validation. All gates and ordinary app access remain closed; explicit injected
+qualification UI exists. The canonical contract is
 [protocol-8 owner reads](../../docs/backend-and-data/05-api-contracts.md#prepared-protocol-8-reads-and-private-photo-resolution).
 
 ### Prepared analysis orchestration — 2026-10-03
@@ -3158,9 +3161,10 @@ activation requirements. See the function READMEs and canonical API contract.
 The prepared history backend additionally includes protocol-9
 saved-identification enrollment, held by `saved_import_enabled` and existing
 rollout gates. It preserves current server corrections/reviews and explicitly
-marks unavailable original execution evidence. Native V56 now reads protocol 9
-and preserves unknown completion dates; native state admission is still held.
-See the
+marks unavailable original execution evidence. The original V56 reader added
+protocol-9 saved imports with unknown completion dates; current native
+page/state reads use reader 11, while enrollment retains reader 9. Ordinary
+installation remains held. See the
 [owner enrollment contract](../../docs/backend-and-data/05-api-contracts.md#prepared-saved-identification-enrollment-and-protocol-9)
 before extending or enabling this path.
 

@@ -19,6 +19,27 @@ struct ObservationReanalysisRequestTests {
                   processor: processor, evidence: evidence)
     }
 
+    static func descriptionVectors() throws -> [(text: String, valid: Bool)] {
+        let source = try DatabaseActorTestSupport.loadRepositorySource(at:
+            "services/supabase/functions/_shared/analysisHistory/fixtures/v2-description-whitespace.json")
+        let rows = try #require(JSONSerialization.jsonObject(with: Data(source.utf8)) as? [[String: Any]])
+        return try rows.map { (try #require($0["text"] as? String), try #require($0["valid"] as? Bool)) }
+    }
+
+    @Test func sharedDescriptionWhitespacePreservesExactRequestAndRestoration() throws {
+        for (text, valid) in try Self.descriptionVectors() {
+            if !valid {
+                #expect(throws: (any Error).self) { try Self.request([.description(text), .image(Self.photo)]) }
+                continue
+            }
+            let request = try Self.request([.description(text), .image(Self.photo)])
+            let restored = try ObservationReanalysisRequest(savedBody: request.body)
+            #expect(restored.body == request.body && restored.requestDigest == request.requestDigest)
+            guard case let .description(saved) = restored.evidence[0] else { Issue.record("Missing description"); continue }
+            #expect(Data(saved.utf8) == Data(text.utf8))
+        }
+    }
+
     @Test func exactBodyAndRestorationPreserveOrderedEvidenceAndIdentity() throws {
         let input = try Self.request([.description("leaf / café 🌱"), .image(Self.photo), .description("after")])
         #expect(try ObservationReanalysisRequest(savedBody: input.body) == input)

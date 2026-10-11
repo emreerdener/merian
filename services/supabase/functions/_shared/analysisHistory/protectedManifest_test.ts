@@ -1,3 +1,6 @@
+import descriptionVectors from "./fixtures/v2-description-whitespace.json" with {
+  type: "json",
+};
 import { assertEquals, assertThrows } from "@std/assert";
 import {
   buildProtectedAnalysisAdmission,
@@ -35,6 +38,26 @@ const manifest = {
   schema_version: 2,
   items: [photo, { kind: "description", text: "Synthetic observation" }],
 };
+Deno.test("V2 descriptions share exact native whitespace vectors without normalization", () => {
+  for (const { text, valid } of descriptionVectors) {
+    const evidence = {
+      schema_version: 2,
+      items: [photo, { kind: "description", text }],
+    };
+    if (!valid) {
+      assertThrows(() => parseProtectedEvidenceManifest(evidence));
+      continue;
+    }
+    assertEquals(parseProtectedEvidenceManifest(evidence), evidence);
+    const input = buildProtectedAnalysisAdmission(identity, evidence, claims);
+    assertEquals(JSON.parse(input).evidence_manifest, evidence);
+    const draft = buildProtectedAnalysisDraft(input, original.result, {
+      id: "00000000-0000-4000-8000-000000000004",
+      scientific_name: original.result.scientific_name,
+    });
+    assertEquals(draft.evidence_manifest, evidence);
+  }
+});
 Deno.test("protected manifest freezes ordered photo references and excludes delivery data", () => {
   const mutable = structuredClone(manifest);
   const input = buildProtectedAnalysisAdmission(identity, mutable, claims);

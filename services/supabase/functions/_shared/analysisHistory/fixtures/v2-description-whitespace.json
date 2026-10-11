@@ -1,0 +1,50 @@
+[
+  {
+    "text": "",
+    "valid": false
+  },
+  {
+    "text": " \t\n",
+    "valid": false
+  },
+  {
+    "text": "\u0085",
+    "valid": true
+  },
+  {
+    "text": "\ufeff",
+    "valid": false
+  },
+  {
+    "text": "\u2028\u2029",
+    "valid": false
+  },
+  {
+    "text": "\u200b",
+    "valid": true
+  },
+  {
+    "text": "\u180e",
+    "valid": true
+  },
+  {
+    "text": " \ufeffleaf\ufeff\n",
+    "valid": true
+  },
+  {
+    "text": "\ufeff\u0085\ufeff",
+    "valid": true
+  },
+  {
+    "text": "\u00e9",
+    "valid": true
+  },
+  {
+    "text": "e\u0301",
+    "valid": true
+  },
+  {
+    "text": "\ud83e\udd8b",
+    "valid": true
+  }
+]

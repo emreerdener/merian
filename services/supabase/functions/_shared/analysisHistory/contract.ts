@@ -1,6 +1,5 @@
 /** Owner-private history protocol. No operation here authorizes a database write. */
 export const HISTORY_VERSION = 1;
-export const HISTORY_READER_PROTOCOL = 8;
 export const HISTORY_PAGE_SIZE = 20;
 export const HISTORY_MAX_REVISION = 2_147_483_646;
 export const HISTORY_MAX_RESULT_BYTES = 1_048_576;

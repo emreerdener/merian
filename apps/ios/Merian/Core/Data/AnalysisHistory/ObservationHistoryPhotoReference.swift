@@ -27,7 +27,7 @@ struct ObservationHistoryPhotoReference: Equatable, Sendable {
         for item in items {
             if item["kind"] as? String == "description" {
                 _ = try ObservationHistoryPage.object(item, keys: ["kind", "text"])
-                guard let text = item["text"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                guard let text = item["text"] as? String, ObservationHistoryAudioReference.hasDescriptionContent(text),
                       text.unicodeScalars.count <= 8192 else { throw ObservationHistoryError.invalidSnapshot }
                 evidence.append(.description(text))
                 continue

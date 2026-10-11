@@ -84,7 +84,7 @@ struct ObservationReanalysisRequest: Sendable, Equatable {
         for item in items {
             if item["kind"] as? String == "description" {
                 guard Set(item.keys) == ["kind", "text"], let text = item["text"] as? String,
-                      !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      ObservationHistoryAudioReference.hasDescriptionContent(text),
                       text.unicodeScalars.count <= 8192, text.utf16.count <= 16384,
                       text.utf16.count <= 32000 - totalText else { throw MerianError.invalidResponse }
                 totalText += text.utf16.count

@@ -238,7 +238,10 @@ owner receipt resolution and an erasure worker seam. Its media gates remain
 closed; read adapter/endpoint source is prepared, with no deployed route or
 worker schedule, and result V1 append still accepts descriptions only. The
 separate gated V2 photo binder now joins ready receipts to funded completion;
-native protocol-8 history now accepts V1/V2 and resolves private photos. See the
+native page/state reader 11 accepts V1–V5, while private photo resolution
+remains V2-only on reader 8. Selection/review use reader 10 and enrollment uses
+reader 9. V5 is read-only: selection, review, source reuse, publication and
+selected chat remain unavailable. Ordinary app access remains disabled. See the
 canonical
 [protected evidence lifecycle](../../../docs/backend-and-data/05-api-contracts.md#prepared-protected-evidence-lifecycle).
 
@@ -248,12 +251,13 @@ append a result with shared complimentary settlement. Admission/dispatch gates
 remain closed; there is no live provider or recovery caller. See the
 [private lifecycle contract](../../../docs/backend-and-data/05-api-contracts.md#prepared-funded-child-analysis-lifecycle).
 
-The prepared protocol-8 read slice adds mixed immutable V1/V2 owner pages,
-`resolve-history-photo` authenticated temporary photo delivery, and native
-`ObservationHistoryPhotoReference` / `ObservationHistoryPhotoLoader` validation.
-All gates and normal app access remain closed. An injected native history sheet
-and Debug UI fixture now consume the prepared private-photo boundary; ordinary
-enrollment and sync scheduling remain disconnected. The canonical contract is
+The original prepared protocol-8 read slice added mixed immutable V1/V2 owner
+pages, `resolve-history-photo` authenticated temporary photo delivery, and
+native `ObservationHistoryPhotoReference` / `ObservationHistoryPhotoLoader`
+validation. All gates and normal app access remain closed. An injected native
+history sheet and Debug UI fixture now consume the prepared private-photo
+boundary; ordinary enrollment and sync scheduling remain disconnected. The
+canonical contract is
 [protocol-8 owner reads](../../../docs/backend-and-data/05-api-contracts.md#prepared-protocol-8-reads-and-private-photo-resolution).
 
 ### Prepared analysis orchestration — 2026-10-03

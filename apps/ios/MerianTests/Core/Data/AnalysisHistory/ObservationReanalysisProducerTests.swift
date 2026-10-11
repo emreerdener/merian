@@ -28,6 +28,20 @@ struct ObservationReanalysisProducerTests {
             isCurrent: { _ in current() }, finish: { _ in finish() }, fetch: { _ in throw MerianError.invalidResponse })
     }
 
+    @Test func sharedDescriptionWhitespacePreservesPreparationBytes() throws {
+        let seed = try fixture.seed(), source = try source(seed)
+        for (text, valid) in try ObservationReanalysisRequestTests.descriptionVectors() {
+            let choices: [ObservationReanalysisPreparationPlan.Choice] = [.description(text), .photo(.added(Data([1])))]
+            if !valid {
+                #expect(throws: (any Error).self) { try ObservationReanalysisPreparationPlan(source: source, choices: choices) }
+                continue
+            }
+            let plan = try ObservationReanalysisPreparationPlan(source: source, choices: choices)
+            guard case let .description(saved) = plan.items[0] else { Issue.record("Missing description"); continue }
+            #expect(Data(saved.utf8) == Data(text.utf8))
+        }
+    }
+
     @Test func importedSourceWithExplicitNewPhotoCreatesHeldChildAndPreservesSelection() async throws {
         let seed = try fixture.seed(version: 3), source = try source(seed)
         let plan = try ObservationReanalysisPreparationPlan(source: source, choices: [.description("Synthetic leaf"), .photo(.added(image()))])
