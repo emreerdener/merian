@@ -95,3 +95,18 @@ profile also passed executable qualification after these shared harness changes,
 retaining its original 12,296-byte artifact and registered digest. Future shared
 harness changes require that regression again. Neither profile updates saved
 admission or installs a runtime caller.
+
+## Inactive preparation reference
+
+`preparation_reference.py` projects only the registered validated-WAV profile
+into bounded immutable canonical bytes and a domain-separated digest. Its fixed
+vector and portable tests run in `make test-initial-preparation`. Untrusted
+reference bytes must match the exact authority spelling; no caller JSON is
+parsed and no subprocess or artifact is executed. Historical feasibility,
+unknown and unregistered profiles cannot construct this stronger reference.
+
+The reference remains local evidence and is always ineligible for Edge. It
+changes no admission, media receipt, configuration snapshot or installed caller.
+The later v2 admission/retained-derivation sequence and separate
+service-contract prerequisites are specified in the
+[binding interface](../../docs/rfcs/initial-preparation-binding-interface-2026-10-11.md).

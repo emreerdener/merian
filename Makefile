@@ -65,6 +65,7 @@ validate-markdown-format:
 .PHONY: test-initial-preparation test-initial-preparation-retained-inputs
 
 test-initial-preparation:
+	python3 -B scripts/initial-preparation/test_preparation_reference.py
 	python3 -B scripts/initial-preparation/test_artifact.py
 	python3 -B scripts/initial-preparation/test_bootstrap.py
 	python3 -B scripts/initial-preparation/test_wav_validation_bootstrap.py
