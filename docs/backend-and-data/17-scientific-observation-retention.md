@@ -289,8 +289,12 @@ allowlist/materialization activation prerequisite remains unchanged.
 
 The IC-1 storage foundation adds private initial submission, ordered
 description, result/provenance and receipt containers. They are inaccessible to
-all API roles, have no live writer, and sit behind a default-false lifecycle
-gate. Their contents are not scientific-retention fields. Permanent scan fences
+all API roles through direct table access, have no installed route writer, and
+sit behind a default-false lifecycle gate. The prepared fixed admission routine
+also stores canonical input bytes and identity/configuration/funding/description
+digests; these erase through the same submission cascade. Its permanent
+operation fence retains only the logical scan ID, without an owner or content
+hash. Their contents are not scientific-retention fields. Permanent scan fences
 erase the whole private chain even before a scan row exists; scan detachment and
 account deletion do the same for enrolled and unenrolled observations. Account
 erasure records only ownerless completed generation IDs to prevent later

@@ -45,7 +45,7 @@ SELECT extensions.ok(NOT has_function_privilege(role_name,signature,'EXECUTE'),'
  'internal.fence_initial_analysis_on_scan_change()','internal.fence_initial_analysis_before_owner_delete()',
  'internal.guard_initial_analysis_scan_erasure_scope()','internal.guard_initial_analysis_tombstone_scope()']) signature;
 SELECT extensions.is((SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
- WHERE n.nspname='public' AND p.proname IN ('admit_initial_analysis','authorize_initial_analysis_dispatch','record_initial_analysis_result','complete_initial_analysis','get_initial_analysis_status','cancel_initial_analysis')),0::BIGINT,'no public lifecycle writer installed');
+ WHERE n.nspname='public' AND p.proname IN ('authorize_initial_analysis_dispatch','record_initial_analysis_result','complete_initial_analysis','get_initial_analysis_status','cancel_initial_analysis')),0::BIGINT,'dispatch, result, completion, recovery and cancellation remain uninstalled');
 SELECT pg_temp.initial_owner('00000000-0000-4000-8000-00000000a001');
 SELECT pg_temp.initial_owner('00000000-0000-4000-8000-00000000a002');
 SELECT extensions.throws_ok($$SELECT pg_temp.initial_submission('00000000-0000-4000-8000-00000000a001','00000000-0000-4000-8000-00000000a101')$$,'55000','initial_analysis_unavailable','closed gate denies even schema-owner preparation');

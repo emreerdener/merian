@@ -18206,3 +18206,43 @@ cancellation leaves its durable receipt pending and suppresses notification. No
 backlog scan, timer, scheduler admission, App/UI installation or activation is
 added. Ordinary access remains nil. Device/external qualification and Field
 Trip's held reconciliation consumer remain separate requirements.
+
+## Prepared initial admission under IC-1 (inactive)
+
+The initial engine's uninstalled `InitialAnalysisLifecycleRepository` uses only
+`admit_initial_analysis(owner, scan, canonical_input, submission_digest,
+assets_digest, ip_hash)`.
+This service-only RPC is not a new client endpoint and changes none of the three
+current initial capture DTOs. It returns a closed `admitted(binding)` or
+`replay(binding)` envelope. The binding includes version, owner, scan, route,
+input/configuration/funding/description digests, original funding ID and pinned
+asset digest; it contains no lease or invocation grant.
+
+The canonical input includes exact route-normalized ordered text, a complete
+owner timeline, locally checked media byte identities and transformation
+records, accepted context, explicit options and protocol/processor selection.
+Unknown fields and malformed route/profile combinations reject. Fresh Describe
+preserves its accepted untrimmed string; other initial routes preserve their
+already-normalized strings. Canonicalization never silently trims or normalizes
+Unicode. Missing chronology must be resolved by the future route adapter or
+held, not invented by admission.
+
+Fresh admission verifies retained configuration assets before one logical
+adapter call. The injected transport and asset resolver are not yet
+deadline/cancellation bounded or proven free of underlying retries; those are
+mandatory before live installation. An uncertain write remains
+`unknown(write_outcome_unknown)`; it does not retry, refund or invoke.
+`recoverAdmission` uses the exact persisted canonical input and digest with null
+fresh-asset/IP authority. SQL can return only an existing exact binding: absence
+cannot allocate. Transport errors, malformed envelopes and mismatched bindings
+remain unknown. Closed known denials map to conflict, unavailable, deleted,
+owner unavailable, invalid input, configuration unavailable or experiment
+unavailable. Comparison namespaces remain held without markers.
+
+Admission replay precedes current configuration/gates/lease expiry but still
+requires live ownership and deletion fences. It is separate from future
+execution status and result recovery. All-route/worker cutover, permanent
+dispatch and cancellation, durable verified media, validated result capture,
+atomic completion and installed qualification remain required before activation.
+Ordinary history access remains nil. See the
+[private boundary and limits](../../services/supabase/functions/_shared/initialAnalysis/README.md).

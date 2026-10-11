@@ -8429,14 +8429,42 @@ RLS and deny every API role, including `service_role`. Trigger functions are
 also ungranted.
 
 `internal.initial_analysis_rollout.initial_analysis_lifecycle_enabled` defaults
-false. No admission, dispatch, completion, status or cancellation RPC is
-installed by this migration. Existing initial routes and workers do not write
-these containers. Enabling the flag alone does not install a writer. The
-containers do not establish canonical input/digest encoding, validated provider
-results, original funding/dispatch proof, or atomic accounting/scan completion.
-Those require subsequent fixed operations and coordinated all-route/worker
-integration under IC-1 before execution can be enabled. There is no initial
-description sidecar or history-import change in this increment.
+false. The follow-on `20261011070945_prepare_initial_analysis_admission.sql`
+adds the fixed service-only `admit_initial_analysis` operation. It atomically
+binds one immutable canonical submission, saved configuration and original
+funding, or returns an exact saved binding. It never grants dispatch. Existing
+initial handlers and workers do not import its prepared repository. Dispatch,
+result capture, completion, status and cancellation operations remain
+uninstalled; the gate alone cannot install this incomplete lifecycle.
+
+`internal.initial_analysis_admissions` owns bounded canonical bytes and derived
+input/configuration/funding/description digests under the submission's erasure
+cascade. `initial_analysis_operation_fences` retains only the logical scan ID,
+permanently excluding generic reservation, invocation, finalization, expiry and
+pruning for this namespace. `initial_analysis_configuration_assets` holds an
+immutable content-addressed source manifest with no owner data. All three tables
+enable RLS and deny direct API-role access. The rollout row pins the reviewed
+asset digest without enabling admission.
+
+Fresh admission takes the live owner FOR UPDATE, the scan-ingestion advisory,
+any scan/history row locks, then the rollout FOR SHARE and existing entitlement,
+quota and provider-assignment owners. Its transaction-local context permits only
+the first original reservation inside this transaction; it is not execution
+authority. Any later failure rolls back input, fence, quota and complimentary
+hold together. Existing scan/history/ingestion/funding IDs cannot be adopted. An
+exact retry checks ownership and deletion, then returns saved identity before
+current gates, assets, consent defaults or lease expiry. Changed semantic input
+conflicts. Comparison namespaces are held even if experiment markers disappear.
+
+The private version-1 codec has closed fields, bounded sorted-key UTF-8 JSON,
+exact Unicode strings and canonical decimal strings for fractional input. SQL
+and TypeScript share accepted/rejected vectors and the schema literal. Media
+preparation hashes copied source bytes and recomputes consumed WAV bytes;
+verified immutable retention, promotion and clip derivation remain future S0
+obligations. The pinned source manifest plus saved assignment selects execution
+configuration; missing or changed assets hold rather than resolve current
+configuration. See the
+[prepared boundary](../../services/supabase/functions/_shared/initialAnalysis/README.md).
 
 Insertion requires READ COMMITTED, the gate, a live owner locked FOR UPDATE, the
 existing scan-ingestion advisory, then any scan/history row locks. It rejects
@@ -8471,3 +8499,15 @@ supported `apply_user_tombstone` path detaches and settles them. This prevents
 funded-child cleanup from updating the user tuple during its own deletion.
 Pre-row owner deletion remains supported; raw privileged DML is not a new
 account-deletion API.
+
+For null/different-original generic reservation requests, the shared core also
+preserves the existing blocking original-ID scope, then try-locks the distinct
+request scope before any quota write. Secondary contention aborts with
+`initial_analysis_scope_busy`; the added request lock never waits while another
+scope may be held. This closes cross-owner alias races even when the initial
+fence has not committed. Execution and cleanup guards match both request and
+original IDs. These shared changes require full legacy gates even with
+activation off. Pre-row scan deletion leaves original funding held for the
+future exact cancellation/settlement owner; account deletion cascades quota and
+complimentary usage with the owner. Neither path authorizes a retry or refund of
+unknown execution.
