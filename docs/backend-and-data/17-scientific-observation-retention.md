@@ -369,3 +369,34 @@ those markers, and acknowledge only current cleanup claims. Actual credentials,
 private storage, late-write races and marker retention remain externally
 unqualified. See the
 [M1 contract](../rfcs/initial-media-allocation-interface-2026-10-11.md).
+
+### Prepared verification receipts and marker confirmation (IC-1 M2)
+
+Initial media preparation tokens and all-items verification receipts are private
+submission evidence, not scientific retention or provider execution records. C1
+cancellation, scan deletion and account erasure remove them in the original
+submission transaction, retire permanent destinations and prevent delayed
+settlement from recreating evidence. Active claims and saved verification
+receipts prevent ordinary expiry retirement; C1 provides explicit abandonment
+for verified pending work under unchanged funding proof rules.
+
+The inactive storage owner writes only conditional nonempty original objects and
+unconditional empty erasure markers. A marker replaces all user metadata:
+`application/octet-stream`, `private, no-store`, and the sole
+`x-amz-meta-merian-state: erased-v1`. A direct uncached GET must verify status
+200, declared and actual zero bytes, those exact values, no content encoding and
+no additional user metadata before a current cleanup claim is acknowledged.
+Unknown acknowledgement remains unknown; empty or stale claims are not positive
+confirmation. The original immutable backend resolver survives private erasure
+without reconstructing private manifests. No physical DELETE/public or signed
+read is introduced. Hosted enforcement and native private-reader qualification
+remain open. See the
+[M2 interface](../rfcs/initial-media-verification-interface-2026-10-11.md).
+
+M2 receipts prove exact retained byte identity and declared-type signature
+plausibility only. They do not validate container structure, decodability,
+safety or executable derivation. Initial-route/media integration must provide
+bounded structural/decode validation of the exact execution bytes for every
+enabled format before dispatch. This remains an internal S0 prerequisite,
+including malformed/truncated/polyglot and decode expansion cases as applicable;
+M2 or hosted qualification alone cannot close it.

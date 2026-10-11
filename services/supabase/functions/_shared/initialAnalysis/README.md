@@ -206,3 +206,40 @@ physical I/O, byte/transform verification, consumption binding, dispatch,
 installed reader or worker schedule is supplied. Those remain S0 prerequisites.
 The exact closed database envelopes and lock/qualification boundaries are in the
 [M1 interface](../../../../../docs/rfcs/initial-media-allocation-interface-2026-10-11.md).
+
+## Prepared M2 retained-byte verification
+
+The inactive M2 byte owner copies bounded original source/prepared objects,
+checks the exact M1 manifest and actual bytes, then uses a fresh preparation
+claim for conditional writes and uncached same-object verification. Its one
+20-second deadline covers RPCs, signing, storage and receipt
+settlement/recovery, with five seconds reserved after storage. Partial work,
+late callbacks, marker objects and mismatched actual streams cannot produce a
+receipt. Unknown PUT outcomes permit one exact GET; unknown settlement permits
+the exact receipt read. No provider invocation or funding operation is supplied.
+
+Private preparation/verification rows remain subordinate to the original
+submission. First settlement requires a current unexpired token; committed
+receipt recovery follows owner/deletion checks and ignores later expiry/gate
+changes. Active claims and verified receipts exclude ordinary M1 expiry
+retirement. C1 cancellation abandons verified pending media through the original
+transaction, without treating it as provider result evidence. Immutable backend
+resolution survives private erasure but grants no I/O authority.
+
+The injected storage signer must resolve the saved nonsecret profile to a
+separately configured writer/eraser. The owner uses one raw fetch per request;
+redirects and signing-client retries are excluded. Marker verification checks
+actual empty content and the exact M2 metadata predicate before acknowledging a
+current cleanup claim. No production dependency composition, authenticated
+native reader, route, real backend or worker schedule is installed. Byte
+matching does not attest executable transforms or hosted principal/lifecycle
+guarantees. See the
+[M2 contract](../../../../../docs/rfcs/initial-media-verification-interface-2026-10-11.md).
+
+M2 receipts prove exact retained byte identity and declared-type signature
+plausibility only. They do not validate container structure, decodability,
+safety or executable derivation. Initial-route/media integration must provide
+bounded structural/decode validation of the exact execution bytes for every
+enabled format before dispatch. This remains an internal S0 prerequisite,
+including malformed/truncated/polyglot and decode expansion cases as applicable;
+M2 or hosted qualification alone cannot close it.

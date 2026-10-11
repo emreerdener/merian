@@ -18320,3 +18320,32 @@ binding, while cancellation/deletion denials take precedence over retirement.
 Cleanup claims identify only the original opaque destination and current lease.
 Lost acknowledgements remain unknown to that caller; an empty claim cannot prove
 marker confirmation. Production activation remains disabled.
+
+### Prepared initial retained-byte verification (IC-1 M2, inactive)
+
+Four fixed service-only operations add original-manifest preparation claims,
+all-items verification settlement, exact receipt recovery and immutable backend
+resolution: `claim_initial_media_preparation`,
+`settle_initial_media_verification`, `get_initial_media_verification` and
+`get_initial_media_backend`. Exact closed arguments, outcomes, error precedence
+and marker headers are in the
+[M2 interface](../rfcs/initial-media-verification-interface-2026-10-11.md). No
+generated initial capture DTO or native route is changed.
+
+A recovered claim is never fresh storage authority. First verification requires
+a current unexpired token and nonretired pending scope. A committed exact
+receipt can replay after expiry/gate changes, with cancellation/deletion taking
+precedence. Neither receipt nor backend profile confers provider permission. The
+inactive byte owner bounds copies and actual streams, verifies conditional
+writes by uncached same-object GET, reserves settlement budget, and treats lost
+settlement as exact-read-only recovery. Storage dependencies are injected;
+production installation, executable transform attestation, private native
+readers and hosted guarantees remain separate requirements.
+
+M2 receipts prove exact retained byte identity and declared-type signature
+plausibility only. They do not validate container structure, decodability,
+safety or executable derivation. Initial-route/media integration must provide
+bounded structural/decode validation of the exact execution bytes for every
+enabled format before dispatch. This remains an internal S0 prerequisite,
+including malformed/truncated/polyglot and decode expansion cases as applicable;
+M2 or hosted qualification alone cannot close it.

@@ -8558,3 +8558,33 @@ retired registry rows. Registry IDs and backend generations are never reused or
 pruned. No physical storage, verified binding, dispatch or activation is
 supplied. See the
 [M1 contract](../rfcs/initial-media-allocation-interface-2026-10-11.md).
+
+### Prepared initial retained-byte verification (IC-1 M2, inactive)
+
+`initial_analysis_media_preparations` retains only the original private
+owner/scan and expiring storage token. `initial_analysis_media_verifications`
+retains the write-once all-items byte-verification receipt, including the
+original submission/manifest/backend. Both deny direct API-role access and
+cascade with the original submission/cohort under immutable-erasure guards. No
+new direct user FK or ghost-merge policy is introduced. First receipt insertion
+requires a current claim; original receipt recovery precedes lease/gate checks
+but follows owner/deletion validation. Provider result, dispatch and accounting
+are separate.
+
+The M1 retirement predicate now excludes active preparation and any verified
+receipt, while C1 cancellation and stronger erasure still atomically retire all
+permanent destinations and erase private claims/receipts. Scope locks retain
+owner → ingestion → scan/history → lifecycle/admission → cohort → private
+verification → ordered registry. Cleanup locks retired registry rows only. A
+service-only immutable backend-generation read supports cleanup after private
+erasure; it grants neither write nor erasure authority. No backend is selected
+and activation remains false. See the
+[M2 interface](../rfcs/initial-media-verification-interface-2026-10-11.md).
+
+M2 receipts prove exact retained byte identity and declared-type signature
+plausibility only. They do not validate container structure, decodability,
+safety or executable derivation. Initial-route/media integration must provide
+bounded structural/decode validation of the exact execution bytes for every
+enabled format before dispatch. This remains an internal S0 prerequisite,
+including malformed/truncated/polyglot and decode expansion cases as applicable;
+M2 or hosted qualification alone cannot close it.
