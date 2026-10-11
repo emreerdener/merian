@@ -314,6 +314,11 @@
         "ObservationConfirmationUndoOwnerTests"
       ],
       "owner": "apps/ios/MerianTests/Core/Data/AnalysisHistory/ObservationConfirmationUndoOwnerTests.swift"
+    },
+    {
+      "selector": "merianTests/ObservationVideoHistoryJourneyTests",
+      "suite_names": ["ObservationVideoHistoryJourneyTests"],
+      "owner": "apps/ios/MerianTests/Core/Data/AnalysisHistory/ObservationVideoHistoryJourneyTests.swift"
     }
   ],
   "ui": [

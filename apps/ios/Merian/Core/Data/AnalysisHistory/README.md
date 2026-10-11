@@ -2282,3 +2282,10 @@ retains execution through awaited receipt-bound cleanup and checks settlement
 scope before notification. Unknown outcomes remain retained without provider
 retry or refund. See the
 [canonical retained contract](../../../../../../docs/backend-and-data/05-api-contracts.md#native-retained-video-execution).
+
+The completed-video history journey is covered by
+`ObservationVideoHistoryJourneyTests`: reader11 page/state refresh and disk
+reopen preserve exact V5 evidence, display provenance and the cleanup receipt
+while V5 action tickets and reanalysis sources remain unavailable. The runtime
+audit manifest selects this local acceptance suite; it does not enable ordinary
+access or replace device/hosted qualification.

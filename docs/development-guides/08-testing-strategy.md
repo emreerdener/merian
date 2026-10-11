@@ -12829,3 +12829,24 @@ cancellation, and completion inside the retained lease. Run these alongside
 video store/completion and existing audio owner/service/queue regression suites,
 then the full native unit target and native static gates. These are scoped local
 checks, not device, hosted, activation or Field Trip qualification.
+
+### Completed video history acceptance
+
+`ObservationVideoHistoryJourneyTests` is selected by the runtime audit's
+`acceptance` manifest. Silent and audio-bearing fixtures complete an exact V5
+result through the existing local completion store, then release that container.
+Reader11-shaped page refresh and explicit state preview preserve exact result
+bytes, full video provenance, the original selection and the pending cleanup
+receipt. A second disk-container reopen retains the derived display and
+separately cached authority. Conflicting page results, foreign owner/analysis,
+stale revision and changed source snapshots cannot replace the saved result.
+
+The journey exercises the real selection, review-ticket, Field Chat-ticket and
+all three reanalysis-source format gates. V5 cannot produce a publication
+consent ticket; selection and consent fetch counters remain zero. The original
+V3 review ticket remains constructible, avoiding a blanket unavailable fixture.
+No provider or execution service is installed in this acceptance test. The
+receipt and retained files intentionally remain pending; physical cleanup is
+covered by the retained execution suites. This is a disk-container reopen with
+injected reads, not OS process relaunch, live RPC qualification, device capture
+or activation. Field Trip's held reconciliation consumer remains separate.

@@ -17911,8 +17911,9 @@ selected children. Reader11 applies only to these named read RPCs; enrollment,
 selection, review and execution keep their existing protocols and restrictions.
 Actions still reject video histories and explicit pending V4 children. This does
 not advance the app-wide Identify header or the separate evidence/source
-protocols. No HTTP/native completion caller or source-release proof is
-installed; occupancy stays held and activation gates remain disabled.
+protocols. Explicit native completion and receipt-bound cleanup are described in
+the [retained execution contract](#native-retained-video-execution); ordinary
+access remains nil and activation gates remain disabled.
 
 ### Prepared video completion source release
 
