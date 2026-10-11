@@ -27,6 +27,32 @@ A missing file, unresolved external module or unaccounted dynamic import, asset,
 process environment dependency or code-loading mechanism holds the candidate. Do
 not fetch dependencies or substitute current-checkout implementations.
 
+## Approved provisioning exception — October 11, 2026
+
+The user authorized one-time pinned esbuild provisioning after the missing-tool
+probe. This exception permits retaining the exact public npm platform package
+and its integrity/license evidence before building; it does not permit
+build-time downloads or unresolved dependencies. Deno 2.9.4 pins esbuild 0.25.5.
+The local macOS ARM64 toolchain uses `@esbuild/darwin-arm64@0.25.5`, whose
+executable SHA-256 is
+`58d144357454bca840167171380785b133b1e5e682d0c51afa8c80158bfd3f8a`.
+
+Package bytes must match the registry SHA-512 integrity before bounded regular
+members are extracted. Record package/platform/version, package and executable
+digests, upstream tagged MIT license, and the Deno source defining the secondary
+binary version/cache location. This is registry-integrity and source-provenance
+evidence, not an independent package-signature attestation. The retained package
+and license remain local evidence; no global install or ambient-cache mutation
+is required. Fresh caches receive only the verified binary at Deno's pinned
+`dl/esbuild-0.25.5/esbuild-darwin-arm64` path.
+
+The seeded one-line primitive succeeds under explicit macOS network denial. That
+result clears secondary-tool provisioning only. Actual archived closure,
+reproducibility, artifact execution and resource qualification remain required.
+The initial nested sandbox attempt failed before execution and is retained as
+failed evidence. The successful probe applies the macOS sandbox outside the
+outer tool sandbox; this does not grant the bundled code network permission.
+
 ## Measured inputs and version selection
 
 Select the exact retained source archive and its existing configuration-assets
@@ -83,7 +109,21 @@ verified inputs and controlled environment, then compares output digests and
 sizes. Record both commands and results. If output differs, identify the cause
 before claiming reproducibility; do not normalize away unexplained differences.
 Bound materialized input bytes, build duration, diagnostics and output bytes. Do
-not infer network isolation merely from successful cache resolution.
+not infer network isolation merely from successful cache resolution. Enforce
+build-time network denial at the OS sandbox boundary, including Deno and its
+secondary bundler. Prove an unseeded cache cannot acquire missing tooling.
+Retain the verified pre-build cache seed inventory and classify every post-build
+cache file; unexpected material holds the candidate.
+
+Generated Deno cache databases, WAL/shared-memory files and emitted local
+modules are build/runtime outputs, not additional retained inputs. Inventory and
+bound them, and never reuse them between fresh builds. A narrowly classified
+post-start `node_compat_bin/node` alias may point directly to this run's
+private, regular, measured Deno executable. Verify its location, direct target,
+trusted ancestry and target digest; reject every other link or chain. Never
+seed/follow this alias or expose it through `PATH`; execution still denies
+subprocesses. This exception does not relax the symlink rejection for
+archived/materialized inputs or pre-build seeds.
 
 ## Execution and result binding
 
