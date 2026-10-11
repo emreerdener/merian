@@ -8,11 +8,11 @@ import {
   parseInitialCanonicalText,
 } from "./canonical.ts";
 
-type Rule = {
+export type InitialSchemaRule = {
   type: string;
   nullable?: boolean;
-  properties?: Record<string, Rule>;
-  items?: Rule;
+  properties?: Record<string, InitialSchemaRule>;
+  items?: InitialSchemaRule;
   max_items?: number;
   max_bytes?: number;
   enum?: string[];
@@ -22,7 +22,10 @@ type Rule = {
 };
 const bytes = new TextEncoder();
 const decimal = /^-?(0|[1-9][0-9]*)(\.[0-9]*[1-9])?$/;
-function matches(value: unknown, rule: Rule): boolean {
+export function matchesInitialSchema(
+  value: unknown,
+  rule: InitialSchemaRule,
+): boolean {
   if (value === null) return rule.nullable === true;
   switch (rule.type) {
     case "object": {
@@ -31,12 +34,12 @@ function matches(value: unknown, rule: Rule): boolean {
       const fields = rule.properties!;
       return Object.keys(object).length === Object.keys(fields).length &&
         Object.entries(fields).every(([key, child]) =>
-          Object.hasOwn(object, key) && matches(object[key], child)
+          Object.hasOwn(object, key) && matchesInitialSchema(object[key], child)
         );
     }
     case "array":
       return Array.isArray(value) && value.length <= rule.max_items! &&
-        value.every((v) => matches(v, rule.items!));
+        value.every((v) => matchesInitialSchema(v, rule.items!));
     case "boolean":
       return typeof value === "boolean";
     case "integer":
@@ -64,7 +67,9 @@ function matches(value: unknown, rule: Rule): boolean {
 export function validateInitialInput(value: unknown): string {
   const text = initialCanonicalText(value);
   const frozen = parseInitialCanonicalText(text);
-  if (!matches(frozen, schema as Rule)) return invalidInitialInput();
+  if (!matchesInitialSchema(frozen, schema as InitialSchemaRule)) {
+    return invalidInitialInput();
+  }
   assertInitialSemantics(frozen);
   return text;
 }

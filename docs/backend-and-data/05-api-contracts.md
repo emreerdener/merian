@@ -18267,6 +18267,57 @@ atomic completion and installed qualification remain required before activation.
 Ordinary history access remains nil. See the
 [private boundary and limits](../../services/supabase/functions/_shared/initialAnalysis/README.md).
 
+## Prepared no-media initial assignment v2 (inactive)
+
+Three fixed service-only database operations prepare the empty-media case. No
+HTTP handler, native transport, runtime dispatch or activation is installed. All
+require service-role verification and live owner/deletion checks. Direct private
+table access and private comparison helpers remain unavailable to every API
+role.
+
+| Operation                           | Inputs                                                     | Result and authority                                                                                                                                                                                          |
+| ----------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_initial_preparation_intent` | `p_owner UUID`, original `p_scan UUID`, `p_candidate TEXT` | First call validates the closed canonical v2 candidate and saves a server-resolved assignment without funding. Exact retry returns the same digests/deadline before current defaults; changed bytes conflict. |
+| `get_initial_preparation_status`    | `p_owner UUID`, original `p_scan UUID`                     | Recovers only the original intent or admitted binding. Absence cannot create an intent or funding.                                                                                                            |
+| `finalize_initial_preparation`      | `p_owner UUID`, original `p_scan UUID`, `p_ip_hash TEXT`   | Loads and compares the saved assignment under the actual funding owner's locks, then atomically promotes with original funding. Saved admission replay precedes fresh IP/configuration/gate/deadline checks.  |
+
+The candidate is exactly `{version: 2, variant: "no_media", input: <input-v1>}`.
+It retains all existing input semantic checks and exact ordered Unicode text.
+Only `identify-describe` and empty-media `identify-multimodal` are accepted;
+`media` must be empty and `experiment` explicitly null. It does not change the
+fresh native capture DTO. Executable closed schemas and shared canonical/digest
+vectors live under `_shared/initialAnalysis/`; `preparation-candidate` and
+`assignment` use separate `merian.initial-analysis.<domain>.v2\n` SHA-256
+domains.
+
+Prepared responses contain exactly `version: 2`, `outcome: "prepared"`,
+`candidate_digest`, `assignment_digest` and the immutable `expires_at`
+timestamp. The deadline is 300 seconds from the original server decision.
+Expired unfunded operations pass through C1 and return
+`{version: 2, outcome: "expired"}`; later calls meet terminal cancellation
+rather than creating another intent. A deadline crossed during a funding-lock
+wait raises `initial_analysis_preparation_expired` without funding.
+Status/cancellation can then perform terminal retirement.
+
+Admitted/replayed responses retain the original `{outcome, binding}` envelope.
+The binding has `version: 2`, all v1 owner/scan/route and
+submission/configuration/funding/descriptions/asset/reference fields, plus
+`candidate_digest` and `assignment_digest`. The persisted configuration is
+`{version: 2, assignment: <exact saved assignment>}`; input and funding retain
+their existing version-1 codecs. Promotion and its funding either commit
+together or roll back together. After admission, original saved evidence is the
+recovery authority; preparation expiry and changed defaults do not grant or
+revoke funding. v1 admission and M1 consumers reject v2 rather than reinterpret
+it.
+
+Assignment drift (`initial_analysis_assignment_changed`), missing preparation,
+invalid configuration, current consent/protocol denial, namespace conflict and
+lock contention all fail closed. A `55P03` lock denial is not permission to
+retry under a new identity, rebase configuration or grant another operation. An
+uncertain write permits original-operation status recovery only. No operation
+here invokes a provider, authorizes execution, proves runnable-artifact
+qualification or refunds unknown execution. Both activation gates remain closed.
+
 ## Prepared initial cancellation under IC-1 C1 (inactive)
 
 The fixed service-only `cancel_initial_analysis(owner, scan)` returns a closed

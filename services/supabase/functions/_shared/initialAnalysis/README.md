@@ -259,3 +259,23 @@ bounded structural/decode validation of the exact execution bytes for every
 enabled format before dispatch. This remains an internal S0 prerequisite,
 including malformed/truncated/polyglot and decode expansion cases as applicable;
 M2 or hosted qualification alone cannot close it.
+
+## Inactive no-media preparation v2
+
+`preparationCandidate.ts` and its closed JSON schemas preserve the original
+input-v1 semantics inside the explicit no-media v2 candidate and bind every
+complete assignment field with a separate canonical digest domain. Shared
+Unicode/order vectors run in TypeScript and SQL. They supply no transport or
+provider grant. The fixed service database operations and versioned recovery
+boundary are specified in the
+[v2 API contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-no-media-initial-assignment-v2-inactive).
+
+`tests/initial_saved_assignment.sql` verifies exact retry, drift before funding
+writes, promotion rollback, C1/expiry and pre-row erasure. Run the portable
+`scripts/test_initial_saved_assignment_contention.py --disposable-container <local-container>`
+against an explicitly disposable migrated local database for opposed catalog,
+consent and owner/request-lock schedules. It requires local Docker/psql, begins
+with the gate disabled, uses synthetic owners and restores the disabled gate. It
+never targets a hosted DSN. Full existing accounting and catalog gates remain
+required because the comparison is inside shared quota owners. Media
+preparation/transport/handoff and full S0 remain separate open work.

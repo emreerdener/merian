@@ -1,0 +1,89 @@
+{
+  "candidate": {
+    "version": 2,
+    "variant": "no_media",
+    "input": {
+      "schema_version": 1,
+      "route": "identify-describe",
+      "ordered_descriptions": [
+        "  Synthetic α / é / é\n\ttext  "
+      ],
+      "media": [],
+      "owner_timeline": [
+        {
+          "kind": "description",
+          "index": 0
+        }
+      ],
+      "capture": {
+        "has_video": false,
+        "video_clip_count": 0,
+        "declared_video_frame_count": 0,
+        "video_inference_frame_count": 0
+      },
+      "context": {
+        "depth_scale_text": null,
+        "semantic_location": null,
+        "weather_condition": null,
+        "device_locale": null,
+        "device_time_zone": null,
+        "device_region": null,
+        "time_of_day": null,
+        "gps_latitude": null,
+        "gps_longitude": null,
+        "gps_elevation": null,
+        "zoom_factor": null,
+        "estimated_size_cm": null,
+        "weather_temperature_f": null,
+        "current_month": null
+      },
+      "options": {
+        "timestamp": null,
+        "geoprivacy": "private",
+        "public_location_label": null,
+        "preferred_goal": null,
+        "observation_context": null
+      },
+      "admission": {
+        "client_protocol": 3,
+        "identification_protocol": 6,
+        "expected_processor_permission": "google_gemini"
+      },
+      "experiment": null
+    }
+  },
+  "candidate_canonical": "{\"input\":{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"media\":[],\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"  Synthetic α / é / é\\n\\ttext  \"],\"owner_timeline\":[{\"index\":0,\"kind\":\"description\"}],\"route\":\"identify-describe\",\"schema_version\":1},\"variant\":\"no_media\",\"version\":2}",
+  "candidate_digest": "e762bcdecf8df8a59a9a0fc4498f1b5d540b3f7998b1078a129f40c46204a298",
+  "assignment": {
+    "version": 2,
+    "candidate_digest": "e762bcdecf8df8a59a9a0fc4498f1b5d540b3f7998b1078a129f40c46204a298",
+    "route": "identify-describe",
+    "operation": "scan_identification",
+    "effective_plan": "pro_complimentary",
+    "effective_tier": "pro",
+    "flash_fallback_used": false,
+    "quota_model": "gemini-2.5-pro",
+    "policy_version": 1,
+    "provider": "gemini",
+    "binding": "gemini_baseline_v1",
+    "processor_permission": "google_gemini",
+    "input_profile": "description_compat_v1",
+    "provider_model": null,
+    "effective_model": "gemini-2.5-pro",
+    "minimum_client_protocol": 0,
+    "accepted_client_protocol": 3,
+    "minimum_identification_protocol": 0,
+    "accepted_identification_protocol": 6,
+    "asset_manifest_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "retention_owner": "initial_engine_release_archive",
+    "resolver_id": "git_blob_sha256_v1",
+    "preparation": {
+      "kind": "none",
+      "profile": null,
+      "options": null
+    },
+    "experiment": null
+  },
+  "assignment_canonical": "{\"accepted_client_protocol\":3,\"accepted_identification_protocol\":6,\"asset_manifest_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"binding\":\"gemini_baseline_v1\",\"candidate_digest\":\"e762bcdecf8df8a59a9a0fc4498f1b5d540b3f7998b1078a129f40c46204a298\",\"effective_model\":\"gemini-2.5-pro\",\"effective_plan\":\"pro_complimentary\",\"effective_tier\":\"pro\",\"experiment\":null,\"flash_fallback_used\":false,\"input_profile\":\"description_compat_v1\",\"minimum_client_protocol\":0,\"minimum_identification_protocol\":0,\"operation\":\"scan_identification\",\"policy_version\":1,\"preparation\":{\"kind\":\"none\",\"options\":null,\"profile\":null},\"processor_permission\":\"google_gemini\",\"provider\":\"gemini\",\"provider_model\":null,\"quota_model\":\"gemini-2.5-pro\",\"resolver_id\":\"git_blob_sha256_v1\",\"retention_owner\":\"initial_engine_release_archive\",\"route\":\"identify-describe\",\"version\":2}",
+  "assignment_digest": "907cb094de73c33072387756f92b0eee181a6d6581534b57e3eaef0d4b9beaca"
+}

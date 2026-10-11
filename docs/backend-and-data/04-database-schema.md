@@ -8523,8 +8523,9 @@ missing/disabled/disallowed error precedence;
 and binding row lock. Neither mutates funding or grants execution. Calls stay at
 the original positions, including post-funding binding selection. Legacy
 identification overloads, advisory preflight and all public signatures remain
-unchanged. A complete saved assignment and comparison before funding are still
-separate required IC-1 work, not delivered by this extraction.
+unchanged. This extraction alone does not implement saved assignment comparison.
+The following no-media v2 increment supplies that bounded case; media remains
+open.
 
 Migration `20261011164435_extract_initial_assignment_entitlement_projection.sql`
 factors the existing fresh entitlement classifier into private, invoker-only
@@ -8538,6 +8539,53 @@ existing owner. This is the first shared assignment prerequisite, not a complete
 preparation assignment or assertion-before-funding contract; those remain
 tracked in the
 [pre-admission RFC](../rfcs/initial-pre-admission-preparation-2026-10-11.md).
+
+### Prepared no-media saved assignment and funding comparison
+
+Migration `20261011192000_prepare_initial_saved_assignment.sql` adds the
+inactive v2 empty-media case. `initial_analysis_preparation_intents` privately
+stores one canonical candidate and complete server-resolved assignment for the
+original owner/scan, with an immutable 300-second deadline. The permanent shared
+operation fence excludes every competing initial/history namespace. RLS, revoked
+direct API privileges, indexed owner cascade and a ghost-merge preserve policy
+protect the private row. No credit, counter, reservation or provider grant is
+created by preparation.
+
+The assignment binds the exact input candidate, route, effective plan/tier and
+fallback, quota policy/model, provider/binding/model, permission/profile,
+accepted/minimum protocols and immutable configuration asset manifest. The
+selected manifest must attest the fixed resolver/retention identities and
+source-manifest shape. Empty preparation and experiment are explicit; media and
+experiments fail before claiming an identity. The manifest is source retention,
+not proof of a qualified runnable artifact.
+
+Finalization loads the private saved row, never a caller's expected-assignment
+JSON. The eight-argument quota core compares its actual entitlement projection
+before its first complimentary hold/epoch mutation; the four-argument core
+independently rechecks before reservation replay or mutation. Both reuse the
+existing selectors. The outer owner/scan scope precedes first-acquisition
+`FOR SHARE NOWAIT` catalog and consent-row locks. Immediate consent owner FKs
+serialize new/reassigned rows with the owner lock. The exact request advisory
+wait precedes a fresh deadline check. Drift, revocation, contention and expiry
+cannot rebase an intent or allocate substitute funding.
+
+Promotion atomically saves the original input, version-2 configuration and
+existing version-1 funding encoding in the original submission/admission owner,
+then deletes the preparation row only with exact promotion proof. Admission
+`binding_version = 2` requires both original candidate/assignment digests;
+existing v1 fields and behavior remain unchanged. Exact admitted recovery uses
+saved evidence before current defaults or preparation expiry. The v1 admission
+and M1 media loader explicitly reject v2 bindings. No v2 dispatch/media consumer
+is installed by this increment.
+
+Unfunded C1 cancellation/expiry requires positive ownership and absence of
+funding/execution, persists terminal exclusion, and erases private candidate and
+assignment bytes without calling accounting. Scan tombstones, supported account
+detachment and raw owner cascade recognize pre-row preparation. Strong erasure
+leaves only permanent content-free exclusion; delayed finalization cannot
+recreate evidence. Funded v2 cancellation uses existing C1 settlement proof. See
+the
+[fixed service operations](05-api-contracts.md#prepared-no-media-initial-assignment-v2-inactive).
 
 ### Prepared initial cancellation lifecycle
 

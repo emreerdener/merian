@@ -7,6 +7,23 @@ implementation writer. Exact interface acceptance is recorded in
 behavior still require their own implementation review and evidence. This is a
 missing S0 dependency, not a second analysis engine or an enabled route.
 
+## Implementation addendum: bounded no-media v2 (October 11)
+
+The saved-assignment increment implements only the explicit no-media case:
+canonical v2 candidate and complete private assignment, immutable deadline,
+positive unfunded ownership, comparison inside both shared quota cores before
+funding, atomic versioned promotion/recovery, and C1/strong erasure integration.
+Media source destinations, preparation grants/outcomes, byte-preserving M1
+handoff and qualified dispatch remain unimplemented dependencies of this design.
+The current
+[database contract](../backend-and-data/04-database-schema.md#prepared-no-media-saved-assignment-and-funding-comparison)
+and
+[service contract](../backend-and-data/05-api-contracts.md#prepared-no-media-initial-assignment-v2-inactive)
+own the exact bounded behavior. Candidate evidence is retained in
+`.artifacts/initial-saved-assignment/`; implementation tests are not installed
+or external qualification. Gates remain disabled and the original broader design
+below is preserved.
+
 ## Amendment and scope
 
 The

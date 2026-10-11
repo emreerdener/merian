@@ -311,6 +311,29 @@ completion, route/worker cutover and imported V3 description erasure still
 require subsequent gated implementation. Local storage tests do not qualify
 remote provider erasure or installed-device recovery.
 
+### Unfunded initial preparation evidence
+
+The inactive no-media v2 preparation owner retains canonical submitted input,
+its complete saved assignment, their digests and a fixed 300-second deadline
+before any funding or scan row exists. These are private operational evidence,
+not scientific-retention fields. Exact retries preserve the original bytes;
+conflicting retries cannot overwrite them. Account merge cannot transfer them.
+
+Unfunded cancellation or expiry uses C1's positive no-funding proof, erases the
+candidate/assignment and retains only C1's minimal private recovery receipt and
+permanent content-free exclusion. Explicit scan deletion and account detachment
+or deletion also erase that receipt. Both pre-row tombstones and raw owner
+cascade recognize preparation ownership. Delayed finalization cannot recreate
+private evidence after terminal cancellation or stronger erasure.
+
+Successful admission atomically copies the original input and assignment into
+the existing private submission/admission chain before deleting the preparation
+row. Its evidence then follows the same cancellation, scan/account erasure and
+unknown-execution rules described here. No expiry renews work or refunds unknown
+execution. This increment stores no media and performs no physical object or
+provider erasure; those separately qualified owners remain required. See the
+[no-media database contract](04-database-schema.md#prepared-no-media-saved-assignment-and-funding-comparison).
+
 ### Cancellation recovery and stronger erasure
 
 The inactive C1 cancellation owner erases submitted text and the entire private
