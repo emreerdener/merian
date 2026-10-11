@@ -72,6 +72,36 @@ DTOs, native persistence where required, and canonical documentation together.
 
 ## Milestone 2: Identification sheet and History redesign
 
+### Insight-sheet menu
+
+The user approved this additional menu presentation on October 11. Its durable
+visual reference is
+`.artifacts/identification-history-version-actions/insight-menu-reference.png`.
+It belongs to Milestone 2 and does not reorder the milestones or expand the
+active IC-1 checkpoint.
+
+- Show two equal top shortcuts, icon above label: **Identification** on the left
+  and **Field notes** on the right, followed by a divider.
+- Show a full-width **Add to collection** row with its collection icon and a
+  trailing submenu chevron, then **Download media** with a download icon.
+- Place a divider immediately above the full-width destructive **Delete scan**
+  row, whose label and trash icon are red.
+- Use a rounded translucent menu over scan media, preserving label legibility
+  over busy photos. A slightly more opaque backdrop is a design recommendation;
+  no exact opacity value has been approved.
+- **Identification** opens the redesigned Identification sheet. Field notes and
+  Add to collection retain their existing flows; only their menu presentation
+  changes.
+- **Delete scan** remains whole-scan deletion, distinct from **Delete
+  identification** in version history. Preserve its existing behavior and
+  confirmation requirements.
+- **Download media** uses the approved source-media export behavior, scoped to
+  the scan/current identification context under established media ownership. It
+  must not silently export another historical version.
+- Preserve accessibility, Dynamic Type and native menu interaction behavior.
+  Species-header, sharing, Field chat and other layout changes visible in the
+  reference are context only, not additional implementation scope.
+
 ### Identification sheet
 
 - Rename the Confidence sheet to **Identification**.
@@ -122,6 +152,9 @@ DTOs, native persistence where required, and canonical documentation together.
   originals, unauthorized access, cancellation, and cleanup.
 - Verify historical details and review actions target the opened version;
   confirmation remains separate from selection.
+- Verify the insight menu grouping, labels, destructive divider, readable
+  backdrop and current-context media export; preserve existing field-notes and
+  collection navigation and distinguish scan deletion from version deletion.
 - Test sliders, accessible alternatives, Undo conflicts, Dynamic Type,
   VoiceOver, and navigation against the supplied mockup.
 - Run required migration, backend contract, native, and affected public-consumer
@@ -130,10 +163,11 @@ DTOs, native persistence where required, and canonical documentation together.
 
 ## Boundaries and defaults
 
-The mockup guides the visual redesign; unrelated field notes, collections, main
-scan layout, and whole-scan deletion are outside this change. Permanent deletion
-has no Undo; review and selection retain their existing conditional Undo
-behavior.
+The mockup guides the visual redesign. The approved insight-sheet menu changes
+field-notes and collections presentation while preserving their existing flows.
+Other main-scan layout changes and changes to whole-scan deletion behavior
+remain outside this scope. Permanent version deletion has no Undo; review and
+selection retain their existing conditional Undo behavior.
 
 The first milestone is complete only when deletion and source export are
 qualified across photo, audio, and video. The visual redesign follows those
