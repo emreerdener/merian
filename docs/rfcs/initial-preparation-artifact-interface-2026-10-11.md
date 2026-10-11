@@ -63,10 +63,21 @@ and lock bytes; do not update or relax them to make a build succeed.
 
 The new bootstrap is a separately measured adapter, with its own source digest
 and reviewed source revision. It is not represented as part of the old archived
-revision. A finite local artifact registry binds the tuple of archive digest,
-configuration-assets identity, bootstrap digest, build policy and toolchain
-identity to an artifact digest. Unknown tuples hold. No newest-version fallback,
-runtime downloading or reprocessing with current sources is permitted.
+revision. The canonical finite local registry is
+`scripts/initial-preparation/registry.json`, adjacent to its local harness and
+bootstrap. It binds the tuple of archive digest, configuration-assets identity,
+bootstrap digest, build policy and toolchain identity to an artifact digest.
+Unknown tuples hold. No newest-version fallback, runtime downloading or
+reprocessing with current sources is permitted. The bootstrap revision must
+resolve to a pre-existing commit object and its exact regular Git blob, not a
+tree object or working-tree substitute. Registry entries bind the retained
+toolchain provenance digest as well as executable digests.
+
+Only explicit build-only mode may publish unqualified candidate bytes, named
+`candidate-<digest>.js`; normal mode verifies the registered digest and byte
+count before publication. Output directories must already exist, be owned by the
+invoking user with mode `0700`, and have no symlink ancestors. Publication never
+replaces conflicting existing evidence.
 
 The complete manifest records canonical relative paths, byte counts and SHA-256
 for every actual build input, including the bootstrap and any resolved
@@ -165,6 +176,44 @@ No raw user media, submitted text, credentials or production output enters
 fixtures, logs or manifests. Preserve only synthetic vectors and bounded
 sanitized diagnostics. Store retained artifacts and proof outside disposable
 build caches, above the 20 GiB disk floor.
+
+## Local qualification candidate — October 11, 2026
+
+The reviewed bootstrap input is commit
+`6ceb6dc5c98a35f09844059f7f00d65ffcb0a1f7`. The adjacent finite registry now
+registers only the local `wav-feasibility-darwin-arm64-v1` artifact: 12,296
+bytes, SHA-256
+`c06f47422223eb6f92ac42a5476f8d8f8f5d3e613af127d843cad49686c0621a`. Registration
+does not activate a production loader or provider path. The earlier
+null-registration build-only receipts remain historical evidence.
+
+The reusable harness provides a checkout-wide nonblocking process lock and
+cleanup around spawn/setup, including SIGTERM cancellation. Verified source and
+runtime directories are non-writable for each child's lifetime; caches and
+bundle outputs are separate. This protects the private measured snapshot during
+the local experiment, not against a malicious process controlling the same user
+account. Every helper call and completion check uses remaining monotonic time.
+Input is capped before spawning; diagnostic retention never exceeds its cap.
+Cancellation is tested after a child-produced started signal. Each result
+records direct-child reaping, disappearance of its process group and required
+RSS observations. These observations remain sampled, not a hard native-memory
+limit.
+
+For this zero-external-module closure, esbuild is the only cache-resident
+secondary dependency. The negative cache test supplies it in a separate
+synthetic ambient cache, then proves that a fresh private cache cannot consult
+it or acquire it over the denied network. The parent replaces the child
+environment rather than merging ambient variables. No actual user cache is read
+or modified. Historical lock-derived package listings are unexecuted metadata;
+receipts retain the verified seven-module graph instead.
+
+`make test-initial-preparation` runs portable synthetic integrity/protocol,
+format, type and lint checks. `make test-initial-preparation-retained-inputs`
+separately requires retained local archive bytes and the real committed source
+anchor. Neither target starts macOS artifact qualification or closes hosted CI.
+Exact candidate runtime receipts and final independent acceptance belong to
+`.artifacts/initial-preparation-artifact/checkpoint.md`; failed and incomplete
+prior attempts remain separately retained.
 
 ## Acceptance and remaining integration
 

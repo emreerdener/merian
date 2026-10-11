@@ -62,6 +62,18 @@ test-ios-local-build:
 validate-markdown-format:
 	bash scripts/check-changed-markdown-format.sh
 
+.PHONY: test-initial-preparation test-initial-preparation-retained-inputs
+
+test-initial-preparation:
+	python3 -B scripts/initial-preparation/test_artifact.py
+	python3 -B scripts/initial-preparation/test_bootstrap.py
+	deno fmt --check scripts/initial-preparation
+	deno check --no-config --no-lock --no-remote --no-npm scripts/initial-preparation/bootstrap.ts
+	deno lint --no-config scripts/initial-preparation/bootstrap.ts
+
+test-initial-preparation-retained-inputs:
+	python3 -B scripts/initial-preparation/test_local_inputs.py
+
 test-markdown-format-tooling:
 	bash scripts/test-check-changed-markdown-format.sh
 
