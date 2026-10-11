@@ -18473,5 +18473,63 @@ credentials are exposed by these responses. Confirmed irreversible same-key
 markers require separate real backend qualification; a metadata claim is not
 erasure evidence.
 
-Runtime/grants/outcomes, source verification, byte-preserving M1 handoff and
-full S0 remain open. No final-funding path accepts unresolved sources.
+The dormant execution extension below adds source proofs, a sole preparation
+grant and immutable outcomes. Real runtime/storage qualification,
+byte-preserving M1 handoff and full S0 remain open. No final-funding path
+accepts unresolved sources.
+
+### Inactive original preparation execution contract
+
+The original service-only owner has five fixed operations:
+`settle_initial_preparation_sources`, `issue_initial_preparation_execution`,
+`register_initial_preparation_output`, `settle_initial_preparation_outcome`, and
+`get_initial_preparation_execution_status`. Each binds owner, scan and exact
+saved assignment digest. The first four additionally take the exact canonical
+source receipt, source digest, output manifest or outcome respectively. These
+private RPCs have no HTTP/native DTO or installed handler. No operation funds,
+dispatches a provider, admits media or hands off to M1/M2.
+
+`preparation-execution-schema-v1.json` owns the closed receipt and response
+shapes in SQL and TypeScript. Receipts preserve exact ordered source tuples and
+bounded structural facts, saved profile/backend/validator identity, the original
+grant, prepared byte tuples and transform options, resolved destinations and
+retained byte proof. Exact retries return the original proof; conflicting
+retries reject. Status contains phase, source proof, only
+`{grant_id, source_digest}` as its non-authorizing execution reference, known
+output and completed result, plus server time and original expiry. Phase
+nullability is checked. Only a fresh `granted` response can enter runtime;
+recovery never returns fresh permission or renews a deadline. A completed result
+includes its immutable original grant chain solely as settlement evidence.
+
+The grant reserves five seconds for delivery, the sum of frozen per-role wall
+caps for the actual ordered cohort (within the profile aggregate), five seconds
+for output registration, thirty seconds for retention, five seconds for outcome
+settlement, and thirty-five seconds for future handoff/terminal work. The
+original five-minute lifetime never renews. SQL samples time after locks. The
+synthetic coordinator subtracts the entire RPC round trip when converting server
+deadlines to local monotonic budgets; it checks absolute deadlines around
+awaits, including streams with ready microtasks that can starve timers. Fresh
+known output registers directly using the original grant deadline; there is no
+extra status RPC inside its five-second registration allowance. Reconciliation
+may read status, but can only shorten the retained original local deadlines.
+
+Verified source bytes are privately copied before awaits; shared buffers reject.
+The runtime receives defensive reads and the frozen profile, with no URLs,
+credentials or storage adapter. Only an on-time known result can enter original
+output settlement. Local cancellation preserves an already-known database reply;
+timeouts or lost replies require exact original recovery. The process-local
+reconciliation token is not durable restart qualification. Identity output is
+read-only verification of the same original ordinal/object/bytes. Fresh output
+uses conditional create without overwrite and exact read-back. Actual storage
+adapters must separately enforce live eligibility and retirement; synthetic
+receipts cannot establish physical durability or erasure.
+
+The fixed transport captures endpoint and service credentials together from
+trusted server environment configuration. Requests cannot supply or rebind an
+origin. It makes one bounded POST, refuses redirects, and bounds request/reply
+bytes and stream reads. No retry or SDK policy can repeat issuance. Current
+eligibility is required for new source proof and issuance; exact known proof
+replay precedes it. Original known-result registration/settlement remains
+bounded by the original grant and live owner/terminal state, without granting
+new storage I/O after revocation. Catalogs remain empty and activation remains
+disabled.

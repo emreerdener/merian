@@ -644,6 +644,16 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 python3 supabase/scripts/test_initial_media_source_contention.py \
             --disposable-container supabase_db_merian
 
+      - name: Qualify initial preparation execution contention
+        # Each contention suite requires fresh synthetic catalogs. This reset
+        # targets only this job's disposable local database.
+        env:
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: |
+          supabase db reset --local --yes
+          PYTHONDONTWRITEBYTECODE=1 python3 supabase/scripts/test_initial_preparation_execution_contention.py \
+            --disposable-container supabase_db_merian
+
       - name: Stop disposable database
         if: always()
         env:

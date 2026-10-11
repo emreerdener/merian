@@ -440,3 +440,20 @@ bounded structural/decode validation of the exact execution bytes for every
 enabled format before dispatch. This remains an internal S0 prerequisite,
 including malformed/truncated/polyglot and decode expansion cases as applicable;
 M2 or hosted qualification alone cannot close it.
+
+### Inactive pre-admission preparation evidence
+
+Source verification, the private preparation grant, exact output request and
+resolved mapping, and complete outcome chain are private evidence beneath the
+initial preparation intent. C1 with a complete phase-aware non-execution proof,
+scan erasure and account erasure remove them and their content-derived digests,
+before or after any scan enrollment. Erasure retires the complete
+original-source and fresh-output registry union first; delayed completion cannot
+recreate the private parent or proof. Permanent content-free operation/object
+fences retain only the prohibition, issued/retired state and cleanup
+coordination.
+
+The database proof does not establish physical deletion or stop an already
+running external worker. Same-key markers, late writes, backend versions and
+worker quiescence remain separate qualification requirements. No live runtime or
+storage adapter is installed by this preparation execution checkpoint.

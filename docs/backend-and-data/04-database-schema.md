@@ -8695,24 +8695,28 @@ unchanged no-media v2, or media-source v2 with exact candidate and source-plan
 digests and a full ordered source-to-object mapping. Guarded insertion
 recomputes the selected assignment; deferred constraints require all and only
 its original source destinations. Object identity is permanent and globally
-unique, and private mapping has a composite operation/object FK. There are no
-prepared output destinations. A current pointer and exact eligibility rows are
-locked with first-acquisition NOWAIT/FOUND checks before mutation; missing or
-unusable whole-cohort selection cannot claim an operation or funding.
+unique, and private mapping has a composite operation/object FK. The allocation
+response has no prepared output destinations; the execution extension below
+allocates them only for a known original result. A current pointer and exact
+eligibility rows are locked with first-acquisition NOWAIT/FOUND checks before
+mutation; missing or unusable whole-cohort selection cannot claim an operation
+or funding.
 
-Fresh allocation uses the existing owner/ingestion lock scope and creates global
-exclusion, private intent, source fence, registry and mapping atomically. Exact
-replay and status use the saved assignment before current selection. Revocation
-changes response eligibility, never identity or deadline. The media finalizer
-always rejects; existing no-media admission stays separate.
+Fresh allocation uses the existing owner/ingestion lock scope and creates the
+source fence before global exclusion, then the private intent, registry and
+mapping atomically. Only the source-fence/global FK is deferred; a deferred
+constraint verifies the complete owner-bound cohort at commit. Exact replay and
+status use the saved assignment before current selection. Revocation changes
+response eligibility, never identity or deadline. The media finalizer always
+rejects; existing no-media admission stays separate.
 
-C1 permits dispatch-prevented classification only with complete, unissued,
-unfunded source proof and no admitted M1 allocation. Uncertain proof remains
-unknown/held. C1/expiry, pre-row scan erasure, scan transitions, supported
-account detachment and raw owner deletion retire every sorted source object
-before private deletion. A guarded intent delete defends the same boundary; no
-generic handoff exception exists. Permanent registry rows cannot delete or
-reopen.
+C1 uses the shared phase-aware proof described below. Complete unfunded source
+and applicable execution evidence, the fresh provider prohibition, and absence
+of admitted M1 allocation are required. Uncertain proof remains unknown/held.
+C1/expiry, pre-row scan erasure, scan transitions, supported account detachment
+and raw owner deletion retire every sorted source object before private
+deletion. A guarded intent delete defends the same boundary; no generic handoff
+exception exists. Permanent registry rows cannot delete or reopen.
 
 `claim_initial_preparation_source_erasure` and
 `finish_initial_preparation_source_erasure` are fixed service-only,
@@ -8726,3 +8730,46 @@ retention; SQL acknowledgement alone proves none of those external properties.
 The database owner remains trusted to perform legal metadata transitions,
 including closing a live claim. Service-role success is likewise a trusted
 assertion; neither path independently verifies storage.
+
+### Inactive original preparation execution
+
+`20261011205141` adds private source verification, one execution grant, output
+request/resolution/mapping and complete outcome records beneath the original
+preparation intent. Their closed shared schema is
+`preparation-execution-schema-v1.json`; the five service-only RPCs are
+documented in the API contract. Private rows are immutable during their live
+lifetime and erase with the intent. A deferred coherence check validates the
+full applicable phase chain and exact source/output registry union.
+
+New allocations have a fresh-only immutable `blocked_pre_admission` provider
+barrier. It has no default or backfill. Marker-less existing rows retain exact
+read and conservative erasure but cannot issue a preparation grant or claim
+positive C1 non-execution. Fresh insertion rejects an already claimed identity.
+The permanent execution bit moves only from unissued to issued; missing private
+evidence or a lost response never reopens it. Original quota/provider, initial
+admission/completion, M1/M2 and history writer boundaries reject these
+operations, including raw INSERT and identity-changing UPDATE paths. Existing
+rows already exclude fresh allocation under those durable identities; updates
+that leave every identity field unchanged retain their existing settlement and
+cleanup contracts. Competing writers take sorted, deduplicated shared
+transaction try-locks for all normalized OLD/NEW identities in
+`merian-initial-preparation-admission:<UUID>`. Fresh source-fence insertion
+takes the corresponding exclusive transaction try-lock before checking existing
+writer facts. These locks preserve the established owner/ingestion blocking
+protocol while preventing allocation-versus-writer races without backward waits.
+Guards for normalized UUID identities require READ COMMITTED isolation;
+unsupported isolation rejects before mutation so an old snapshot cannot hide a
+newly committed barrier. Existing history ingress retains its established
+isolation error. Post-lock checks run in volatile helpers. The sole
+anonymization exception may only clear an invocation's owner while every other
+field remains identical.
+
+`can_cancel_initial_preparation` supplies the same phase-aware C1 proof to the
+cancellation routine and raw lifecycle guard before retirement. Unknown or
+contradictory chains remain unknown. Source and fresh-output objects lock in one
+global UUID order; cleanup takes no later owner/catalog lock. The immutable
+barrier proves database authority was prohibited; it cannot stop a previously
+authorized external process. Worker quiescence remains a separate cutover
+requirement. Media admission, funding and M1 handoff still reject, even after a
+complete outcome. No profile/backend/runtime installation or live route is
+added.

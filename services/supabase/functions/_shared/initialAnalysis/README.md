@@ -303,12 +303,13 @@ selection.
 An accepted dormant allocation freezes source candidate, complete inference and
 preparation assignment, fixed original-source object IDs and original deadline
 in one transaction. Recovery returns those saved identities before fresh
-selection. Revocation returns blocked metadata without replacing them. No
-prepared output, upload grant, funding, provider dispatch or M1 handoff exists.
-C1, expiry and strong erasure retire the permanent source registry before
-private candidate/assignment/mapping deletion. Cleanup is a separate
-metadata-only lease/acknowledgement owner with no installed transport or
-scheduler.
+selection. Revocation returns blocked metadata without replacing them.
+Allocation itself supplies no prepared output or upload grant. The execution
+extension below prepares original-result records; funding, provider dispatch and
+M1 handoff remain unavailable. C1, expiry and strong erasure retire the
+permanent source registry before private candidate/assignment/mapping deletion.
+Cleanup is a separate metadata-only lease/acknowledgement owner with no
+installed transport or scheduler.
 
 Run `tests/initial_media_source_lifecycle.sql` for shared vectors and
 rollback-only lifecycle tests. Run
@@ -321,3 +322,36 @@ before teardown. These tests are not runtime, provider or physical-erasure
 qualification. Video associations remain declarations, not verified derivation.
 See the
 [service contract](../../../../../docs/backend-and-data/05-api-contracts.md#inactive-media-source-candidate-contract).
+
+## Inactive preparation execution coordinator
+
+`preparationExecutionContract.ts` and the shared execution schema validate
+source proofs, the original grant, output mapping, complete outcome and closed
+RPC reply envelopes. `preparationExecution.ts` exposes a bounded synthetic
+coordinator and process-local known-output reconciliation. Only the fresh issue
+reply with owned verified source bytes can invoke runtime once. Exact
+status/result recovery never invokes it. Phase deadlines use actual cohort rule
+caps, absolute monotonic checks and conservative server-clock transfer. Fresh
+known output goes directly to registration within its original five-second
+allowance. Reconciliation status reads cannot extend that original deadline.
+
+The dependency interface separates read-only original identity verification from
+conditional fresh-object creation and read-back. Real storage/runtime adapters,
+durable output recovery and qualification are deliberately absent. The fixed
+transport resolves origin/key only from trusted server configuration, follows no
+redirects and repeats no requests. Source/output private copies reject shared
+memory. All production selectors remain empty; no live handler imports these
+modules. Media finalization, funding and M1/M2 remain denied at outcome-ready.
+
+Focused synthetic tests are `preparationExecution_test.ts`,
+`preparationExecutionTransport_test.ts` and
+`tests/initial_preparation_execution.sql`; they do not constitute hardware,
+backend, runtime or installed-app qualification. See the
+[execution contract](../../../../../docs/backend-and-data/05-api-contracts.md#inactive-original-preparation-execution-contract).
+
+Run `scripts/test_initial_preparation_execution_contention.py` against an
+explicitly named freshly migrated disposable local container for phase/C1 races,
+duplicate issuance and raw competing-writer barriers. Candidate CI runs it after
+resetting its disposable catalog following source-allocation contention. Neither
+suite targets a hosted database. Failed schedules remain qualification failures
+until a corrected exact candidate passes.
