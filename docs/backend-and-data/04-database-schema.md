@@ -8514,6 +8514,19 @@ quota/usage. Neither path authorizes a retry or refund of unknown execution.
 
 ### Prepared initial cancellation lifecycle
 
+Migration `20261011164435_extract_initial_assignment_entitlement_projection.sql`
+factors the existing fresh entitlement classifier into private, invoker-only
+`internal.resolve_fresh_quota_entitlement`. Only the original quota owner
+applies its proposed complimentary hold. The helper creates no reservation,
+credit hold, counter or grant and is revoked from every API role. Existing
+active-reservation replay bypasses fresh selection; existing public signatures
+and admission fences are unchanged. Owner/rollout locks precede the original
+timestamp sample; usage row locking and actual credit mutation retain their
+existing owner. This is the first shared assignment prerequisite, not a complete
+preparation assignment or assertion-before-funding contract; those remain
+tracked in the
+[pre-admission RFC](../rfcs/initial-pre-admission-preparation-2026-10-11.md).
+
 Migration `20261011092418_prepare_initial_analysis_cancellation.sql` adds
 `internal.initial_analysis_lifecycle_fences` (only logical UUID and state) and
 private `initial_analysis_cancellations` (only owner, UUID and classification).

@@ -31,6 +31,48 @@ case. Other media and mixed cohorts cannot borrow WAV qualification. The local
 Darwin profile remains Edge-ineligible; the production runtime selector is
 empty. Activation stays false, backend selection null and ordinary access nil.
 
+## Assignment-freezing prerequisite (October 11 clarification)
+
+The initial-engine reviewer confirmed that the exact concrete inference
+assignment must be resolved before source retention, without reserving credits.
+Provider/profile/protocol assertions alone are insufficient. The saved identity
+includes route, exact provider/model, execution plan and fallback effect,
+inference policy revision, input/output compatibility,
+prompt/schema/configuration assets, preparation artifact/options and experiment
+effects. Available balance, credit holds, reservation/lease identity and funding
+eligibility remain final admission facts. Current consent and revocation remain
+authoritative; the saved assignment grants no execution or entitlement.
+
+The history primary received the bounded shared-owner implementation handoff:
+extract the existing authoritative selector and use that single implementation
+for preparation and final funding. The initial-engine thread remains read-only;
+its broader hardening scope is unchanged. Final funding must compare the saved
+assignment under the actual quota-owner locks before any credit, counter or
+reservation mutation. Exact saved admission/reservation recovery precedes fresh
+selection. Changed defaults cannot rebase an existing intent; unavailable or
+revoked saved configuration holds. The concrete default-change/revocation
+predicate and complete projection still require executable review.
+
+The first extraction separates fresh entitlement classification from its
+existing credit mutation in the eight-argument private quota owner. The private
+`resolve_fresh_quota_entitlement` helper returns the selected plan, original
+complimentary link, fallback effect and whether the original owner must acquire
+a hold. It acquires no credits and supplies no grant. Existing
+active-reservation replay remains outside and before this fresh-only helper.
+Public signatures, namespace guards and quota/provider owners remain unchanged.
+This extraction alone is not the complete assignment projection, an
+assertion-before-funding implementation, preparation persistence or S0
+acceptance.
+
+The helper is only a component within a locked owner transaction. Its timestamp
+is the original quota owner's sample after its outer locks, preserving existing
+v1 time semantics. A future preparation caller must establish those locks before
+sampling time; it cannot treat a pre-wait sample, helper result or advisory
+preflight as a durable snapshot or funding authority. Schema acceptance still
+needs every affected overload/caller/trigger schedule, nested lock modes, and
+deterministic policy/entitlement, same-ID, cancellation and zero-mutation
+mismatch evidence for the completed shared projection.
+
 ## One operation, separate storage phases
 
 The logical identity remains `(owner_id, scan_id)` with
