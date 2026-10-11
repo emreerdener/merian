@@ -18533,3 +18533,37 @@ replay precedes it. Original known-result registration/settlement remains
 bounded by the original grant and live owner/terminal state, without granting
 new storage I/O after revocation. Catalogs remain empty and activation remains
 disabled.
+
+### Inactive handoff metadata and budget contract
+
+`handoff-profile-schema-v1.json` is the closed executable Deno schema for a
+future qualified handoff profile and its composite protocol manifest.
+`handoffProfile.ts` validates and canonicalizes those values. Profile identity
+binds source/destination backend generations and configuration digests,
+copy/verification adapter identities, a composite protocol artifact digest,
+whole-cohort media/type/alias limits and named phase ceilings. The composite
+manifest fixes input projection, M1 v2 mapping, M2 v2 codec, transfer validator,
+deadline protocol and response codec identities and schema versions. Digests use
+`merian.initial-analysis.handoff.{protocol_artifact|profile}.v1` plus newline
+and the existing exact canonical encoding.
+
+Eight positive integer ceilings cover admission, copy, verification claim,
+verification, verification settlement, transfer, reconciliation and protocol
+margin. Their exact sum is below 300,000ms. The pure issue-budget check requires
+`45,000 + preparationWallMs + total_ms < expiresAtMs - nowMs`; the pure
+admission helper requires `total_ms < expiresAtMs - anchorMs` and returns
+cumulative phase cutoffs. Bounds use safe-integer arithmetic and do not renew
+the supplied five-minute window. Malformed metadata/time windows reject as
+`initial_analysis_input_invalid`; insufficient remaining budget rejects as
+`initial_analysis_handoff_budget_unavailable`.
+
+Accepted content-type pairs are identity image types, WAV-to-WAV audio, and
+source-only MP4 video. Limits cannot exceed existing M1 bounds. A canonical
+profile and manifest are not installation, source-byte verification, current
+eligibility, original-operation identity, funding or execution authority.
+Synthetic shared vectors prepare future SQL parity; no SQL handoff catalog,
+assignment/grant v3/v2 branch, admission or transfer is installed by this
+validator-only increment. Existing no-media and media execution v1 behavior is
+unchanged. The planned remaining boundaries are in the
+[handoff design](../rfcs/initial-preparation-handoff-2026-10-11.md); actual
+backend/runtime and installed qualification remain separate requirements.

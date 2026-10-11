@@ -355,3 +355,24 @@ duplicate issuance and raw competing-writer barriers. Candidate CI runs it after
 resetting its disposable catalog following source-allocation contention. Neither
 suite targets a hosted database. Failed schedules remain qualification failures
 until a corrected exact candidate passes.
+
+## Inactive handoff metadata and budget validators
+
+`handoff-profile-schema-v1.json` and `handoffProfile.ts` validate closed
+profiles and composite protocol manifests, exact canonical digests, supported M1
+type pairs/limits, all eight sequential whole-cohort phase ceilings and their
+sum. Pure arithmetic checks reserve `45,000 + preparation wall + handoff total`
+strictly inside the supplied original expiry and derive fixed cumulative
+admission cutoffs. Safe-integer subtraction preserves the boundary near the
+maximum supported timestamp.
+
+These are metadata helpers only. They do not install or qualify a backend, check
+catalog eligibility, establish original identity, allocate media, issue a grant
+or reserve funding. No live handler or existing assignment/grant imports them.
+`fixtures/handoff-profile-v1.json` provides synthetic canonical vectors for
+future SQL parity; SQL/catalog/assignment binding is still unimplemented.
+Existing execution v1 and its 35-second future reserve remain unchanged and do
+not become qualified for admission through these helpers. See the
+[metadata contract](../../../../../docs/backend-and-data/05-api-contracts.md#inactive-handoff-metadata-and-budget-contract)
+and the
+[accepted handoff design](../../../../../docs/rfcs/initial-preparation-handoff-2026-10-11.md).
