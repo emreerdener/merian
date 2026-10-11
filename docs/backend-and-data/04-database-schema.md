@@ -8663,3 +8663,21 @@ bounded structural/decode validation of the exact execution bytes for every
 enabled format before dispatch. This remains an internal S0 prerequisite,
 including malformed/truncated/polyglot and decode expansion cases as applicable;
 M2 or hosted qualification alone cannot close it.
+
+### Inactive media-source declaration validators
+
+The source-contract migration adds only three invoker functions in `internal`:
+`initial_media_source_candidate_schema_v2`, `initial_media_source_semantics` and
+`parse_initial_media_source_candidate`. All are revoked from PUBLIC, anon,
+authenticated and service_role. The parser enforces the same closed scalar and
+source-association rules as TypeScript, including explicit unresolved output and
+nonempty sources. It performs no storage, lock acquisition, namespace claim,
+funding, registration or execution. No table, trigger, public routine or grant
+is added. Existing no-media preparation and admitted v1/M1/M2 contracts remain
+unchanged and reject the new source shape at their entry boundary.
+
+The [API contract](05-api-contracts.md#inactive-media-source-candidate-contract)
+owns fields and limits. This does not complete the separately required durable
+source lifecycle or attest source bytes. Server-qualified assignment, source
+destinations, cancellation/erasure integration and executable runtime
+consumption remain prerequisites before source retention.

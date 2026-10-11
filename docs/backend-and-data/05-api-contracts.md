@@ -18400,3 +18400,41 @@ bounded structural/decode validation of the exact execution bytes for every
 enabled format before dispatch. This remains an internal S0 prerequisite,
 including malformed/truncated/polyglot and decode expansion cases as applicable;
 M2 or hosted qualification alone cannot close it.
+
+### Inactive media-source candidate contract
+
+The private preparation-candidate v2 now has a separately validated declaration
+shape `{version: 2, variant: "media_sources", source_plan: ...}`. This is a pure
+contract prerequisite; the existing `create_initial_preparation_intent`
+continues to accept only `no_media`. No HTTP/native DTO or installed service
+writer consumes the new shape, and no storage may start from validation alone.
+
+The closed source plan retains `schema_version: 1` as its own shape version,
+route (`identify` or `identify-multimodal`), exact ordered descriptions, owner
+timeline, capture, context, options and admission assertions. Its ordered
+`sources` replace admitted `media`; each source retains kind, original
+`source_content_type`, `source_byte_count`, `source_sha256`, input/source/clip/
+frame indices, focus region, transform and transform parameters. The only
+prepared-output state is `{state: "unresolved"}`. Output hashes/counts/types,
+URLs, destinations, grants, assignments and profile selectors are not fields.
+Unsupported experiments reject; `experiment` must be explicit null.
+
+Whole-cohort limits and source associations match initial input-v1: at most 8
+roles, 5 images, 2 audio roles, 1 video role, 5 MiB aggregate original image
+bytes, 2,700,000 bytes per original WAV and 12 MiB per original video. Owner
+chronology covers every independent source and description exactly once; video
+frames and companion audio belong to the clip. These remain declared lineage,
+not derivation proof. Every source is nonempty. Exact route-accepted text and
+Unicode are preserved without another trim. Canonical encoding is the existing
+bounded IC-1 encoding, with digest domain
+`merian.initial-analysis.preparation-candidate.v2\n`; the variant separates
+source declarations from unchanged no-media vectors.
+
+`validateInitialMediaSourceCandidate` and the SQL private parser validate this
+shape only. Media assignment remains unconstructible in the installed resolver:
+no synthetic profile, Darwin reference, backend or caller digest can confer
+eligibility. The allocator must later jointly freeze a complete server-qualified
+whole-cohort assignment, original deadline and source candidate, claim the
+existing global fence and register destinations before I/O. That implementation,
+C1/erasure integration, preparation grants/outcomes, M1 handoff and runtime
+qualification remain open. No final-funding path accepts unresolved sources.

@@ -279,3 +279,22 @@ with the gate disabled, uses synthetic owners and restores the disabled gate. It
 never targets a hosted DSN. Full existing accounting and catalog gates remain
 required because the comparison is inside shared quota owners. Media
 preparation/transport/handoff and full S0 remain separate open work.
+
+## Inactive media-source contract
+
+`media-source-candidate-schema-v2.json` and `mediaSourceCandidate.ts` define a
+source-declaration variant of the private preparation candidate. They do not
+extend the installed no-media creator. Each original source role has exact
+metadata, indices and transform options, with `prepared_output.state` fixed to
+`unresolved`. There is no fabricated prepared hash or empty successful output.
+The separate source semantic validator preserves existing initial route,
+ordered-text/timeline, capture association and aggregate source limits without
+constructing a pretend admitted input-v1 value.
+
+SQL exposes only revoked private pure validators. No allocator, intent writer,
+assignment resolver, profile registration, storage destination, execution grant
+or transport is added. The production preparation selector remains absent; media
+cannot enter the no-media creator/finalizer or M1. Video associations in the
+schema are declarations only, not verified derivation or enabled video support.
+See the
+[service contract](../../../../../docs/backend-and-data/05-api-contracts.md#inactive-media-source-candidate-contract).

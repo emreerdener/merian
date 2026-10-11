@@ -24,6 +24,21 @@ own the exact bounded behavior. Candidate evidence is retained in
 or external qualification. Gates remain disabled and the original broader design
 below is preserved.
 
+## Implementation addendum: source-contract prerequisite (October 11)
+
+Following the no-media checkpoint, the IC-1 owner accepted an independently
+testable inactive source-contract prerequisite before allocator integration. The
+closed `media_sources` candidate has dedicated source semantics and explicit
+unresolved outputs; SQL and TypeScript share vectors. Installed creation still
+rejects media without mutation. No media assignment branch, storage ownership,
+allocator or runtime eligibility is added. This is not completion of the durable
+source checkpoint described below. See the
+[current contract](../backend-and-data/05-api-contracts.md#inactive-media-source-candidate-contract)
+and `.artifacts/initial-media-source-contract/` for exact scope/evidence. The
+next implementation joins this contract to a complete server-qualified
+assignment and the agreed durable source/erasure owner; additional identity-only
+helpers are not a substitute for that lifecycle.
+
 ## Amendment and scope
 
 The

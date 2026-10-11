@@ -1,0 +1,393 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 2
+    },
+    "variant": {
+      "type": "string",
+      "enum": [
+        "media_sources"
+      ],
+      "max_bytes": 128
+    },
+    "source_plan": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1
+        },
+        "route": {
+          "type": "string",
+          "enum": [
+            "identify",
+            "identify-multimodal"
+          ],
+          "max_bytes": 128
+        },
+        "ordered_descriptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "max_bytes": 65530
+          },
+          "max_items": 64
+        },
+        "owner_timeline": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "description",
+                  "media"
+                ],
+                "max_bytes": 128
+              },
+              "index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 63
+              }
+            }
+          },
+          "max_items": 128
+        },
+        "capture": {
+          "type": "object",
+          "properties": {
+            "has_video": {
+              "type": "boolean"
+            },
+            "video_clip_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 64
+            },
+            "declared_video_frame_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 150
+            },
+            "video_inference_frame_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 150
+            }
+          }
+        },
+        "context": {
+          "type": "object",
+          "properties": {
+            "depth_scale_text": {
+              "type": "string",
+              "max_bytes": 8192,
+              "nullable": true
+            },
+            "semantic_location": {
+              "type": "string",
+              "max_bytes": 8192,
+              "nullable": true
+            },
+            "weather_condition": {
+              "type": "string",
+              "max_bytes": 8192,
+              "nullable": true
+            },
+            "device_locale": {
+              "type": "string",
+              "max_bytes": 8192,
+              "nullable": true
+            },
+            "device_time_zone": {
+              "type": "string",
+              "max_bytes": 8192,
+              "nullable": true
+            },
+            "device_region": {
+              "type": "string",
+              "max_bytes": 8192,
+              "nullable": true
+            },
+            "time_of_day": {
+              "type": "string",
+              "max_bytes": 8192,
+              "nullable": true
+            },
+            "gps_latitude": {
+              "type": "decimal",
+              "minimum": "-90",
+              "maximum": "90",
+              "max_bytes": 326,
+              "nullable": true
+            },
+            "gps_longitude": {
+              "type": "decimal",
+              "minimum": "-180",
+              "maximum": "180",
+              "max_bytes": 326,
+              "nullable": true
+            },
+            "gps_elevation": {
+              "type": "decimal",
+              "minimum": "-1.7976931348623157e308",
+              "maximum": "1.7976931348623157e308",
+              "max_bytes": 326,
+              "nullable": true
+            },
+            "zoom_factor": {
+              "type": "decimal",
+              "minimum": "-1.7976931348623157e308",
+              "maximum": "1.7976931348623157e308",
+              "max_bytes": 326,
+              "nullable": true
+            },
+            "estimated_size_cm": {
+              "type": "decimal",
+              "minimum": "-1.7976931348623157e308",
+              "maximum": "1.7976931348623157e308",
+              "max_bytes": 326,
+              "nullable": true
+            },
+            "weather_temperature_f": {
+              "type": "decimal",
+              "minimum": "-1.7976931348623157e308",
+              "maximum": "1.7976931348623157e308",
+              "max_bytes": 326,
+              "nullable": true
+            },
+            "current_month": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12,
+              "nullable": true
+            }
+          }
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "timestamp": {
+              "type": "string",
+              "max_bytes": 128,
+              "nullable": true
+            },
+            "geoprivacy": {
+              "type": "string",
+              "enum": [
+                "open",
+                "obscured",
+                "private"
+              ],
+              "max_bytes": 128,
+              "nullable": true
+            },
+            "public_location_label": {
+              "type": "string",
+              "max_bytes": 512,
+              "nullable": true
+            },
+            "preferred_goal": {
+              "type": "object",
+              "properties": {
+                "user_field_trip_id": {
+                  "type": "string",
+                  "max_bytes": 36,
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "item_id": {
+                  "type": "string",
+                  "max_bytes": 36,
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                }
+              },
+              "nullable": true
+            },
+            "observation_context": {
+              "type": "object",
+              "nullable": true,
+              "properties": {
+                "free_text": {
+                  "type": "string",
+                  "max_bytes": 65530
+                }
+              }
+            }
+          }
+        },
+        "admission": {
+          "type": "object",
+          "properties": {
+            "client_protocol": {
+              "type": "integer",
+              "minimum": 3,
+              "maximum": 3
+            },
+            "identification_protocol": {
+              "type": "integer",
+              "minimum": 6,
+              "maximum": 6
+            },
+            "expected_processor_permission": {
+              "type": "string",
+              "enum": [
+                "google_gemini",
+                "openai"
+              ],
+              "max_bytes": 32
+            }
+          }
+        },
+        "experiment": {
+          "type": "string",
+          "nullable": true,
+          "enum": [],
+          "max_bytes": 0
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "image",
+                  "audio",
+                  "video"
+                ],
+                "max_bytes": 128
+              },
+              "source_byte_count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 12582912
+              },
+              "source_sha256": {
+                "type": "string",
+                "max_bytes": 64,
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "input_index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 63,
+                "nullable": true
+              },
+              "source_index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 63,
+                "nullable": true
+              },
+              "clip_index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 63,
+                "nullable": true
+              },
+              "frame_index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 149,
+                "nullable": true
+              },
+              "focus_region": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "decimal",
+                    "minimum": "0",
+                    "maximum": "1",
+                    "max_bytes": 326
+                  },
+                  "y": {
+                    "type": "decimal",
+                    "minimum": "0",
+                    "maximum": "1",
+                    "max_bytes": 326
+                  },
+                  "width": {
+                    "type": "decimal",
+                    "minimum": "0",
+                    "maximum": "1",
+                    "max_bytes": 326
+                  },
+                  "height": {
+                    "type": "decimal",
+                    "minimum": "0",
+                    "maximum": "1",
+                    "max_bytes": 326
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "vision_objectness"
+                    ],
+                    "max_bytes": 128
+                  }
+                },
+                "nullable": true
+              },
+              "transform": {
+                "type": "string",
+                "enum": [
+                  "identity_v1",
+                  "initial_audio_v1",
+                  "video_frame_v1"
+                ],
+                "max_bytes": 128
+              },
+              "source_content_type": {
+                "type": "string",
+                "enum": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp",
+                  "image/heic",
+                  "image/heif",
+                  "audio/wav",
+                  "video/mp4"
+                ],
+                "max_bytes": 128
+              },
+              "transform_parameters": {
+                "type": "object",
+                "nullable": true,
+                "properties": {
+                  "target_sample_rate": {
+                    "type": "integer",
+                    "minimum": 16000,
+                    "maximum": 16000
+                  },
+                  "preserve_short_video_context": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "prepared_output": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "unresolved"
+                    ],
+                    "max_bytes": 128
+                  }
+                }
+              }
+            }
+          },
+          "max_items": 8
+        }
+      }
+    }
+  }
+}
