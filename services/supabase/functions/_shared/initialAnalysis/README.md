@@ -384,3 +384,13 @@ shared vectors; `tests/initial_handoff_contract.sql` exercises parsing,
 arithmetic and revoked role access. This remains pure metadata validation,
 without catalog installation, saved-assignment binding, actual cohort
 qualification or funding authority.
+
+`handoffCatalog.ts` adds private destination/installation declaration codecs and
+a conservative one-per-profile-rule association template. Empty SQL catalogs
+bind exact immutable source/destination/profile identities and retain revocation
+separately. Nullable immutable selection binding cannot retrofit old
+generations. No runtime owner consumes these catalogs yet; actual-cohort
+grant/admission checks and external qualification remain required. See the
+database and API contracts for template limits and digest domains. The Deno
+helper checks declarations against each other; SQL owns comparison with the
+retained private source and destination backend rows.

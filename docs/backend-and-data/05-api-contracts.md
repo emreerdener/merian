@@ -18567,3 +18567,35 @@ validator-only increment. Existing no-media and media execution v1 behavior is
 unchanged. The planned remaining boundaries are in the
 [handoff design](../rfcs/initial-preparation-handoff-2026-10-11.md); actual
 backend/runtime and installed qualification remain separate requirements.
+
+### Inactive handoff catalog declarations
+
+`handoff-catalog-schema-v1.json` defines two private closed metadata documents.
+The `destination_backend` declaration contains exactly `generation`, `provider`,
+`direct_endpoint`, `private_bucket`, `namespace` and `credential_profile`,
+matching the immutable M1 backend row. The credential field is a reference,
+never a secret.
+
+The version-1 installation contains `profile_generation`, `profile_digest`,
+`protocol_artifact_digest`, `copy_adapter_digest`,
+`verification_adapter_digest`, `preparation_profile_digest`,
+`source_backend_generation`, `destination_backend_generation`,
+`qualification_harness_digest`, `reviewed_source_revision`, `evidence_digest`
+and `installer_protocol`, plus `version`. The installer protocol is exactly
+`reviewed_database_owner_install_v1`.
+
+Both declarations are bounded to 16 KiB and use the existing canonical UTF-8
+encoder. SHA-256 domains are
+`merian.initial-analysis.handoff.destination_backend.v1` and
+`merian.initial-analysis.handoff.installation.v1`, followed by one newline and
+exact canonical bytes. Shared independent vectors pin SQL/Deno agreement. These
+types are private catalog metadata, not a new HTTP request, installed DTO or
+runtime installer.
+
+`handoffCatalog.ts` and private SQL implement the conservative association
+template specified in the database contract. The template is not actual-cohort
+qualification; its held error is
+`initial_analysis_handoff_catalog_envelope_unsupported`. SQL insertion binds
+exact immutable catalog parents. Runtime assignments/grants do not yet consume
+it. Existing no-media, capture DTOs and production installation remain
+unchanged, and no funding or provider authority is created.

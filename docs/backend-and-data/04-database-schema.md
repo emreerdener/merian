@@ -8804,3 +8804,48 @@ spelling. NUMERIC has no negative-zero state; its zero is accepted. Deno
 separately rejects IEEE-754 negative zero in direct clock arguments. Both
 canonical text parsers reject lexical `-0`; no accepted wire spelling is widened
 by this distinction.
+
+### Inactive handoff qualification catalogs
+
+`20261011231025` adds empty private protocol-artifact, handoff-profile and
+installation tables plus separate one-way installation eligibility. All have RLS
+and revoked API-role access. Immutable catalog rows reject UPDATE/DELETE;
+eligibility only allows eligible to revoked. Reviewed database-owner
+installation remains the trusted boundary; no callable installer, seed or
+production qualification exists.
+
+Profile insertion validates its canonical declaration against the retained
+protocol and exact source generation/configuration. It recomputes the
+destination digest from the immutable M1 generation's six fields, never a
+current rollout pointer. Installation insertion binds that complete profile,
+adapter/protocol identities, exact preparation profile and source backend,
+harness/source revision and evidence. These records are trusted provenance
+declarations, not verification of retained source or adapter bytes.
+
+Existing immutable preparation selections gain a nullable installation digest,
+without a default or backfill. A composite FK binds installation, preparation
+profile and source generation. Existing NULL generations cannot be enriched,
+deleted or reinserted through normal DML. New generations may bind once;
+revocation leaves catalogs and historical references intact. No second current
+selector is created.
+
+A conservative catalog association template includes one occurrence of every
+PROFILE rule at its declared resource ceilings, even where runtime video frames
+are optional. Every role must have a compatible type pair in the same
+association; every pair must match a role and its transform parameters. The
+template sums all source/output/CPU/heap/wall ceilings against aggregate
+preparation caps, uses one object for an image identity/raw video and two for
+audio without assuming aliases, and checks handoff count/byte caps. Image bytes
+use the maximum source/output ceiling, raw uses source only, audio uses their
+sum. Resource equality is accepted; `45,000 + sum(rule wall_ms) + H < 300,000`
+is strict.
+
+Rejection means this conservative catalog envelope is unsupported, not that
+every narrower cohort is impossible. Acceptance proves only that this
+declaration meets the template. It does not prove byte validity, clip
+derivation, adapter behavior, or every combination/multiplicity allowed by
+advertised maxima. Future allocation, grant and admission must check the actual
+ordered cohort, exact aliases, unique bytes and runtime sums against both
+profiles and original remaining expiry under locks. No existing resolver,
+assignment, grant, funding or transfer owner adopts these catalogs in this
+migration. Gates and ordinary installation stay disabled.
