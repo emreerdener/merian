@@ -8507,7 +8507,33 @@ request scope before any quota write. Secondary contention aborts with
 scope may be held. This closes cross-owner alias races even when the initial
 fence has not committed. Execution and cleanup guards match both request and
 original IDs. These shared changes require full legacy gates even with
-activation off. Pre-row scan deletion leaves original funding held for the
-future exact cancellation/settlement owner; account deletion cascades quota and
-complimentary usage with the owner. Neither path authorizes a retry or refund of
-unknown execution.
+activation off. Raw pre-row scan deletion leaves original funding held. The
+later prepared C1 cancellation owner settles exact unused funding before
+evidence erasure; supported account detachment uses it before cascading owner
+quota/usage. Neither path authorizes a retry or refund of unknown execution.
+
+### Prepared initial cancellation lifecycle
+
+Migration `20261011092418_prepare_initial_analysis_cancellation.sql` adds
+`internal.initial_analysis_lifecycle_fences` (only logical UUID and state) and
+private `initial_analysis_cancellations` (only owner, UUID and classification).
+Fresh admission creates pending state atomically; prior admissions receive no
+backfill. Terminal states cannot reset or prune. No callable dispatch transition
+is installed. Both tables deny direct access to all API roles and enable RLS.
+The cancellation receipt has an indexed owner cascade and a merge preserve
+policy; explicit tombstones erase it too. Private evidence insertion checks
+terminal lifecycle state, so cancellation cannot be followed by delayed private
+completion or another admission.
+
+The fixed service cancellation owner locks user, logical ingestion advisory,
+existing scan/history, lifecycle/private binding, original quota, daily/user/IP
+counters and then complimentary usage, reentering the user epoch update. Exact
+original unused funding is released only with fresh pending proof; unknown
+execution stays held. `apply_user_tombstone` cancels pre-row operations before
+user deletion, while safe raw erasure remains settlement-free. Saved scans use
+ordinary explicit erasure and cannot be deleted by late operation cancellation.
+The
+[API contract](05-api-contracts.md#prepared-initial-cancellation-under-ic-1-c1-inactive)
+and [C1 addendum](../rfcs/initial-cancellation-interface-2026-10-11.md) define
+outcomes, precedence and remaining qualification. Neither gate activation nor
+native installation is included.

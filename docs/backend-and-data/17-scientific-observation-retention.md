@@ -305,10 +305,31 @@ Immutability permits this authoritative erasure. A pending account-deletion job
 blocks new evidence while the user row still exists. A source account with
 private initial evidence cannot be generically merged/reparented. Existing
 scientific scalar retention remains unchanged. The legacy pre-row scan-deletion
-API is not extended by this foundation; the fixed initial cancellation
-operation, atomic completion, route/worker cutover and imported V3 description
-erasure still require subsequent gated implementation. Local storage tests do
-not qualify remote provider erasure or installed-device recovery.
+API is not extended by this foundation; C1 now prepares the fixed initial
+cancellation database owner separately. Its native/service delivery, atomic
+completion, route/worker cutover and imported V3 description erasure still
+require subsequent gated implementation. Local storage tests do not qualify
+remote provider erasure or installed-device recovery.
+
+### Cancellation recovery and stronger erasure
+
+The inactive C1 cancellation owner erases submitted text and the entire private
+input/result/completion chain while retaining only a private owner/operation/
+classification receipt for lost-acknowledgement recovery. This is an explicit
+operational cancellation exception, not scientific retention. It has no text,
+digest, funding/result reference or timestamp and is invisible to generic
+history/public readers. Source-account merge holds while such receipts exist; it
+cannot reparent or silently discard them.
+
+Subsequent explicit scan/operation deletion erases that private recovery receipt
+as well. Account erasure cascades it. Only an ownerless permanent logical UUID
+and terminal lifecycle classification survive, without dispatch permission.
+Cancellation does not insert an ordinary scan-deletion tombstone or implicitly
+delete a saved scan. Safe raw erasure conservatively fences unknown execution
+without settlement; the supported account owner settles provably unused original
+pre-row funding before user deletion. The existing restrictions on unsafe raw
+user deletion remain. See the
+[C1 contract](../rfcs/initial-cancellation-interface-2026-10-11.md).
 
 ## Related documents
 

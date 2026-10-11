@@ -35,8 +35,9 @@ back all writes. Private canonical bytes and every owner-derived digest erase on
 scan/account deletion; a permanent content-free scan-ID fence prevents reuse.
 Generic quota reacquisition, dispatch, settlement, expiry and pruning cannot
 operate on these IDs. Pre-row scan deletion erases private evidence while the
-original reservation and complimentary credit remain held: the future exact
-initial cancellation/settlement owner must prove non-execution before release.
+original reservation and complimentary credit remain held: the prepared exact
+initial cancellation owner can release only with fresh durable non-execution
+proof. Raw tombstone erasure remains conservative and leaves funding held.
 Account deletion cascades owner quota and usage rows; it does not refund or
 reclassify unknown execution. Unknown execution never permits a second provider
 call or refund.
@@ -148,12 +149,12 @@ namespaces are held.
 
 ## Remaining S0 boundary
 
-No initial dispatch/cancellation API, durable media staging, original result
-capture, completion, status operation, history enrollment or native installation
-is provided here. All three route adapters and affected recovery/cleanup workers
-must cut over together after old writers are quiescent. Enabling a gate alone is
-not a supported rollout. Fresh libraries remove older-scan compatibility duties,
-not contention or erasure duties.
+No initial dispatch API or installed cancellation route, durable media staging,
+original result capture, completion, status operation, history enrollment or
+native installation is provided here. All three route adapters and affected
+recovery/cleanup workers must cut over together after old writers are quiescent.
+Enabling a gate alone is not a supported rollout. Fresh libraries remove
+older-scan compatibility duties, not contention or erasure duties.
 
 `admission_test.ts` covers the private codec/repository and byte preparation.
 `transport_test.ts` covers cancellation/deadlines, actual streamed limits, no
@@ -167,3 +168,21 @@ are
 [database schema](../../../../../docs/backend-and-data/04-database-schema.md),
 [API contracts](../../../../../docs/backend-and-data/05-api-contracts.md) and
 [retention](../../../../../docs/backend-and-data/17-scientific-observation-retention.md).
+
+## Prepared C1 cancellation database owner
+
+`cancel_initial_analysis` is the fixed service-only database boundary. There is
+no installed handler/native transport for it yet. The
+[C1 API contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-initial-cancellation-under-ic-1-c1-inactive)
+defines exact unused-funding release, held unknown execution, cancellation-only
+private recovery receipts and stronger deletion. Fresh pending lifecycle state
+is created by admission in the same transaction; missing old state is never
+backfilled. The existing generic execution and settlement fences stay closed.
+Cancellation cannot modify an already saved scan. No dispatch grant, provider
+call, activation or installation is included.
+
+Cancellation also fences terminal scan/job/intent identity writes and rejects
+prepared IDs in legacy ingress, recovery and settlement owners. UUID aliases
+share the same serialized namespace. Existing generic work makes pending
+cancellation unknown and keeps original funding held. Dedicated initial
+completion and batch recovery qualification remain separate S0 work.

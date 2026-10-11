@@ -18266,3 +18266,38 @@ dispatch and cancellation, durable verified media, validated result capture,
 atomic completion and installed qualification remain required before activation.
 Ordinary history access remains nil. See the
 [private boundary and limits](../../services/supabase/functions/_shared/initialAnalysis/README.md).
+
+## Prepared initial cancellation under IC-1 C1 (inactive)
+
+The fixed service-only `cancel_initial_analysis(owner, scan)` returns a closed
+version-1 `{version, outcome: "cancelled", dispatch}` envelope. Its dispatch
+classification is `dispatch_prevented`, `dispatch_already_authorized` or
+`dispatch_outcome_unknown`, as specified in the independently reviewed
+[C1 addendum](../rfcs/initial-cancellation-interface-2026-10-11.md). No route,
+worker or native cancellation transport is installed by this database increment.
+
+Fresh admission atomically creates a pending lifecycle witness. There is no
+backfill, dispatch grant or pending-to-authorized transition in this increment.
+Cancellation releases the exact original reserved quota and matching held
+complimentary usage only with that positive pending witness, immutable original
+funding equality and no execution/result/completion contradiction. The existing
+quota and complimentary owners settle in the same transaction as cancellation
+and private evidence erasure. Expired lease or missing result alone is never
+proof. Missing/contradictory proof holds funding and returns unknown.
+
+A minimal private owner/scan/classification receipt permits exact same-owner
+replay after cancellation; gate closure does not prevent recovery. It contains
+no text, digest, funding or result reference. Explicit operation/scan deletion
+and account erasure remove that receipt; source-account merge holds while it
+exists. A permanent ownerless UUID/classification fence prevents resurrection.
+Saved scans/completed operations reject late cancellation without mutation;
+ordinary deletion retains its existing explicit owner. Empty-namespace
+cancellation requires the default-off lifecycle gate, serializes all occupancy
+checks and claims the logical UUID without funding, conservatively returning
+unknown. Foreign/ambiguous occupancy returns generic denial and no receipt.
+
+Supported account detachment handles pending pre-row operations before deleting
+the user tuple. Safe raw erasure only fences and erases, without refunds;
+existing unsafe raw-user-delete restrictions remain. S0 media, dispatch, result
+capture, completion, all-route/worker cutover and installed qualification remain
+open.
