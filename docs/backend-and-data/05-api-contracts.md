@@ -18301,3 +18301,22 @@ the user tuple. Safe raw erasure only fences and erases, without refunds;
 existing unsafe raw-user-delete restrictions remain. S0 media, dispatch, result
 capture, completion, all-route/worker cutover and installed qualification remain
 open.
+
+### Prepared initial media allocation under IC-1 M1 (inactive)
+
+Five fixed service-only RPCs prepare media metadata:
+`allocate_initial_analysis_media`, `get_initial_analysis_media`,
+`retire_initial_analysis_media`, `claim_initial_analysis_media_erasure`, and
+`finish_initial_analysis_media_erasure`. Their exact closed v1 arguments,
+responses, denials and precedence are defined in the
+[M1 interface](../rfcs/initial-media-allocation-interface-2026-10-11.md). They
+install no Edge route or native adapter and supply no physical upload,
+verified-byte, provider invocation or funding-settlement authority.
+
+The allocator derives the full cohort from original admission, never caller
+replacement tuples. Exact replay retains backend, deadline and object IDs;
+expired metadata is recoverable without renewal. Live retired cohorts return no
+binding, while cancellation/deletion denials take precedence over retirement.
+Cleanup claims identify only the original opaque destination and current lease.
+Lost acknowledgements remain unknown to that caller; an empty claim cannot prove
+marker confirmation. Production activation remains disabled.

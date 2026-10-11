@@ -350,3 +350,22 @@ clearing, schema classification failures, immutable detachment and RLS.
 `observationScientificRetentionConcurrencyDb.test.ts` races real selection and
 bound rejection RPCs against account detachment in both orders. These tests use
 only a disposable local database; rollout qualification remains separate.
+
+### Prepared initial media retirement (IC-1 M1)
+
+Private initial-media cohorts contain source/prepared hashes, lengths, types and
+admitted transform metadata. C1 cancellation, scan deletion and account
+detachment erase these bindings before or after enrollment while atomically
+retiring all original opaque destinations. A content-free permanent allocation
+fence also survives empty text cohorts. The separate registry retains only
+operation/object/backend generation and cleanup coordination, never owner or
+private media provenance. Retention and cleanup use the original immutable
+backend generation rather than current defaults.
+
+Deadline expiry alone cannot retire later-used media or refund funding. The
+prepared metadata routines do not perform physical erasure. A future transport
+must permanently replace retired objects with same-key empty markers, confirm
+those markers, and acknowledge only current cleanup claims. Actual credentials,
+private storage, late-write races and marker retention remain externally
+unqualified. See the
+[M1 contract](../rfcs/initial-media-allocation-interface-2026-10-11.md).

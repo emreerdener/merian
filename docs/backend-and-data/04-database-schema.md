@@ -8537,3 +8537,24 @@ The
 and [C1 addendum](../rfcs/initial-cancellation-interface-2026-10-11.md) define
 outcomes, precedence and remaining qualification. Neither gate activation nor
 native installation is included.
+
+### Prepared initial media allocation under IC-1 M1 (inactive)
+
+`initial_analysis_media_backends` retains immutable non-secret physical profile
+generations, with no seeded target. The rollout's nullable generation selects
+first allocation; caller input only asserts that selection. The private
+`initial_analysis_media_cohorts` manifest binds original submission, owner,
+ordered input/source/prepared tuples and a fixed five-minute deadline. One
+permanent `initial_analysis_media_allocation_fences` row prevents replacement,
+including empty text cohorts. `initial_analysis_media_registry` retains opaque
+operation/object/backend identities, irreversible retirement and cleanup lease
+state without owner, media hashes, types or content. All four tables have RLS
+and deny direct API-role access.
+
+Cancellation and authoritative submission erasure retire every registry object
+before cascading the private cohort. Retirement locks objects in UUID order
+under the existing owner/advisory/lifecycle scope; cleanup locks only already
+retired registry rows. Registry IDs and backend generations are never reused or
+pruned. No physical storage, verified binding, dispatch or activation is
+supplied. See the
+[M1 contract](../rfcs/initial-media-allocation-interface-2026-10-11.md).

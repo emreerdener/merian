@@ -186,3 +186,23 @@ prepared IDs in legacy ingress, recovery and settlement owners. UUID aliases
 share the same serialized namespace. Existing generic work makes pending
 cancellation unknown and keeps original funding held. Dedicated initial
 completion and batch recovery qualification remain separate S0 work.
+
+## Prepared M1 media allocation database owner
+
+The inactive M1 database boundary derives one immutable ordered media cohort
+from the admitted input, using only the server-selected original backend
+generation. Source/prepared roles share an object only for identical complete
+tuples within one item; differing WAV tuples get separate objects and raw MP4 is
+source-only. Text has an explicit empty cohort and permanent allocation fence.
+Exact replay preserves original destinations and deadline even when defaults or
+the gate change. Expiry never creates a replacement cohort or upload authority.
+
+Pending-only whole-cohort retirement excludes later use and never settles
+funding. C1 cancellation and scan/account erasure remove private manifests while
+atomically retiring every opaque destination. Cleanup leases lock retired
+registry rows only; stale acknowledgements cannot confirm markers, and an empty
+claim cannot prove a lost acknowledgement succeeded. No actual backend profile,
+physical I/O, byte/transform verification, consumption binding, dispatch,
+installed reader or worker schedule is supplied. Those remain S0 prerequisites.
+The exact closed database envelopes and lock/qualification boundaries are in the
+[M1 interface](../../../../../docs/rfcs/initial-media-allocation-interface-2026-10-11.md).
