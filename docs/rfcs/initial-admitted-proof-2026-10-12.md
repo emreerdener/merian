@@ -6,8 +6,8 @@ Interface design accepted October 12, 2026 against
 [alpha roadmap](identification-history-alpha-readiness-2026-10-11.md). IC-1 and
 independent read-only review accepted revision 4, exact source SHA-256
 `7cbda4c9bf4563c08677a37485a2fe24a852088b6cadaa84493616cd0705d52e`. This is
-design acceptance. The inactive Deno component codec and shared vectors now
-implement the pure validation boundary below. SQL parity, private storage,
+design acceptance. The inactive Deno codec, private SQL counterpart and shared
+vectors now implement the pure validation boundary below. Private storage,
 funded transaction, concurrency and erasure qualification remain open. The
 history primary owns all writes. Activation remains disabled.
 
@@ -366,9 +366,22 @@ synthetic fixtures cover media cohorts, cross-component identity and integrity,
 accounting, microsecond timestamps and large exact Unicode text. Independent
 review and candidate gate evidence are recorded under
 `.artifacts/initial-admitted-codec/`. This is not a receipt issuer or live
-recovery owner. SQL parity and the complete funded transaction remain next; the
-codec cannot qualify locked policy, actual database rows, original archive
-availability, terminal/erasure fences or external operation merely from
-internally consistent retained bytes. Funding model means the returned effective
-provider model; the attempt and underlying reservation retain the quota-policy
-model.
+recovery owner. The private SQL counterpart is described below; the complete
+funded transaction remains next. The codec cannot qualify locked policy, actual
+database rows, original archive availability, terminal/erasure fences or
+external operation merely from internally consistent retained bytes. Funding
+model means the returned effective provider model; the attempt and underlying
+reservation retain the quota-policy model.
+
+## Inactive SQL parity checkpoint
+
+The forward SQL implementation now mirrors the complete Deno proof using twelve
+fixed canonical TEXT parameters, returning the receipt digest only. It reuses
+specialized context/metadata validators and enforces component bounds, exact
+UTF-8 commitments, funding/accounting coupling and Gregorian microsecond
+strings. Its four private invoker helpers have all API-role execution revoked.
+The schema and golden/negative fixtures remain shared with Deno; source and
+candidate qualification evidence belongs to `.artifacts/initial-admitted-sql/`.
+This supersedes the historical SQL-parity-next status only. Receipt storage,
+original-row locks, atomic funding, recovery, completion and erasure are still
+unimplemented by this slice, and activation remains disabled.

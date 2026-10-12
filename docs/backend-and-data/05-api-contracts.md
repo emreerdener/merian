@@ -18713,9 +18713,20 @@ complimentary hold. Bucket nonblank semantics match PostgreSQL space trimming;
 original bytes are never normalized.
 
 `admitted-proof-schema-v1.json` and complete synthetic golden/negative vectors
-form the next SQL parity boundary. This pure decoder checks internal historical
-consistency only. It neither reads current selectors nor proves live ownership,
-archive availability, policy eligibility, actual charged rows, unused execution
-or dispatch authority. Those locked expected-image comparisons, SQL parity,
-private storage/erasure and the coherent funded runtime remain open. No runtime
-caller, public DTO, route or activation changes.
+also define the private SQL parity boundary. Four revoked helpers provide the
+schema, bounded component pre-parser, exact Gregorian timestamp validation and
+`internal.validate_initial_admitted_proof`. The composite accepts twelve fixed
+TEXT arguments and returns only the computed receipt digest. It reuses the
+specialized original metadata/context validators; the component pre-parser alone
+is not full proof validation. Each original is bounded before parsing and is
+never serialized into one aggregate JSON document. All helpers use empty search
+paths and invoker security, with no API-role execution privilege.
+
+These pure decoders check internal historical consistency only. They neither
+read current selectors nor prove live ownership, archive availability, policy
+eligibility, actual charged rows, unused execution or dispatch authority. Locked
+expected-image comparisons, private storage/erasure and the coherent funded
+runtime remain open. No runtime caller, public DTO, route or activation changes.
+SQL fixture/catalog and Deno schema/vector equality evidence are retained in
+`.artifacts/initial-admitted-sql/`; this is not hosted or installed
+qualification.

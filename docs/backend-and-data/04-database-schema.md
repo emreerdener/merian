@@ -8932,3 +8932,35 @@ This parity does not qualify storage bytes, registry freshness, current
 eligibility or transaction timing. The complete admitted receipt and durable
 closed accounting proof remain deferred; existing runtime owners and M1/M2
 readers do not adopt these metadata versions. Activation remains false.
+
+### Inactive complete admitted-proof SQL parity
+
+`internal.initial_admitted_proof_schema`,
+`internal.parse_initial_admitted_component`,
+`internal.valid_initial_admitted_timestamp` and
+`internal.validate_initial_admitted_proof` extend the pure metadata prerequisite
+with the complete fixed proof format. The last function accepts twelve original
+canonical TEXT values (eleven mandatory components and manifest), validates each
+cap before JSON parsing, and returns only the domain-separated receipt digest.
+It uses the existing specialized qualified context, source projection, metadata
+and media-binding validators. The generic bounded component pre-parser is not a
+standalone semantic proof validator. No complete proof is serialized as one
+aggregate JSON object, so independently valid large components preserve their
+existing limits.
+
+The manifest binds exact UTF-8 byte counts, digests, scope, assignment, media,
+ordered descriptions and admission window. Closed funding/accounting validation
+keeps effective funding and quota-attempt models distinct, original provider and
+protocol selection coherent, charge links ordered, and complimentary state bound
+to the original plan and scan. Timestamps use exact Gregorian calendar
+arithmetic for six microsecond digits and years 1–9999 without timezone or
+precision coercion. Historical lease values convey no current authority.
+
+All four helpers are invoker functions with empty search paths; execution is
+revoked from PUBLIC, anon, authenticated and service_role. Shared vectors, large
+Unicode inputs, re-committed semantic negatives, real role denials and catalog
+properties are covered by `tests/initial_admitted_proof.sql` and the Deno
+migration contract. This creates no receipt row, RPC grant, trigger, selector,
+funding, recovery or dispatch authority. The complete atomic funded owner,
+original-row comparisons and erasure remain separate prerequisites; activation
+stays false.
