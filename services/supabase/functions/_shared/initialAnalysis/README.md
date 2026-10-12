@@ -389,22 +389,22 @@ qualification or funding authority.
 a conservative one-per-profile-rule association template. Empty SQL catalogs
 bind exact immutable source/destination/profile identities and retain revocation
 separately. Nullable immutable selection binding cannot retrofit old
-generations. No runtime owner consumes these catalogs yet; actual-cohort
-grant/admission checks and external qualification remain required. See the
-database and API contracts for template limits and digest domains. The Deno
-helper checks declarations against each other; SQL owns comparison with the
+generations. The catalog migration itself does not adopt runtime owners;
+actual-cohort grant/admission checks and external qualification are separate.
+See the database and API contracts for template limits and digest domains. The
+Deno helper checks declarations against each other; SQL owns comparison with the
 retained private source and destination backend rows.
 
 `qualifiedPreparationCodec.ts` and migration `20261011233227` prepare separate
 closed assignment/allocation-v3 and grant/outcome/reply-v2 codecs. Nested
 source, output and resolved receipts keep v1 and bind the original v3 assignment
 digest. The outcome uses its explicit v2 digest domain. New helpers are revoked
-invokers; no resolver, action owner, grant issuance, funding or route imports
-them. Their context constructor validates supplied declarations; a future owner
-must supply and compare the exact retained private catalog/intent rows.
-Subordinate SQL helpers consume that constructed context, not service input. The
-schema-only reply decoder is not receipt authority. Original v2/v1 decoders stay
-unchanged.
+invokers; the codec migration itself changes no resolver, action owner, grant
+issuance, funding or route imports. Their context constructor validates supplied
+declarations; a future owner must supply and compare the exact retained private
+catalog/intent rows. Subordinate SQL helpers consume that constructed context,
+not service input. The schema-only reply decoder is not receipt authority.
+Original v2/v1 decoders stay unchanged.
 
 Saved grant arithmetic includes the exact handoff profile/installation/protocol,
 H, actual ordered-role W and original expiry E. Its strict issue + 45,000 + W +
@@ -415,3 +415,13 @@ facts and mapping; it does not verify object bytes, global namespace ownership,
 installed artifacts or durable issuance. Internal v1 validation projections are
 never emitted or saved as rewritten original receipts. No S0 activation or
 external qualification is claimed.
+
+The gated SQL owner transition in `20261012000419` now binds new private media
+allocations to immutable original qualification and applies actual-cohort and
+fresh locked budget checks at issuance. Saved assignment v3 selects execution v2
+while nested source/output/resolved stay v1. Old unissued v2 allocations are
+held; already-issued v1 outcomes retain original recovery. Eligibility locks
+serialize revocation without replacing saved identity. Raw INSERT and public
+action checks share the same closure. This does not adopt either Deno runner or
+ordinary HTTP/native routes, fund a request, activate catalogs, or qualify real
+storage/adapter behavior. See the database/API owner-transition contracts.

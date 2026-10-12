@@ -210,7 +210,7 @@ def main():
         if initialized:
             admin.run("UPDATE internal.initial_analysis_rollout SET initial_analysis_lifecycle_enabled=FALSE;")
             if catalog:
-                admin.run("DELETE FROM internal.initial_preparation_current_selection; UPDATE internal.initial_preparation_profile_eligibility SET state='revoked' WHERE state='eligible'; UPDATE internal.initial_preparation_backend_eligibility SET state='revoked' WHERE state='eligible';")
+                admin.run("DELETE FROM internal.initial_preparation_current_selection; UPDATE internal.initial_preparation_profile_eligibility SET state='revoked' WHERE state='eligible'; UPDATE internal.initial_preparation_backend_eligibility SET state='revoked' WHERE state='eligible'; UPDATE internal.initial_preparation_handoff_eligibility SET state='revoked' WHERE state='eligible';")
             admin.run("BEGIN; DELETE FROM public.users WHERE id IN (" + ",".join(map(literal, owners)) + "); DELETE FROM auth.users WHERE id IN (" + ",".join(map(literal, owners)) + "); COMMIT;")
         for s in sessions:
             s.close()

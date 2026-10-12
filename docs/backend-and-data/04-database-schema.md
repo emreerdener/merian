@@ -8865,6 +8865,47 @@ private rows before adoption; global namespace ownership remains an owner check.
 The grant's saved issue + 45,000 + W + H < original E inequality is strict; a
 fresh locked server-clock check remains required at eventual issuance.
 Source/output/resolved receipts retain v1, and only grant/outcome/response move
-to v2. Original v2 assignment and v1 execution owners remain unchanged. This
-checkpoint is declaration/coherence preparation, not the paired owner cutover,
-atomic funding/admission or completion of S0.
+to v2. That migration leaves original v2 assignment and v1 execution owners
+unchanged. Its checkpoint is declaration/coherence preparation, not the paired
+owner cutover, atomic funding/admission or completion of S0.
+
+### Gated qualified preparation owners
+
+Migration `20261012000419` adopts the qualified codecs inside the existing
+private preparation owners. Fresh media allocation requires an eligible exact
+handoff installation on a new immutable selection generation and saves a v3
+assignment. Original v2 assignments are never enriched. No-media admission,
+funding, M1/M2, completion and ordinary route installation are unchanged; the
+activation gate remains disabled and no catalogs are seeded.
+
+Saved context binds the immutable selection, preparation installation, source
+backend installation, handoff profile/installation/protocol and destination
+backend. It never uses the current selector for recovery. Allocation, insertion
+and deferred coherence apply actual ordered-cohort checks, including repeated
+roles, aggregate preparation resources, compatible type pairs, and handoff
+ordinal/object/byte caps. Images and raw video count once; audio reserves its
+source plus the worst-case separate output until a later exact alias is proven.
+These are declaration and representability checks, not storage-byte or installed
+adapter qualification.
+
+Resolver, raw source/grant INSERT and execution action lock eligibility in the
+same order: preparation profile, source backend, then saved handoff
+installation, using `FOR SHARE NOWAIT`. Revocation takes the conflicting row
+update lock. The locks last through transaction completion. Raw grant insertion
+repeats actual cohort validation and samples the server clock after these locks;
+both action and guard require `now + 45,000 + W + H < original E`. Saved grant
+arithmetic cannot substitute for that live check. Grant/outcome shape CHECKs
+admit their closed v1/v2 formats, while the locked-parent validators enforce
+assignment-v2 with execution-v1 and assignment-v3 with execution-v2.
+Source/output/resolved formats remain v1. Existing global object ownership and
+provider/C1 barriers remain in force.
+
+Identity, deletion, original expiry and full coherence precede
+operation-specific replay. Exact saved source/output/outcome retries retain the
+original values; new source and grant work recheck eligibility. Status and known
+post-grant registration preserve original identity and phase deadlines despite
+revocation. An old unissued v2 assignment receives the explicit v2
+qualification-unavailable refusal; an already-issued v1 operation keeps v1
+status and settlement. Missing locked parent remains a server-fixed v1 missing
+refusal. No caller payload selects a response version. Full S0 and atomic
+admission remain incomplete.

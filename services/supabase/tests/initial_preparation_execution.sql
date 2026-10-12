@@ -39,7 +39,27 @@ INSERT INTO internal.initial_preparation_installations(digest,target_kind,target
 SELECT internal.initial_media_contract_digest('installation',internal.initial_canonical(value)),value->>'target_kind',value->>'target_digest',value->>'evidence_digest',value->>'reviewed_revision',value->>'installer_protocol' FROM (
  SELECT jsonb_build_object('target_kind','backend','target_digest',configuration_digest,'evidence_digest',repeat('a',64),'reviewed_revision',repeat('b',40),'installer_protocol','reviewed_database_owner_install_v1') value FROM internal.initial_preparation_source_backends) x;
 INSERT INTO internal.initial_preparation_backend_eligibility(generation,configuration_digest,installation_digest,state) SELECT b.generation,b.configuration_digest,i.digest,'eligible' FROM internal.initial_preparation_source_backends b JOIN internal.initial_preparation_installations i ON i.target_kind='backend' AND i.target_digest=b.configuration_digest;
-INSERT INTO internal.initial_preparation_selections(generation,profile_digest,backend_generation) SELECT ('00000000-0000-4000-8000-'||lpad((64000+i)::TEXT,12,'0'))::UUID,v->>'profile_digest','00000000-0000-4000-8000-00000000fb01' FROM media_vectors;
+-- BEGIN QUALIFIED HANDOFF FIXTURE (synthetic declarations, rollback/local only)
+CREATE FUNCTION pg_temp.install_handoff(profile_digest TEXT,backend UUID) RETURNS TEXT LANGUAGE PLPGSQL AS $$
+DECLARE protocol JSONB:=$protocol${"deadline_protocol":{"schema_version":1,"sha256":"5555555555555555555555555555555555555555555555555555555555555555"},"input_projection":{"schema_version":1,"sha256":"1111111111111111111111111111111111111111111111111111111111111111"},"m1_mapping":{"schema_version":2,"sha256":"2222222222222222222222222222222222222222222222222222222222222222"},"m2_codec":{"schema_version":2,"sha256":"3333333333333333333333333333333333333333333333333333333333333333"},"response_codec":{"schema_version":2,"sha256":"6666666666666666666666666666666666666666666666666666666666666666"},"transfer_validator":{"schema_version":1,"sha256":"4444444444444444444444444444444444444444444444444444444444444444"},"version":1}$protocol$::JSONB; h JSONB:=$handoff${"cohort_limits":{"alias_policy":"same_ordinal_exact_bytes_only","content_type_pairs":[{"kind":"image","prepared_content_type":"image/png","source_content_type":"image/png"}],"max_ordinals":8,"max_unique_bytes":28625792,"max_unique_objects":10,"video_policy":"source_only"},"copy_adapter_digest":"9999999999999999999999999999999999999999999999999999999999999999","destination_backend_config_digest":"61feeb96c669da704f2b8bf0202bcd90ff929589cb2013d65dd05eb9d6d953a7","destination_backend_generation":"00000000-0000-4000-8000-00000000b002","execution_model":"sequential_whole_cohort","generation":"00000000-0000-4000-8000-000000000001","phase_ms":{"admission":10000,"copy":25000,"protocol_margin":5000,"reconciliation":10000,"transfer":5000,"verification":15000,"verification_claim":5000,"verification_settlement":5000},"protocol_artifact_digest":"b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53","source_backend_config_digest":"9e5a79bd5260f1702ecdc8d4c7ede937f1997258e354f66f1b1e866b33deb82f","source_backend_generation":"00000000-0000-4000-8000-00000000b001","total_ms":80000,"verification_adapter_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","version":1}$handoff$::JSONB; install JSONB:=$install${"copy_adapter_digest":"9999999999999999999999999999999999999999999999999999999999999999","destination_backend_generation":"00000000-0000-4000-8000-00000000b002","evidence_digest":"9999999999999999999999999999999999999999999999999999999999999999","installer_protocol":"reviewed_database_owner_install_v1","preparation_profile_digest":"0453660d5f231196cc9f81f101c749bbdf2b6e77f94065fbe9e019267a9a9ed6","profile_digest":"12974ed97b1e07938706c216c17f44de479145b0f56ed21329de7f594182293c","profile_generation":"00000000-0000-4000-8000-000000000001","protocol_artifact_digest":"b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53","qualification_harness_digest":"7777777777777777777777777777777777777777777777777777777777777777","reviewed_source_revision":"8888888888888888888888888888888888888888","source_backend_generation":"00000000-0000-4000-8000-00000000b001","verification_adapter_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","version":1}$install$::JSONB; profile JSONB; dest JSONB; source_digest TEXT; hd TEXT; id TEXT;
+BEGIN
+ SELECT canonical_profile::JSONB INTO STRICT profile FROM internal.initial_preparation_profiles WHERE digest=profile_digest;
+ SELECT configuration_digest INTO STRICT source_digest FROM internal.initial_preparation_source_backends WHERE generation=backend;
+ dest:=jsonb_build_object('generation','00000000-0000-4000-8000-00000000fb02','provider','r2','direct_endpoint','https://'||repeat('0',32)||'.r2.cloudflarestorage.com','private_bucket','synthetic-only','namespace','initial-analysis/v1','credential_profile','synthetic_only');
+ INSERT INTO internal.initial_analysis_media_backends(generation,provider,direct_endpoint,private_bucket,namespace,credential_profile) VALUES((dest->>'generation')::UUID,dest->>'provider',dest->>'direct_endpoint',dest->>'private_bucket',dest->>'namespace',dest->>'credential_profile') ON CONFLICT DO NOTHING;
+ INSERT INTO internal.initial_preparation_handoff_protocol_artifacts VALUES(internal.initial_handoff_digest('protocol_artifact',internal.initial_canonical(protocol)),internal.initial_canonical(protocol)) ON CONFLICT DO NOTHING;
+ h:=h||jsonb_build_object('generation',gen_random_uuid(),'source_backend_generation',backend,'source_backend_config_digest',source_digest,'destination_backend_generation',dest->>'generation','destination_backend_config_digest',internal.initial_handoff_catalog_digest('destination_backend',internal.initial_canonical(dest)));
+ h:=jsonb_set(h,'{cohort_limits,content_type_pairs}',(SELECT jsonb_agg(DISTINCT jsonb_build_object('kind',CASE WHEN r->>'role'='raw_video' THEN 'video' WHEN r->>'role' IN ('recording','video_audio') THEN 'audio' ELSE 'image' END,'source_content_type',t,'prepared_content_type',CASE WHEN r->>'role'='raw_video' THEN NULL WHEN r->>'role' IN ('recording','video_audio') THEN 'audio/wav' ELSE t END)) FROM jsonb_array_elements(profile#>'{spec,rules}') r CROSS JOIN LATERAL jsonb_array_elements_text(r->'source_types') t));
+ hd:=internal.initial_handoff_digest('profile',internal.initial_canonical(h));
+ INSERT INTO internal.initial_preparation_handoff_profiles VALUES((h->>'generation')::UUID,hd,internal.initial_canonical(h),h->>'protocol_artifact_digest',backend,source_digest,(dest->>'generation')::UUID,h->>'destination_backend_config_digest');
+ install:=install||jsonb_build_object('profile_generation',h->>'generation','profile_digest',hd,'preparation_profile_digest',profile_digest,'source_backend_generation',backend,'destination_backend_generation',dest->>'generation');
+ id:=internal.initial_handoff_catalog_digest('installation',internal.initial_canonical(install));
+ INSERT INTO internal.initial_preparation_handoff_installations VALUES(id,internal.initial_canonical(install),(h->>'generation')::UUID,hd,profile_digest,backend);
+ INSERT INTO internal.initial_preparation_handoff_eligibility VALUES(id,'eligible');
+ RETURN id;
+END; $$;
+-- END QUALIFIED HANDOFF FIXTURE
+INSERT INTO internal.initial_preparation_selections(generation,profile_digest,backend_generation,handoff_installation_digest) SELECT ('00000000-0000-4000-8000-'||lpad((64000+i)::TEXT,12,'0'))::UUID,v->>'profile_digest','00000000-0000-4000-8000-00000000fb01',pg_temp.install_handoff(v->>'profile_digest','00000000-0000-4000-8000-00000000fb01') FROM media_vectors;
 INSERT INTO internal.initial_preparation_current_selection SELECT v#>>'{profile,spec,input_profile}',s.generation FROM media_vectors JOIN internal.initial_preparation_selections s ON s.profile_digest=v->>'profile_digest';
 CREATE FUNCTION pg_temp.funding_tripwire() RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
@@ -79,6 +99,7 @@ BEGIN
  response:=public.issue_initial_preparation_execution(saved.owner_id,scan,saved.assignment_digest,response->>'digest');
  IF phase=2 THEN RETURN response; END IF;
  grant_value:=response->'grant';
+ IF grant_value IS NULL THEN SELECT canonical_grant::JSONB INTO STRICT grant_value FROM internal.initial_preparation_execution_grants WHERE scan_id=scan; END IF;
  SELECT jsonb_agg(jsonb_build_object('ordinal',e->'ordinal','prepared',CASE WHEN e->>'role'<>'raw_video' THEN jsonb_build_object('bytes',jsonb_build_object('byte_count',CASE WHEN e#>>'{source,kind}'='audio' THEN '32'::JSONB ELSE e#>'{source,source_byte_count}' END,'sha256',CASE WHEN e#>>'{source,kind}'='audio' THEN repeat('7',64) ELSE e#>>'{source,source_sha256}' END,'content_type',e#>'{source,source_content_type}'),'transform',e#>'{source,transform}','parameters',e#>'{source,transform_parameters}','source_identity',e#>>'{source,kind}'<>'audio') END) ORDER BY i) INTO entries FROM jsonb_array_elements(saved.canonical_assignment::JSONB#>'{preparation,source_mapping}') WITH ORDINALITY v(e,i);
  request:=jsonb_build_object('version',1,'scan_id',scan,'assignment_digest',saved.assignment_digest,'grant_id',grant_value->'grant_id','source_digest',grant_value->'source_digest','entries',entries);
  IF phase=13 THEN RETURN request; END IF;
@@ -87,7 +108,7 @@ BEGIN
  resolved:=response->'resolved';
  SELECT canonical_profile::JSONB INTO STRICT profile FROM internal.initial_preparation_profiles WHERE digest=saved.canonical_assignment::JSONB#>>'{preparation,profile_digest}';
  SELECT jsonb_agg(jsonb_build_object('ordinal',e->'ordinal','object_id',resolved#>ARRAY['entries',(i-1)::TEXT,'object_id'],'bytes',e#>'{prepared,bytes}') ORDER BY i) INTO entries FROM jsonb_array_elements(request->'entries') WITH ORDINALITY v(e,i) WHERE e->'prepared'<>'null'::JSONB;
- outcome:=jsonb_build_object('version',1,'scan_id',scan,'assignment_digest',saved.assignment_digest,'grant',grant_value,'source_verification',pg_temp.source_receipt(scan)::JSONB,'output_manifest',request,'resolved_manifest',resolved,'profile',profile,'retained',entries);
+ outcome:=jsonb_build_object('version',(grant_value->>'version')::INTEGER,'scan_id',scan,'assignment_digest',saved.assignment_digest,'grant',grant_value,'source_verification',pg_temp.source_receipt(scan)::JSONB,'output_manifest',request,'resolved_manifest',resolved,'profile',profile,'retained',entries);
  IF phase=14 THEN RETURN outcome; END IF;
  RETURN public.settle_initial_preparation_outcome(saved.owner_id,scan,saved.assignment_digest,internal.initial_canonical(outcome));
 END; $$;
@@ -103,7 +124,7 @@ BEGIN
  UPDATE internal.initial_analysis_preparation_intents SET created_at=created_at-delta*interval '1 millisecond',expires_at=expires_at-delta*interval '1 millisecond' WHERE scan_id=scan;
  SELECT canonical_grant::JSONB INTO grant_value FROM internal.initial_preparation_execution_grants WHERE scan_id=scan;
  IF grant_value IS NOT NULL THEN
-  FOREACH key IN ARRAY ARRAY['issued_at_ms','execution_deadline_ms','registration_deadline_ms','outcome_deadline_ms'] LOOP
+  FOREACH key IN ARRAY ARRAY['issued_at_ms','execution_deadline_ms','registration_deadline_ms','outcome_deadline_ms','preparation_expires_at_ms'] LOOP
    grant_value:=jsonb_set(grant_value,ARRAY[key],to_jsonb((grant_value->>key)::BIGINT-delta));
   END LOOP;
   UPDATE internal.initial_preparation_execution_grants SET canonical_grant=internal.initial_canonical(grant_value) WHERE scan_id=scan;
@@ -196,6 +217,54 @@ BEGIN
  EXCEPTION WHEN SQLSTATE 'ZX002' THEN RETURN TRUE;
  END;
 END; $$;
+-- Simulate retained pre-cutover records, never a new legacy writer.
+CREATE FUNCTION pg_temp.legacy_execution_probe(scan UUID,issued BOOLEAN) RETURNS JSONB LANGUAGE PLPGSQL AS $$
+DECLARE a JSONB; receipt JSONB; g JSONB; ad TEXT; sd TEXT; status JSONB; issue JSONB; result JSONB;
+BEGIN
+ PERFORM pg_temp.media_create(scan,3);
+ IF issued THEN PERFORM pg_temp.execution_advance(scan,2); END IF;
+ SET CONSTRAINTS ALL IMMEDIATE; SET CONSTRAINTS ALL DEFERRED;
+ ALTER TABLE internal.initial_analysis_preparation_intents DISABLE TRIGGER guard_initial_preparation_storage;
+ ALTER TABLE internal.initial_preparation_source_verifications DISABLE TRIGGER guard_initial_execution_private;
+ ALTER TABLE internal.initial_preparation_execution_grants DISABLE TRIGGER guard_initial_execution_private;
+ SELECT jsonb_set(canonical_assignment::JSONB-'handoff','{version}','2') INTO a FROM internal.initial_analysis_preparation_intents WHERE scan_id=scan;
+ ad:=internal.initial_preparation_digest('assignment',internal.initial_canonical(a));
+ UPDATE internal.initial_analysis_preparation_intents SET canonical_assignment=internal.initial_canonical(a),assignment_digest=ad WHERE scan_id=scan;
+ IF issued THEN
+  SELECT jsonb_set(canonical_receipt::JSONB,'{assignment_digest}',to_jsonb(ad)) INTO receipt FROM internal.initial_preparation_source_verifications WHERE scan_id=scan;
+  sd:=internal.initial_preparation_execution_digest('source_verification',internal.initial_canonical(receipt));
+  UPDATE internal.initial_preparation_source_verifications SET canonical_receipt=internal.initial_canonical(receipt),digest=sd WHERE scan_id=scan;
+  SELECT jsonb_set(canonical_grant::JSONB-ARRAY['handoff_profile_digest','handoff_installation_digest','protocol_artifact_digest','handoff_total_ms','preparation_wall_ms','preparation_expires_at_ms'],'{version}','1')||jsonb_build_object('assignment_digest',ad,'source_digest',sd) INTO g FROM internal.initial_preparation_execution_grants WHERE scan_id=scan;
+  UPDATE internal.initial_preparation_execution_grants SET canonical_grant=internal.initial_canonical(g) WHERE scan_id=scan;
+ END IF;
+ SET CONSTRAINTS ALL IMMEDIATE;
+ ALTER TABLE internal.initial_analysis_preparation_intents ENABLE TRIGGER guard_initial_preparation_storage;
+ ALTER TABLE internal.initial_preparation_source_verifications ENABLE TRIGGER guard_initial_execution_private;
+ ALTER TABLE internal.initial_preparation_execution_grants ENABLE TRIGGER guard_initial_execution_private;
+ SET CONSTRAINTS ALL IMMEDIATE; SET CONSTRAINTS ALL DEFERRED;
+ IF NOT issued THEN PERFORM pg_temp.execution_advance(scan,1); END IF;
+ status:=public.get_initial_preparation_execution_status('00000000-0000-4000-8000-00000000f001',scan,ad);
+ issue:=pg_temp.execution_advance(scan,2);
+ IF issued THEN result:=pg_temp.execution_advance(scan,4); END IF;
+ RETURN jsonb_build_object('scan',scan,'status',status,'issue',issue,'result',result,'grants',(SELECT count(*) FROM internal.initial_preparation_execution_grants WHERE scan_id=scan));
+END; $$;
+CREATE TEMP TABLE legacy_probes AS SELECT issued,pg_temp.legacy_execution_probe(gen_random_uuid(),issued) v FROM (VALUES(FALSE),(TRUE)) x(issued);
+SELECT extensions.is(v#>>'{status,version}','1','legacy status preserves v1') FROM legacy_probes;
+SELECT extensions.is(v#>>'{issue,version}','2','old unissued refusal is explicit v2') FROM legacy_probes WHERE NOT issued;
+SELECT extensions.is(v#>>'{issue,reason}','handoff_qualification_unavailable','old unissued cannot gain a grant') FROM legacy_probes WHERE NOT issued;
+SELECT extensions.is(v#>>'{issue,authority}','none','old unissued refusal has no authority') FROM legacy_probes WHERE NOT issued;
+SELECT extensions.throws_ok(format('INSERT INTO internal.initial_preparation_execution_grants(scan_id,canonical_grant) VALUES(%L,%L)',v->>'scan','{}'),'55000','initial_analysis_handoff_qualification_unavailable','raw INSERT cannot issue under legacy unqualified assignment') FROM legacy_probes WHERE NOT issued;
+SELECT extensions.is((v->>'grants')::INTEGER,CASE WHEN issued THEN 1 ELSE 0 END,'legacy replay does not issue again') FROM legacy_probes;
+SELECT extensions.is(v#>>'{result,version}','1','known legacy result remains v1') FROM legacy_probes WHERE issued;
+SELECT extensions.is(v#>>'{result,outcome}','outcome_ready','known legacy result settles originally') FROM legacy_probes WHERE issued;
+SELECT extensions.is(public.get_initial_preparation_execution_status('00000000-0000-4000-8000-00000000f001',gen_random_uuid(),repeat('a',64)),'{"version":1,"outcome":"held","reason":"missing"}'::JSONB,'missing parent version is fixed');
+-- Actual repeated ordinals are bounded independently of catalog templates.
+CREATE TEMP TABLE qualified_contexts AS SELECT i,internal.initial_saved_qualified_context(s.canonical_candidate,s.canonical_assignment) ctx FROM execution_saved x JOIN internal.initial_analysis_preparation_intents s ON s.scan_id=x.scan;
+SELECT extensions.lives_ok(format('SELECT internal.assert_initial_qualified_cohort(%L::JSONB)',ctx),'actual cohort accepted '||i) FROM qualified_contexts;
+SELECT extensions.throws_ok(format('SELECT internal.assert_initial_qualified_cohort(%L::JSONB)',jsonb_set(ctx,'{assignment,handoff,profile,cohort_limits,max_unique_bytes}','1')),'55000','initial_analysis_handoff_cohort_unsupported','actual byte bound '||i) FROM qualified_contexts;
+SELECT extensions.throws_ok(format('SELECT internal.assert_initial_qualified_cohort(%L::JSONB)',jsonb_set(ctx,'{assignment,handoff,profile,cohort_limits,max_ordinals}','0')),'55000','initial_analysis_handoff_cohort_unsupported','actual ordinal bound '||i) FROM qualified_contexts;
+SELECT extensions.throws_ok(format('SELECT internal.assert_initial_qualified_cohort(%L::JSONB)',jsonb_set(ctx,'{assignment,handoff,profile,cohort_limits,content_type_pairs}','[]')),'55000','initial_analysis_handoff_cohort_unsupported','actual content type bound '||i) FROM qualified_contexts;
+SELECT extensions.throws_ok(format('SELECT internal.assert_initial_qualified_cohort(%L::JSONB)',jsonb_set(ctx,'{assignment,handoff,profile,cohort_limits,max_unique_objects}',to_jsonb(jsonb_array_length(ctx#>'{assignment,preparation,source_mapping}')))),'55000','initial_analysis_handoff_cohort_unsupported','audio always reserves separate possible output '||i) FROM qualified_contexts WHERE i IN (3,4,6);
 -- Current selector changes cannot replace the saved assignment for first issue.
 SELECT pg_temp.media_create('00000000-0000-4000-8000-000000079201',3)->>'outcome';
 SELECT pg_temp.execution_advance('00000000-0000-4000-8000-000000079201',1)->>'outcome';
@@ -217,6 +286,7 @@ SET CONSTRAINTS ALL DEFERRED;
 SELECT extensions.is(pg_temp.execution_advance('00000000-0000-4000-8000-000000079202',2)->>'reason','budget','insufficient original remaining budget holds before grant');
 SELECT extensions.is((SELECT execution_state FROM internal.initial_preparation_source_fences WHERE scan_id='00000000-0000-4000-8000-000000079202'),'unissued','budget hold never consumes issued bit');
 SELECT extensions.is((SELECT count(*) FROM internal.initial_preparation_execution_grants WHERE scan_id='00000000-0000-4000-8000-000000079202'),0::BIGINT,'budget hold creates no private grant');
+SELECT extensions.throws_ok($$INSERT INTO internal.initial_preparation_execution_grants(scan_id,canonical_grant) VALUES('00000000-0000-4000-8000-000000079202','{}')$$,'55000','initial_analysis_preparation_expired','raw INSERT repeats fresh remaining-budget denial before accepting grant');
 SELECT public.cancel_initial_analysis('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-000000079202');
 -- Each coherent stage independently cancels before registry retirement.
 CREATE TEMP TABLE execution_phases AS SELECT n,('00000000-0000-4000-8000-'||lpad((79000+n)::TEXT,12,'0'))::UUID scan,pg_temp.media_create(('00000000-0000-4000-8000-'||lpad((79000+n)::TEXT,12,'0'))::UUID,3) allocation FROM generate_series(0,4) n;

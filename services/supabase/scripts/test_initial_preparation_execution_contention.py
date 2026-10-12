@@ -108,6 +108,46 @@ def main():
                     second.run("ROLLBACK;")
                 no_private(scan)
                 print("PASS phase/C1 opposed order",phase,execution_first,flush=True)
+        # Saved handoff eligibility serializes both source registration and issue.
+        # Each race gets a NEW immutable installation/selection; revocation is terminal.
+        def new_handoff_selection():
+            return admin.run("WITH old AS (SELECT s.* FROM internal.initial_preparation_current_selection c JOIN internal.initial_preparation_selections s USING(generation) WHERE c.input_profile='multimodal_audio_v1'), fresh AS (INSERT INTO internal.initial_preparation_selections(generation,profile_digest,backend_generation,handoff_installation_digest) SELECT gen_random_uuid(),profile_digest,backend_generation,pg_temp.install_handoff(profile_digest,backend_generation) FROM old RETURNING *) UPDATE internal.initial_preparation_current_selection c SET generation=f.generation FROM fresh f WHERE c.input_profile='multimodal_audio_v1' RETURNING f.handoff_installation_digest;")[0]
+
+        for phase in [1, 2]:
+            for execution_first in [True, False]:
+                installation = new_handoff_selection()
+                scan = create()
+                transition = prepared_transition(scan, phase)
+                revoke = f"UPDATE internal.initial_preparation_handoff_eligibility SET state='revoked' WHERE installation_digest={literal(installation)};"
+                if execution_first:
+                    first.run("BEGIN;" + transition)
+                    second.run("BEGIN;")
+                    pending = second.start(revoke)
+                    wait_for(first, second)
+                    first.run("COMMIT;")
+                    result = second.finish(pending)
+                    assert not any("ERROR:" in line for line in result), result
+                    second.run("COMMIT;")
+                    digest = admin.run(f"SELECT assignment_digest FROM internal.initial_analysis_preparation_intents WHERE scan_id={literal(scan)};")[0]
+                    status = admin.run(f"SELECT public.get_initial_preparation_execution_status('{OWNER}',{literal(scan)},{literal(digest)})->>'phase';")
+                    assert status == ["verified" if phase == 1 else "issued"], status
+                    # Exact original proof and known output/outcome remain recoverable.
+                    assert "verified" in admin.run(advance(scan, 1))
+                    if phase == 2:
+                        assert "outcome_ready" in admin.run(advance(scan, 4))
+                    else:
+                        admin.run(advance(scan, 2), error="initial_analysis_handoff_qualification_unavailable")
+                else:
+                    first.run("BEGIN;" + revoke)
+                    second.run("BEGIN;")
+                    second.run(transition, error="55P03")
+                    second.run("ROLLBACK;")
+                    first.run("COMMIT;")
+                    second.run(transition, error="initial_analysis_handoff_qualification_unavailable")
+                    assert admin.run(f"SELECT count(*) FROM internal.initial_preparation_execution_grants WHERE scan_id={literal(scan)};") == ["0"]
+                admin.run(cancel(scan))
+                print("PASS saved handoff revocation opposed order", phase, execution_first, flush=True)
+        new_handoff_selection()
         # A competing fresh issue waits and can only observe the issued bit.
         scan = create()
         first.run("BEGIN;"+advance(scan,2))
@@ -381,7 +421,7 @@ def main():
             s.run("ROLLBACK;")
         if initialized:
             admin.run("UPDATE internal.initial_analysis_rollout SET initial_analysis_lifecycle_enabled=FALSE;")
-            admin.run("DELETE FROM internal.initial_preparation_current_selection; UPDATE internal.initial_preparation_profile_eligibility SET state='revoked' WHERE state='eligible'; UPDATE internal.initial_preparation_backend_eligibility SET state='revoked' WHERE state='eligible';")
+            admin.run("DELETE FROM internal.initial_preparation_current_selection; UPDATE internal.initial_preparation_profile_eligibility SET state='revoked' WHERE state='eligible'; UPDATE internal.initial_preparation_backend_eligibility SET state='revoked' WHERE state='eligible'; UPDATE internal.initial_preparation_handoff_eligibility SET state='revoked' WHERE state='eligible';")
             admin.run(f"BEGIN; DELETE FROM public.users WHERE id='{OWNER}'; DELETE FROM auth.users WHERE id='{OWNER}'; COMMIT;")
             for table in ["internal.ai_quota_reservations", "internal.ai_quota_counters", "internal.complimentary_scan_usage", "internal.identification_provider_attempts", "public.users"]:
                 admin.run(f"DROP TRIGGER test_funding_tripwire ON {table};")

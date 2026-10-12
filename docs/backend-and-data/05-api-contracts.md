@@ -18596,9 +18596,9 @@ runtime installer.
 template specified in the database contract. The template is not actual-cohort
 qualification; its held error is
 `initial_analysis_handoff_catalog_envelope_unsupported`. SQL insertion binds
-exact immutable catalog parents. Runtime assignments/grants do not yet consume
-it. Existing no-media, capture DTOs and production installation remain
-unchanged, and no funding or provider authority is created.
+exact immutable catalog parents. The catalog migration itself does not switch
+runtime assignments/grants. Existing no-media, capture DTOs and production
+installation remain unchanged, and no funding or provider authority is created.
 
 ### Inactive original qualification codecs
 
@@ -18618,7 +18618,7 @@ and canonical text. Per-kind versions are closed. The explicit new refusal is
 `{version: 2, outcome: "held", authority: "none", reason:
 "handoff_qualification_unavailable"}`.
 It does not widen old v1 replies or relabel original status/outcome recovery.
-Future owner cutover must restrict it to refusal of new unqualified issuance
+The gated owner cutover restricts it to refusal of new unqualified issuance
 after original-recovery precedence.
 
 These codecs validate declarations and internal coherence only. SQL contexts
@@ -18629,3 +18629,31 @@ performed. The 65,536-byte full assignment, 131,072-byte receipt and
 524,288-byte reply bounds apply to complete embedded records.
 Admission/transferred replies remain reserved for their separately reviewed
 receipt-owner implementation.
+
+### Gated qualified preparation response routing
+
+`20261012000419` makes new private media allocations v3 after exact saved
+installation qualification. Existing `create_initial_preparation_intent` and
+`get_initial_preparation_status` preserve v2 replies for retained v2 media
+assignments, and return v3 allocation/expired replies for v3 assignments. The
+distinct allocation-response validator checks each v2/v3 envelope, including
+blocked and expired responses, before return. Execution reply versions use their
+separate codec namespace. No-media v2 remains unchanged. No ordinary HTTP/native
+caller adopts these responses yet.
+
+The five existing execution RPCs route by the locked saved assignment: v3 uses
+closed reply v2, grant/outcome v2 and nested source/output/resolved v1. Retained
+v2 uses original v1 status and known-result registration. Old unissued execution
+cannot obtain a new v1 grant; after original identity/expiry/coherence checks it
+receives the explicit v2 `handoff_qualification_unavailable` refusal. Missing
+parent returns the fixed v1 `held/missing` response, never a caller-selected
+version. All other held-v2 responses carry `authority: none`.
+
+Revocation prevents new source registration/issuance using the saved
+installation; it cannot select replacement metadata, authorize a second
+execution or imply a refund. Exact original proof and known output/outcome
+recovery keep their existing deletion, operation-expiry and phase-deadline
+precedence. Fresh issuance requires actual cohort representability and a newly
+sampled locked server budget in both the action and private INSERT guard.
+Funding, finalization, transfer and runtime runner adoption remain separate work
+behind closed activation gates.
