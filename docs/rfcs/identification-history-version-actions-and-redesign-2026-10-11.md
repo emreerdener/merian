@@ -16,9 +16,13 @@ Use the supplied mockup as the target experience, delivered in this order:
 Document the new behavioral requirements now so ongoing work can account for
 them. They do not automatically expand the current implementation milestone.
 
-The history implementation chat remains the implementation owner. After
-approval, hand this plan to that chat for impact review and scheduling at a
-checkpoint.
+The history implementation chat remains the implementation owner. Approval and
+handoff are recorded below. The user has authorized automatic continuation
+through these milestones after current-scope acceptance, without routine proceed
+confirmation. Each milestone still needs its own capability/evidence matrix,
+implementation review and required qualification; external-operation permissions
+remain unchanged. Completing the current IC-1 scope alone does not complete this
+follow-up assignment.
 
 ## Milestone 1: deletion and media download
 

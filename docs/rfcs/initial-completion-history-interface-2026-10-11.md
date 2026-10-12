@@ -54,6 +54,22 @@ final implementation approval there. This scope only includes functional media
 admission and history journeys, not that refactor or a schedule/ownership
 change.
 
+### Current prerequisite boundary — October 12, 2026
+
+Private admitted-proof SQL parity is accepted locally at `8d4f8c50c`; its
+evidence does not establish actual funded rows or dispatch authority. The next
+coherent owner combines atomic admission/original funding/M1, complete private
+receipt/status recovery, positive-unused C1 cancellation/expiry and erasure. The
+[C1 addendum](initial-cancellation-interface-2026-10-11.md) defines
+cancellation, including the conservative `dispatch_outcome_unknown` outcome; it
+is not successful completion. Its three-value response takes precedence over the
+original two-value cancellation summary in section 3 below. Provider dispatch,
+quota commit, result capture and successful completion remain blocked in this
+increment and require the later separately reviewed S0 owner. Exact historical
+receipt recovery and live unused-settlement proof remain distinct. The hardening
+owner confirmed this clarification on October 12 without any implementation
+ownership transfer.
+
 ## 1. Identity and immutable original input
 
 One initial logical operation is keyed by `(owner_id, scan_id)`;

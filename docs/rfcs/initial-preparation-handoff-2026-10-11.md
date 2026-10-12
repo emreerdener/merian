@@ -10,6 +10,34 @@ alpha roadmap and its separate installed, hosted, device and release
 authorization still apply. Those shared planning records remain locally
 preserved outside this scoped checkpoint.
 
+## Current scope and implementation boundary — October 12, 2026
+
+The media-required amendment in
+[IC-1 revision 3](initial-completion-history-interface-2026-10-11.md) and the
+[alpha roadmap](identification-history-alpha-readiness-2026-10-11.md) supersedes
+older text-only planning references in this historical design. New initial
+identification and reanalysis require photo, audio or video; original retained
+media is sufficient for reanalysis and supporting text is optional. Historical
+text records and exact already-admitted recovery remain preserved. No standalone
+Describe or text-only child/editor is an active implementation requirement.
+
+Private admitted-proof SQL parity is accepted locally at `8d4f8c50c`. The next
+funded candidate must combine original funding, complete private receipt and M1
+allocation, exact admitted recovery, positive-unused C1 cancellation/expiry and
+scan/account erasure. Receipt construction follows the accepted clarification:
+preallocate opaque receipt/destination IDs without authority, compute mapping
+and binding without the enclosing receipt digest, insert the complete receipt
+before M1 members under the canonical lock order, force complete-state checks,
+seal the stage, then perform the final nonmutating cutoff check. See
+`.artifacts/initial-outcome-admission-handoff/admission-mapping-order-agreement.md`.
+This clarification supersedes any older construction-order shorthand below.
+M2/copy/transfer may remain disabled. Provider dispatch, quota commit, result
+capture and successful completion stay blocked; C1 covers cancellation and
+eligible expiry. Missing unused proof retains conservative unknown handling
+without refund. No funding-only or M1-only callable intermediate is acceptable.
+This is the next implementation boundary, not a claim that it is implemented or
+qualified.
+
 ## 1. One operation and existing owners
 
 `finalize_initial_preparation(owner, scan, ip_hash)` remains the admission
@@ -401,8 +429,10 @@ Required evidence rows, all owned by history primary with independent review:
 | External        | Adapter/backend whole-cohort qualification, durable restart and installed/device/hosted journeys remain unqualified until separately authorized evidence; final candidate CI waits for exact-push approval   |
 
 These rows supplement the roadmap matrix; local tests do not mark external rows
-qualified. S0, dispatch/result/completion integration, text history, native
-journeys and Field Trip's separately held consumer remain open.
+qualified. S0, dispatch/result/completion integration, media-backed reanalysis,
+native journeys and Field Trip's separately held consumer remain open.
+Historical text reading and exact accepted-operation recovery are preserved;
+fresh text-only admission, children and editors are superseded requirements.
 
 ## Appendix A. Mutation statements and effective trigger order
 
