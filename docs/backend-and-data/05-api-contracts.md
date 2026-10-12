@@ -18657,3 +18657,33 @@ precedence. Fresh issuance requires actual cohort representability and a newly
 sampled locked server budget in both the action and private INSERT guard.
 Funding, finalization, transfer and runtime runner adoption remain separate work
 behind closed activation gates.
+
+## Inactive admission metadata codecs
+
+`admissionMetadata.ts` and `admission-metadata-schema-v1.json` validate closed
+phase-window v1, destination-mapping v2 and `media_binding` v2 metadata against
+the original qualified candidate, assignment, catalog and outcome. The validator
+snapshots each bounded value before awaiting. It projects initial input v1 from
+original source metadata and validated output bytes, preserving ordered text,
+context, options and timeline exactly. Input and description digests retain
+their existing domains.
+
+The three new domains are `merian.initial-analysis.handoff.phase_window.v1`,
+`merian.initial-analysis.handoff.mapping.v2` and
+`merian.initial-analysis.handoff.media_binding.v2`, each followed by one newline
+and canonical JSON. The window binds original expiry and all eight cumulative
+cutoffs with strict remaining-budget arithmetic. Mapping binds the opaque
+receipt ID, source/destination generations and exact ordered original byte
+identities. It rejects collisions with original objects, cross-ordinal aliases,
+incorrect unions and saved-profile resource/type violations. Equal byte tuples
+within one ordinal share a destination; different bytes use distinct objects.
+Only raw video has null prepared output. The binding includes mapping/window
+digests but never an enclosing receipt digest.
+
+These are pure metadata codecs and synthetic shared vectors, without SQL parity
+or runtime owner adoption yet. A digest proves neither registry freshness nor
+verified storage bytes, live ownership, funding or dispatch authority. The full
+admitted receipt and its durable closed accounting proof remain separately
+unspecified pending interface review. Existing M1/M2 readers do not accept these
+new versions. No RPC, table, live route, generated capture DTO or activation
+changes with these codecs.
