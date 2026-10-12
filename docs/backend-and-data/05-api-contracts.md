@@ -18701,5 +18701,21 @@ container adds no aggregate canonical document ceiling: each original component
 still satisfies its existing byte, depth and node limits and every existing
 semantic/digest check. This preserves large valid text (including escaped and
 non-BMP strings) without relaxing a wire limit or granting runtime authority.
-The complete admitted-proof codec and its aggregate retained-byte bound remain
-subsequent work under the accepted design.
+The inactive `admittedProof.ts` codec now consumes all eleven fixed canonical
+TEXT components plus the closed manifest. It validates original qualified
+context, exact projected input, byte counts, domain-separated digests, saved
+provider/protocol selection, complete funding and historical accounting links.
+It preserves microsecond timestamps without Date conversion and independently
+snapshots each component before awaiting. The 2,469,915-byte retained TEXT
+ceiling excludes storage overhead. Funding's effective model is distinct from
+the attempt's quota model; fallback requires the original free plan and no
+complimentary hold. Bucket nonblank semantics match PostgreSQL space trimming;
+original bytes are never normalized.
+
+`admitted-proof-schema-v1.json` and complete synthetic golden/negative vectors
+form the next SQL parity boundary. This pure decoder checks internal historical
+consistency only. It neither reads current selectors nor proves live ownership,
+archive availability, policy eligibility, actual charged rows, unused execution
+or dispatch authority. Those locked expected-image comparisons, SQL parity,
+private storage/erasure and the coherent funded runtime remain open. No runtime
+caller, public DTO, route or activation changes.

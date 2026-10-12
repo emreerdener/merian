@@ -6,9 +6,10 @@ Interface design accepted October 12, 2026 against
 [alpha roadmap](identification-history-alpha-readiness-2026-10-11.md). IC-1 and
 independent read-only review accepted revision 4, exact source SHA-256
 `7cbda4c9bf4563c08677a37485a2fe24a852088b6cadaa84493616cd0705d52e`. This is
-design acceptance only: the full component codec, private storage, funded
-transaction, concurrency and erasure qualification remain open. The history
-primary owns all writes. Activation remains disabled.
+design acceptance. The inactive Deno component codec and shared vectors now
+implement the pure validation boundary below. SQL parity, private storage,
+funded transaction, concurrency and erasure qualification remain open. The
+history primary owns all writes. Activation remains disabled.
 
 ## Storage and commitment
 
@@ -42,8 +43,8 @@ selector. `metadata_digest` commits the canonical `metadata` object;
 `merian.initial-analysis.handoff.admitted-metadata.v1\n` and
 `merian.initial-analysis.handoff.admitted-proof.v1\n`. The final receipt digest
 uses `merian.initial-analysis.handoff.admitted-receipt.v1\n` plus exact
-canonical manifest text, excluding the receipt digest itself. These new domains
-are proposed, not currently implemented. References are commitments to mandatory
+canonical manifest text, excluding the receipt digest itself. These domains are
+implemented by the inactive Deno codec. References are commitments to mandatory
 co-retained complete bytes, never a digest-only recovery substitute.
 
 | Column/component | Exact closed value and digest owner                                                                                        | Maximum canonical UTF-8 bytes |
@@ -321,7 +322,7 @@ The 1MiB canonical serializer limit is unchanged for each component and
 manifest. No giant aggregate JSON serialization or RPC payload is introduced by
 this storage design. A future transport requires its own bounded contract.
 
-Before codec acceptance, add exact golden/negative vectors for all component
+Codec qualification requires exact golden/negative vectors for all component
 roles and cross-links, per-component and aggregate limits, non-BMP and escaped
 Unicode, maximal supported media topology, missing/extra/swapped components,
 integer edges, timestamp precision/invalid calendar inputs and full snapshot
@@ -338,8 +339,9 @@ evidence remain historical; no implementation used that cap.
 
 Revision 4 makes policy-content drift and the before-write/after-write
 accounting phases explicit in response to IC-1. The fixed 1024raw-byte bucket
-ceiling is retained with the larger proven accounting cap. This remains proposed
-until exact revision acknowledgement.
+ceiling is retained with the larger proven accounting cap. IC-1 and independent
+review subsequently accepted the exact revision as recorded above; runtime
+policy eligibility is still unimplemented.
 
 The conservative maximum accounting scalar object is 22,541 canonical bytes/60
 nodes/depth 4, including three maximally escaped buckets and the nonnull
@@ -355,3 +357,18 @@ a replay corruption by itself nor proof of non-execution. Status still resolves
 the original terminal fence; the storage policy never reconstructs links or
 restores pending authority. Any retained live private receipt still requires its
 complete canonical components until their atomic authorized erasure.
+
+## Inactive Deno codec checkpoint
+
+`admittedProof.ts` validates eleven complete original canonical TEXT components
+and the fixed manifest without serializing them together. Shared schema and
+synthetic fixtures cover media cohorts, cross-component identity and integrity,
+accounting, microsecond timestamps and large exact Unicode text. Independent
+review and candidate gate evidence are recorded under
+`.artifacts/initial-admitted-codec/`. This is not a receipt issuer or live
+recovery owner. SQL parity and the complete funded transaction remain next; the
+codec cannot qualify locked policy, actual database rows, original archive
+availability, terminal/erasure fences or external operation merely from
+internally consistent retained bytes. Funding model means the returned effective
+provider model; the attempt and underlying reservation retain the quota-policy
+model.
