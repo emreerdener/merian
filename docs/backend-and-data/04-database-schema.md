@@ -8909,3 +8909,26 @@ qualification-unavailable refusal; an already-issued v1 operation keeps v1
 status and settlement. Missing locked parent remains a server-fixed v1 missing
 refusal. No caller payload selects a response version. Full S0 and atomic
 admission remain incomplete.
+
+### Inactive admission metadata parity
+
+Four private helpers provide SQL parity for the Deno admission metadata
+prerequisite: `initial_admission_metadata_schema`,
+`parse_initial_admission_metadata`, `initial_admission_metadata_digest` and
+`validate_initial_admission_metadata`. All use empty search paths, with
+execution revoked from PUBLIC, anon, authenticated and service_role. They create
+no stored receipt, stage, catalog row, funding association or dispatch
+authority.
+
+The wrapper derives qualified context from original canonical candidate,
+assignment and catalog documents and validates the original outcome. It reuses
+existing strict deadline arithmetic and initial-input semantics. Phase-window
+v1, destination mapping v2 and media-binding v2 retain fixed digest domains,
+explicit owner/scan/opaque receipt identity, ordered exact input projection,
+within-ordinal-only byte aliasing and exact bounded destination union. Shared
+synthetic vectors and executable schema equality are checked against Deno.
+
+This parity does not qualify storage bytes, registry freshness, current
+eligibility or transaction timing. The complete admitted receipt and durable
+closed accounting proof remain deferred; existing runtime owners and M1/M2
+readers do not adopt these metadata versions. Activation remains false.

@@ -448,10 +448,14 @@ within one ordinal share a destination; different bytes use distinct objects.
 Only raw video has null prepared output. The binding includes mapping/window
 digests but never an enclosing receipt digest.
 
-These are pure metadata codecs and synthetic shared vectors, without SQL parity
-or runtime owner adoption yet. A digest proves neither registry freshness nor
-verified storage bytes, live ownership, funding or dispatch authority. The full
-admitted receipt and its durable closed accounting proof remain separately
-unspecified pending interface review. Existing M1/M2 readers do not accept these
-new versions. No RPC, table, live route, generated capture DTO or activation
-changes with these codecs.
+Private SQL counterparts share the same closed schema and synthetic vectors.
+These remain pure metadata codecs without runtime owner adoption. A digest
+proves neither registry freshness nor verified storage bytes, live ownership,
+funding or dispatch authority. The full admitted receipt and its durable closed
+accounting proof remain separately unspecified pending interface review.
+Existing M1/M2 readers do not accept these new versions. No RPC, table, live
+route, generated capture DTO or activation changes with these codecs. SQL
+helpers use an empty search path and revoke execution from PUBLIC and all API
+roles, including service_role. The wrapper derives qualified context from
+original canonical documents; it cannot accept a prevalidated caller context or
+access current selectors.
