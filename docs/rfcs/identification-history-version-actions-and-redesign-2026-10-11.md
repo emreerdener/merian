@@ -6,7 +6,8 @@
 
 Use the supplied mockup as the target experience, delivered in this order:
 
-1. Finish the current identification-history and analysis-engine scope.
+1. Finish the current media-required identification-history and analysis-engine
+   scope, including source-bound video reanalysis alongside photo/audio.
 2. Add individual-version deletion and source-media download to the existing
    history experience.
 3. Refactor the Confidence sheet into the Identification sheet and deliver the
@@ -48,7 +49,10 @@ checkpoint.
 ### Download source media
 
 - Include photo, audio, and video support in this milestone. Text-only versions
-  have no download action unless they have associated retained source media.
+  are historical records and have no download action unless they have associated
+  retained source media. Fresh no-media identification is denied by the current
+  media-required admission contract and is not an eligible version/download
+  source.
 - Export the retained source assets associated with the chosen version—not
   generated frames, thumbnails, or processing artifacts presented as originals.
 - Support multiple source assets through a selection step. Use the system share
@@ -118,9 +122,10 @@ active IC-1 checkpoint.
 - Sliding confirm/incorrect submits that review action. Sliding
   reanalyze/community opens the existing preparation flow; it does not bypass
   consent, editing, or publication steps.
-- Show actions according to the viewed version’s supported capabilities.
-  Including video deletion/download does not introduce video confirmation or
-  reanalysis.
+- Show actions according to the viewed version’s supported capabilities. Video
+  reanalysis is required by the October 12 current-scope decision and precedes
+  this redesign. Video confirmation/review/community publication are not
+  introduced by deletion/download or inferred from a V5 record.
 
 ### History page
 
@@ -194,3 +199,23 @@ required changes to descendant-safe provenance, shared-media retention,
 publication authority, closed capabilities and exact historical native action
 routing. No such implementation or qualification is claimed by recording this
 plan.
+
+## Current-scope reconciliation — October 12, 2026
+
+The direct human decisions in
+[Check current slice](codex://threads/01a12460-a2c6-7b21-abcf-d3be41331b45)
+require media for new identification and reanalysis and include video reanalysis
+now. They supersede only the older video-reanalysis exclusion here. The amended
+[alpha roadmap](identification-history-alpha-readiness-2026-10-11.md) and
+[IC-1](initial-completion-history-interface-2026-10-11.md) define current
+admission, source, recovery and native acceptance. Supporting text remains
+immutable private evidence; old text records/accepted recovery remain intact.
+Local-only queued no-media work requires explicit media/remediation.
+
+Deletion/download for photo/audio/video still follows current acceptance, then
+the Identification/History/menu redesign. The separately staged capture UI
+refactor is owned by
+[Simplify capture tools](codex://threads/01a12c47-6f54-7500-bab9-679c2babf9a0)
+and requires its own handoffs and fresh final approval. Functional media
+admission/journey qualification in existing shells does not depend on that
+visual refactor. No release controls change.
