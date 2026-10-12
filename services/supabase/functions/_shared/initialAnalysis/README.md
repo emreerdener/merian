@@ -394,3 +394,24 @@ grant/admission checks and external qualification remain required. See the
 database and API contracts for template limits and digest domains. The Deno
 helper checks declarations against each other; SQL owns comparison with the
 retained private source and destination backend rows.
+
+`qualifiedPreparationCodec.ts` and migration `20261011233227` prepare separate
+closed assignment/allocation-v3 and grant/outcome/reply-v2 codecs. Nested
+source, output and resolved receipts keep v1 and bind the original v3 assignment
+digest. The outcome uses its explicit v2 digest domain. New helpers are revoked
+invokers; no resolver, action owner, grant issuance, funding or route imports
+them. Their context constructor validates supplied declarations; a future owner
+must supply and compare the exact retained private catalog/intent rows.
+Subordinate SQL helpers consume that constructed context, not service input. The
+schema-only reply decoder is not receipt authority. Original v2/v1 decoders stay
+unchanged.
+
+Saved grant arithmetic includes the exact handoff profile/installation/protocol,
+H, actual ordered-role W and original expiry E. Its strict issue + 45,000 + W +
+H < E comparison is metadata validation. Future issuance still requires a fresh
+server clock under the original locks, eligibility/deletion checks and the
+actual-cohort resource/type/M1 bounds. Outcome coherence validates supplied byte
+facts and mapping; it does not verify object bytes, global namespace ownership,
+installed artifacts or durable issuance. Internal v1 validation projections are
+never emitted or saved as rewritten original receipts. No S0 activation or
+external qualification is claimed.

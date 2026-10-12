@@ -8849,3 +8849,22 @@ ordered cohort, exact aliases, unique bytes and runtime sums against both
 profiles and original remaining expiry under locks. No existing resolver,
 assignment, grant, funding or transfer owner adopts these catalogs in this
 migration. Gates and ordinary installation stay disabled.
+
+### Private qualified preparation codecs
+
+Migration `20261011233227` adds nine revoked invoker helpers, with no new table,
+public API, catalog seed or owner replacement. It mirrors the new closed v3
+assignment/allocation and v2 grant/outcome/reply schemas. The context
+constructor checks the supplied original candidate, preparation profile, handoff
+profile, installation, protocol and destination declarations. Subordinate grant
+and nested-receipt validators consume that constructed context. They do not read
+or lock durable intent/catalog rows, sample server time, attest storage bytes or
+create authority. Actual SQL owners must bind this context to the original
+private rows before adoption; global namespace ownership remains an owner check.
+
+The grant's saved issue + 45,000 + W + H < original E inequality is strict; a
+fresh locked server-clock check remains required at eventual issuance.
+Source/output/resolved receipts retain v1, and only grant/outcome/response move
+to v2. Original v2 assignment and v1 execution owners remain unchanged. This
+checkpoint is declaration/coherence preparation, not the paired owner cutover,
+atomic funding/admission or completion of S0.

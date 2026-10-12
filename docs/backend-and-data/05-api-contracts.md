@@ -18599,3 +18599,33 @@ qualification; its held error is
 exact immutable catalog parents. Runtime assignments/grants do not yet consume
 it. Existing no-media, capture DTOs and production installation remain
 unchanged, and no funding or provider authority is created.
+
+### Inactive original qualification codecs
+
+The prepared private assignment/allocation v3 codecs and execution
+grant/outcome/reply v2 codecs have no HTTP or native caller adoption. Existing
+assignment v2 and execution v1 decoders remain unchanged. The new assignment
+adds `handoff: {profile, profile_digest, installation_digest}`; installation
+identity is content-addressed. Grant v2 adds `handoff_profile_digest`,
+`handoff_installation_digest`, `protocol_artifact_digest`, `handoff_total_ms`,
+`preparation_wall_ms` and `preparation_expires_at_ms`. Exact profile and
+original expiry context are mandatory; a grant cannot select its own expiry.
+
+Source-verification, output and resolved receipts remain v1 inside outcome v2.
+Their domains and the versioned-canonical assignment domain stay unchanged;
+outcomes use `merian.initial-analysis.preparation-execution.outcome.v2`, newline
+and canonical text. Per-kind versions are closed. The explicit new refusal is
+`{version: 2, outcome: "held", authority: "none", reason:
+"handoff_qualification_unavailable"}`.
+It does not widen old v1 replies or relabel original status/outcome recovery.
+Future owner cutover must restrict it to refusal of new unqualified issuance
+after original-recovery precedence.
+
+These codecs validate declarations and internal coherence only. SQL contexts
+must come from `initial_qualified_context`; future authoritative callers must
+bind its inputs to retained locked rows. Reply shape decoding is not authority.
+No current selection, issuance, funding, provider or storage action is
+performed. The 65,536-byte full assignment, 131,072-byte receipt and
+524,288-byte reply bounds apply to complete embedded records.
+Admission/transferred replies remain reserved for their separately reviewed
+receipt-owner implementation.
