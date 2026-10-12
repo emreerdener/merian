@@ -4,11 +4,14 @@ import {
   assertRejects,
   assertThrows,
 } from "@std/assert";
+import { initialMediaContractDigest } from "./mediaPreparationProfile.ts";
+import { validateInitialMediaSourceCandidate } from "./mediaSourceCandidate.ts";
 import { initialCanonicalText } from "./canonical.ts";
 import { initialPreparationDigest } from "./preparationCandidate.ts";
 import { validateInitialMediaAssignment } from "./mediaAssignment.ts";
 import {
   executionDigest,
+  preparationContext,
   validatePreparationReply,
 } from "./preparationExecutionContract.ts";
 import {
@@ -213,4 +216,147 @@ Deno.test("qualified async validation snapshots caller declarations and receipt 
   const outcomePending = validateQualifiedOutcome(ctx, original.outcome);
   ctx.handoffProfileDigest = "0".repeat(64);
   assertEquals(await outcomePending, original.outcome_canonical);
+});
+
+Deno.test("qualified context: independently bounded large plain, escaped and non-BMP text survives composition", async () => {
+  for (
+    const text of [
+      "x".repeat(65200),
+      "x" + "\u0001".repeat(10870) + "x",
+      "🐦".repeat(16300),
+    ]
+  ) {
+    const v = clone(vectors.valid[1]);
+    v.candidate.source_plan.ordered_descriptions = Array.from(
+      { length: 16 },
+      () => text,
+    );
+    v.candidate.source_plan.owner_timeline = [
+      { kind: "media", index: 0 },
+      ...Array.from(
+        { length: 16 },
+        (_, index) => ({ kind: "description", index }),
+      ),
+    ];
+    const candidateText = validateInitialMediaSourceCandidate(v.candidate);
+    v.assignment.candidate_digest = await initialPreparationDigest(
+      "preparation-candidate",
+      candidateText,
+    );
+    v.assignment.source_plan_digest = await initialMediaContractDigest(
+      "source_plan",
+      initialCanonicalText(v.candidate.source_plan),
+    );
+    // This was an accidental aggregate ceiling, not an existing component limit.
+    assertThrows(() =>
+      initialCanonicalText({
+        candidate: v.candidate,
+        assignment: v.assignment,
+        catalog: v.catalog,
+      })
+    );
+    const expectedAssignment = initialCanonicalText(v.assignment);
+    assertEquals(
+      await validateQualifiedMediaAssignment(
+        v.candidate,
+        v.assignment,
+        v.catalog,
+      ),
+      expectedAssignment,
+    );
+    const pending = qualifiedPreparationContext(
+      v.outcome.scan_id,
+      v.candidate,
+      v.assignment,
+      v.catalog,
+      v.original_expires_at_ms,
+    );
+    // All caller-owned components were captured before the first await.
+    v.candidate.source_plan.ordered_descriptions[0] = "mutated";
+    v.assignment.candidate_digest = "0".repeat(64);
+    v.catalog.preparation.spec.runtime.version = "mutated";
+    const ctx = await pending;
+    assertEquals(
+      ctx.receipts.candidate.source_plan.ordered_descriptions,
+      Array.from({ length: 16 }, () => text),
+    );
+    assertEquals(
+      ctx.receipts.assignment_digest,
+      await initialPreparationDigest("assignment", expectedAssignment),
+    );
+    assertNotEquals(ctx.receipts.profile.spec.runtime.version, "mutated");
+    // Isolate the negative from the deliberately mutated caller objects above.
+    const over = clone(vectors.valid[1].candidate);
+    over.source_plan.ordered_descriptions = Array.from(
+      { length: 16 },
+      () => "x".repeat(65530),
+    );
+    over.source_plan.owner_timeline = [
+      { kind: "media", index: 0 },
+      ...Array.from(
+        { length: 16 },
+        (_, index) => ({ kind: "description", index }),
+      ),
+    ];
+    assertThrows(() => initialCanonicalText(over));
+    assertThrows(() => validateInitialMediaSourceCandidate(over));
+  }
+});
+
+Deno.test("direct preparation context snapshots all independently bounded inputs before awaiting", async () => {
+  const v = clone(vectors.valid[1]);
+  const text = "x".repeat(65400);
+  v.candidate.source_plan.ordered_descriptions = Array.from(
+    { length: 16 },
+    () => text,
+  );
+  v.candidate.source_plan.owner_timeline = [
+    { kind: "media", index: 0 },
+    ...Array.from(
+      { length: 16 },
+      (_, index) => ({ kind: "description", index }),
+    ),
+  ];
+  v.assignment.candidate_digest = await initialPreparationDigest(
+    "preparation-candidate",
+    validateInitialMediaSourceCandidate(v.candidate),
+  );
+  v.assignment.source_plan_digest = await initialMediaContractDigest(
+    "source_plan",
+    initialCanonicalText(v.candidate.source_plan),
+  );
+  const { handoff: _handoff, ...assignment } = v.assignment;
+  assignment.version = 2;
+  const profile = v.catalog.preparation;
+  const expectedProfile = initialCanonicalText(profile);
+  const expectedAssignment = await validateInitialMediaAssignment(
+    v.candidate,
+    assignment,
+  );
+  assertThrows(() =>
+    initialCanonicalText({ candidate: v.candidate, assignment, profile })
+  );
+  const pending = preparationContext(
+    v.outcome.scan_id,
+    v.candidate,
+    assignment,
+    profile,
+  );
+  v.candidate.source_plan.ordered_descriptions[0] = "mutated";
+  assignment.candidate_digest = "0".repeat(64);
+  assignment.preparation.source_mapping[0].source.source_sha256 = "0".repeat(
+    64,
+  );
+  profile.spec.runtime.version = "mutated";
+  const result = await pending;
+  assertEquals(
+    result.candidate.source_plan.ordered_descriptions,
+    Array.from({ length: 16 }, () => text),
+  );
+  assertEquals(initialCanonicalText(result.assignment), expectedAssignment);
+  assertEquals(initialCanonicalText(result.profile), expectedProfile);
+  assertEquals(
+    result.assignment_digest,
+    await initialPreparationDigest("assignment", expectedAssignment),
+  );
 });

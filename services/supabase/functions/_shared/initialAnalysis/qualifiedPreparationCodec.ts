@@ -73,6 +73,25 @@ function legacyAssignment(value: unknown): unknown {
   a.version = 2;
   return a;
 }
+/** Each closed component keeps its own canonical resource ceiling. Snapshot all
+ * caller bytes synchronously; a combined wrapper would impose an extra limit.
+ */
+function snapshotQualifiedComponents(
+  candidate: unknown,
+  assignment: unknown,
+  catalog: QualifiedCatalogContext,
+) {
+  return {
+    candidate: JSON.parse(initialCanonicalText(candidate)),
+    assignment: JSON.parse(initialCanonicalText(assignment)),
+    catalog: {
+      installation: JSON.parse(initialCanonicalText(catalog.installation)),
+      protocol: JSON.parse(initialCanonicalText(catalog.protocol)),
+      preparation: JSON.parse(initialCanonicalText(catalog.preparation)),
+      destination: JSON.parse(initialCanonicalText(catalog.destination)),
+    },
+  };
+}
 /** Internal validation projection only; never returned as an original receipt. */
 function legacyGrant(value: QualifiedPreparationGrant): PreparationGrant {
   const g = JSON.parse(initialCanonicalText(value));
@@ -100,9 +119,7 @@ export async function validateQualifiedMediaAssignment(
   assignment: unknown,
   catalog: QualifiedCatalogContext,
 ): Promise<string> {
-  const snapshot = JSON.parse(
-    initialCanonicalText({ candidate, assignment, catalog }),
-  );
+  const snapshot = snapshotQualifiedComponents(candidate, assignment, catalog);
   candidate = snapshot.candidate;
   assignment = snapshot.assignment;
   catalog = snapshot.catalog;
@@ -134,9 +151,7 @@ export async function qualifiedPreparationContext(
   originalExpiresAtMs: number,
 ): Promise<QualifiedPreparationContext> {
   // Snapshot all caller data before the first asynchronous validation.
-  const snapshot = JSON.parse(
-    initialCanonicalText({ candidate, assignment, catalog }),
-  );
+  const snapshot = snapshotQualifiedComponents(candidate, assignment, catalog);
   const text = await validateQualifiedMediaAssignment(
     snapshot.candidate,
     snapshot.assignment,

@@ -144,9 +144,13 @@ export async function preparationContext(
   assignment: unknown,
   profile: unknown,
 ): Promise<PreparationContext> {
-  const snapshot = JSON.parse(
-    initialCanonicalText({ candidate, assignment, profile }),
-  );
+  // Validate/snapshot each independently bounded component before any await.
+  // Context is an internal container, not another canonical wire document.
+  const snapshot = {
+    candidate: JSON.parse(initialCanonicalText(candidate)),
+    assignment: JSON.parse(initialCanonicalText(assignment)),
+    profile: JSON.parse(initialCanonicalText(profile)),
+  };
   candidate = snapshot.candidate;
   assignment = snapshot.assignment;
   profile = snapshot.profile;
@@ -161,16 +165,14 @@ export async function preparationContext(
       ) ||
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(scan)
   ) invalidInitialInput();
-  return JSON.parse(
-    initialCanonicalText({
-      version: 1,
-      scan_id: scan,
-      assignment_digest: await initialPreparationDigest("assignment", a),
-      candidate,
-      assignment,
-      profile,
-    }),
-  );
+  return {
+    version: 1,
+    scan_id: scan,
+    assignment_digest: await initialPreparationDigest("assignment", a),
+    candidate: snapshot.candidate,
+    assignment: saved,
+    profile: snapshot.profile,
+  };
 }
 export function validateSourceReceipt(
   ctx: PreparationContext,

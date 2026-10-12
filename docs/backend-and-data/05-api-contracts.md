@@ -18683,11 +18683,23 @@ digests but never an enclosing receipt digest.
 Private SQL counterparts share the same closed schema and synthetic vectors.
 These remain pure metadata codecs without runtime owner adoption. A digest
 proves neither registry freshness nor verified storage bytes, live ownership,
-funding or dispatch authority. The full admitted receipt and its durable closed
-accounting proof remain separately unspecified pending interface review.
-Existing M1/M2 readers do not accept these new versions. No RPC, table, live
-route, generated capture DTO or activation changes with these codecs. SQL
-helpers use an empty search path and revoke execution from PUBLIC and all API
-roles, including service_role. The wrapper derives qualified context from
-original canonical documents; it cannot accept a prevalidated caller context or
-access current selectors.
+funding or dispatch authority. The
+[admitted-proof design](../rfcs/initial-admitted-proof-2026-10-12.md) now fixes
+eleven mandatory complete canonical components, a closed acyclic manifest, exact
+accounting/timestamp fields and atomic private erasure. This is accepted
+interface design; its complete codec, durable storage and coherent funded
+runtime are not implemented by the metadata codecs. Existing M1/M2 readers do
+not accept these new versions. No RPC, table, live route, generated capture DTO
+or activation changes with these codecs. SQL helpers use an empty search path
+and revoke execution from PUBLIC and all API roles, including service_role. The
+wrapper derives qualified context from original canonical documents; it cannot
+accept a prevalidated caller context or access current selectors.
+
+Qualified preparation context now snapshots candidate, assignment and each
+catalog component independently before its first await. The internal context
+container adds no aggregate canonical document ceiling: each original component
+still satisfies its existing byte, depth and node limits and every existing
+semantic/digest check. This preserves large valid text (including escaped and
+non-BMP strings) without relaxing a wire limit or granting runtime authority.
+The complete admitted-proof codec and its aggregate retained-byte bound remain
+subsequent work under the accepted design.
