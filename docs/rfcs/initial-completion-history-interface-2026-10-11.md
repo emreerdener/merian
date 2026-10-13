@@ -75,13 +75,26 @@ receipt recovery and live unused-settlement proof remain distinct. The hardening
 owner confirmed this clarification on October 12 without any implementation
 ownership transfer.
 
-The next agreement is the bounded
-[S0 dispatch-fence draft](initial-dispatch-fence-interface-2026-10-13.md), with
-exact owner/schema/lock inventory required before implementation. History
-primary retains the overlapping writes under section 7. M2 v2 transfer and
-structural validation of the exact retained bytes precede any callable grant; M1
-allocation alone cannot authorize execution. This status note records the
-accepted local prerequisite, not acceptance of the draft or full S0.
+The pure Deno handoff proof checkpoint
+`10ffb151a4bf38bdf557cbf163fa27a3682a8b3f` and private SQL parity
+`f7b7181ec016b4d37206a290d0f54bce822d463d` are accepted locally. Exact SQL
+evidence is
+`.artifacts/initial-media-handoff-v2/sql-parity/local-checkpoint.json`; all 172
+catalogs/6,672 assertions, 3,821 DB-backed Edge tests and recorded affected
+gates pass. This establishes consistency and role denial only, not stored
+issuance, physical verification or mutation authority.
+
+The next agreement is runtime copy/M2 v2/transfer under the
+[handoff interface](initial-media-handoff-v2-interface-2026-10-13.md), including
+durable copy provenance, exact private row lifetimes and positive-unused
+post-transfer C1/expiry/erasure/lock closure. Independent and IC-1 agreement
+precedes runtime DDL. History primary retains all overlapping writes under
+section 7. The
+[S0 dispatch-fence draft](initial-dispatch-fence-interface-2026-10-13.md)
+remains downstream: M2 v2 transfer and structural validation of the exact
+immutable consumed bytes precede a callable provider grant. Retained-byte
+transfer alone can be prepared while every execution barrier stays closed. Full
+S0 and broader hardening acceptance remain open.
 
 ## 1. Identity and immutable original input
 

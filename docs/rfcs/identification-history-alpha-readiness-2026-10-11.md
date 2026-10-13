@@ -84,13 +84,26 @@ Receipt/status existence never authorizes them. These boundaries are specified
 by the [handoff contract](initial-preparation-handoff-2026-10-11.md) and
 [admitted-proof transaction matrix](initial-admitted-proof-2026-10-12.md).
 
-The next bounded dependency is the
-[S0 dispatch-fence interface draft](initial-dispatch-fence-interface-2026-10-13.md).
-Its exact owner/schema/lock delta needs independent and IC-1 agreement before
-implementation. M2 v2 transfer and structural validation of exact retained bytes
-are prerequisites before a callable grant. Full S0, native and integrated
-acceptance remain open; no activation or external publication follows from the
-local atomic checkpoint.
+Pure Deno handoff codecs are accepted locally at
+`10ffb151a4bf38bdf557cbf163fa27a3682a8b3f`; private SQL parity follows at
+`f7b7181ec016b4d37206a290d0f54bce822d463d`. Exact evidence is
+`.artifacts/initial-media-handoff-v2/sql-parity/local-checkpoint.json`. The
+latter passes all 172 catalogs/6,672 assertions and 3,821 DB-backed Edge tests
+with no failures or ignored cases, plus the recorded affected gates. These are
+pure consistency helpers with no stored claim issuance, runtime I/O or grants.
+
+The next bounded dependency is the runtime copy/M2 v2/transfer contract under
+[the media handoff interface](initial-media-handoff-v2-interface-2026-10-13.md):
+durable original copy progress, a nonrenewable original claim, verification and
+transfer, with complete positive-unused C1/expiry/erasure and lock agreement.
+Representation and exact mutation provenance need independent and IC-1 review
+before runtime DDL. The
+[S0 dispatch-fence draft](initial-dispatch-fence-interface-2026-10-13.md)
+remains the later execution dependency. Retained-byte transfer can be prepared
+with all execution barriers closed; structural validation of the same immutable
+consumed bytes is still required before any provider grant. Full S0, native and
+integrated acceptance remain open; none of these local checkpoints authorizes
+activation or external publication.
 
 ## Checkpoint 0: evidence and integration agreement
 

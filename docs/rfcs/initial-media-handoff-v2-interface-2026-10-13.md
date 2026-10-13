@@ -197,20 +197,33 @@ evidence is historical, not qualification of a new mutation graph.
 
 ## Runtime owners that remain unimplemented
 
-The first codec boundary does not choose physical storage merely to have a place
-for a decoded value. Before the SQL/runtime checkpoint, resolve and review these
-concrete gaps:
+The [runtime contract](initial-media-handoff-runtime-2026-10-13.md) and
+[mutation mechanics](initial-media-handoff-mutations-2026-10-13.md) now have
+independent and IC-1 design concurrence. They choose separate admitted-receipt
+children for copy progress, original v2 claim, verification and transfer, plus a
+private transaction stage/ledger. They specify exact replay/deadlines, positive
+unused post-transfer C1, statement-level event accounting and source-before-
+destination raw erasure even when private proof is damaged. This closes the
+representation, protocol and statement-accounting design choices. The remaining
+source-specific effective inventory, lock and erasure closure must still be
+recorded and reviewed before affected runtime DDL. Implementation and full
+affected acceptance remain open. No callable grant or installed storage backend
+follows from design agreement.
 
-| Owner                     | Existing evidence and required delta                                                                                                                                                                                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M1 v2 recovery            | Read the original admitted binding/mapping and registry union. `allocate_initial_analysis_media` v1 cannot allocate a new cohort or expiry for admitted v3.                                                                                                                           |
-| Copy and copy progress    | Reuse immutable-key conditional PUT/exact GET primitives in `mediaStorage.ts` under the saved whole-cohort copy cutoff. Define the durable complete-copy evidence used to enter verification; elapsed time cannot advance recovery phase.                                             |
-| Original M2 claim         | Current `initial_analysis_media_preparations` allows renewal and has a 60-second constraint. V2 must enforce one original token and saved phase cutoffs. Choose an explicit versioned extension or separate private v2 owner only after comparing the complete trigger/erasure delta. |
-| Verification settlement   | Current `initial_media_verification_action` consumes a v1 binding and token only. V2 must consume the original admitted proof, exact claim, pinned verifier/object evidence and complete immutable receipt under final locked checks.                                                 |
-| Transfer                  | No transfer writer/table exists. The accepted `initial_preparation_transfer_receipts` owner must write full M2 proof before original preparation retirement/erasure, force complete-state checks and perform final nonmutating cutoff validation.                                     |
-| C1 and expiry             | Current positive-unused C1 only accepts pre-transfer absence of M2 progress. Extend its exact capture, expected images, cascade inventory, terminal snapshot/consumption and denial-seal coverage as one reviewed change; do not exempt arbitrary new rows.                           |
-| Erasure and cleanup       | Retire preparation and destination registry unions before private cascades. Explicit post-transfer C1 uses self-contained receipts; raw erasure remains conservative. Cleanup claims never acquire outer owner/catalog locks afterwards.                                              |
-| Status and legacy actions | Preserve owner/deletion/cancellation, transfer, admission, original-intent precedence. Original transfer can recover after expiry; missing intent after transfer cannot recreate work. All old execution actions return the agreed no-authority response.                             |
+The pure codec boundary did not choose physical storage. The agreed runtime
+design now specifies those owners; implementation and qualification still need
+to close the concrete gaps below:
+
+| Owner                     | Existing evidence and required delta                                                                                                                                                                                                                        |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1 v2 recovery            | Read the original admitted binding/mapping and registry union. `allocate_initial_analysis_media` v1 cannot allocate a new cohort or expiry for admitted v3.                                                                                                 |
+| Copy and copy progress    | Reuse immutable-key conditional PUT/exact GET primitives in `mediaStorage.ts` under the saved whole-cohort copy cutoff. Define the durable complete-copy evidence used to enter verification; elapsed time cannot advance recovery phase.                   |
+| Original M2 claim         | Current `initial_analysis_media_preparations` allows renewal and has a 60-second constraint. V2 must enforce one original token and saved phase cutoffs. Implement the agreed separate private v2 owner and qualify its complete trigger/erasure delta.     |
+| Verification settlement   | Current `initial_media_verification_action` consumes a v1 binding and token only. V2 must consume the original admitted proof, exact claim, pinned verifier/object evidence and complete immutable receipt under final locked checks.                       |
+| Transfer                  | No transfer writer/table exists. The accepted `initial_preparation_transfer_receipts` owner must write full M2 proof before original preparation retirement/erasure, force complete-state checks and perform final nonmutating cutoff validation.           |
+| C1 and expiry             | Current positive-unused C1 only accepts pre-transfer absence of M2 progress. Extend its exact capture, expected images, cascade inventory, terminal snapshot/consumption and denial-seal coverage as one reviewed change; do not exempt arbitrary new rows. |
+| Erasure and cleanup       | Retire preparation and destination registry unions before private cascades. Explicit post-transfer C1 uses self-contained receipts; raw erasure remains conservative. Cleanup claims never acquire outer owner/catalog locks afterwards.                    |
+| Status and legacy actions | Preserve owner/deletion/cancellation, transfer, admission, original-intent precedence. Original transfer can recover after expiry; missing intent after transfer cannot recreate work. All old execution actions return the agreed no-authority response.   |
 
 Effective `lock_initial_media_scope` already rejects prepared-source provider
 writers and requires admission binding version 1. Preserve that independent SQL
@@ -271,10 +284,11 @@ provenance remains the later locked owner's responsibility.
 
 Review the exact version choices, independent caps, digest domains and original
 proof correlation before coding. The durable copy-progress shape, physical v2
-claim/receipt representation and full C1/lock delta remain open and must close
-before SQL mutation implementation. Do not infer their approval from pure codec
-acceptance. Focused and complete affected gates, exact manifests, independent
-review and IC-1 concurrence precede a coherent local checkpoint.
+claim/receipt representation and proposed C1/lock delta now have the separate
+design concurrence linked above. Their source implementation and actual
+lock/cascade qualification remain open; pure codec acceptance alone did not
+authorize those choices. Focused and complete affected gates, exact manifests,
+independent review and IC-1 concurrence precede a coherent local checkpoint.
 
 Activation stays disabled, production access nil, and there is no push,
 publication, deployment, hosted scheduling, device installation or distribution
