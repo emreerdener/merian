@@ -4,6 +4,30 @@ This inactive IC-1 boundary belongs to the initial engine. No live route or
 worker imports it. The server gate defaults false. Admission and replay return
 identity, never permission to dispatch. Existing capture DTOs are unchanged.
 
+## Current local qualification — October 13, 2026
+
+The coherent atomic-admission/original-funding, M1, recovery and C1
+cancellation/expiry checkpoint is accepted locally at
+`bc2a5af507a0ee56cbdb1a357f5221bec611371b`. Exact shared-checkout gate results,
+independent and IC-1 acceptance, the stage93 residual-risk disposition and DB85
+disposal are retained in
+`.artifacts/initial-atomic-admission/final-gates/local-checkpoint.json` at the
+repository root. All 18 portable suites passed 289 checks; full pgTAP, Edge and
+affected tooling gates passed. This is not isolated commit-tree or hosted
+qualification. Stage93's original eight deadlocks remain unreproduced with
+unknown cause; new lock graphs require new qualification.
+
+Earlier incremental qualification statements below describe the stages leading
+to that checkpoint; this dated note supersedes their pending-matrix,
+uncommitted-compositor and incomplete-C1 status only. It does not change their
+technical contracts or make a pure codec authoritative. M2 v2 transfer,
+structural validation, provider dispatch, result capture, completion and native
+integration remain open. The next
+[S0 dispatch-fence agreement](../../../../../docs/rfcs/initial-dispatch-fence-interface-2026-10-13.md)
+is a draft requiring review before implementation. Fresh requests require
+photo/audio/video; historical no-media codecs do not expose a new text-only
+journey. Activation stays false and ordinary production access nil.
+
 ## Identity and retry
 
 `schema.ts`, `semantics.ts` and `canonical.ts` validate a closed bounded v1
@@ -857,14 +881,15 @@ not interrupt account batches that still need scan/user writes. Exact terminal
 receipt classification wins on retry; partial C1 failure never falls through to
 another settlement path.
 
-### Explicit cancellation integration candidate
+### Explicit cancellation integration candidate (historical, October 12)
 
-The current uncommitted candidate routes the service-only cancellation wrapper
-to a dedicated revoked C1 compositor. Earlier no-compositor statements above
-describe prior private-helper checkpoints. Generic account/legacy erasure
+The October 12 uncommitted candidate routed the service-only cancellation
+wrapper to a dedicated revoked C1 compositor. Earlier no-compositor statements
+above describe prior private-helper checkpoints. Generic account/legacy erasure
 remains separate, exact terminal replay wins, and a pending admitted footprint
 with invalid proof fails closed without fallback. See the
 [dedicated owner contract](../../../../../docs/rfcs/initial-admitted-proof-2026-10-12.md#dedicated-explicit-cancellation-candidate-october-12)
-for the original-owner exceptions and remaining qualification boundaries. Local
-synthetic endpoint evidence does not enable activation or qualify the full
-atomic checkpoint.
+for the original-owner exceptions and qualification boundaries at that stage.
+Those selected local endpoint results alone did not qualify the full atomic
+checkpoint; the October 13 status note records its subsequent complete local
+acceptance. Neither stage enables activation.

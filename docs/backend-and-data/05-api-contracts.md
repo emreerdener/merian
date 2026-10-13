@@ -18754,10 +18754,14 @@ from the original receipt. No native decoder, Identify DTO or live HTTP route
 adopts it. The earlier synthetic admission and distinct-session recovery probes
 were exploratory. The checked-in portable suites now have independent and IC-1
 source/retained-runtime concurrence for bounded local recovery, positive-unused
-C1, eligible expiry and erasure cases. This does not close the coherent
-atomic/M1/C1 checkpoint: final shared-harness matrix and full candidate gates
-remain required. Fresh media finalization and live transport adoption remain
-closed pending their later reviewed owners.
+C1, eligible expiry and erasure cases. The final shared-harness matrix and full
+candidate gates subsequently passed for locally accepted checkpoint
+`bc2a5af507a0ee56cbdb1a357f5221bec611371b`; exact evidence and independent/IC-1
+acceptance are recorded in
+`.artifacts/initial-atomic-admission/final-gates/local-checkpoint.json`. These
+are shared-checkout results, not isolated commit-tree or hosted qualification.
+Fresh media finalization and live transport adoption remain closed pending their
+later reviewed owners.
 
 The Deno codec takes a parsed value and canonicalizes it; SQL requires canonical
 TEXT and rejects alternative spellings. Shared semantic vectors do not establish
@@ -18804,11 +18808,11 @@ evidence. Checked-in portable qualification now covers the documented
 recovery/deletion orders, service-role C1, eligible expiry and erasure
 boundaries with independent and IC-1 source/retained-runtime concurrence.
 Changes to a pinned migration or runtime dependency require fresh
-exact-candidate validation; the final shared-harness matrix and full candidate
-qualification remain open. These local SQL results do not qualify media
-transfer, providers, workers, HTTP or installed journeys. Transfer precedence
-still requires its later durable owner. No transferred response is manufactured
-from absent progress or intent rows.
+exact-candidate validation. The final shared-harness matrix passed all 18 suites
+and 289 checks at the recorded atomic/M1/C1 checkpoint. These local SQL results
+do not qualify media transfer, providers, workers, HTTP or installed journeys.
+Transfer precedence still requires its later durable owner. No transferred
+response is manufactured from absent progress or intent rows.
 
 ### Prepared admitted cancellation and settlement boundary
 
@@ -18819,14 +18823,14 @@ fences survive private erasure. The conjunction deliberately also holds older
 prepared-media operations with both fences. Direct M1-only and unfunded
 source-only operations do not match it.
 
-The current uncommitted candidate preserves the existing service-only
-`cancel_initial_analysis` signature and v1 response, and routes that wrapper to
-the revoked `internal.cancel_initial_analysis_explicit` compositor. Owner,
-deletion and completion checks precede exact saved-receipt replay. Non-pending
-lifecycle or no admitted footprint retains the conservative generic owner.
-Pending admitted footprints require complete original unused proof under ordered
-locks; missing or conflicting proof fails closed without falling through to
-another owner.
+The locally accepted atomic/M1/C1 implementation preserves the existing
+service-only `cancel_initial_analysis` signature and v1 response, and routes
+that wrapper to the revoked `internal.cancel_initial_analysis_explicit`
+compositor. Owner, deletion and completion checks precede exact saved-receipt
+replay. Non-pending lifecycle or no admitted footprint retains the conservative
+generic owner. Pending admitted footprints require complete original unused
+proof under ordered locks; missing or conflicting proof fails closed without
+falling through to another owner.
 
 Only authenticated current-transaction C1 evidence can pass the original quota,
 held-credit and lifecycle settlement checks. The compositor atomically settles
@@ -18839,10 +18843,12 @@ owner retains conservative unknown/known-dispatched classification and cannot
 inherit positive C1 or its transaction-wide denial seal. Saved receipt replay
 cannot upgrade classification, refund again or recreate admission.
 
-This is an inactive implementation candidate, not full public-path acceptance.
-Selected synthetic endpoint COMMIT, rollback and contention cases are recorded
-separately from remaining cross-owner/caller/resource qualification, portable
-packaging and affected gates. See the
+This inactive implementation has local synthetic service-role endpoint COMMIT,
+rollback, cross-owner/caller, contention and resource qualification, with all 18
+portable suites and affected gates recorded at the exact shared-checkout
+checkpoint. Original stage93 deadlocks remain unreproduced, cause unknown; the
+accepted residual-risk disposition is not a fix or a waiver for new locks. Live
+HTTP/native/provider and hosted acceptance remain separate. See the
 [dedicated C1 contract](../rfcs/initial-admitted-proof-2026-10-12.md#dedicated-explicit-cancellation-candidate-october-12).
 Activation remains disabled and ordinary production access remains nil.
 

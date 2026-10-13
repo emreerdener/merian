@@ -64,20 +64,33 @@ No routine proceed confirmation is needed. Completing this roadmap alone does
 not complete that follow-up assignment. External-only blockers remain recorded
 and do not silently reorder the milestones.
 
-## Current checkpoint boundary — October 12, 2026
+## Current checkpoint boundary — October 13, 2026
 
-Private admitted-proof SQL parity is accepted locally at `8d4f8c50c`, with
-independent and IC-1 evidence in `.artifacts/initial-admitted-sql/`. This is a
-pure validation prerequisite, not funded runtime or full S0 acceptance. The next
-coherent increment combines atomic admission, original funding, M1 allocation,
-complete private receipt/status recovery, positive-unused C1 cancellation/expiry
-and erasure. **C1 covers cancellation and eligible expiry**, as defined by its
+Following private admitted-proof SQL parity at `8d4f8c50c`, atomic admission,
+original funding, M1 allocation, complete private receipt/status recovery,
+positive-unused C1 cancellation/expiry and erasure are accepted locally at
+`bc2a5af507a0ee56cbdb1a357f5221bec611371b`. Independent and IC-1 acceptance,
+exact source manifests and validation are recorded in
+`.artifacts/initial-atomic-admission/final-gates/local-checkpoint.json`. Full
+gates qualify the recorded shared checkout, not an isolated commit tree or
+hosted runtime. The original stage93 deadlocks remain unreproduced with unknown
+cause; their explicit residual-risk acceptance is limited to this inactive
+boundary and does not waive new lock qualification. **C1 covers cancellation and
+eligible expiry**, as defined by its
 [addendum](initial-cancellation-interface-2026-10-11.md), not successful
 analysis completion. Provider dispatch, quota commit, result capture and
 successful completion stay blocked until their later reviewed S0 owner.
 Receipt/status existence never authorizes them. These boundaries are specified
 by the [handoff contract](initial-preparation-handoff-2026-10-11.md) and
 [admitted-proof transaction matrix](initial-admitted-proof-2026-10-12.md).
+
+The next bounded dependency is the
+[S0 dispatch-fence interface draft](initial-dispatch-fence-interface-2026-10-13.md).
+Its exact owner/schema/lock delta needs independent and IC-1 agreement before
+implementation. M2 v2 transfer and structural validation of exact retained bytes
+are prerequisites before a callable grant. Full S0, native and integrated
+acceptance remain open; no activation or external publication follows from the
+local atomic checkpoint.
 
 ## Checkpoint 0: evidence and integration agreement
 

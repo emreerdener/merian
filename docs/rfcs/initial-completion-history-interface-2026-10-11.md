@@ -54,12 +54,17 @@ final implementation approval there. This scope only includes functional media
 admission and history journeys, not that refactor or a schedule/ownership
 change.
 
-### Current prerequisite boundary — October 12, 2026
+### Current prerequisite boundary — October 13, 2026
 
-Private admitted-proof SQL parity is accepted locally at `8d4f8c50c`; its
-evidence does not establish actual funded rows or dispatch authority. The next
-coherent owner combines atomic admission/original funding/M1, complete private
-receipt/status recovery, positive-unused C1 cancellation/expiry and erasure. The
+After private admitted-proof SQL parity at `8d4f8c50c`, the coherent atomic
+admission/original funding/M1, complete private receipt/status recovery,
+positive-unused C1 cancellation/expiry and erasure checkpoint is accepted
+locally at `bc2a5af507a0ee56cbdb1a357f5221bec611371b`. Independent and IC-1
+acceptance and exact shared-checkout evidence are in
+`.artifacts/initial-atomic-admission/final-gates/local-checkpoint.json`; this is
+not isolated commit-tree or hosted qualification. Stage93's original deadlocks
+remain unreproduced, cause unknown, under the recorded residual-risk
+disposition; this does not qualify a new dispatch lock graph. The
 [C1 addendum](initial-cancellation-interface-2026-10-11.md) defines
 cancellation, including the conservative `dispatch_outcome_unknown` outcome; it
 is not successful completion. Its three-value response takes precedence over the
@@ -69,6 +74,14 @@ increment and require the later separately reviewed S0 owner. Exact historical
 receipt recovery and live unused-settlement proof remain distinct. The hardening
 owner confirmed this clarification on October 12 without any implementation
 ownership transfer.
+
+The next agreement is the bounded
+[S0 dispatch-fence draft](initial-dispatch-fence-interface-2026-10-13.md), with
+exact owner/schema/lock inventory required before implementation. History
+primary retains the overlapping writes under section 7. M2 v2 transfer and
+structural validation of the exact retained bytes precede any callable grant; M1
+allocation alone cannot authorize execution. This status note records the
+accepted local prerequisite, not acceptance of the draft or full S0.
 
 ## 1. Identity and immutable original input
 

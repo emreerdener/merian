@@ -11,6 +11,23 @@ vectors now implement the pure validation boundary below. Private storage,
 funded transaction, concurrency and erasure qualification remain open. The
 history primary owns all writes. Activation remains disabled.
 
+## Current implementation status — October 13, 2026
+
+The historical design and incremental evidence below led to locally accepted
+checkpoint `bc2a5af507a0ee56cbdb1a357f5221bec611371b`: coherent atomic
+admission/original funding, M1, recovery, positive-unused C1 cancellation/expiry
+and erasure. This dated note supersedes earlier pending implementation,
+uncommitted-compositor and pending full-gate status, while preserving the
+original design and intermediate evidence. Exact shared-checkout validation,
+independent/IC-1 acceptance and disposal are recorded in
+`.artifacts/initial-atomic-admission/final-gates/local-checkpoint.json`.
+Stage93's original deadlocks remain unreproduced, cause unknown, under its
+explicit residual-risk disposition; no fix or new-lock qualification is claimed.
+This is not isolated commit-tree, hosted, media-transfer, provider or full S0
+acceptance. The next
+[dispatch-fence agreement](initial-dispatch-fence-interface-2026-10-13.md)
+remains a draft; activation and external-operation restrictions are unchanged.
+
 ## Storage and commitment
 
 Use one private immutable receipt row with eleven mandatory canonical TEXT
@@ -856,11 +873,11 @@ another settlement path.
 
 ### Dedicated explicit cancellation candidate (October 12)
 
-The current uncommitted candidate routes the existing service-only
-`public.cancel_initial_analysis` wrapper through the revoked, fixed-search-path
-`internal.cancel_initial_analysis_explicit` owner. Its signature, grants and v1
-response stay unchanged. Earlier statements that no public compositor exists
-refer to the preceding private-helper checkpoints.
+At this historical October 12 stage, the uncommitted candidate routed the
+existing service-only `public.cancel_initial_analysis` wrapper through the
+revoked, fixed-search-path `internal.cancel_initial_analysis_explicit` owner.
+Its signature, grants and v1 response stay unchanged. Earlier statements that no
+public compositor exists refer to the preceding private-helper checkpoints.
 
 Owner, deletion and completed-result checks precede classification. A saved
 terminal receipt retains its exact classification. Non-pending lifecycle states
