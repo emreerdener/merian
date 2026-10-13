@@ -18886,3 +18886,13 @@ activation change is supplied. Durable copy progress, original M2 v2 claim and
 transfer owners, C1/expiry/erasure integration and their complete lock graph
 remain unimplemented. Structural/transform qualification must bind the same
 immutable bytes consumed by execution before any provider grant.
+
+Private SQL parity is prepared as four revoked invoker routines in
+`20261013082827_prepare_initial_media_handoff_proof.sql`, with no callable API
+route or storage. Its validator consumes a closed kind, the twelve original TEXT
+components and claim/verification/transfer TEXT slots; unused later-stage slots
+must be SQL NULL. It returns the same no-authority canonical/digest shape.
+Independent/IC-1 source review and disposable SQL/catalog/actual-role denial
+qualification are recorded in the handoff RFC and its exact shared-checkout
+evidence. This does not extend codec parity to runtime execution or stored
+issuance authority.

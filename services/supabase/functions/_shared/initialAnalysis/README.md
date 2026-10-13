@@ -922,3 +922,12 @@ for the original-owner exceptions and qualification boundaries at that stage.
 Those selected local endpoint results alone did not qualify the full atomic
 checkpoint; the October 13 status note records its subsequent complete local
 acceptance. Neither stage enables activation.
+
+The qualified private SQL parity checkpoint in
+`20261013082827_prepare_initial_media_handoff_proof.sql` mirrors these pure
+codecs through a kind selector, twelve original TEXT components and three stage
+document slots. Later slots must be SQL NULL for earlier stages. All API roles
+remain denied; no runtime state or authority is introduced. Independent/IC-1
+source review and disposable parity/catalog/role-denial qualification are
+recorded in the handoff RFC. This remains pure consistency validation, with no
+issuance or media-I/O authority.

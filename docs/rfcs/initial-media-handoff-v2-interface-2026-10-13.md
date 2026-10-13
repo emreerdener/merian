@@ -10,11 +10,11 @@ format checks, DTO and dependency contracts, and the complete Edge command:
 Those ignored cases are not fresh database qualification; no SQL changed in this
 checkpoint. Exact candidate and evidence are retained in
 `.artifacts/initial-media-handoff-v2/implementation-candidate-v2.json` and
-`codec-validation-summary-v2.json`. The final RFC status update is bound by
-`implementation-candidate-v4.json`; code and tests are unchanged from v2. Design
-agreement remains in `contract-acceptance.json`. This acceptance is limited to
-pure codecs and does not qualify runtime authority. History primary remains the
-sole writer. This extends the accepted
+`codec-validation-summary-v2.json`. The Deno checkpoint's final RFC status
+update was bound by `implementation-candidate-v4.json`; code and tests are
+unchanged from v2. Design agreement remains in `contract-acceptance.json`. This
+acceptance is limited to pure codecs and does not qualify runtime authority.
+History primary remains the sole writer. This extends the accepted
 [handoff design](initial-preparation-handoff-2026-10-11.md), under the
 [dispatch dependency boundary](initial-dispatch-fence-interface-2026-10-13.md).
 It neither installs a media backend nor grants provider execution.
@@ -160,6 +160,40 @@ Each digest excludes itself by belonging to the enclosing document or return
 value. No cyclic hash construction is allowed. These document-family versions
 and exact codec artifact digest must be included in the saved composite protocol
 artifact. No old installed artifact may silently adopt these semantics.
+
+## Private SQL parity qualification
+
+The private SQL checkpoint adds only four revoked invoker routines in
+`20261013082827_prepare_initial_media_handoff_proof.sql`: the closed schema,
+canonical parser, domain digest, and complete proof validator. It adds no
+storage, locks, grants or runtime call sites. Schema is immutable; validators
+are stable and have an empty search path. All API roles are denied execution.
+
+`validate_initial_media_handoff_proof` takes `p_kind`, the twelve independently
+bounded original canonical TEXT components in admitted-proof order, and three
+TEXT document slots: claim, verification receipt and transfer receipt. Claim
+validation requires both later slots SQL NULL; verification validation requires
+the transfer slot SQL NULL. Transfer validation requires all three. Unknown
+kinds and missing required documents reject. Return fields match Deno:
+`authority: none`, `canonical` and `digest`. The original twelve-component
+validator establishes the context; no caller-supplied validated context, new
+identity projection or runtime owner check is substituted.
+
+The executed SQL candidate is
+`.artifacts/initial-media-handoff-v2/sql-parity/candidate-v2.json`. Independent
+and IC-1 source review are clear. Disposable replay applied 486 exact
+migrations; 190 focused pgTAP assertions and all 172 catalogs/6,672 assertions
+pass. The DB-backed Edge suite passes 3,821 tests/598 steps with none failed or
+ignored. Recursive checks, 527 migration contract tests, DTO/dependency
+contracts, complete tooling, zero-warning database lint and advisor error gates
+pass. `validation-summary-v2.json` binds the executed shared-checkout evidence;
+`candidate-v3.json` binds the final documentation status update, with SQL and
+tests unchanged. Failed attempts are retained. The owned database is disposed.
+
+This qualifies pure SQL consistency and role denial only. It grants no stored
+claim issuance, trusted time, media-I/O, transfer execution or provider
+authority. Later runtime gaps below remain unchanged; prior lock and recovery
+evidence is historical, not qualification of a new mutation graph.
 
 ## Runtime owners that remain unimplemented
 
