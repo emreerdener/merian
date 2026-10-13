@@ -499,3 +499,372 @@ runtime remain open. No runtime caller, public DTO, route or activation changes.
 SQL fixture/catalog and Deno schema/vector equality evidence are retained in
 `.artifacts/initial-admitted-sql/`; this is not hosted or installed
 qualification.
+
+## Inactive admitted recovery response codec
+
+`admissionRecoveryResponse.ts` and `admission-recovery-response-schema-v2.json`
+implement the closed version2 `admitted`, `transferred`, and
+`held/already_transferred` envelopes from the
+[handoff contract](../../../../../docs/rfcs/initial-preparation-handoff-2026-10-11.md).
+Every variant carries `authority: none`. Admitted/transferred replies retain
+exact M1 binding v2; response version is independent of admission binding v3.
+The 32 KiB envelope and 16 KiB binding ceilings apply before acceptance. Nested
+identity, ordered cutoffs and the phase-window digest must agree. The decoder
+snapshots before hashing and never uses a current clock to grant authority.
+Private SQL parsing uses the same schema and synthetic positive/negative
+vectors.
+
+This is consistency validation only: arbitrary well-formed receipt digests do
+not prove a stored admission or transfer. A transport caller must correlate the
+reply to its original operation. The future locked response owner must check
+live ownership, deletion and cancellation, then exact transfer, exact admission,
+and only then unadmitted intent. Explicit prepared SQL status,
+finalization-retry and media-retry branches now return the admitted envelope
+from the original receipt. No native decoder, Identify DTO or live HTTP route
+adopts it. The earlier synthetic admission and distinct-session recovery probes
+were exploratory. The checked-in portable suites now have independent and IC-1
+source/retained-runtime concurrence for bounded local recovery, positive-unused
+C1, eligible expiry and erasure cases. This does not close the coherent
+atomic/M1/C1 checkpoint: final shared-harness matrix and full candidate gates
+remain required. Fresh media finalization and live transport adoption remain
+closed pending their later reviewed owners.
+
+The Deno codec takes a parsed value and canonicalizes it; SQL requires canonical
+TEXT and rejects alternative spellings. Shared semantic vectors do not establish
+raw-wire lexical parity. The eventual transport still needs a streamed byte cap
+before JSON parsing and original request/account-lease correlation. In
+particular, the held envelope contains no owner or scan identity; its digest
+alone cannot associate it with the currently displayed operation.
+
+The new revoked `internal.recover_initial_admitted_media` is a private,
+admitted-only owner used by those explicit prepared SQL recovery branches. The
+shared legacy recovery helper and no-media intent DELETE guard remain unchanged.
+It holds canonical owner/deletion/cancellation scope, then locks owner-scoped
+admission, submission and receipt in established order. It requires bindingv3, a
+positive pending/dispatch-authorized lifecycle and no active admission stage,
+then checks complete retained receipt integrity. No intent/source/current
+funding or catalog lookup is used. The server clock is sampled after locks and
+proof. The pure revoked constructor returns copy before the original copy cutoff
+and expired at/after; pre-anchor observation rejects. Elapsed time never invents
+verification or transfer progress. A dispatch-authorized lifecycle permits only
+historical metadata recovery; even a copy phase carries no copy permission.
+
+Media preparation retries validate their canonical candidate, then compare its
+complete original bytes to the locked receipt before replay. Changed supporting
+text/order/media cannot fund or recover as the original request. Recovery occurs
+before mutable intent lookup and expiry handling. Presence of either v3
+admission or receipt routes into full validation, so missing half-state fails
+closed. Fresh media finalization is still denied; existing ACLs/signatures are
+unchanged.
+
+The five legacy preparation execution endpoints (source settlement, issue,
+output registration, outcome settlement and execution status) also intercept
+admitted v3 before intent lookup or expiry. They validate the locked original
+owner/receipt and assignment digest, then return the existing qualified v2
+`held/incoherent` reply with `authority:none`. They never enter legacy automatic
+cancellation or return a fresh execution grant. Missing co-retained records fail
+closed. Admitted metadata recovery belongs to the dedicated prepared recovery
+branches above; no new response union is added to execution endpoints. Raw
+scan/account erasure and explicit C1 remain separate owners. Automatic v3 expiry
+still needs a reviewed state/deadline policy; the copy-phase `expired` label
+grants no cancellation or refund authority.
+
+The original rollback and exploratory committed-session probes remain historical
+evidence. Checked-in portable qualification now covers the documented
+recovery/deletion orders, service-role C1, eligible expiry and erasure
+boundaries with independent and IC-1 source/retained-runtime concurrence. The
+final matrix on the complete shared harness and full candidate qualification
+remain open; these local SQL results do not qualify media transfer, providers,
+workers, HTTP or installed journeys. Transfer precedence still requires its
+later durable owner. No transferred response is manufactured from absent
+progress or intent rows.
+
+### Defensive settlement boundary while admitted C1 is incomplete
+
+The prepared migration excludes admitted media from the legacy C1 funding-only
+refund predicate and rejects a raw pending-to-cancelled-pre-dispatch lifecycle
+UPDATE. Detection uses either a v3 admission, its private receipt, or the
+conjunction of permanent preparation-source and M1-allocation fences. Those
+fences survive private erasure. The conjunction is deliberately conservative: it
+also holds an older prepared-media operation with both fences, not only a proven
+v3 lineage. Direct M1-only and unfunded source-only operations do not match that
+conjunction.
+
+Generic quota-core commit/fail/refund and held complimentary settlement are also
+denied for this boundary, including after private erasure. The existing public
+quota wrapper may reject earlier with `initial_analysis_execution_required`; the
+private settlement fence uses `initial_analysis_settlement_unavailable`. Neither
+an elapsed deadline nor deletion of private proof opens settlement. Existing
+explicit cancellation uses conservative unknown (or known-dispatched)
+classification, preserves accounting, retires both registries and erases private
+components. Exact cancellation replay cannot refund or recreate admission.
+
+This is a temporary denial boundary, not positive-unused C1 implementation or
+successful completion. The dedicated C1 owner must prove complete original
+unused state and exact original settlement under ordered locks before granting a
+pre-dispatch terminal transition. Its review must replace the defensive hold
+with proof-bearing authority, never a caller-controlled bypass. Automatic
+expiry, authoritative account/scan qualification and full candidate gates remain
+open; activation stays disabled.
+
+### Private cancellation prestate capture
+
+The revoked `capture_initial_admitted_cancellation_prestate` helper captures
+original rows under the cancellation owner's user/scan scope and ordered
+accounting, source, receipt and media locks. It checks retained integrity and
+live unused evidence separately, rejects missing or zero counters and any
+invocation by scan or reservation, and retains exact private preimages plus
+one-charge counter deltas. Complimentary absence is JSON null. No current
+catalog selection or lease refresh occurs.
+
+This covers only an admitted, pre-transfer operation with no M2 claim or
+receipt. It does not qualify verified-M2 abandonment or post-transfer
+cancellation. The returned snapshot is private, transaction-local and
+`authority:none`; it must not be logged, transported or persisted as a reusable
+authorization. A matching transaction ID alone does not establish provenance.
+All existing settlement and lifecycle fences remain in force after successful
+capture.
+
+Cancellation locks submission before admission; recovery locks admission before
+submission. Both hold the same outer user/scan locks first. This explains the
+same-operation serialization, not a claim that all nested owners use one order
+or that cross-owner/direct-writer concurrency is qualified. Future integration
+must recheck and consume original evidence through the closed transition owner,
+verify exact settlement postimages before terminal transition, and model counter
+row deletion when the original release consumes its last charge. Complete
+settlement, retirement, erasure, deferred proof and terminal protection remain
+required before positive-unused C1 acceptance.
+
+### Private settlement postimage comparison
+
+`assert_initial_admitted_cancellation_settlement` compares the locked original
+capture with the existing quota and complimentary owners' resulting rows. It is
+revoked, non-mutating and grants no settlement, lifecycle or erasure exception.
+It must run before private receipt cleanup. The original receipt must remain
+unchanged and pass retained integrity; its accounting supplies the complete,
+unique charge-link set. Each captured counter must match its original link key,
+window and one-charge delta. Omitted, duplicated or foreign entries reject.
+
+Successful comparison requires the exact original quota refund with one refund
+count, no surviving reservation links, unchanged provider attempt, and exactly
+one decrement of each linked counter. A counter whose original count was one
+must be absent. Surviving counters use the existing release owner's transaction
+clock; quota and credit use their distinct observed post-lock settlement clocks.
+Clock regression fails closed. Held credit must be released with the original
+failure reason and exactly one increment of both complimentary epoch and public
+entitlement version: the existing users trigger increments the latter when the
+epoch changes. No-hold requires both to remain unchanged.
+
+The retained receipt authenticates original charge membership, not mutable
+counter totals or caller-supplied snapshots and timestamps. The future closed
+owner must obtain and bind these originals and transition witnesses itself.
+Successful comparison alone cannot satisfy a guard, authorize cleanup or prove
+that no later mutation occurred. Terminal retirement, erasure, immutable
+deferred proof and protection after consumption remain separate required work;
+all existing defensive settlement fences stay active.
+
+The private C1 entry stage now obtains its own locked prestate and current xid;
+non-null caller proof/xid is rejected, and no API role has table or routine
+access. It cannot arbitrarily update, delete, truncate or commit: its deferred
+insertion check deliberately always fails until the closed terminal owner is
+implemented. This rollback-only preparation opens no cancellation/refund route.
+Future original-owner statement/clock witnesses and post-erasure terminal
+validation remain required; see the admitted-proof RFC. No private snapshot may
+enter a response, log or durable recovery record.
+
+The original quota finalizer's post-lock sampling expression has a private C1
+hook, still behind its unchanged admitted-settlement denial. A current entry
+must match original reservation/owner/lease/refund state; the guard recaptures
+unchanged locked prestate and generates the clock internally once. No-entry
+behavior remains ordinary wall-clock sampling. This is a clock seam only, not an
+accounting event witness, action exception, or successful C1 path.
+
+The prepared C1 quota witness ledger instruments the existing quota owners'
+original DML sites. Expected images come from the guarded snapshot and bound
+clock, with exact BEFORE checks and single winning AFTER consumption. Shared
+counter zero-row deletes and unordered link deletes are explicit. All API roles
+are denied ledger/registrar access; a trusted migration administrator is outside
+that caller boundary, so this is not SQL call-stack attestation. The quota phase
+rejects unregistered or unrelated accounting writes in the transaction. All
+action fences and unconditional deferred rejection remain closed. At that
+quota-only boundary, credit, lifecycle, retirement/erasure and final terminal
+witnesses were still absent; a complete quota ledger is not cancellation or
+refund authority.
+
+The prepared C1 credit witness records original settlement separately while
+retaining quota phase and its guards. It explicitly captures the locked usage
+lookup's FOUND before instrumentation. Held credit requires an original clock,
+exact released-hold event and a users event incrementing both epoch and
+entitlement version, with other fields unchanged. Absent credit has no clock or
+events. Original return flags and the existing complete accounting comparator
+must pass before the credit witness completes. The existing fence is retained;
+credit evidence alone grants no lifecycle, erasure or public action authority.
+Later terminal evidence must not depend on rereading erased receipts.
+
+The fixed credit member trigger is SECURITY DEFINER with an empty search_path
+and no API EXECUTE grant, so permitted authenticated users updates can inspect
+the no-stage condition without access to private proof. It grants no table
+privileges or snapshot-returning API. Ordinary direct user writes are tested
+independently of the privileged settlement chain.
+
+The prepared lifecycle witness now brackets the existing cancellation UPDATE
+with fixed begin/end hooks. It requires closed quota and complete credit
+witnesses plus a fresh accounting comparison while the receipt exists, then
+captures exactly one full pending-to-cancelled_pre_dispatch lifecycle event.
+No-stage legacy calls remain unchanged. Main stage stays quota, preserving
+accounting guards, and completed lifecycle evidence blocks further writes. The
+admitted transition fence and deferred rejection remain closed; registry
+retirement, erasure, cancellation receipt and final deferred proof are still
+required before supported C1. See the admitted-proof RFC for this bounded
+rollback-only protocol; witness presence grants no action authority.
+
+Prepared retirement witnesses now instrument the existing source/output and M1
+destination retirement owners in that order. They require exact original
+membership, completed lifecycle/accounting and full fence/registry events;
+complete witnesses allow only exact zero-write reentry for later DELETE
+triggers. No-stage callers are unchanged. Retirement retains cleanup metadata
+and proves no physical deletion. Public C1 composition, terminal proof/seal and
+public action exceptions remain absent; see the admitted-proof RFC for the
+bounded protocol and current candidate evidence for its validation status.
+
+Authentic C1 capture now additionally freezes a bounded15-relation private
+cascade inventory, including source/output mappings and explicit empty
+downstream sets. The source mapping is locked before capture; count and byte
+preflights precede aggregation. Outside the exact root protocol below, every
+private mutation remains denied while the C1 stage survives. Shared
+configuration assets and permanent storage metadata remain outside that deletion
+inventory. Capture alone grants no deletion authority; public C1, terminal
+receipt/proof composition and the surviving denial seal remain unimplemented.
+See the admitted-proof RFC's private erasure-image boundary and candidate
+evidence for its qualification limits.
+
+The prepared private erasure owner deletes submission before preparation intent
+only after original accounting/lifecycle and both retirement proofs complete. It
+freezes receipt-independent accounting postimages before the first cascade, then
+observes exact unique full-OLD DELETE events with winning AFTER witnesses. Root
+closure absence includes initially empty relations. Existing retirement triggers
+must make zero-write reentry; private recreation and late provider-attempt
+mutation remain denied. This owner is revoked from API roles and is not called
+by public C1. Unconditional deferred rejection remains until minimal terminal
+receipt, transient-proof consumption and a surviving denial seal are composed
+and reviewed. No activation or supported erasure qualification is implied.
+
+### Minimal cancellation receipt (prepared, uncommittable)
+
+After both private roots complete, a revoked private owner derives the existing
+three-field cancellation row from the authentic stage: scan identity, owner and
+`dispatch_prevented`. It records one exact INSERT through a private pending
+witness and winning AFTER observation, then closes only after the persisted row,
+exact private absence and all surviving postimages still match. Earlier erasure
+callers continue requiring receipt absence; the overload accepts only absence or
+that exact derived closed receipt shape. Caller-provided images, preexisting
+receipts, duplicate events and late receipt mutation are denied. Original
+receipt guards, foreign keys and no-stage deletion semantics remain.
+
+This helper is not integrated into the public cancellation owner. At the
+receipt-only checkpoint, unconditional deferred rejection remained; receipt
+presence alone does not authorize commit, dispatch, settlement or recovery
+success for a staged operation. Final immutable proof, consumption, surviving
+denial seal and whole-owner/caller qualification remain required.
+
+### Current consumption candidate supersedes earlier incremental fences
+
+Earlier sections describing unconditional deferred rejection and no consumption
+record their individual preparation checkpoints. The integrated private
+candidate below replaces that unconditional failure with mandatory guarded
+cleanup and terminal deferred obligations; it retains the public action fences.
+It remains unqualified until candidate validation and independent review
+complete.
+
+### Transient terminal snapshot and private consumption (candidate)
+
+The private terminal snapshot derives full rows from a fixed seven-relation
+catalog: stage, quota statements, credit, lifecycle, both retirements, both
+erasures and receipt witness. Protocol version1 fixes this catalog; each array
+has deterministic key order and its complete cardinality is validated. Capture
+rederives quota/credit/event contracts, exact erasure OLD events and all current
+surviving postimages/absence before freezing. Guarded predecessor provenance and
+fresh live comparisons are separate requirements. No erased admitted receipt is
+reread. Only the scan locator is input; owner/xid/content are derived.
+
+Before row-array aggregation, count limits and serialized component sums plus
+exact JSON framing enforce64MiB per relation and128MiB combined. Actual final
+serialized size must equal the estimate. These fail-closed protocol limits do
+not qualify peak heap, CPU or maximum-size workloads. The full private snapshot
+must never be logged, transported or committed. API access, proof mutation and
+TRUNCATE are denied. Guarded consumption is described below. Existing guards
+remain active, and a private assertion compares the frozen proof with a fresh
+complete capture. This assertion is valid only before predecessor consumption;
+later deferred verification must use immutable captured/DELETE OLD evidence and
+surviving facts, without recapturing removed witnesses.
+
+Snapshot presence alone grants neither consumption nor successful commit. The
+integrated private consumption candidate leaves the original stage in quota. A
+separate closed version1 order deletes quota, credit, lifecycle, retirement,
+erasure and receipt witnesses, then the stage. Within those completed witness
+sets, retirement order is destination then source, and erasure order is intent
+then submission, matching the version1 frozen key order. These are witness
+cleanup orders, separate from the earlier source-first retirement and
+submission-first private-root erasure. The snapshot remains until last.
+Frozen-to-consuming revalidates all original rows and surviving facts and takes
+an unavoidable transaction denial seal. Exact full OLD and untouched suffix
+checks bracket each winning DELETE; only that AFTER chain advances the immutable
+proof's separate cursor. Per-key suffix comparisons avoid full-row aggregation.
+
+The final snapshot DELETE requires complete predecessor absence and surviving
+accounting, lifecycle, registry and receipt equality. Its immutable DELETE OLD
+carries the sole deferred full proof. Earlier stage INSERT and final DELETE
+obligations require complete transient absence plus terminal facts; their safety
+depends on the mandatory deletion chain, never absence or a seal alone. The
+final validator reads frozen evidence and surviving facts, not erased witnesses
+or the admission receipt. The distinct denial seal covers a closed48-relation
+catalog, including competing admission protocol and all C1 tables, and remains
+after stage/snapshot removal. Exact row guards mediate narrow cleanup
+exceptions. Mandatory AFTER STATEMENT transition-table checks require one
+winning row, rejecting zero-row protocol DELETE or snapshot UPDATE even where
+the statement routing guard permits the relation. An existing admission seal
+also denies consuming entry.
+
+This is an unqualified private candidate until exact runtime and independent
+review finish. It does not integrate the public cancellation owner or open the
+original admitted-settlement fence. Full caller audit, failure/race/resource
+qualification and affected gates remain required. No activation route is added.
+
+The integrated candidate gives only the two read-only deferred C1 trigger
+validators a trusted migration-owner `SECURITY DEFINER` context and empty
+`search_path`, with explicit table/schema/AFTER/ROW/operation guards. This is
+required when deferred constraints fire after the private owner returns to an
+API role. All API/PUBLIC execute and private table privileges stay revoked;
+cleanup helpers remain invoker-only. Elevation enables proof reads and does not
+replace the immutable event chain or permit incomplete cleanup.
+
+The private consumption/deferred/seal increment is now boundedly accepted from
+exact local held/absent fixtures, actual service-role deferred COMMIT and
+independent re-review. This does not install the public compositor or qualify
+the full atomic checkpoint. The prior missing-admission corruption fixture's
+deadlock remains unexplained: historical normal and scheduler-quiesced replays
+both passed without reproducing it. The corrected stage suite preserves actual
+missing-row integrity tests and uses exact-identity fault injection to verify
+public-wrapper propagation separately; it passed876 on the unchanged candidate.
+Its temporary helper replacement must roll back with the exact definition,
+owner, security attributes and ACL restored. This permits preparation of the
+inactive public integration after independent review, but is not a deadlock fix
+or real-owner concurrency qualification. IC-1's next-owner design keeps generic
+legacy-expiry/account-erasure cancellation separate from positive C1: only the
+existing explicit public cancellation endpoint may later reach the dedicated
+private compositor, preserving its DTO and grants. The surviving CANC seal must
+not interrupt account batches that still need scan/user writes. Exact terminal
+receipt classification wins on retry; partial C1 failure never falls through to
+another settlement path.
+
+### Explicit cancellation integration candidate
+
+The current uncommitted candidate routes the service-only cancellation wrapper
+to a dedicated revoked C1 compositor. Earlier no-compositor statements above
+describe prior private-helper checkpoints. Generic account/legacy erasure
+remains separate, exact terminal replay wins, and a pending admitted footprint
+with invalid proof fails closed without fallback. See the
+[dedicated owner contract](../../../../../docs/rfcs/initial-admitted-proof-2026-10-12.md#dedicated-explicit-cancellation-candidate-october-12)
+for the original-owner exceptions and remaining qualification boundaries. Local
+synthetic endpoint evidence does not enable activation or qualify the full
+atomic checkpoint.

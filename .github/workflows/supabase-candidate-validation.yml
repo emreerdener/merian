@@ -53,7 +53,7 @@ jobs:
     needs: scope
     if: needs.scope.outputs.should_run == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     defaults:
       run:
         working-directory: services
@@ -653,6 +653,40 @@ jobs:
           supabase db reset --local --yes
           PYTHONDONTWRITEBYTECODE=1 python3 supabase/scripts/test_initial_preparation_execution_contention.py \
             --disposable-container supabase_db_merian
+
+      - name: Qualify atomic admission C1 boundaries
+        # Each suite owns a fresh synthetic catalog. No hosted connection or
+        # successful provider dispatch is supported by this qualification.
+        env:
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: |
+          mkdir -p "$RUNNER_TEMP/initial-atomic-c1"
+          for c1_suite in explicit terminal terminal-held session-authority explicit-edges cross-owner recovery-order counter-images counter-order scan-delete-order account-order registry-order ghost-order account-batch admitted-expiry legacy-media-expiry historical-no-media-expiry resource; do
+            supabase db reset --local --yes
+            python3 - "$RUNNER_TEMP/initial-atomic-c1/$c1_suite-replay.json" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          migrations = sorted(Path("supabase/migrations").glob("*.sql"))
+          manifest = {"state": "ready", "project": "merian", "container": "supabase_db_merian",
+                      "provenance": "Successful fresh local reset from this candidate checkout in the same CI step",
+                      "migration_hashes": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in migrations}}
+          Path(sys.argv[1]).write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
+            PYTHONDONTWRITEBYTECODE=1 python3 supabase/scripts/test_initial_atomic_admission_c1.py \
+              --disposable-container supabase_db_merian \
+              --evidence-directory "$RUNNER_TEMP/initial-atomic-c1" \
+              --replay-manifest "$RUNNER_TEMP/initial-atomic-c1/$c1_suite-replay.json" \
+              --suite "$c1_suite"
+          done
+
+      - name: Retain atomic admission C1 evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: initial-atomic-c1-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/initial-atomic-c1/*.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Stop disposable database
         if: always()

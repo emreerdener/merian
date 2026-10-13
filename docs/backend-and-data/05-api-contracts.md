@@ -18626,9 +18626,9 @@ must come from `initial_qualified_context`; future authoritative callers must
 bind its inputs to retained locked rows. Reply shape decoding is not authority.
 No current selection, issuance, funding, provider or storage action is
 performed. The 65,536-byte full assignment, 131,072-byte receipt and
-524,288-byte reply bounds apply to complete embedded records.
-Admission/transferred replies remain reserved for their separately reviewed
-receipt-owner implementation.
+524,288-byte reply bounds apply to complete embedded records. Admitted recovery
+now uses the retained receipt owner described below. Transferred replies remain
+reserved for their separately reviewed transfer owner.
 
 ### Gated qualified preparation response routing
 
@@ -18730,3 +18730,131 @@ runtime remain open. No runtime caller, public DTO, route or activation changes.
 SQL fixture/catalog and Deno schema/vector equality evidence are retained in
 `.artifacts/initial-admitted-sql/`; this is not hosted or installed
 qualification.
+
+### Inactive admitted recovery response codec
+
+`admissionRecoveryResponse.ts` and `admission-recovery-response-schema-v2.json`
+implement the closed version2 `admitted`, `transferred`, and
+`held/already_transferred` envelopes from the
+[handoff contract](../rfcs/initial-preparation-handoff-2026-10-11.md). Every
+variant carries `authority: none`. Admitted/transferred replies retain exact M1
+binding v2; response version is independent of admission binding v3. The 32 KiB
+envelope and 16 KiB binding ceilings apply before acceptance. Nested identity,
+ordered cutoffs and the phase-window digest must agree. The decoder snapshots
+before hashing and never uses a current clock to grant authority. Private SQL
+parsing uses the same schema and synthetic positive/negative vectors.
+
+This is consistency validation only: arbitrary well-formed receipt digests do
+not prove a stored admission or transfer. A transport caller must correlate the
+reply to its original operation. The future locked response owner must check
+live ownership, deletion and cancellation, then exact transfer, exact admission,
+and only then unadmitted intent. Explicit prepared SQL status,
+finalization-retry and media-retry branches now return the admitted envelope
+from the original receipt. No native decoder, Identify DTO or live HTTP route
+adopts it. The earlier synthetic admission and distinct-session recovery probes
+were exploratory. The checked-in portable suites now have independent and IC-1
+source/retained-runtime concurrence for bounded local recovery, positive-unused
+C1, eligible expiry and erasure cases. This does not close the coherent
+atomic/M1/C1 checkpoint: final shared-harness matrix and full candidate gates
+remain required. Fresh media finalization and live transport adoption remain
+closed pending their later reviewed owners.
+
+The Deno codec takes a parsed value and canonicalizes it; SQL requires canonical
+TEXT and rejects alternative spellings. Shared semantic vectors do not establish
+raw-wire lexical parity. The eventual transport still needs a streamed byte cap
+before JSON parsing and original request/account-lease correlation. In
+particular, the held envelope contains no owner or scan identity; its digest
+alone cannot associate it with the currently displayed operation.
+
+The new revoked `internal.recover_initial_admitted_media` is a private,
+admitted-only owner used by those explicit prepared SQL recovery branches. The
+shared legacy recovery helper and no-media intent DELETE guard remain unchanged.
+It holds canonical owner/deletion/cancellation scope, then locks owner-scoped
+admission, submission and receipt in established order. It requires bindingv3, a
+positive pending/dispatch-authorized lifecycle and no active admission stage,
+then checks complete retained receipt integrity. No intent/source/current
+funding or catalog lookup is used. The server clock is sampled after locks and
+proof. The pure revoked constructor returns copy before the original copy cutoff
+and expired at/after; pre-anchor observation rejects. Elapsed time never invents
+verification or transfer progress. A dispatch-authorized lifecycle permits only
+historical metadata recovery; even a copy phase carries no copy permission.
+
+Media preparation retries validate their canonical candidate, then compare its
+complete original bytes to the locked receipt before replay. Changed supporting
+text/order/media cannot fund or recover as the original request. Recovery occurs
+before mutable intent lookup and expiry handling. Presence of either v3
+admission or receipt routes into full validation, so missing half-state fails
+closed. Fresh media finalization is still denied; existing ACLs/signatures are
+unchanged.
+
+The five legacy preparation execution endpoints (source settlement, issue,
+output registration, outcome settlement and execution status) also intercept
+admitted v3 before intent lookup or expiry. They validate the locked original
+owner/receipt and assignment digest, then return the existing qualified v2
+`held/incoherent` reply with `authority:none`. They never enter legacy automatic
+cancellation or return a fresh execution grant. Missing co-retained records fail
+closed. Admitted metadata recovery belongs to the dedicated prepared recovery
+branches above; no new response union is added to execution endpoints. Raw
+scan/account erasure and explicit C1 remain separate owners. Automatic v3 expiry
+still needs a reviewed state/deadline policy; the copy-phase `expired` label
+grants no cancellation or refund authority.
+
+The original rollback and exploratory committed-session probes remain historical
+evidence. Checked-in portable qualification now covers the documented
+recovery/deletion orders, service-role C1, eligible expiry and erasure
+boundaries with independent and IC-1 source/retained-runtime concurrence.
+Changes to a pinned migration or runtime dependency require fresh
+exact-candidate validation; the final shared-harness matrix and full candidate
+qualification remain open. These local SQL results do not qualify media
+transfer, providers, workers, HTTP or installed journeys. Transfer precedence
+still requires its later durable owner. No transferred response is manufactured
+from absent progress or intent rows.
+
+### Prepared admitted cancellation and settlement boundary
+
+The prepared migration excludes admitted media from the generic C1 funding-only
+refund predicate. Detection uses a v3 admission, its private receipt, or the
+conjunction of permanent preparation-source and M1-allocation fences. Those
+fences survive private erasure. The conjunction deliberately also holds older
+prepared-media operations with both fences. Direct M1-only and unfunded
+source-only operations do not match it.
+
+The current uncommitted candidate preserves the existing service-only
+`cancel_initial_analysis` signature and v1 response, and routes that wrapper to
+the revoked `internal.cancel_initial_analysis_explicit` compositor. Owner,
+deletion and completion checks precede exact saved-receipt replay. Non-pending
+lifecycle or no admitted footprint retains the conservative generic owner.
+Pending admitted footprints require complete original unused proof under ordered
+locks; missing or conflicting proof fails closed without falling through to
+another owner.
+
+Only authenticated current-transaction C1 evidence can pass the original quota,
+held-credit and lifecycle settlement checks. The compositor atomically settles
+original funding, retires both media registries, erases private components,
+writes the minimal receipt and consumes its guarded terminal proof. Raw quota
+settlement and held-credit settlement remain denied. An absent credit hold
+retains its original no-op result. Neither elapsed deadlines nor private erasure
+open settlement. The generic account-erasure and legacy-expiry cancellation
+owner retains conservative unknown/known-dispatched classification and cannot
+inherit positive C1 or its transaction-wide denial seal. Saved receipt replay
+cannot upgrade classification, refund again or recreate admission.
+
+This is an inactive implementation candidate, not full public-path acceptance.
+Selected synthetic endpoint COMMIT, rollback and contention cases are recorded
+separately from remaining cross-owner/caller/resource qualification, portable
+packaging and affected gates. See the
+[dedicated C1 contract](../rfcs/initial-admitted-proof-2026-10-12.md#dedicated-explicit-cancellation-candidate-october-12).
+Activation remains disabled and ordinary production access remains nil.
+
+### Private initial submission storage representation
+
+The forward correction
+`20261013030931_align_initial_submission_storage_bounds.sql` aligns three
+private JSONB container ceilings with the existing canonical input, description
+and configuration bounds. PostgreSQL display separator spaces are accounted for
+separately; the 1,048,576-byte canonical input contract, all semantic
+validators, exact digests, public/generated DTOs and disabled gates are
+unchanged. The
+[storage-bound derivation](../rfcs/initial-admitted-proof-2026-10-12.md#submission-storage-representation-bounds--october-13-2026)
+records the 8,190-byte maximum rendering allowance, structural catalog coverage
+and separate full materialization/C1 qualification requirement.

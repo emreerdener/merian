@@ -361,6 +361,20 @@ is available after erasure. Reply schemas, SQL constructors and Deno/native
 decoders must agree on these explicit unions; old v1 responders may not emit or
 reinterpret them.
 
+Phase classification clarification (IC-1, October 12): `phase` describes the
+next unresolved handoff stage under its original deadline, not a time schedule
+that implies work has happened. Until qualified copy/M2 progress records exist,
+admitted recovery reports `copy` strictly before the saved copy cutoff and
+`expired` at or after it; a pre-anchor observation rejects instead of asserting
+expiry. Elapsed time alone never advances it to verification or transfer. Once
+those owners exist, classification uses their original progress/claim/receipt
+records and the deadline relevant to that state. Exact committed transfer takes
+precedence even after expiry. `expired` grants no refund or retirement
+permission and does not prove unused funding. Test cutoff equality and the
+absence of synthetic progress across every later cutoff. This clarifies the
+previously underspecified classifier; it does not claim a locked recovery
+implementation or qualify the later owners.
+
 Explicit user cancellation and deletion still apply to transferred operations
 under the existing lifecycle owner. For explicit post-transfer cancellation,
 load the self-contained admitted/transfer receipts instead of the deleted

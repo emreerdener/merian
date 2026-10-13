@@ -1364,3 +1364,72 @@ Deno.test("candidate gate executes source contention only inside the disposable 
   assertEquals(step.includes("continue-on-error:"), false);
   assertStringIncludes(source, "permissions:\n  contents: read");
 });
+
+Deno.test("candidate C1 suites reset only the disposable database and retain bounded evidence", async () => {
+  const source = await Deno.readTextFile(
+    new URL("supabase-candidate-validation.yml", workflowsDirectory),
+  );
+  const catalogs = source.indexOf(
+    "- name: Validate database security catalogs",
+  );
+  const suite = source.indexOf(
+    "- name: Qualify atomic admission C1 boundaries",
+  );
+  const evidence = source.indexOf(
+    "- name: Retain atomic admission C1 evidence",
+  );
+  const stop = source.indexOf("- name: Stop disposable database");
+  assertEquals(
+    catalogs >= 0 && suite > catalogs && evidence > suite && stop > evidence,
+    true,
+  );
+  const step = source.slice(suite, evidence);
+  assertStringIncludes(
+    step,
+    "for c1_suite in explicit terminal terminal-held session-authority explicit-edges cross-owner recovery-order counter-images counter-order scan-delete-order account-order registry-order ghost-order account-batch admitted-expiry legacy-media-expiry historical-no-media-expiry resource; do",
+  );
+  assertStringIncludes(step, "supabase db reset --local --yes");
+  assertStringIncludes(
+    step,
+    "PYTHONDONTWRITEBYTECODE=1 python3 supabase/scripts/test_initial_atomic_admission_c1.py",
+  );
+  assertStringIncludes(step, "--disposable-container supabase_db_merian");
+  assertStringIncludes(
+    step,
+    '--evidence-directory "$RUNNER_TEMP/initial-atomic-c1"',
+  );
+  assertStringIncludes(
+    step,
+    '--replay-manifest "$RUNNER_TEMP/initial-atomic-c1/$c1_suite-replay.json"',
+  );
+  assertStringIncludes(step, '--suite "$c1_suite"');
+  assertEquals(step.includes("secrets."), false);
+  assertEquals(step.includes("continue-on-error:"), false);
+  const loop = step.indexOf(
+    "for c1_suite in explicit terminal terminal-held session-authority explicit-edges cross-owner recovery-order counter-images counter-order scan-delete-order account-order registry-order ghost-order account-batch admitted-expiry legacy-media-expiry historical-no-media-expiry resource; do",
+  );
+  const reset = step.indexOf("supabase db reset --local --yes");
+  const manifest = step.indexOf(
+    'python3 - "$RUNNER_TEMP/initial-atomic-c1/$c1_suite-replay.json"',
+  );
+  const execute = step.indexOf(
+    "PYTHONDONTWRITEBYTECODE=1 python3 supabase/scripts/test_initial_atomic_admission_c1.py",
+  );
+  const done = step.indexOf("\n          done", execute);
+  assertEquals(
+    loop >= 0 && reset > loop && manifest > reset && execute > manifest &&
+      done > execute,
+    true,
+  );
+  assertEquals(step.split("supabase db reset --local --yes").length, 2);
+  assertEquals(step.split("test_initial_atomic_admission_c1.py").length, 2);
+  assertStringIncludes(step.slice(manifest, execute), '"state": "ready"');
+  assertStringIncludes(step.slice(manifest, execute), '"migration_hashes"');
+  const retained = source.slice(evidence, stop);
+  assertStringIncludes(retained, "if: always()");
+  assertStringIncludes(retained, "if-no-files-found: error");
+  assertStringIncludes(
+    retained,
+    "path: ${{ runner.temp }}/initial-atomic-c1/*.json",
+  );
+});

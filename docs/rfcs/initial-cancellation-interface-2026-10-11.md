@@ -141,6 +141,61 @@ admission/cancellation and erasure race orders, exact retry, cross-owner denial,
 old/missing/corrupt proof, completed precedence, shared accounting contention,
 rollback, permanent-state guards and actual API-role privileges.
 
+### Deadlock evidence and public-path acceptance — October 12, 2026
+
+This tightens the existing atomic/M1/C1 concurrency gate; it adds no milestone,
+feature, writer handoff or activation authority. History primary owns the tests
+and evidence; independent concurrency review and the IC-1 owner review the exact
+candidate and disposition at final integration/acceptance before public-path
+qualification.
+
+The user's October 12 sequencing clarification in
+[Check current slice](codex://threads/01a12460-a2c6-7b21-abcf-d3be41331b45),
+turn `01a13315-9a08-7342-9c66-5e9d2cb49855`, defers dedicated historical
+root-cause investigation and reproduction campaigns to final acceptance. Record
+the historical issue as **not reproduced in subsequent runs; dedicated
+root-cause investigation deferred to final acceptance**, never fixed. Continue
+authorized implementation and normal regression/concurrency qualification;
+historical investigation is not an additional prerequisite for each intermediate
+checkpoint. Reopen it earlier if it blocks implementation or reliable
+validation, or recurs in normal application paths. Diagnose new blocking
+failures rather than retrying blindly. This changes investigation timing only:
+normal test and review gates, evidence retention and final acceptance standards
+remain required.
+
+- Preserve the eight historical stage93 `40P01` failures, exact source/test
+  hashes and retained environment evidence. The original receipt is
+  `.artifacts/initial-atomic-admission/atomic-stage-93.json`; its SQL,
+  diagnostic-runner inventory and owned disposable/environment records remain
+  evidence, not replaceable fixtures. Later passing normal or quiesced replays
+  and the corrected wrapper fixture establish neither cause nor a fix.
+- Force controlled real-operation overlaps for relevant cancellation,
+  settlement/accounting, deletion/cleanup and expiry/recovery owners in both
+  execution orders under their actual caller permissions. Assert terminal state,
+  original accounting and required evidence retention/erasure, not merely
+  absence of SQL errors. Keep trusted fixture isolation and private-owner probes
+  distinct from authentic runtime qualification; passing replacement fixtures
+  does not substitute for these concurrency tests. Applicable current owners
+  follow the existing IC-1 boundary; successful future S0 dispatch/completion
+  qualification remains separately required.
+- If a deadlock recurs, retain a sanitized PostgreSQL deadlock report with
+  transaction, lock and statement correlation sufficient to identify the cycle.
+  Periodic lock snapshots alone cannot establish root cause. Exclude private
+  payloads, credentials and auth/session data from retained evidence.
+- Any reproduced application lock cycle requires a scoped correction and
+  targeted regression evidence on the exact candidate, independently reviewed.
+  Never weaken guards or conceal failures with blind retries. Recovery retains
+  the original operation identity and cannot duplicate provider execution,
+  charging or refunds.
+- At final integration/acceptance, complete the required concurrency evidence
+  and explicitly disposition the historical failures before public-path
+  qualification as either an identified cause with a verified correction, or a
+  still unreproduced limitation with evidence-backed independent and IC-1 review
+  of residual risk. The latter must never be called fixed. A reproduced
+  unresolved runtime deadlock blocks acceptance. Waiving required concurrency
+  evidence or reducing scope requires explicit user approval; residual-risk
+  review is not such a waiver.
+
 S0 is still incomplete. Native durable cancellation delivery, exact media,
 original dispatch/result/completion, route/worker cutover, installed and hosted
 qualification remain separate rows. Activation stays false and ordinary access

@@ -8964,3 +8964,15 @@ migration contract. This creates no receipt row, RPC grant, trigger, selector,
 funding, recovery or dispatch authority. The complete atomic funded owner,
 original-row comparisons and erasure remain separate prerequisites; activation
 stays false.
+
+### Initial submission JSONB display bounds
+
+Migration `20261013030931_align_initial_submission_storage_bounds.sql` corrects
+three private submission container checks without rewriting rows. Input and
+ordered-description JSONB display text allow 1,056,766 bytes; configuration
+allows 73,753 bytes. These include at most 8,190 separator bytes beyond the
+unchanged canonical limits (1,048,576 and 65,563 respectively), derived from the
+4,096-node canonical grammar. The existing 16,384-byte funding container is
+unchanged. Types, semantic codecs, immutable identity, role restrictions,
+triggers and disabled activation remain unchanged. See the
+[bound derivation and qualification scope](../rfcs/initial-admitted-proof-2026-10-12.md#submission-storage-representation-bounds--october-13-2026).

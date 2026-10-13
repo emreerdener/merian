@@ -147,6 +147,156 @@ token; it is not part of automatic candidate validation and does not clear a
 hold. Follow the
 [canonical probe procedure](../../docs/backend-and-data/06-supabase-deployment-runbook.md#field-chat-hosted-authentication-probe).
 
+## Local atomic admission and cancellation qualification
+
+`test_initial_atomic_admission_c1.py` prepares a synthetic complete committed
+admission and exercises actual service-role C1 cancellation, proof/role
+boundaries and terminal replay. Its `explicit`, `terminal`, `terminal-held`,
+`session-authority`, `explicit-edges`, `cross-owner`, `recovery-order`,
+`counter-images`, `counter-order`, `scan-delete-order`, `account-order`,
+`registry-order`, `ghost-order`, `account-batch`, `admitted-expiry`,
+`legacy-media-expiry`, `historical-no-media-expiry` and `resource` suites each
+require a fresh local migration replay. The candidate workflow resets only its
+disposable database between suites and retains sanitized JSON receipts on
+success or failure. Run it with `--disposable-container`,
+`--evidence-directory`, `--replay-manifest` and `--suite`; no hosted DSN is
+supported. The replay owner must supply a ready container/project/migration-byte
+manifest; the harness verifies it against the current files and live versions.
+Dispose or reset the named database after each run, including failures.
+
+The transaction-authority suite uses two trusted PostgreSQL owner sessions with
+service claims and a third lock observer. It verifies that another transaction
+cannot borrow captured or advanced quota/credit authority, observes actual
+blocking, rolls the actor back, and checks unchanged accounting/evidence. This
+is not a service-role public endpoint test. Persistent sessions have bounded
+statement/lock/marker waits and retain sanitized failures; closing only their
+own connections rolls back unfinished transactions.
+
+The absent-credit `explicit-edges` suite retains reviewed proof-drift, injected
+failure, original-owner seam and precedence checks. Every case restores the
+original 21-relation projection. Deliberately invalid corruption fixtures roll
+back; they do not establish deferred integrity of the injected state. Authentic
+completion and partial-stage checks retain their original constraint flushes.
+
+The `cross-owner` suite exercises actual public service-role cancellation in
+both valid/foreign caller orders. It observes blocking, requires exact foreign
+owner denial without mutation and verifies one original refund and held-credit
+release. A trusted scheduler locks only the selected admitted scan. Sanitized
+backend labels and structural deadlock edges are retained on failure; these two
+schedules do not qualify all current or future concurrency.
+
+The `recovery-order` suite creates eight successive held admissions using one
+persistent trusted fixture connection. Each returns an explicit immutable
+owner/scan/receipt identity; setup rows are installed once, and earlier terminal
+records remain for peer-preservation assertions. Only the trusted fixture
+connection uses a 45-second SQL timeout and 55-second marker wait; competing
+actors retain 12/20 seconds and all lock waits remain 10 seconds. These harness
+limits do not alter saved application phase deadlines. Status, finalize, create
+and execution-status wrappers run against cancellation in both observed lock
+orders, with exact original recovery/terminal denial and accounting checks.
+
+The `counter-images` suite retains three complete held admissions: two share an
+owner and IP identity, while a third uses the other installed synthetic owner
+and a different IP identity. Its fixture rebinds only the connection-local media
+helper. Actual service-role cancellation checks independently derived
+quota-counter postimages, 19-relation peer preservation and exact replay. This
+is sequential accounting coverage; contention remains a separate suite.
+
+The `counter-order` suite runs public C1 cancellation against the trusted
+synthetic admission actor in both orders. The fixture installs at most four
+validated synthetic owners and forbids rebinding while an admission is pending.
+It verifies that admission's exact receipt identity before committing. Only this
+trusted composer uses 45/55-second SQL/marker limits; public C1 and observers
+retain 12/20, with 10-second lock waits everywhere. Independent expected
+counters and peer images stay in memory. Observed transaction-ID waits, counter
+relation access and actual same-IP key/window equality provide bounded wait
+attribution; no third lock scheduler is used. This does not qualify public
+admission, production timing or all possible lock graphs.
+
+The `scan-delete-order` suite exercises the public scan-deletion `not_found`
+path against C1 in both observed orders. It proves no scan or deletion tombstone
+is created, preserves accounting and peer rows, and verifies the original
+cancellation. It does not exercise successful scan erasure or external storage
+deletion.
+
+The `account-order` suite runs public account tombstoning against C1 in both
+orders. Temporary test observers verify accounting immediately before user
+deletion and verify the exact rows removed by its cascades. Private cancellation
+receipts follow the user cascade; global operation fences and retired media
+registries survive. The account-first path retains unknown dispatch accounting
+and requires later C1 to reject the unavailable owner, without a new refund.
+These local SQL observations do not establish external erasure.
+
+The `registry-order` suite checks empty source/media erasure claims before and
+during uncommitted C1, then each registry family's lease, failed finish,
+reclaim, stale-token and acknowledgment behavior after commit. Empty results
+establish visibility and return ordering; they do not prove lock skipping. SQL
+marker acknowledgment does not prove an external worker deleted stored media.
+
+The `ghost-order` suite uses a dedicated synthetic identity/handoff fixture.
+Authenticated handoff consumption must reject preserved references before and
+after C1. The Ghost-first order uses a trusted relation-lock scheduler and
+observes C1 waiting on the Ghost actor. A caught denial releases subtransaction
+locks; no outer-transaction lock-retention claim follows. Identity/handoff
+values remain in memory and the disposable database. The 24-relation projection
+excludes purchase-principal tables; the fixture proves those tables are empty,
+so principal contention, successful merge and Auth API behavior remain untested.
+
+The `account-batch` suite uses two committed held admissions for one synthetic
+owner. It retains the corrected pre-user-delete accounting projection, original
+quota/credit/link cascade observers, rollback after a second cancellation
+failure, partial-evidence isolation, deferred constraint checks and final
+committed account cleanup. Private cancellation receipts follow the owner
+cascade; global cancellation fences survive. No Auth API or worker is exercised.
+
+The `admitted-expiry` suite seeds two complete held v3 admissions and waits at
+most 360 seconds for their original deadlines, with bounded read-only clock
+observations and no timeline edits. After actual expiry, create/status/finalize
+must retain the admitted binding with no authority; the five legacy execution
+wrappers must return their held response. The preserved eight-relation
+accounting projection, cancellation/invocation absence and inactive gate checks
+remain. This is local SQL expiry/recovery qualification, not provider execution
+or production timing qualification.
+
+The `legacy-media-expiry` suite reconstructs the synthetic catalog in each
+rollback-only transaction, creates an unadmitted media intent and applies the
+reviewed historical v2 codec/timeline projection with its storage guard
+restored. Seven actual service wrappers must preserve the historical expiry/held
+behavior, remove the expired intent without funding and record prevented
+dispatch. This is historical compatibility coverage, not a fresh legacy writer
+or product route. The synthetic setup gate is transaction-local in effect and
+rolls back each time.
+
+The `historical-no-media-expiry` suite loads exact historical v2 vectors from
+the checked-in saved-assignment catalog. A dedicated trusted fixture inserts
+three already-expired intents with activation false; it never requests a new
+text-only admission. Actual service create/status/finalize calls expire those
+records, preserve accounting and other intents, flush deferred constraints under
+write tripwires, then commit. Fresh connections replay only the original
+cancellation. The vector source is included in the exact candidate manifest.
+
+The `resource` suite retains the distinct synthetic 140,000 ms admission and
+210,000 ms total profile, preserving the other seven phases and the original
+expiry envelope. Its dedicated 240-second observer drains sanitized errors and
+budget/phase/counter notices while measuring five-source cohorts and valid
+plain, control-character and non-BMP one-MiB inputs. Actual service C1 uses
+independent counter postimages and peer preservation, followed by original
+replay. Fourth frames and cap-plus-one inputs deny without business mutation.
+Before/after backend context samples are not peak memory, and measured wall time
+includes fixture and transport overhead. Neither this budget nor its timing
+qualifies production workers, providers, HTTP or media blob processing.
+
+The fixture uses the checked-in stage catalog's explicit composer marker and
+performs original funding, materialization, ledger freeze and completion of
+admission before testing public cancellation. Trusted unknown/authorized state
+fixtures are synthetic projections, not successful provider dispatch. Full
+runtime/concurrency packaging, production timing and installed qualification
+remain separate acceptance requirements. Activation stays disabled outside
+synthetic setup; receipts contain source hashes and bounded results, never SQL,
+input descriptions or response bodies. Migration version checks alone do not
+prove SQL byte identity: bind receipts to the caller's exact fresh-replay
+manifest.
+
 ## Migration Replay
 
 Every migration must survive a complete fresh-catalog replay, not only an

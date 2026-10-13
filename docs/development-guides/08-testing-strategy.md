@@ -125,6 +125,32 @@ action makes at most three attempts with the same immutable installer SHA, then
 verifies exact version `2.9.4`; exhausted retries remain a failed candidate
 rather than being treated as passing evidence.
 
+The atomic-admission/C1 lane uses
+`services/supabase/scripts/test_initial_atomic_admission_c1.py` and its
+checked-in support modules. Candidate Validation runs every declared suite
+against a fresh local reset, verifies the exact migration/source manifest, and
+retains sanitized JSON receipts even on failure. The complete validation job has
+a bounded 120-minute timeout to accommodate the serial fresh-reset matrix and
+preceding full gates; this limit is not a production execution budget. Selectors
+and invocation requirements are listed in the
+[Supabase README](../../services/supabase/README.md#local-atomic-admission-and-cancellation-qualification).
+Coverage includes service authority, original cancellation/recovery, accounting,
+ordered deletion/cleanup races, account rollback, actual admitted expiry,
+historical media/no-media expiry, and bounded resource cases. Historical
+no-media fixtures qualify existing-operation recovery only; new identification
+and reanalysis still require photo, audio or video.
+
+The resource suite uses a synthetic local 140000 ms admission/210000 ms total
+budget and a 240-second observation timeout. Five-source metadata and exact
+one-MiB supporting inputs exercise admission, service cancellation, original
+replay and over-limit denial. Wall durations include fixture/transport work;
+before/after PostgreSQL memory snapshots are not peak-memory measurements. These
+local SQL tests do not qualify real media transfer, providers, HTTP, workers,
+installed journeys or production timing. Activation must be disabled at each
+suite's final check. Full catalog, Edge, migration-recovery and other candidate
+gates remain independently required; these receipts do not authorize activation
+or deployment.
+
 The OpenAI adapter lane explicitly denies network and environment access. It
 covers the historical evaluation adapter, production photo adapter, and closed
 Luna/Sol photo-model evaluation profiles. The architecture guard permits the
