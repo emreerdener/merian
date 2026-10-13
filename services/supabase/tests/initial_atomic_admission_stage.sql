@@ -906,45 +906,240 @@ BEGIN
   ORDER BY conrelid,conname
  LOOP EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I',fk.relation_name,fk.conname); END LOOP;
 END $$;
-CREATE FUNCTION pg_temp.live_snapshot_fault(fault TEXT,receipt_only BOOLEAN DEFAULT FALSE,retained_only BOOLEAN DEFAULT FALSE) RETURNS TEXT LANGUAGE PLPGSQL AS $$
-DECLARE s internal.initial_preparation_admission_staging; i INTEGER; member internal.initial_analysis_media_registry;
+-- These four retained-association corruptions need no relation-level DDL.
+-- All image/metadata comparisons stay in memory; failures expose no row data.
+CREATE FUNCTION pg_temp.retained_fixture_state() RETURNS JSONB LANGUAGE PLPGSQL AS $$
+DECLARE relation_name TEXT; images JSONB:='{}'; rows_value JSONB; relations OID[];
+BEGIN
+ relations:=ARRAY['internal.initial_preparation_admission_staging'::REGCLASS,
+  'internal.initial_preparation_admission_writes'::REGCLASS,'internal.initial_analysis_submissions'::REGCLASS,
+  'internal.initial_analysis_admissions'::REGCLASS,'internal.initial_analysis_lifecycle_fences'::REGCLASS,
+  'internal.initial_preparation_admission_receipts'::REGCLASS,'internal.initial_analysis_media_allocation_fences'::REGCLASS,
+  'internal.initial_analysis_media_registry'::REGCLASS,'internal.initial_analysis_media_cohorts'::REGCLASS,'internal.initial_analysis_media_preparations'::REGCLASS,
+  'internal.initial_analysis_media_verifications'::REGCLASS,'internal.initial_analysis_results'::REGCLASS]::OID[];
+ FOREACH relation_name IN ARRAY ARRAY['internal.initial_preparation_admission_staging',
+  'internal.initial_preparation_admission_writes','internal.initial_analysis_submissions',
+  'internal.initial_analysis_admissions','internal.initial_analysis_lifecycle_fences',
+  'internal.initial_preparation_admission_receipts','internal.initial_analysis_media_allocation_fences',
+  'internal.initial_analysis_media_registry','internal.initial_analysis_media_cohorts','internal.initial_analysis_media_preparations',
+  'internal.initial_analysis_media_verifications','internal.initial_analysis_results'] LOOP
+  EXECUTE format('SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::TEXT), ''[]''::JSONB) FROM %s t',relation_name) INTO rows_value;
+  images:=images||jsonb_build_object(relation_name,rows_value);
+ END LOOP;
+ RETURN jsonb_build_object('rows',images,'role',current_setting('session_replication_role'),
+  'replacement_owner',(SELECT to_jsonb(u) FROM public.users u WHERE id='00000000-0000-4000-8000-00000000f002'),
+  'replacement_operation',(SELECT to_jsonb(o) FROM internal.initial_analysis_operation_fences o WHERE scan_id='00000000-0000-4000-8000-000000005533'),
+  'verifier',(SELECT jsonb_build_object('definition',pg_get_functiondef(p.oid),'catalog',to_jsonb(p))
+   FROM pg_proc p WHERE p.oid='internal.initial_admission_retained_receipt(uuid,uuid,uuid)'::REGPROCEDURE),
+  'triggers',(SELECT jsonb_agg(to_jsonb(t) ORDER BY t.oid) FROM pg_trigger t WHERE t.tgrelid=ANY(relations) OR t.tgconstraint IN
+    (SELECT c.oid FROM pg_constraint c WHERE c.conrelid=ANY(relations) OR c.confrelid=ANY(relations))),
+  'constraints',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.oid) FROM pg_constraint c WHERE c.conrelid=ANY(relations) OR c.confrelid=ANY(relations)));
+END $$;
+-- Only this live-snapshot corruption fixture uses the six direct submission
+-- FKs. The separate recovery_fault fixture keeps its original helper above.
+CREATE FUNCTION pg_temp.retained_association_foreign_keys() RETURNS OID[] LANGUAGE PLPGSQL AS $$
+DECLARE actual TEXT[]; ids OID[];
+BEGIN
+ SELECT array_agg(n.nspname||'.'||r.relname||':'||c.conname||':'||pg_get_constraintdef(c.oid)
+   ORDER BY n.nspname,r.relname,c.conname),array_agg(c.oid ORDER BY n.nspname,r.relname,c.conname)
+ INTO actual,ids FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid JOIN pg_namespace n ON n.oid=r.relnamespace
+ WHERE c.contype='f' AND c.confrelid IN ('internal.initial_analysis_submissions'::REGCLASS,'internal.initial_analysis_admissions'::REGCLASS);
+ IF actual IS DISTINCT FROM ARRAY['internal.initial_analysis_admissions:initial_analysis_admissions_scan_id_owner_id_fkey:FOREIGN KEY (scan_id, owner_id) REFERENCES internal.initial_analysis_submissions(scan_id, owner_id) ON DELETE CASCADE',
+  'internal.initial_analysis_media_cohorts:initial_analysis_media_cohorts_scan_id_owner_id_fkey:FOREIGN KEY (scan_id, owner_id) REFERENCES internal.initial_analysis_submissions(scan_id, owner_id) ON DELETE CASCADE',
+  'internal.initial_analysis_media_preparations:initial_analysis_media_preparations_scan_id_owner_id_fkey:FOREIGN KEY (scan_id, owner_id) REFERENCES internal.initial_analysis_submissions(scan_id, owner_id) ON DELETE CASCADE',
+  'internal.initial_analysis_media_verifications:initial_analysis_media_verifications_scan_id_owner_id_fkey:FOREIGN KEY (scan_id, owner_id) REFERENCES internal.initial_analysis_submissions(scan_id, owner_id) ON DELETE CASCADE',
+  'internal.initial_analysis_results:initial_analysis_results_scan_id_owner_id_fkey:FOREIGN KEY (scan_id, owner_id) REFERENCES internal.initial_analysis_submissions(scan_id, owner_id) ON DELETE CASCADE',
+  'internal.initial_preparation_admission_receipts:initial_preparation_admission_receipts_scan_id_owner_id_fkey:FOREIGN KEY (scan_id, owner_id) REFERENCES internal.initial_analysis_submissions(scan_id, owner_id) ON DELETE CASCADE']::TEXT[] OR EXISTS(SELECT 1 FROM pg_constraint WHERE oid=ANY(ids) AND NOT convalidated) THEN
+  RAISE EXCEPTION 'retained fixture foreign key inventory changed' USING ERRCODE='ZX851';
+ END IF;
+ RETURN ids;
+END $$;
+-- Acquire only the fixture's required relation modes before its materialization.
+-- Earlier successful catalog locks still exist: this is not a global lock-order
+-- proof and does not explain the historical deadlock. Names, never OIDs, fix order.
+-- NOWAIT is fixture-only: any competing holder fails qualification without retry.
+-- Only locks move before materialization; all FKs and USER triggers remain active.
+CREATE FUNCTION pg_temp.lock_retained_association_fixture(fault TEXT) RETURNS VOID LANGUAGE PLPGSQL AS $$
+BEGIN
+ IF fault='missing_admission' THEN
+  LOCK TABLE internal.initial_analysis_admissions IN SHARE ROW EXCLUSIVE MODE NOWAIT;
+ ELSIF fault IN ('missing_submission','receipt_header_owner','receipt_header_scan') THEN
+  LOCK TABLE internal.initial_analysis_admissions,internal.initial_analysis_media_cohorts,
+   internal.initial_analysis_media_preparations,internal.initial_analysis_media_verifications,
+   internal.initial_analysis_results,internal.initial_analysis_submissions,
+   internal.initial_preparation_admission_receipts IN ACCESS EXCLUSIVE MODE NOWAIT;
+ ELSE RAISE EXCEPTION 'invalid retained corruption fixture'; END IF;
+ PERFORM pg_temp.retained_association_foreign_keys();
+END $$;
+CREATE FUNCTION pg_temp.corrupt_retained_association(s internal.initial_preparation_admission_staging,fault TEXT,force_failure BOOLEAN DEFAULT FALSE)
+RETURNS internal.initial_preparation_admission_staging LANGUAGE PLPGSQL AS $$
+DECLARE original_role TEXT:=current_setting('session_replication_role'); changed INTEGER; replacement UUID;
+ ids OID[]; fk RECORD; trigger_relations TEXT[]; relation_name TEXT;
+BEGIN
+ IF original_role<>'origin' OR fault NOT IN ('missing_submission','missing_admission','receipt_header_owner','receipt_header_scan') THEN
+  RAISE EXCEPTION 'invalid retained corruption fixture';
+ END IF;
+ BEGIN
+  ids:=pg_temp.retained_association_foreign_keys();
+  trigger_relations:=CASE fault WHEN 'missing_submission' THEN ARRAY['internal.initial_analysis_submissions']
+   WHEN 'missing_admission' THEN ARRAY['internal.initial_analysis_admissions']
+   ELSE ARRAY['internal.initial_analysis_admissions','internal.initial_analysis_submissions','internal.initial_preparation_admission_receipts'] END;
+  IF EXISTS(SELECT 1 FROM pg_trigger WHERE NOT tgisinternal AND tgrelid=ANY(ARRAY(SELECT x::REGCLASS::OID FROM unnest(trigger_relations) x)) AND tgenabled<>'O') THEN
+   RAISE EXCEPTION 'retained fixture original user triggers must be enabled';
+  END IF;
+  IF fault<>'missing_admission' THEN
+   FOR fk IN SELECT c.conname,n.nspname,r.relname FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid
+    JOIN pg_namespace n ON n.oid=r.relnamespace WHERE c.oid=ANY(ids) ORDER BY n.nspname,r.relname,c.conname
+   LOOP EXECUTE format('ALTER TABLE %I.%I DROP CONSTRAINT %I',fk.nspname,fk.relname,fk.conname); END LOOP;
+  END IF;
+  FOREACH relation_name IN ARRAY trigger_relations LOOP EXECUTE format('ALTER TABLE %s DISABLE TRIGGER USER',relation_name); END LOOP;
+  IF fault='missing_submission' THEN
+   DELETE FROM internal.initial_analysis_submissions WHERE scan_id=s.scan_id;
+   GET DIAGNOSTICS changed=ROW_COUNT;
+   IF changed<>1 THEN RAISE EXCEPTION 'retained fixture cardinality'; END IF;
+  ELSIF fault='missing_admission' THEN
+   DELETE FROM internal.initial_analysis_admissions WHERE scan_id=s.scan_id;
+   GET DIAGNOSTICS changed=ROW_COUNT;
+   IF changed<>1 THEN RAISE EXCEPTION 'retained fixture cardinality'; END IF;
+  ELSIF fault='receipt_header_owner' THEN
+   replacement:='00000000-0000-4000-8000-00000000f002';
+   IF NOT EXISTS(SELECT 1 FROM public.users WHERE id=replacement) OR replacement=s.owner_id THEN RAISE EXCEPTION 'retained fixture replacement owner missing'; END IF;
+   UPDATE internal.initial_preparation_admission_receipts SET owner_id=replacement WHERE scan_id=s.scan_id;
+   GET DIAGNOSTICS changed=ROW_COUNT;
+   IF changed<>1 THEN RAISE EXCEPTION 'retained fixture cardinality'; END IF;
+   UPDATE internal.initial_analysis_submissions SET owner_id=replacement WHERE scan_id=s.scan_id;
+   GET DIAGNOSTICS changed=ROW_COUNT;
+   IF changed<>1 THEN RAISE EXCEPTION 'retained fixture cardinality'; END IF;
+   UPDATE internal.initial_analysis_admissions SET owner_id=replacement WHERE scan_id=s.scan_id;
+   GET DIAGNOSTICS changed=ROW_COUNT;
+   IF changed<>1 THEN RAISE EXCEPTION 'retained fixture cardinality'; END IF;
+   s.owner_id:=replacement;
+  ELSE
+   replacement:='00000000-0000-4000-8000-000000005533';
+   IF NOT EXISTS(SELECT 1 FROM internal.initial_analysis_operation_fences WHERE scan_id=replacement) OR replacement=s.scan_id THEN RAISE EXCEPTION 'retained fixture replacement operation missing'; END IF;
+   UPDATE internal.initial_preparation_admission_receipts SET scan_id=replacement WHERE scan_id=s.scan_id;
+   GET DIAGNOSTICS changed=ROW_COUNT;
+   IF changed<>1 THEN RAISE EXCEPTION 'retained fixture cardinality'; END IF;
+   UPDATE internal.initial_analysis_submissions SET scan_id=replacement WHERE scan_id=s.scan_id;
+   GET DIAGNOSTICS changed=ROW_COUNT;
+   IF changed<>1 THEN RAISE EXCEPTION 'retained fixture cardinality'; END IF;
+   UPDATE internal.initial_analysis_admissions SET scan_id=replacement WHERE scan_id=s.scan_id;
+   GET DIAGNOSTICS changed=ROW_COUNT;
+   IF changed<>1 THEN RAISE EXCEPTION 'retained fixture cardinality'; END IF;
+   s.scan_id:=replacement;
+  END IF;
+  IF force_failure THEN RAISE EXCEPTION 'synthetic retained corruption failure' USING ERRCODE='ZX855'; END IF;
+  -- USER triggers are restored before the actual read-only verifier. Deliberately
+  -- violated inbound FKs remain absent until the enclosing subtransaction rollback.
+  FOREACH relation_name IN ARRAY trigger_relations LOOP EXECUTE format('ALTER TABLE %s ENABLE TRIGGER USER',relation_name); END LOOP;
+  RETURN s;
+ EXCEPTION WHEN OTHERS THEN
+  IF current_setting('session_replication_role')<>original_role THEN RAISE EXCEPTION 'retained fixture role restoration failed'; END IF;
+  RAISE;
+ END;
+END $$;
+SELECT extensions.ok(current_user='postgres' AND NOT (SELECT rolsuper FROM pg_roles WHERE rolname=current_user)
+ AND current_setting('session_replication_role')='origin' AND cardinality(pg_temp.retained_association_foreign_keys())=6,
+ 'retained association fixture uses ordinary postgres and the exact six direct submission foreign keys');
+CREATE FUNCTION pg_temp.retained_fixture_rejects_catalog_drift() RETURNS BOOLEAN LANGUAGE PLPGSQL AS $$
+DECLARE original_state JSONB:=pg_temp.retained_fixture_state(); denied BOOLEAN:=FALSE;
 BEGIN
  BEGIN
+  PERFORM pg_temp.lock_retained_association_fixture('missing_submission');
+  ALTER TABLE internal.initial_analysis_media_cohorts RENAME CONSTRAINT initial_analysis_media_cohorts_scan_id_owner_id_fkey TO synthetic_unexpected_submission_fk;
+  BEGIN
+   PERFORM pg_temp.retained_association_foreign_keys();
+  EXCEPTION WHEN SQLSTATE 'ZX851' THEN denied:=TRUE;
+  END;
+  RAISE EXCEPTION 'synthetic fixture rollback' USING ERRCODE='ZX856';
+ EXCEPTION WHEN SQLSTATE 'ZX856' THEN
+  RETURN denied AND original_state IS NOT DISTINCT FROM pg_temp.retained_fixture_state();
+ END;
+END $$;
+SELECT extensions.ok(pg_temp.retained_fixture_rejects_catalog_drift(),
+ 'retained fixture refuses unexpected FK inventory and restores the exact catalog on setup rollback');
+CREATE FUNCTION pg_temp.retained_corruption_matches(fault TEXT) RETURNS BOOLEAN LANGUAGE PLPGSQL AS $$
+DECLARE original_state JSONB:=pg_temp.retained_fixture_state(); expected JSONB; relation_name TEXT; rows_value JSONB;
+ removed OID[];
+ before_stage internal.initial_preparation_admission_staging; after_stage internal.initial_preparation_admission_staging;
+ matched BOOLEAN:=FALSE;
+BEGIN
+ BEGIN
+  PERFORM pg_temp.lock_retained_association_fixture(fault);
+  PERFORM internal.materialize_initial_admission('00000000-0000-4000-8000-000000005544');
+  PERFORM internal.freeze_initial_admission_ledger('00000000-0000-4000-8000-000000005544');
+  SELECT * INTO STRICT before_stage FROM internal.initial_preparation_admission_staging WHERE scan_id='00000000-0000-4000-8000-000000005544';
+  expected:=pg_temp.retained_fixture_state();
+  removed:=CASE WHEN fault='missing_admission' THEN ARRAY[]::OID[] ELSE pg_temp.retained_association_foreign_keys() END;
+  expected:=jsonb_set(expected,'{constraints}',(SELECT coalesce(jsonb_agg(c ORDER BY (c->>'oid')::OID),'[]'::JSONB)
+   FROM jsonb_array_elements(expected->'constraints') c WHERE NOT (c->>'oid')::OID=ANY(removed)));
+  expected:=jsonb_set(expected,'{triggers}',(SELECT coalesce(jsonb_agg(t ORDER BY (t->>'oid')::OID),'[]'::JSONB)
+   FROM jsonb_array_elements(expected->'triggers') t WHERE NOT (t->>'tgconstraint')::OID=ANY(removed)));
+  after_stage:=pg_temp.corrupt_retained_association(before_stage,fault);
+  FOREACH relation_name IN ARRAY ARRAY['internal.initial_analysis_submissions','internal.initial_analysis_admissions','internal.initial_preparation_admission_receipts'] LOOP
+   SELECT coalesce(jsonb_agg(changed ORDER BY changed::TEXT),'[]'::JSONB) INTO rows_value FROM (
+    SELECT CASE WHEN row_value->>'scan_id'=before_stage.scan_id::TEXT AND fault='receipt_header_owner'
+      THEN jsonb_set(row_value,'{owner_id}',to_jsonb(after_stage.owner_id))
+     WHEN row_value->>'scan_id'=before_stage.scan_id::TEXT AND fault='receipt_header_scan'
+      THEN jsonb_set(row_value,'{scan_id}',to_jsonb(after_stage.scan_id)) ELSE row_value END changed
+    FROM jsonb_array_elements(expected#>ARRAY['rows',relation_name]) row_value
+    WHERE NOT (row_value->>'scan_id'=before_stage.scan_id::TEXT AND
+      ((fault='missing_submission' AND relation_name='internal.initial_analysis_submissions')
+       OR (fault='missing_admission' AND relation_name='internal.initial_analysis_admissions')))
+   ) changed_rows;
+   expected:=jsonb_set(expected,ARRAY['rows',relation_name],rows_value);
+  END LOOP;
+  matched:=expected IS NOT DISTINCT FROM pg_temp.retained_fixture_state()
+   AND (to_jsonb(before_stage)-'owner_id'-'scan_id')=(to_jsonb(after_stage)-'owner_id'-'scan_id')
+   AND (CASE WHEN fault='receipt_header_owner' THEN after_stage.owner_id<>before_stage.owner_id ELSE after_stage.owner_id=before_stage.owner_id END)
+   AND (CASE WHEN fault='receipt_header_scan' THEN after_stage.scan_id<>before_stage.scan_id ELSE after_stage.scan_id=before_stage.scan_id END);
+  RAISE EXCEPTION 'synthetic fixture rollback' USING ERRCODE='ZX856';
+ EXCEPTION WHEN SQLSTATE 'ZX856' THEN
+  RETURN matched AND original_state IS NOT DISTINCT FROM pg_temp.retained_fixture_state();
+ END;
+END $$;
+SELECT extensions.ok(pg_temp.retained_corruption_matches(fault),'retained corruption changes only exact intended associations, restores USER triggers, suspends only intended FKs, and rolls back: '||fault)
+ FROM unnest(ARRAY['missing_submission','missing_admission','receipt_header_owner','receipt_header_scan']) fault;
+CREATE FUNCTION pg_temp.retained_corruption_failure_restores(fault TEXT) RETURNS BOOLEAN LANGUAGE PLPGSQL AS $$
+DECLARE original_state JSONB:=pg_temp.retained_fixture_state(); materialized_state JSONB;
+ s internal.initial_preparation_admission_staging; failed BOOLEAN:=FALSE; restored BOOLEAN:=FALSE;
+BEGIN
+ BEGIN
+  PERFORM pg_temp.lock_retained_association_fixture(fault);
+  PERFORM internal.materialize_initial_admission('00000000-0000-4000-8000-000000005544');
+  PERFORM internal.freeze_initial_admission_ledger('00000000-0000-4000-8000-000000005544');
+  SELECT * INTO STRICT s FROM internal.initial_preparation_admission_staging WHERE scan_id='00000000-0000-4000-8000-000000005544';
+  materialized_state:=pg_temp.retained_fixture_state();
+  BEGIN
+   PERFORM pg_temp.corrupt_retained_association(s,fault,TRUE);
+  EXCEPTION WHEN SQLSTATE 'ZX855' THEN failed:=TRUE;
+  END;
+  restored:=failed AND materialized_state IS NOT DISTINCT FROM pg_temp.retained_fixture_state();
+  RAISE EXCEPTION 'synthetic fixture rollback' USING ERRCODE='ZX856';
+ EXCEPTION WHEN SQLSTATE 'ZX856' THEN
+  RETURN restored AND original_state IS NOT DISTINCT FROM pg_temp.retained_fixture_state();
+ END;
+END $$;
+SELECT extensions.ok(pg_temp.retained_corruption_failure_restores(fault),'retained corruption exception restores rows, role, triggers, constraints and verifier: '||fault)
+ FROM unnest(ARRAY['missing_submission','missing_admission','receipt_header_owner','receipt_header_scan']) fault;
+CREATE FUNCTION pg_temp.live_snapshot_fault(fault TEXT,receipt_only BOOLEAN DEFAULT FALSE,retained_only BOOLEAN DEFAULT FALSE) RETURNS TEXT LANGUAGE PLPGSQL AS $$
+DECLARE s internal.initial_preparation_admission_staging; i INTEGER; member internal.initial_analysis_media_registry;
+ scoped_fixture BOOLEAN:=retained_only AND fault IN ('missing_submission','missing_admission','receipt_header_owner','receipt_header_scan');
+ original_fixture JSONB; verifier_entered BOOLEAN:=FALSE; failure_state TEXT; failure_message TEXT;
+BEGIN
+ IF scoped_fixture THEN original_fixture:=pg_temp.retained_fixture_state(); END IF;
+ BEGIN
+  IF scoped_fixture THEN PERFORM pg_temp.lock_retained_association_fixture(fault); END IF;
   PERFORM internal.materialize_initial_admission('00000000-0000-4000-8000-000000005544');
   PERFORM internal.freeze_initial_admission_ledger('00000000-0000-4000-8000-000000005544');
   SELECT * INTO STRICT s FROM internal.initial_preparation_admission_staging WHERE scan_id='00000000-0000-4000-8000-000000005544';
   IF fault='missing_receipt' THEN
    ALTER TABLE internal.initial_preparation_admission_receipts DISABLE TRIGGER USER;
    DELETE FROM internal.initial_preparation_admission_receipts WHERE scan_id=s.scan_id;
-  ELSIF fault IN ('receipt_header_owner','receipt_header_scan') THEN
-   PERFORM pg_temp.retained_fixture_foreign_keys();
-   -- Trusted corruption only: move all typed immutable associations together,
-   -- leaving canonical proof intact. This isolates manifest-to-row binding from
-   -- member association checks; no ordinary erasure/reparenting is authorized.
-   ALTER TABLE internal.initial_preparation_admission_receipts DISABLE TRIGGER USER;
-   ALTER TABLE internal.initial_analysis_submissions DISABLE TRIGGER USER;
-   ALTER TABLE internal.initial_analysis_admissions DISABLE TRIGGER USER;
-   IF fault='receipt_header_owner' THEN
-    s.owner_id:=gen_random_uuid();
-    UPDATE internal.initial_preparation_admission_receipts SET owner_id=s.owner_id WHERE scan_id=s.scan_id;
-    UPDATE internal.initial_analysis_submissions SET owner_id=s.owner_id WHERE scan_id=s.scan_id;
-    UPDATE internal.initial_analysis_admissions SET owner_id=s.owner_id WHERE scan_id=s.scan_id;
-   ELSE
-    member.scan_id:=gen_random_uuid();
-    UPDATE internal.initial_preparation_admission_receipts SET scan_id=member.scan_id WHERE scan_id=s.scan_id;
-    UPDATE internal.initial_analysis_submissions SET scan_id=member.scan_id WHERE scan_id=s.scan_id;
-    UPDATE internal.initial_analysis_admissions SET scan_id=member.scan_id WHERE scan_id=s.scan_id;
-    s.scan_id:=member.scan_id;
-   END IF;
-  ELSIF fault='missing_submission' THEN
-   PERFORM pg_temp.retained_fixture_foreign_keys();
-   -- Leave the receipt present to exercise the loader's own association check.
-   ALTER TABLE internal.initial_analysis_submissions DISABLE TRIGGER USER;
-   DELETE FROM internal.initial_analysis_submissions WHERE scan_id=s.scan_id;
-  ELSIF fault='missing_admission' THEN
-   PERFORM pg_temp.retained_fixture_foreign_keys();
-   ALTER TABLE internal.initial_analysis_admissions DISABLE TRIGGER USER;
-   DELETE FROM internal.initial_analysis_admissions WHERE scan_id=s.scan_id;
+  ELSIF fault IN ('missing_submission','missing_admission','receipt_header_owner','receipt_header_scan') THEN
+   IF NOT scoped_fixture THEN RAISE EXCEPTION 'retained corruption requires retained-only verifier'; END IF;
+   s:=pg_temp.corrupt_retained_association(s,fault);
+   IF current_setting('session_replication_role')<>'origin' THEN RAISE EXCEPTION 'retained fixture enforcement not restored'; END IF;
   ELSIF fault='receipt_header_identity' THEN
    ALTER TABLE internal.initial_preparation_admission_receipts DISABLE TRIGGER USER;
    s.admission_receipt_id:=gen_random_uuid();
@@ -1002,11 +1197,17 @@ BEGIN
    s.completion_ledger:=jsonb_set(s.completion_ledger,ARRAY[i::TEXT,'observed_new_image','entitlement_version'],'99999');
   ELSE RAISE EXCEPTION 'unknown test fault'; END IF;
   PERFORM set_config('merian.initial_admission_stage','',TRUE);
-  IF retained_only THEN PERFORM internal.initial_admission_retained_receipt(s.owner_id,s.scan_id,s.admission_receipt_id);
+  IF retained_only THEN verifier_entered:=TRUE; PERFORM internal.initial_admission_retained_receipt(s.owner_id,s.scan_id,s.admission_receipt_id);
   ELSIF receipt_only THEN PERFORM internal.assert_initial_admission_live_receipt(s.owner_id,s.scan_id,s.admission_receipt_id);
   ELSE PERFORM internal.assert_initial_admission_live_snapshot(s); END IF;
   RAISE EXCEPTION 'unexpected snapshot acceptance' USING ERRCODE='ZX001';
- EXCEPTION WHEN OTHERS THEN RETURN SQLSTATE||':'||SQLERRM;
+ EXCEPTION WHEN OTHERS THEN
+  failure_state:=SQLSTATE; failure_message:=SQLERRM;
+  IF scoped_fixture THEN
+   IF original_fixture IS DISTINCT FROM pg_temp.retained_fixture_state() THEN RETURN 'ZX857:retained fixture restoration failed'; END IF;
+   IF NOT verifier_entered THEN RETURN 'ZX858:retained fixture failed before verifier'; END IF;
+  END IF;
+  RETURN failure_state||':'||failure_message;
  END;
 END; $$;
 SELECT extensions.is(pg_temp.live_snapshot_fault(fault),'55000:initial_analysis_admission_incomplete','live snapshot rejects '||fault)
@@ -1282,8 +1483,54 @@ SELECT extensions.ok(NOT internal.initial_admission_sealed(),'other backend seal
 SELECT extensions.is(pg_temp.seal_peer_conflict(),'55000:initial_analysis_admission_sealed',
  'competing seal key fails without waiting or granting authority; rolls back all consumption progress');
 \else
-SELECT extensions.is((SELECT count(*) FROM pg_trigger WHERE tgname='a00_initial_admission_seal'),38::BIGINT,
- 'seal inventory includes every ordinary source/member/alias/erasure root');
+SELECT extensions.is((SELECT array_agg(n.nspname||'.'||c.relname ORDER BY n.nspname,c.relname)
+ FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace
+ WHERE t.tgname='a00_initial_admission_seal'), ARRAY[
+ 'internal.account_deletion_jobs',
+ 'internal.ai_quota_counters',
+ 'internal.ai_quota_reservation_counters',
+ 'internal.ai_quota_reservations',
+ 'internal.complimentary_scan_usage',
+ 'internal.identification_invocations',
+ 'internal.identification_provider_attempts',
+ 'internal.initial_analysis_admissions',
+ 'internal.initial_analysis_cancellations',
+ 'internal.initial_analysis_completions',
+ 'internal.initial_analysis_lifecycle_fences',
+ 'internal.initial_analysis_media_allocation_fences',
+ 'internal.initial_analysis_media_cohorts',
+ 'internal.initial_analysis_media_preparations',
+ 'internal.initial_analysis_media_registry',
+ 'internal.initial_analysis_media_verifications',
+ 'internal.initial_analysis_operation_fences',
+ 'internal.initial_analysis_preparation_intents',
+ 'internal.initial_analysis_results',
+ 'internal.initial_analysis_submissions',
+ 'internal.initial_media_copy_progress',
+ 'internal.initial_media_handoff_staging',
+ 'internal.initial_media_handoff_writes',
+ 'internal.initial_media_verification_claims_v2',
+ 'internal.initial_media_verification_receipts_v2',
+ 'internal.initial_preparation_admission_receipts',
+ 'internal.initial_preparation_execution_grants',
+ 'internal.initial_preparation_outcomes',
+ 'internal.initial_preparation_output_manifests',
+ 'internal.initial_preparation_output_mapping',
+ 'internal.initial_preparation_source_fences',
+ 'internal.initial_preparation_source_mapping',
+ 'internal.initial_preparation_source_registry',
+ 'internal.initial_preparation_source_verifications',
+ 'internal.initial_preparation_transfer_receipts',
+ 'internal.observation_analysis_intents',
+ 'internal.observation_analysis_results',
+ 'internal.observation_analysis_source_bindings',
+ 'internal.observation_histories',
+ 'internal.scan_deletion_tombstones',
+ 'public.scan_ingestion_intents',
+ 'public.scan_ingestion_jobs',
+ 'public.scans',
+ 'public.users']::TEXT[],
+ 'seal inventory exactly covers original roots plus four durable and two transient handoff relations');
 SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='a00_initial_admission_seal'
  AND (tgtype<>62 OR tgenabled<>'O')),'all seal guards are BEFORE STATEMENT INSERT UPDATE DELETE TRUNCATE');
 CREATE TEMP TABLE seal_matrix_results AS SELECT e FROM jsonb_array_elements(pg_temp.seal_matrix()) e;
@@ -1527,9 +1774,22 @@ BEGIN
 END $$;
 -- Trusted corruption/precedence probes only; every mutation and trigger override
 -- is rolled back inside its subtransaction. No authorized deletion is simulated.
+CREATE FUNCTION pg_temp.recovery_handoff_seal_state() RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT jsonb_agg(jsonb_build_array(t.tgrelid,t.tgname,t.tgenabled) ORDER BY t.tgrelid)
+ FROM pg_trigger t WHERE t.tgname='a00_initial_admission_seal' AND t.tgrelid=ANY(ARRAY[
+  'internal.initial_media_copy_progress'::REGCLASS,
+  'internal.initial_media_verification_claims_v2'::REGCLASS,
+  'internal.initial_media_verification_receipts_v2'::REGCLASS,
+  'internal.initial_preparation_transfer_receipts'::REGCLASS])
+$$;
 CREATE FUNCTION pg_temp.recovery_fault(owner_id UUID,scan UUID,mode TEXT,public_action TEXT DEFAULT NULL,public_identity TEXT DEFAULT NULL) RETURNS TEXT LANGUAGE PLPGSQL AS $$
 DECLARE result JSONB; saved_candidate TEXT; original_retained TEXT; original_security JSONB; fixture_receipt UUID;
+ child TEXT; child_present BOOLEAN; original_child_seals JSONB:=pg_temp.recovery_handoff_seal_state();
 BEGIN
+ IF jsonb_array_length(original_child_seals) IS DISTINCT FROM 4
+  OR EXISTS(SELECT 1 FROM jsonb_array_elements(original_child_seals) s WHERE s->>2<>'O') THEN
+  RAISE EXCEPTION 'handoff recovery fixture seal inventory changed';
+ END IF;
  SELECT candidate INTO saved_candidate FROM internal.initial_preparation_admission_receipts WHERE scan_id=scan;
  IF mode='missing_admission' AND public_action IS NOT NULL THEN
   SELECT pg_get_functiondef(p.oid),jsonb_build_array(p.proowner,p.prosecdef,p.proconfig,p.proacl)
@@ -1542,6 +1802,19 @@ BEGIN
   END IF;
  END IF;
  BEGIN
+  IF mode IN ('missing_receipt','cancelled_pre_dispatch','cancelled_dispatched','cancelled_unknown','deleted') THEN
+   -- The synthetic parent deletion cascades statement callbacks even when its
+   -- newly added handoff children are empty. Bypass only their admission seal
+   -- for this deliberate corruption, keeping all row and other statement guards.
+   -- The exception below restores these exact enablement bytes with the rows.
+   FOREACH child IN ARRAY ARRAY['internal.initial_media_copy_progress',
+    'internal.initial_media_verification_claims_v2','internal.initial_media_verification_receipts_v2',
+    'internal.initial_preparation_transfer_receipts'] LOOP
+    EXECUTE format('SELECT EXISTS(SELECT 1 FROM %s WHERE scan_id=$1)',child) INTO child_present USING scan;
+    IF child_present THEN RAISE EXCEPTION 'handoff recovery fixture requires empty child'; END IF;
+    EXECUTE format('ALTER TABLE %s DISABLE TRIGGER a00_initial_admission_seal',child);
+   END LOOP;
+  END IF;
   IF mode='missing_receipt' THEN
    ALTER TABLE internal.initial_preparation_admission_receipts DISABLE TRIGGER USER;
    DELETE FROM internal.initial_preparation_admission_receipts WHERE scan_id=scan;
@@ -1584,6 +1857,9 @@ BEGIN
   RAISE EXCEPTION 'synthetic recovery acceptance' USING ERRCODE='ZX003';
  EXCEPTION WHEN OTHERS THEN
   -- Exception entry rolled back the entire override before these comparisons.
+  IF pg_temp.recovery_handoff_seal_state() IS DISTINCT FROM original_child_seals THEN
+   RAISE EXCEPTION 'handoff recovery fixture seals not restored';
+  END IF;
   IF original_retained IS NOT NULL AND (
    pg_get_functiondef('internal.initial_admission_retained_receipt(uuid,uuid,uuid)'::REGPROCEDURE) IS DISTINCT FROM original_retained
    OR (SELECT jsonb_build_array(p.proowner,p.prosecdef,p.proconfig,p.proacl) FROM pg_proc p
@@ -2079,8 +2355,28 @@ WITH RECURSIVE owned(oid) AS (
 SELECT extensions.is((SELECT array_agg(oid::REGCLASS::TEXT ORDER BY oid::REGCLASS::TEXT) FROM owned),
  (SELECT array_agg(relation_name ORDER BY relation_name) FROM internal.initial_cancellation_private_catalog()),
  'C1 private catalog exactly covers installed cascade closures of both roots');
-SELECT extensions.is((SELECT count(*)::INTEGER FROM internal.initial_cancellation_private_catalog()),15,
- 'C1 private catalog includes explicit empty downstream relations and excludes shared assets');
+SELECT extensions.is((SELECT array_agg(relation_name||':'||root_name||':'||row_limit ORDER BY relation_name)
+ FROM internal.initial_cancellation_private_catalog()), ARRAY[
+ 'internal.initial_analysis_admissions:submission:1',
+ 'internal.initial_analysis_completions:submission:1',
+ 'internal.initial_analysis_media_cohorts:submission:1',
+ 'internal.initial_analysis_media_preparations:submission:1',
+ 'internal.initial_analysis_media_verifications:submission:1',
+ 'internal.initial_analysis_preparation_intents:intent:1',
+ 'internal.initial_analysis_results:submission:1',
+ 'internal.initial_analysis_submissions:submission:1',
+ 'internal.initial_media_copy_progress:submission:1',
+ 'internal.initial_media_verification_claims_v2:submission:1',
+ 'internal.initial_media_verification_receipts_v2:submission:1',
+ 'internal.initial_preparation_admission_receipts:submission:1',
+ 'internal.initial_preparation_execution_grants:intent:1',
+ 'internal.initial_preparation_outcomes:intent:1',
+ 'internal.initial_preparation_output_manifests:intent:1',
+ 'internal.initial_preparation_output_mapping:intent:8',
+ 'internal.initial_preparation_source_mapping:intent:8',
+ 'internal.initial_preparation_source_verifications:intent:1',
+ 'internal.initial_preparation_transfer_receipts:submission:1']::TEXT[],
+ 'C1 private catalog exactly binds all nineteen private relations, roots and row limits');
 SELECT extensions.ok(position('initial_preparation_source_mapping WHERE scan_id=p_scan ORDER BY ordinal FOR UPDATE' IN definition)
  <position('''erasure_images'',internal.capture_initial_cancellation_private_images(p_scan)' IN definition),
  'C1 captures source mapping under original lock scope before private-image aggregation')
@@ -2176,6 +2472,11 @@ SELECT extensions.is((SELECT array_agg(relation_name ORDER BY relation_name) FRO
  'internal.initial_cancellation_receipt_witness',
  'internal.initial_cancellation_retirement_witness',
  'internal.initial_cancellation_terminal_snapshot',
+ 'internal.initial_media_copy_progress',
+ 'internal.initial_media_handoff_staging',
+ 'internal.initial_media_handoff_writes',
+ 'internal.initial_media_verification_claims_v2',
+ 'internal.initial_media_verification_receipts_v2',
  'internal.initial_preparation_admission_receipts',
  'internal.initial_preparation_admission_staging',
  'internal.initial_preparation_admission_writes',
@@ -2187,6 +2488,7 @@ SELECT extensions.is((SELECT array_agg(relation_name ORDER BY relation_name) FRO
  'internal.initial_preparation_source_mapping',
  'internal.initial_preparation_source_registry',
  'internal.initial_preparation_source_verifications',
+ 'internal.initial_preparation_transfer_receipts',
  'internal.observation_analysis_intents',
  'internal.observation_analysis_results',
  'internal.observation_analysis_source_bindings',
@@ -2195,7 +2497,7 @@ SELECT extensions.is((SELECT array_agg(relation_name ORDER BY relation_name) FRO
  'public.scan_ingestion_intents',
  'public.scan_ingestion_jobs',
  'public.scans',
- 'public.users']::TEXT[], 'C1 version1 exact seal catalog');
+ 'public.users']::TEXT[], 'C1 version1 exact seal catalog including handoff durable and transient relations');
 SELECT extensions.ok(EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid=relation_name::REGCLASS AND tgname='a00_initial_cancellation_seal' AND NOT tgisinternal AND tgenabled='O' AND tgtype=62), 'C1 seal covers four statement operations: '||relation_name) FROM internal.initial_cancellation_seal_catalog();
 SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM internal.initial_cancellation_private_catalog() p WHERE NOT EXISTS(SELECT 1 FROM internal.initial_cancellation_seal_catalog() s WHERE s.relation_name=p.relation_name)), 'all private cascade catalog relations have statement seal coverage');
 SELECT extensions.throws_ok($q$TRUNCATE internal.initial_admitted_cancellation_staging$q$,

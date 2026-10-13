@@ -297,6 +297,56 @@ input descriptions or response bodies. Migration version checks alone do not
 prove SQL byte identity: bind receipts to the caller's exact fresh-replay
 manifest.
 
+## Private handoff runtime qualification
+
+`python3 services/supabase/scripts/run_initial_media_handoff_qualification.py
+--suite all`
+(from the repository root) runs the 21 closed local SQL, bridge, coordinator and
+synthetic-resource suites. Select one named `--suite` for focused verification;
+`--evidence-directory` selects a new output directory only. The runner reserves
+the checkout's fixed ignored ownership receipt before creating a unique
+temporary project, copies and hashes the exact migration bytes, verifies the
+pinned CLI and local Unix Docker context, then checks a fresh inactive catalog
+before admission. macOS uses `/private/tmp`; Linux uses `/tmp`. It requires 24
+GiB free before provisioning and preserves the 20 GiB floor.
+
+Every Docker and Supabase child is pinned to the verified Unix endpoint. The
+bridge compares the endpoint in the ownership receipt with the current context
+and rejects drift, unsupported platforms, non-ready receipts and mismatched
+project labels. Ports 57630–57639 are reserved for this sequential
+qualification; occupied ports fail without stopping another database. Each
+passing suite is followed by an inactive/invocation-free check and disposal of
+only its owned project. Before stopping, it checks exact fixture-specific
+residual counts: state and pruning retain one receipt and intent; expiry and
+public-deletion retain one receipt and no intent. The other 17 suites require
+zero of both. These four intentional synthetic residuals are destroyed with the
+disposable database; this does not claim per-row erasure. The runner persists
+`disposing` before stopping and the stop result immediately afterward so a
+partial cleanup failure cannot masquerade as a still-ready database. Exact
+replay, result, source hashes and disposal evidence are retained. Every
+lifecycle transition also writes an allowlisted `ownership.json` mirror in that
+suite's output directory, including reservation, starting, failed startup and
+disposal. The `--snapshot-ownership --evidence-directory <output>` mode reads
+only the fixed receipt and saves its sanitized current metadata; it never calls
+Docker, provisions, retries or cleans up. Unknown future fields are excluded.
+
+Failure stops the sequence and retains the live ownership receipt. Before
+disposal, the original database is retained for read-only outcome
+reconciliation; a partial disposal failure instead requires inspection of the
+remaining owned resources. Do not delete the receipt to rerun, retry a writer,
+reset, invoke a provider or refund. Raw CLI output, SQL rows and credentials are
+never written to the runner's evidence. A hosted CI runner cannot promise
+persistence of its database after the job; only sanitized uploaded evidence is
+durable. The candidate workflow prepares this validation step after its ordinary
+database is stopped, then attempts a read-only ownership snapshot and evidence
+upload with `always()` conditions. The qualification step has a 115-minute limit
+within the existing 120-minute job. Retention on cancellation or job timeout is
+best-effort; the complete 21-suite duration and fit within that job limit remain
+unqualified until measured. This configuration does not authorize dispatch,
+publication, activation or installed storage qualification. Synthetic byte
+transport does not establish media decoding, physical backend behavior or robust
+performance headroom.
+
 ## Migration Replay
 
 Every migration must survive a complete fresh-catalog replay, not only an

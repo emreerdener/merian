@@ -84,21 +84,32 @@ catalogs/6,672 assertions, 3,821 DB-backed Edge tests and recorded affected
 gates pass. This establishes consistency and role denial only, not stored
 issuance, physical verification or mutation authority.
 
-The agreed next implementation is runtime copy/M2 v2/transfer under the
-[handoff interface](initial-media-handoff-v2-interface-2026-10-13.md), including
-durable copy provenance, exact private row lifetimes and positive-unused
-post-transfer C1/expiry/erasure/lock closure. The
-[source-specific closure](initial-media-handoff-lock-erasure-2026-10-13.md) now
-records independent and IC-1 pre-DDL design concurrence. Actual runtime
-implementation, effective-graph checks and concurrency qualification remain
-open. History primary retains all overlapping writes under section 7 and the
-explicitly assigned narrow Ghost target-funding guard; broader identity-merge
-and Field Trip ownership do not transfer. The
-[S0 dispatch-fence draft](initial-dispatch-fence-interface-2026-10-13.md)
-remains downstream: M2 v2 transfer and structural validation of the exact
-immutable consumed bytes precede a callable provider grant. Retained-byte
-transfer alone can be prepared while every execution barrier stays closed. Full
-S0 and broader hardening acceptance remain open.
+The inactive runtime copy/M2 v2/transfer family is implemented and passes its
+required local full gates and current-source focused qualification under the
+[handoff runtime contract](initial-media-handoff-runtime-2026-10-13.md).
+Full-family v6 passes 172 catalogs / 6,706 assertions, 3,935 Edge tests / 598
+steps, strict lint and advisor gates (warnings retained). Five affected focused
+suites cover owners, private readers, transferred recovery/C1, cleanup
+contention and one video/audio resource cohort. Exact shared-checkout sources,
+independent and IC-1 decisions, original outcomes, database disposal and local
+checkpoint identity are recorded in
+`.artifacts/initial-media-handoff-v2/runtime-implementation/`. This does not
+qualify an isolated commit tree, hosted CI, installed backend, media structural
+validation or device behavior. Historical deadlock evidence remains unresolved
+and preserved under its recorded scope; later passes do not waive recurrence
+handling. The narrow Ghost target-funding prerequisite stays with history
+primary; broader identity-merge and Field Trip ownership do not transfer.
+
+The next bounded dependency is a concrete structural-validator and
+transform-attestation protocol for the same immutable retained bytes, under the
+[S0 dispatch-fence agreement](initial-dispatch-fence-interface-2026-10-13.md).
+Retained-byte transfer alone does not authorize a provider grant. Initial
+dispatch, durable result capture, successful completion, native media-backed
+journeys and integrated acceptance remain open. Installed signer/backend and
+device qualification retain separately named authorization requirements.
+Activation remains disabled and ordinary access nil. History primary retains all
+overlapping writes; broader hardening and capture visual work remain separate.
+Approved deletion/export/redesign follow current-scope acceptance.
 
 ## 1. Identity and immutable original input
 

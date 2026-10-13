@@ -1433,3 +1433,66 @@ Deno.test("candidate C1 suites reset only the disposable database and retain bou
     "path: ${{ runner.temp }}/initial-atomic-c1/*.json",
   );
 });
+
+Deno.test("private handoff CI owns fresh projects after ordinary database disposal and retains failure evidence", async () => {
+  const source = await Deno.readTextFile(
+    new URL("supabase-candidate-validation.yml", workflowsDirectory),
+  );
+  const stop = source.indexOf("- name: Stop disposable database");
+  const suite = source.indexOf(
+    "- name: Qualify private handoff runtime on owned fresh databases",
+  );
+  const evidence = source.indexOf(
+    "- name: Retain private handoff qualification evidence",
+  );
+  const snapshot = source.indexOf(
+    "- name: Snapshot remaining private handoff ownership",
+  );
+  const summary = source.indexOf("- name: Summarize candidate evidence");
+  assert(
+    stop >= 0 && suite > stop && snapshot > suite && evidence > snapshot &&
+      summary > evidence,
+  );
+  assertStringIncludes(
+    source.slice(stop, suite),
+    "run: supabase stop --no-backup",
+  );
+  const step = source.slice(suite, snapshot);
+  assertStringIncludes(step, "timeout-minutes: 115");
+  assertStringIncludes(
+    step,
+    "python3 supabase/scripts/run_initial_media_handoff_qualification.py",
+  );
+  assertStringIncludes(
+    step,
+    '--suite all --evidence-directory "$RUNNER_TEMP/initial-media-handoff-qualification"',
+  );
+  for (
+    const forbidden of [
+      "secrets.",
+      "continue-on-error:",
+      "if: always()",
+      "db reset",
+      "--container",
+      "--workdir",
+      "--replay-manifest",
+    ]
+  ) {
+    assertEquals(step.includes(forbidden), false, forbidden);
+  }
+  const retained = source.slice(evidence, summary);
+  const recovery = source.slice(snapshot, evidence);
+  assertStringIncludes(recovery, "if: always()");
+  assertStringIncludes(
+    recovery,
+    '--snapshot-ownership --evidence-directory "$RUNNER_TEMP/initial-media-handoff-qualification"',
+  );
+  assertEquals(recovery.includes("--suite"), false);
+  assertStringIncludes(retained, "if: always()");
+  assertStringIncludes(retained, "if-no-files-found: error");
+  assertStringIncludes(
+    retained,
+    "path: ${{ runner.temp }}/initial-media-handoff-qualification/**",
+  );
+  assertEquals(retained.includes("committed-disposable-state"), false);
+});

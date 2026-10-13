@@ -694,6 +694,30 @@ jobs:
           SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
         run: supabase stop --no-backup
 
+      - name: Qualify private handoff runtime on owned fresh databases
+        # Closed local-only suites reserve their own receipt before provisioning.
+        # A failure retains ownership and stops; no automatic retry or reset.
+        timeout-minutes: 115
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 python3 supabase/scripts/run_initial_media_handoff_qualification.py \
+            --suite all --evidence-directory "$RUNNER_TEMP/initial-media-handoff-qualification"
+
+      - name: Snapshot remaining private handoff ownership
+        if: always()
+        # Read-only metadata recovery; no Docker, retry, reset or cleanup.
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 python3 supabase/scripts/run_initial_media_handoff_qualification.py \
+            --snapshot-ownership --evidence-directory "$RUNNER_TEMP/initial-media-handoff-qualification"
+
+      - name: Retain private handoff qualification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: initial-media-handoff-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/initial-media-handoff-qualification/**
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Summarize candidate evidence
         if: always()
         env:

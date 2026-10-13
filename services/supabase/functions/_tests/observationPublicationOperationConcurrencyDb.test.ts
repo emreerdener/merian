@@ -91,20 +91,41 @@ for (
             import.meta.url,
           ),
         );
-        await observer.queryArray(
-          source.split("-- BEGIN PUBLICATION INTENT HELPERS\n")[1].split(
-            "-- END PUBLICATION INTENT HELPERS",
-          )[0].replace(
-            "VALUES(owner_id,'authenticated','authenticated',owner_id::TEXT || '@example.invalid','{}','{}',NOW(),NOW());",
-            "VALUES(owner_id,'authenticated','authenticated',owner_id::TEXT || '@example.invalid','{}','{}',NOW(),NOW()) ON CONFLICT(id) DO NOTHING;",
-          ).replace(
-            "PERFORM pg_temp.seed_history_append(owner_id,observation);",
-            "PERFORM pg_temp.seed_history_append(owner_id,observation); IF EXISTS(SELECT 1 FROM public.user_adult_eligibility_receipts WHERE user_id=owner_id) THEN RETURN; END IF;",
-          ).replace(
-            "internal.admit_protected_observation_analysis(owner_id,pg_temp.protected_input(observation,analysis,media),repeat('a',64))",
-            "internal.admit_protected_observation_analysis(owner_id,pg_temp.protected_input(observation,analysis,media),repeat(replace(observation::text,'-',''),2))",
-          ),
+        const helperSections = source.split(
+          "-- BEGIN PUBLICATION INTENT HELPERS\n",
         );
+        assertEquals(helperSections.length, 2);
+        const helperEnd = helperSections[1].split(
+          "-- END PUBLICATION INTENT HELPERS",
+        );
+        assertEquals(helperEnd.length, 2);
+        let helpers = helperEnd[0];
+        // Capacity fixtures reuse one owner across observations. Preserve their
+        // per-observation IP isolation, and reject drift in every required seam.
+        for (
+          const [before, after] of [
+            [
+              "VALUES(owner_id,'authenticated','authenticated',owner_id::TEXT || '@example.invalid','{}','{}',NOW(),NOW());",
+              "VALUES(owner_id,'authenticated','authenticated',owner_id::TEXT || '@example.invalid','{}','{}',NOW(),NOW()) ON CONFLICT(id) DO NOTHING;",
+            ],
+            [
+              "PERFORM pg_temp.seed_history_append(owner_id,observation);",
+              "PERFORM pg_temp.seed_history_append(owner_id,observation); IF EXISTS(SELECT 1 FROM public.user_adult_eligibility_receipts WHERE user_id=owner_id) THEN RETURN; END IF;",
+            ],
+            [
+              "internal.admit_protected_observation_analysis(owner_id,pg_temp.protected_input(observation,analysis,media),encode(extensions.digest('publication-intent-fixture:' || owner_id::TEXT,'sha256'),'hex'))",
+              "internal.admit_protected_observation_analysis(owner_id,pg_temp.protected_input(observation,analysis,media),repeat(replace(observation::text,'-',''),2))",
+            ],
+          ]
+        ) {
+          assertEquals(
+            helpers.split(before).length,
+            2,
+            "Required publication fixture transform must match exactly once",
+          );
+          helpers = helpers.replace(before, after);
+        }
+        await observer.queryArray(helpers);
         const legacyFixture = await Deno.readTextFile(
           new URL(
             "../../tests/publication_operation_admission.sql",

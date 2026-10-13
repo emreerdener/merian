@@ -20,9 +20,10 @@ unknown cause; new lock graphs require new qualification.
 Earlier incremental qualification statements below describe the stages leading
 to that checkpoint; this dated note supersedes their pending-matrix,
 uncommitted-compositor and incomplete-C1 status only. It does not change their
-technical contracts or make a pure codec authoritative. M2 v2 transfer,
-structural validation, provider dispatch, result capture, completion and native
-integration remain open. The next
+technical contracts or make a pure codec authoritative. The later private M2 v2
+runtime family is locally qualified as summarized below. Structural validation,
+provider dispatch, result capture, completion and native integration remain
+open. The next
 [S0 dispatch-fence agreement](../../../../../docs/rfcs/initial-dispatch-fence-interface-2026-10-13.md)
 is a draft requiring review before implementation. Fresh requests require
 photo/audio/video; historical no-media codecs do not expose a new text-only
@@ -931,3 +932,35 @@ remain denied; no runtime state or authority is introduced. Independent/IC-1
 source review and disposable parity/catalog/role-denial qualification are
 recorded in the handoff RFC. This remains pure consistency validation, with no
 issuance or media-I/O authority.
+
+Private v2 handoff qualification now has separate `mediaHandoffRows.ts`,
+`mediaHandoffStorage.ts`, and `mediaHandoffExecution.ts` owners. They validate
+the original private proof chain, pin source/destination backends, retain
+verified private bytes through conditional copy, and use one immutable
+whole-cohort monotonic deadline derived from the original state observation.
+Fresh SQL facts are reloaded before storage and after signing. Unknown SQL
+acknowledgement allows bounded original-state recovery and ends that attempt; it
+never retries mutation, funding or provider work. Historical status is a
+separate read-only entry point. These modules have no production composition or
+installed signer. The trusted attestation dependency must verify saved artifacts
+and the executing adapter; synthetic tests do not provide installed artifact
+qualification.
+
+`services/supabase/scripts/initial_media_handoff_bridge.ts` is a local-only
+qualification bridge to the current checkout's owned disposable replay. Each of
+its nine fixed methods uses a separate READ COMMITTED transaction, fixed 5s
+statement/1s lock limits, bounded subprocess I/O and a post-COMMIT
+acknowledgement. No ordinary API role receives access. Real bridge integration,
+effective mutation/lock families and the affected runtime gates now have
+recorded local evidence, including fresh current-source
+owners/readers/transferred-C1/cleanup/video-audio qualification. The full family
+passes 172 catalogs / 6,706 assertions and 3,935 Edge tests / 598 steps, strict
+lint and advisor gates (warnings retained). Portable runner v8 and CI wiring are
+reviewed; runtime activation remains disabled; the combined hosted 21-suite
+duration is unqualified. See the runtime RFC and
+`.artifacts/initial-media-handoff-v2/runtime-implementation/` for exact source
+manifests, independent/IC-1 family decisions, outcomes, disposal and local
+commit identity. This is shared-checkout synthetic qualification, not installed
+signer/backend, structural media or device qualification. The observed 4,781 ms
+video/audio transfer against 5 seconds is not robust tail headroom. Every
+provider/execution/activation barrier remains closed.
