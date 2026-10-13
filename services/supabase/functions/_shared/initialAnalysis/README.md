@@ -284,6 +284,35 @@ enabled format before dispatch. This remains an internal S0 prerequisite,
 including malformed/truncated/polyglot and decode expansion cases as applicable;
 M2 or hosted qualification alone cannot close it.
 
+## Inactive admitted M2 v2 proof codecs
+
+`mediaHandoffProof.ts` and `media-handoff-proof-schema-v1.json` prepare the
+closed original verification claim v2, verification receipt v2 and transfer
+receipt v1. Their independent canonical caps are 32, 64 and 96 KiB; nested
+documents retain their own ceilings, including the original 16 KiB M1 binding.
+The validators consume complete original admitted components through
+`validateAdmittedProof`, compare the original binding/profile and exact sorted
+destination union, and enforce cross-document identity, digest and saved-cutoff
+consistency. Every result has `authority: none` and returns canonical bytes and
+a domain-separated digest. Caller inputs are snapshotted before yielding.
+
+The three validation functions are `validateMediaVerificationClaim`,
+`validateMediaVerificationReceipt` and `validateMediaTransferReceipt`.
+`mediaHandoffProofDigest` checks canonical shape/bounds only; it does not
+perform original-proof correlation. Even full consistency validation cannot
+establish stored token issuance, timestamp provenance, actual byte reads or
+structural validation. A coherent synthetic alternate token can pass; the later
+locked owner must enforce its stored original. The candidate's nine synthetic
+cohorts reuse the original admitted photo/audio/video fixtures and independently
+calculated digests. They do not attest physical media or provider execution.
+
+This candidate supplies no SQL storage/writer, original claim RPC, durable copy
+progress, transfer/C1 integration, native DTO or route. Existing M2 v1 behavior
+and its admitted-v3 denial remain unchanged. The
+[concrete M2 v2 contract](../../../../../docs/rfcs/initial-media-handoff-v2-interface-2026-10-13.md)
+records the open durable owner, effective lock, erasure and structural/transform
+qualification required before execution. Activation remains false.
+
 ## Inactive no-media preparation v2
 
 `preparationCandidate.ts` and its closed JSON schemas preserve the original

@@ -18864,3 +18864,25 @@ unchanged. The
 [storage-bound derivation](../rfcs/initial-admitted-proof-2026-10-12.md#submission-storage-representation-bounds--october-13-2026)
 records the 8,190-byte maximum rendering allowance, structural catalog coverage
 and separate full materialization/C1 qualification requirement.
+
+### Inactive admitted M2 v2 proof codecs
+
+`_shared/initialAnalysis/mediaHandoffProof.ts` prepares private original-claim
+v2, verification-receipt v2 and transfer-receipt v1 consistency validation. The
+closed schema and domain-separated digest contract is specified in the
+[M2 v2 interface](../rfcs/initial-media-handoff-v2-interface-2026-10-13.md).
+Canonical caps are independently 32/64/96 KiB; nested caps and the original 16
+KiB M1 binding ceiling remain enforced. Complete admitted components are
+validated by the existing owner, then correlated with the original binding,
+profile, destination union, claim and saved phase cutoffs. Each fixed validator
+returns only `authority: none`, canonical document bytes and its digest.
+
+These helpers establish neither a stored receipt nor token/timestamp provenance,
+actual byte I/O, safe decoding or executable derivation. A self-consistent
+synthetic alternate token can pass; the future locked owner must check the
+original issued token. The standalone digest helper checks only shape and
+canonical bounds. No RPC, database write, native/public Identify DTO, route or
+activation change is supplied. Durable copy progress, original M2 v2 claim and
+transfer owners, C1/expiry/erasure integration and their complete lock graph
+remain unimplemented. Structural/transform qualification must bind the same
+immutable bytes consumed by execution before any provider grant.
