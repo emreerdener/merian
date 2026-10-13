@@ -128,6 +128,96 @@ speculative grant schema while that consuming agreement is open. Pure draft
 preparation and read-only tracing are authorized; installed runtime use still
 requires separately named authorization.
 
+## Target contract prerequisite inventory — October 13, 2026
+
+The local owner composition is committed at
+`b3864361dd5c8b4d921650891ca1926a798d9bb0`, after independent and IC-1 final
+review of candidate
+`45df8399e08b88ec9475a0f46eb074e51f1da331d70ab5acf1e69d1865e76bf8`. Its
+checkpoint and final decisions are in
+`.artifacts/initial-media-structure/owner-local-checkpoint.json` and
+`owner-final-reviews.json`. The following inventory prepares the next target
+contract; it does not choose, install or qualify a target runtime.
+
+### Reuse the current state and receipt owners
+
+| Boundary                          | Existing concrete owner                                                                                                                                                                 | Target contract obligation                                                                                                                                                                  |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frozen original input             | `initial_analysis_preparation_intents` in `20261011192000_prepare_initial_saved_assignment.sql`; source mapping/registry in `20261011194522_prepare_initial_media_source_lifecycle.sql` | Resolve only the saved assignment, backend generation and original object IDs. Keep the original 300-second lifetime and immutable source mapping.                                          |
+| Fixed service calls               | Five service-role-only wrappers in `20261011205141_prepare_initial_preparation_execution.sql`; `createPreparationExecutionTransport` in `preparationExecutionTransport.ts`              | Use only original status, source settlement, sole issue, known-output registration and outcome settlement. The fixed transport supplies no runtime installation or new execution authority. |
+| Serialized state and write guards | `internal.initial_preparation_execution_action` and `internal.guard_initial_preparation_execution_private` as revised in `20261012000419_qualify_initial_preparation_owners.sql`        | Preserve original scope, phase/deadline, eligibility and private-erasure checks. No parallel operation owner or service bypass.                                                             |
+| Fresh execution and recovery      | `runInitialPreparation` and `reconcileInitialPreparationOutput` in `preparationExecution.ts`                                                                                            | Bind the concrete adapter only at the existing fresh-grant callback. Issued/lost-reply/unknown states recover the original operation; known output reconciles without another transform.    |
+| Eligibility                       | `internal.lock_initial_preparation_eligibility` and `internal.resolve_initial_media_preparation_assignment` in `20261012000419_qualify_initial_preparation_owners.sql`                  | Require the saved qualified profile/backend installations and handoff eligibility under the existing gate. A shape-valid profile or local executable receipt is insufficient.               |
+| Byte transport                    | `mediaStorage.ts` supplies exact-key conditional PUT and bounded direct GET/hash verification; `mediaHandoffStorage.ts` supplies private source/destination primitives for M1/handoff   | Reuse compatible byte primitives only after defining the original-preparation signer/object/erasure contract. Do not call an M1 owner as a substitute for preparation ownership.            |
+| Receipts                          | `preparationExecutionContract.ts`, its closed schemas and the existing private source/grant/output/outcome tables                                                                       | Reuse the saved identity and ordered byte chain. Extend a schema only for concrete target facts that the existing schema cannot represent.                                                  |
+
+The service operations are exactly `get_initial_preparation_execution_status`,
+`settle_initial_preparation_sources`, `issue_initial_preparation_execution`,
+`register_initial_preparation_output` and `settle_initial_preparation_outcome`.
+Their wrappers require service role; ordinary client roles have no execution
+grant. No route installs the new local fixture. This source inventory describes
+relevant owners, not a newly qualified effective SQL lock graph. Any later
+lock/caller/schema change needs its own complete effective inventory and
+concurrency acceptance.
+
+Existing source receipts already bind scan, assignment, profile, backend,
+validator identity, every ordered original object tuple and declared facts.
+Grants bind original source/profile/artifact digests and deadlines. Output
+manifests bind grant/source, prepared bytes, transform/options and source
+identity; resolved manifests bind allocated output IDs. The immutable outcome
+nests those records with the profile and retained tuples. Adding another generic
+attestation field or table would not establish that a target executed anything.
+**No schema delta is justified by target selection alone.**
+
+The missing implementation is a concrete target composition of the existing
+`readSource`, `inspectSource`, `runtime`, identity-output verification and fresh
+output/readback dependencies. The contract must establish how the trusted
+adapter obtains saved object metadata and signing authority, proves bytes are
+private and unchanged, resolves the immutable executable, enforces the complete
+cohort budget, and records/reconciles only the original output. No SQL lock may
+span process or storage I/O. No caller-selected URL, artifact, profile or object
+path may enter that composition.
+
+### Facts required before choosing that composition
+
+- Name the intended execution environment, platform/ABI and exact runtime
+  version/identity. The existing Darwin tuple is a local experiment and cannot
+  be selected as an Edge installation. The intended backend product alone does
+  not supply executable or isolation evidence.
+- Identify the compatible pinned decoder/transform closure and retained
+  toolchain provenance for each consumed modality. WAV has a bounded parser and
+  executable. Photo/MP4 signatures establish neither successful decoding nor
+  expansion safety; they cannot fill this row.
+- Define the full accepted ingress and aggregate cohort envelope, output
+  expansion bounds, phase deadlines, hard CPU/native-memory owner, cancellation
+  and supervisor-death behavior. Declared profile limits, sampled RSS and the
+  local 9/14/15-second observations do not establish target guarantees.
+- For derived video frames/audio, define the trusted raw-clip relationship,
+  track/timebase/timestamp selection, orientation/color/crop policy, frame order
+  and audio extraction/resampling policy. Review compatibility with existing
+  saved `video_frame_v1` and `video_audio` records before proposing any new
+  version. Existing integer lineage is not a decode/extraction executable.
+- Identify the separately authorized qualification environment and operation
+  before installed/hosted use, with the original signer/backend generation and
+  exact artifact/configuration evidence. Local contract drafting needs no such
+  operation; runtime use does. Preserve pending device environment answers.
+
+A concrete decoder may require new durable photo dimensions/format/expansion
+facts or MP4 track/timebase/derivation facts; a target may require a durable
+process-provenance receipt. Those are examples of unresolved requirements, not
+approved schema additions. Choose neither field names nor a new receipt version
+until the consuming target contract proves the need and receives independent and
+IC-1 agreement. Do not relabel the synthetic profile, register an unqualified
+bundle, or implement another placeholder runtime to move a checkpoint forward.
+
+The next review must distinguish decisions that can be resolved in the local
+contract from missing target evidence or separately named runtime-use authority.
+No named environment variable is currently documented as blocking this local
+inventory. Missing target evidence must be recorded concretely; it must not
+become a reason to repeat the accepted WAV or SQL suites. Provider dispatch,
+result/completion and native/integrated acceptance remain in their existing
+dependency order, followed by approved deletion/export/redesign.
+
 ## Other formats and current media scope
 
 Standalone WAV has a concrete bounded parser and local executable proof. Photo
@@ -157,23 +247,28 @@ The revised dependency boundary has independent and IC-1 concurrence. The
 also has both reviews and authorizes the bounded synthetic implementation. Its
 exact source/vector launch reviews are clear, and the fixed synthetic owner
 execution and both existing standalone artifact regressions pass. Independent
-and IC-1 final evidence review is required before the local checkpoint commit;
-broader target-runtime/media integration remains open. Reuse existing artifact
-qualification and execution owners. Retain failed evidence and qualify new
-adapter/receipt bindings with copied-view mutation, changed identity/options,
-malformed/truncated/expanding inputs, complete cohort ordering, original
-deadlines, lost grant/output/settlement, erasure/cancellation and no-repeat
-execution cases. Full affected gates belong to coherent implementation
-milestones; unchanged completed SQL or artifact qualification must not be rerun
-merely because this document changes.
+and IC-1 final evidence reviews are complete and checkpoint
+`b3864361dd5c8b4d921650891ca1926a798d9bb0` is committed; broader
+target-runtime/media integration remains open. The
+[target composition proposal](initial-preparation-target-composition-2026-10-13.md)
+resolves the proposed trust and crash-recovery boundaries for review without
+claiming a qualified target. Reuse existing artifact qualification and execution
+owners. Retain failed evidence and qualify new adapter/receipt bindings with
+copied-view mutation, changed identity/options, malformed/truncated/expanding
+inputs, complete cohort ordering, original deadlines, lost
+grant/output/settlement, erasure/cancellation and no-repeat execution cases.
+Full affected gates belong to coherent implementation milestones; unchanged
+completed SQL or artifact qualification must not be rerun merely because this
+document changes.
 
-No implementation acceptance is claimed by this revision. The redundant helper
-was removed, and the prior full Edge failures remain evidence of that withdrawn
-candidate rather than failures of the restored committed runtime. Restoration
-must be checked against the exact baseline, not described as a new successful
-suite. Initial dispatch, durable result capture, successful completion, native
-media-backed journeys and integrated acceptance remain open. Approved version
-deletion, source export and Identification/History redesign follow them.
+No target-runtime implementation acceptance is claimed by this revision. The
+local owner acceptance above is separate. The redundant helper was removed, and
+the prior full Edge failures remain evidence of that withdrawn candidate rather
+than failures of the restored committed runtime. Restoration must be checked
+against the exact baseline, not described as a new successful suite. Initial
+dispatch, durable result capture, successful completion, native media-backed
+journeys and integrated acceptance remain open. Approved version deletion,
+source export and Identification/History redesign follow them.
 
 Activation stays disabled and ordinary production access nil. Exact-push
 approval remains required; PR115 is not updated. No deployment, hosted

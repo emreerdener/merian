@@ -119,18 +119,25 @@ IC-1 reviewed. The concrete
 [local owner integration agreement](initial-preparation-local-owner-integration-2026-10-13.md)
 has exact-source independent and IC-1 launch review. The local owner run and
 both existing artifact regressions pass. Independent and IC-1 final evidence
-review is required before the local checkpoint commit, with decisions retained
-in `.artifacts/initial-media-structure/`. This binds the original preparation
-owner to the pinned WAV artifact only in a separate Edge-ineligible synthetic
-fixture; it does not close target runtime or other-format S0 acceptance. No
-post-M2 transform or duplicate WAV helper is required. Retained-byte transfer
-alone does not authorize a provider grant. Initial dispatch, durable result
-capture, successful completion, native media-backed journeys and integrated
-acceptance remain open. Installed signer/backend and device qualification retain
-separately named authorization requirements. Activation remains disabled and
-ordinary access nil. History primary retains all overlapping writes; broader
-hardening and capture visual work remain separate. Approved
-deletion/export/redesign follow current-scope acceptance.
+review is complete, and local checkpoint
+`b3864361dd5c8b4d921650891ca1926a798d9bb0` is committed. Exact decisions are
+retained in `.artifacts/initial-media-structure/owner-final-reviews.json`. The
+[next target composition proposal](initial-preparation-target-composition-2026-10-13.md)
+names an unqualified Linux worker and its feasibility gaps. Independent and IC-1
+bounded design concurrence is recorded in
+`.artifacts/initial-media-structure/target-design-v4-reviews.json`; the next
+implementation agreement awaits a concrete named target. This authorizes no
+installation or execution. This binds the original preparation owner to the
+pinned WAV artifact only in a separate Edge-ineligible synthetic fixture; it
+does not close target runtime or other-format S0 acceptance. No post-M2
+transform or duplicate WAV helper is required. Retained-byte transfer alone does
+not authorize a provider grant. Initial dispatch, durable result capture,
+successful completion, native media-backed journeys and integrated acceptance
+remain open. Installed signer/backend and device qualification retain separately
+named authorization requirements. Activation remains disabled and ordinary
+access nil. History primary retains all overlapping writes; broader hardening
+and capture visual work remain separate. Approved deletion/export/redesign
+follow current-scope acceptance.
 
 ## Checkpoint 0: evidence and integration agreement
 
