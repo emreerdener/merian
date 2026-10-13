@@ -103,11 +103,17 @@ primary; broader identity-merge and Field Trip ownership do not transfer.
 The next bounded dependency is a concrete structural-validator and
 transform-attestation protocol for the same immutable retained bytes, under the
 [S0 dispatch-fence agreement](initial-dispatch-fence-interface-2026-10-13.md).
-Retained-byte transfer alone does not authorize a provider grant. Initial
-dispatch, durable result capture, successful completion, native media-backed
-journeys and integrated acceptance remain open. Installed signer/backend and
-device qualification retain separately named authorization requirements.
-Activation remains disabled and ordinary access nil. History primary retains all
+The
+[revised dependency inventory](initial-media-structure-attestation-2026-10-13.md)
+recognizes existing local WAV executable qualification and the original
+pre-admission preparation ordering. Its dependency boundary is independently and
+IC-1 reviewed; the concrete consuming runtime/receipt agreement remains to be
+closed; no post-M2 transform or duplicate WAV helper is required. Retained-byte
+transfer alone does not authorize a provider grant. Initial dispatch, durable
+result capture, successful completion, native media-backed journeys and
+integrated acceptance remain open. Installed signer/backend and device
+qualification retain separately named authorization requirements. Activation
+remains disabled and ordinary access nil. History primary retains all
 overlapping writes; broader hardening and capture visual work remain separate.
 Approved deletion/export/redesign follow current-scope acceptance.
 
