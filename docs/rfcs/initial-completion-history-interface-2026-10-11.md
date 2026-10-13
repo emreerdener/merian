@@ -107,15 +107,22 @@ The
 [revised dependency inventory](initial-media-structure-attestation-2026-10-13.md)
 recognizes existing local WAV executable qualification and the original
 pre-admission preparation ordering. Its dependency boundary is independently and
-IC-1 reviewed; the concrete consuming runtime/receipt agreement remains to be
-closed; no post-M2 transform or duplicate WAV helper is required. Retained-byte
-transfer alone does not authorize a provider grant. Initial dispatch, durable
-result capture, successful completion, native media-backed journeys and
-integrated acceptance remain open. Installed signer/backend and device
-qualification retain separately named authorization requirements. Activation
-remains disabled and ordinary access nil. History primary retains all
-overlapping writes; broader hardening and capture visual work remain separate.
-Approved deletion/export/redesign follow current-scope acceptance.
+IC-1 reviewed. The concrete
+[local owner integration agreement](initial-preparation-local-owner-integration-2026-10-13.md)
+has exact-source independent and IC-1 launch review. The local owner run and
+both existing artifact regressions pass. Independent and IC-1 final evidence
+review is required before the local checkpoint commit, with decisions retained
+in `.artifacts/initial-media-structure/`. This binds the original preparation
+owner to the pinned WAV artifact only in a separate Edge-ineligible synthetic
+fixture; it does not close target runtime or other-format S0 acceptance. No
+post-M2 transform or duplicate WAV helper is required. Retained-byte transfer
+alone does not authorize a provider grant. Initial dispatch, durable result
+capture, successful completion, native media-backed journeys and integrated
+acceptance remain open. Installed signer/backend and device qualification retain
+separately named authorization requirements. Activation remains disabled and
+ordinary access nil. History primary retains all overlapping writes; broader
+hardening and capture visual work remain separate. Approved
+deletion/export/redesign follow current-scope acceptance.
 
 ## 1. Identity and immutable original input
 

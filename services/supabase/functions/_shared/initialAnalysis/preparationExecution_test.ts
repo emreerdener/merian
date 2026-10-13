@@ -680,3 +680,47 @@ Deno.test("terminal winner after runtime prevents fresh registration from retain
     0,
   );
 });
+
+Deno.test("original runtime receives immutable independent grant and source correlation", async () => {
+  const f = await fixture();
+  const original = f.deps.runtime;
+  f.deps.runtime = async (value, signal) => {
+    const saved = f.saved();
+    assertEquals(value.grant, saved.grant);
+    assertEquals(value.source_verification, saved.source);
+    assert(value.grant !== saved.grant);
+    assert(value.source_verification !== saved.source);
+    assert(Object.isFrozen(value.grant));
+    assert(Object.isFrozen(value.source_verification.entries[0].bytes));
+    assert(Object.isFrozen(value.profile.spec.rules[0].limits));
+    assertThrows(() => {
+      value.grant.source_digest = "0".repeat(64);
+    }, TypeError);
+    assertThrows(() => {
+      value.source_verification.entries[0].bytes.byte_count = 1;
+    }, TypeError);
+    assertThrows(() => {
+      value.profile.spec.rules[0].limits.wall_ms = 1;
+    }, TypeError);
+    assertEquals(
+      value.grant.source_digest,
+      await executionDigest(
+        "source_verification",
+        initialCanonicalText(value.source_verification),
+      ),
+    );
+    return await original(value, signal);
+  };
+  assertEquals(
+    (await runInitialPreparation(f.deps, f.input, new AbortController().signal))
+      .kind,
+    "outcome_ready",
+  );
+  assertEquals(f.counts.runtime, 1);
+  assertEquals(
+    (await runInitialPreparation(f.deps, f.input, new AbortController().signal))
+      .kind,
+    "outcome_ready",
+  );
+  assertEquals(f.counts.runtime, 1);
+});

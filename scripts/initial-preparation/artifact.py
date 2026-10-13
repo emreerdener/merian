@@ -249,7 +249,7 @@ def verify_regular(path, digest, mode):
     if not sha(read_regular(path, 180 * 1024 ** 2)) == digest:
         raise ValueError('qualification_check_failed')
 
-def validate_cache(items, cache, cwd, executable, phase, profile=HISTORICAL):
+def validate_cache(items, cache, cwd, executable, phase, profile=HISTORICAL, runtime_inputs=()):
     if not (len(items) <= 32 and sum((i.get('bytes', 0) for i in items)) <= 16 * 1024 ** 2):
         raise ValueError('qualification_check_failed')
     databases = {'dep_analysis_cache_v2', 'node_analysis_cache_v2'}
@@ -258,6 +258,7 @@ def validate_cache(items, cache, cwd, executable, phase, profile=HISTORICAL):
     allowed = {name + suffix for name in databases for suffix in ['', '-shm', '-wal']}
     bootstrap, closure = profile_paths(profile)
     generated = {'gen/file/' + str(cwd / path).lstrip('/') + '.js' for path in closure + [bootstrap]}
+    runtime_generated = {'gen/file/' + str(path).lstrip('/') + '.js' for path in runtime_inputs if pathlib.Path(path).suffix == '.ts'}
     for item in items:
         path = item['path']
         if item['type'] == 'symlink':
@@ -271,7 +272,7 @@ def validate_cache(items, cache, cwd, executable, phase, profile=HISTORICAL):
         elif path == 'dl/esbuild-0.25.5/esbuild-darwin-arm64':
             if not (phase == 'build' and item['sha256'] == ESBUILD_HASH):
                 raise ValueError('qualification_check_failed')
-        elif not (item['type'] == 'file' and (path in allowed or (phase == 'build' and path in generated))):
+        elif not (item['type'] == 'file' and (path in allowed or (phase == 'build' and path in generated) or (phase == 'runtime' and path in runtime_generated))):
             raise ValueError('qualification_check_failed')
 
 def inventory(root):
@@ -320,119 +321,257 @@ def locked_tree(root):
 
 
 def run(args, cwd, cache, data=b'', timeout=15, limit=1048576, inputs=None,
-        cancelled=lambda: False, cancel_after_output=None, profile=HISTORICAL):
-    profile_paths(profile)  # Reject unknown profiles before any spawn.
+        cancelled=lambda: False, cancel_after_output=None, profile=HISTORICAL,
+        exchange=None):
+    """One selector/cleanup owner. Optional exchange is trusted fixture code only.
+
+    exchange fixes transform args/cwd/cache/inputs before spawn; accept(frame)
+    returns its exact input once or None for the terminal scalar summary;
+    answer(exit, stdout, stderr) returns the bounded response after clean exit.
+    No child-supplied command or recursive run is supported.
+    """
+    profile_paths(profile)
     if not isinstance(data, bytes) or len(data) > 300000 or not 0 < timeout <= 15 or not 0 < limit <= 1048576:
         raise ValueError('process_bounds')
-    for path, digest in (inputs or {}).items():
-        verify_regular(path, digest, 0o400)
-    verify_regular(pathlib.Path(args[0]), DENO_HASH, 0o500)
-    seed = cache / 'dl/esbuild-0.25.5/esbuild-darwin-arm64'
-    if seed.exists():
-        verify_regular(seed, ESBUILD_HASH, 0o500)
-    cmd = ['/usr/bin/sandbox-exec', '-p', '(version 1)(allow default)(deny network*)', *map(str, args)]
-    env = {'PATH': '/usr/bin:/bin', 'DENO_DIR': str(cache),
-           'DENO_NO_UPDATE_CHECK': '1', 'NO_COLOR': '1', 'TZ': 'UTC', 'LANG': 'C'}
+    if exchange is not None and (data or timeout != 15 or profile != VALIDATED):
+        raise ValueError('exchange_bounds')
+
+    def preflight(command, directory, child_cache, measured):
+        for path, digest in (measured or {}).items():
+            verify_regular(path, digest, 0o400)
+        verify_regular(pathlib.Path(command[0]), DENO_HASH, 0o500)
+        seed = child_cache / 'dl/esbuild-0.25.5/esbuild-darwin-arm64'
+        if seed.exists():
+            verify_regular(seed, ESBUILD_HASH, 0o500)
+        return dict(args=list(command), cwd=directory, cache=child_cache, measured=dict(measured or {}))
+
+    plans = [preflight(args, cwd, cache, inputs)]
+    if exchange is not None:
+        plans.append(preflight(exchange.args, exchange.cwd, exchange.cache, exchange.inputs))
+    # All immutable input verification precedes this single shared anchor.
     start = time.monotonic()
-    child = None
-    peak, samples = 0, 0
-    out, err = bytearray(), bytearray()
-    failure, code, sel = None, None, None
-    try:
-        child = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.PIPE,
-                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    active_end = start + (9 if exchange is not None else timeout)
+    cleanup_end = start + 14 if exchange is not None else None
+    final_end = start + 15 if exchange is not None else None
+    children, sel = [], None
+    failure = None
+    consumed = delivered = summarized = False
+    frame = bytearray()
+    aggregate_peak = 0
+
+    def until(deadline):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError('timeout')
+        return remaining
+
+    def kill(record):
+        if not record['killed']:
+            record['killed'] = True
+            try:
+                os.killpg(record['child'].pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+    def group_gone(record):
+        try:
+            os.killpg(record['child'].pid, 0)
+        except ProcessLookupError:
+            return True
+        return False
+
+    def queue(record, payload):
+        if not isinstance(payload, bytes) or len(payload) > 300000 or record['pending']:
+            raise RuntimeError('exchange_input')
+        record['pending'] = payload
+        record['offset'] = 0
+        sel.register(record['child'].stdin, selectors.EVENT_WRITE, (record, 'stdin'))
+
+    def spawn(index, payload):
+        until(active_end)
+        plan = plans[index]
+        if exchange is not None:
+            preflight(plan['args'], plan['cwd'], plan['cache'], plan['measured'])
+            until(active_end)
+        command = ['/usr/bin/sandbox-exec', '-p', '(version 1)(allow default)(deny network*)', *map(str, plan['args'])]
+        env = {'PATH': '/usr/bin:/bin', 'DENO_DIR': str(plan['cache']),
+               'DENO_NO_UPDATE_CHECK': '1', 'NO_COLOR': '1', 'TZ': 'UTC', 'LANG': 'C'}
+        child = subprocess.Popen(command, cwd=plan['cwd'], env=env,
+                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                  start_new_session=True)
-        # Spawn and all partially completed setup share one cleanup boundary.
-        sel = selectors.DefaultSelector()
+        record = dict(plan, child=child, index=index, out=bytearray(), err=bytearray(),
+                      peak=0, samples=0, eof=set(), pending=b'', offset=0,
+                      killed=False, answered=False)
+        children.append(record)  # Own cleanup before any fallible pipe setup.
         for stream in (child.stdin, child.stdout, child.stderr):
             os.set_blocking(stream.fileno(), False)
-        sel.register(child.stdout, selectors.EVENT_READ, out)
-        sel.register(child.stderr, selectors.EVENT_READ, err)
-        if data:
-            sel.register(child.stdin, selectors.EVENT_WRITE, None)
-        else:
+        sel.register(child.stdout, selectors.EVENT_READ, (record, 'out'))
+        sel.register(child.stderr, selectors.EVENT_READ, (record, 'err'))
+        if payload:
+            queue(record, payload)
+        elif not (exchange is not None and index == 0):
             child.stdin.close()
-        offset = 0
-        while sel.get_map() or child.poll() is None:
-            remaining = remaining_time(start, timeout)
-            if cancelled() or (cancel_after_output and cancel_after_output in out):
+        return record
+
+    try:
+        sel = selectors.DefaultSelector()
+        coordinator = spawn(0, data)
+        while sel.get_map() or any(c['child'].poll() is None for c in children):
+            until(active_end)
+            if cancelled() or (cancel_after_output and cancel_after_output in coordinator['out']):
                 raise RuntimeError('cancelled')
-            if child.poll() is None:
-                ps = subprocess.run(['/bin/ps', '-axo', 'pgid=,rss='],
-                                    capture_output=True, text=True,
-                                    timeout=min(2, remaining))
-                remaining_time(start, timeout)
+            if exchange is not None and coordinator['child'].poll() is not None and not summarized:
+                # Drain a normal final summary already buffered in its pipe.
+                # An active transform cannot survive premature coordinator exit.
+                if consumed and not delivered:
+                    raise RuntimeError('coordinator_exit')
+            live = [c for c in children if c['child'].poll() is None]
+            if live:
+                ps = subprocess.run(['/bin/ps', '-axo', 'pgid=,rss='], capture_output=True,
+                                    text=True, timeout=min(2, until(active_end)))
+                until(active_end)
                 if ps.returncode:
                     raise RuntimeError('rss_unavailable')
                 rows = [row.split() for row in ps.stdout.splitlines()]
-                values = [int(row[1]) * 1024 for row in rows
-                          if len(row) == 2 and row[0] == str(child.pid)]
-                if values:
-                    samples += 1
-                    peak = max(peak, sum(values))
-                if peak > 256 * 1024 * 1024:
-                    raise RuntimeError('sampled_rss_limit')
-            for key, event in sel.select(min(0.02, remaining_time(start, timeout))):
+                aggregate = 0
+                for record in live:
+                    values = [int(row[1]) * 1024 for row in rows
+                              if len(row) == 2 and row[0] == str(record['child'].pid)]
+                    if values:
+                        record['samples'] += 1
+                        record['peak'] = max(record['peak'], sum(values))
+                        aggregate += sum(values)
+                    if record['peak'] > 256 * 1024 * 1024:
+                        raise RuntimeError('sampled_rss_limit')
+                aggregate_peak = max(aggregate_peak, aggregate)
+            for key, event in sel.select(min(0.02, until(active_end))):
+                record, stream = key.data
                 if event & selectors.EVENT_WRITE:
                     try:
-                        offset += os.write(key.fd, data[offset:offset + 16384])
+                        record['offset'] += os.write(key.fd, record['pending'][record['offset']:record['offset'] + 16384])
                     except BrokenPipeError:
-                        offset = len(data)
-                    if offset == len(data):
+                        if exchange is not None:
+                            raise RuntimeError('exchange_pipe') from None
+                        record['offset'] = len(record['pending'])
+                    if record['offset'] == len(record['pending']):
                         sel.unregister(key.fileobj)
                         key.fileobj.close()
+                        record['pending'] = b''
+                        if exchange is not None and record['index'] == 0:
+                            delivered = True
                 else:
-                    room = limit - len(out) - len(err)
+                    cap = min(limit, 300000) if exchange is not None else limit
+                    room = cap - len(record['out']) - len(record['err'])
                     chunk = os.read(key.fd, min(65536, room + 1))
                     if not chunk:
                         sel.unregister(key.fileobj)
                         key.fileobj.close()
+                        record['eof'].add(stream)
+                        if exchange is not None and record['index'] == 0 and stream == 'out' and not summarized:
+                            raise RuntimeError('coordinator_eof')
                     elif len(chunk) > room:
-                        # Retain at most the declared cap; the overflow byte is discarded.
-                        key.data.extend(chunk[:room])
+                        record[stream].extend(chunk[:room])
                         raise RuntimeError('output_limit')
                     else:
-                        key.data.extend(chunk)
-            remaining_time(start, timeout)
-        code = child.wait(timeout=remaining_time(start, timeout))
-        remaining_time(start, timeout)
-        if samples == 0:
+                        record[stream].extend(chunk)
+                        if exchange is not None and record['index'] == 0 and stream == 'out':
+                            frame.extend(chunk)
+                            if len(frame) > 280000:
+                                raise RuntimeError('exchange_frame_limit')
+                            while b'\n' in frame:
+                                line, _, rest = frame.partition(b'\n')
+                                frame[:] = rest
+                                if summarized or (consumed and not delivered):
+                                    raise RuntimeError('exchange_duplicate')
+                                payload = exchange.accept(bytes(line) + b'\n')
+                                if payload is None:
+                                    summarized = True
+                                else:
+                                    if consumed or not isinstance(payload, bytes) or len(payload) > 262144:
+                                        raise RuntimeError('exchange_duplicate')
+                                    consumed = True  # Never reset after any failure.
+                                    spawn(1, payload)
+                            if summarized and frame:
+                                raise RuntimeError('exchange_trailing')
+            if exchange is not None and len(children) == 2:
+                transform = children[1]
+                if not transform['answered'] and transform['child'].poll() is not None and transform['eof'] == {'out', 'err'}:
+                    kill(transform)
+                    # poll reaps the direct child; keep servicing coordinator until
+                    # the group is confirmed absent, under the same active deadline.
+                    if group_gone(transform):
+                        if transform['samples'] == 0:
+                            raise RuntimeError('rss_unobserved')
+                        response = exchange.answer(transform['child'].returncode, bytes(transform['out']), bytes(transform['err']))
+                        until(active_end)
+                        if coordinator['child'].poll() is not None:
+                            raise RuntimeError('coordinator_exit')
+                        if not isinstance(response, bytes) or not response.endswith(b'\n') or len(response) > 300000:
+                            raise RuntimeError('exchange_response')
+                        queue(coordinator, response)
+                        transform['answered'] = True
+            until(active_end)
+        if any(c['samples'] == 0 for c in children):
             raise RuntimeError('rss_unobserved')
+        if exchange is not None and (not summarized or frame or not consumed or not delivered or len(children) != 2 or not children[1]['answered'] or coordinator['child'].returncode != 0 or coordinator['err']):
+            raise RuntimeError('exchange_incomplete')
     except subprocess.TimeoutExpired:
-        failure, code = 'timeout', None
+        failure = 'timeout'
     except RuntimeError as error:
-        failure, code = str(error), None
+        failure = str(error)
     finally:
         try:
-            if child is not None:
+            # Signal all groups first. Never spend one wait budget while a
+            # sibling remains unchecked and running.
+            cleanup_error = None
+            for record in children:
                 try:
-                    os.killpg(child.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                child.wait(timeout=5)
+                    kill(record)
+                except OSError as error:
+                    cleanup_error = error
+            for record in children:
+                try:
+                    record['child'].wait(timeout=until(cleanup_end) if cleanup_end is not None else 5)
+                    if not group_gone(record):
+                        raise RuntimeError('process_group_survived')
+                except (RuntimeError, subprocess.TimeoutExpired) as error:
+                    cleanup_error = error
+            if cleanup_error is not None:
+                raise cleanup_error
+            if cleanup_end is not None:
+                until(cleanup_end)
         finally:
             if sel is not None:
                 sel.close()
-            if child is not None:
-                for stream in (child.stdin, child.stdout, child.stderr):
+            for record in children:
+                for stream in (record['child'].stdin, record['child'].stdout, record['child'].stderr):
                     if stream is not None and not stream.closed:
                         stream.close()
-    # The direct child is reaped. Check that no process remains in its group.
-    try:
-        os.killpg(child.pid, 0)
-    except ProcessLookupError:
-        group_gone = True
-    else:
-        raise RuntimeError('process_group_survived')
-    items = inventory(cache)
-    validate_cache(items, cache, cwd, pathlib.Path(args[0]),
-                   'runtime' if args[1] == 'run' else 'build', profile)
-    return ({'args': list(map(str, args)), 'exit': code, 'failure': failure,
-             'elapsed_ms': round((time.monotonic() - start) * 1000),
-             'sampled_peak_group_rss': peak, 'rss_samples': samples,
-             'stdout': bytes(out).decode(), 'stderr': bytes(err).decode(),
-             'cache': str(cache), 'cache_after': items,
-             'reaped': child.returncode is not None, 'process_group_gone': group_gone}, bytes(out))
+    reports = []
+    for record in children:
+        if final_end is not None:
+            until(final_end)
+        items = inventory(record['cache'])
+        validate_cache(items, record['cache'], record['cwd'], pathlib.Path(record['args'][0]),
+                       'runtime' if record['args'][1] == 'run' else 'build', profile,
+                       runtime_inputs=(inputs or {}) if exchange is not None and record['index'] == 0 else ())
+        if final_end is not None:
+            until(final_end)
+        reports.append({'args': list(map(str, record['args'])), 'exit': record['child'].returncode,
+                        'sampled_peak_group_rss': record['peak'], 'rss_samples': record['samples'],
+                        'stdout': '[synthetic pipe/output omitted]' if exchange is not None else bytes(record['out']).decode(),
+                        'stderr': ('[process diagnostic omitted]' if record['err'] else '') if exchange is not None else bytes(record['err']).decode(),
+                        'cache': str(record['cache']), 'cache_after': items,
+                        'reaped': record['child'].returncode is not None, 'process_group_gone': True})
+    result = reports[0]
+    result.update(failure=failure, elapsed_ms=round((time.monotonic() - start) * 1000))
+    if failure:
+        result['exit'] = None
+    if exchange is not None:
+        result['exchange'] = dict(consumed=consumed, delivered=delivered, summarized=summarized,
+                                  aggregate_sampled_peak_rss=aggregate_peak, children=reports[1:])
+        until(final_end)
+    return result, b'' if exchange is not None else bytes(children[0]['out'])
 
 def verify_toolchain_report(raw):
     expected = (b'deno 2.9.4 (stable, release, aarch64-apple-darwin)\n'

@@ -96,16 +96,18 @@ after grant. The consuming protocol must give structural-only inspection and
 actual transformation distinguishable authority and evidence; revalidation of
 bytes inside the one authorized transform is not a second transform.
 
-The gap is that the trusted synthetic `inspectSource` and `runtime` dependencies
-do not resolve or run the existing pinned executable and cannot attest an
-installed decoder. `preparationExecutionContract.ts` validates shape and binding
-of declared source facts, grant artifact digest and output bytes. Equality with
-profile metadata is not proof that the named executable consumed those bytes.
-The handoff family likewise cannot manufacture missing preparation execution
-proof from byte retention.
+At checkpoint `41823294`, the trusted synthetic `inspectSource` and `runtime`
+dependencies did not resolve or run the pinned executable. The subsequent
+[local owner fixture](initial-preparation-local-owner-integration-2026-10-13.md)
+closes that narrow WAV composition gap with actual local execution; it still
+cannot attest an installed decoder. `preparationExecutionContract.ts` validates
+shape and binding of declared source facts, grant artifact digest and output
+bytes. Equality with profile metadata is not proof that the named executable
+consumed those bytes. The handoff family likewise cannot manufacture missing
+preparation execution proof from byte retention.
 
-Before implementation, close one consuming protocol across these existing
-owners:
+Before target-runtime integration, close one consuming protocol across these
+existing owners:
 
 | Boundary                       | Required binding and rejection                                                                                                                                                                                                                                                                                                                                                |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -117,13 +119,14 @@ owners:
 | Admission and retained handoff | Preserve existing admitted receipt, M1/M2 v2 and transfer semantics. Prove byte-preserving correspondence to the original outcome; no later transformation, profile selection or replacement funding.                                                                                                                                                                         |
 | Consuming prepared bytes       | Verify the complete retained prepared cohort and exclusive byte ownership through provider construction. A scalar digest report alone cannot prove what a later reader consumes. No provider grant before all S0 dependencies close together.                                                                                                                                 |
 
-The next bounded work is the concrete adapter/receipt and resource contract for
-that original preparation boundary, including exact schema delta and current
-owner/caller inventory. Existing synthetic source/outcome/assignment codecs and
-local artifact acceptance are inputs to it, not completed integration. Do not
-implement another identity-only helper or speculative grant schema while that
-consuming agreement is open. Pure draft preparation and read-only tracing are
-authorized; installed runtime use still requires separately named authorization.
+The next bounded work after local-owner acceptance is the concrete target
+runtime/receipt and resource contract for that original preparation boundary,
+including any justified schema delta and current owner/caller inventory.
+Existing codecs and the actual local WAV composition are inputs to it, not
+completed target integration. Do not implement another identity-only helper or
+speculative grant schema while that consuming agreement is open. Pure draft
+preparation and read-only tracing are authorized; installed runtime use still
+requires separately named authorization.
 
 ## Other formats and current media scope
 
@@ -149,11 +152,15 @@ remediation, never a silent rewrite or text-only fallback.
 
 ## Acceptance and remaining boundaries
 
-The revised dependency boundary has independent and IC-1 concurrence. Review the
-next concrete adapter/receipt/resource agreement independently and with IC-1
-before source or schema changes. Reuse existing artifact qualification and
-execution owners. Retain failed evidence and qualify new adapter/receipt
-bindings with copied-view mutation, changed identity/options,
+The revised dependency boundary has independent and IC-1 concurrence. The
+[concrete local owner agreement](initial-preparation-local-owner-integration-2026-10-13.md)
+also has both reviews and authorizes the bounded synthetic implementation. Its
+exact source/vector launch reviews are clear, and the fixed synthetic owner
+execution and both existing standalone artifact regressions pass. Independent
+and IC-1 final evidence review is required before the local checkpoint commit;
+broader target-runtime/media integration remains open. Reuse existing artifact
+qualification and execution owners. Retain failed evidence and qualify new
+adapter/receipt bindings with copied-view mutation, changed identity/options,
 malformed/truncated/expanding inputs, complete cohort ordering, original
 deadlines, lost grant/output/settlement, erasure/cancellation and no-repeat
 execution cases. Full affected gates belong to coherent implementation

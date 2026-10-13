@@ -6,6 +6,33 @@ It has no production caller, provider invocation, hosted installation or feature
 activation. The selected historical closure contains six local WAV helpers and
 zero external runtime modules. The bootstrap is a separately committed input.
 
+The
+[local owner integration](../../docs/rfcs/initial-preparation-local-owner-integration-2026-10-13.md)
+adds an explicitly synthetic composition of the existing preparation owner and
+registered validated-WAV artifact. Exact-source independent and IC-1 review
+cleared local execution; the synthetic owner run and both standalone artifact
+regressions pass. Final independent and IC-1 evidence review is required before
+the local checkpoint commit. Portable tests simulate replies and process control
+and must not be reported as actual executable qualification.
+
+`owner-fixture.json` is a separate finite test vector, always Edge-ineligible.
+`owner-source-files.json` lists its local module closure. The explicit
+`qualify_owner.py --deno <verified-executable> --artifact <registered-artifact>
+--output <private-output-directory>`
+command snapshots that closure and uses the existing harness's single selector
+to supervise both children. Only the original fresh grant may emit a transform
+request. Original outcome replay emits none. The parent validates exact
+grant/source/profile correlation and retains scalar evidence, never media
+frames. Its shared timeline allows 9 seconds for active work, 14 for both
+groups' cleanup and 15 for cache checks and evidence framing. Expected transform
+rejection still means original-operation recovery, never re-execution or refund.
+Sampled RSS and declared fixture CPU/heap fields do not qualify hard resource
+limits or abrupt supervisor death.
+
+Both existing standalone artifact profiles require executable regression after
+changes to their shared process owner. This command is explicit local
+qualification only and is never launched by the portable Make target or CI.
+
 `registry.json` is the finite selector. It pins the committed bootstrap/blob,
 archive/configuration/input inventory, platform/toolchain provenance and exact
 artifact bytes. Unknown identities fail closed. A null artifact registration

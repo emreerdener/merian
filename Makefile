@@ -67,12 +67,14 @@ validate-markdown-format:
 test-initial-preparation:
 	python3 -B scripts/initial-preparation/test_preparation_reference.py
 	python3 -B scripts/initial-preparation/test_artifact.py
+	python3 -B scripts/initial-preparation/test_owner_protocol.py
+	python3 -B scripts/initial-preparation/test_owner_process.py
 	python3 -B scripts/initial-preparation/test_bootstrap.py
 	python3 -B scripts/initial-preparation/test_wav_validation_bootstrap.py
-	deno test --no-config --no-lock --no-remote --no-npm scripts/initial-preparation/wav-validation-bootstrap_test.ts
+	deno test --no-config --no-lock --no-remote --no-npm scripts/initial-preparation/wav-validation-bootstrap_test.ts scripts/initial-preparation/owner-exchange_test.ts
 	deno fmt --check scripts/initial-preparation
-	deno check --no-config --no-lock --no-remote --no-npm scripts/initial-preparation/bootstrap.ts scripts/initial-preparation/wav-validation-bootstrap.ts scripts/initial-preparation/wav-validation-bootstrap_test.ts
-	deno lint --no-config scripts/initial-preparation/bootstrap.ts scripts/initial-preparation/wav-validation-bootstrap.ts scripts/initial-preparation/wav-validation-bootstrap_test.ts
+	deno check --no-config --no-lock --no-remote --no-npm scripts/initial-preparation/*.ts
+	deno lint --no-config scripts/initial-preparation/*.ts
 
 test-initial-preparation-retained-inputs:
 	python3 -B scripts/initial-preparation/test_local_inputs.py

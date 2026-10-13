@@ -200,10 +200,10 @@ class ArtifactTests(unittest.TestCase):
         with patch.object(a, 'verify_regular'), \
                 patch.object(a.subprocess, 'Popen', return_value=child), \
                 patch.object(a.os, 'set_blocking', side_effect=OSError('setup')), \
-                patch.object(a.os, 'killpg') as kill:
+                patch.object(a.os, 'killpg', side_effect=lambda pid, sig: (_ for _ in ()).throw(ProcessLookupError()) if sig == 0 else None) as kill:
             with self.assertRaisesRegex(OSError, 'setup'):
                 a.run(['not-invoked', 'run'], ROOT, ROOT)
-            kill.assert_called_once_with(child.pid, a.signal.SIGKILL)
+            self.assertEqual(kill.call_args_list, [unittest.mock.call(child.pid, a.signal.SIGKILL), unittest.mock.call(child.pid, 0)])
             child.wait.assert_called_once_with(timeout=5)
             for stream in [child.stdin, child.stdout, child.stderr]:
                 stream.close.assert_called_once()

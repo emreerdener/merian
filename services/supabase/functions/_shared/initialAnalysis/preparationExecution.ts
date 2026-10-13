@@ -1,5 +1,5 @@
 /** Inactive synthetic-composition boundary. No provider, URL, key, artifact
- * loader or live storage dependency is available to its runtime interface. */
+ * loader or live storage dependency is installed by this module. */
 import { initialCanonicalText, invalidInitialInput } from "./canonical.ts";
 import {
   executionDigest,
@@ -49,11 +49,15 @@ export interface PreparationExecutionDependencies {
     privateBytes: Uint8Array,
     signal: AbortSignal,
   ): Promise<PreparationFacts>;
-  /** Reads return defensive copies of the exact verified snapshot. */
+  /** Reads return defensive copies of the exact verified snapshot. Metadata is
+   * independently cloned and deeply frozen; it correlates this invocation and
+   * is not a reusable execution capability. */
   runtime(
     input: {
       read(ordinal: number): Uint8Array;
       profile: InitialMediaPreparationProfile;
+      grant: PreparationGrant;
+      source_verification: PreparationSourceReceipt;
     },
     signal: AbortSignal,
   ): Promise<(Uint8Array | null)[]>;
@@ -105,6 +109,18 @@ const unknown = (): PreparationRunResult => ({
 });
 function clone<T>(v: T): T {
   return JSON.parse(initialCanonicalText(v));
+}
+/** Only freshly canonical-cloned JSON reaches this recursive freeze. */
+function immutableClone<T>(value: T): T {
+  const result = clone(value);
+  const freeze = (v: unknown): void => {
+    if (v !== null && typeof v === "object") {
+      for (const child of Object.values(v)) freeze(child);
+      Object.freeze(v);
+    }
+  };
+  freeze(result);
+  return result;
 }
 function object(v: unknown, keys: string[]): Record<string, unknown> {
   if (
@@ -452,7 +468,9 @@ export async function runInitialPreparation(
             }
             return new Uint8Array(sources.bytes[i]);
           },
-          profile: clone(s.ctx.profile),
+          profile: immutableClone(s.ctx.profile),
+          grant: immutableClone(grant),
+          source_verification: immutableClone(sources.receipt),
         }, p),
     );
     if (performance.now() >= runtimeDeadline) {
