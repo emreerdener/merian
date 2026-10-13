@@ -84,12 +84,16 @@ catalogs/6,672 assertions, 3,821 DB-backed Edge tests and recorded affected
 gates pass. This establishes consistency and role denial only, not stored
 issuance, physical verification or mutation authority.
 
-The next agreement is runtime copy/M2 v2/transfer under the
+The agreed next implementation is runtime copy/M2 v2/transfer under the
 [handoff interface](initial-media-handoff-v2-interface-2026-10-13.md), including
 durable copy provenance, exact private row lifetimes and positive-unused
-post-transfer C1/expiry/erasure/lock closure. Independent and IC-1 agreement
-precedes runtime DDL. History primary retains all overlapping writes under
-section 7. The
+post-transfer C1/expiry/erasure/lock closure. The
+[source-specific closure](initial-media-handoff-lock-erasure-2026-10-13.md) now
+records independent and IC-1 pre-DDL design concurrence. Actual runtime
+implementation, effective-graph checks and concurrency qualification remain
+open. History primary retains all overlapping writes under section 7 and the
+explicitly assigned narrow Ghost target-funding guard; broader identity-merge
+and Field Trip ownership do not transfer. The
 [S0 dispatch-fence draft](initial-dispatch-fence-interface-2026-10-13.md)
 remains downstream: M2 v2 transfer and structural validation of the exact
 immutable consumed bytes precede a callable provider grant. Retained-byte

@@ -5,10 +5,12 @@ Status: independent and IC-1 design concurrence recorded October 13, 2026, for
 `b289d3aaeff8de4c046d75c385dda833775b0be596dbd180d8ee0548521cc3ae`. This is the
 agreed implementation design, not implementation, runtime qualification or
 activation authority. Representation, protocol and statement-accounting design
-choices have concurrence. The remaining source-specific effective inventory,
-lock and erasure closure must still be recorded and reviewed before affected
-runtime DDL. Actual implementation and concurrency qualification follow. The
-following candidate text is retained as reviewed.
+choices have concurrence. The
+[source-specific lock and erasure closure](initial-media-handoff-lock-erasure-2026-10-13.md)
+now has independent and IC-1 design concurrence as well. These reviews close the
+pre-DDL design prerequisite for the agreed inactive family; actual
+implementation, effective-graph verification and concurrency qualification
+remain required. The following candidate text is retained as reviewed.
 
 Proposed mechanical companion to `runtime-contract-v2.md` SHA-256
 `0aed34a1f10bc6239643fbef8743344141064315b6d2b0693353b86adaf4f102`. Neither

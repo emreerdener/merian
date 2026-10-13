@@ -96,8 +96,13 @@ The next bounded dependency is the runtime copy/M2 v2/transfer contract under
 [the media handoff interface](initial-media-handoff-v2-interface-2026-10-13.md):
 durable original copy progress, a nonrenewable original claim, verification and
 transfer, with complete positive-unused C1/expiry/erasure and lock agreement.
-Representation and exact mutation provenance need independent and IC-1 review
-before runtime DDL. The
+Representation, exact mutation provenance and the
+[source-specific lock and erasure closure](initial-media-handoff-lock-erasure-2026-10-13.md)
+have independent and IC-1 design concurrence. The pre-DDL design prerequisite is
+closed; implementation, actual effective-graph checks and concurrency
+qualification remain open. The narrow Ghost target-funding guard is assigned to
+history primary as an original-funding consistency prerequisite, without broader
+identity-merge or Field Trip ownership transfer. The
 [S0 dispatch-fence draft](initial-dispatch-fence-interface-2026-10-13.md)
 remains the later execution dependency. Retained-byte transfer can be prepared
 with all execution barriers closed; structural validation of the same immutable

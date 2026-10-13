@@ -204,11 +204,13 @@ children for copy progress, original v2 claim, verification and transfer, plus a
 private transaction stage/ledger. They specify exact replay/deadlines, positive
 unused post-transfer C1, statement-level event accounting and source-before-
 destination raw erasure even when private proof is damaged. This closes the
-representation, protocol and statement-accounting design choices. The remaining
-source-specific effective inventory, lock and erasure closure must still be
-recorded and reviewed before affected runtime DDL. Implementation and full
-affected acceptance remain open. No callable grant or installed storage backend
-follows from design agreement.
+representation, protocol and statement-accounting design choices. The
+[source-specific lock and erasure closure](initial-media-handoff-lock-erasure-2026-10-13.md)
+now has independent and IC-1 design concurrence, including the narrow
+target-side Ghost merge exclusion needed to preserve original admitted funding.
+This closes the stated pre-DDL design prerequisite. Implementation, actual
+effective-graph verification and full affected acceptance remain open. No
+callable grant or installed storage backend follows from design agreement.
 
 The pure codec boundary did not choose physical storage. The agreed runtime
 design now specifies those owners; implementation and qualification still need
