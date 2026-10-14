@@ -1,5 +1,13 @@
 # Identification history alpha readiness
 
+> October 13 evaluation update: the user authorized drafting and reviewing the
+> [CPM-1 client-prepared media amendment](client-prepared-media-amendment-2026-10-13.md)
+> before any AWS decision. It proposes a distinct fresh-submission version; it
+> does not weaken or reinterpret this document’s existing server-prepared or
+> historical contracts. Adoption and implementation remain pending. AWS is
+> unapproved, activation disabled, and all external-operation restrictions
+> remain.
+
 Status: revised media-required execution roadmap, October 12, 2026. This records
 the accepted fresh-library scope and preimplementation requirements; it does not
 claim that the proposed contracts are implemented or externally qualified.

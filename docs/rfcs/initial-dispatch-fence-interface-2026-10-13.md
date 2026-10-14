@@ -1,5 +1,13 @@
 # IC-1 S0: permanent initial-dispatch fence
 
+> October 13 evaluation update: the user authorized drafting and reviewing the
+> [CPM-1 client-prepared media amendment](client-prepared-media-amendment-2026-10-13.md)
+> before any AWS decision. It proposes a distinct fresh-submission version; it
+> does not weaken or reinterpret this document’s existing server-prepared or
+> historical contracts. Adoption and implementation remain pending. AWS is
+> unapproved, activation disabled, and all external-operation restrictions
+> remain.
+
 Status: draft bounded interface for independent and IC-1 review. This document
 does not enable dispatch or transfer implementation ownership. History primary
 remains the sole writer under IC-1 sections 2 and 7; the hardening owner reviews

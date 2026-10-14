@@ -1,5 +1,13 @@
 # IC-1 durable preparation before initial admission
 
+> October 13 evaluation update: the user authorized drafting and reviewing the
+> [CPM-1 client-prepared media amendment](client-prepared-media-amendment-2026-10-13.md)
+> before any AWS decision. It proposes a distinct fresh-submission version; it
+> does not weaken or reinterpret this document’s existing server-prepared or
+> historical contracts. Adoption and implementation remain pending. AWS is
+> unapproved, activation disabled, and all external-operation restrictions
+> remain.
+
 October 11 follow-up: the inactive whole-cohort media allocator and permanent
 source-retirement metadata now have a candidate implementation in migration
 `20261011194522`, following the source-declaration prerequisite. The historical
