@@ -1,5 +1,13 @@
 # CPM local allocation diagnostics and shutdown fix: approval scope
 
+> Current October 14: the user approved local preparation, but independent and
+> IC-1 review found an unproven parent-to-worker idle-timer cancellation path.
+> Two inert controls are complete; no bundle or verifier campaign ran. See the
+> [prelaunch finding and proposed method amendment](client-prepared-media-allocation-diagnostics-preflight-2026-10-14.md).
+> Launch remains blocked pending explicit scope resolution and exact-candidate
+> review. Activation disabled, AWS unapproved, limits unchanged. Earlier
+> approval/status text below is historical.
+
 October 14, 2026. **Proposal and independent/IC-1 review only.** This document
 requests approval for a fresh bounded local window; it does not adopt changes or
 authorize construction, runtime controls or another verifier campaign.

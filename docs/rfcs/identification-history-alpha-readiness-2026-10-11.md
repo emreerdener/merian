@@ -1,5 +1,13 @@
 # Identification history alpha readiness
 
+> Current October 14: the user approved local preparation, but independent and
+> IC-1 review found an unproven parent-to-worker idle-timer cancellation path.
+> Two inert controls are complete; no bundle or verifier campaign ran. See the
+> [prelaunch finding and proposed method amendment](client-prepared-media-allocation-diagnostics-preflight-2026-10-14.md).
+> Launch remains blocked pending explicit scope resolution and exact-candidate
+> review. Activation disabled, AWS unapproved, limits unchanged. Earlier
+> approval/status text below is historical.
+
 > Current October 14 follow-up: local allocation diagnostics and harness
 > shutdown correction are proposed in the
 > [bounded approval scope](client-prepared-media-allocation-diagnostics-proposal-2026-10-14.md).
