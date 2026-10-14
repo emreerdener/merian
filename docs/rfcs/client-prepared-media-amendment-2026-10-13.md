@@ -13,6 +13,12 @@ change or activation is authorized. History primary remains sole writer; IC-1
 and independent reviewers remain read-only. The hardening automation stays
 paused. Broader hardening, Field Trip and capture visual work stay separate.
 
+The October 13
+[limits and PR116 integration proposal](client-prepared-media-limits-and-integration-proposal-2026-10-13.md)
+provides concrete resource defaults, retention/ownership rules, bounded
+feasibility checks and a deployment-hold recommendation for user approval. It
+does not adopt those limits, authorize implementation or close G1–G4.
+
 ## Evaluation and recommendation
 
 Recommend evaluating **server-verified submitted bytes, prepared on iOS** as the

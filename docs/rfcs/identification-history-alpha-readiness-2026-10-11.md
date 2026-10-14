@@ -11,6 +11,13 @@
 > storage limits, and end-to-end recovery/shared-asset deletion. Specification
 > closure and candidate proof remain separate and open; missing numeric budgets
 > or feasibility decisions block implementation, not merely release.
+>
+> The
+> [concrete limits and PR116 integration proposal](client-prepared-media-limits-and-integration-proposal-2026-10-13.md)
+> now supplies recommended defaults for approval. Its proposed whole-backend
+> source hold is separate from activation flags and is not installed. Neither
+> integration, new resource limits nor implementation is authorized by the
+> proposal.
 
 Status: revised media-required execution roadmap, October 12, 2026. This records
 the accepted fresh-library scope and preimplementation requirements; it does not
