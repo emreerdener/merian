@@ -1,5 +1,11 @@
 # CPM-1 approved local preparation checkpoint
 
+> October 13 follow-up: the human authorized drafting the
+> [IVI-1 incremental verifier and ingress contract](client-prepared-media-incremental-verifier-ingress-2026-10-13.md)
+> within the approved limits for independent and IC-1 review. It is a design
+> draft only: runtime implementation and further experiments remain gated,
+> activation disabled and AWS unapproved. Prior evidence is unchanged.
+
 Status: October 13, 2026. The human approved proceeding with the reviewed
 [limits, retention and PR116 integration plan](client-prepared-media-limits-and-integration-proposal-2026-10-13.md)
 after its local documentation checkpoint

@@ -1,5 +1,11 @@
 # CPM-1: client-prepared media amendment to IC-1
 
+> October 13 follow-up: the human authorized drafting the
+> [IVI-1 incremental verifier and ingress contract](client-prepared-media-incremental-verifier-ingress-2026-10-13.md)
+> within the approved limits for independent and IC-1 review. It is a design
+> draft only: runtime implementation and further experiments remain gated,
+> activation disabled and AWS unapproved. Prior evidence is unchanged.
+
 > October 13 subsequent human approval: proceed with the reviewed CPM-1 policy
 > targets, bounded local feasibility preparation and PR116 whole-backend source
 > hold under the
