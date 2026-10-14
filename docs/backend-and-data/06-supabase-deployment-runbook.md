@@ -363,6 +363,16 @@ custom approval gates. The production concurrency lock applies only to the
 mutation job, so validation-only pushes do not replace pending production work.
 Scheduled health monitors are unchanged.
 
+The locally approved October 13 history integration candidate adds active
+`identification_history_integration_hold` in
+`services/supabase/release-holds.json`. It holds the entire Supabase production
+job, including unrelated releases, without changing the inactive Field Chat
+exception. It is not yet published or installed on main. The
+[approved integration plan](../rfcs/client-prepared-media-approved-local-plan-2026-10-13.md)
+requires a separate exact-SHA/target release decision before clearing this hold;
+activation flags do not replace it. Older running jobs and external deployment
+integrations require their own verification before any later merge decision.
+
 The Field Chat source hold is inactive under the owner-authorized beta decision
 linked above. The unfinished full-release checklist remains an owner obligation;
 it is not a machine-enforced backend hold or an automatic expiry. Ordinary

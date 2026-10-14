@@ -80,15 +80,43 @@ Deno.test("an active checked-in hold blocks Supabase production", async () => {
   assertStringIncludes(decision.summary, "Candidate evidence is incomplete.");
 });
 
-Deno.test("the repository records the owner-authorized beta source exception", async () => {
+Deno.test("the history integration hold blocks release while preserving the beta exception", async () => {
   const decision = await evaluateProductionReleaseHolds(
     new URL("../release-holds.json", import.meta.url),
   );
-  assertEquals(decision.allowed, true);
+  assertEquals(decision.allowed, false);
   assertEquals(decision.manifestValid, true);
-  assertEquals(productionSourceStatus(decision), "clear");
-  assertEquals(decision.activeHoldIds, []);
+  assertEquals(productionSourceStatus(decision), "held");
+  assertEquals(decision.activeHoldIds, [
+    "identification_history_integration_hold",
+  ]);
   assertEquals(decision.inactiveHoldIds, [holdId]);
+  assertEquals(productionHoldCommandSucceeds("source-status", decision), true);
+  assertEquals(productionHoldCommandSucceeds("source-gate", decision), false);
+});
+
+Deno.test("repository history hold denies automatic release before live control access", async () => {
+  let called = false;
+  const result = await evaluateAutomaticProductionRelease(
+    new URL("../release-holds.json", import.meta.url),
+    candidateSha,
+    Deno.readTextFile,
+    {
+      verifyRepositoryControls: () => {
+        called = true;
+        return Promise.resolve(["protected_main"]);
+      },
+    },
+  );
+  assertEquals(result.allowed, false);
+  assertEquals(result.activeHoldIds, [
+    "identification_history_integration_hold",
+  ]);
+  assertEquals(called, false);
+  assertEquals(
+    productionHoldCommandSucceeds("automatic-release", result),
+    false,
+  );
 });
 
 Deno.test("an inactive source hold still requires protected clearance", async () => {

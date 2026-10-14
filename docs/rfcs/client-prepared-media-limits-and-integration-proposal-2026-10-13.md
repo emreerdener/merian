@@ -1,5 +1,14 @@
 # CPM-1 proposed media limits and PR116 integration checkpoint
 
+> October 13 subsequent human approval: proceed with the reviewed CPM-1 policy
+> targets, bounded local feasibility preparation and PR116 whole-backend source
+> hold under the
+> [approved local plan](client-prepared-media-approved-local-plan-2026-10-13.md).
+> Earlier pending-approval wording below is historical for that decision.
+> Runtime schema/audio/reference agreement and candidate qualification remain
+> open; hosted/device/push/merge/deployment restrictions remain unchanged. AWS
+> is unapproved and activation disabled. The hold is a local source change only.
+
 Status: October 13, 2026. **Proposal for approval; not adopted or implemented.**
 The user approved the acceptance-gate intent and requested concrete defaults,
 feasibility boundaries and a separate PR116 integration recommendation. This

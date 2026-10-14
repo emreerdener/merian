@@ -1,5 +1,14 @@
 # Preparation qualification target and ownership proposal
 
+> October 13 subsequent human approval: proceed with the reviewed CPM-1 policy
+> targets, bounded local feasibility preparation and PR116 whole-backend source
+> hold under the
+> [approved local plan](client-prepared-media-approved-local-plan-2026-10-13.md).
+> Earlier pending-approval wording below is historical for that decision.
+> Runtime schema/audio/reference agreement and candidate qualification remain
+> open; hosted/device/push/merge/deployment restrictions remain unchanged. AWS
+> is unapproved and activation disabled. The hold is a local source change only.
+
 > October 13 evaluation update: the user authorized drafting and reviewing the
 > [CPM-1 client-prepared media amendment](client-prepared-media-amendment-2026-10-13.md)
 > before any AWS decision. It proposes a distinct fresh-submission version; it
