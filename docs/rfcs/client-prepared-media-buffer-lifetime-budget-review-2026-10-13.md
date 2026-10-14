@@ -1,5 +1,11 @@
 # CPM-1 buffer lifetime investigation and memory-budget recommendation
 
+> October 13 follow-up: the
+> [complete-verifier measurement proposal](client-prepared-media-complete-verifier-measurement-proposal-2026-10-13.md)
+> specifies staged preparation and named-target approval, finite warm/concurrent
+> cases and observability stop conditions. It is awaiting approval; no
+> implementation or further experiment has started.
+
 Status: October 13, 2026. Completed bounded local investigation; budget proposal
 only. Baseline: `3443f9dbe13a624c25da13a07d6e5d2db47b22ed`. The history primary
 verified the human's approval in advisory chat
