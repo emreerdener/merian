@@ -11,19 +11,28 @@ storage, reference and admitted-operation contracts stay unchanged. Activation
 disabled, AWS unapproved, auto-prompts paused; existing device, push, merge,
 provisioning and deployment restrictions remain.
 
-## Read-only resolution: remaining operator decisions
+## October 14 read-only inventory: production alpha target selected
 
-Permitted local records still do not identify an existing isolated nonproduction
-Supabase/private R2 pair. No account inventory, hosted configuration/log access,
-credential inspection or test was performed. Local configuration and disposable
-CI validation are not hosted target evidence. This leaves the following concrete
-inputs before construction can be requested:
+The human explicitly selected the existing production alpha environment and
+rejected a separate Supabase project requirement. This supersedes the earlier
+nonproduction target-selection prerequisite. Existing configured access was used
+for read-only CLI metadata and dashboard inspection. It does **not** authorize
+construction, fixture uploads, invocations, tests, provisioning or configuration
+changes. The 160 MiB threshold remains unapproved.
 
-| Gap                  | Required operator input or separately authorized action                                                                                                                                                                                                                                                                     |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Target selection     | Privately name the existing nonproduction Supabase project and private R2 account/bucket, region/plan, and owner; provide production-exclusion evidence. If unknown, name the accounts and separately authorize read-only project/bucket inventory. No provisioning is implied.                                             |
-| Access and cleanup   | Identify existing least-privilege operator/test access, available fixture namespace, writer/lifecycle controls and the operator responsible for disable/cleanup. Supply configuration evidence without credentials, or authorize narrowly scoped read-only inspection of the named targets.                                 |
-| Metric compatibility | Supply target runtime/build and existing metric metadata or provider documentation identifying native coverage, byte units, sampling/delivery behavior, worker correlation and CPU attribution. Existing sanitized metric-field examples suffice for inspection; do not run a probe or disclose response bodies/auth state. |
+| Surface                    | Observed evidence                                                                                                                                                                                   | What remains unestablished                                                                                                                                                            |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Supabase target            | Existing `merian` project, `us-east-1`, CLI status `ACTIVE_HEALTHY`; dashboard shows Pro organization and main production branch. CLI 2.109.1 matches the repository pin.                           | Exact deployed Edge runtime build and target memory accounting. No separate Supabase project is needed.                                                                               |
+| Existing backend access    | Existing login can list project metadata, 107 deployed functions and secret names. Current R2 write/read credential names exist; no `R2_HISTORY_*` secret names are present.                        | Secret names do not establish credential permissions, bucket binding, test identity or authority to change anything. No secret values or digests were retained.                       |
+| R2 inventory               | The visible Cloudflare account lists `merian` and unrelated `portfolio`. Only `merian` settings were inspected. Its `media.merian.app` custom-domain access and public development URL are enabled. | No private history/fixture bucket was visible in this account. This is not a claim about all accounts. The current app bucket does not meet the accepted private-fixture requirement. |
+| R2 lifecycle and telemetry | `merian` has enabled seven-day incomplete multipart abort, one-day `staging/` and `quarantine/` deletion rules; no bucket-lock or CORS rules; Data Access Logs disabled.                            | Lifecycle expiry is not writer-closure proof. No fixture namespace, object permissions, writer closure, cleanup capability or private GET behavior was tested.                        |
+| Edge observability         | Existing report offers invocation counts, status codes, average execution time in milliseconds and invocations by region.                                                                           | These are not request CPU attribution, per-worker native-inclusive memory samples or lifetime peak. No compatible in-run total-memory guard was identified.                           |
+
+Sanitized inventory is retained locally at
+`.artifacts/client-prepared-media/measurement-revised-scope/live-target-inventory-2026-10-14.json`.
+No customer object contents, credentials, auth state or production response
+bodies were saved. No object or runtime test was performed. Inventory is a
+point-in-time observation, not qualification of storage or telemetry guarantees.
 
 Public upstream source inspected October 14 narrows the telemetry uncertainty:
 the user-worker
@@ -46,27 +55,25 @@ substitute the platform kill for the proposed guard, or infer approval of a
 different experiment. Live metric behavior and closure still belong to the later
 separately approved two-call preflight, not a new preconstruction test.
 
-**Disposition:** target selection and native-inclusive metric availability
-remain blocked on the inputs above. Construction is not requested yet. Once
-these are resolved from records/authorized inspection, return the existing
-four-hour local preparation request with the named targets, metric definition,
-limitations and exact read-only evidence; do not enlarge the accepted scope.
+**Disposition:** Supabase selection is resolved. Private fixture placement and
+native-inclusive measurement remain unresolved. Keep the same Supabase project.
+Do not provision a bucket or change the existing public bucket as part of this
+inventory. A later proposal can name an existing private bucket if available,
+request narrowly scoped R2 provisioning, or explicitly amend fixture privacy for
+synthetic benchmark bytes only. None of those choices is adopted here; public
+benchmark fixtures would not qualify private-history access controls. Likewise,
+partial V8 trend telemetry needs an explicit measurement/safety amendment if no
+compatible native-inclusive metric can be established. Do not request
+construction until the remaining target/metric decisions are resolved.
 
 ## Recommendation: answer feasibility before building the complete verifier
 
-1. **Target and measurement decision first.** Existing local records identify
-   neither a suitable isolated hosted Supabase project nor a private R2 bucket.
-   The
-   [approved local plan](client-prepared-media-approved-local-plan-2026-10-13.md)
-   leaves these open; `services/supabase/config.toml` configures local services.
-   The
-   [deployment runbook](../backend-and-data/06-supabase-deployment-runbook.md)
-   records no private history bucket provisioned or hosted policy qualified.
-   This is an availability gap, not proof that no such resources exist. Before
-   construction, an operator must privately identify existing targets,
-   production exclusion, runtime/plan, metric access, synthetic-owner access,
-   fixture namespace, writer/lifecycle policy and cleanup owner. No account
-   discovery calls, credentials, provisioning or hosted inspection are implied.
+1. **Finish storage and measurement decisions on the selected production alpha
+   project.** Preserve the accepted bounds and account for shared production
+   runtime impact in any later execution packet. Name the fixture location,
+   operator/test access, lifecycle/cleanup owner and metric definition. Existing
+   read access does not establish least-privilege test or cleanup access. No
+   additional Supabase project or production-exclusion evidence is required.
 2. **Approve a small local preparation separately:** at most four engineering
    hours after target selection and agreement on the measurement definition
    below. Prepare the representative candidate, fixed driver and exact
@@ -80,7 +87,7 @@ limitations and exact read-only evidence; do not enlarge the accepted scope.
    part of this revision starts steps 2 or 3, adopts a higher memory limit, or
    transfers writing ownership from History primary.
 
-## Accepted measurement scope; target confirmation pending
+## Accepted measurement scope; storage and metric confirmation pending
 
 Official
 [Supabase telemetry](https://supabase.com/docs/guides/troubleshooting/edge-function-shutdown-reasons-explained)
@@ -256,9 +263,11 @@ from a flat average. Mixed outcomes take the more restrictive next step. None of
 these outcomes closes production acceptance or automatically authorizes
 construction, another experiment or a budget change.
 
-**Next decision:** supply the target/metric inputs above or authorize their
-specific read-only inspection. The characterization scope is accepted; local
-construction awaits a later approval request after those gaps close. Hosted
-execution, the proposed abort threshold and its overshoot limitation still
-require separate explicit approval. No test or implementation ran as part of
-this update.
+**Next decision:** resolve private fixture placement and propose a compatible
+measurement/safety method using the selected production alpha Supabase project.
+The read-only inventory is complete. The characterization scope is accepted;
+local construction awaits a later approval request after the remaining gaps
+close. Hosted execution, the proposed abort threshold and its overshoot
+limitation still require separate explicit approval. No test, construction,
+provisioning or configuration change ran as part of this update. Activation
+remains disabled and AWS unapproved.
