@@ -27,6 +27,12 @@ export interface DriverDeps {
   clock: Clock;
   journal: Journal;
   send(request: Request, signal: AbortSignal): Promise<Response>;
+  /** Runtime packaging uses genuine rejected authentication for case 26. */
+  rejectedCaller?: boolean;
+  /** Optional earlier absolute expiry; never extends the original run limit. */
+  expiresAt?: number;
+  /** Operator readiness barrier after the two controls, before bulk work. */
+  beforeBulk?(controls: readonly Ack[]): Promise<void>;
 }
 async function acknowledgement(
   response: Response,
@@ -108,6 +114,7 @@ export function createDriver(
   const pending = new Map<number, Promise<void>>(),
     controllers = new Set<AbortController>();
   const results: Ack[] = [];
+  const denials: { case: 26; status: 403; handler: true }[] = [];
   const snapshot = () => structuredClone(state);
   const stop = (reason: string) => {
     terminalAt ??= deps.clock.now();
@@ -137,6 +144,34 @@ export function createDriver(
         await response.body?.cancel();
         throw Error("late_response");
       }
+      if (item.id === 26 && deps.rejectedCaller) {
+        if (
+          response.status !== 403 || response.redirected ||
+          response.headers.get("x-merian-handler") !== "1"
+        ) {
+          await response.body?.cancel();
+          throw Error("caller_not_rejected");
+        }
+        const body = await readByteStreamWithinLimit(
+          response.body,
+          LIMITS.responseBytes,
+        );
+        if (!body.bytes || body.exceeded) throw Error("denial_body");
+        const value = JSON.parse(
+          new TextDecoder("utf-8", { fatal: true }).decode(body.bytes),
+        );
+        if (
+          value?.code !== "forbidden" ||
+          value?.error !== "Qualification request rejected."
+        ) throw Error("denial_body");
+        if (
+          abort.signal.aborted || stopped() || deps.clock.now() >= deadlineAt
+        ) throw Error("late_denial");
+        // No fabricated memory/worker/reader acknowledgement from an unauthorized caller.
+        denials.push({ case: 26, status: 403, handler: true });
+        state.obligations = state.obligations.filter((id) => id !== item.id);
+        return;
+      }
       const ack = await acknowledgement(response, item, run);
       if (abort.signal.aborted || stopped() || deps.clock.now() >= deadlineAt) {
         throw Error("late_acknowledgement");
@@ -161,6 +196,7 @@ export function createDriver(
   return {
     snapshot,
     results: () => structuredClone(results),
+    denials: () => structuredClone(denials),
     pending: () => [...pending.values()],
     async run(): Promise<DriverSnapshot> {
       if (running || state.phase !== "new") throw Error("restart_forbidden");
@@ -173,16 +209,42 @@ export function createDriver(
       }
       state.phase = "running";
       const start = deps.clock.now();
+      const deadline = Math.min(
+        start + LIMITS.runMs,
+        deps.expiresAt === undefined
+          ? Infinity
+          : start + deps.expiresAt - deps.clock.wall(),
+      );
+      const schedule = deps.rejectedCaller
+        ? [
+          { ...CASES.find((c) => c.id === 26)!, group: 0, atMs: 0 },
+          ...CASES.filter((c) => c.id !== 26),
+        ]
+        : CASES;
+      let bulkDelay = 0;
       try {
-        for (const group of [...new Set(CASES.map((c) => c.group))]) {
+        if (!Number.isFinite(deadline)) throw Error("run_expiry");
+        for (const group of [...new Set(schedule.map((c) => c.group))]) {
           if (state.phase !== "running") break;
-          const items = CASES.filter((c) => c.group === group);
+          if (group === 3 && deps.beforeBulk) {
+            await deps.beforeBulk(results);
+            bulkDelay = Math.max(0, deps.clock.now() - start - 2000);
+            const finalAt = Math.max(...schedule.map((c) => c.atMs));
+            if (start + bulkDelay + finalAt + LIMITS.requestMs >= deadline) {
+              throw Error("insufficient_bulk_window");
+            }
+          }
+          const items = schedule.filter((c) => c.group === group);
           await deps.clock.sleep(
-            Math.max(0, items[0].atMs - (deps.clock.now() - start)),
+            Math.max(
+              0,
+              items[0].atMs + (group >= 3 ? bulkDelay : 0) -
+                (deps.clock.now() - start),
+            ),
           );
           if (
             state.phase !== "running" ||
-            deps.clock.now() - start >= LIMITS.runMs ||
+            deps.clock.now() + LIMITS.requestMs >= deadline ||
             state.obligations.length || items.length > 2
           ) throw Error("run_bound");
           const fixtureIDs = items.filter((c) => c.mode === "read").map((c) =>

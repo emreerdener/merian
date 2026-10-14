@@ -1,5 +1,17 @@
 # CPM representative verifier: local qualification candidate
 
+Current October 14 follow-up: [runtime packaging](runtime/README.md) adds a
+local-only deployment package, real Auth/private GET adapters, singleton
+entrypoint and an operator driver. It remains outside the deployment fleet. See
+the
+[hosted approval packet](../../../../docs/rfcs/client-prepared-media-runtime-packaging-and-hosted-packet-2026-10-14.md).
+Nothing is deployed or activated. The original construction description below
+records the earlier injected-adapter checkpoint; its claims of absent runtime
+adapters are historical. Runtime case 26 now runs first with genuine rejected
+credentials; the earlier offline simulated schedule remains regression evidence.
+
+## Original local checkpoint
+
 This is the bounded local construction authorized on October 14, 2026 under
 [the four-hour request](../../../../docs/rfcs/client-prepared-media-local-construction-request-2026-10-14.md).
 It is not the complete verifier, an application route or a deployable function.

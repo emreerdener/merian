@@ -1,5 +1,17 @@
 # Initial completion and history interface
 
+> October 14 runtime-packaging update: the user authorized four hours of local
+> construction and independent/IC-1 review. See the
+> [exact hosted-test packet](client-prepared-media-runtime-packaging-and-hosted-packet-2026-10-14.md).
+> User-reported private R2 fixture setup is complete; no credentials have been
+> read/installed and no hosted test or deployment is authorized. Local packaging
+> does not close CPM-1 G1–G4 or IC-1 product acceptance. Package/storage limits,
+> media-required scope, historical recovery and later version-actions/redesign
+> sequence remain unchanged. AWS is unapproved, activation disabled and
+> auto-prompts paused. A single experimental-route exception to the
+> whole-backend release hold requires the separate exact hosted approval; PR116
+> remains held.
+
 > October 13 subsequent human approval: proceed with the reviewed CPM-1 policy
 > targets, bounded local feasibility preparation and PR116 whole-backend source
 > hold under the
