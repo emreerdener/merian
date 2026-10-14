@@ -1,5 +1,14 @@
 # Local runtime packaging for CPM characterization
 
+> Current October 14 prelaunch finding: the user approved local preparation and
+> execution only after exact-candidate review. The pinned runtime's default
+> supervisor retires at half the configured lifetime, so the 900-second setting
+> conflicts with the 682-second schedule. No campaign launched; allowance
+> unused. See the
+> [prelaunch finding and unapproved amendment](../../../../../docs/rfcs/client-prepared-media-controlled-worker-preflight-2026-10-14.md).
+> Existing limits remain unchanged, activation disabled, AWS unapproved. Earlier
+> approval/status notes below are historical.
+
 > Current October 14 controlled-reuse proposal: the attended v1.77.0 run
 > completed all 26 checks and cleanup, but all 25 reads reported different
 > worker aliases. Hosted warm reuse, growth and physical read overlap remain
