@@ -1,5 +1,14 @@
 # IVI-1 feasibility and operational recovery review
 
+> October 13 subsequent human decision: the accounting boundary, bounded
+> per-attempt retry semantics and local feasibility exercise are approved in the
+> [local feasibility record](client-prepared-media-local-feasibility-2026-10-13.md).
+> It supersedes prior pending-approval and aggregate-retry-budget wording for
+> those decisions only. The exercise stopped at a 122.81 MiB warm-process memory
+> result against the 96 MiB target. No further experiment or runtime
+> implementation follows from this record; hosted/device qualification remains
+> open, activation disabled and AWS unapproved.
+
 Status: **recommend revisions before adoption**, October 13, 2026. This review
 qualifies the design-only concurrence at
 `b3c8183ed54c9653481b72e15478bddd8698ea8f`; it does not adopt IVI-1 or an IVI-2

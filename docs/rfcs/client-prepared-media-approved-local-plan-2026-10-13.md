@@ -1,5 +1,14 @@
 # CPM-1 approved local preparation checkpoint
 
+> October 13 subsequent human decision: the accounting boundary, bounded
+> per-attempt retry semantics and local feasibility exercise are approved in the
+> [local feasibility record](client-prepared-media-local-feasibility-2026-10-13.md).
+> It supersedes prior pending-approval and aggregate-retry-budget wording for
+> those decisions only. The exercise stopped at a 122.81 MiB warm-process memory
+> result against the 96 MiB target. No further experiment or runtime
+> implementation follows from this record; hosted/device qualification remains
+> open, activation disabled and AWS unapproved.
+
 > October 13 subsequent feasibility review: **do not adopt IVI-1 yet**. The
 > [operational review](client-prepared-media-ivi-feasibility-review-2026-10-13.md)
 > identifies unsupported all-writer closure and provider-transient storage
