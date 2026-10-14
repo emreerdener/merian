@@ -1,12 +1,56 @@
 # CPM-1 measurement: smaller revised scope
 
-Status: October 14, 2026. **Proposal only; no implementation or test approval.**
-This supersedes the unapproved work scope in the
+Status: October 14, 2026. **Revised scope accepted; construction and tests
+remain unapproved.** The human accepted this scope and both clarifications in
+advisory turn `01a138dc-83f9-7c12-bbef-d0c79b1ecdbf`. Target and telemetry
+resolution must precede a construction approval request. The 160 MiB proposal
+remains separately unapproved. This supersedes the unapproved work scope in the
 [October 13 complete-verifier proposal](client-prepared-media-complete-verifier-measurement-proposal-2026-10-13.md).
 It preserves all earlier measurements and failed evidence. Package, per-asset,
 storage, reference and admitted-operation contracts stay unchanged. Activation
 disabled, AWS unapproved, auto-prompts paused; existing device, push, merge,
 provisioning and deployment restrictions remain.
+
+## Read-only resolution: remaining operator decisions
+
+Permitted local records still do not identify an existing isolated nonproduction
+Supabase/private R2 pair. No account inventory, hosted configuration/log access,
+credential inspection or test was performed. Local configuration and disposable
+CI validation are not hosted target evidence. This leaves the following concrete
+inputs before construction can be requested:
+
+| Gap                  | Required operator input or separately authorized action                                                                                                                                                                                                                                                                     |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Target selection     | Privately name the existing nonproduction Supabase project and private R2 account/bucket, region/plan, and owner; provide production-exclusion evidence. If unknown, name the accounts and separately authorize read-only project/bucket inventory. No provisioning is implied.                                             |
+| Access and cleanup   | Identify existing least-privilege operator/test access, available fixture namespace, writer/lifecycle controls and the operator responsible for disable/cleanup. Supply configuration evidence without credentials, or authorize narrowly scoped read-only inspection of the named targets.                                 |
+| Metric compatibility | Supply target runtime/build and existing metric metadata or provider documentation identifying native coverage, byte units, sampling/delivery behavior, worker correlation and CPU attribution. Existing sanitized metric-field examples suffice for inspection; do not run a probe or disclose response bodies/auth state. |
+
+Public upstream source inspected October 14 narrows the telemetry uncertainty:
+the user-worker
+[bootstrap override](https://github.com/supabase/edge-runtime/blob/main/ext/runtime/js/bootstrap.js)
+routes `Deno.memoryUsage()` to
+[`op_runtime_memory_usage`](https://github.com/supabase/edge-runtime/blob/main/ext/runtime/lib.rs),
+which returns `rss: 0` and V8 heap-total, heap-used and external-memory
+statistics. These are upstream `main` observations, not proof of the unnamed
+hosted build. Zero RSS must not be treated as measured zero memory. This
+operation does not establish total native TLS/fetch allocation coverage or
+lifetime peak.
+
+The credible partial method is therefore separately labelled V8 heap/external
+trend samples, monotonic wall timings and boot-correlated runtime events; CPU
+totals remain diagnostic without request attribution. It cannot by itself supply
+the accepted scope's native-inclusive abort metric. An operator-accessible
+compatible metric must be identified, or a specific measurement/safety amendment
+returned for approval. Do not silently use heap plus external as total memory,
+substitute the platform kill for the proposed guard, or infer approval of a
+different experiment. Live metric behavior and closure still belong to the later
+separately approved two-call preflight, not a new preconstruction test.
+
+**Disposition:** target selection and native-inclusive metric availability
+remain blocked on the inputs above. Construction is not requested yet. Once
+these are resolved from records/authorized inspection, return the existing
+four-hour local preparation request with the named targets, metric definition,
+limitations and exact read-only evidence; do not enlarge the accepted scope.
 
 ## Recommendation: answer feasibility before building the complete verifier
 
@@ -36,7 +80,7 @@ provisioning and deployment restrictions remain.
    part of this revision starts steps 2 or 3, adopts a higher memory limit, or
    transfers writing ownership from History primary.
 
-## Measurement definition to approve
+## Accepted measurement scope; target confirmation pending
 
 Official
 [Supabase telemetry](https://supabase.com/docs/guides/troubleshooting/edge-function-shutdown-reasons-explained)
@@ -62,7 +106,8 @@ worker total among concurrent requests or call wall time CPU time. The existing
 one-second CPU and complete-worker peak acceptance remain **unqualified**.
 Shutdown-only observations may describe terminal state but cannot establish a
 warm trend; if no usable in-run metric exists, stop before full-media work and
-return a measurement amendment. This alternative itself needs approval.
+return a measurement amendment. Scope acceptance does not establish target
+feasibility or resource acceptance.
 
 ## Comparison threshold and experimental stop rules
 
@@ -211,8 +256,9 @@ from a flat average. Mixed outcomes take the more restrictive next step. None of
 these outcomes closes production acceptance or automatically authorizes
 construction, another experiment or a budget change.
 
-**Next decision:** accept this smaller characterization scope and its
-measurement limitations, and resolve the private target-selection gaps before
-approving local construction. Hosted execution, the proposed abort threshold and
-its overshoot limitation require separate explicit approval. No test or
-implementation ran as part of this revision.
+**Next decision:** supply the target/metric inputs above or authorize their
+specific read-only inspection. The characterization scope is accepted; local
+construction awaits a later approval request after those gaps close. Hosted
+execution, the proposed abort threshold and its overshoot limitation still
+require separate explicit approval. No test or implementation ran as part of
+this update.
