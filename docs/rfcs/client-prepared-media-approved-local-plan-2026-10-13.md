@@ -7,8 +7,9 @@
 > resolves that selection; private fixture placement and telemetry remain open.
 > The
 > [R2-F1/TM-1 follow-up](client-prepared-media-private-fixtures-telemetry-proposal-2026-10-14.md)
-> is a proposal only. No provisioning, construction, hosted test or deployment
-> follows; activation disabled, AWS and 160 MiB unapproved.
+> has design approval only; its new local construction request remains pending.
+> No provisioning, construction, hosted test or deployment follows; activation
+> disabled, AWS and 160 MiB unapproved.
 
 > October 13 bounded follow-up completed: the human separately approved the
 > [buffer-lifetime investigation and budget reassessment](client-prepared-media-buffer-lifetime-budget-review-2026-10-13.md).

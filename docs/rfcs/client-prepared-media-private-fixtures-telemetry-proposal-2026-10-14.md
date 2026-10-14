@@ -1,14 +1,21 @@
 # CPM-1 private fixtures and partial telemetry: decision proposal
 
-Status: October 14, 2026. **Proposal only; neither decision adopted.** Prepared
-at the human's request following the
-[read-only inventory](client-prepared-media-measurement-revised-scope-2026-10-14.md#october-14-read-only-inventory-production-alpha-target-selected).
-The selected target stays the existing production alpha Supabase `merian`
-project in `us-east-1`. No separate project, execution server or AWS worker is
-proposed. Package/per-asset/storage limits and historical evidence stay
-unchanged. Activation disabled; AWS and 160 MiB unapproved; auto-prompts paused.
-No provisioning, credentials changed, construction, function installation or
-hosted test is authorized by this document.
+Status: October 14, 2026. **R2-F1 and TM-1 design choices approved; Emre
+confirmed as operator.** Direct human approval was verified in advisory turn
+`01a138f7-a38d-75a0-b0c8-31f2d0eb9665` for checkpoint `a39525950`. The
+[bounded local construction request](client-prepared-media-local-construction-request-2026-10-14.md)
+is the next approval boundary; construction has not started. Approval accepts
+TM-1's measurement limitations and platform-only established total-memory
+backstop as a design direction, not permission to execute hosted risk or proof
+of a production budget. The 160 MiB guard is not adopted. Emre owns future
+separately authorized setup/disable/revocation/cleanup. Package/storage limits
+stay unchanged, activation disabled, AWS unapproved, auto-prompts paused.
+
+The original proposal below is retained as the approved design text. Its
+requests to approve the two design choices or confirm Emre are now satisfied;
+wording about other approvals still applies. No provisioning, credentials
+changed, construction, installation or hosted testing follows from design
+approval.
 
 ## Recommended decisions
 

@@ -1,25 +1,28 @@
 # CPM-1 measurement: smaller revised scope
 
-Status: October 14, 2026. **Revised scope accepted; construction and tests
-remain unapproved.** The human accepted this scope and both clarifications in
-advisory turn `01a138dc-83f9-7c12-bbef-d0c79b1ecdbf`. Target and telemetry
-resolution must precede a construction approval request. The 160 MiB proposal
-remains separately unapproved. This supersedes the unapproved work scope in the
-[October 13 complete-verifier proposal](client-prepared-media-complete-verifier-measurement-proposal-2026-10-13.md).
-It preserves all earlier measurements and failed evidence. Package, per-asset,
-storage, reference and admitted-operation contracts stay unchanged. Activation
-disabled, AWS unapproved, auto-prompts paused; existing device, push, merge,
-provisioning and deployment restrictions remain.
+Status: October 14, 2026. **Scope and R2-F1/TM-1 design accepted; construction
+and testing remain unapproved.** The latest verified human decision is advisory
+turn `01a138f7-a38d-75a0-b0c8-31f2d0eb9665`: private fixture design, partial V8
+measurement/safety amendment and Emre as operator are approved. The
+[next boundary is the bounded local construction request](client-prepared-media-local-construction-request-2026-10-14.md).
+No actual R2 setup or hosted metric qualification is needed before requesting
+that local work; those operational proofs remain for separately approved stages.
 
-## Follow-up proposal pending approval
+The approved
+[R2-F1/TM-1 design](client-prepared-media-private-fixtures-telemetry-proposal-2026-10-14.md)
+supersedes the earlier target/metric decisions and proposed native-inclusive 160
+MiB guard below. Its 96 MiB partial V8 proxy is not the historical process
+memory target or a total-memory guarantee. The previously accepted 26-case
+bounds, reader-closure semantics, omissions and evidence limitations still
+apply. No production resource budget or feature acceptance is established.
+Activation disabled, AWS unapproved, auto-prompts paused; external-operation
+restrictions remain. All package/per-asset/storage limits and failed evidence
+are unchanged.
 
-The
-[R2-F1 and TM-1 decision proposal](client-prepared-media-private-fixtures-telemetry-proposal-2026-10-14.md)
-now recommends a dedicated private R2 fixture bucket and partial V8 trend
-measurement with explicit residual platform-limit risk. It proposes replacing
-the unapproved 160 MiB guard; no replacement is adopted. This document's prior
-scope and inventory remain evidence, and construction, provisioning and hosted
-execution remain gated until the separate decisions are approved.
+The following inventory and pre-amendment rationale are historical for target
+selection and the memory-guard decision. They do not require another approval of
+the design or a native-inclusive metric before local construction can be
+requested. They remain evidence of what has and has not been observed.
 
 ## October 14 read-only inventory: production alpha target selected
 
@@ -65,18 +68,19 @@ substitute the platform kill for the proposed guard, or infer approval of a
 different experiment. Live metric behavior and closure still belong to the later
 separately approved two-call preflight, not a new preconstruction test.
 
-**Disposition:** Supabase selection is resolved. Private fixture placement and
-native-inclusive measurement remain unresolved. Keep the same Supabase project.
-Do not provision a bucket or change the existing public bucket as part of this
-inventory. A later proposal can name an existing private bucket if available,
-request narrowly scoped R2 provisioning, or explicitly amend fixture privacy for
-synthetic benchmark bytes only. None of those choices is adopted here; public
-benchmark fixtures would not qualify private-history access controls. Likewise,
-partial V8 trend telemetry needs an explicit measurement/safety amendment if no
-compatible native-inclusive metric can be established. Do not request
-construction until the remaining target/metric decisions are resolved.
+**Pre-amendment disposition (superseded by R2-F1/TM-1):** Supabase selection is
+resolved. Private fixture placement and native-inclusive measurement remain
+unresolved. Keep the same Supabase project. Do not provision a bucket or change
+the existing public bucket as part of this inventory. A later proposal can name
+an existing private bucket if available, request narrowly scoped R2
+provisioning, or explicitly amend fixture privacy for synthetic benchmark bytes
+only. None of those choices is adopted here; public benchmark fixtures would not
+qualify private-history access controls. Likewise, partial V8 trend telemetry
+needs an explicit measurement/safety amendment if no compatible native-inclusive
+metric can be established. Do not request construction until the remaining
+target/metric decisions are resolved.
 
-## Recommendation: answer feasibility before building the complete verifier
+## Pre-amendment recommendation (design decisions now resolved)
 
 1. **Finish storage and measurement decisions on the selected production alpha
    project.** Preserve the accepted bounds and account for shared production
@@ -126,7 +130,7 @@ warm trend; if no usable in-run metric exists, stop before full-media work and
 return a measurement amendment. Scope acceptance does not establish target
 feasibility or resource acceptance.
 
-## Comparison threshold and experimental stop rules
+## Historical comparison threshold and superseded proposed stop rules
 
 Keep **96 MiB as the historical comparison threshold**, preserving the
 122.81/172.59 MiB failures and all original measurement domains. A future
@@ -273,11 +277,11 @@ from a flat average. Mixed outcomes take the more restrictive next step. None of
 these outcomes closes production acceptance or automatically authorizes
 construction, another experiment or a budget change.
 
-**Next decision:** resolve private fixture placement and propose a compatible
-measurement/safety method using the selected production alpha Supabase project.
-The read-only inventory is complete. The characterization scope is accepted;
-local construction awaits a later approval request after the remaining gaps
-close. Hosted execution, the proposed abort threshold and its overshoot
-limitation still require separate explicit approval. No test, construction,
-provisioning or configuration change ran as part of this update. Activation
-remains disabled and AWS unapproved.
+**Historical next decision (now satisfied as design only):** resolve private
+fixture placement and propose a compatible measurement/safety method using the
+selected production alpha Supabase project. The read-only inventory is complete.
+The characterization scope is accepted; local construction awaits a later
+approval request after the remaining gaps close. Hosted execution, the proposed
+abort threshold and its overshoot limitation still require separate explicit
+approval. No test, construction, provisioning or configuration change ran as
+part of this update. Activation remains disabled and AWS unapproved.
