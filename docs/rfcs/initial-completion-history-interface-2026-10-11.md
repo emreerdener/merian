@@ -1,5 +1,14 @@
 # Initial completion and history interface
 
+> Current October 14 follow-up: local allocation diagnostics and harness
+> shutdown correction are proposed in the
+> [bounded approval scope](client-prepared-media-allocation-diagnostics-proposal-2026-10-14.md).
+> Draft/review only; human approval is required before construction, controls or
+> another run, followed by exact-candidate independent/IC-1 concurrence before
+> execution. Previous failed campaign and cleanup evidence remain valid.
+> Activation disabled, AWS unapproved, all limits unchanged. Earlier status
+> entries below remain historical.
+
 > Current October 14: the approved local campaign ran after exact independent
 > and IC-1 concurrence, then stopped at the unchanged 8 MiB growth gate after
 > approximately 42 seconds. One worker, five attempts, three verified reads; all
