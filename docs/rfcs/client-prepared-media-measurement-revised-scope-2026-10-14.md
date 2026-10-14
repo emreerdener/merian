@@ -1,0 +1,171 @@
+# CPM-1 measurement: smaller revised scope
+
+Status: October 14, 2026. **Proposal only; no implementation or test approval.**
+This supersedes the unapproved work scope in the
+[October 13 complete-verifier proposal](client-prepared-media-complete-verifier-measurement-proposal-2026-10-13.md).
+It preserves all earlier measurements and failed evidence. Package, per-asset,
+storage, reference and admitted-operation contracts stay unchanged. Activation
+disabled, AWS unapproved, auto-prompts paused; existing device, push, merge,
+provisioning and deployment restrictions remain.
+
+## Recommendation: answer feasibility before building the complete verifier
+
+1. **Target and measurement decision first.** Existing local records identify
+   neither a suitable isolated hosted Supabase project nor a private R2 bucket.
+   The
+   [approved local plan](client-prepared-media-approved-local-plan-2026-10-13.md)
+   leaves these open; `services/supabase/config.toml` configures local services.
+   The
+   [deployment runbook](../backend-and-data/06-supabase-deployment-runbook.md)
+   records no private history bucket provisioned or hosted policy qualified.
+   This is an availability gap, not proof that no such resources exist. Before
+   construction, an operator must privately identify existing targets,
+   production exclusion, runtime/plan, metric access, synthetic-owner access,
+   fixture namespace, writer/lifecycle policy and cleanup owner. No account
+   discovery calls, credentials, provisioning or hosted inspection are implied.
+2. **Approve a small local preparation separately:** at most four engineering
+   hours after target selection and agreement on the measurement definition
+   below. Prepare the representative candidate, fixed driver and exact
+   dependency manifest; local correctness checks and independent/IC-1 review
+   only. Return a concrete blocker when this timebox cannot suffice; do not
+   expand it into the production schema/receipt implementation. Local
+   fixtures/evidence at most 512 MiB, with workstation free space above 20 GiB.
+3. **Return the exact candidate and named-target packet for hosted approval.**
+   Specify installation, fixture operations, read-only Auth use, telemetry and
+   teardown individually. Run observability preflight before bulk fixtures. No
+   part of this revision starts steps 2 or 3, adopts a higher memory limit, or
+   transfers writing ownership from History primary.
+
+## Measurement definition to approve
+
+Official
+[Supabase telemetry](https://supabase.com/docs/guides/troubleshooting/edge-function-shutdown-reasons-explained)
+provides shutdown reasons, memory snapshots and CPU totals; it does not
+establish a lifetime peak or concurrent request attribution. The documented
+[Deno memory API](https://docs.deno.com/api/deno/runtime/#Deno.memoryUsage)
+describes process/V8 memory. Its availability and accounting in hosted Edge must
+be confirmed, not equated to an isolate limit from the API name alone.
+
+Recommend **observed-trend characterization**, not resource acceptance: collect
+phase samples and a bounded 100 ms sampling timer during active requests only,
+quiescent samples, monotonic wall timings, and available runtime shutdown/CPU
+events. Aggregate samples locally; retain only bounded synthetic case/worker
+aliases and summaries, never auth state, URLs or bodies. Keep instrumentation
+cost included. Confirm metric domain/native coverage and worker correlation in
+the two-call preflight. No timer may keep a worker alive between requests.
+
+Report observed maxima, sampling gaps, fields omitted and worker changes. A
+sampled maximum is a lower bound on the actual peak, not proof it stayed below a
+ceiling. Do not add heap/external/RSS blindly. If reliable request CPU is
+unavailable, report its absence and runtime CPU-limit events; never divide a
+worker total among concurrent requests or call wall time CPU time. The existing
+one-second CPU and complete-worker peak acceptance remain **unqualified**.
+Shutdown-only observations may describe terminal state but cannot establish a
+warm trend; if no usable in-run metric exists, stop before full-media work and
+return a measurement amendment. This alternative itself needs approval.
+
+## Comparison threshold and experimental stop rules
+
+Keep **96 MiB as the historical comparison threshold**, preserving the
+122.81/172.59 MiB failures and all original measurement domains. A future
+crossing is recorded as an exceedance, never rewritten as a pass. Cross-runtime
+values are compared only with their accounting differences disclosed.
+
+For separate approval, propose **160 MiB as an observed-memory abort threshold**
+for this small experiment, conditional on a compatible, native-inclusive metric
+and a confirmed platform hard limit of at least 256,000,000 bytes. This leaves
+about 84 MiB of nominal room below that limit and permits characterization above
+96 MiB, including the prior 122.81 MiB range. It is a conservative experiment
+choice, not an empirically established safe budget or a new production limit.
+[Published platform limits](https://supabase.com/docs/guides/functions/limits)
+state 256 MB memory and two seconds CPU per request; exact target accounting
+still needs confirmation.
+
+**160 MiB cannot be promised as a hard ceiling:** sampling and cancellation can
+lag, and native allocation can overshoot. The platform limit is the hard
+backstop. The named-target approval must explicitly accept this limitation; if a
+hard 160 MiB bound is required, no suitable enforcement is established and the
+run stays blocked. Heap-only or unrelated process measurements cannot silently
+serve as this guard. Above 96 but below the approved abort threshold,
+characterization may continue only while every other safety condition holds; no
+higher threshold is adopted or used now.
+
+Stop new work and attempt cancellation on the first observed 160 MiB breach,
+runtime memory/CPU kill, hash mismatch, unauthorized read, uncontrolled reader,
+missing required telemetry, unknown in-flight termination or run-bound breach.
+Keep the existing 30-second per-read deadline; no automatic retry or replacement
+after uncertainty. Normal busy denials are expected. CPU safety relies on the
+confirmed platform cap when request attribution is unavailable; it does not
+prove the historical one-second target. Do not average away failures.
+
+## Smallest representative candidate and finite bounds
+
+Use an isolated test-only wrapper with the actual selected imports/auth helper,
+bounded manifest parsing, private TLS GET, incremental length/hash verification,
+response serialization and awaited reader cleanup. The code manifest must list
+omissions: production claims, SQL receipts, funding, admission, deletion races,
+decoding and AI execution. **This is not a complete verifier.** Repeated reads
+of fixed synthetic fixtures are benchmark operations without production
+operation IDs or receipts; they do not change accepted replay semantics.
+
+| Bound             | Proposed maximum                                                                                                                               |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fixtures          | Three immutable synthetic objects: two 32 MiB and one 64 KiB; under 65 MiB total, existing per-role limits preserved; no client upload tickets |
+| Invocations       | 26 total: two observability controls, two nine-request warm cohorts, three pairs of concurrent arrivals                                        |
+| Concurrency       | Two client requests; one physical body reader per worker; same-worker busy/denial overhead measured, no intentional double-reader overlap      |
+| Duration          | 30-minute measurement window plus 15 minutes reserved for disable/reconciliation/cleanup                                                       |
+| Calls             | 256 application-issued target HTTP calls total: 192 setup/test/observation, 64 reserved exclusively for recovery/cleanup                       |
+| Transfer/evidence | 2 GiB application media transfer; local evidence included in the 512 MiB allowance                                                             |
+
+A single operator driver sends the fixed list once, counts each attempt before
+sending and stops on an uncertain response. Disable automatic SDK/HTTP retries,
+redirect following, background tasks, callbacks and recursive dispatch. Each
+handler has at most four outbound calls, one bounded object GET and no loops
+over variable fixture sets. The non-cleanup ceiling fits 16 setup calls, 26
+driver calls plus at most 104 handler calls, and 32 metric reads, with 14 unused
+calls. Each response body is capped; media GETs at the fixture size. These
+static bounds cover the two possible in-flight requests without a new
+distributed allowance ledger. They are application bounds, not exact platform
+internal traffic or billing guarantees.
+
+Fixed inventory and finite calls suffice for this controlled, single-driver,
+read-only benchmark only with operator-only access, a fixed expiry and a
+separately authorized disable path. The fixed driver never overlaps reads of the
+same immutable fixture, even on different workers. Positive physical reader
+closure precedes every reuse of that fixture; unknown closure stops the entire
+packet, never a replacement GET. No automatic driver restart or resumption after
+uncertain delivery. If the reviewed composition introduces detached work,
+retries, extra callers or unbounded outbound paths, shrink/revise the packet
+before execution; do not add a general accounting subsystem by default. Reserve
+the 64 calls and 15 minutes for disable first, then closure and fixture cleanup.
+Cleanup may remove only run-owned objects after writers/readers close;
+unresolved obligations remain recorded for the named operator, with no automatic
+extra run or capacity release.
+
+## Warm routing fallback and useful conclusions
+
+Spread each nine-request cohort over 80% of the confirmed worker lifetime,
+capped at 320 seconds; no catch-up overlap, affinity tricks, forced redeployment
+or keepalive. Record actual instance identity (test-generated boot alias plus
+available platform correlation), request ordinal and first-use status.
+Concurrent pairs comprise two different-object arrival pairs and one reader
+paired with a denied caller. Same-object duplicate/replacement races are
+excluded and remain for later complete-verifier qualification; this benchmark
+neither needs nor qualifies a distributed claim fence. First-use is not proof of
+a platform cold start without boot evidence.
+
+If routing yields only shorter same-worker sequences, report those exact lengths
+and their observed trends. If every request lands elsewhere, report per-request
+TLS/hash behavior, observed memory distributions and wall time only; warm reuse
+remains unobserved. Pairs on separate workers establish only that observed
+topology, not same-worker contention. Missing coverage does not trigger extra
+calls. A separately proposed local same-worker test could diagnose retention but
+could not replace hosted evidence. Even full coverage supports only this finite
+representative path: complete-verifier memory, request CPU, lifetime peak,
+longer-term growth and production lifecycle acceptance remain open.
+
+**Next decision:** accept this smaller characterization scope and its
+measurement limitations, and resolve the private target-selection gaps before
+approving local construction. Hosted execution, the proposed abort threshold and
+its overshoot limitation require separate explicit approval. No test or
+implementation ran as part of this revision.

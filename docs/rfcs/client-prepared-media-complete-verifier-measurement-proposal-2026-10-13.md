@@ -1,5 +1,12 @@
 # CPM-1 complete-verifier measurement proposal
 
+> October 14: this unapproved scope is superseded by the
+> [smaller measurement proposal](client-prepared-media-measurement-revised-scope-2026-10-14.md).
+> Target/metric feasibility now precedes construction; a representative path,
+> simpler bounded driver and separately approved characterization stop threshold
+> replace the proposed complete-verifier build as the next experiment. The text
+> below and its reviews remain historical, not current approval instructions.
+
 Status: October 13, 2026. **For approval; no implementation or experiment
 started.** Baseline: `ff7962099eb1f4c5d6728fc3002e630ce8d29cda`. This responds
 to the human's request for a bounded proposal following the

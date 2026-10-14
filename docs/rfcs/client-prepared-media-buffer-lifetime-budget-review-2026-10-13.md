@@ -1,5 +1,11 @@
 # CPM-1 buffer lifetime investigation and memory-budget recommendation
 
+> October 14: the current next-step proposal is the
+> [smaller measurement scope](client-prepared-media-measurement-revised-scope-2026-10-14.md),
+> awaiting approval. It distinguishes historical comparison from proposed
+> experimental stop rules and does not claim complete-verifier qualification.
+> All measurements and recommendations below retain their original status.
+
 > October 13 follow-up: the
 > [complete-verifier measurement proposal](client-prepared-media-complete-verifier-measurement-proposal-2026-10-13.md)
 > specifies staged preparation and named-target approval, finite warm/concurrent
