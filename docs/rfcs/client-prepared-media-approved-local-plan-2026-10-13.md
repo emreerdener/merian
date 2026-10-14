@@ -1,5 +1,15 @@
 # CPM-1 approved local preparation checkpoint
 
+> October 14 target selection supersedes the nonproduction-target wording below:
+> the human selected the existing production alpha Supabase project, with no
+> separate project required. The
+> [read-only inventory](client-prepared-media-measurement-revised-scope-2026-10-14.md)
+> resolves that selection; private fixture placement and telemetry remain open.
+> The
+> [R2-F1/TM-1 follow-up](client-prepared-media-private-fixtures-telemetry-proposal-2026-10-14.md)
+> is a proposal only. No provisioning, construction, hosted test or deployment
+> follows; activation disabled, AWS and 160 MiB unapproved.
+
 > October 13 bounded follow-up completed: the human separately approved the
 > [buffer-lifetime investigation and budget reassessment](client-prepared-media-buffer-lifetime-budget-review-2026-10-13.md).
 > All three local modes passed the unchanged 96 MiB experimental target;
@@ -99,11 +109,13 @@ feasibility must first resolve bounded ingress and immutable late-write
 behavior; measurement of hashing alone cannot prove that transport contract. Do
 not start runtime adapters merely because a local hash or model test succeeds.
 
-F1/F2 retain user-run device qualification; F3 needs a separately named hosted
-nonproduction target for resource qualification; F4 needs separately authorized
-private-storage integration for late-write closure. Until then those acceptance
-rows stay open, and uncertainty keeps its original identity and reserved storage
-liability without another provider invocation or inferred refund.
+F1/F2 retain user-run device qualification. F3 now targets the selected
+production alpha Supabase project, with private fixture placement, telemetry and
+cleanup requirements still open; exact installation and execution need separate
+approval. F4 needs separately authorized private-storage integration for
+late-write closure. Until then those acceptance rows stay open, and uncertainty
+keeps its original identity and reserved storage liability without another
+provider invocation or inferred refund.
 
 ## First bounded feasibility result
 
@@ -127,7 +139,8 @@ Next local design requirement is a bounded incremental verifier/ingress contract
 for the new CPM envelope, including cryptographic/library compatibility,
 pre-accept byte limits, immutable destinations and original authority clocks.
 That contract must be independently reviewed before runtime implementation. Its
-hosted feasibility still needs the named nonproduction target and all-writer
-storage policy; a local model cannot close late-write liability. Preserve the
-failed measurement in `buffered-verifier-spike-results.json` with its harness
-and source hashes. F1–F4 remain open.
+hosted feasibility now uses the selected production alpha target; the private
+storage and late-write policies remain unqualified. A local model cannot close
+late-write liability. Preserve the failed measurement in
+`buffered-verifier-spike-results.json` with its harness and source hashes. F1–F4
+remain open.

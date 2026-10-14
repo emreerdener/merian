@@ -11,6 +11,16 @@ storage, reference and admitted-operation contracts stay unchanged. Activation
 disabled, AWS unapproved, auto-prompts paused; existing device, push, merge,
 provisioning and deployment restrictions remain.
 
+## Follow-up proposal pending approval
+
+The
+[R2-F1 and TM-1 decision proposal](client-prepared-media-private-fixtures-telemetry-proposal-2026-10-14.md)
+now recommends a dedicated private R2 fixture bucket and partial V8 trend
+measurement with explicit residual platform-limit risk. It proposes replacing
+the unapproved 160 MiB guard; no replacement is adopted. This document's prior
+scope and inventory remain evidence, and construction, provisioning and hosted
+execution remain gated until the separate decisions are approved.
+
 ## October 14 read-only inventory: production alpha target selected
 
 The human explicitly selected the existing production alpha environment and
