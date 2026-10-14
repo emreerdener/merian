@@ -1,5 +1,15 @@
 # Local runtime packaging for CPM characterization
 
+> Current October 14 controlled-reuse proposal: the attended v1.77.0 run
+> completed all 26 checks and cleanup, but all 25 reads reported different
+> worker aliases. Hosted warm reuse, growth and physical read overlap remain
+> unobserved. The user authorized only the
+> [local controlled-worker proposal](../../../../../docs/rfcs/client-prepared-media-controlled-worker-reuse-proposal-2026-10-14.md)
+> and independent/IC-1 review; construction and execution await approval.
+> Activation disabled, AWS and 160 MiB unapproved, credentials retained,
+> auto-prompts paused. Earlier status entries below are historical. No product
+> acceptance, ownership or follow-up sequencing changes.
+
 Current October 14 v1.77.0 evidence and proposed hosted runtime expectation are
 in the
 [latest reviewed packet](../../../../../docs/rfcs/client-prepared-media-runtime-177-hosted-packet-2026-10-14.md).
