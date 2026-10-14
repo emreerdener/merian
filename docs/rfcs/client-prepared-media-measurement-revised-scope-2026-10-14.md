@@ -1,10 +1,11 @@
 # CPM-1 measurement: smaller revised scope
 
-Status: October 14, 2026. **Scope and R2-F1/TM-1 design accepted; construction
-and testing remain unapproved.** The latest verified human decision is advisory
-turn `01a138f7-a38d-75a0-b0c8-31f2d0eb9665`: private fixture design, partial V8
+Status: October 14, 2026. **Scope and R2-F1/TM-1 design accepted; bounded local
+construction/checks and local review complete, hosted testing unapproved.** The
+design decision was verified in advisory turn
+`01a138f7-a38d-75a0-b0c8-31f2d0eb9665`: private fixture design, partial V8
 measurement/safety amendment and Emre as operator are approved. The
-[next boundary is the bounded local construction request](client-prepared-media-local-construction-request-2026-10-14.md).
+[bounded local construction request was subsequently approved](client-prepared-media-local-construction-request-2026-10-14.md).
 No actual R2 setup or hosted metric qualification is needed before requesting
 that local work; those operational proofs remain for separately approved stages.
 

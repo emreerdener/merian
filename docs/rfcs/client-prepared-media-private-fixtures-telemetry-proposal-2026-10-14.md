@@ -4,12 +4,14 @@ Status: October 14, 2026. **R2-F1 and TM-1 design choices approved; Emre
 confirmed as operator.** Direct human approval was verified in advisory turn
 `01a138f7-a38d-75a0-b0c8-31f2d0eb9665` for checkpoint `a39525950`. The
 [bounded local construction request](client-prepared-media-local-construction-request-2026-10-14.md)
-is the next approval boundary; construction has not started. Approval accepts
-TM-1's measurement limitations and platform-only established total-memory
-backstop as a design direction, not permission to execute hosted risk or proof
-of a production budget. The 160 MiB guard is not adopted. Emre owns future
-separately authorized setup/disable/revocation/cleanup. Package/storage limits
-stay unchanged, activation disabled, AWS unapproved, auto-prompts paused.
+was subsequently approved for four hours of local construction and review. That
+local candidate has independent and IC-1 local-only concurrence; hosted
+setup/execution remains separately gated. Approval accepts TM-1's measurement
+limitations and platform-only established total-memory backstop as a design
+direction, not permission to execute hosted risk or proof of a production
+budget. The 160 MiB guard is not adopted. Emre owns future separately authorized
+setup/disable/revocation/cleanup. Package/storage limits stay unchanged,
+activation disabled, AWS unapproved, auto-prompts paused.
 
 The original proposal below is retained as the approved design text. Its
 requests to approve the two design choices or confirm Emre are now satisfied;
@@ -201,8 +203,9 @@ app routes, production response capture or extra monitoring service is proposed.
    endpoint deploy, activation, provider call or app/device distribution is
    included.
 
-Steps 2 and 3 require separate explicit approvals after step 1 and may be
-scheduled independently; neither is authorized now. Step 4 requires both and
-exact candidate review. Existing push/merge/deployment restrictions continue.
-History primary remains the only writer; independent and IC-1 review may correct
-this proposal but cannot adopt it for the human.
+Step 2 was subsequently approved under the bounded local construction request;
+its current outcome is recorded there. Step 3 still requires separate explicit
+approval and can be scheduled independently. Step 4 requires both, completed
+runtime packaging and exact candidate review. Existing push/merge/deployment
+restrictions continue. History primary remains the only writer; independent and
+IC-1 review may correct this proposal but cannot adopt it for the human.
