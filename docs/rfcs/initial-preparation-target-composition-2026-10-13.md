@@ -8,6 +8,14 @@ selection or external operation follows from this proposal. History primary
 remains sole writer under IC-1. Activation remains disabled and ordinary access
 nil. The existing Darwin fixture remains Edge-ineligible.
 
+## Pending concrete target decision
+
+The user requested a concrete recommendation after the reviewed checkpoint. See
+[target and ownership approval proposal](initial-preparation-target-approval-2026-10-13.md)
+for the proposed AWS qualification VM, ownership and recovery arrangement. It is
+pending user approval; no installed target or execution authority is recorded.
+The reviewed design and historical evidence below remain unchanged.
+
 ## Reviewed design boundary
 
 Independent review and IC-1 final bounded design concurrence are complete for
