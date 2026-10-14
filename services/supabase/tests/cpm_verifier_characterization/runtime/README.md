@@ -1,5 +1,15 @@
 # Local runtime packaging for CPM characterization
 
+Current October 14 v1.77.0 evidence and proposed hosted runtime expectation are
+in the
+[latest reviewed packet](../../../../../docs/rfcs/client-prepared-media-runtime-177-hosted-packet-2026-10-14.md).
+Executable candidate and staged package remain unchanged from `9c88cc72d`; CLI
+2.109.1 / v1.74.2 bundling remains pinned. Local v1.77.0 execution passed
+startup and two synthetic control reads; bulk/long-warm/concurrency acceptance
+remains open. Both stored credentials are retained by explicit user decision;
+temporary copies were removed. Earlier status below is historical. No new hosted
+action is authorized.
+
 Current correction: the original hosted attempt stopped; its route/settings were
 removed. The user confirms both R2 keys remain active. The
 [runtime diagnostics packet](../../../../../docs/rfcs/client-prepared-media-runtime-diagnostics-hosted-packet-2026-10-14.md)

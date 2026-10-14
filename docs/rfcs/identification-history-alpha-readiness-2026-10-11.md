@@ -1,5 +1,16 @@
 # Identification history alpha readiness
 
+> Current October 14 v1.77.0 qualification: the reviewed startup correction
+> passed the hosted denial and two closed controls, then stopped at the runtime
+> version gate. Cleanup completed; both credentials are retained by explicit
+> user decision. Old control closure is reconciled; its private object remains
+> untouched. Local v1.77.0 compatibility and independent/IC-1 review are covered
+> by the
+> [current packet](client-prepared-media-runtime-177-hosted-packet-2026-10-14.md).
+> No new hosted action is authorized. Activation disabled, AWS and 160 MiB
+> unapproved, auto-prompts paused. Earlier current-state entries below are
+> historical; product acceptance and follow-up sequencing are unchanged.
+
 > Current October 14 runtime correction: the approved test-auth attempt stopped
 > at case 26; route/settings were removed. Both R2 keys remain active per the
 > user's corrected statement, and the old private control object remains
