@@ -1,5 +1,13 @@
 # CPM-1 approved local preparation checkpoint
 
+> October 13 subsequent feasibility review: **do not adopt IVI-1 yet**. The
+> [operational review](client-prepared-media-ivi-feasibility-review-2026-10-13.md)
+> identifies unsupported all-writer closure and provider-transient storage
+> guarantees, an unqualified marker-based reconciliation alternative, and
+> recommended verification-retry/measurement revisions. Earlier design
+> concurrence is historical evidence, not feasibility closure. Recommendations
+> remain unadopted; no schema expansion, implementation or experiments follow.
+
 > October 13 follow-up: the human authorized drafting the
 > [IVI-1 incremental verifier and ingress contract](client-prepared-media-incremental-verifier-ingress-2026-10-13.md)
 > within the approved limits for independent and IC-1 review. It is a design

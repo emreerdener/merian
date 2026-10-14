@@ -1,5 +1,13 @@
 # CPM-1 incremental verification and ingress contract
 
+> October 13 subsequent feasibility review: **do not adopt IVI-1 yet**. The
+> [operational review](client-prepared-media-ivi-feasibility-review-2026-10-13.md)
+> identifies unsupported all-writer closure and provider-transient storage
+> guarantees, an unqualified marker-based reconciliation alternative, and
+> recommended verification-retry/measurement revisions. Earlier design
+> concurrence is historical evidence, not feasibility closure. Recommendations
+> remain unadopted; no schema expansion, implementation or experiments follow.
+
 Status: **draft revision IVI-1 for independent and IC-1 review**, October 13,
 2026. The human authorized drafting this agreement after checkpoint
 `f00b0f48369306e218b50b2ce031a5bf9f913414`. This document proposes a new
