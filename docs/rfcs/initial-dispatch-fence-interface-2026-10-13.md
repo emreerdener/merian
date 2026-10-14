@@ -6,7 +6,11 @@
 > does not weaken or reinterpret this document’s existing server-prepared or
 > historical contracts. Adoption and implementation remain pending. AWS is
 > unapproved, activation disabled, and all external-operation restrictions
-> remain.
+> remain. Revision 3 records the user-required G1–G4 acceptance gates:
+> original-byte retention, final audio plus signal/quality evidence, concrete
+> storage limits, and end-to-end recovery/shared-asset deletion. Specification
+> closure and candidate proof remain separate and open; missing numeric budgets
+> or feasibility decisions block implementation, not merely release.
 
 Status: draft bounded interface for independent and IC-1 review. This document
 does not enable dispatch or transfer implementation ownership. History primary
