@@ -1,5 +1,15 @@
 # CPM controlled-worker prelaunch finding
 
+> Current October 14: the approved local campaign ran after exact independent
+> and IC-1 concurrence, then stopped at the unchanged 8 MiB growth gate after
+> approximately 42 seconds. One worker, five attempts, three verified reads; all
+> four opened bodies closed and the container was removed. No retry. See the
+> [exact result](client-prepared-media-controlled-worker-result-2026-10-14.md).
+> Post-run independent/IC-1 review concurs with the corrected report, including
+> its shutdown defect. Sustained reuse and product acceptance remain open.
+> Activation disabled, AWS/160 MiB unapproved, all other limits unchanged.
+> Earlier status/approval statements below are historical.
+
 October 14, 2026. The user approved the two-hour local scope from commit
 `76bde162c`, requiring exact-candidate independent/IC-1 concurrence before
 execution and unchanged limits. Preparation found a runtime-policy conflict.
