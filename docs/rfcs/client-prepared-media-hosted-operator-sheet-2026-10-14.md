@@ -1,5 +1,11 @@
 # CPM characterization: exact future operator sheet
 
+> Superseded October 14 by the
+> [test-only authentication revision](client-prepared-media-test-auth-hosted-packet-2026-10-14.md).
+> This original JWT-based candidate and its approval remain historical. No
+> hosted mutation or test occurred. Use the revised candidate only after new
+> approval.
+
 Status: prepared locally October 14, 2026; **not execution authorization**. This
 sheet is part of the
 [hosted-test approval packet](client-prepared-media-runtime-packaging-and-hosted-packet-2026-10-14.md).

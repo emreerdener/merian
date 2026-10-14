@@ -3,6 +3,7 @@ import { requirePublicApiKeyFromEnvironment } from "../../../functions/_shared/p
 import { createDriver } from "../driver.ts";
 import { fileJournal } from "../journal.ts";
 import { FIXTURES, LIMITS, systemClock, validAlias } from "../policy.ts";
+import { AUTH_MODE } from "./config.ts";
 import { driverTransport } from "./transport.ts";
 
 /** Readiness is an operator attestation, not independent object immutability proof. */
@@ -33,14 +34,15 @@ async function main() {
   ) throw Error("run_config");
   const directory = `.artifacts/client-prepared-media/hosted-${run}`;
   await Deno.mkdir(directory, { recursive: true });
-  const runtimes: { deno: string; v8: string }[] = [];
+  const runtimes: { deno: string; v8: string; authMode: typeof AUTH_MODE }[] =
+    [];
   const driver = createDriver(run, capability, {
     clock: systemClock,
     journal: fileJournal(`${directory}/journal.jsonl`),
     rejectedCaller: true,
     expiresAt,
     send: driverTransport({
-      bearer: Deno.env.get("CPM_Q_OPERATOR_BEARER") ?? "",
+      operatorKey: Deno.env.get("CPM_Q_OPERATOR_KEY") ?? "",
       publicKey: requirePublicApiKeyFromEnvironment(),
       beforeSend: () => {
         if (Date.now() >= expiresAt) throw Error("expired");

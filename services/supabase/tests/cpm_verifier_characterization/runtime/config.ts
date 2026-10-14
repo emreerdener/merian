@@ -1,4 +1,3 @@
-import { requirePublicApiKeys } from "../../../functions/_shared/publishableKey.ts";
 import { LIMITS, validAlias } from "../policy.ts";
 
 export const PROJECT_REF = "qlarqavoqhkuwzmevrmf";
@@ -6,11 +5,15 @@ export const PROJECT_URL = `https://${PROJECT_REF}.supabase.co`;
 export const ROUTE = "cpm-verifier-characterization";
 export const BUCKET = "merian-cpm-verifier-fixtures";
 export const OPERATOR_ALIAS = "qualification-operator";
-export const DENIED_BEARER = "cpm-deliberately-invalid-caller";
+export const AUTH_MODE = "test-run-key-v1";
+export function validOperatorKey(value: string): boolean {
+  return /^[a-f0-9]{64}$/.test(value);
+}
+export const DENIED_BEARER = "0".repeat(64);
 export const SECRET_NAMES = Object.freeze(
   [
     "CPM_Q_RUN",
-    "CPM_Q_OPERATOR_ID",
+    "CPM_Q_OPERATOR_KEY",
     "CPM_Q_CAPABILITY",
     "CPM_Q_EXPIRES_AT",
     "CPM_Q_R2_ENDPOINT",
@@ -20,13 +23,12 @@ export const SECRET_NAMES = Object.freeze(
 );
 export interface RuntimeConfig {
   run: string;
-  operatorID: string;
+  operatorKey: string;
   capability: string;
   expiresAt: number;
   endpoint: string;
   accessKeyId: string;
   secretAccessKey: string;
-  publicKey: string;
 }
 /** Read only named configuration; never enumerate or log the environment. */
 export function readConfig(
@@ -36,7 +38,7 @@ export function readConfig(
   const values = SECRET_NAMES.map((name) => get(name) ?? "");
   const [
     run,
-    operatorID,
+    operatorKey,
     capability,
     expiry,
     endpoint,
@@ -46,8 +48,9 @@ export function readConfig(
   const expiresAt = Number(expiry);
   if (
     get("SUPABASE_URL") !== PROJECT_URL || !validAlias(run) ||
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-      .test(operatorID) ||
+    !validOperatorKey(operatorKey) || operatorKey === DENIED_BEARER ||
+    operatorKey === capability ||
+    operatorKey === secretAccessKey ||
     !/^[A-Za-z0-9_-]{32,128}$/.test(capability) ||
     !/^\d{13}$/.test(expiry) || !Number.isSafeInteger(expiresAt) ||
     expiresAt <= now || expiresAt - now > LIMITS.runMs ||
@@ -55,18 +58,13 @@ export function readConfig(
     !/^[a-f0-9]{32}$/i.test(accessKeyId) ||
     !/^[a-f0-9]{64}$/i.test(secretAccessKey)
   ) throw Error("qualification_config");
-  const { publicApiKey } = requirePublicApiKeys({
-    envPublishableKeys: get("SUPABASE_PUBLISHABLE_KEYS"),
-    envAnonKey: get("SUPABASE_ANON_KEY"),
-  });
   return Object.freeze({
     run,
-    operatorID,
+    operatorKey,
     capability,
     expiresAt,
     endpoint,
     accessKeyId,
     secretAccessKey,
-    publicKey: publicApiKey,
   });
 }

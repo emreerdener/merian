@@ -1,25 +1,28 @@
 # Local runtime packaging for CPM characterization
 
 This directory packages a representative byte-verifier experiment. The human
-approved four hours of local work/review on October 14. No hosted operation is
-authorized. The canonical current packet is
-[the runtime packaging and hosted request](../../../../../docs/rfcs/client-prepared-media-runtime-packaging-and-hosted-packet-2026-10-14.md).
+authorized the test-only authentication revision and independent/IC-1 review on
+October 14. Previous JWT-based preparation is retained as historical evidence.
+No hosted operation is authorized. The canonical current packet is
+[the runtime packaging and hosted request](../../../../../docs/rfcs/client-prepared-media-test-auth-hosted-packet-2026-10-14.md).
 Activation stays disabled; AWS, the 160 MiB total-memory guard and any product
 limit changes remain unapproved.
 
 ## Owners and entrypoints
 
 - `config.ts`: fixed Merian production-alpha target, seven experiment-only
-  settings, exact operator UUID, run capability/expiry and private bucket.
-- `auth.ts`: pinned Auth-server `getUser` with one abort-aware fetch and 64 KiB
-  response bound. No persisted session, refresh, privileged client or retry.
+  settings, dedicated test key, run capability/expiry and private bucket.
+- `auth.ts`: bounded 64-hex test-key possession comparison; no product identity,
+  Auth request, session, privileged client or retry. The all-zero key is
+  reserved for first-call denial; the real key must be independent of the run
+  capability and R2 credentials.
 - `worker.ts`: runtime composition; positive partial V8 fields and bounded
   version metadata. `entrypoint.ts` constructs one module-level handler and
   registers once. Missing configuration fails closed before any network I/O.
 - `transport.ts`: local driver sends only to the fixed test route, including a
-  genuine deliberately-invalid bearer for case 26, sent first before fixture
-  reads. It requires runtime metadata and no redirects. The handler's public 403
-  is distinct from a gateway refusal.
+  well-formed incorrect test bearer for case 26, sent first before fixture
+  reads. It requires `test-run-key-v1` mode and runtime metadata, with no
+  redirects. The handler's public 403 is distinct from a gateway refusal.
 - `run.ts`: future operator-only launcher. It requires an explicit execution
   argument, fixed credentials supplied privately, and a fresh durable journal.
   Cases 1–2 precede the operator bulk-readiness barrier. The barrier shares the
@@ -60,20 +63,20 @@ stage must be generated from the reviewed frozen source set; recheck source
 hashes after generation. These commands do not run the entrypoint or driver:
 
 ```sh
-deno info --json --config services/supabase/functions/deno.json services/supabase/tests/cpm_verifier_characterization/runtime/entrypoint.ts > .artifacts/client-prepared-media/runtime-packaging/graph-final.json
-python3 services/supabase/tests/cpm_verifier_characterization/runtime/stage.py .artifacts/client-prepared-media/runtime-packaging/graph-final.json .artifacts/client-prepared-media/runtime-packaging/staged-06
-deno check --frozen --config .artifacts/client-prepared-media/runtime-packaging/staged-06/supabase/functions/cpm-verifier-characterization/deno.json .artifacts/client-prepared-media/runtime-packaging/staged-06/supabase/functions/cpm-verifier-characterization/index.ts
+deno info --json --config services/supabase/functions/deno.json services/supabase/tests/cpm_verifier_characterization/runtime/entrypoint.ts > .artifacts/client-prepared-media/test-auth-revision/graph-final.json
+python3 services/supabase/tests/cpm_verifier_characterization/runtime/stage.py .artifacts/client-prepared-media/test-auth-revision/graph-final.json .artifacts/client-prepared-media/test-auth-revision/staged-01
+deno check --frozen --config .artifacts/client-prepared-media/test-auth-revision/staged-01/supabase/functions/cpm-verifier-characterization/deno.json .artifacts/client-prepared-media/test-auth-revision/staged-01/supabase/functions/cpm-verifier-characterization/index.ts
 ```
 
 Generate a second graph from the staged entrypoint and verify graph closure and
 unchanged source/packaged bytes before bundling:
 
 ```sh
-deno info --json --config .artifacts/client-prepared-media/runtime-packaging/staged-06/supabase/functions/cpm-verifier-characterization/deno.json .artifacts/client-prepared-media/runtime-packaging/staged-06/supabase/functions/cpm-verifier-characterization/index.ts > .artifacts/client-prepared-media/runtime-packaging/staged-graph-06.json
-python3 services/supabase/tests/cpm_verifier_characterization/runtime/stage.py --verify .artifacts/client-prepared-media/runtime-packaging/staged-graph-06.json .artifacts/client-prepared-media/runtime-packaging/staged-06
+deno info --json --config .artifacts/client-prepared-media/test-auth-revision/staged-01/supabase/functions/cpm-verifier-characterization/deno.json .artifacts/client-prepared-media/test-auth-revision/staged-01/supabase/functions/cpm-verifier-characterization/index.ts > .artifacts/client-prepared-media/test-auth-revision/staged-graph-06.json
+python3 services/supabase/tests/cpm_verifier_characterization/runtime/stage.py --verify .artifacts/client-prepared-media/test-auth-revision/staged-graph-06.json .artifacts/client-prepared-media/test-auth-revision/staged-01
 ```
 
-`staged-06` is retained evidence: use a new directory for regeneration, never
+`staged-01` is retained evidence: use a new directory for regeneration, never
 overwrite it. Record the staged manifest and offline ESZIP digest. Use only the
 cached `public.ecr.aws/supabase/edge-runtime:v1.74.2` image, network none,
 read-only source/npm/remote cache mounts and a separately bounded writable
@@ -82,14 +85,13 @@ An isolated temporary cache has a 128 MiB cap; the local container has a 512 MiB
 memory limit, one CPU and a 30-second bundling timeout. These are local
 packaging limits, not adopted product/runtime resource thresholds.
 
-The first all-fleet-import package produced 40,214,443 bytes, above the
-documented 20 MB CLI bundle limit. The graph-selected two-alias map produced
-8,723,794 bytes but had an unresolved frozen-lock mismatch. A later whole-lock
-package again exceeded the bundle limit. The final closed lock subset produces
-**8,425,366 bytes** and passes frozen staged typechecking and graph
-verification. All artifacts remain as evidence. The exact final manifest is
-retained separately after review; the earlier package is not a deployment
-candidate.
+The prior JWT-based package and its failed intermediate bundles remain in
+`.artifacts/client-prepared-media/runtime-packaging/`. Revised package and ESZIP
+identities are in
+`.artifacts/client-prepared-media/test-auth-revision/checkpoint.md`. No
+dependency pins or product auth helpers change. This experiment excludes product
+Auth network/SDK/identity overhead and cannot qualify the full product path. The
+public gateway key is not evidence of caller identity.
 
 ## Future execution and operator barrier
 
@@ -99,7 +101,7 @@ any local check above. Never run `entrypoint.ts` or `run.ts` merely to validate
 packaging.
 
 The driver reads only the future process environment's run, capability, expiry,
-operator bearer and canonical public key. It sends no user/session details to
+test key and canonical public gateway key. It sends no user/session details to
 local artifacts. The run ID must be a fresh opaque alias (not a person, email or
 other personal identifier). Existing or partial journals refuse restart.
 

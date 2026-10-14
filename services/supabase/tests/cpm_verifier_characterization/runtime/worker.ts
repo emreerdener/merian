@@ -3,7 +3,7 @@ import { type Clock, systemClock } from "../policy.ts";
 import { privateGetAdapter } from "../private_get.ts";
 import { memory } from "../telemetry.ts";
 import { authAdapter } from "./auth.ts";
-import { BUCKET, OPERATOR_ALIAS, readConfig } from "./config.ts";
+import { AUTH_MODE, BUCKET, OPERATOR_ALIAS, readConfig } from "./config.ts";
 
 export interface RuntimePorts {
   env(name: string): string | undefined;
@@ -39,11 +39,7 @@ export function createWorker(ports: RuntimePorts) {
   }, {
     clock,
     memory: measure,
-    authenticate: authAdapter({
-      publicKey: config.publicKey,
-      operatorID: config.operatorID,
-      fetchOnce: ports.fetchOnce,
-    }),
+    authenticate: authAdapter(config.operatorKey),
     get: privateGetAdapter({
       endpoint: config.endpoint,
       bucket: BUCKET,
@@ -57,6 +53,7 @@ export function createWorker(ports: RuntimePorts) {
     state: handler.state,
     async handle(request: Request) {
       const response = await handler.handle(request);
+      response.headers.set("x-cpm-auth-mode", AUTH_MODE);
       response.headers.set("x-cpm-runtime-deno", ports.versions.deno);
       response.headers.set("x-cpm-runtime-v8", ports.versions.v8);
       return response;

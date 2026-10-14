@@ -1,5 +1,11 @@
 # CPM verifier runtime packaging and exact hosted-test packet
 
+> Superseded October 14 by the
+> [test-only authentication revision](client-prepared-media-test-auth-hosted-packet-2026-10-14.md).
+> This original JWT-based candidate and its approval remain historical. No
+> hosted mutation or test occurred. Use the revised candidate only after new
+> approval.
+
 Status: October 14, 2026. Local packaging and review authorized by the human,
 starting **14:55:36 UTC**, with a hard **18:55:36 UTC** deadline. No automatic
 extension. This document records the next approval packet; none of its hosted

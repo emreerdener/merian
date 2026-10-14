@@ -1,6 +1,7 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { authAdapter } from "./auth.ts";
 import {
+  AUTH_MODE,
   BUCKET,
   DENIED_BEARER,
   OPERATOR_ALIAS,
@@ -24,14 +25,13 @@ import {
 } from "../test_support.ts";
 
 const ID = "00000000-0000-4000-8000-000000000001";
-const OTHER = "00000000-0000-4000-8000-000000000002";
+const OPERATOR_KEY = "d".repeat(64);
 const PUBLIC = "sb_publishable_synthetic_qualification_key_0000";
 function environment(clock: ManualClock): Record<string, string> {
   return {
     SUPABASE_URL: PROJECT_URL,
-    SUPABASE_PUBLISHABLE_KEYS: JSON.stringify({ default: PUBLIC }),
     CPM_Q_RUN: "runtime-check",
-    CPM_Q_OPERATOR_ID: ID,
+    CPM_Q_OPERATOR_KEY: OPERATOR_KEY,
     CPM_Q_CAPABILITY: CAPABILITY,
     CPM_Q_EXPIRES_AT: String(clock.wall() + LIMITS.runMs),
     CPM_Q_R2_ENDPOINT: `https://${"a".repeat(32)}.r2.cloudflarestorage.com`,
@@ -70,15 +70,13 @@ Deno.test("runtime config is target-bound, finite, namespaced and fail closed", 
       [
         ...SECRET_NAMES,
         "SUPABASE_URL",
-        "SUPABASE_PUBLISHABLE_KEYS",
-        "SUPABASE_ANON_KEY",
       ].includes(name)
     ),
   );
   for (
     const [key, value] of Object.entries({
       SUPABASE_URL: "https://wrong.supabase.co",
-      CPM_Q_OPERATOR_ID: "operator",
+      CPM_Q_OPERATOR_KEY: "operator",
       CPM_Q_CAPABILITY: "short",
       CPM_Q_EXPIRES_AT: String(clock.wall() + LIMITS.runMs + 1),
       CPM_Q_R2_ENDPOINT: "https://example.com",
@@ -93,119 +91,56 @@ Deno.test("runtime config is target-bound, finite, namespaced and fail closed", 
     readConfig((name) => env[name], clock.wall() + LIMITS.runMs)
   );
 });
-Deno.test("Auth SDK uses only one bounded getUser request, exact subject and abort signal", async () => {
-  for (const id of [ID, OTHER]) {
-    let calls = 0;
-    const abort = new AbortController();
-    const authenticate = authAdapter({
-      publicKey: PUBLIC,
-      operatorID: ID,
-      fetchOnce: (request) => {
-        calls++;
-        assertEquals(request.url, `${PROJECT_URL}/auth/v1/user`);
-        assertEquals(request.method, "GET");
-        assertEquals(
-          request.headers.get("authorization"),
-          "Bearer synthetic-jwt",
-        );
-        assertEquals(request.headers.get("apikey"), PUBLIC);
-        assertEquals(request.redirect, "error");
-        assertEquals(request.signal.aborted, false);
-        return Promise.resolve(
-          Response.json({ id, aud: "authenticated", role: "authenticated" }),
-        );
-      },
-    });
-    assertEquals(
-      await authenticate("synthetic-jwt", abort.signal),
-      id === ID ? OPERATOR_ALIAS : null,
-    );
-    assertEquals(calls, 1);
-  }
-});
-Deno.test("Auth failures never retry or disclose upstream response", async () => {
-  for (const status of [401, 403, 429, 500]) {
-    let calls = 0;
-    const auth = authAdapter({
-      publicKey: PUBLIC,
-      operatorID: ID,
-      fetchOnce: () => {
-        calls++;
-        return Promise.resolve(
-          Response.json({ message: "synthetic denial" }, { status }),
-        );
-      },
-    });
-    if (status === 401 || status === 403) {
-      assertEquals(await auth("invalid", new AbortController().signal), null);
-    } else {await assertRejects(
-        () => auth("invalid", new AbortController().signal),
-        Error,
-        "auth_transport",
-      );}
-    assertEquals(calls, 1);
-  }
-  const huge = authAdapter({
-    publicKey: PUBLIC,
-    operatorID: ID,
-    fetchOnce: () => Promise.resolve(new Response(" ".repeat(65_537))),
-  });
-  await assertRejects(
-    () => huge("invalid", new AbortController().signal),
-    Error,
-    "auth_transport",
+Deno.test("test key accepts exact possession only and honors cancellation without network", async () => {
+  const authenticate = authAdapter(OPERATOR_KEY);
+  assertEquals(
+    await authenticate(OPERATOR_KEY, new AbortController().signal),
+    OPERATOR_ALIAS,
   );
+  for (
+    const bad of [
+      "",
+      "d".repeat(63),
+      "d".repeat(65),
+      "D".repeat(64),
+      "e".repeat(64),
+      "synthetic-jwt",
+      CAPABILITY,
+    ]
+  ) {
+    assertEquals(await authenticate(bad, new AbortController().signal), null);
+  }
+  const abort = new AbortController();
+  abort.abort();
+  assertThrows(() => authenticate(OPERATOR_KEY, abort.signal));
+  assertThrows(() => authAdapter(""));
+  assertThrows(() => authAdapter(DENIED_BEARER));
 });
-Deno.test("Auth cancellation propagates during acquisition and stalled response body", async () => {
-  for (const bodyPhase of [false, true]) {
-    const started = deferred<void>(), abort = new AbortController();
-    let seenAbort = false;
-    const auth = authAdapter({
-      publicKey: PUBLIC,
-      operatorID: ID,
-      fetchOnce: (request) => {
-        started.resolve();
-        if (bodyPhase) {
-          return Promise.resolve(
-            new Response(
-              new ReadableStream({
-                start(controller) {
-                  request.signal.addEventListener("abort", () => {
-                    seenAbort = true;
-                    controller.error(Error("abort"));
-                  }, { once: true });
-                },
-              }),
-            ),
-          );
-        }
-        return new Promise((_resolve, reject) =>
-          request.signal.addEventListener("abort", () => {
-            seenAbort = true;
-            reject(Error("abort"));
-          }, { once: true })
-        );
-      },
-    });
-    const work = auth("synthetic", abort.signal);
-    await started.promise;
-    abort.abort();
-    await assertRejects(() => work);
-    assert(seenAbort);
+Deno.test("runtime config rejects reused key and capability or R2 secret", () => {
+  const clock = new ManualClock(), env = environment(clock);
+  for (const key of ["", "D".repeat(64), DENIED_BEARER, "d".repeat(65)]) {
+    assertThrows(() =>
+      readConfig(
+        (name) => ({ ...env, CPM_Q_OPERATOR_KEY: key })[name],
+        clock.wall(),
+      )
+    );
+  }
+  for (const key of ["CPM_Q_CAPABILITY", "CPM_Q_R2_SECRET_ACCESS_KEY"]) {
+    assertThrows(() =>
+      readConfig(
+        (name) => ({ ...env, [key]: OPERATOR_KEY })[name],
+        clock.wall(),
+      )
+    );
   }
 });
 Deno.test("real runtime composition rejects invalid caller before R2 and retains shared reader gate", async () => {
   const clock = new ManualClock(),
     opened = deferred<void>(),
     release = deferred<void>();
-  let gets = 0, auths = 0;
+  let gets = 0;
   const worker = makeWorker(clock, async (request) => {
-    if (request.url === `${PROJECT_URL}/auth/v1/user`) {
-      auths++;
-      return request.headers.get("authorization") === `Bearer ${DENIED_BEARER}`
-        ? Response.json({ message: "synthetic denial" }, { status: 401 })
-        : Response.json({ id: ID });
-    }
     gets++;
     assert(request.url.includes(`/${BUCKET}/cpm-verifier/runtime-check/`));
     assertEquals(request.method, "GET");
@@ -214,11 +149,14 @@ Deno.test("real runtime composition rejects invalid caller before R2 and retains
     await release.promise;
     return fixtureResponse("a");
   });
-  const first = worker.handle(requestFor("runtime-check", 21, CAPABILITY));
+  const first = worker.handle(
+    requestFor("runtime-check", 21, CAPABILITY, OPERATOR_KEY),
+  );
   await opened.promise;
-  const busy =
-    await (await worker.handle(requestFor("runtime-check", 22, CAPABILITY)))
-      .json();
+  const busy = await (await worker.handle(
+    requestFor("runtime-check", 22, CAPABILITY, OPERATOR_KEY),
+  ))
+    .json();
   assertEquals(busy.outcome, "busy");
   const denied = await worker.handle(
     requestFor("runtime-check", 26, CAPABILITY, DENIED_BEARER),
@@ -226,7 +164,6 @@ Deno.test("real runtime composition rejects invalid caller before R2 and retains
   assertEquals(denied.status, 403);
   assertEquals(denied.headers.get("x-merian-handler"), "1");
   assertEquals(gets, 1);
-  assertEquals(auths, 3);
   release.resolve();
   const ack = await (await first).json();
   assertEquals(ack.outcome, "verified");
@@ -247,7 +184,9 @@ Deno.test("runtime memory omission, zero fields and proxy breach stop before net
       throw Error("must not fetch");
     }, () => bad);
     assertEquals(
-      (await worker.handle(requestFor("runtime-check", 1, CAPABILITY))).status,
+      (await worker.handle(
+        requestFor("runtime-check", 1, CAPABILITY, OPERATOR_KEY),
+      )).status,
       409,
     );
     assertEquals(calls, 0);
@@ -259,13 +198,6 @@ Deno.test("runtime driver executes genuine invalid-bearer case and pauses before
   let barrier = false, gets = 0;
   const sent: { id: number; at: number }[] = [];
   const worker = makeWorker(clock, (req) => {
-    if (req.url === `${PROJECT_URL}/auth/v1/user`) {
-      return Promise.resolve(
-        req.headers.get("authorization") === `Bearer ${DENIED_BEARER}`
-          ? Response.json({ message: "denied" }, { status: 401 })
-          : Response.json({ id: ID }),
-      );
-    }
     gets++;
     if (!req.url.endsWith("control.bin")) assert(barrier);
     const id = req.url.endsWith("a.bin")
@@ -287,7 +219,7 @@ Deno.test("runtime driver executes genuine invalid-bearer case and pauses before
       return Promise.resolve();
     },
     send: driverTransport({
-      bearer: "synthetic-operator-bearer",
+      operatorKey: OPERATOR_KEY,
       publicKey: PUBLIC,
       fetchOnce: async (req) => {
         const item = await req.clone().json();
@@ -312,14 +244,10 @@ Deno.test("failed or too-late bulk readiness stops before any bulk request", asy
   for (const late of [false, true]) {
     const clock = new ManualClock(), journal = new MemoryJournal();
     const sent: number[] = [];
-    const worker = makeWorker(clock, (req) =>
-      Promise.resolve(
-        req.url === `${PROJECT_URL}/auth/v1/user`
-          ? req.headers.get("authorization") === `Bearer ${DENIED_BEARER}`
-            ? Response.json({ message: "denied" }, { status: 401 })
-            : Response.json({ id: ID })
-          : fixtureResponse("control"),
-      ));
+    const worker = makeWorker(
+      clock,
+      () => Promise.resolve(fixtureResponse("control")),
+    );
     const driver = createDriver("runtime-check", CAPABILITY, {
       clock,
       journal,
@@ -331,7 +259,7 @@ Deno.test("failed or too-late bulk readiness stops before any bulk request", asy
         return Promise.resolve();
       },
       send: driverTransport({
-        bearer: "synthetic-operator-bearer",
+        operatorKey: OPERATOR_KEY,
         publicKey: PUBLIC,
         fetchOnce: async (req) => {
           sent.push((await req.clone().json()).case);
@@ -407,20 +335,17 @@ Deno.test("packaged entrypoint registers once and reuses one module handler with
       configurable: true,
       value: () => MEMORY,
     });
-    globalThis.fetch = (input) =>
-      Promise.resolve(
-        new Request(input).url === `${PROJECT_URL}/auth/v1/user`
-          ? Response.json({ id: ID })
-          : fixtureResponse("control"),
-      );
+    globalThis.fetch = () => Promise.resolve(fixtureResponse("control"));
     await import("./entrypoint.ts");
     assertEquals(handlers.length, 1);
-    const one =
-      await (await handlers[0](requestFor("runtime-check", 1, CAPABILITY)))
-        .json();
-    const two =
-      await (await handlers[0](requestFor("runtime-check", 2, CAPABILITY)))
-        .json();
+    const one = await (await handlers[0](
+      requestFor("runtime-check", 1, CAPABILITY, OPERATOR_KEY),
+    ))
+      .json();
+    const two = await (await handlers[0](
+      requestFor("runtime-check", 2, CAPABILITY, OPERATOR_KEY),
+    ))
+      .json();
     assertEquals(one.outcome, "verified");
     assertEquals(two.outcome, "verified");
     assertEquals(one.worker, two.worker);
@@ -441,40 +366,98 @@ Deno.test("packaged entrypoint registers once and reuses one module handler with
   }
 });
 
-Deno.test("Auth explicitly cancels an abort-ignorant stalled body and awaits cancellation", async () => {
-  const started = deferred<void>(),
-    closure = deferred<void>(),
-    abort = new AbortController();
-  let cancelled = false, settled = false;
-  const auth = authAdapter({
-    publicKey: PUBLIC,
-    operatorID: ID,
-    fetchOnce: () =>
-      Promise.resolve(
-        new Response(
-          new ReadableStream({
-            pull() {
-              started.resolve();
-            },
-            cancel() {
-              cancelled = true;
-              return closure.promise;
-            },
-          }),
+Deno.test("test-only boundary rejects missing or wrong credentials, wrong run and expired run before R2", async () => {
+  for (
+    const mode of [
+      "missing-key",
+      "wrong-key",
+      "wrong-capability",
+      "missing-capability",
+      "wrong-run",
+      "expired",
+    ]
+  ) {
+    const clock = new ManualClock();
+    let calls = 0;
+    const worker = makeWorker(clock, () => {
+      calls++;
+      throw Error("must not fetch");
+    });
+    const request = requestFor(
+      mode === "wrong-run" ? "other-run" : "runtime-check",
+      1,
+      CAPABILITY,
+      OPERATOR_KEY,
+    );
+    if (mode === "missing-key") request.headers.delete("authorization");
+    if (mode === "wrong-key") {
+      request.headers.set("authorization", `Bearer ${"e".repeat(64)}`);
+    }
+    if (mode === "wrong-capability") {
+      request.headers.set("x-qualification-capability", "e".repeat(48));
+    }
+    if (mode === "missing-capability") {
+      request.headers.delete("x-qualification-capability");
+    }
+    if (mode === "expired") clock.advance(LIMITS.runMs);
+    const response = await worker.handle(request);
+    assertEquals(
+      response.status,
+      mode === "wrong-run" ? 400 : mode === "expired" ? 409 : 403,
+    );
+    assertEquals(response.headers.get("x-cpm-auth-mode"), AUTH_MODE);
+    const body = await response.text();
+    assert(!body.includes(OPERATOR_KEY));
+    assert(!body.includes(CAPABILITY));
+    assertEquals(calls, 0);
+    assertEquals(clock.active, 0);
+  }
+});
+
+Deno.test("driver rejects stale auth-mode metadata and closes response without another attempt", async () => {
+  for (const mode of [null, "product-jwt-v0"]) {
+    let calls = 0, closed = false;
+    const send = driverTransport({
+      operatorKey: OPERATOR_KEY,
+      publicKey: PUBLIC,
+      fetchOnce: () => {
+        calls++;
+        const headers = new Headers({
+          "x-cpm-runtime-deno": "test",
+          "x-cpm-runtime-v8": "test",
+        });
+        if (mode) headers.set("x-cpm-auth-mode", mode);
+        return Promise.resolve(
+          new Response(
+            new ReadableStream({
+              cancel() {
+                closed = true;
+              },
+            }),
+            { headers },
+          ),
+        );
+      },
+    });
+    await assertRejects(
+      () =>
+        send(
+          requestFor("runtime-check", 26, CAPABILITY),
+          new AbortController().signal,
         ),
-      ),
-  });
-  const work = auth("synthetic", abort.signal).then(() => {
-    settled = true;
-  }, () => {
-    settled = true;
-  });
-  await started.promise;
-  abort.abort();
-  for (let i = 0; i < 20; i++) await Promise.resolve();
-  assert(cancelled);
-  assertEquals(settled, false);
-  closure.resolve();
-  await work;
-  assert(settled);
+      Error,
+      "runtime_metadata",
+    );
+    assertEquals(calls, 1);
+    assert(closed);
+  }
+  assertThrows(() =>
+    driverTransport({
+      operatorKey: "not-a-test-key",
+      publicKey: PUBLIC,
+      fetchOnce: () => {
+        throw Error("never");
+      },
+    })
+  );
 });

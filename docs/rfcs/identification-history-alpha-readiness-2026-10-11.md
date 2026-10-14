@@ -1,5 +1,16 @@
 # Identification history alpha readiness
 
+> Current October 14 test-auth revision: local construction and independent/IC-1
+> review are authorized; the
+> [revised hosted packet](client-prepared-media-test-auth-hosted-packet-2026-10-14.md)
+> requires new approval before uploads, secret installation or deployment. The
+> previous JWT candidate was never deployed/run. A dedicated short-lived test
+> key removes the iOS app-session prerequisite only for this experiment;
+> production authentication, G1–G4, media-required scope and product acceptance
+> remain unchanged. The existing R2 credentials are locally available with no
+> values logged. Activation is disabled, AWS unapproved, auto-prompts paused.
+> Earlier runtime-packaging status below is historical for its exact candidate.
+
 > October 14 runtime-packaging update: the user authorized four hours of local
 > construction and independent/IC-1 review. See the
 > [exact hosted-test packet](client-prepared-media-runtime-packaging-and-hosted-packet-2026-10-14.md).
