@@ -142,6 +142,39 @@ Cleanup may remove only run-owned objects after writers/readers close;
 unresolved obligations remain recorded for the named operator, with no automatic
 extra run or capacity release.
 
+### Positive reader-closure acknowledgement
+
+For a successful read, the handler must observe full body EOF, verify exact
+length/hash, and await all request-owned fetch/read/hash work. Before returning,
+its awaited cleanup must observe the reader's terminal `closed` state, release
+the reader lock, drop request-owned buffers/hash state, stop the sampling timer
+and release that request's worker reader slot. Only then may it send a bounded,
+non-streaming terminal acknowledgement identifying the synthetic run,
+invocation, fixture and worker, verified length/hash and completed cleanup. The
+driver must receive and validate that complete server response against its
+outstanding case before reusing the fixture or starting the next serial case. A
+busy/denied response may acknowledge that it opened no reader; it cannot
+acknowledge closure of the paired active reader. Both members of a pair must
+finish before advancing.
+
+On early exit, abort the fetch, await settlement of any outstanding acquisition
+or read, and await body cancellation/reader cleanup wherever a body was
+acquired, including a late fetch response. A cancellation request, rejected
+promise or released lock alone is not a positive closure acknowledgement. This
+benchmark does not resume after a failed/cancelled read even if cleanup is
+acknowledged. Lost/truncated acknowledgements, client timeout, mere request
+cancellation or unknown handler termination stop the packet: no replacement read
+or blind resend. Use the reserved disable/cleanup allowance; retain unresolved
+reader and fixture obligations for the named operator rather than deleting on
+timeout. No durable recovery ledger or extra polling loop is introduced.
+
+This acknowledgement proves the reviewed handler's request-owned reader
+lifecycle completed, not native buffer reclamation, socket destruction or memory
+returning to baseline. The exact runtime must support and demonstrate this
+EOF/settlement/cleanup predicate in the reviewed candidate and approved
+preflight; if it cannot, positive closure remains unproved and full-media work
+is blocked. No driver-visible success may precede awaited cleanup.
+
 ## Warm routing fallback and useful conclusions
 
 Spread each nine-request cohort over 80% of the confirmed worker lifetime,
@@ -163,6 +196,20 @@ calls. A separately proposed local same-worker test could diagnose retention but
 could not replace hosted evidence. Even full coverage supports only this finite
 representative path: complete-verifier memory, request CPU, lifetime peak,
 longer-term growth and production lifecycle acceptance remain open.
+
+### Outcomes and next decisions
+
+| Observation                                                                                                                                                                                              | Next step                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Correct bytes and closure acknowledgements; both warm cohorts and same-worker arrival coverage observed; comparable quiescent samples and observed maxima show no sustained upward trend; no safety stop | Propose a bounded **inactive implementation** checkpoint for review, listing omitted SQL claims/receipts and lifecycle work plus the complete-verifier qualification still needed. Stable observed memory is directional evidence only. It supplies neither a final full-verifier budget nor permission to implement.                                                                        |
+| Rising quiescent/peak-sample envelope, resource stop, deadline failure or uncertain cleanup                                                                                                              | Preserve the failing case and stop where the existing safety rules require. Propose a focused investigation of retention, native buffers, CPU or cleanup before expanding implementation; no automatic rerun, higher threshold or budget adoption. A crossing of 96 MiB alone remains a historical-target exceedance and may continue only under separately approved characterization rules. |
+| Inadequate metric domain/resolution, missing CPU attribution or insufficient same-worker coverage                                                                                                        | Report exactly what was observed and propose a measurement/coverage amendment. Do not infer stability from unrelated workers or use shutdown snapshots as peak proof. Missing CPU attribution leaves that acceptance open even when memory trends are useful; absent usable in-run memory stops full-media work.                                                                             |
+
+Compare each cohort's ordered samples and tail with its earlier warm values;
+disclose measurement noise and ambiguous trends rather than declaring a plateau
+from a flat average. Mixed outcomes take the more restrictive next step. None of
+these outcomes closes production acceptance or automatically authorizes
+construction, another experiment or a budget change.
 
 **Next decision:** accept this smaller characterization scope and its
 measurement limitations, and resolve the private target-selection gaps before
