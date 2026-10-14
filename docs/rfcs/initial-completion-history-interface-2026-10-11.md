@@ -1,5 +1,15 @@
 # Initial completion and history interface
 
+> Current October 14 runtime correction: the approved test-auth attempt stopped
+> at case 26; route/settings were removed. Both R2 keys remain active per the
+> user's corrected statement, and the old private control object remains
+> unresolved. Local pinned-runtime reproduction found a decorated-version
+> validator defect; correction and safe diagnostics are under independent/IC-1
+> review. The
+> [new exact packet](client-prepared-media-runtime-diagnostics-hosted-packet-2026-10-14.md)
+> requires fresh hosted approval. Earlier preparation-only entries below are
+> historical. Activation disabled, AWS unapproved, auto-prompts paused.
+
 > Current October 14 test-auth revision: local construction and independent/IC-1
 > review are authorized; the
 > [revised hosted packet](client-prepared-media-test-auth-hosted-packet-2026-10-14.md)

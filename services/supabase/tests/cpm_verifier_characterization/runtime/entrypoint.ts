@@ -14,6 +14,12 @@ try {
   handle = worker.handle;
 } catch {
   // Do not expose configuration values or errors; no partial startup.
-  handle = () => Promise.resolve(new Response(null, { status: 503 }));
+  handle = () =>
+    Promise.resolve(
+      new Response(null, {
+        status: 503,
+        headers: { "x-cpm-startup-error": "initialization_failed" },
+      }),
+    );
 }
 Deno.serve(handle);

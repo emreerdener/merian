@@ -8,6 +8,7 @@ import {
   PROJECT_URL,
   readConfig,
   SECRET_NAMES,
+  validRuntimeVersion,
 } from "./config.ts";
 import { createWorker } from "./worker.ts";
 import { driverTransport } from "./transport.ts";
@@ -460,4 +461,111 @@ Deno.test("driver rejects stale auth-mode metadata and closes response without a
       },
     })
   );
+});
+
+Deno.test("decorated pinned-runtime versions are bounded header-safe metadata", async () => {
+  const deno = "supabase-edge-runtime-1.74.2 (compatible with Deno v2.1.4)";
+  assert(validRuntimeVersion(deno));
+  for (
+    const bad of [
+      "",
+      "x".repeat(81),
+      "deno\r\nx-key: secret",
+      "deno\t2",
+      "deno;secret",
+      "é",
+      " deno",
+    ]
+  ) assert(!validRuntimeVersion(bad));
+  const clock = new ManualClock(), env = environment(clock);
+  let calls = 0;
+  const worker = createWorker({
+    env: (k) => env[k],
+    clock,
+    uuid: () => ID,
+    versions: { deno, v8: "11.6.189.12" },
+    memoryUsage: () => MEMORY,
+    fetchOnce: () => {
+      calls++;
+      throw Error("unexpected_media");
+    },
+  });
+  const diagnostics: unknown[] = [];
+  const send = driverTransport({
+    operatorKey: OPERATOR_KEY,
+    publicKey: PUBLIC,
+    recordDiagnostic: (d) => diagnostics.push(d),
+    fetchOnce: (req) => worker.handle(req),
+  });
+  const response = await send(
+    requestFor("runtime-check", 26, CAPABILITY),
+    new AbortController().signal,
+  );
+  assertEquals(response.status, 403);
+  assertEquals(calls, 0);
+  assertEquals(diagnostics, [{
+    case: 26,
+    stage: "response_received",
+    status: 403,
+    authModeValid: true,
+    denoVersionValid: true,
+    v8VersionValid: true,
+    handlerMarked: true,
+    startupFailureMarked: false,
+  }]);
+});
+Deno.test("diagnostics retain only fixed fields, close failed responses and never retry", async () => {
+  for (const mode of ["transport", "startup", "gateway", "denial-body"]) {
+    const diagnostics: unknown[] = [], failures: unknown[] = [];
+    let calls = 0, closed = false;
+    const driver = createDriver("runtime-check", CAPABILITY, {
+      clock: new ManualClock(),
+      journal: new MemoryJournal(),
+      rejectedCaller: true,
+      recordFailure: (f) => failures.push(f),
+      send: driverTransport({
+        operatorKey: OPERATOR_KEY,
+        publicKey: PUBLIC,
+        recordDiagnostic: (d) => diagnostics.push(d),
+        fetchOnce: () => {
+          calls++;
+          if (mode === "transport") throw Error("secret-not-for-output");
+          const headers = new Headers({ "x-secret": "secret-not-for-output" });
+          if (mode === "startup") {
+            headers.set("x-cpm-startup-error", "initialization_failed");
+          }
+          if (mode === "denial-body") {
+            headers.set("x-cpm-auth-mode", AUTH_MODE);
+            headers.set("x-cpm-runtime-deno", "test");
+            headers.set("x-cpm-runtime-v8", "test");
+            headers.set("x-merian-handler", "1");
+            return Promise.resolve(
+              new Response("invalid-secret-body", { status: 403, headers }),
+            );
+          }
+          return Promise.resolve(
+            new Response(
+              new ReadableStream({
+                cancel() {
+                  closed = true;
+                },
+              }),
+              { status: mode === "startup" ? 503 : 403, headers },
+            ),
+          );
+        },
+      }),
+    });
+    assertEquals((await driver.run()).phase, "stopped");
+    assertEquals(calls, 1);
+    assertEquals(driver.snapshot().obligations, [26]);
+    assertEquals(diagnostics.length, 1);
+    assertEquals(failures, [{
+      case: 26,
+      stage: mode === "denial-body" ? "denial_body" : "delivery",
+    }]);
+    assert(!JSON.stringify({ diagnostics, failures }).includes("secret"));
+    if (mode === "startup" || mode === "gateway") assert(closed);
+    await assertRejects(() => driver.run());
+  }
 });

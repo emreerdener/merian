@@ -33,6 +33,17 @@ export interface DriverDeps {
   expiresAt?: number;
   /** Operator readiness barrier after the two controls, before bulk work. */
   beforeBulk?(controls: readonly Ack[]): Promise<void>;
+  recordFailure?(
+    failure: {
+      case: number;
+      stage:
+        | "delivery"
+        | "response_timing"
+        | "denial_status"
+        | "denial_body"
+        | "acknowledgement";
+    },
+  ): void;
 }
 async function acknowledgement(
   response: Response,
@@ -134,17 +145,25 @@ export function createDriver(
         reject(Error("deadline"));
       }, LIMITS.requestMs);
     });
+    let failureStage:
+      | "delivery"
+      | "response_timing"
+      | "denial_status"
+      | "denial_body"
+      | "acknowledgement" = "delivery";
     const work = (async () => {
       const response = await deps.send(
         requestFor(run, item.id, capability),
         abort.signal,
       );
+      failureStage = "response_timing";
       if (abort.signal.aborted || stopped() || deps.clock.now() >= deadlineAt) {
         // Cleanup only; never parse a late success into permission for another read.
         await response.body?.cancel();
         throw Error("late_response");
       }
       if (item.id === 26 && deps.rejectedCaller) {
+        failureStage = "denial_status";
         if (
           response.status !== 403 || response.redirected ||
           response.headers.get("x-merian-handler") !== "1"
@@ -152,6 +171,7 @@ export function createDriver(
           await response.body?.cancel();
           throw Error("caller_not_rejected");
         }
+        failureStage = "denial_body";
         const body = await readByteStreamWithinLimit(
           response.body,
           LIMITS.responseBytes,
@@ -172,6 +192,7 @@ export function createDriver(
         state.obligations = state.obligations.filter((id) => id !== item.id);
         return;
       }
+      failureStage = "acknowledgement";
       const ack = await acknowledgement(response, item, run);
       if (abort.signal.aborted || stopped() || deps.clock.now() >= deadlineAt) {
         throw Error("late_acknowledgement");
@@ -188,6 +209,7 @@ export function createDriver(
       await Promise.race([work, timeout]);
     } catch {
       stop("delivery_or_verification_failed");
+      deps.recordFailure?.({ case: item.id, stage: failureStage });
     } finally {
       cancelTimer();
       controllers.delete(abort);

@@ -4,7 +4,7 @@ import { createDriver } from "../driver.ts";
 import { fileJournal } from "../journal.ts";
 import { FIXTURES, LIMITS, systemClock, validAlias } from "../policy.ts";
 import { AUTH_MODE } from "./config.ts";
-import { driverTransport } from "./transport.ts";
+import { driverTransport, type TransportDiagnostic } from "./transport.ts";
 
 /** Readiness is an operator attestation, not independent object immutability proof. */
 export function validateReadiness(value: unknown, run: string): boolean {
@@ -36,16 +36,26 @@ async function main() {
   await Deno.mkdir(directory, { recursive: true });
   const runtimes: { deno: string; v8: string; authMode: typeof AUTH_MODE }[] =
     [];
+  const diagnostics: TransportDiagnostic[] = [];
+  const failures: { case: number; stage: string }[] = [];
   const driver = createDriver(run, capability, {
     clock: systemClock,
     journal: fileJournal(`${directory}/journal.jsonl`),
     rejectedCaller: true,
     expiresAt,
+    recordFailure: (failure) => {
+      if (failures.length >= 26) throw Error("diagnostic_bound");
+      failures.push(failure);
+    },
     send: driverTransport({
       operatorKey: Deno.env.get("CPM_Q_OPERATOR_KEY") ?? "",
       publicKey: requirePublicApiKeyFromEnvironment(),
       beforeSend: () => {
         if (Date.now() >= expiresAt) throw Error("expired");
+      },
+      recordDiagnostic: (diagnostic) => {
+        if (diagnostics.length >= 26) throw Error("diagnostic_bound");
+        diagnostics.push(diagnostic);
       },
       recordRuntime: (versions) => {
         if (runtimes.length >= 26) throw Error("runtime_bound");
@@ -103,6 +113,8 @@ async function main() {
     JSON.stringify({
       state,
       runtimes,
+      diagnostics,
+      failures,
       acknowledgements: driver.results(),
       denials: driver.denials(),
     }),

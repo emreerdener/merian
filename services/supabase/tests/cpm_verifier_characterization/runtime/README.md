@@ -1,10 +1,22 @@
 # Local runtime packaging for CPM characterization
 
+Current correction: the original hosted attempt stopped; its route/settings were
+removed. The user confirms both R2 keys remain active. The
+[runtime diagnostics packet](../../../../../docs/rfcs/client-prepared-media-runtime-diagnostics-hosted-packet-2026-10-14.md)
+supersedes the earlier preparation status below. Local testing now includes
+network-disabled pinned user workers. Decorated Deno version strings are
+accepted by a shared bounded header-safe validator. Startup 503 responses have
+only a fixed failure marker; the operator result adds allowlisted status/header
+booleans and fixed failure stages, never arbitrary bodies or exception text. The
+`.artifacts/client-prepared-media/local-diagnostics/` probe has separate actual
+candidate and synthetic-transport bundles; only `staged-01` is deployable. No
+hosted action is authorized until a fresh exact packet is approved.
+
 This directory packages a representative byte-verifier experiment. The human
 authorized the test-only authentication revision and independent/IC-1 review on
 October 14. Previous JWT-based preparation is retained as historical evidence.
 No hosted operation is authorized. The canonical current packet is
-[the runtime packaging and hosted request](../../../../../docs/rfcs/client-prepared-media-test-auth-hosted-packet-2026-10-14.md).
+[the corrected runtime diagnostics hosted request](../../../../../docs/rfcs/client-prepared-media-runtime-diagnostics-hosted-packet-2026-10-14.md).
 Activation stays disabled; AWS, the 160 MiB total-memory guard and any product
 limit changes remain unapproved.
 
@@ -97,8 +109,9 @@ public gateway key is not evidence of caller identity.
 
 Installation, secret mutation, fixture upload, execution and removal require the
 exact hosted packet's separate human approval. No credentials are needed to run
-any local check above. Never run `entrypoint.ts` or `run.ts` merely to validate
-packaging.
+any local check above. Run `entrypoint.ts` only in the explicitly authorized
+network-disabled local harness with synthetic configuration; `run.ts` remains
+hosted-approval gated.
 
 The driver reads only the future process environment's run, capability, expiry,
 test key and canonical public gateway key. It sends no user/session details to

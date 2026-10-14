@@ -9,6 +9,10 @@ export const AUTH_MODE = "test-run-key-v1";
 export function validOperatorKey(value: string): boolean {
   return /^[a-f0-9]{64}$/.test(value);
 }
+/** Edge Runtime decorates Deno.version.deno; retain bounded header-safe ASCII. */
+export function validRuntimeVersion(value: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9.+_() -]{0,79}$/.test(value);
+}
 export const DENIED_BEARER = "0".repeat(64);
 export const SECRET_NAMES = Object.freeze(
   [

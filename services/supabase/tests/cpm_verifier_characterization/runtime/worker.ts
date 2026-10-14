@@ -3,7 +3,13 @@ import { type Clock, systemClock } from "../policy.ts";
 import { privateGetAdapter } from "../private_get.ts";
 import { memory } from "../telemetry.ts";
 import { authAdapter } from "./auth.ts";
-import { AUTH_MODE, BUCKET, OPERATOR_ALIAS, readConfig } from "./config.ts";
+import {
+  AUTH_MODE,
+  BUCKET,
+  OPERATOR_ALIAS,
+  readConfig,
+  validRuntimeVersion,
+} from "./config.ts";
 
 export interface RuntimePorts {
   env(name: string): string | undefined;
@@ -19,9 +25,7 @@ export function createWorker(ports: RuntimePorts) {
   const config = readConfig(ports.env, clock.wall());
   const worker = `w-${ports.uuid()}`;
   if (
-    ![ports.versions.deno, ports.versions.v8].every((v) =>
-      /^[A-Za-z0-9.+_-]{1,80}$/.test(v)
-    )
+    ![ports.versions.deno, ports.versions.v8].every(validRuntimeVersion)
   ) throw Error("runtime_version");
   const measure = () => {
     const sample = memory(ports.memoryUsage());
