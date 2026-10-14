@@ -1,5 +1,14 @@
 # CPM allocation diagnostics: local prelaunch finding
 
+> Current October 14: the approved request-boundary campaign completed all 20
+> media reads on one worker in 682.342 seconds, but failed runtime shutdown
+> qualification after a worker-pool shutdown error (exit 1). External container
+> removal is confirmed. See the
+> [exact result](client-prepared-media-request-boundary-result-2026-10-14.md).
+> The single campaign is consumed; no retry or limit change. Activation
+> disabled, AWS unapproved, auto-prompts paused. Earlier preparation/proposal
+> states below are historical; product acceptance remains open.
+
 October 14, 2026. **Launch blocked; no bundle or verifier campaign executed.**
 The user approved the
 [two-hour local scope](client-prepared-media-allocation-diagnostics-proposal-2026-10-14.md).
