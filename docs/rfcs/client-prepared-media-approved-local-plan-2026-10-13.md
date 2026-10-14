@@ -1,5 +1,14 @@
 # CPM-1 approved local preparation checkpoint
 
+> October 13 bounded follow-up completed: the human separately approved the
+> [buffer-lifetime investigation and budget reassessment](client-prepared-media-buffer-lifetime-budget-review-2026-10-13.md).
+> All three local modes passed the unchanged 96 MiB experimental target;
+> loopback fetch peaked at 89.75 MiB. The prior failure remains valid. These
+> results do not establish hosted fit or long-run stability; no higher budget is
+> adopted. That finite investigation is finished, further experiments and
+> runtime implementation remain gated, activation disabled and AWS unapproved.
+> The auto-prompt remains paused.
+
 > October 13 subsequent human decision: the accounting boundary, bounded
 > per-attempt retry semantics and local feasibility exercise are approved in the
 > [local feasibility record](client-prepared-media-local-feasibility-2026-10-13.md).

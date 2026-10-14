@@ -1,5 +1,14 @@
 # CPM-1 approved local feasibility: stopped at verifier memory target
 
+> October 13 bounded follow-up completed: the human separately approved the
+> [buffer-lifetime investigation and budget reassessment](client-prepared-media-buffer-lifetime-budget-review-2026-10-13.md).
+> All three local modes passed the unchanged 96 MiB experimental target;
+> loopback fetch peaked at 89.75 MiB. The prior failure remains valid. These
+> results do not establish hosted fit or long-run stability; no higher budget is
+> adopted. That finite investigation is finished, further experiments and
+> runtime implementation remain gated, activation disabled and AWS unapproved.
+> The auto-prompt remains paused.
+
 Status: October 13, 2026. The human approved the accounting/retry decisions and
 bounded local exercise in `Scan ID History (2)`, turn
 `01a1389b-98ec-7620-a4a1-855456cecd46`. The primary verified that human message
