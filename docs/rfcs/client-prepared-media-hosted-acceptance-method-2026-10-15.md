@@ -1,3 +1,10 @@
+> October 15, 2026: the user adopted HAM-1 **as the method only** at checkpoint
+> `f4226a92b`. The reviewed proposal below is preserved as history. Measurement
+> and resource-target prerequisites remain unresolved; no tests, implementation
+> or hosted actions are authorized. The next bounded scope is
+> [MR-1, pending approval](client-prepared-media-ham1-prerequisites-proposal-2026-10-15.md).
+> Activation disabled, AWS unapproved, limits unchanged.
+
 # HAM-1: hosted acceptance method proposed for approval
 
 October 15, 2026. **Proposal only, not adopted or executable.** Prepared from
