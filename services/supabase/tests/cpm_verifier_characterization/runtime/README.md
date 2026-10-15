@@ -1,5 +1,28 @@
 # Local runtime packaging for CPM characterization
 
+> Current October 15 result: shared-clock qualification and the independent
+> stalled-parent watchdog passed. Replacement baseline reproduced the original
+> failure; proposed listener retention still produced the pool shutdown-send
+> error. Complete receipt ordering and cleanup do not override lifecycle
+> failure. The conditional campaign did not run; no retry is authorized. See the
+> [exact result](../../../../../docs/rfcs/client-prepared-media-clock-qualification-result-2026-10-15.md).
+> Activation disabled, AWS/160 MiB unapproved, all limits unchanged,
+> auto-prompts paused. Earlier states below are historical; product gates remain
+> open.
+
+> User approved the reviewed clock-method amendment in a fresh October 15 local
+> window, 14:57:29–16:57:29 UTC. Construction and focused tests are complete;
+> exact independent and IC-1 review is pending before execution. One
+> delayed-child clock check, one inert watchdog control and two replacement
+> case-26 controls are allowed; campaign remains conditional on successful
+> controls and separate exact concurrence. Scope:
+> .artifacts/client-prepared-media/clock-qualification/scope.md. Prior failed
+> baseline and candidate evidence remain historical and preserved. Activation
+> disabled, AWS/160 MiB unapproved, all limits unchanged, auto-prompts paused.
+> No hosted or credential actions. Product gates and follow-up order remain
+> unchanged. Earlier approval requirements below are historical for this new
+> scope.
+
 > Current October 15: the approved first shutdown control reproduced both
 > runtime errors and exit 1; EOF and external cleanup are confirmed. Python
 > 3.9.6/macOS clock origins invalidate cross-process ordering and transferred
