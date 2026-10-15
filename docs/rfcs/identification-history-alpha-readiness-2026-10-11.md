@@ -1,3 +1,16 @@
+> Current October 15 GAC-1 precheck result: the approved local scope stopped
+> when pinned Deno 2.9.4 rejected the recursive type-check command before
+> checking source. Formatting/lint and 54 tests passed; recursive typing and
+> staged lint remain unqualified. No packaging, control or campaign ran.
+> Independent and IC-1 review recommend a command-only correction; another
+> execution requires a new decision. Canonical result and continuation proposal:
+> docs/rfcs/client-prepared-media-gac1-precheck-result-2026-10-15.md. Activation
+> disabled, AWS/160 MiB unapproved, all other limits unchanged, auto-prompts
+> paused. Product/native/integrated gates remain open. Entries below are
+> historical; their exact source bytes remain recoverable.
+
+---
+
 > Current October 15 GAC-1 adoption: the user approved the revised local
 > acceptance contract and bounded implementation preparation. Exact independent
 > and IC-1 source review is required; no tests, packaging, control or campaign
