@@ -1,5 +1,18 @@
 # Local runtime packaging for CPM characterization
 
+> Current October 15 memory review: retained data shows phase-varying external
+> memory and a valid 8 MiB growth stop, without establishing a leak or
+> reclamation mechanism. A bounded proposal would expose existing samples in
+> fixed bins and run only the original four-read prefix, after human approval
+> and exact independent/IC-1 concurrence. No additional memory calls, idle
+> timers or gate changes are proposed. Packaging must fit existing storage caps;
+> feasibility remains conditional. Canonical proposal:
+> docs/rfcs/client-prepared-media-memory-growth-review-2026-10-15.md. This turn
+> performs no construction or runtime test. Prior failures and exact evidence
+> remain preserved; activation disabled, AWS/160 MiB unapproved, limits
+> unchanged, auto-prompts paused. Product gates and follow-up order remain open.
+> Earlier status entries are historical.
+
 > Current October 15 result: the baseline reproduced the retained pool error;
 > the proposed control and campaign teardown passed with no runtime errors and
 > confirmed removal. The campaign workload FAILED the unchanged 8 MiB growth
