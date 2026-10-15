@@ -1,5 +1,35 @@
 # Initial completion and history interface
 
+> Current October 15 result: the baseline reproduced the retained pool error;
+> the proposed control and campaign teardown passed with no runtime errors and
+> confirmed removal. The campaign workload FAILED the unchanged 8 MiB growth
+> gate after 42.235 seconds: one worker, five requests, four media
+> reads/closures, three verified and 13.654 MiB four-point growth. Sustained
+> reuse remains unqualified. Both controls and the single campaign are consumed;
+> no retry. Canonical result:
+> docs/rfcs/client-prepared-media-pool-retirement-result-2026-10-15.md. Executed
+> candidate af9802a14a9833e1ef8e2eb9f7c5b6f65a2549cef3351347dff5f607b3e4e147
+> received separate exact independent/IC-1 concurrence before controls and
+> campaign. Both reviewers concurred with the result and stop disposition; final
+> review receipts are retained under
+> .artifacts/client-prepared-media/pool-retirement/. Source and prior evidence
+> remain preserved with status snapshots. Activation disabled, AWS/160 MiB
+> unapproved, all limits unchanged, auto-prompts paused.
+> Product/native/integrated gates and approved follow-up order remain open. No
+> hosted/credential action or cleanup obligation. Earlier status entries are
+> historical.
+
+> User approved bounded pool-retirement construction and local execution in a
+> fresh October 15 window,15:48:12–17:48:12UTC. Exact independent/IC-1
+> executable concurrence is required before two one-shot controls, and
+> separately before the conditional unchanged campaign. Scope:
+> .artifacts/client-prepared-media/pool-retirement/scope.md. No new
+> clock/watchdog controls; reuse qualified unchanged sources only after review.
+> Earlier failures remain preserved. Activation disabled, AWS/160MiB unapproved,
+> all limits unchanged, auto-prompts paused. No hosted or credential operation.
+> Product gates and follow-up sequencing remain unchanged; earlier status
+> entries are historical.
+
 > Current October 15 proposal: read-only pinned-runtime review identifies a
 > pool-channel teardown ordering issue. A bounded post-terminal idle retirement
 > request plus positive empty-registry observation is proposed as a hypothesis,
