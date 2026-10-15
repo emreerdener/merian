@@ -1,3 +1,21 @@
+## October 15, 2026 — NCO-1 native agreement; P1 execution awaits approval
+
+The authorized two-hour local agreement scope after `600b5ce28` prepares P1-L1:
+freeze V58, add four standalone V59 ownership entities, retain exact original
+bytes before draft release, and bind capture/cleanup to account-work leases and
+fail-closed purge. The canonical NCO-1 packet records the concrete file boundary
+and acceptance plan. Exact independent/IC-1 review is required for closure; its
+evidence is retained with this candidate. The next request is one four-hour
+local implementation/validation window, including up to 2 GiB new native test
+evidence under the existing managed-build procedure. It is not authorized yet.
+Qualification excludes competing non-P1 allocators; installed mixed-allocator
+and integrated product gates remain open. No tests, builds, runtime edits or
+hosted actions occurred. No transport rerun is justified. Activation disabled,
+ordinary access nil, AWS unapproved, existing limits unchanged, auto-prompts
+paused. Canonical packet:
+`docs/rfcs/client-prepared-media-native-ownership-agreement-2026-10-15.md`.
+Earlier entries remain historical and exactly recoverable.
+
 ## October 15, 2026 — CP-1 reviewed source boundary; native ownership agreement required
 
 CP-1 preparation was authorized after `cae2329a1`. Its twelve-file source review
