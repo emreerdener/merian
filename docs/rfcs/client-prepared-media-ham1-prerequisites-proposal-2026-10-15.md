@@ -1,3 +1,15 @@
+## October 15, 2026 — MR-1 completed: measurement method unavailable
+
+The user approved MR-1 at `147021f2d`. Bounded documentation/source review
+established no qualifying native-inclusive peak and request-attributed CPU
+mechanism. Gate M remains `hosted_resource_method_unavailable`; Gate R remains
+`resource_target_decision_pending`. Stage 2 was skipped: no account queries or
+events, tests, invocations, uploads, secrets or deployment. Independent/IC-1
+result review is recorded in the result evidence; no further campaign follows.
+Activation disabled, AWS/160 MiB unapproved, limits unchanged, auto-prompts
+paused. Result: `docs/rfcs/client-prepared-media-mr1-result-2026-10-15.md`.
+Earlier proposal/status text below is historical and exactly recoverable.
+
 # MR-1: bounded HAM-1 measurement and resource-target resolution
 
 October 15, 2026. **HAM-1 adopted as method only; MR-1 proposed, not approved.**
