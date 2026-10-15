@@ -1,3 +1,17 @@
+> Current October 15 GAC-1 local result: the loader fix and validation passed;
+> one offline package, denial control and 20-read serial campaign completed. All
+> 20 media reads verified and closed on one worker; teardown/removal passed.
+> GAC-1 passed with case-4 warning retained. Peak partial proxy: 38.796025 MiB;
+> cross-cohort Q increase: 7.8125 MiB, close to the unchanged 8 MiB gate. This
+> closes only the finite local checkpoint, not hosted, whole-worker/native/CPU
+> or product acceptance. Exact result and limits:
+> docs/rfcs/client-prepared-media-gac1-local-result-2026-10-15.md. Activation
+> disabled, AWS/160 MiB unapproved, all other limits unchanged, auto-prompts
+> paused. The single package/control/campaign allowances are consumed. Earlier
+> entries below are historical and remain exactly recoverable.
+
+---
+
 # GAC-1 type-check pass, loader lint stop and correction proposal
 
 October 15, 2026. The approved continuation began at 19:18:15 UTC with a
