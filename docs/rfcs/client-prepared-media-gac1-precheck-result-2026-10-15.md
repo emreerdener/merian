@@ -1,3 +1,15 @@
+> Current October 15 GAC-1 continuation result: the corrected explicit-file type
+> gate passed, reusing 54 unchanged passing tests. Staged/main lint then found
+> unsafe throws in both local bundle loaders; the first-failure stop closed this
+> window before packaging, control or campaign. The concrete cleanup-error
+> preservation proposal requires a new implementation decision:
+> docs/rfcs/client-prepared-media-gac1-loader-lint-result-2026-10-15.md.
+> Activation disabled, AWS/160 MiB unapproved, all other limits unchanged,
+> auto-prompts paused. Product/native/integrated gates remain open. Entries
+> below are historical; their exact source bytes remain recoverable.
+
+---
+
 # GAC-1 local precheck stop and command correction proposal
 
 October 15, 2026. The approved fresh local window began at 18:38:33 UTC, with an
