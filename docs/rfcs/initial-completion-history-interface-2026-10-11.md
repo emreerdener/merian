@@ -1,3 +1,26 @@
+> Current October 15 result: the denial control passed; the four-read prefix
+> stopped at the unchanged 8 MiB growth gate (10.278900 MiB increase). All four
+> media bodies closed; teardown and removal passed. Original-call bins localized
+> rises/falls within verified reading/hashing; stopped case4 remains
+> unclassified. No leak/GC/idle conclusion or qualification pass. Both
+> allowances consumed, no retry. Canonical result:
+> docs/rfcs/client-prepared-media-memory-bins-result-2026-10-15.md. Activation
+> disabled, AWS/160 MiB unapproved, all limits unchanged, auto-prompts paused.
+> Product/native/integrated gates and follow-up order remain open. Earlier
+> entries below are historical; no hosted or credential action occurred.
+
+---
+
+> Current October 15 approved scope: local fixed-bin diagnostics in the fresh
+> 16:37:22–18:37:22 UTC window. No new memory call or timer; unchanged gates and
+> limits. One denial control and conditional four-read prefix each require exact
+> independent/IC-1 concurrence; current candidate is not yet execution-approved.
+> Scope and evidence: .artifacts/client-prepared-media/memory-bins/scope.md.
+> Activation disabled, AWS/160 MiB unapproved, auto-prompts paused. Prior
+> results remain historical; product/native/integrated acceptance and follow-up
+> order remain open. No hosted, credential, deployment, push, merge or device
+> action.
+
 # Initial completion and history interface
 
 > Current October 15 memory review: retained data shows phase-varying external
