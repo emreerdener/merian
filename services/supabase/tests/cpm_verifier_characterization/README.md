@@ -1,3 +1,12 @@
+> October 15: the explicit local serial GAC-1 candidate uses version-2
+> acknowledgments with `growth: {contract, warning, decision}`. The default
+> handler, runtime entrypoint and existing version-1 driver retain their prior
+> behavior. `gac1.ts` owns the new comparisons; controlled-driver and Python
+> assessors independently recompute them. No public API or generated DTO
+> changes.
+> [Adoption and pending execution scope](../../../../docs/rfcs/client-prepared-media-gac1-implementation-2026-10-15.md)
+> is the current authority; no tests or runtime qualification have run.
+
 # CPM representative verifier: local qualification candidate
 
 Current October 14 follow-up: [runtime packaging](runtime/README.md) adds a

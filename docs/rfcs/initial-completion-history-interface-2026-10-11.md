@@ -1,3 +1,16 @@
+> Current October 15 GAC-1 adoption: the user approved the revised local
+> acceptance contract and bounded implementation preparation. Exact independent
+> and IC-1 source review is required; no tests, packaging, control or campaign
+> execution is authorized yet. Canonical adoption and execution proposal:
+> docs/rfcs/client-prepared-media-gac1-implementation-2026-10-15.md. The old
+> four-point stop becomes a reported warning only for the explicit GAC-1
+> candidate; the 8 MiB comparison tolerance and other limits stay fixed. Prior
+> failures retain their original classifications. Activation disabled, AWS/160
+> MiB unapproved, auto-prompts paused. Product/native/integrated gates and
+> follow-up sequencing remain open. All entries below are historical.
+
+---
+
 > Current October 15 result: the denial control passed; the four-read prefix
 > stopped at the unchanged 8 MiB growth gate (10.278900 MiB increase). All four
 > media bodies closed; teardown and removal passed. Original-call bins localized

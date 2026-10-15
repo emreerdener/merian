@@ -20,7 +20,7 @@ export interface RuntimePorts {
   clock?: Clock;
 }
 /** Called exactly once by entrypoint.ts; ports permit network-denied tests. */
-export function createWorker(ports: RuntimePorts) {
+export function createWorker(ports: RuntimePorts, growthContract?: "GAC-1") {
   const clock = ports.clock ?? systemClock;
   const config = readConfig(ports.env, clock.wall());
   const worker = `w-${ports.uuid()}`;
@@ -40,6 +40,7 @@ export function createWorker(ports: RuntimePorts) {
     operator: OPERATOR_ALIAS,
     capability: config.capability,
     expiresAt: config.expiresAt,
+    growthContract,
   }, {
     clock,
     memory: measure,

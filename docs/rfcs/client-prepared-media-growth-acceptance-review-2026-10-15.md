@@ -1,3 +1,8 @@
+> October 15 adoption: the user approved GAC-1 and bounded local implementation
+> preparation. The proposal below is preserved as reviewed history. See the
+> [current adoption and execution scope](client-prepared-media-gac1-implementation-2026-10-15.md).
+> No execution is authorized; other limits and disabled activation remain.
+
 # GAC-1: proposed verifier growth acceptance contract
 
 October 15, 2026. **Review proposal only; not adopted.** No tests, runtime/code

@@ -350,6 +350,9 @@ Deno.test("packaged entrypoint registers once and reuses one module handler with
     assertEquals(one.outcome, "verified");
     assertEquals(two.outcome, "verified");
     assertEquals(one.worker, two.worker);
+    assertEquals(one.version, 1);
+    assertEquals(two.version, 1);
+    assertEquals("growth" in one || "growth" in two, false);
   } finally {
     Object.defineProperty(Deno.env, "get", {
       configurable: true,

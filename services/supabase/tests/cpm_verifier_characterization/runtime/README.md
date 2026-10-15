@@ -1,3 +1,10 @@
+> October 15: GAC-1 is adopted for the separately prepared local serial
+> candidate only. No tests, packaging or execution yet. The default runtime
+> entrypoint retains version 1 and the original growth veto; only the isolated
+> GAC-1 entry explicitly opts in. Current authority:
+> [adoption and execution scope](../../../../../docs/rfcs/client-prepared-media-gac1-implementation-2026-10-15.md).
+> Prior entries below retain their historical evidence and restrictions.
+
 > Current October 15 result: the denial control passed; the four-read prefix
 > stopped at the unchanged 8 MiB growth gate (10.278900 MiB increase). All four
 > media bodies closed; teardown and removal passed. Original-call bins localized

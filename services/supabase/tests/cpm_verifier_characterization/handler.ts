@@ -14,6 +14,7 @@ import {
   LIMITS,
   validAlias,
 } from "./policy.ts";
+import { GAC1, type GrowthAck } from "./gac1.ts";
 import { Growth, Samples } from "./telemetry.ts";
 import { verify, type VerifyDeps } from "./verifier.ts";
 export interface RunConfig {
@@ -22,13 +23,16 @@ export interface RunConfig {
   operator: string;
   capability: string;
   expiresAt: number;
+  /** Explicit local serial qualification only; absent retains legacy behavior. */
+  growthContract?: "GAC-1";
 }
 export interface HandlerDeps extends VerifyDeps {
   /** Trusted verification seam: never accepts an unverified caller-supplied subject. */
   authenticate(bearer: string, signal: AbortSignal): Promise<string | null>;
 }
 export interface Ack {
-  version: 1;
+  version: 1 | 2;
+  growth?: GrowthAck;
   run: string;
   case: number;
   fixture: FixtureID;
@@ -53,7 +57,8 @@ export function createHandler(config: RunConfig, deps: HandlerDeps) {
   ) throw Error("config");
   const frozen = Object.freeze({ ...config }),
     seen = new Set<number>(),
-    growth = new Growth();
+    growth = new Growth(),
+    gac = config.growthContract === "GAC-1" ? new GAC1() : null;
   let busy = false, halted = false;
   const live = new Map<AbortController, () => void>();
   const stop = () => {
@@ -173,13 +178,17 @@ export function createHandler(config: RunConfig, deps: HandlerDeps) {
             stop();
             return reject(409, "qualification_stopped");
           }
+          if (gac && item.id !== 26 && !gac.accepts(item.id)) {
+            stop();
+            return reject(409, "gac_sequence");
+          }
           if (seen.has(item.id)) {
             stop();
             return reject(409, "duplicate_case");
           }
           seen.add(item.id);
           const ack: Ack = {
-            version: 1,
+            version: gac ? 2 : 1,
             run: frozen.run,
             case: item.id,
             fixture: item.fixture,
@@ -212,7 +221,7 @@ export function createHandler(config: RunConfig, deps: HandlerDeps) {
             if (result.closed) busy = false;
             if (
               !result.ok || result.quiescent === null ||
-              growth.add(result.quiescent)
+              (!gac && growth.add(result.quiescent))
             ) {
               stop();
               ack.outcome = "stopped";
@@ -222,6 +231,22 @@ export function createHandler(config: RunConfig, deps: HandlerDeps) {
           if (expired()) {
             stop();
             ack.outcome = "stopped";
+          }
+          if (gac && ack.outcome === "verified" && ack.quiescent !== null) {
+            try {
+              ack.growth = gac.add(
+                item.id,
+                ack.quiescent,
+                sample.summary.proxy,
+              );
+              if (!["pending", "pass"].includes(ack.growth.decision)) {
+                stop();
+                ack.outcome = "stopped";
+              }
+            } catch {
+              stop();
+              ack.outcome = "stopped";
+            }
           }
           ack.elapsedMs = Math.max(0, deps.clock.now() - start);
           timer();

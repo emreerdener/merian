@@ -214,6 +214,8 @@ Deno.test("quiescent growth is ordered per simulated worker and halts on fourth 
     value = m * MiB;
     const ack = await (await a.handle(requestFor(cfg.run, i + 1, CAPABILITY)))
       .json();
+    assertEquals(ack.version, 1);
+    assertEquals("growth" in ack, false);
     assertEquals(ack.outcome, i === 3 ? "stopped" : "verified");
   }
   assertEquals(
