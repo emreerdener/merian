@@ -1,5 +1,16 @@
 # Initial completion and history interface
 
+> Current October 15: the approved first shutdown control reproduced both
+> runtime errors and exit 1; EOF and external cleanup are confirmed. Python
+> 3.9.6/macOS clock origins invalidate cross-process ordering and transferred
+> absolute-deadline qualification. Independent and IC-1 review concur with
+> stopping; the second control and campaign remain unused. See the
+> [clock finding and bounded next-method recommendation](client-prepared-media-shutdown-clock-finding-2026-10-15.md).
+> No runtime change or further execution follows without explicit amendment and
+> exact review. Activation disabled, AWS/160 MiB unapproved, all limits
+> unchanged, auto-prompts paused. Earlier status text is historical; product
+> gates remain open.
+
 > Current October 14: the approved request-boundary campaign completed all 20
 > media reads on one worker in 682.342 seconds, but failed runtime shutdown
 > qualification after a worker-pool shutdown error (exit 1). External container
