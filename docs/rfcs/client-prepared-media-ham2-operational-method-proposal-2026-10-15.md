@@ -1,3 +1,13 @@
+> October 15, 2026: the user adopted HAM-2 **as method only** at `4598debc1`,
+> reviewed set
+> `b1ed0c631548d9bbc183cbb487a418c2bdaf22113323e44093f040bda1a094e5`. No tests
+> or implementation follow. The candidate delta finds no new hosted transport
+> test justified. The next proposal targets original-photo retention and
+> identification-history completion:
+> [CP-1 candidate preparation](client-prepared-media-ham2-candidate-preparation-2026-10-15.md).
+> The proposal below remains the adopted method text; its prior pending-adoption
+> wording is historical. Activation disabled, AWS unapproved, limits unchanged.
+
 # HAM-2: bounded operational acceptance with explicit measurement gaps
 
 October 15, 2026. **Proposal for approval; not adopted or executable.** Prepared
