@@ -1,5 +1,15 @@
 # Initial completion and history interface
 
+> Current October 15 proposal: read-only pinned-runtime review identifies a
+> pool-channel teardown ordering issue. A bounded post-terminal idle retirement
+> request plus positive empty-registry observation is proposed as a hypothesis,
+> preserving zero grace and every existing limit. See the
+> [retirement proposal](client-prepared-media-pool-retirement-proposal-2026-10-15.md).
+> Proposal review does not authorize construction or another run; human approval
+> and exact independent/IC-1 executable concurrence remain required. Prior
+> lifecycle failure stands. Activation disabled, AWS/160 MiB unapproved,
+> auto-prompts paused; earlier status notes are historical.
+
 > Current October 15 result: shared-clock qualification and the independent
 > stalled-parent watchdog passed. Replacement baseline reproduced the original
 > failure; proposed listener retention still produced the pool shutdown-send
