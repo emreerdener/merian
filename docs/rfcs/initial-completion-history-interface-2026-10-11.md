@@ -1,3 +1,17 @@
+## October 15, 2026 — CP-1 reviewed source boundary; native ownership agreement required
+
+CP-1 preparation was authorized after `cae2329a1`. Its twelve-file source review
+finds that original-photo retention needs durable draft/package ownership,
+separate from ordinary queue funding and dispatch. Proposed P1-L1 typed native
+ledger and the exact schema/capture/cleanup handoff remain unadopted;
+implementation is not ready. Next proposed scope is at most two hours to close
+those two named agreements and return the exact four-hour P1 packet. No tests,
+builds, runtime changes or hosted actions occurred. No new transport test is
+justified. Activation disabled, AWS unapproved, limits unchanged, auto-prompts
+paused. Current result:
+`docs/rfcs/client-prepared-media-original-photo-cp1-result-2026-10-15.md`.
+Earlier entries remain historical and exactly recoverable.
+
 > Current October 15 GAC-1 local result: the loader fix and validation passed;
 > one offline package, denial control and 20-read serial campaign completed. All
 > 20 media reads verified and closed on one worker; teardown/removal passed.
