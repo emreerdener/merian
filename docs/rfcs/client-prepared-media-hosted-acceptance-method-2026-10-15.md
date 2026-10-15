@@ -1,3 +1,17 @@
+## October 15, 2026 — HAM-2 proposed: limited operational verdict
+
+HAM-2 is proposed, not adopted. It would permit a separately approved changed
+candidate's finite serial operational qualification with native peak and request
+CPU explicitly unmeasured. All numerical limits remain unchanged. HAM-1 resource
+Gate M remains unavailable and Gate R pending; no production, warm/concurrent or
+complete-verifier acceptance follows. No test is justified for unchanged
+transport merely to relabel it. Proposal:
+`docs/rfcs/client-prepared-media-ham2-operational-method-proposal-2026-10-15.md`.
+Independent/IC-1 review is retained in the proposal evidence. No tests,
+implementation, hosted actions or activation authorized. AWS unapproved;
+auto-prompts paused. Earlier status/evidence below is historical and
+recoverable.
+
 > October 15, 2026: the user adopted HAM-1 **as the method only** at checkpoint
 > `f4226a92b`. The reviewed proposal below is preserved as history. Measurement
 > and resource-target prerequisites remain unresolved; no tests, implementation
