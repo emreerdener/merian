@@ -20,8 +20,8 @@ final class PhotoOriginalPreparationOwner {
     private var awaitActive: (() async -> Void)?
     private var pauseFailed = false
 
-    private init(container: ModelContainer, root: URL, account: AccountAccess) {
-        repository = PhotoPreparationRepository(container: container)
+    private init(container: ModelContainer, root: URL, account: AccountAccess) throws {
+        repository = try PhotoPreparationRepository(container: container)
         files = PhotoPreparationFileStore(root: root)
         self.account = account
     }
@@ -34,7 +34,7 @@ final class PhotoOriginalPreparationOwner {
               root.standardizedFileURL != URL.documentsDirectory.standardizedFileURL else {
             throw PhotoPreparationFailure.unsupportedComposition
         }
-        return PhotoOriginalPreparationOwner(container: container, root: root, account: account)
+        return try PhotoOriginalPreparationOwner(container: container, root: root, account: account)
     }
 
     static func syntheticAccount(ownerID: UUID, runtime: AuthRuntimeState) -> AccountAccess {

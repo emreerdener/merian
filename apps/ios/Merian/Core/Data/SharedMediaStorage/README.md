@@ -1,4 +1,57 @@
-# Inactive shared media storage foundation
+# Inactive shared media storage
+
+`SharedMediaPhotoAcquisitionOwner` is the isolated P1 adapter. It opens a
+distinct `p1Qualification` inventory with sibling database, authority and photo
+roots, outside live Documents. First binding requires empty P1 rows and
+namespace; reopen validates exact paired rows and markers. No automatic adoption
+or mode promotion exists. Ordinary capture and AppDI remain disconnected.
+
+The lock order is the SQLite parent's `.merian-media-fence` control file, parent
+directory, authority, P1 root and P1 namespace, held for the adapter lifetime.
+Standalone persistent P1 owners hold the control file shared and deny any shared
+ledger, including when given another media root. The zero-byte regular fence is
+opened without following links, has exactly one link, and is never removed,
+replaced or upgraded. Every opener synchronizes the file and parent, including
+after EEXIST, and revalidates both identities before admission. Held/named
+identities and size are rechecked before mutations; a mismatch permanently
+invalidates that owner. All shared-storage modes hold this fence exclusively.
+Thus standalone purge can upgrade its separate media-root lock even when photos
+and SQLite share a parent, without releasing allocator exclusion. This
+coordinates participating owners; arbitrary external filesystem mutation is not
+supported. A create-only P1-root binding blocks another database's standalone
+owner after adapter closure. Partial initialization stays closed. File work uses
+the already held descriptors on a dedicated actor; it does not reacquire locks
+from a lower-ranked namespace.
+
+A single fresh non-autosaving context commits the P1 reservation and shared
+allocation/lease together before loading bytes. A verified namespace-owner proof
+then permits one joint asset/reference and measured-allocation completion save.
+Lost save acknowledgements require fresh exact readback. The provider is never
+replayed; restart may restore only committed handles. `p1Reserved` and `p1Held`
+retain their maximum and fixed partial/final destinations; `p1Materialized`
+retains actual bytes and the exact original reference. Missing or changed files
+block use, preserving the ledger and sole original.
+
+The allocation ID is the deliberate P1 asset UUID. The paired shared lease uses
+the P1 lease UUID, asset UUID, process epoch and fixed `p1AcquireV1` purpose.
+Shared reference IDs and owner IDs identify the exact P1 reference and revision.
+Every transaction validates both directions. One physical allocation counts once
+against filesystem availability and durable limits; the P1 lease contributes the
+same ceiling logically to acquisition/temporary budgets, and the encoded empty
+P1 envelope contributes once per package. No schema field or numeric limit
+changes.
+
+The adapter exposes no source handoff, metadata editing, derivatives, sharing,
+freeze, deletion, physical release, transport or AI admission. Generic L1
+mutation APIs reject adapter mode, and any shared row still blocks ordinary
+library purge. These local mechanisms do not qualify mixed production
+allocators.
+
+## Original L1 foundation
+
+The following foundation behavior remains applicable to observation and
+synthetic qualification modes. These modes have no file writer and cannot be
+promoted to the adapter mode.
 
 `SharedMediaStorageRepository` is the sole writer of four scalar V60 ledger
 entities. It has no AppDI composition, ordinary Capture access, file writer,

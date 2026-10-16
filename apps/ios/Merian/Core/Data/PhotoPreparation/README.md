@@ -1,3 +1,20 @@
+## Isolated shared-storage integration
+
+`SharedMediaPhotoAcquisitionOwner` uses P1's original-byte validation and writer
+with joint P1/shared transactions in the existing V60 schema. Its dedicated
+fixture has exclusive store, authority and media fences. Standalone persistent
+P1 construction now takes a shared lifetime lock on the zero-byte
+`.merian-media-fence` file in the SQLite parent before media locks and rejects
+shared-ledger rows; the root marker also rejects standalone file access before
+namespace creation. Unbound standalone qualification remains available.
+
+The adapter supports acquisition and exact committed-original reads/recovery
+only. A failed or uncertain operation never repeats the provider. Partial/final
+files and maximum liabilities remain held until a later explicit reconciliation
+protocol. Source import, derivatives, metadata editing, freeze, sharing and
+cleanup remain unavailable in bound fixtures. Ordinary capture still has nil
+access. See the [shared owner](../SharedMediaStorage/README.md).
+
 # Inactive local photo preparation
 
 P1-L1 owns exact delivered still-photo bytes and separate AI/display assets in a

@@ -1,3 +1,51 @@
+## October 16 — isolated P1/shared-storage adapter locally validated
+
+The local adapter adds `SharedMediaPhotoAcquisitionOwner` for exact
+original-byte acquisition in a dedicated persistent fixture. It uses one joint
+P1/shared save before the provider and one joint completion save. Exact readback
+resolves lost acknowledgements without another provider invocation. A pending or
+interrupted write retains its maximum reservation and fixed destinations; only
+jointly committed handles can be recovered. Missing or changed originals block
+use without replacement or regeneration.
+
+Standalone P1 repositories hold a shared lifetime lock on the zero-byte
+`.merian-media-fence` control file in the SQLite parent and reject shared ledger
+rows. Every shared-storage mode takes that fence exclusively before the existing
+parent-directory, authority and P1 locks. The fence is never removed or
+upgraded; its held/named identity, zero length and single link are revalidated.
+This keeps co-located standalone purge compatible without opening an
+allocator-admission gap. It excludes participating owners, not arbitrary
+external filesystem mutation; replacement invalidates the owner without repair.
+A persistent P1-root marker also excludes standalone access through another
+database after the adapter closes. First binding accepts only empty P1 rows and
+namespace. Existing unbound P1 fixtures keep their behavior.
+
+One physical destination contributes once to filesystem reservation and to the
+durable budget. Its paired P1 lease also contributes to acquisition/temporary
+budgets; each package's bounded empty envelope contributes once to logical
+durable totals. Limits and V60 fields are unchanged. No source/inbox handoff,
+derivatives, freeze, sharing, deletion, physical release, ordinary capture,
+network or AI admission is enabled. Generic L1 mutations reject adapter mode.
+
+Exact candidate05 passed all four focused suites (52 tests) and the complete
+`merianTests` target (5,995 XCResult cases; 4,537 Swift Testing tests across 667
+suites), with zero failures or skips. Independent and IC-1 source review
+preceded execution. Project generation/membership, migration guardrails and
+Markdown checks passed. The retained candidate02 compilation failure and
+candidate03 legacy-purge failure led to the reviewed corrections; they are not
+erased or counted as passes. Candidate04 was held at review for an EEXIST
+durability race; candidate05 closes it with unconditional file/parent
+synchronization and identity revalidation before admission.
+
+Evidence is under `.artifacts/shared-media-p1-adapter-20261016/`. The native
+gate ran in the shared checkout with 102 unrelated paths preserved; this is
+local checkpoint validation, not isolated-source, device, hosted or
+whole-product acceptance. Next is a separately reviewed source-owner/inbox
+handoff and cleanup increment; no live producer, derivative or release authority
+is inferred. PR116 remains frozen, activation disabled, Supabase hold active and
+AWS unapproved. The L1 validation record below remains historical evidence for
+that earlier scope.
+
 ## October 16 — inactive SMA-1 L1 foundation locally validated
 
 The local implementation freezes V59 and adds four scalar V60 storage entities,

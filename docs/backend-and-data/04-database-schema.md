@@ -5601,8 +5601,12 @@ inactive repository requires explicit qualification roots and persists
 root/store binding, generation/revision, reservations and logical holds. Legacy
 observations never grant completeness, admission or deletion authority. Any new
 row blocks identity replacement and library purge before existing callbacks;
-only future reviewed owner adapters can release that barrier. No live producer
-uses the new allocator. See the
+only future reviewed owner adapters can release that barrier. The isolated
+`p1Qualification` adapter uses existing fields for joint P1/shared reservation
+and completion, with explicit asset/reference/lease identities and held
+interruption states. Its logical acquisition and metadata budgets do not add a
+second physical-file reservation. It exposes no deletion or barrier release. No
+live producer uses the new allocator. See the
 [owner README](../../apps/ios/Merian/Core/Data/SharedMediaStorage/README.md).
 
 V59 adds `PhotoPreparationRecord`, `PhotoPreparationAsset`,

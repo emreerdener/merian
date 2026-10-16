@@ -31,14 +31,25 @@ enum SharedMediaStoragePolicy {
                 return // Occupied bytes already reduce the filesystem's available space.
             }
             guard let package = charge.packageID else { throw SharedMediaStorageFailure.invalid }
-            if charge.pool == .preparation || charge.pool == .transfer {
-                guard exclusivePackages[charge.pool].map({ $0 == package }) ?? true else { throw SharedMediaStorageFailure.capacity }
-                exclusivePackages[charge.pool] = package
+            try includeBudget(package: package, pool: charge.pool, bytes: bytes, unmaterialized: charge.reserved)
+        }
+
+        /// Logical overlap (P1 acquisition and metadata), not a second file or reservation.
+        mutating func includeLogical(package: UUID, pool: SharedMediaStoragePool, bytes: Int64) throws {
+            guard pool == .durable || pool == .acquisition else { throw SharedMediaStorageFailure.invalid }
+            try includeBudget(package: package, pool: pool, bytes: bytes, unmaterialized: 0)
+        }
+
+        private mutating func includeBudget(package: UUID, pool: SharedMediaStoragePool, bytes: Int64, unmaterialized: Int64) throws {
+            guard bytes >= 0, unmaterialized >= 0 else { throw SharedMediaStorageFailure.invalid }
+            if pool == .preparation || pool == .transfer {
+                guard exclusivePackages[pool].map({ $0 == package }) ?? true else { throw SharedMediaStorageFailure.capacity }
+                exclusivePackages[pool] = package
             }
-            outstanding = try SharedMediaStoragePolicy.add(outstanding, charge.reserved)
-            pools[charge.pool] = try SharedMediaStoragePolicy.add(pools[charge.pool, default: 0], bytes)
+            outstanding = try SharedMediaStoragePolicy.add(outstanding, unmaterialized)
+            pools[pool] = try SharedMediaStoragePolicy.add(pools[pool, default: 0], bytes)
             // Temporary copies belong to a package but are outside its durable envelope.
-            packages[package] = try SharedMediaStoragePolicy.add(packages[package, default: 0], charge.pool == .durable ? bytes : 0)
+            packages[package] = try SharedMediaStoragePolicy.add(packages[package, default: 0], pool == .durable ? bytes : 0)
             guard packages.count <= PhotoPreparationPolicy.maximumPackages,
                   packages[package, default: 0] <= PhotoPreparationPolicy.package,
                   pools[.durable, default: 0] <= PhotoPreparationPolicy.durable,

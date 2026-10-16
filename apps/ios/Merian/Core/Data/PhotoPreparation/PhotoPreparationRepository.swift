@@ -6,7 +6,15 @@ import SwiftData
 @MainActor
 final class PhotoPreparationRepository {
     let container: ModelContainer
-    init(container: ModelContainer) { self.container = container }
+    private let storeFence: SharedMediaStoreReadFence?
+    init(container: ModelContainer) throws {
+        guard container.configurations.count == 1, let configuration = container.configurations.first else {
+            throw PhotoPreparationFailure.unsupportedComposition
+        }
+        self.container = container
+        storeFence = try configuration.isStoredInMemoryOnly ? nil : SharedMediaStoreReadFence(store: configuration.url)
+        _ = try state()
+    }
 
     private struct State {
         let context: ModelContext
@@ -17,8 +25,16 @@ final class PhotoPreparationRepository {
     }
 
     private func state() throws -> State {
+        try storeFence?.check()
         let context = ModelContext(container)
         context.autosaveEnabled = false
+        guard try !SharedMediaStorageRepository.hasLiabilities(in: context) else {
+            throw PhotoPreparationFailure.unsupportedComposition
+        }
+        return try Self.state(in: context)
+    }
+
+    private static func state(in context: ModelContext) throws -> State {
         guard try context.fetchCount(FetchDescriptor<PhotoPreparationRecord>()) <= 4,
               try context.fetchCount(FetchDescriptor<PhotoPreparationAsset>()) <= 96,
               try context.fetchCount(FetchDescriptor<PhotoPreparationReference>()) <= 128,
@@ -94,6 +110,16 @@ final class PhotoPreparationRepository {
 
     func reserve(_ intent: PhotoPreparationIntent) throws {
         let s = try state()
+        try Self.reserve(intent, context: s.context)
+        try s.context.save()
+    }
+
+    static func reserve(_ intent: PhotoPreparationIntent, joint: SharedMediaPhotoTransaction) throws {
+        try reserve(intent, context: joint.context)
+    }
+
+    private static func reserve(_ intent: PhotoPreparationIntent, context: ModelContext) throws {
+        let s = try state(in: context)
         guard s.leases.allSatisfy({ $0.writerStateRaw == "closedSourceRetained" }) else { throw PhotoPreparationFailure.cleanupPending }
         guard (intent.sourceByteLiability == 0 && intent.sourceIdentity == nil)
             || (intent.sourceByteLiability > 0 && intent.sourceIdentity != nil
@@ -153,11 +179,23 @@ final class PhotoPreparationRepository {
             purposeRaw: "acquire", partialFileToken: intent.fileToken + ".partial", finalFileToken: intent.fileToken,
             reservedByteCount: intent.maximumBytes, allocatedByteCount: intent.sourceByteLiability, writerStateRaw: "open", terminalProof: nil, sourceIdentity: intent.sourceIdentity)
         s.context.insert(lease)
-        try s.context.save()
     }
 
     func commit(_ intent: PhotoPreparationIntent, file: PhotoPreparationFile) throws -> PhotoOriginalReference {
         let s = try state()
+        let result = try Self.commit(intent, file: file, context: s.context)
+        try s.context.save()
+        return result
+    }
+
+    static func commit(_ intent: PhotoPreparationIntent, file: PhotoPreparationFile,
+                       joint: SharedMediaPhotoTransaction) throws -> PhotoOriginalReference {
+        try commit(intent, file: file, context: joint.context)
+    }
+
+    private static func commit(_ intent: PhotoPreparationIntent, file: PhotoPreparationFile,
+                               context: ModelContext) throws -> PhotoOriginalReference {
+        let s = try state(in: context)
         guard let record = s.records.first(where: { $0.id == intent.packageID }),
               let lease = s.leases.first(where: { $0.id == intent.leaseID }),
               lease.ownerID == intent.ownerID, lease.assetID == file.assetID,
@@ -181,7 +219,6 @@ final class PhotoPreparationRepository {
             lease.writerStateRaw = "closedSourceRetained"
             lease.terminalProof = "destinationCommittedSourceStillOwned"
         } else { s.context.delete(lease) }
-        try s.context.save()
         return PhotoOriginalReference(ownerID: intent.ownerID, packageID: intent.packageID,
             referenceID: intent.referenceID, assetID: file.assetID, assetGeneration: file.generation,
             draftGeneration: intent.draftGeneration, referenceRevision: 0)

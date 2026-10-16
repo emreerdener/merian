@@ -5,6 +5,7 @@ import Foundation
 /// L1 owns its exclusive fixture lifetime, not the lifetime of legacy producers.
 @MainActor
 final class SharedMediaStorageFileOwner {
+    private let admissionFence: SharedMediaStoreReadFence
     private let root: URL
     private let sources: [String: URL]
     private var descriptor: Int32
@@ -34,6 +35,7 @@ final class SharedMediaStorageFileOwner {
             }
         }
         self.storeURL = storeURL
+        admissionFence = try SharedMediaStoreReadFence(store: storeURL, access: .sharedWriter)
         storeDirectoryURL = storeURL.deletingLastPathComponent()
         let parent = try Self.openDirectory(storeDirectoryURL)
         var retainedParent = false
@@ -75,6 +77,8 @@ final class SharedMediaStorageFileOwner {
     }
 
     func check() throws {
+        do { try admissionFence.check() }
+        catch { throw SharedMediaStorageFailure.conflict }
         let namedParentFD = try Self.openDirectory(storeDirectoryURL)
         defer { Darwin.close(namedParentFD) }
         var heldParent = stat(), namedParent = stat()
@@ -177,7 +181,7 @@ final class SharedMediaStorageFileOwner {
 
     private static func identity(_ value: stat) -> String { "\(value.st_dev):\(value.st_ino)" }
 
-    private static func openDirectory(_ url: URL) throws -> Int32 {
+    static func openDirectory(_ url: URL) throws -> Int32 {
         guard url.isFileURL, url.path.hasPrefix("/"), !url.pathComponents.contains("..") else {
             throw SharedMediaStorageFailure.invalid
         }

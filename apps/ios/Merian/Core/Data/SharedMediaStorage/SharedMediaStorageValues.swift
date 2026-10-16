@@ -4,7 +4,7 @@ enum SharedMediaStorageFailure: Error, Equatable {
     case unavailable, busy, invalid, conflict, stale, closed, capacity, inUse
 }
 
-enum SharedMediaStorageMode: String, Sendable { case observation, qualification }
+enum SharedMediaStorageMode: String, Sendable { case observation, qualification, p1Qualification }
 enum SharedMediaStoragePool: String, Sendable {
     case observed, durable, acquisition, preparation, transfer
 }

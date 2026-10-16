@@ -22,11 +22,19 @@ actor PhotoPreparationFileStore {
 /// Instances are usable only for the dynamic lifetime of `locked`.
 final class PhotoPreparationLockedFiles: @unchecked Sendable {
     private let rootURL: URL
+    private let sharedBinding: SharedMediaPhotoBinding?
+    private let inspection: PhotoPreparationDirectoryInspection
     private var rootFD: Int32 = -1
     private var namespaceFD: Int32 = -1
+    #if DEBUG
+    var sharedWriteFault: (@Sendable (Int) throws -> Void)?
+    #endif
 
-    init(root: URL) throws {
+    init(root: URL, sharedBinding: SharedMediaPhotoBinding? = nil,
+         inspection: PhotoPreparationDirectoryInspection = .init()) throws {
         rootURL = root
+        self.sharedBinding = sharedBinding
+        self.inspection = inspection
         guard root.isFileURL, root.path.hasPrefix("/") else { throw PhotoPreparationFailure.unavailable }
         var fd = Darwin.open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
         guard fd >= 0 else { throw PhotoPreparationFailure.unavailable }
@@ -38,7 +46,15 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
                 fd = next
             }
             rootFD = fd
-            guard flock(rootFD, LOCK_SH | LOCK_NB) == 0 else { throw PhotoPreparationFailure.busy }
+            guard flock(rootFD, (sharedBinding == nil ? LOCK_SH : LOCK_EX) | LOCK_NB) == 0 else { throw PhotoPreparationFailure.busy }
+            if sharedBinding?.initializing == true {
+                let existing = openat(rootFD, "PhotoPreparation", O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                if existing >= 0 {
+                    defer { Darwin.close(existing) }
+                    try requireEmpty(existing)
+                } else if errno != ENOENT { throw PhotoPreparationFailure.inconsistentOwnership }
+            }
+            try checkSharedBinding(initializing: sharedBinding?.initializing == true)
             if mkdirat(rootFD, "PhotoPreparation", 0o700) != 0 && errno != EEXIST {
                 throw PhotoPreparationFailure.unavailable
             }
@@ -55,12 +71,15 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
         }
     }
 
+    deinit { close() }
+
     func close() {
         if namespaceFD >= 0 { Darwin.close(namespaceFD); namespaceFD = -1 }
         if rootFD >= 0 { Darwin.close(rootFD); rootFD = -1 }
     }
 
     func checkIdentity() throws {
+        try checkSharedBinding(initializing: false)
         var heldRoot = stat(), namedRoot = stat()
         guard fstat(rootFD, &heldRoot) == 0, lstat(rootURL.path, &namedRoot) == 0,
               namedRoot.st_mode & S_IFMT == S_IFDIR,
@@ -73,6 +92,43 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
               fstatat(rootFD, "PhotoPreparation", &named, AT_SYMLINK_NOFOLLOW) == 0,
               held.st_dev == named.st_dev, held.st_ino == named.st_ino,
               named.st_mode & S_IFMT == S_IFDIR else { throw PhotoPreparationFailure.inconsistentOwnership }
+    }
+
+    /// Marker is checked from the locked descriptor before namespace creation.
+    private func checkSharedBinding(initializing: Bool) throws {
+        let name = "com.merian.p1-shared-v1"
+        let size = fgetxattr(rootFD, name, nil, 0, 0, 0)
+        guard let binding = sharedBinding else {
+            guard size < 0, errno == ENOATTR else { throw PhotoPreparationFailure.unsupportedComposition }
+            return
+        }
+        if size >= 0 {
+            guard !initializing, size == binding.bytes.count, size <= 512 else {
+                throw PhotoPreparationFailure.inconsistentOwnership
+            }
+            var bytes = [UInt8](repeating: 0, count: size)
+            let read = bytes.withUnsafeMutableBytes { fgetxattr(rootFD, name, $0.baseAddress, size, 0, 0) }
+            guard read == size, Data(bytes) == binding.bytes else { throw PhotoPreparationFailure.inconsistentOwnership }
+        } else {
+            guard initializing, errno == ENOATTR, binding.bytes.count <= 512 else {
+                throw PhotoPreparationFailure.inconsistentOwnership
+            }
+            let written = binding.bytes.withUnsafeBytes { fsetxattr(rootFD, name, $0.baseAddress, binding.bytes.count, 0, XATTR_CREATE) }
+            guard written == 0, fsync(rootFD) == 0 else { throw PhotoPreparationFailure.unavailable }
+        }
+    }
+
+    private func requireEmpty(_ fd: Int32) throws {
+        let copy = dup(fd)
+        guard copy >= 0 else { throw PhotoPreparationFailure.unavailable }
+        guard let directory = fdopendir(copy) else { Darwin.close(copy); throw PhotoPreparationFailure.unavailable }
+        defer { closedir(directory) }
+        while let entry = try inspection.next(stage: .initialEmpty, read: { readdir(directory) }) {
+            let name = withUnsafePointer(to: &entry.pointee.d_name) {
+                $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXNAMLEN) + 1) { String(cString: $0) }
+            }
+            guard name == "." || name == ".." else { throw PhotoPreparationFailure.inconsistentOwnership }
+        }
     }
 
     func checkFreeSpace() throws {
@@ -172,6 +228,9 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
                 }
                 hash.update(bufferPointer: UnsafeRawBufferPointer(start: address, count: length))
                 offset += length
+                #if DEBUG
+                try sharedWriteFault?(offset)
+                #endif
             }
         }
         guard fsync(fd) == 0 else { throw PhotoPreparationFailure.storageLimit }
@@ -184,7 +243,9 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
             sha256: hash.finalize().map { String(format: "%02x", $0) }.joined(), contentType: contentType)
     }
 
-    func verify(_ file: PhotoPreparationFile) throws {
+    func verify(_ file: PhotoPreparationFile) throws { _ = try verifiedIdentity(file) }
+
+    func verifiedIdentity(_ file: PhotoPreparationFile) throws -> String {
         let (directoryFD, name) = try directory(file.token, create: false)
         defer { Darwin.close(directoryFD) }
         let fd = openat(directoryFD, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
@@ -210,12 +271,21 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
               before.st_dev == after.st_dev, before.st_ino == after.st_ino,
               before.st_size == after.st_size, before.st_mtimespec.tv_sec == after.st_mtimespec.tv_sec,
               before.st_mtimespec.tv_nsec == after.st_mtimespec.tv_nsec,
+              before.st_ctimespec.tv_sec == after.st_ctimespec.tv_sec,
+              before.st_ctimespec.tv_nsec == after.st_ctimespec.tv_nsec,
+              after.st_nlink == 1,
               named.st_ino == after.st_ino, named.st_dev == after.st_dev,
               total == file.byteCount,
               hash.finalize().map({ String(format: "%02x", $0) }).joined() == file.sha256 else {
             throw PhotoPreparationFailure.inconsistentOwnership
         }
         try checkDirectoryIdentity(directoryFD, token: file.token)
+        return "\(after.st_dev):\(after.st_ino):\(after.st_size):\(after.st_mtimespec.tv_sec):\(after.st_mtimespec.tv_nsec):\(after.st_ctimespec.tv_sec):\(after.st_ctimespec.tv_nsec)"
+    }
+
+    func sharedProof(_ file: PhotoPreparationFile) throws -> SharedMediaPhotoFileProof {
+        guard let sharedBinding else { throw PhotoPreparationFailure.unsupportedComposition }
+        return try SharedMediaPhotoFileProof(file: file, identity: verifiedIdentity(file), binding: sharedBinding.bytes)
     }
 
     /// Borrowed only while this lock is held. Verify again after decoding before
@@ -274,7 +344,7 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
             // dup shares the directory offset with the held descriptor. Each
             // traversal must restart, including purge after inventory.
             rewinddir(stream)
-            while let entry = readdir(stream) {
+            while let entry = try inspection.next(stage: .inventory, read: { readdir(stream) }) {
                 let name = withUnsafePointer(to: &entry.pointee.d_name) {
                     $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXNAMLEN) + 1) { String(cString: $0) }
                 }
@@ -315,7 +385,7 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
             // traversal must restart, including purge after inventory.
             rewinddir(stream)
             var count = 0
-            while let entry = readdir(stream) {
+            while let entry = try inspection.next(stage: .inventory, read: { readdir(stream) }) {
                 let name = withUnsafePointer(to: &entry.pointee.d_name) {
                     $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXNAMLEN) + 1) { String(cString: $0) }
                 }
@@ -357,5 +427,40 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
             throw PhotoPreparationFailure.cleanupPending
         }
         try checkDirectoryIdentity(fd, token: token)
+    }
+}
+
+struct SharedMediaPhotoFileProof: Sendable {
+    let file: PhotoPreparationFile
+    let identity: String
+    let binding: Data
+    fileprivate init(file: PhotoPreparationFile, identity: String, binding: Data) {
+        self.file = file
+        self.identity = identity
+        self.binding = binding
+    }
+}
+
+enum PhotoPreparationInspectionStage: Sendable { case initialEmpty, inventory }
+
+/// POSIX EOF is distinct from enumeration failure. Error injection exists only
+/// in Debug and follows the same errno branch as a real filesystem failure.
+struct PhotoPreparationDirectoryInspection: Sendable {
+    #if DEBUG
+    private var failure: PhotoPreparationInspectionStage?
+    init(failing stage: PhotoPreparationInspectionStage) { failure = stage }
+    #endif
+    init() {}
+
+    func next(stage: PhotoPreparationInspectionStage, read: () -> UnsafeMutablePointer<dirent>?) throws -> UnsafeMutablePointer<dirent>? {
+        errno = 0
+        let entry: UnsafeMutablePointer<dirent>?
+        #if DEBUG
+        if failure == stage { errno = EIO; entry = nil } else { entry = read() }
+        #else
+        entry = read()
+        #endif
+        guard entry != nil || errno == 0 else { throw PhotoPreparationFailure.unavailable }
+        return entry
     }
 }
