@@ -1,3 +1,29 @@
+## October 16 — derivative schema prerequisite locally validated
+
+L5 uses the existing isolated inbox coordinator for paired AI-input/display
+ownership. V61 was frozen and compiled before adding V62's scalar pair/work
+entities. Migration adds empty tables without adopting files or replaying work;
+all retained inbox/handoff fields keep their meaning. Startup plans, purge
+barriers and schema inventories include both entities. Until the paired runtime
+is implemented and qualified, derivative rows block fresh qualification. This is
+a schema prerequisite, not derivative or whole-product acceptance.
+
+Independent and IC-1 reviews cleared schema candidate03. Its two affected suites
+passed all 82 tests, including persistent V61→V62 ownership preservation; the
+other six focused suites passed in focused02 and remain unchanged. The first
+compile failure and the four fixture failures in focused02 are retained with
+their reviewed corrections. XcodeGen/source membership, migration guard and its
+mutation regressions, startup selector, remaining iOS CI-tooling commands,
+project resources and Markdown checks passed.
+
+Evidence: `.artifacts/shared-media-derivatives-20261016/`; successful rerun
+`.artifacts/local-ios/257a242f02dd4d768aa20e10fe7027f2.xcresult`. This is scoped
+shared-checkout validation, not a new full-target or isolated-source pass. An
+unrelated Explore edit was observed and preserved; none of the unrelated work is
+included in this scope. Continue paired runtime implementation automatically.
+Numeric limits stay unchanged; activation is disabled, PR116 frozen, Supabase
+hold active and AWS unapproved.
+
 ## October 16 — joint inbox/P1 handoff locally validated
 
 The inactive joint handoff now uses one coordinator and fenced repository for

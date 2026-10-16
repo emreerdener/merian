@@ -1805,6 +1805,8 @@ struct MigrationPlanTests {
         let outgoing = Schema(CurrentSchema.models.filter {
             ObjectIdentifier($0) != ObjectIdentifier(SharedMediaInboxSourceRecord.self)
                 && ObjectIdentifier($0) != ObjectIdentifier(SharedMediaInboxHandoffRecord.self)
+                && ObjectIdentifier($0) != ObjectIdentifier(SharedMediaDerivativePairRecord.self)
+                && ObjectIdentifier($0) != ObjectIdentifier(SharedMediaDerivativeWorkRecord.self)
         })
         do {
             let container = try ModelContainer(for: outgoing, configurations: [ModelConfiguration(schema: outgoing, url: activeURL, cloudKitDatabase: .none)])
@@ -1833,28 +1835,158 @@ struct MigrationPlanTests {
         #expect(try context.fetchCount(FetchDescriptor<SharedMediaInboxHandoffRecord>()) == 0)
     }
 
-    @Test func allForwardPlansEndWithInboxOwnershipStage() throws {
+    @Test func v61FreezeMatchesOutgoingModelsAndMigrationPreservesOwnership() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("derivative-migration-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let frozenURL = root.appendingPathComponent("frozen.store"), activeURL = root.appendingPathComponent("active.store")
+        do {
+            let schema = Schema(versionedSchema: MerianSchemaV61.self)
+            let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: frozenURL, cloudKitDatabase: .none)])
+            let context = ModelContext(container)
+            let source = MerianSchemaV61.SharedMediaInboxSourceRecord(id: UUID(), inventoryID: UUID(), generation: UUID(), receivedAt: Date(timeIntervalSince1970: 123), rootIdentity: "fixture-root", maximumBytes: 32, workID: UUID(), writerEpoch: UUID())
+            source.id = UUID(uuidString: "5d5a6962-b215-20f2-6c0a-32c34d2212d1")!
+            source.inventoryID = UUID(uuidString: "cf7c9a71-e066-7202-8785-227bfcab577e")!
+            source.generation = UUID(uuidString: "595cc9dd-9969-5294-a911-ced3f0ee8404")!
+            source.revision = 25
+            source.receivedAt = Date(timeIntervalSince1970: 123)
+            source.partialToken = "fixture-partialToken"
+            source.finalToken = "fixture-finalToken"
+            source.rootIdentity = "fixture-rootIdentity"
+            source.maximumBytes = 29
+            source.byteCount = 26
+            source.sha256 = String(repeating: "a", count: 64)
+            source.contentType = "fixture-contentType"
+            source.partialDevice = 30
+            source.partialInode = 29
+            source.finalIdentity = "fixture-finalIdentity"
+            source.workID = UUID(uuidString: "b742e6b5-d995-57b9-c663-57c8cc5ddb87")!
+            source.writerEpoch = UUID(uuidString: "7aca73a2-210e-527c-0769-c52c5e467b43")!
+            source.writerStateRaw = "closed"
+            source.phaseRaw = "writing"
+            source.retirementID = UUID(uuidString: "090b2120-977f-8399-f9f2-9b09e2be659a")!
+            source.retirementPartialIdentity = "fixture-retirementPartialIdentity"
+            source.retirementFinalIdentity = "fixture-retirementFinalIdentity"
+            context.insert(source)
+            let handoff = MerianSchemaV61.SharedMediaInboxHandoffRecord(id: UUID(), nonce: UUID(), sourceID: UUID(), sourceGeneration: UUID(), sourceRevision: 1, inventoryGeneration: UUID(), expectedInventoryRevision: 2, ownerID: UUID(), packageID: UUID(), draftGeneration: UUID(), assetID: UUID(), assetGeneration: UUID(), referenceID: UUID(), leaseID: UUID(), sourceHoldID: UUID(), ordinal: 0, byteCount: 17, sha256: String(repeating: "a", count: 64), writerEpoch: UUID())
+            handoff.id = UUID(uuidString: "6176a785-0adb-56ca-b0bb-76d365d50d83")!
+            handoff.nonce = UUID(uuidString: "900c0c4c-525c-64d8-49c8-ac84f10531fb")!
+            handoff.sourceID = UUID(uuidString: "1b2982f7-de66-aecc-3ce5-f2dd6f8705f1")!
+            handoff.sourceGeneration = UUID(uuidString: "e4d2f1af-1cdd-2ff4-e533-95edb0c20431")!
+            handoff.sourceRevision = 31
+            handoff.inventoryGeneration = UUID(uuidString: "e1db827b-69e0-1bae-205c-9eb101a76aa6")!
+            handoff.expectedInventoryRevision = 42
+            handoff.ownerID = UUID(uuidString: "99ba94c2-8ca8-186b-bc0b-142ccbcc0fb6")!
+            handoff.packageID = UUID(uuidString: "211cdce1-6877-1d76-24f6-fcde62307734")!
+            handoff.draftGeneration = UUID(uuidString: "4ab68b97-1d84-6e80-3594-1d106b72d874")!
+            handoff.assetID = UUID(uuidString: "a0396425-d68b-8686-7d46-ef9583f08f4f")!
+            handoff.assetGeneration = UUID(uuidString: "7c04639d-615d-5ac9-de30-625f3e8cca08")!
+            handoff.referenceID = UUID(uuidString: "441a937b-fe8e-6510-35b2-01c825a2cc8a")!
+            handoff.leaseID = UUID(uuidString: "c8db64ae-b441-7343-f4cc-b3f7c905be4f")!
+            handoff.sourceHoldID = UUID(uuidString: "5f90f1d2-242c-f5b3-7d3f-0b5b1eb35eee")!
+            handoff.ordinal = 24
+            handoff.byteCount = 26
+            handoff.sha256 = String(repeating: "a", count: 64)
+            handoff.phaseRaw = "writing"
+            handoff.writerEpoch = UUID(uuidString: "12b20734-b039-c64a-172c-0629e033a585")!
+            handoff.writerStateRaw = "closed"
+            handoff.partialDevice = 30
+            handoff.partialInode = 29
+            handoff.finalIdentity = "fixture-finalIdentity"
+            context.insert(handoff)
+            try context.save()
+        }
+        let outgoing = Schema(CurrentSchema.models.filter {
+            ObjectIdentifier($0) != ObjectIdentifier(SharedMediaDerivativePairRecord.self)
+                && ObjectIdentifier($0) != ObjectIdentifier(SharedMediaDerivativeWorkRecord.self)
+        })
+        do {
+            let container = try ModelContainer(for: outgoing, configurations: [ModelConfiguration(schema: outgoing, url: activeURL, cloudKitDatabase: .none)])
+            try ModelContext(container).save()
+        }
+        let frozenMetadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(ofType: NSSQLiteStoreType, at: frozenURL)
+        let activeMetadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(ofType: NSSQLiteStoreType, at: activeURL)
+        #expect(try #require(frozenMetadata[NSStoreModelVersionHashesKey] as? [String: Data]) == #require(activeMetadata[NSStoreModelVersionHashesKey] as? [String: Data]))
+        #expect(ModelStoreRecoveryCoordinator.migrationDecision(at: frozenURL, currentSchemaMajor: 62).hint == .recentSource(.v61))
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        let migrated = try ModelContainer(for: schema, migrationPlan: MerianRecentV61MigrationPlan.self,
+            configurations: [ModelConfiguration(schema: schema, url: frozenURL, cloudKitDatabase: .none)])
+        let context = ModelContext(migrated)
+        let source = try #require(context.fetch(FetchDescriptor<SharedMediaInboxSourceRecord>()).first)
+        let handoff = try #require(context.fetch(FetchDescriptor<SharedMediaInboxHandoffRecord>()).first)
+        #expect(source.id == UUID(uuidString: "5d5a6962-b215-20f2-6c0a-32c34d2212d1")!)
+        #expect(source.inventoryID == UUID(uuidString: "cf7c9a71-e066-7202-8785-227bfcab577e")!)
+        #expect(source.generation == UUID(uuidString: "595cc9dd-9969-5294-a911-ced3f0ee8404")!)
+        #expect(source.revision == 25)
+        #expect(source.receivedAt == Date(timeIntervalSince1970: 123))
+        #expect(source.partialToken == "fixture-partialToken")
+        #expect(source.finalToken == "fixture-finalToken")
+        #expect(source.rootIdentity == "fixture-rootIdentity")
+        #expect(source.maximumBytes == 29)
+        #expect(source.byteCount == 26)
+        #expect(source.sha256 == String(repeating: "a", count: 64))
+        #expect(source.contentType == "fixture-contentType")
+        #expect(source.partialDevice == 30)
+        #expect(source.partialInode == 29)
+        #expect(source.finalIdentity == "fixture-finalIdentity")
+        #expect(source.workID == UUID(uuidString: "b742e6b5-d995-57b9-c663-57c8cc5ddb87")!)
+        #expect(source.writerEpoch == UUID(uuidString: "7aca73a2-210e-527c-0769-c52c5e467b43")!)
+        #expect(source.writerStateRaw == "closed")
+        #expect(source.phaseRaw == "writing")
+        #expect(source.retirementID == UUID(uuidString: "090b2120-977f-8399-f9f2-9b09e2be659a")!)
+        #expect(source.retirementPartialIdentity == "fixture-retirementPartialIdentity")
+        #expect(source.retirementFinalIdentity == "fixture-retirementFinalIdentity")
+        #expect(handoff.id == UUID(uuidString: "6176a785-0adb-56ca-b0bb-76d365d50d83")!)
+        #expect(handoff.nonce == UUID(uuidString: "900c0c4c-525c-64d8-49c8-ac84f10531fb")!)
+        #expect(handoff.sourceID == UUID(uuidString: "1b2982f7-de66-aecc-3ce5-f2dd6f8705f1")!)
+        #expect(handoff.sourceGeneration == UUID(uuidString: "e4d2f1af-1cdd-2ff4-e533-95edb0c20431")!)
+        #expect(handoff.sourceRevision == 31)
+        #expect(handoff.inventoryGeneration == UUID(uuidString: "e1db827b-69e0-1bae-205c-9eb101a76aa6")!)
+        #expect(handoff.expectedInventoryRevision == 42)
+        #expect(handoff.ownerID == UUID(uuidString: "99ba94c2-8ca8-186b-bc0b-142ccbcc0fb6")!)
+        #expect(handoff.packageID == UUID(uuidString: "211cdce1-6877-1d76-24f6-fcde62307734")!)
+        #expect(handoff.draftGeneration == UUID(uuidString: "4ab68b97-1d84-6e80-3594-1d106b72d874")!)
+        #expect(handoff.assetID == UUID(uuidString: "a0396425-d68b-8686-7d46-ef9583f08f4f")!)
+        #expect(handoff.assetGeneration == UUID(uuidString: "7c04639d-615d-5ac9-de30-625f3e8cca08")!)
+        #expect(handoff.referenceID == UUID(uuidString: "441a937b-fe8e-6510-35b2-01c825a2cc8a")!)
+        #expect(handoff.leaseID == UUID(uuidString: "c8db64ae-b441-7343-f4cc-b3f7c905be4f")!)
+        #expect(handoff.sourceHoldID == UUID(uuidString: "5f90f1d2-242c-f5b3-7d3f-0b5b1eb35eee")!)
+        #expect(handoff.ordinal == 24)
+        #expect(handoff.byteCount == 26)
+        #expect(handoff.sha256 == String(repeating: "a", count: 64))
+        #expect(handoff.phaseRaw == "writing")
+        #expect(handoff.writerEpoch == UUID(uuidString: "12b20734-b039-c64a-172c-0629e033a585")!)
+        #expect(handoff.writerStateRaw == "closed")
+        #expect(handoff.partialDevice == 30)
+        #expect(handoff.partialInode == 29)
+        #expect(handoff.finalIdentity == "fixture-finalIdentity")
+        #expect(try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>()) == 0)
+        #expect(try SharedMediaStorageRepository.hasLiabilities(in: context))
+        #expect(ModelStoreRecoveryCoordinator.migrationDecision(at: frozenURL, currentSchemaMajor: 62).hint == .currentStore)
+    }
+
+    @Test func allForwardPlansEndWithDerivativeOwnershipStage() throws {
         let plans: [any SchemaMigrationPlan.Type] = [MerianMigrationPlan.self,
             MerianRecentV42MigrationPlan.self, MerianRecentV43MigrationPlan.self,
             MerianRecentV44MigrationPlan.self, MerianRecentV45MigrationPlan.self,
             MerianRecentV46MigrationPlan.self, MerianRecentV47MigrationPlan.self,
             MerianRecentV48MigrationPlan.self, MerianOptionalQueueV48RecoveryPlan.self,
             MerianRecentV49MigrationPlan.self, MerianRecentV50MigrationPlan.self,
-            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self, MerianRecentV53MigrationPlan.self, MerianRecentV54MigrationPlan.self, MerianRecentV55MigrationPlan.self, MerianRecentV56MigrationPlan.self, MerianRecentV57MigrationPlan.self, MerianRecentV58MigrationPlan.self, MerianRecentV59MigrationPlan.self, MerianRecentV60MigrationPlan.self]
+            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self, MerianRecentV53MigrationPlan.self, MerianRecentV54MigrationPlan.self, MerianRecentV55MigrationPlan.self, MerianRecentV56MigrationPlan.self, MerianRecentV57MigrationPlan.self, MerianRecentV58MigrationPlan.self, MerianRecentV59MigrationPlan.self, MerianRecentV60MigrationPlan.self, MerianRecentV61MigrationPlan.self]
         for plan in plans {
-            #expect(plan.schemas.last?.versionIdentifier.major == 61)
+            #expect(plan.schemas.last?.versionIdentifier.major == 62)
             switch try #require(plan.stages.last) {
             case let .lightweight(fromVersion, toVersion):
-                #expect(fromVersion.versionIdentifier.major == 60)
-                #expect(toVersion.versionIdentifier.major == 61)
+                #expect(fromVersion.versionIdentifier.major == 61)
+                #expect(toVersion.versionIdentifier.major == 62)
             default:
-                Issue.record("Inbox ownership requires the additive V60 to V61 stage.")
+                Issue.record("Derivative ownership requires the additive V61 to V62 stage.")
             }
         }
-        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61])
-        #expect(MerianRecentV51MigrationPlan.stages.count == 10)
-        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53, 54, 55, 56, 57, 58, 59, 60, 61])
-        #expect(MerianRecentV52MigrationPlan.stages.count == 9)
+        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62])
+        #expect(MerianRecentV51MigrationPlan.stages.count == 11)
+        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62])
+        #expect(MerianRecentV52MigrationPlan.stages.count == 10)
     }
 
     @Test func outgoingV51ModelsAndRelationshipsAreFrozen() throws {
@@ -1881,7 +2013,7 @@ struct MigrationPlanTests {
     @Test func activeCollectionTombstoneUsesSourceOnlyV50RenameMapping() throws {
         let source = try currentScanCollectionSource()
 
-        #expect(CurrentSchema.versionIdentifier.major == 61)
+        #expect(CurrentSchema.versionIdentifier.major == 62)
         #expect(source.contains("@Attribute(originalName: \"isDeleted\")"))
         #expect(source.contains("public var isPendingDeletion: Bool = false"))
         #expect(source.contains("isPendingDeletion: Bool = false"))
@@ -2342,10 +2474,10 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV49MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61])
+        #expect(schemaMajors == [49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62])
 
         let stages = MerianRecentV49MigrationPlan.stages
-        #expect(stages.count == 12)
+        #expect(stages.count == 13)
         switch try #require(stages.first) {
         case let .lightweight(fromVersion, toVersion):
             #expect(fromVersion.versionIdentifier.major == 49)
@@ -2371,8 +2503,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61])
-        #expect(MerianRecentV50MigrationPlan.stages.count == 11)
+        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62])
+        #expect(MerianRecentV50MigrationPlan.stages.count == 12)
 
         switch try #require(MerianRecentV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):
@@ -2389,8 +2521,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianReleasedActiveV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61])
-        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 11)
+        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62])
+        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 12)
 
         switch try #require(MerianReleasedActiveV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):

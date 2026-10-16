@@ -92,6 +92,8 @@ final class SharedMediaStorageRepository {
             || context.fetchCount(FetchDescriptor<SharedMediaLeaseRecord>()) > 0
             || context.fetchCount(FetchDescriptor<SharedMediaInboxSourceRecord>()) > 0
             || context.fetchCount(FetchDescriptor<SharedMediaInboxHandoffRecord>()) > 0
+            || context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>()) > 0
+            || context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>()) > 0
     }
 
     func snapshot() throws -> SharedMediaStorageSnapshot {

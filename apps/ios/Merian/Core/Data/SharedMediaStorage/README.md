@@ -1,5 +1,17 @@
 # Inactive shared media storage
 
+## Derivative schema prerequisite
+
+V62 adds scalar `SharedMediaDerivativePairRecord` and
+`SharedMediaDerivativeWorkRecord` tables. They retain pair publication, exact
+original assertions and per-role prepared/file/retirement identities. Migration
+starts them empty and preserves V61 inbox records. Their presence blocks purge;
+until paired runtime qualification, it also blocks fresh inventory admission. No
+derivative writer, live composition, new limit or activation is exposed by this
+prerequisite. The focused migration and storage suites passed 82 tests after
+reviewed fixture corrections; six other focused suites retain their passing
+evidence. Paired runtime and whole-product acceptance remain open.
+
 ## Isolated typed source inbox
 
 `SharedMediaInboxOwner` adds a distinct `p1InboxQualification` composition with

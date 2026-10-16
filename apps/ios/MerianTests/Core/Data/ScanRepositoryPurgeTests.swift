@@ -226,6 +226,8 @@ struct ScanRepositoryPurgeTests {
 
     private func sharedMediaPurgeBlockers() -> [any PersistentModel] {
         [
+            SharedMediaDerivativePairRecord(id: UUID(), nonce: UUID(), inventoryID: UUID(), inventoryGeneration: UUID(), expectedInventoryRevision: 0, ownerID: UUID(), packageID: UUID(), draftGeneration: UUID(), originalReferenceID: UUID(), originalReferenceRevision: 0, originalAssetID: UUID(), originalAssetGeneration: UUID(), ordinal: 0, expectedPackageRevision: 0, aiWorkID: UUID(), displayWorkID: UUID()),
+            SharedMediaDerivativeWorkRecord(id: UUID(), pairID: UUID(), roleRaw: "aiInput", assetID: UUID(), assetGeneration: UUID(), referenceID: UUID(), leaseID: UUID(), writerEpoch: UUID(), byteCount: 1, sha256: String(repeating: "a", count: 64), contentType: "image/jpeg"),
             SharedMediaInventoryRecord(id: UUID(), rootIdentity: "fixture", storeIdentity: "fixture",
                 generation: UUID(), revision: 0, modeRaw: "qualification", phaseRaw: "closed", cursor: ""),
             SharedMediaAllocationRecord(id: UUID(), inventoryID: UUID(), accountID: nil, packageID: nil,

@@ -136,6 +136,9 @@ final class SharedMediaInboxLedger {
     }
 
     func validate() throws -> SharedMediaStoragePolicy.Totals {
+        // Schema-only prerequisite: no derivative owner may admit these rows yet.
+        guard try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>()) == 0,
+              try context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>()) == 0 else { throw SharedMediaStorageFailure.conflict }
         let sources = try rows()
         let handoffCharges = try handoffs.validate()
         var total: Int64 = 0, outstanding: Int64 = 0

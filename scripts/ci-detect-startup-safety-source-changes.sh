@@ -118,6 +118,10 @@ is_startup_runtime_file() {
     apps/ios/Merian/Models/Schema/SchemaV60.swift | \
     apps/ios/Merian/Models/Schema/SchemaV60SharedStorageSnapshots.swift | \
     apps/ios/Merian/Models/Schema/SchemaV61.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV61InboxSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV62.swift | \
+    apps/ios/Merian/Models/ActiveSchema/SharedMediaDerivativePairRecord.swift | \
+    apps/ios/Merian/Models/ActiveSchema/SharedMediaDerivativeWorkRecord.swift | \
     apps/ios/Merian/Models/ActiveSchema/SharedMediaInboxSourceRecord.swift | \
     apps/ios/Merian/Models/ActiveSchema/SharedMediaInboxHandoffRecord.swift | \
     apps/ios/Merian/Core/Data/SharedMediaStorage/* | \

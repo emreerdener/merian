@@ -6,6 +6,51 @@ import Testing
 @Suite("Inactive shared media storage", .serialized)
 @MainActor
 struct SharedMediaStorageTests {
+    @Test(arguments: [false, true])
+    func derivativeOrphansBlockQualificationAndRetainLiabilities(saved: Bool) throws {
+        let factories: [() -> any PersistentModel] = [
+            { SharedMediaDerivativePairRecord(id: UUID(), nonce: UUID(), inventoryID: UUID(), inventoryGeneration: UUID(), expectedInventoryRevision: 0, ownerID: UUID(), packageID: UUID(), draftGeneration: UUID(), originalReferenceID: UUID(), originalReferenceRevision: 0, originalAssetID: UUID(), originalAssetGeneration: UUID(), ordinal: 0, expectedPackageRevision: 0, aiWorkID: UUID(), displayWorkID: UUID()) },
+            { SharedMediaDerivativeWorkRecord(id: UUID(), pairID: UUID(), roleRaw: "aiInput", assetID: UUID(), assetGeneration: UUID(), referenceID: UUID(), leaseID: UUID(), writerEpoch: UUID(), byteCount: 1, sha256: String(repeating: "a", count: 64), contentType: "image/jpeg") }
+        ]
+        for makeRow in factories {
+            let h = try Harness(), context = ModelContext(h.container)
+            let row = makeRow()
+            context.autosaveEnabled = false
+            context.insert(row)
+            #expect(try SharedMediaStorageRepository.hasLiabilities(in: context))
+            if saved {
+                try context.save()
+                #expect(throws: SharedMediaStorageFailure.conflict) { try h.owner() }
+                #expect(try ModelContext(h.container).fetchCount(FetchDescriptor<SharedMediaInventoryRecord>()) == 0)
+            }
+        }
+    }
+
+    @Test func matchingDerivativeRowsCannotBypassTheSchemaOnlyInboxGate() throws {
+        let h = try Harness(nestedStore: true)
+        let inbox = h.base.appendingPathComponent("inbox"), photo = h.base.appendingPathComponent("photo")
+        try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: false)
+        try FileManager.default.createDirectory(at: photo, withIntermediateDirectories: false)
+        let owner = try SharedMediaStorageRepository(container: h.container, authorityRoot: h.root,
+            inventoryID: h.inventory, mode: .p1InboxQualification,
+            sources: [SharedMediaInboxFiles.namespace: inbox, SharedMediaPhotoLedger.namespace: photo])
+        let before = try owner.snapshot()
+        let pair = SharedMediaDerivativePairRecord(id: UUID(), nonce: UUID(), inventoryID: UUID(), inventoryGeneration: UUID(), expectedInventoryRevision: 0, ownerID: UUID(), packageID: UUID(), draftGeneration: UUID(), originalReferenceID: UUID(), originalReferenceRevision: 0, originalAssetID: UUID(), originalAssetGeneration: UUID(), ordinal: 0, expectedPackageRevision: 0, aiWorkID: UUID(), displayWorkID: UUID())
+        let ai = SharedMediaDerivativeWorkRecord(id: UUID(), pairID: UUID(), roleRaw: "aiInput", assetID: UUID(), assetGeneration: UUID(), referenceID: UUID(), leaseID: UUID(), writerEpoch: UUID(), byteCount: 1, sha256: String(repeating: "a", count: 64), contentType: "image/jpeg")
+        let display = SharedMediaDerivativeWorkRecord(id: UUID(), pairID: UUID(), roleRaw: "aiInput", assetID: UUID(), assetGeneration: UUID(), referenceID: UUID(), leaseID: UUID(), writerEpoch: UUID(), byteCount: 1, sha256: String(repeating: "a", count: 64), contentType: "image/jpeg")
+        pair.inventoryID = h.inventory
+        pair.aiWorkID = ai.id; pair.displayWorkID = display.id
+        ai.pairID = pair.id; display.pairID = pair.id; display.roleRaw = "display"
+        let context = ModelContext(h.container)
+        context.insert(pair); context.insert(ai); context.insert(display)
+        try context.save()
+        #expect(throws: SharedMediaStorageFailure.conflict) { try owner.snapshot() }
+        #expect(try SharedMediaStorageRepository.hasLiabilities(in: context))
+        let inventory = try #require(context.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
+        #expect(inventory.revision == before.revision)
+        #expect(try context.fetchCount(FetchDescriptor<SharedMediaAllocationRecord>()) == 0)
+    }
+
     @Test func reservationsSurviveReopenAndCannotRenewTheirAllowance() throws {
         let h = try Harness()
         var owner: SharedMediaStorageRepository? = try h.owner()
@@ -298,13 +343,15 @@ struct SharedMediaStorageTests {
         let root: URL
         let container: ModelContainer
         let inventory = UUID()
-        init() throws {
+        init(nestedStore: Bool = false) throws {
             base = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("sma-fixture-" + UUID().uuidString)
             root = base.appendingPathComponent("authority")
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            let database = nestedStore ? base.appendingPathComponent("database") : base
+            if nestedStore { try FileManager.default.createDirectory(at: database, withIntermediateDirectories: false) }
             let schema = Schema(versionedSchema: CurrentSchema.self)
             container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema,
-                url: base.appendingPathComponent("fixture.store"), cloudKitDatabase: .none)])
+                url: database.appendingPathComponent("fixture.store"), cloudKitDatabase: .none)])
         }
         func owner(mode: SharedMediaStorageMode = .qualification) throws -> SharedMediaStorageRepository {
             try .init(container: container, authorityRoot: root, inventoryID: inventory, mode: mode)

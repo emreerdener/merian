@@ -38,7 +38,8 @@ enum SharedMediaStorageLookup {
         return SHA256.hash(data: Data(try JSONEncoder().encode(parts))).map { String(format: "%02x", $0) }.joined()
     }
 
-    static let inboxTypes = Set([ObjectIdentifier(SharedMediaInboxSourceRecord.self), ObjectIdentifier(SharedMediaInboxHandoffRecord.self)])
+    static let inboxTypes = Set([ObjectIdentifier(SharedMediaInboxSourceRecord.self), ObjectIdentifier(SharedMediaInboxHandoffRecord.self),
+        ObjectIdentifier(SharedMediaDerivativePairRecord.self), ObjectIdentifier(SharedMediaDerivativeWorkRecord.self)])
 
     static let photoTypes = Set([ObjectIdentifier(PhotoPreparationRecord.self),
         ObjectIdentifier(PhotoPreparationAsset.self), ObjectIdentifier(PhotoPreparationReference.self),
