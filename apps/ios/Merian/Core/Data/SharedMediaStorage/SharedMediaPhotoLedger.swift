@@ -17,11 +17,13 @@ final class SharedMediaPhotoLedger {
     static let namespace = "p1OriginalV1"
     private let joint: SharedMediaPhotoTransaction
     private let inventoryID: UUID
+    private let includesInbox: Bool
     private var context: ModelContext { joint.context }
 
-    init(joint: SharedMediaPhotoTransaction, inventoryID: UUID) {
+    init(joint: SharedMediaPhotoTransaction, inventoryID: UUID, includesInbox: Bool = false) {
         self.joint = joint
         self.inventoryID = inventoryID
+        self.includesInbox = includesInbox
     }
 
     private struct Rows {
@@ -46,9 +48,9 @@ final class SharedMediaPhotoLedger {
             assets: bounded(PhotoPreparationAsset.self, maximum: 96),
             references: bounded(PhotoPreparationReference.self, maximum: 128),
             work: bounded(PhotoPreparationLease.self, maximum: 96),
-            allocations: bounded(SharedMediaAllocationRecord.self, maximum: 96),
-            edges: bounded(SharedMediaReferenceRecord.self, maximum: 128),
-            leases: bounded(SharedMediaLeaseRecord.self, maximum: 96))
+            allocations: bounded(SharedMediaAllocationRecord.self, maximum: includesInbox ? 104 : 96).filter { !includesInbox || $0.namespaceRaw != SharedMediaInboxFiles.namespace },
+            edges: bounded(SharedMediaReferenceRecord.self, maximum: includesInbox ? 136 : 128).filter { !includesInbox || $0.roleRaw != SharedMediaInboxFiles.namespace },
+            leases: bounded(SharedMediaLeaseRecord.self, maximum: includesInbox ? 104 : 96).filter { !includesInbox || $0.purposeRaw != SharedMediaInboxFiles.namespace })
     }
 
     func validate() throws -> SharedMediaStoragePolicy.Totals {

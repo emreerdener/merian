@@ -1,5 +1,54 @@
 # Inactive shared media storage
 
+## Isolated typed source inbox — implementation in progress
+
+`SharedMediaInboxOwner` adds a distinct `p1InboxQualification` composition with
+sibling SQLite, authority, inbox and P1 fixture roots. It uses the scalar V61
+source/handoff schema. The current increment implements source acquisition,
+reopen and explicit source discard; handoff rows remain rejected until the joint
+destination adapter is implemented and reviewed. There is no live Capture or
+AppDI composition and no adoption of the legacy inbox.
+
+The source catalog is a bounded projection of ready source rows, not a JSON
+sidecar. Before loading, one transaction reserves the source and 32 MiB of
+inventory-wide copy headroom. Source reservations plus headroom remain within 96
+MiB and the existing temporary/free-space limits. Preparation records exact
+size, digest and type before creating a fixed partial. Its stable device/inode
+is saved before payload writes. Completion verifies and synchronizes the exact
+original, then jointly closes its writer and publishes its unassigned reference.
+Lost acknowledgements use exact fresh readback, never another source callback.
+
+Reopen holds the exclusive store/root fences. A matching completed partial or
+final may finish the original operation after verification and synchronization.
+Missing, incomplete and identity-conflicting sources remain visible recovery
+items and charged. After actual local writer closure, descriptor-bound occupancy
+reconciliation splits an unfinished source's charge into occupied bytes and its
+unwritten reservation. The total charge is retained; filesystem availability
+subtracts only the latter. A failed reconciliation retains the conservative
+reservation and cannot grant completion or deletion authority. S+H+A handoff
+accounting remains pending; this is not whole-inventory acceptance. No source is
+automatically reloaded.
+
+Explicit discard requires a closed local writer, no handoff hold and exact
+fixed-file inspection. Saved irreversible intent precedes unlink. Only the
+repository can mint the release capability from a fresh read of that saved
+intent; the namespace owner synchronizes and rechecks absence before joint row
+reclamation. Unknown entries, links, replaced inodes and changed originals block
+cleanup. Legacy import operations hold a shared root fence and reject the new
+persistent marker, including nested paths, before reading or mutating the inbox.
+The new owner holds the root exclusively through actual asynchronous drain.
+
+Qualification roots are retained fixtures, not installed-app retention proof.
+Future live integration must use the separately agreed private Application
+Support root, backup exclusion and file-protection policy. Numeric limits,
+activation, PR116 freeze and deployment hold remain unchanged. Typed schema
+validation passed 116 cases. Source-focused validation passed 94 tests, followed
+by 31 after the occupancy correction. A full shared-checkout run retained four
+architecture/inventory failures alongside 6,021 passing cases; the reviewed
+formatting and purge-fixture corrections passed 50 targeted checks. Unchanged
+runtime evidence is carried forward with independent and IC-1 review, without
+claiming a final-candidate full-green or live retention result.
+
 `SharedMediaPhotoAcquisitionOwner` is the isolated P1 adapter. It opens a
 distinct `p1Qualification` inventory with sibling database, authority and photo
 roots, outside live Documents. First binding requires empty P1 rows and

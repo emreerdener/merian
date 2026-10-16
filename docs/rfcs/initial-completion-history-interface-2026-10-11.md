@@ -1,3 +1,34 @@
+## October 16 — typed source inbox locally validated
+
+SMA-1 L4 now has an inactive durable source-inbox foundation on V61. Exact
+selected original bytes, prepared identities and partial inode ownership survive
+reopen without repeating the source callback. Closed-writer occupancy separates
+occupied bytes from unwritten reservations without reducing the total charge.
+Explicit discard persists exact irreversible intent before namespace-owned
+unlink, synchronization, absence proof and joint row reclamation. Legacy inbox
+owners reject the bound namespace before mutation. No live routing or file
+adoption exists. Handoff records remain rejected until the joint destination
+extension is implemented; L4 and whole-product acceptance remain open.
+
+V60 was frozen and compiled before V61 changes. Schema validation passed 116
+cases, including disk migration and startup recovery. Source-focused validation
+passed 94 tests, then 31 tests after the occupancy correction. The full shared
+checkout run retained 6,021 passing and four failing cases, zero skipped. Three
+failures were factory-size guards (two oversized-owner inventories and one
+direct line-count assertion); one was the purge schema inventory. The reviewed
+formatting-only factory correction and two additional purge blocker fixtures
+passed all 50 affected architecture, purge and startup checks. Migration and
+startup guardrails passed. Unchanged runtime evidence is carried forward with
+independent and IC-1 concurrence; no exact-final-candidate full-green or
+isolated-source claim is made.
+
+Evidence: `.artifacts/shared-media-inbox-20261016/`, including
+source-candidate05, source-full01-summary and source-correction-summary.
+Continue the adopted joint inbox/P1 handoff, recovery and cleanup agreement
+automatically. Numeric limits, activation disabled, PR116 freeze, deployment
+hold and AWS unapproved remain unchanged. No push, merge, deployment, hosted
+test or device action occurred.
+
 ## October 16 — shared-photo lifecycle locally validated
 
 SMA-1 L3 extends the inactive isolated photo adapter with same-account sharing,

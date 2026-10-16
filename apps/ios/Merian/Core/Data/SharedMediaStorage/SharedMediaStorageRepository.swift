@@ -16,6 +16,7 @@ final class SharedMediaStorageRepository {
     private let sources: [String: URL]
     private let rootBinding: String
     private let storeBinding: Data
+    let inboxFiles: SharedMediaInboxFiles?
     let photoFiles: PhotoPreparationLockedFiles?
     #if DEBUG
     var photoFault: ((SharedMediaPhotoBoundary) throws -> Void)?
@@ -30,8 +31,8 @@ final class SharedMediaStorageRepository {
         self.mode = mode
         self.sources = sources
         guard mode != .qualification || sources.isEmpty else { throw SharedMediaStorageFailure.invalid }
-        if mode == .p1Qualification {
-            guard sources.count == 1, let photoRoot = sources[SharedMediaPhotoLedger.namespace],
+        if mode.includesPhotoStorage {
+            guard sources.count == (mode == .p1InboxQualification ? 2 : 1), let photoRoot = sources[SharedMediaPhotoLedger.namespace],
                   photoRoot.standardizedFileURL.deletingLastPathComponent() == authorityRoot.standardizedFileURL.deletingLastPathComponent(),
                   configuration.url.standardizedFileURL.deletingLastPathComponent().deletingLastPathComponent() == authorityRoot.standardizedFileURL.deletingLastPathComponent(),
                   !photoRoot.standardizedFileURL.pathComponents.starts(with: URL.documentsDirectory.standardizedFileURL.pathComponents) else {
@@ -51,12 +52,21 @@ final class SharedMediaStorageRepository {
         context.autosaveEnabled = false
         if mode != .observation {
             for type in CurrentSchema.models where !Self.ledgerTypes.contains(ObjectIdentifier(type))
-                && !(mode == .p1Qualification && Self.photoTypes.contains(ObjectIdentifier(type))) {
+                && !(mode.includesPhotoStorage && Self.photoTypes.contains(ObjectIdentifier(type)))
+                && !(mode == .p1InboxQualification && Self.inboxTypes.contains(ObjectIdentifier(type))) {
                 guard try Self.count(context, type) == 0 else { throw SharedMediaStorageFailure.conflict }
             }
         }
         let initializing = try !Self.hasLiabilities(in: context)
-        if mode == .p1Qualification {
+        if mode == .p1InboxQualification {
+            guard let inboxRoot = sources[SharedMediaInboxFiles.namespace],
+                  inboxRoot.standardizedFileURL.deletingLastPathComponent() == authorityRoot.standardizedFileURL.deletingLastPathComponent(),
+                  !inboxRoot.standardizedFileURL.pathComponents.starts(with: URL.documentsDirectory.standardizedFileURL.pathComponents),
+                  !inboxRoot.standardizedFileURL.pathComponents.starts(with: URL.applicationSupportDirectory.standardizedFileURL.pathComponents) else { throw SharedMediaStorageFailure.invalid }
+            inboxFiles = try SharedMediaInboxFiles(root: inboxRoot,
+                binding: SharedMediaPhotoBinding(bytes: storeBinding, initializing: initializing, epoch: processEpoch))
+        } else { inboxFiles = nil }
+        if mode.includesPhotoStorage {
             if initializing {
                 for type in CurrentSchema.models where Self.photoTypes.contains(ObjectIdentifier(type)) {
                     guard try Self.count(context, type) == 0 else { throw SharedMediaStorageFailure.conflict }
@@ -80,6 +90,8 @@ final class SharedMediaStorageRepository {
             || context.fetchCount(FetchDescriptor<SharedMediaAllocationRecord>()) > 0
             || context.fetchCount(FetchDescriptor<SharedMediaReferenceRecord>()) > 0
             || context.fetchCount(FetchDescriptor<SharedMediaLeaseRecord>()) > 0
+            || context.fetchCount(FetchDescriptor<SharedMediaInboxSourceRecord>()) > 0
+            || context.fetchCount(FetchDescriptor<SharedMediaInboxHandoffRecord>()) > 0
     }
 
     func snapshot() throws -> SharedMediaStorageSnapshot {
@@ -98,34 +110,10 @@ final class SharedMediaStorageRepository {
               cursor.utf8.count <= SharedMediaStoragePolicy.maximumTokenBytes,
               Set(tokens).count == tokens.count else { throw SharedMediaStorageFailure.invalid }
         try revision(inventory, expected)
-        for token in tokens {
-            // Stable namespace/token ID permits exact page recovery across restart.
-            let digest = Array(SHA256.hash(data: Data((namespace + "\0" + token).utf8)))
-            let id = UUID(uuid: (digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7],
-                digest[8], digest[9], digest[10], digest[11], digest[12], digest[13], digest[14], digest[15]))
-            let item = try files.observe(id: id, namespace: namespace, token: token)
-            try SharedMediaStoragePolicy.token(item.namespace)
-            try SharedMediaStoragePolicy.token(item.token)
-            guard item.bytes >= 0, !item.physicalIdentity.isEmpty,
-                  item.physicalIdentity.utf8.count <= 256 else { throw SharedMediaStorageFailure.invalid }
-            if let prior: SharedMediaAllocationRecord = try one(context, id: item.id) {
-                guard prior.inventoryID == inventoryID, prior.poolRaw == "observed",
-                      prior.namespaceRaw == item.namespace, prior.fileToken == item.token,
-                      prior.materializedBytes == item.bytes, prior.physicalIdentity == item.physicalIdentity else {
-                    throw SharedMediaStorageFailure.conflict
-                }
-            } else {
-                var duplicate = false
-                try visit(context, SharedMediaAllocationRecord.self) {
-                    if $0.namespaceRaw == item.namespace && $0.fileToken == item.token { duplicate = true }
-                }
-                guard !duplicate else { throw SharedMediaStorageFailure.conflict }
-                context.insert(SharedMediaAllocationRecord(id: item.id, inventoryID: inventoryID,
-                    accountID: nil, packageID: nil, namespaceRaw: item.namespace, fileToken: item.token,
-                    poolRaw: "observed", stateRaw: "legacyObserved", materializedBytes: item.bytes,
-                    reservedBytes: 0, physicalIdentity: item.physicalIdentity))
-            }
+        let observations = try tokens.map { token in
+            try files.observe(id: SharedMediaStorageObservation.id(namespace: namespace, token: token), namespace: namespace, token: token)
         }
+        try SharedMediaReservationLedger(context: context, inventoryID: inventoryID, mode: mode, sources: Set(sources.keys)).observe(observations)
         inventory.cursor = cursor
         return try save(context, inventory)
     }
@@ -179,7 +167,7 @@ final class SharedMediaStorageRepository {
     }
 
     func releaseReference(id: UUID, expected: SharedMediaStorageSnapshot) throws -> SharedMediaStorageSnapshot {
-        guard mode != .p1Qualification else { throw SharedMediaStorageFailure.closed }
+        guard !mode.includesPhotoStorage else { throw SharedMediaStorageFailure.closed }
         let (context, inventory) = try state()
         guard let edge: SharedMediaReferenceRecord = try one(context, id: id) else { throw SharedMediaStorageFailure.invalid }
         guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
@@ -209,7 +197,7 @@ final class SharedMediaStorageRepository {
 
     /// Cannot close an earlier process's lease or any background/remote work.
     func finishLocalLease(id: UUID, expected: SharedMediaStorageSnapshot) throws -> SharedMediaStorageSnapshot {
-        guard mode != .p1Qualification else { throw SharedMediaStorageFailure.closed }
+        guard !mode.includesPhotoStorage else { throw SharedMediaStorageFailure.closed }
         let (context, inventory) = try state()
         guard let lease: SharedMediaLeaseRecord = try one(context, id: id),
               lease.processEpoch == processEpoch, lease.purposeRaw == "localQualification" else {
@@ -242,7 +230,7 @@ final class SharedMediaStorageRepository {
 
     /// Global admission closure only; preserves every reference, lease and charge.
     func closeAdmission(expected: SharedMediaStorageSnapshot) throws -> SharedMediaStorageSnapshot {
-        guard mode != .p1Qualification else { throw SharedMediaStorageFailure.closed }
+        guard !mode.includesPhotoStorage else { throw SharedMediaStorageFailure.closed }
         let (context, inventory) = try state()
         guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
         if inventory.phaseRaw == "retiring" { return value(inventory) }
@@ -253,7 +241,7 @@ final class SharedMediaStorageRepository {
 
     /// Local account reference retirement only, not permission to erase files or remote data.
     func retireAccountReferences(_ accountID: UUID, expected: SharedMediaStorageSnapshot) throws -> SharedMediaStorageSnapshot {
-        guard mode != .p1Qualification else { throw SharedMediaStorageFailure.closed }
+        guard !mode.includesPhotoStorage else { throw SharedMediaStorageFailure.closed }
         let (context, inventory) = try state()
         try revision(inventory, expected)
         try visit(context, SharedMediaReferenceRecord.self) {
@@ -277,13 +265,15 @@ final class SharedMediaStorageRepository {
               item.id == inventoryID, item.rootIdentity == rootBinding,
               rootBinding == (try Self.binding(authority: files.identity, sources: sources)), item.storeIdentity == storeIdentity,
               item.modeRaw == mode.rawValue, item.revision >= 0,
-              (mode == .p1Qualification ? item.phaseRaw == "readyP1" :
+              (mode.includesPhotoStorage ? item.phaseRaw == "readyP1" :
                 (mode == .qualification ? ["readyQualification", "retiring"].contains(item.phaseRaw) : ["observing", "retiring"].contains(item.phaseRaw))) else {
             throw SharedMediaStorageFailure.conflict
         }
-        if mode == .p1Qualification {
+        if mode.includesPhotoStorage {
+            try inboxFiles?.check()
             try photoFiles?.checkIdentity()
-            for type in CurrentSchema.models where !Self.ledgerTypes.contains(ObjectIdentifier(type)) && !Self.photoTypes.contains(ObjectIdentifier(type)) {
+            for type in CurrentSchema.models where !Self.ledgerTypes.contains(ObjectIdentifier(type)) && !Self.photoTypes.contains(ObjectIdentifier(type))
+                && !(mode == .p1InboxQualification && Self.inboxTypes.contains(ObjectIdentifier(type))) {
                 guard try Self.count(context, type) == 0 else { throw SharedMediaStorageFailure.conflict }
             }
         }
@@ -292,46 +282,12 @@ final class SharedMediaStorageRepository {
     }
 
     private func accounting(_ context: ModelContext) throws -> SharedMediaStoragePolicy.Totals {
+        if mode == .p1InboxQualification {
+            guard let inventory = try context.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first else { throw SharedMediaStorageFailure.conflict }
+            return try inboxLedger(context, inventory).validate()
+        }
         if mode == .p1Qualification { return try photoLedger(context).validate() }
-        var totals = SharedMediaStoragePolicy.Totals()
-        var packageAccounts: [UUID: UUID] = [:]
-        try visit(context, SharedMediaAllocationRecord.self) { row in
-            guard row.inventoryID == inventoryID, let pool = SharedMediaStoragePool(rawValue: row.poolRaw),
-                  ["legacyObserved", "reserved", "retiring"].contains(row.stateRaw),
-                  (pool == .observed) == (row.stateRaw == "legacyObserved"),
-                  pool == .observed || row.accountID != nil else { throw SharedMediaStorageFailure.conflict }
-            try SharedMediaStoragePolicy.token(row.namespaceRaw)
-            try SharedMediaStoragePolicy.token(row.fileToken)
-            if pool == .observed {
-                guard mode == .observation, row.accountID == nil, sources[row.namespaceRaw] != nil,
-                      let identity = row.physicalIdentity, !identity.isEmpty, identity.utf8.count <= 256 else { throw SharedMediaStorageFailure.conflict }
-            } else {
-                guard mode == .qualification, row.namespaceRaw == "qualification",
-                      row.fileToken == row.id.uuidString.lowercased(), row.physicalIdentity == nil,
-                      row.materializedBytes == 0, row.reservedBytes > 0 else { throw SharedMediaStorageFailure.conflict }
-            }
-            if let package = row.packageID, let account = row.accountID {
-                guard packageAccounts[package].map({ $0 == account }) ?? true else { throw SharedMediaStorageFailure.conflict }
-                packageAccounts[package] = account
-            }
-            try totals.include(.init(packageID: row.packageID, pool: pool, materialized: row.materializedBytes, reserved: row.reservedBytes))
-        }
-        try visit(context, SharedMediaReferenceRecord.self) { row in
-            try SharedMediaStoragePolicy.token(row.ownerID)
-            try SharedMediaStoragePolicy.token(row.roleRaw)
-            guard let parent: SharedMediaAllocationRecord = try one(context, id: row.allocationID),
-                  parent.inventoryID == inventoryID, parent.accountID == row.accountID, row.revision >= 0,
-                  ["live", "retired", "observed"].contains(row.stateRaw),
-                  (parent.poolRaw == "observed") == (row.stateRaw == "observed"),
-                  parent.stateRaw != "retiring" || row.stateRaw == "retired" else { throw SharedMediaStorageFailure.conflict }
-        }
-        try visit(context, SharedMediaLeaseRecord.self) { row in
-            guard let parent: SharedMediaAllocationRecord = try one(context, id: row.allocationID),
-                  parent.inventoryID == inventoryID, parent.poolRaw != "observed", row.purposeRaw == "localQualification",
-                  ["open", "closed", "unknown"].contains(row.stateRaw),
-                  parent.stateRaw != "retiring" || row.stateRaw == "closed" else { throw SharedMediaStorageFailure.conflict }
-        }
-        return totals
+        return try SharedMediaReservationLedger(context: context, inventoryID: inventoryID, mode: mode, sources: Set(sources.keys)).validate()
     }
 
     private func mutableAllocation(_ context: ModelContext, _ id: UUID) throws -> SharedMediaAllocationRecord {
@@ -515,6 +471,50 @@ final class SharedMediaStorageRepository {
         #endif
     }
 
+    private func inboxLedger(_ context: ModelContext, _ inventory: SharedMediaInventoryRecord) throws -> SharedMediaInboxLedger {
+        guard mode == .p1InboxQualification, let inboxFiles else { throw SharedMediaStorageFailure.closed }
+        return SharedMediaInboxLedger(joint: SharedMediaPhotoTransaction(context: context), inventory: inventory,
+            binding: SharedMediaPhotoBinding(bytes: storeBinding, initializing: false, epoch: processEpoch), rootIdentity: inboxFiles.identity)
+    }
+
+    func inboxSources() throws -> [SharedMediaInboxSource] {
+        let (context, inventory) = try state()
+        return try inboxLedger(context, inventory).sources()
+    }
+
+    func inboxSource(_ handle: SharedMediaInboxHandle) throws -> SharedMediaInboxSource {
+        let (context, inventory) = try state()
+        return try inboxLedger(context, inventory).source(handle)
+    }
+
+    func inboxRetirement(_ handle: SharedMediaInboxHandle) throws -> SharedMediaInboxRetirement {
+        let source = try inboxSource(handle)
+        guard source.phase == "retiring", source.writerState == "closed", source.retirementID != nil else { throw SharedMediaStorageFailure.conflict }
+        return .init(source: source, binding: storeBinding, epoch: processEpoch)
+    }
+
+    func inboxWrite<T>(before: SharedMediaInboxBoundary, after: SharedMediaInboxBoundary, requiresFreeSpace: Bool = false,
+                       _ body: (SharedMediaInboxLedger) throws -> T) throws -> T {
+        let (context, inventory) = try state(), ledger = try inboxLedger(context, inventory)
+        let result = try body(ledger)
+        let totals = try ledger.validate()
+        if requiresFreeSpace { try totals.checkAvailable(files.availableBytes()) }
+        #if DEBUG
+        try inboxFault?(before)
+        #endif
+        _ = try save(context, inventory)
+        #if DEBUG
+        try inboxFault?(after)
+        #endif
+        return result
+    }
+
+    var inboxEpoch: UUID { processEpoch }
+    #if DEBUG
+    var inboxFault: ((SharedMediaInboxBoundary) throws -> Void)?
+    #endif
+    private static let inboxTypes = Set([ObjectIdentifier(SharedMediaInboxSourceRecord.self), ObjectIdentifier(SharedMediaInboxHandoffRecord.self)])
+
     private static let photoTypes = Set([ObjectIdentifier(PhotoPreparationRecord.self),
         ObjectIdentifier(PhotoPreparationAsset.self), ObjectIdentifier(PhotoPreparationReference.self),
         ObjectIdentifier(PhotoPreparationLease.self)])
@@ -575,10 +575,6 @@ struct SharedMediaPhotoBinding {
     }
 }
 
-enum SharedMediaPhotoBoundary: Sendable, Equatable { case beforeReservationSave, afterReservationSave, beforeCompletionSave, afterCompletionSave, beforeReadback
-    case beforeShareSave, afterShareSave, beforeRetirementSave, afterRetirementSave, beforeReleaseSave, afterReleaseSave, beforeLifecycleReadback
-}
-
 /// Only this repository can authorize the namespace owner to release an intent.
 struct SharedMediaPhotoRetirement: Equatable, Sendable {
     let handle: PhotoOriginalReference
@@ -589,5 +585,16 @@ struct SharedMediaPhotoRetirement: Equatable, Sendable {
     fileprivate init(handle: PhotoOriginalReference, file: PhotoPreparationFile,
                      identity: SharedMediaPhotoRetirementIdentity, binding: Data, epoch: UUID) {
         self.handle = handle; self.file = file; self.identity = identity; self.binding = binding; self.epoch = epoch
+    }
+}
+
+/// Only a fresh read of saved intent through the fenced repository can mint
+/// physical source-release authority. An unsaved ledger mutation cannot.
+struct SharedMediaInboxRetirement: Sendable {
+    let source: SharedMediaInboxSource
+    let binding: Data
+    let epoch: UUID
+    fileprivate init(source: SharedMediaInboxSource, binding: Data, epoch: UUID) {
+        self.source = source; self.binding = binding; self.epoch = epoch
     }
 }

@@ -181,9 +181,9 @@ struct ModelsIntegrationArchitectureTests {
         )
         #expect(registry.contains("enum MerianMigrationPlan"))
         #expect(registry.contains("enum MerianSchemaV51"))
-        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV60.swift")
-        #expect(currentSchema.contains("enum MerianSchemaV60"))
-        #expect(registry.contains("migrateV59toV60"))
+        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV61.swift")
+        #expect(currentSchema.contains("enum MerianSchemaV61"))
+        #expect(registry.contains("migrateV60toV61"))
         let frozen = try source(at: "apps/ios/Merian/Models/Schema/SchemaV58.swift")
         #expect(frozen.contains("MerianSchemaV58.LocalScanRecord.self"))
     }
@@ -308,6 +308,8 @@ struct ModelsIntegrationArchitectureTests {
         "PhotoPreparationReference.swift",
         "ScanCollection.swift",
         "SharedMediaAllocationRecord.swift",
+        "SharedMediaInboxHandoffRecord.swift",
+        "SharedMediaInboxSourceRecord.swift",
         "SharedMediaInventoryRecord.swift",
         "SharedMediaLeaseRecord.swift",
         "SharedMediaReferenceRecord.swift",

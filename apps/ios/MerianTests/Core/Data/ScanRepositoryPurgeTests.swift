@@ -234,7 +234,14 @@ struct ScanRepositoryPurgeTests {
             SharedMediaReferenceRecord(id: UUID(), allocationID: UUID(), accountID: nil,
                 ownerID: "fixture", roleRaw: "source", stateRaw: "live", revision: 0),
             SharedMediaLeaseRecord(id: UUID(), allocationID: UUID(), processEpoch: UUID(),
-                purposeRaw: "unknown", stateRaw: "unknown")
+                purposeRaw: "unknown", stateRaw: "unknown"),
+            SharedMediaInboxSourceRecord(id: UUID(), inventoryID: UUID(), generation: UUID(),
+                receivedAt: Date(), rootIdentity: "fixture", maximumBytes: 1, workID: UUID(), writerEpoch: UUID()),
+            SharedMediaInboxHandoffRecord(id: UUID(), nonce: UUID(), sourceID: UUID(), sourceGeneration: UUID(),
+                sourceRevision: 0, inventoryGeneration: UUID(), expectedInventoryRevision: 0,
+                ownerID: UUID(), packageID: UUID(), draftGeneration: UUID(), assetID: UUID(),
+                assetGeneration: UUID(), referenceID: UUID(), leaseID: UUID(), sourceHoldID: UUID(),
+                ordinal: 0, byteCount: 1, sha256: String(repeating: "a", count: 64), writerEpoch: UUID())
         ]
     }
 
@@ -256,7 +263,7 @@ struct ScanRepositoryPurgeTests {
             PhotoPreparationReference.self, PhotoPreparationLease.self
         ]
 
-        // L1 has no physical-release authority: each of these rows blocks purge
+        // Shared owners require their own release protocol: these rows block purge
         // before callbacks. The test above exercises saved and unsaved liabilities.
         let blockedModelTypes = sharedMediaPurgeBlockers().map { type(of: $0) }
         let purged = Set(purgedModelTypes.map(ObjectIdentifier.init))

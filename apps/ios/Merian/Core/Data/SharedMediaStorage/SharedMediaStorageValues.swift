@@ -5,7 +5,9 @@ enum SharedMediaStorageFailure: Error, Equatable {
     case unavailable, busy, invalid, conflict, stale, closed, capacity, inUse
 }
 
-enum SharedMediaStorageMode: String, Sendable { case observation, qualification, p1Qualification }
+enum SharedMediaStorageMode: String, Sendable { case observation, qualification, p1Qualification, p1InboxQualification
+    var includesPhotoStorage: Bool { self == .p1Qualification || self == .p1InboxQualification }
+}
 enum SharedMediaStoragePool: String, Sendable {
     case observed, durable, acquisition, preparation, transfer
 }
@@ -26,6 +28,12 @@ struct SharedMediaStorageCharge: Sendable {
 }
 
 struct SharedMediaStorageObservation: Sendable {
+    static func id(namespace: String, token: String) -> UUID {
+        let digest = Array(SHA256.hash(data: Data((namespace + "\0" + token).utf8)))
+        return UUID(uuid: (digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7],
+            digest[8], digest[9], digest[10], digest[11], digest[12], digest[13], digest[14], digest[15]))
+    }
+
     let id: UUID
     let namespace: String
     let token: String
@@ -94,4 +102,8 @@ enum SharedMediaPhotoReferenceState: Sendable {
 
 enum SharedMediaPhotoRetirementResult: Sendable, Equatable {
     case referenceAbsent, referenceRetired, physicalReleaseConfirmed
+}
+
+enum SharedMediaPhotoBoundary: Sendable, Equatable { case beforeReservationSave, afterReservationSave, beforeCompletionSave, afterCompletionSave, beforeReadback
+    case beforeShareSave, afterShareSave, beforeRetirementSave, afterRetirementSave, beforeReleaseSave, afterReleaseSave, beforeLifecycleReadback
 }

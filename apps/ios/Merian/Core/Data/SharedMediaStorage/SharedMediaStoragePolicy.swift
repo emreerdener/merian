@@ -79,6 +79,19 @@ enum SharedMediaStoragePolicy {
             guard packages.count <= PhotoPreparationPolicy.maximumPackages else { throw SharedMediaStorageFailure.capacity }
         }
 
+        /// Accountless source bytes and reserved copy headroom are temporary,
+        /// not synthetic packages. Occupied bytes already reduce free space.
+        mutating func includeInboxAcquisition(bytes: Int64, unmaterialized: Int64) throws {
+            guard bytes >= 0, unmaterialized >= 0 else { throw SharedMediaStorageFailure.invalid }
+            pools[.acquisition] = try SharedMediaStoragePolicy.add(pools[.acquisition, default: 0], bytes)
+            outstanding = try SharedMediaStoragePolicy.add(outstanding, unmaterialized)
+            guard pools[.acquisition, default: 0] <= 96 * PhotoPreparationPolicy.mib,
+                  try SharedMediaStoragePolicy.add(SharedMediaStoragePolicy.add(pools[.acquisition, default: 0],
+                    pools[.preparation, default: 0]), pools[.transfer, default: 0]) <= PhotoPreparationPolicy.temporary else {
+                throw SharedMediaStorageFailure.capacity
+            }
+        }
+
         func checkAvailable(_ available: Int64) throws {
             guard available >= 0, available >= (try SharedMediaStoragePolicy.add(outstanding, SharedMediaStoragePolicy.reserve)) else {
                 throw SharedMediaStorageFailure.capacity

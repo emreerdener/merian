@@ -5537,9 +5537,16 @@ snapshot SHA-256 values, so a property, annotation, default, relationship,
 initializer, or helper edit requires an explicit historical-shape review.
 `SchemaV51Snapshots.swift` freezes all eight `MerianSchemaV51` model classes and
 their relationships; the unchanged goal-hint companion retains its V50 owner.
-`MerianSchemaV60` owns the active global models, four inactive photo-preparation
-entities and four inactive shared-storage entities. V59 is frozen in
-`SchemaV59ScanSnapshots.swift`, `SchemaV59QueueSnapshots.swift` and
+`MerianSchemaV61` owns the active global models, four inactive photo-preparation
+entities, four shared-storage entities and two typed inbox ownership entities.
+V60 freezes its four shared records in `SchemaV60SharedStorageSnapshots.swift`
+and aliases the unchanged frozen V59 graph. That outgoing graph compiled before
+adding V61. V60→V61 is additive; migration creates empty inbox tables and does
+not adopt files or infer historical ownership. Its disk and startup validation
+passed in the 116-case schema gate. Source validation and the retained full-run
+failures plus 50 passing correction checks are documented in the current SMA-1
+status; no exact-final-candidate full-green or live retention claim is made. V59
+is frozen in `SchemaV59ScanSnapshots.swift`, `SchemaV59QueueSnapshots.swift` and
 `SchemaV59PhotoPreparationSnapshots.swift`; that complete graph compiled before
 adding V60. The V59→V60 disk migration and startup recovery passed locally. The
 inactive storage suite passed 16 tests. A full shared-checkout run retained four
@@ -5593,20 +5600,24 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current source schema is `MerianSchemaV60`. It adds scalar
+The current source schema is `MerianSchemaV61`. V60 added scalar
 `SharedMediaInventoryRecord`, `SharedMediaAllocationRecord`,
 `SharedMediaReferenceRecord` and `SharedMediaLeaseRecord` through lightweight
-V59→V60. Migration starts these tables empty and does not inventory files. The
-inactive repository requires explicit qualification roots and persists
-root/store binding, generation/revision, reservations and logical holds. Legacy
-observations never grant completeness, admission or deletion authority. Any new
-row blocks identity replacement and library purge before existing callbacks;
-only future reviewed owner adapters can release that barrier. The isolated
-`p1Qualification` adapter uses existing fields for joint P1/shared reservation
-and completion, with explicit asset/reference/lease identities and held
-interruption states. Its logical acquisition and metadata budgets do not add a
-second physical-file reservation. It exposes no deletion or barrier release. No
-live producer uses the new allocator. See the
+V59→V60. V61 adds `SharedMediaInboxSourceRecord` and
+`SharedMediaInboxHandoffRecord` through lightweight V60→V61, retaining typed
+source identity, writer state, fixed destinations and exact handoff ownership.
+These rows grant no live capture or deletion authority. Migration starts these
+tables empty and does not inventory files. The inactive repository requires
+explicit qualification roots and persists root/store binding,
+generation/revision, reservations and logical holds. Legacy observations never
+grant completeness, admission or deletion authority. Any new row blocks identity
+replacement and library purge before existing callbacks; only future reviewed
+owner adapters can release that barrier. The isolated `p1Qualification` adapter
+uses existing fields for joint P1/shared reservation and completion, with
+explicit asset/reference/lease identities and held interruption states. Its
+logical acquisition and metadata budgets do not add a second physical-file
+reservation. It exposes no deletion or barrier release. No live producer uses
+the new allocator. See the
 [owner README](../../apps/ios/Merian/Core/Data/SharedMediaStorage/README.md).
 
 V59 adds `PhotoPreparationRecord`, `PhotoPreparationAsset`,
@@ -5660,23 +5671,23 @@ Ordinary Capture access remains nil. Recent milestones:
   directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
-  `ModelContainer`: fresh/current V60 stores open without a migration plan,
+  `ModelContainer`: fresh/current V61 stores open without a migration plan,
   known recent stores use the source-isolated
-  V59/V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans,
-  and only unknown older stores use the full historical plan. V59 needs only
-  lightweight V59→V60; earlier plans retain their previous stages and append
-  V59→V60. Each V50 plan contains its custom V50→V51 preference-ownership stage
-  followed by V51→V52→V53→V54→V55→V56→V57→V58→V59→V60; the V49 plan prepends the
-  required lightweight V49→V50 hop. Immediate predecessors therefore never
-  validate unrelated history. The V42 and V43 recent plans jump directly to V49
-  to avoid validating older full-historical custom stages and to keep V42 off
-  the older V42→V43 bridge that still failed on real TestFlight stores, while
-  V45 and V46 deliberately use one matching source representative each before
-  the V49 repair target. Stores that still hit SwiftData's duplicate-checksum
-  validator during plan construction retry with the same source-isolated recent
-  plans before legacy rescue or safe mode. Safe mode itself creates an empty
-  in-memory V59 container without any migration plan; it does not validate this
-  historical ladder again.
+  V60/V59/V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42
+  plans, and only unknown older stores use the full historical plan. V60 needs
+  only lightweight V60→V61; earlier plans retain their previous stages and
+  append V60→V61. Each V50 plan contains its custom V50→V51 preference-ownership
+  stage followed by V51→V52→V53→V54→V55→V56→V57→V58→V59→V60→V61; the V49 plan
+  prepends the required lightweight V49→V50 hop. Immediate predecessors
+  therefore never validate unrelated history. The V42 and V43 recent plans jump
+  directly to V49 to avoid validating older full-historical custom stages and to
+  keep V42 off the older V42→V43 bridge that still failed on real TestFlight
+  stores, while V45 and V46 deliberately use one matching source representative
+  each before the V49 repair target. Stores that still hit SwiftData's
+  duplicate-checksum validator during plan construction retry with the same
+  source-isolated recent plans before legacy rescue or safe mode. Safe mode
+  itself creates an empty in-memory V59 container without any migration plan; it
+  does not validate this historical ladder again.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.

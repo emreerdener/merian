@@ -54,10 +54,10 @@ struct CapturedMediaArchitectureTests {
         #expect(valueSources.allSatisfy { !$0.1.contains("submissionMediaProjection") })
     }
 
-    @Test func capturedMediaShapeRemainsStableInV60AndAggregateStaysRetired() throws {
+    @Test func capturedMediaShapeRemainsStableInV61AndAggregateStaysRetired() throws {
         let entry = try source(at: Self.entryPath)
         let schemaVersions = try source(
-            at: "apps/ios/Merian/Models/Schema/SchemaV60.swift"
+            at: "apps/ios/Merian/Models/Schema/SchemaV61.swift"
         )
         let aliases = try source(
             at: "apps/ios/Merian/Models/Aliases.swift"
@@ -70,8 +70,8 @@ struct CapturedMediaArchitectureTests {
             "CapturedMediaEntry stored shape changed without a reviewed migration"
         )
         #expect(!entry.contains("@Relationship"))
-        #expect(aliases.contains("typealias CurrentSchema = MerianSchemaV60"))
-        #expect(schemaVersions.contains("enum MerianSchemaV60"))
+        #expect(aliases.contains("typealias CurrentSchema = MerianSchemaV61"))
+        #expect(schemaVersions.contains("enum MerianSchemaV61"))
         let frozen = try source(at: "apps/ios/Merian/Models/Schema/SchemaV58.swift")
         #expect(frozen.contains("MerianSchemaV58.CapturedMediaEntry.self"))
         for retiredPath in Self.retiredPaths {

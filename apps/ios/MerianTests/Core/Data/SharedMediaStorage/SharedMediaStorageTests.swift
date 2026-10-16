@@ -248,6 +248,32 @@ struct SharedMediaStorageTests {
         #expect(try context.fetchCount(FetchDescriptor<SharedMediaLeaseRecord>()) == 1)
     }
 
+    @Test(arguments: [false, true], [false, true])
+    func orphanedInboxRowsBlockPurgeBeforeAnyCallback(handoff: Bool, persisted: Bool) async throws {
+        let h = try Harness(), context = ModelContext(h.container)
+        context.autosaveEnabled = false
+        if handoff {
+            context.insert(SharedMediaInboxHandoffRecord(id: UUID(), nonce: UUID(), sourceID: UUID(),
+                sourceGeneration: UUID(), sourceRevision: 0, inventoryGeneration: UUID(), expectedInventoryRevision: 0,
+                ownerID: UUID(), packageID: UUID(), draftGeneration: UUID(), assetID: UUID(), assetGeneration: UUID(),
+                referenceID: UUID(), leaseID: UUID(), sourceHoldID: UUID(), ordinal: 0,
+                byteCount: 1, sha256: String(repeating: "a", count: 64), writerEpoch: UUID()))
+        } else {
+            context.insert(SharedMediaInboxSourceRecord(id: UUID(), inventoryID: UUID(), generation: UUID(),
+                receivedAt: Date(), rootIdentity: "fixture", maximumBytes: 1, workID: UUID(), writerEpoch: UUID()))
+        }
+        if persisted { try context.save() }
+        let defaults = try #require(UserDefaults(suiteName: "inbox-purge-fixture-" + UUID().uuidString))
+        #expect(try SharedMediaStorageRepository.hasLiabilities(in: context))
+        if persisted { #expect(try !LibraryMutationInventory.read(from: h.container, userDefaults: defaults).isReady) }
+        var callback = false
+        let result = await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+            resetRuntimeState: { callback = true }, erasePhotoPreparation: { callback = true }, eraseReanalysis: { callback = true })
+        #expect(!result && !callback)
+        #expect(try context.fetchCount(FetchDescriptor<SharedMediaInboxSourceRecord>()) == (handoff ? 0 : 1))
+        #expect(try context.fetchCount(FetchDescriptor<SharedMediaInboxHandoffRecord>()) == (handoff ? 1 : 0))
+    }
+
     @Test func checkedAccountingPreservesPackageSubpoolAndFreeSpaceLimits() throws {
         let mib = PhotoPreparationPolicy.mib
         var totals = SharedMediaStoragePolicy.Totals()
