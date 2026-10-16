@@ -1,3 +1,11 @@
+> October 16 integration boundary: PR116 feature scope is frozen at the
+> committed inactive foundation. The
+> [merge-readiness proposal](identification-history-pr116-merge-readiness-2026-10-16.md)
+> separates source integration from activation and this later roadmap. No
+> version deletion/export or redesign is added to PR116; the sequence below
+> remains required after current-scope acceptance. Capture-tools/Add details
+> ownership remains separate. No push, merge or deployment is authorized.
+
 <!-- Approved user plan transcribed from planning thread 01a12460-a2c6-7b21-abcf-d3be41331b45, October 11, 2026. -->
 
 # Identification and History: version actions and UX redesign

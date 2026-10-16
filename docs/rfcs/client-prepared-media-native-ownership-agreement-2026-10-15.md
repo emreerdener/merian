@@ -1,3 +1,33 @@
+## October 16 — PR116 feature scope frozen; merge-readiness proposal
+
+The human requested a feature freeze and exact merge-readiness proposal with
+independent/IC-1 review. The frozen implementation is
+`ca5a30f76e48acb157ed8d013186d0b3ca79fe6f`; its local evidence checkpoint is
+`fdddf66198f0fbfd568534c62fa4b3a7e18e3254`. The 102 unrelated working-tree paths
+are excluded. No further feature additions belong in PR116. This current
+direction supersedes the immediate common-allocation next-step recommendation
+below and the historical October 13 integration cut; existing evidence and
+remaining acceptance requirements are preserved.
+
+Proposal:
+`docs/rfcs/identification-history-pr116-merge-readiness-2026-10-16.md`. ISQ-1
+closes only isolated local NCO/BI qualification. Cumulative PR safety, exact
+final CI and live deployment containment remain open. The local active history
+hold blocks the entire Supabase production job, but does not protect old jobs or
+external Vercel hooks. Remote PR116 remains draft at `878932268`; its checks do
+not qualify the 101 newer local commits. No push, merge, hosted qualification,
+deployment, device installation or activation is authorized.
+
+The proposed next checkpoint is a two-hour read-only readiness audit, at most
+128 MiB evidence and the 20 GiB disk floor; execution awaits approval. Exact
+proposal review receipts are retained in
+`.artifacts/pr116-merge-readiness-20261016/`. Proposal concurrence is not
+whole-PR acceptance or release approval. Common-allocation/original-photo
+integration continues in the next feature PR after the integration boundary;
+later version deletion/export and redesign retain their sequence and ownership.
+No acceptance gate is waived. Activation disabled, ordinary P1 access nil, AWS
+unapproved, limits unchanged; automatic scheduling remains stopped.
+
 ## October 15 local / October 16 UTC — ISQ-1 isolated execution passed
 
 The approved XcodeGen 2.45.4 selection correction resumed ISQ-1 within its
