@@ -1,3 +1,89 @@
+## October 15 local / October 16 UTC — ISQ-1 isolated execution passed
+
+The approved XcodeGen 2.45.4 selection correction resumed ISQ-1 within its
+original 03:07:08–07:07:08 UTC window and unchanged bounds. The clean managed
+worktree at `ca5a30f76e48acb157ed8d013186d0b3ca79fe6f` passed generation with
+identical project bytes, project/migration/CI-tooling/source-membership checks,
+managed Debug build, 561 acceptance tests, all 27 UI cases, all ten report-only
+performance workloads, all 5,923 unit tests, the actual critical-result
+validator and unsigned generic Release compilation. No failures or skips were
+reported. The unit XCResult's 9,363 per-device executions are a separate count;
+BI-1's earlier 5,945 total remains shared-checkout evidence.
+
+Source and pinned hashes remain unchanged; all 102 unrelated primary file
+identities are preserved. Storage accounting normalizes only the reviewed
+simulator-container relocation, charges new/grown files including 23 new fixture
+roots, and preserves raw alarms. Working allocation/evidence/free-space checks
+remain within the original bounds. No performance baseline was adopted; high
+variance and missing hitch samples remain explicit limitations.
+
+Result: `docs/rfcs/client-prepared-media-isq1-isolated-result-2026-10-16.md`.
+Evidence: `.artifacts/local-ios/isq1-20261015/result-resumed.json`; final exact
+independent/IC-1 disposition belongs in `result-review-02.json` in that
+directory. Closure is limited to the isolated local NCO/BI portion of A19 after
+that concurrence. P1 common-allocation/photo and device, audio/video quality,
+server admission/shared references, integrated history, external/CI and later
+version deletion/export/redesign gates remain open. The next recommendation is a
+bounded common-allocation/original-photo ownership and integration proposal.
+
+Activation disabled, ordinary P1 access nil, AWS unapproved, existing limits
+unchanged. No push, merge, deployment, hosted test or device installation. Stop
+at this local checkpoint; automatic scheduling remains stopped. Earlier stopped
+attempts and proposal states below are historical and retain their evidence.
+
+## October 15 local / October 16 UTC — ISQ-1 stopped at tool prerequisite
+
+The human approved ISQ-1 for 03:07:08–07:07:08 UTC. Exact independent and IC-1
+execution concurrence preceded the first qualification command. The clean
+managed worktree at `ca5a30f76e48acb157ed8d013186d0b3ca79fe6f` selected XcodeGen
+2.45.2; the project requires 2.45.4. The primary checkout had selected the
+installed 2.45.4 executable, so its preliminary tool inventory did not establish
+the clean worktree's command lookup. Generation failed before changing files.
+
+Stopped without retry or repair. No package downloads, builds, runtime tests or
+later qualification gates ran. Worktree remains clean; all 106 primary file
+identities (102 unrelated plus four proposal/status paths) were preserved before
+this owned reporting update. Source qualification and all remaining product
+gates stay open. Result and proposed environment-only correction:
+`docs/rfcs/client-prepared-media-isq1-qualification-result-2026-10-15.md`.
+Evidence: `.artifacts/local-ios/isq1-20261015/`. Independent and IC-1 concur
+with this stopped disposition; exact receipts are in
+`.artifacts/local-ios/isq1-20261015/final-review.json`.
+
+Activation disabled, ordinary P1 access nil, AWS unapproved, existing limits
+unchanged. No push, merge, deployment, hosted action or device installation;
+automatic continuation remains stopped. Earlier proposal/active statements below
+are historical; human approval does not erase this failed preflight.
+
+## October 15 local / October 16 UTC — ISQ-1 proposed; execution awaits approval
+
+BI-1 is committed locally as `ca5a30f76e48acb157ed8d013186d0b3ca79fe6f`. Its
+passing validation is shared-checkout evidence; 102 unrelated dirty paths remain
+preserved. Earlier pending-commit or active-window statements below are
+historical. Automatic continuation stopped at BI-1 completion.
+
+The next proposal is
+`docs/rfcs/client-prepared-media-isolated-qualification-proposal-2026-10-15.md`:
+one four-hour local window, one clean managed worktree at the exact commit,
+explicit locked package downloads, managed native qualification, 16 GiB new
+working allocation and 2 GiB retained evidence, with the 20 GiB disk floor.
+Independent and IC-1 concur on proposal SHA-256
+`8043861c9d55968175a9123ca944e891f622b63e88779f029b70a54458957862`; receipts are
+in `.artifacts/local-ios/isq1-proposal-20261015/review.json`. Human execution
+approval remains pending. No execution or implementation is authorized by this
+entry. The proposal separates isolated-source evidence from
+common-allocation/device, audio/video, server admission, integrated history,
+external/CI and later deletion/export/redesign acceptance; those remain open.
+
+Fresh initial/reanalysis requires photo/audio/video, with optional immutable
+supporting text; retained originals suffice, missing media blocks, historical
+records and exact admitted recovery remain preserved. No new Supabase project is
+required: the later human shared-alpha-target decision supersedes historical
+nonproduction-only wording, without granting any current hosted operation.
+Activation disabled, ordinary P1 access nil, AWS unapproved, existing product
+and runtime limits unchanged. No push, merge, deployment, device or hosted work;
+automation remains stopped. Prior evidence and failures remain unchanged below.
+
 ## October 15 local / October 16 UTC — BI-1 validation passed; inactive integration checkpoint
 
 BI-1 completed its planned local validation within the approved

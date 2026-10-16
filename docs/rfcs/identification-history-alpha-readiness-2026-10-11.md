@@ -1,3 +1,89 @@
+## October 15 local / October 16 UTC — ISQ-1 isolated execution passed
+
+The approved XcodeGen 2.45.4 selection correction resumed ISQ-1 within its
+original 03:07:08–07:07:08 UTC window and unchanged bounds. The clean managed
+worktree at `ca5a30f76e48acb157ed8d013186d0b3ca79fe6f` passed generation with
+identical project bytes, project/migration/CI-tooling/source-membership checks,
+managed Debug build, 561 acceptance tests, all 27 UI cases, all ten report-only
+performance workloads, all 5,923 unit tests, the actual critical-result
+validator and unsigned generic Release compilation. No failures or skips were
+reported. The unit XCResult's 9,363 per-device executions are a separate count;
+BI-1's earlier 5,945 total remains shared-checkout evidence.
+
+Source and pinned hashes remain unchanged; all 102 unrelated primary file
+identities are preserved. Storage accounting normalizes only the reviewed
+simulator-container relocation, charges new/grown files including 23 new fixture
+roots, and preserves raw alarms. Working allocation/evidence/free-space checks
+remain within the original bounds. No performance baseline was adopted; high
+variance and missing hitch samples remain explicit limitations.
+
+Result: `docs/rfcs/client-prepared-media-isq1-isolated-result-2026-10-16.md`.
+Evidence: `.artifacts/local-ios/isq1-20261015/result-resumed.json`; final exact
+independent/IC-1 disposition belongs in `result-review-02.json` in that
+directory. Closure is limited to the isolated local NCO/BI portion of A19 after
+that concurrence. P1 common-allocation/photo and device, audio/video quality,
+server admission/shared references, integrated history, external/CI and later
+version deletion/export/redesign gates remain open. The next recommendation is a
+bounded common-allocation/original-photo ownership and integration proposal.
+
+Activation disabled, ordinary P1 access nil, AWS unapproved, existing limits
+unchanged. No push, merge, deployment, hosted test or device installation. Stop
+at this local checkpoint; automatic scheduling remains stopped. Earlier stopped
+attempts and proposal states below are historical and retain their evidence.
+
+## October 15 local / October 16 UTC — ISQ-1 stopped at tool prerequisite
+
+The human approved ISQ-1 for 03:07:08–07:07:08 UTC. Exact independent and IC-1
+execution concurrence preceded the first qualification command. The clean
+managed worktree at `ca5a30f76e48acb157ed8d013186d0b3ca79fe6f` selected XcodeGen
+2.45.2; the project requires 2.45.4. The primary checkout had selected the
+installed 2.45.4 executable, so its preliminary tool inventory did not establish
+the clean worktree's command lookup. Generation failed before changing files.
+
+Stopped without retry or repair. No package downloads, builds, runtime tests or
+later qualification gates ran. Worktree remains clean; all 106 primary file
+identities (102 unrelated plus four proposal/status paths) were preserved before
+this owned reporting update. Source qualification and all remaining product
+gates stay open. Result and proposed environment-only correction:
+`docs/rfcs/client-prepared-media-isq1-qualification-result-2026-10-15.md`.
+Evidence: `.artifacts/local-ios/isq1-20261015/`. Independent and IC-1 concur
+with this stopped disposition; exact receipts are in
+`.artifacts/local-ios/isq1-20261015/final-review.json`.
+
+Activation disabled, ordinary P1 access nil, AWS unapproved, existing limits
+unchanged. No push, merge, deployment, hosted action or device installation;
+automatic continuation remains stopped. Earlier proposal/active statements below
+are historical; human approval does not erase this failed preflight.
+
+## October 15 local / October 16 UTC — ISQ-1 proposed; execution awaits approval
+
+BI-1 is committed locally as `ca5a30f76e48acb157ed8d013186d0b3ca79fe6f`. Its
+passing validation is shared-checkout evidence; 102 unrelated dirty paths remain
+preserved. Earlier pending-commit or active-window statements below are
+historical. Automatic continuation stopped at BI-1 completion.
+
+The next proposal is
+`docs/rfcs/client-prepared-media-isolated-qualification-proposal-2026-10-15.md`:
+one four-hour local window, one clean managed worktree at the exact commit,
+explicit locked package downloads, managed native qualification, 16 GiB new
+working allocation and 2 GiB retained evidence, with the 20 GiB disk floor.
+Independent and IC-1 concur on proposal SHA-256
+`8043861c9d55968175a9123ca944e891f622b63e88779f029b70a54458957862`; receipts are
+in `.artifacts/local-ios/isq1-proposal-20261015/review.json`. Human execution
+approval remains pending. No execution or implementation is authorized by this
+entry. The proposal separates isolated-source evidence from
+common-allocation/device, audio/video, server admission, integrated history,
+external/CI and later deletion/export/redesign acceptance; those remain open.
+
+Fresh initial/reanalysis requires photo/audio/video, with optional immutable
+supporting text; retained originals suffice, missing media blocks, historical
+records and exact admitted recovery remain preserved. No new Supabase project is
+required: the later human shared-alpha-target decision supersedes historical
+nonproduction-only wording, without granting any current hosted operation.
+Activation disabled, ordinary P1 access nil, AWS unapproved, existing product
+and runtime limits unchanged. No push, merge, deployment, device or hosted work;
+automation remains stopped. Prior evidence and failures remain unchanged below.
+
 ## October 15 local / October 16 UTC — BI-1 validation passed; inactive integration checkpoint
 
 BI-1 completed its planned local validation within the approved
@@ -835,7 +921,7 @@ references and status after each checkpoint; do not erase prior failures.
 | A16 | Hosted privacy, storage and operational recovery          | User/operator; History primary defines/evaluates cases                                  | Unqualified; target and operation authorization required                                                 | Authorized nonproduction run records its explicit server gate set and proves erasure, storage/cleanup and recovery on exact revisions, including unenrolled evidence deletion and no provider reinvocation after unknown execution; production gates remain false.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | A17 | Device/resource acceptance                                | User/operator                                                                           | Unqualified; preserve prior results and pending answers                                                  | Agreed photo/audio/video hardware, media preparation, interruption, background/resource pressure and fresh-library disk-backed restart cases pass on the exact candidate.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | A18 | Field Trip held reconciliation                            | History primary tracks closure; separate consumer implementer must be named before work | Blocked separately; consumer assignment not established here                                             | Named consumer acceptance demonstrates required reconciliation or the candidate explicitly remains blocked for that requirement; history tests cannot substitute.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| A19 | Final candidate review and local gates                    | History primary; independent reviewers                                                  | Unqualified for follow-up candidate                                                                      | Reviewed scoped diff, synchronized contracts/docs, full affected gates and independent re-review pass on exact final source; later changes have explicit evidence applicability.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| A19 | Final candidate review and local gates                    | History primary; independent reviewers                                                  | NCO/BI isolated local gates passed; full alpha/PR candidate open                                         | Reviewed scoped diff, synchronized contracts/docs, full affected gates and independent re-review pass on exact final source; later changes have explicit evidence applicability.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | A20 | Final candidate CI                                        | History primary                                                                         | Blocked: follow-up candidate unpublished                                                                 | Required CI for the exact final PR candidate SHA passes; record check names, run links and head identity. Resolve private-source export approval first; no previous-head green substitute.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | A21 | Qualified release-candidate handoff                       | History primary; User/operator supplies external evidence                               | Blocked on required rows                                                                                 | A1–A20 are satisfied with evidence or an explicit user scope decision changes the requirement; exact artifacts/revisions, exclusions and rollback controls recorded; production gates remain disabled.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
