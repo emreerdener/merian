@@ -78,6 +78,7 @@ struct CropSheetModifier: ViewModifier {
                                     ).replacingFocusRegion(focusRegion)
                                 }
 
+                                guard await viewModel.persistPhotoPreparationDraft() else { return }
                                 succeeded = true
                                 if isRequiredGalleryCrop {
                                     viewModel.editingCropIndex = nil
@@ -110,6 +111,10 @@ struct CropSheetModifier: ViewModifier {
                         } else {
                             viewModel.cancelActiveCropTask()
                             if let editIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
+                                if viewModel.dependencies.photoOriginalPreparation != nil {
+                                    viewModel.removePhotoPreparationImage(editIndex)
+                                    return
+                                }
                                 viewModel.stagedCapture.images.remove(at: editIndex)
                                 viewModel.resetReviewIfEmpty()
                             }

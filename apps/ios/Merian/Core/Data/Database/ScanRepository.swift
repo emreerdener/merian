@@ -581,6 +581,7 @@ final class ScanRepository {
         modelContext: ModelContext,
         userDefaults: UserDefaults = .standard,
         resetDerivedState: @MainActor () -> Void,
+        erasePhotoPreparation: (@MainActor () async throws -> Void)? = nil,
         resetRuntimeState: @MainActor () -> Void = {
             AccountScopedRuntimeState.reset()
         }
@@ -589,7 +590,7 @@ final class ScanRepository {
         libraryRestoration.reset()
         return await ScanLibraryPurgeService.purge(
             modelContext: modelContext, userDefaults: userDefaults,
-            resetRuntimeState: resetRuntimeState
+            resetRuntimeState: resetRuntimeState, erasePhotoPreparation: erasePhotoPreparation
         )
     }
 }

@@ -191,3 +191,13 @@ selection in original evidence order. Historical descriptions and the single
 current supplement have separate text budgets; neither consumes a physical media
 slot. Historical audio preparation is fenced by draft generation, even when
 restarting reanalysis for the same original scan.
+
+## Inactive original-photo ownership (NCO-1)
+
+Explicit qualification composition may supply `photoOriginalPreparation`;
+`.live` leaves it nil. Its local branch retains original bytes before draft
+release, stores AI/display assets separately and freezes only into
+`preparedHeld`. It cannot request funding, upload or AI work. Original handles
+travel only in local staging, not ordinary admission/queue payloads. Failures
+retain the draft and block submission. This candidate is under native
+validation; capture-tools layout and later redesign remain separate.

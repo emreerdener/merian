@@ -10,6 +10,7 @@ enum ScanLibraryPurgeService {
         modelContext: ModelContext,
         userDefaults: UserDefaults,
         resetRuntimeState: @MainActor () -> Void,
+        erasePhotoPreparation: (@MainActor () async throws -> Void)? = nil,
         eraseReanalysis: @MainActor () async throws -> Void = {
             try await ObservationReanalysisFileStore(documents: .documentsDirectory).purgeNamespace()
         }
@@ -19,6 +20,16 @@ enum ScanLibraryPurgeService {
         defer { cleanup.resumeAfterLibraryPurge() }
         LocalScanMediaRecoveryResolver.resetRegisteredRecoveryMappings()
         do {
+            let hasP1Namespace = FileManager.default.fileExists(atPath:
+                URL.documentsDirectory.appendingPathComponent("PhotoPreparation").path)
+            if let erasePhotoPreparation {
+                try await erasePhotoPreparation()
+                guard try !PhotoPreparationRepository.hasLiabilities(in: ModelContext(modelContext.container)) else {
+                    throw PhotoPreparationFailure.cleanupPending
+                }
+            } else if try PhotoPreparationRepository.hasLiabilities(in: modelContext) || hasP1Namespace {
+                throw PhotoPreparationFailure.cleanupPending
+            }
             try modelContext.delete(model: CapturedMediaEntry.self)
             try modelContext.delete(model: LocalAnalysisStateRecord.self)
             try modelContext.delete(model: LocalAnalysisRecord.self)

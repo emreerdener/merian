@@ -34,6 +34,10 @@ extension CaptureWorkspaceViewModel {
             }
         }
 
+        if let access = dependencies.photoOriginalPreparation {
+            await submitPhotoPreparationDraft(access)
+            return
+        }
         let analysisTappedAt = CFAbsoluteTimeGetCurrent()
         guard canSubmitDraft else { return }
         let refinementScanId = baseRefinementContext?.scanId
@@ -222,6 +226,9 @@ extension CaptureWorkspaceViewModel {
                 }
 
                 guard didQueue else {
+                    if self.draftSession.generation != submittedGeneration {
+                        self.discardLocalMediaFiles(at: capturedMediaFilePaths)
+                    }
                     capturedPreFetchTask?.cancel()
                     self.pendingAnalyzeScanId = nil
                     self.activeSheet = nil

@@ -65,6 +65,11 @@ owns eligibility, acknowledgement, and Settings replay.
 
 ## Ownership
 
+The workspace observes published and cached identity changes to retire
+account-owned drafts and fence late capture completions. Fresh captures remain
+unowned until their first account binding; same-account refresh preserves them.
+Admission rechecks ownership and library recovery before and after suspension.
+
 The Shell is organized by responsibility rather than as a pair of aggregate
 files:
 
@@ -133,9 +138,9 @@ Shell is the lifecycle authority for in-flight visual work. Scene inactivity,
 leaving Scan, root or feature presentation takeover, workspace teardown, and
 state reset invalidate Scan's still and pre-recording generations. A video that
 has already started keeps the existing graceful-stop behavior so its partial
-clip can finish staging; a pending video admission or hardware start is
-cancelled. This prevents a late shutter or admission response from repopulating
-cleared state or auto-submitting behind another presentation.
+clip can finish staging; pending video hardware startup is cancelled. This
+prevents a late shutter or recording result from repopulating cleared state or
+auto-submitting behind another presentation.
 
 `CaptureWorkspaceViewModel.handleRootSheetDismissed` owns the post-result
 notification opt-in handoff for Close, swipe, and binding-driven dismissal. It
@@ -835,3 +840,13 @@ execution or dispatch while reading. Bound execution remains in the existing
 saved-audio list. Both page routes share four retained slots and account drains.
 The new sheet is explicitly injectable, not installed in ordinary Capture.
 Existing identification and alternatives cards are unchanged.
+
+## Inactive original-photo ownership (NCO-1)
+
+Explicit qualification composition may supply `photoOriginalPreparation`;
+`.live` leaves it nil. Its local branch retains original bytes before draft
+release, stores AI/display assets separately and freezes only into
+`preparedHeld`. It cannot request funding, upload or AI work. Original handles
+travel only in local staging, not ordinary admission/queue payloads. Failures
+retain the draft and block submission. This candidate is under native
+validation; capture-tools layout and later redesign remain separate.

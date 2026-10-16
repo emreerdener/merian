@@ -39,6 +39,15 @@ extension CaptureWorkspaceViewModel {
     }
 
     private func apply(_ route: AppRoute) -> AppRouteOutcome {
+        if dependencies.submission.admission.isLibraryAccessBlocked() {
+            switch route {
+            case .scan, .refinement, .historicalReanalysis, .recallLastFind, .achievement:
+                activeSheet = .scans
+                return .applied(presentationID: activePresentation?.id)
+            default:
+                break
+            }
+        }
         switch route {
         case let .historicalReanalysis(target):
             guard reanalysisEditor == nil, let access = dependencies.reanalysis,

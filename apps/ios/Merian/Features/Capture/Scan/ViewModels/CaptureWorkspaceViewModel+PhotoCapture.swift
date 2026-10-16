@@ -19,6 +19,10 @@ extension CaptureWorkspaceViewModel {
               hasAvailableStagedCaptureSlot,
               imageToCrop == nil else { return }
 
+        if let access = dependencies.photoOriginalPreparation {
+            capturePhotoPreparation(access)
+            return
+        }
         guard let draftOperation = beginDraftOperation() else { return }
         isCapturing = true
 
@@ -30,10 +34,6 @@ extension CaptureWorkspaceViewModel {
                 self.finishStillCaptureUI(for: generation)
                 self.completeDraftOperation(draftOperation, succeeded: succeeded)
             }
-
-            guard await self.requestScanAdmission(
-                flashFallbackEligible: self.isProspectiveFreeMediaEligible(images: 1)
-            ) != nil else { return }
 
             do {
                 try self.requireCurrentStillCapture(generation)
@@ -125,7 +125,7 @@ extension CaptureWorkspaceViewModel {
         _ generation: CaptureScanStillGeneration
     ) throws {
         guard !Task.isCancelled,
-              scanOperationState.isCurrent(generation) else {
+              scanOperationState.isCurrent(generation), isDraftAccountCurrent else {
             throw CancellationError()
         }
     }

@@ -167,9 +167,11 @@ enum ModelContainerFactory {
         // The named helper records each failure in the startup diagnostic.
         // A failed recent source advances to the next exact representative.
         if let recovered = try? makePersistentContainer(
-            migrationPlan: MerianRecentV57MigrationPlan.self,
-            named: "checksum-recent-v57",
-            diagnostic: &diagnostic
+            migrationPlan: MerianRecentV58MigrationPlan.self, named: "checksum-recent-v58", diagnostic: &diagnostic
+        ) { return recovered }
+
+        if let recovered = try? makePersistentContainer(
+            migrationPlan: MerianRecentV57MigrationPlan.self, named: "checksum-recent-v57", diagnostic: &diagnostic
         ) { return recovered }
 
         if let recovered = try? makePersistentContainer(
@@ -420,6 +422,8 @@ enum ModelContainerFactory {
         diagnostic: inout StartupStoreDiagnostic
     ) throws -> ModelContainer {
         switch source {
+        case .v58:
+            return try makePersistentContainer(migrationPlan: MerianRecentV58MigrationPlan.self, named: "recent-v58", diagnostic: &diagnostic)
         case .v57:
             return try makePersistentContainer(migrationPlan: MerianRecentV57MigrationPlan.self, named: "recent-v57", diagnostic: &diagnostic)
         case .v56:

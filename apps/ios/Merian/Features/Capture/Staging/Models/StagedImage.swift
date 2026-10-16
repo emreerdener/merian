@@ -18,6 +18,7 @@ struct StagedImage {
         }
     }
 
+    let photoOriginalReference: PhotoOriginalReference?
     let reanalysisProvenance: ReanalysisProvenance
 
     /// Tier-bounded WebP/JPEG payload used for inference, never UI rendering.
@@ -45,8 +46,10 @@ struct StagedImage {
         original: IdentifiableImage,
         focusRegion: NormalizedImageFocusRegion? = nil,
         addedAt: Date = Date(),
-        reanalysisProvenance: ReanalysisProvenance = .added
+        reanalysisProvenance: ReanalysisProvenance = .added,
+        photoOriginalReference: PhotoOriginalReference? = nil
     ) {
+        self.photoOriginalReference = photoOriginalReference
         self.compressedData = compressedData
         self.displayData = displayData
         self.uiImage = uiImage
@@ -69,7 +72,8 @@ struct StagedImage {
             original: original ?? self.original,
             focusRegion: focusRegion,
             addedAt: addedAt,
-            reanalysisProvenance: compressedData != nil || original != nil ? reanalysisProvenance.edited : reanalysisProvenance
+            reanalysisProvenance: compressedData != nil || original != nil ? reanalysisProvenance.edited : reanalysisProvenance,
+            photoOriginalReference: photoOriginalReference
         )
     }
 
@@ -81,7 +85,8 @@ struct StagedImage {
             original: original,
             focusRegion: focusRegion,
             addedAt: addedAt,
-            reanalysisProvenance: reanalysisProvenance
+            reanalysisProvenance: reanalysisProvenance,
+            photoOriginalReference: photoOriginalReference
         )
     }
 }

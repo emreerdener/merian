@@ -3197,3 +3197,24 @@ lifetime, separate dispatch/known-settlement predicates and all local media.
 [Native video upload delivery](backend-and-data/05-api-contracts.md#native-retained-video-upload-delivery)
 is the canonical owner; upload readiness grants no cleanup or inference
 authority.
+
+## Inactive original-photo preparation owner (NCO-1)
+
+`apps/ios/Merian/Core/Data/PhotoPreparation/` owns the local P1-L1 ledger,
+reservation policy and descriptor-relative file operations.
+`CapturePhotoOriginalPreparationAccess` adapts capture/reopen/held-submit and
+source-owner release to that owner. Four scalar V59 entities under
+`Models/ActiveSchema/` remain separate from ordinary queues and scan history.
+The [schema contract](backend-and-data/04-database-schema.md) owns persistence;
+the
+[native ownership agreement](rfcs/client-prepared-media-native-ownership-agreement-2026-10-15.md)
+owns qualification status and the inactive composition. `.live` access is nil.
+
+`LibraryMutationInventory` counts P1 liabilities; `ScanRepository` forwards the
+optional owner purge to `ScanLibraryPurgeService`. `SupabaseManager` owns the
+optional pre-drain closure and existing account-work lease. Store Recovery's
+`ModelContainerFactory` owns current-first/source-isolated V58 startup
+selection. The
+[account cleanup contract](backend-and-data/21-guest-library-transitions.md) and
+[startup recovery guide](backend-and-data/08-startup-store-recovery.md) describe
+those consumers; none binds the inactive owner into normal AppDI.

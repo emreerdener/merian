@@ -157,6 +157,13 @@ for history_path in \
   apps/ios/Merian/Models/Schema/SchemaV56ScanSnapshots.swift \
   apps/ios/Merian/Models/Schema/SchemaV56QueueSnapshots.swift \
   apps/ios/Merian/Models/Schema/SchemaV57.swift \
+  apps/ios/Merian/Models/Schema/SchemaV58ScanSnapshots.swift \
+  apps/ios/Merian/Models/Schema/SchemaV58QueueSnapshots.swift \
+  apps/ios/Merian/Models/Schema/SchemaV59.swift \
+  apps/ios/Merian/Models/ActiveSchema/PhotoPreparationRecord.swift \
+  apps/ios/Merian/Models/ActiveSchema/PhotoPreparationAsset.swift \
+  apps/ios/Merian/Models/ActiveSchema/PhotoPreparationReference.swift \
+  apps/ios/Merian/Models/ActiveSchema/PhotoPreparationLease.swift \
   apps/ios/MerianTests/Models/LocalAnalysisStateRecordTests.swift \
   apps/ios/MerianTests/Models/LocalAnalysisRecordTests.swift; do
   history_base="$(git -C "$test_repo" rev-parse HEAD)"

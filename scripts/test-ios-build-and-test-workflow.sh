@@ -1354,7 +1354,7 @@ for exact_scan_regression in \
   "testMediaStagingContractRejectsEmptyFilesBeforeUpload" \
   "testRetryQueuedScanNowRejectsLegacyExternalImport" \
   "testLifecycleInterruptionFencesOverlappingStillCapture" \
-  "testLifecycleInterruptionCancelsVideoWaitingOnAdmission" \
+  "testLifecycleInterruptionCancelsPendingVideoStartupWithoutAdmission" \
   "cloudDeletionRequiresExplicitNetworkConfirmation" \
   "cloudDeletionRetriesNeverEnterAnUnrecoverableState" \
   "cloudDeletionDrainIsProcessSingleFlight" \

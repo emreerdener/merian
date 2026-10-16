@@ -1,5 +1,14 @@
 # Core Network
 
+## BI-1 Auth integration
+
+Auth transition entry and completion notify route and milestone sessions through
+the existing private `beginAccountSession` owner, preserving notification order
+and separate timestamps. Anonymous purchase-session checks keep their anonymous
+and UUID boundary, then reuse the canonical published-session fence for
+cancellation, account/generation, SDK expiry and transition ownership. The
+existing file and aggregate architecture caps remain unchanged.
+
 This directory owns Merian's certificate-pinned foreground network client,
 including authenticated endpoints, capability-only deletion recovery, and signed
 uploads. Durable background uploads and replay scheduling live under

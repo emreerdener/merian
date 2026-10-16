@@ -2,6 +2,7 @@ import AuthenticationServices
 import Foundation
 @testable import Merian
 import XCTest
+import Testing
 
 @MainActor
 final class SupabaseManagerTests: XCTestCase {
@@ -732,4 +733,30 @@ final class SupabaseManagerTests: XCTestCase {
         )
     }
 
+}
+
+@Suite("P1 isolated auth drain ordering", .serialized)
+@MainActor
+struct PhotoPreparationAuthDrainTests {
+    @Test func nilHookPreservesDrainAndFailureDoesNotDrain() async {
+        var order: [String] = []
+        #expect(await SupabaseManager.drainPhotoPreparationBeforeAccountWork(preparation: nil, drain: { order.append("drain") }))
+        #expect(order == ["drain"])
+        order.removeAll()
+        #expect(!(await SupabaseManager.drainPhotoPreparationBeforeAccountWork(preparation: {
+            order.append("prepare"); return false
+        }, drain: { order.append("drain") })))
+        #expect(order == ["prepare"])
+    }
+
+    @Test func successfulOwnerClosurePrecedesAccountDrain() async {
+        var order: [String] = []
+        #expect(await SupabaseManager.drainPhotoPreparationBeforeAccountWork(preparation: {
+            order.append("cancel")
+            await Task.yield()
+            order.append("closed")
+            return true
+        }, drain: { order.append("drain") }))
+        #expect(order == ["cancel", "closed", "drain"])
+    }
 }

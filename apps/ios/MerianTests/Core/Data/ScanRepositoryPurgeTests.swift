@@ -9,6 +9,34 @@ import Testing
     .sharedProcessState(.offlineQueueManager)
 )
 struct ScanRepositoryPurgeTests {
+    @Test func photoPreparationRequiresOwnerCleanupBeforeLegacyPurge() async throws {
+        let h = try PhotoPreparationTestHarness(); defer { h.cleanup() }
+        let owner = try h.owner(), bytes = PhotoPreparationTestHarness.image()
+        let handle = try await owner.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0,
+            sourceKind: "picker", load: { bytes })
+        let context = ModelContext(h.container)
+        context.insert(OfflineJobRecord(id: "synthetic-purge-sentinel", kind: .scanIngestion))
+        try context.save()
+        let name = "nco1-purge-" + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        var resets = 0, laterErasure = 0
+        #expect(!(await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+            resetRuntimeState: { resets += 1 }, eraseReanalysis: { laterErasure += 1 })))
+        #expect(resets == 0 && laterErasure == 0)
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
+        #expect(try await owner.originalData(handle) == bytes)
+        #expect(!(await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+            resetRuntimeState: { resets += 1 }, erasePhotoPreparation: { throw PhotoPreparationFailure.cleanupPending },
+            eraseReanalysis: { laterErasure += 1 })))
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
+        #expect(await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+            resetRuntimeState: { resets += 1 }, erasePhotoPreparation: { try await owner.purge() },
+            eraseReanalysis: { laterErasure += 1 }))
+        #expect(resets == 1 && laterErasure == 1)
+        #expect(try !PhotoPreparationRepository.hasLiabilities(in: ModelContext(h.container)))
+    }
+
     @Test func purgeRemovesSpeciesPreferencesAndCompatibilityValues() async throws {
         let schema = Schema(CurrentSchema.models)
         let configuration = ModelConfiguration(
@@ -182,7 +210,10 @@ struct ScanRepositoryPurgeTests {
             UserSpeciesPreference.self,
             OfflineJobRecord.self,
             OfflineQueueEvent.self,
-            ActiveOfflineQueuedScanGoalHint.self
+            ActiveOfflineQueuedScanGoalHint.self,
+            // Released by the explicit P1 owner before ordinary row erasure.
+            PhotoPreparationRecord.self, PhotoPreparationAsset.self,
+            PhotoPreparationReference.self, PhotoPreparationLease.self
         ]
 
         #expect(

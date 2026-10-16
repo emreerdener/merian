@@ -1,3 +1,110 @@
+## October 15 local / October 16 UTC — BI-1 validation passed; inactive integration checkpoint
+
+BI-1 completed its planned local validation within the approved
+01:56:04–03:56:04 UTC window and 1 GiB additional evidence allowance. Candidate
+02 passed managed Debug compilation, 96 focused tests, all 5,945 unit tests, all
+six critical UI smokes, unsigned generic Release compilation, full CI tooling,
+project validation and the actual critical-result validator. Raw XCResult
+per-device counts are retained separately. These are shared-checkout results,
+not isolated selected-source qualification or P1/alpha acceptance.
+
+Final staging exposed two whitespace diagnostics in newly added files. The
+frozen V58 snapshot retains its exact inherited bytes; the test file loses only
+one terminal blank line (candidate 03). The staged audit permits only the known
+frozen-line diagnostic. Final review must concur with evidence reuse for this
+formatting-only correction; candidate-02 runtime results remain accurately
+labeled in the result and raw artifacts.
+
+Independent and IC-1 source-selection review concurred on the 59-file NCO/BI
+source/configuration/project selection. Local commit requires final exact
+combined-patch review; receipts and commit identity are retained in
+`.artifacts/local-ios/bi1-20261015/`. Unrelated working-tree edits remain
+intact. BI-1 automatic continuation ends at this checkpoint and does not advance
+the broader roadmap. Earlier active/paused/proposal status below is historical.
+
+Activation disabled, ordinary P1 access nil, AWS unapproved, existing limits
+unchanged. No hosted action, push, merge, deployment, device installation or
+distribution occurred. Installed/mixed-allocator, audio/video, server admission,
+integrated history and later deletion/export/redesign acceptance remain open.
+Result: `docs/rfcs/client-prepared-media-bi1-integration-result-2026-10-15.md`.
+
+## October 15 local / October 16 UTC — BI-1 approved; bounded validation active
+
+The human approved automatic continuation for BI-1 only, from 01:56:04 through
+03:56:04 UTC, with at most 1 GiB additional retained evidence. Candidate 02 has
+exact independent and IC-1 concurrence, a passing managed simulator build, all
+96 focused tests passed and a passing full CI-tooling gate. Complete unit
+validation and selected-tree/final evidence review are in progress. These are
+shared-checkout results; no clean-source acceptance claim. No runtime source
+change beyond the reviewed Auth consolidation was added by BI-1.
+
+The BI-1 follow-up is active only within this fixed window and stops at
+completion or a genuine blocker. Earlier paused/proposal-only status is
+historical. Activation disabled, ordinary P1 access nil, AWS unapproved and
+existing limits unchanged. No push, merge, deployment, hosted or device actions
+are authorized. Evidence: `.artifacts/local-ios/bi1-20261015/`. Proposal
+boundary:
+`docs/rfcs/client-prepared-media-bounded-integration-proposal-2026-10-15.md`.
+
+## October 15 local / October 16 UTC — BI-1 integration proposal; execution gated
+
+The human requested a bounded proposal for the remaining Auth guard, stale
+capture CI selector and baseline dependency. BI-1 proposes a fresh two-hour
+local window with at most 1 GiB additional evidence: consolidate existing Auth
+helpers without changing caps or fences; prove pending-video interruption and
+late-result cleanup before replacing the critical selector; and explicitly
+integrate the account-bound capture baseline hunks needed by NCO. The dependency
+includes admission fields, account-change hooks and cleanup, not just
+CaptureDraftSession.
+
+Independent and IC-1 re-review concur on proposal SHA
+`4125ea97f243d0b6d6d03ef19500bfc2cac60308f7b226f40c6ef845adc2e15a`. The
+corrected critical test targets pending startup cancellation and preserves
+started-recording stop/completion. Human implementation approval remains
+pending. Review receipt: `.artifacts/local-ios/bi1-20261015/review.json`. No new
+runtime change, build or test is authorized by this proposal. NCO's existing
+shared-checkout evidence and open full/UI/Release/installed/integrated gates
+remain unchanged. Activation disabled, production P1 access nil, AWS unapproved,
+all existing limits unchanged, auto-prompts paused. Unrelated visual/backend
+work remains outside the handoff. Canonical proposal:
+`docs/rfcs/client-prepared-media-bounded-integration-proposal-2026-10-15.md`.
+Earlier entries remain historical.
+
+## October 16, 2026 — NCO-1 local checkpoint; shared acceptance blocked
+
+The approved local implementation and four-script validation extension are
+implemented. Candidate 07 passed 103 focused native tests; its complete unit
+target had 5,939 passed and four failed. Candidate 08 fixes the V59 factory's
+three architecture failures and passes its managed build plus all 18 affected
+architecture tests. The unchanged Auth budget failure and pre-existing capture
+critical-selector mismatch remain open; the full gate is not green.
+
+Evidence is for the shared checkout. P1 depends on uncommitted baseline
+CaptureDraftSession account APIs, so no standalone NCO commit was made or
+unrelated changes absorbed. The bounded patch and exact source snapshot are
+retained. Further baseline/CI ownership reconciliation is required; UI/Release
+runs are held, and P1/integrated acceptance remains open. Activation disabled,
+production access nil, AWS unapproved, limits unchanged, auto-prompts paused. No
+hosted action, push, merge, deployment or device installation occurred. Current
+result: `docs/rfcs/client-prepared-media-nco1-local-result-2026-10-15.md`.
+Earlier entries remain historical and do not supersede this checkpoint.
+
+## October 15, 2026 — NCO-1 implementation authorized; validation in progress
+
+The human approved a four-hour local implementation and validation window from
+23:17:59 UTC through October 16 03:17:59 UTC, including up to 2 GiB of new
+native evidence. The outgoing V58 model freeze passed independent/IC-1 review
+and managed build-for-testing. The V59 ledger, inactive capture ownership seams
+and cleanup integration are now under exact-candidate review; they have not
+passed runtime acceptance. Earlier proposal-only status below is historical.
+
+No P1 completion or integrated qualification is claimed. Production access stays
+nil, activation disabled, AWS unapproved, package/storage limits unchanged and
+auto-prompts paused. No hosted action, push, merge, deployment or device
+installation is authorized. Current local evidence:
+`.artifacts/local-ios/nco1-20261015/`. The native ownership agreement remains
+the scope authority; capture-tools/redesign work remains separate.
+
 ## October 15, 2026 — NCO-1 native agreement; P1 execution awaits approval
 
 The authorized two-hour local agreement scope after `600b5ce28` prepares P1-L1:

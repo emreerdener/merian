@@ -343,7 +343,7 @@ final class CaptureWorkspaceViewModel {
         imageToCrop = nil
         editingCropIndex = nil
 
-        guard !shouldPreserveStagingOnBackground else { return }
+        guard dependencies.photoOriginalPreparation == nil, !shouldPreserveStagingOnBackground else { return }
         clearStagedCaptureAndCropState(discardStagedMediaFiles: true)
         selectedPhotoItems.removeAll()
         cancelRefinementStaging()

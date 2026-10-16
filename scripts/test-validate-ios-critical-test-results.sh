@@ -158,7 +158,7 @@ write_test_tree() {
             ]),
             suite("Capture scan dependencies"; [
               "testLifecycleInterruptionFencesOverlappingStillCapture",
-              "testLifecycleInterruptionCancelsVideoWaitingOnAdmission"
+              "testLifecycleInterruptionCancelsPendingVideoStartupWithoutAdmission"
             ]),
             suite("BackgroundDatabaseActorTests"; [
               "generatedBackgroundResultRejectsMalformedSuccessBody",
@@ -424,7 +424,7 @@ required_cases=(
   "automaticSingleCaptureFencesTheIdentifyTray"
   "requiredCropStateFencesCaptureChromeBeforePresentation"
   "testLifecycleInterruptionFencesOverlappingStillCapture"
-  "testLifecycleInterruptionCancelsVideoWaitingOnAdmission"
+  "testLifecycleInterruptionCancelsPendingVideoStartupWithoutAdmission"
   "queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual"
   "queueBackedAttemptRequiresForegroundGenerationForAllMedia"
   "retiredQueueOwnerStillPublishesQueuedAfterTransportSuccess"

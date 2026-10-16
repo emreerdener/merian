@@ -26,6 +26,7 @@ struct CaptureWorkspaceDependencies {
         _ completion: @escaping (Bool) -> Void
     ) -> Void
     let feedback: CaptureWorkspaceFeedback
+    var photoOriginalPreparation: CapturePhotoOriginalPreparationAccess? = nil
     var reanalysis: CaptureReanalysisAccess?
 
     @MainActor

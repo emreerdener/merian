@@ -1726,28 +1726,28 @@ struct MigrationPlanTests {
         #expect(try context.fetchCount(FetchDescriptor<LocalAnalysisStateRecord>()) == 1)
     }
 
-    @Test func allForwardPlansEndWithQueueQualificationStage() throws {
+    @Test func allForwardPlansEndWithPhotoOwnershipStage() throws {
         let plans: [any SchemaMigrationPlan.Type] = [MerianMigrationPlan.self,
             MerianRecentV42MigrationPlan.self, MerianRecentV43MigrationPlan.self,
             MerianRecentV44MigrationPlan.self, MerianRecentV45MigrationPlan.self,
             MerianRecentV46MigrationPlan.self, MerianRecentV47MigrationPlan.self,
             MerianRecentV48MigrationPlan.self, MerianOptionalQueueV48RecoveryPlan.self,
             MerianRecentV49MigrationPlan.self, MerianRecentV50MigrationPlan.self,
-            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self, MerianRecentV53MigrationPlan.self, MerianRecentV54MigrationPlan.self, MerianRecentV55MigrationPlan.self, MerianRecentV56MigrationPlan.self, MerianRecentV57MigrationPlan.self]
+            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self, MerianRecentV53MigrationPlan.self, MerianRecentV54MigrationPlan.self, MerianRecentV55MigrationPlan.self, MerianRecentV56MigrationPlan.self, MerianRecentV57MigrationPlan.self, MerianRecentV58MigrationPlan.self]
         for plan in plans {
-            #expect(plan.schemas.last?.versionIdentifier.major == 58)
+            #expect(plan.schemas.last?.versionIdentifier.major == 59)
             switch try #require(plan.stages.last) {
             case let .lightweight(fromVersion, toVersion):
-                #expect(fromVersion.versionIdentifier.major == 57)
-                #expect(toVersion.versionIdentifier.major == 58)
+                #expect(fromVersion.versionIdentifier.major == 58)
+                #expect(toVersion.versionIdentifier.major == 59)
             default:
-                Issue.record("Queue qualification requires the additive V57 to V58 stage.")
+                Issue.record("Photo ownership requires the additive V58 to V59 stage.")
             }
         }
-        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53, 54, 55, 56, 57, 58])
-        #expect(MerianRecentV51MigrationPlan.stages.count == 7)
-        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53, 54, 55, 56, 57, 58])
-        #expect(MerianRecentV52MigrationPlan.stages.count == 6)
+        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53, 54, 55, 56, 57, 58, 59])
+        #expect(MerianRecentV51MigrationPlan.stages.count == 8)
+        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53, 54, 55, 56, 57, 58, 59])
+        #expect(MerianRecentV52MigrationPlan.stages.count == 7)
     }
 
     @Test func outgoingV51ModelsAndRelationshipsAreFrozen() throws {
@@ -1774,7 +1774,7 @@ struct MigrationPlanTests {
     @Test func activeCollectionTombstoneUsesSourceOnlyV50RenameMapping() throws {
         let source = try currentScanCollectionSource()
 
-        #expect(CurrentSchema.versionIdentifier.major == 58)
+        #expect(CurrentSchema.versionIdentifier.major == 59)
         #expect(source.contains("@Attribute(originalName: \"isDeleted\")"))
         #expect(source.contains("public var isPendingDeletion: Bool = false"))
         #expect(source.contains("isPendingDeletion: Bool = false"))
@@ -2235,10 +2235,10 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV49MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [49, 50, 51, 52, 53, 54, 55, 56, 57, 58])
+        #expect(schemaMajors == [49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59])
 
         let stages = MerianRecentV49MigrationPlan.stages
-        #expect(stages.count == 9)
+        #expect(stages.count == 10)
         switch try #require(stages.first) {
         case let .lightweight(fromVersion, toVersion):
             #expect(fromVersion.versionIdentifier.major == 49)
@@ -2264,8 +2264,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58])
-        #expect(MerianRecentV50MigrationPlan.stages.count == 8)
+        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59])
+        #expect(MerianRecentV50MigrationPlan.stages.count == 9)
 
         switch try #require(MerianRecentV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):
@@ -2282,8 +2282,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianReleasedActiveV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58])
-        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 8)
+        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59])
+        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 9)
 
         switch try #require(MerianReleasedActiveV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):

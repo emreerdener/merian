@@ -15,7 +15,8 @@ extension CaptureWorkspaceViewModel {
         initialDescription: String? = nil,
         entryPoint: RefinementEntryPoint = .standard
     ) -> Bool {
-        guard !isDraftMutationLocked else { return false }
+        guard !isDraftMutationLocked,
+              !dependencies.submission.admission.isLibraryAccessBlocked() else { return false }
         guard diContainer.revenueCatManager.canStartProScan else {
             AppTelemetry.trackPaywallImpression()
             activeSheet = .paywall
@@ -39,7 +40,8 @@ extension CaptureWorkspaceViewModel {
         initialDescription: String? = nil,
         entryPoint: RefinementEntryPoint = .standard
     ) -> Bool {
-        guard let record = fetchLocalScan(scanId: scanId) else { return false }
+        guard !dependencies.submission.admission.isLibraryAccessBlocked(),
+              let record = fetchLocalScan(scanId: scanId) else { return false }
         return startRefinementScan(
             from: record,
             initialDescription: initialDescription,
@@ -59,6 +61,7 @@ extension CaptureWorkspaceViewModel {
     private func startRefinementScan(with context: RefinementScanContext, initialDescription: String? = nil) {
         cancelRefinementStaging()
         clearStagedCaptureAndCropState(discardStagedMediaFiles: true)
+        guard bindDraftToCurrentAccount() else { return }
         selectedPhotoItems.removeAll()
         preFetchTask?.cancel()
         preFetchTask = nil

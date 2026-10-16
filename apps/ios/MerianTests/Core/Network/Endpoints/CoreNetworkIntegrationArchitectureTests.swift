@@ -712,6 +712,27 @@ struct CoreNetworkIntegrationArchitectureTests {
                 "authSessionBootstrapCoordinator.initialize("
             )
         )
+        let transitionStart = try sourceSection(
+            beginningWith: "    private func beginAuthTransition(",
+            endingBefore: "\n    func ownsAuthTransition(",
+            in: aggregate
+        )
+        try expectOrder([
+            "beginAuthTransitionWriteFence()", "recordAnalyticsGeneration(",
+            "beginAccountSession(userID: nil, origin: .runtimeTransition)", "return token"
+        ], in: transitionStart)
+        let sessionNotifications = try sourceSection(
+            beginningWith: "    private func beginAccountSession(",
+            endingBefore: "\n    private func linkLegacyPurchaseIdentityForSignOutHandoff(",
+            in: aggregate
+        )
+        try expectOrder([
+            "appRouteSessionController?.beginAccountSession(",
+            "milestoneToastSessionController?.beginAccountSession("
+        ], in: sessionNotifications)
+        #expect(sessionNotifications.components(separatedBy: "now: Date()").count == 3)
+        #expect(sessionNotifications.components(separatedBy: "accountID: userID?.uuidString").count == 3)
+        #expect(sessionNotifications.contains("case .runtimeTransition: .runtimeTransition"))
         let bootstrapFinish = try sourceSection(
             beginningWith: "    private func finishAuthTransition(",
             endingBefore: "    private func analyticsGeneration(",
@@ -722,6 +743,8 @@ struct CoreNetworkIntegrationArchitectureTests {
                 "authRuntimeState.finishTransition(token)",
                 "currentUser?.id == sdkSession.user.id",
                 "finalUserID = sdkSession.user.id",
+                "beginAccountSession(userID: finalUserID, origin: .runtimeTransition)",
+                "ConsentManager.shared.resolveAnalyticsAccountTransition(",
                 ".scheduleCurrentSessionReconciliation(",
                 "force: token.kind == .anonymousBootstrap && finalUserID != nil"
             ],
@@ -3827,15 +3850,26 @@ struct CoreNetworkIntegrationArchitectureTests {
                 separatedBy: "activeAnonymousSessionMatches("
             ).count >= 3
         )
-        #expect(
-            anonymousSessionFence.contains("!Task.isCancelled")
+        let publishedSessionFence = try sourceSection(
+            beginningWith: "    private func hasCurrentPublishedSession(",
+            endingBefore: "\n    private func allowsIdentityReplacement(",
+            in: manager
         )
-        #expect(
-            anonymousSessionFence.contains("isAuthenticated")
-        )
-        #expect(
-            anonymousSessionFence.contains("return activeAuthTransition == nil")
-        )
+        for token in ["let user = currentUser", "user.isAnonymous",
+                      "user.id.uuidString.caseInsensitiveCompare(userId) == .orderedSame",
+                      "return hasCurrentPublishedSession(",
+                      "user, expectedAuthGeneration: expectedAuthGeneration, ownedBy: transition"] {
+            #expect(anonymousSessionFence.contains(token))
+        }
+        for token in ["!Task.isCancelled", "isAuthenticated",
+                      "expectedAuthGeneration.map({ $0 == authSessionGeneration })",
+                      "currentUser?.id == user.id", "currentUser?.isAnonymous == user.isAnonymous",
+                      "!sdkSession.isExpired", "sdkSession.user.id == user.id",
+                      "sdkSession.user.isAnonymous == user.isAnonymous",
+                      "return currentSessionMatchesAuthTransition(transition)",
+                      "return activeAuthTransition == nil"] {
+            #expect(publishedSessionFence.contains(token))
+        }
         #expect(
             stableRotation.components(
                 separatedBy: "try Task.checkCancellation()"

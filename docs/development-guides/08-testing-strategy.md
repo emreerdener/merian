@@ -1,5 +1,16 @@
 # Merian Testing & Quality Assurance Strategy
 
+## BI-1 capture lifecycle selector
+
+The required capture critical selector is
+`CaptureScanDependenciesTests/testLifecycleInterruptionCancelsPendingVideoStartupWithoutAdmission`.
+It verifies pending startup cancellation without scan admission, rejection and
+cleanup of a late recording, and preservation of the replacement draft. Started
+recording stop/completion and completed preparation remain separate behaviors.
+The validator, workflow contract and positive/negative validator fixtures must
+agree on this selector. BI-1 uses shared-checkout managed-cache evidence; it
+does not claim isolated source qualification.
+
 > **Field Chat beta release scope:** The
 > [September 18 owner decision](../release-evidence/field-chat-beta-release-decision-2026-09-18.md)
 > defers the unfinished full-release evidence package for the existing beta
@@ -12876,3 +12887,25 @@ receipt and retained files intentionally remain pending; physical cleanup is
 covered by the retained execution suites. This is a disk-container reopen with
 injected reads, not OS process relaunch, live RPC qualification, device capture
 or activation. Field Trip's held reconciliation consumer remains separate.
+
+## NCO-1 inactive original-photo validation
+
+The native photo owner uses dedicated disk containers and private fixture roots.
+`PhotoOriginalPreparationTests`, `PhotoPreparationPersistenceTests` and
+`CapturePhotoPreparationTests` exercise original identity, separate derivatives,
+retained source-owner liability, interrupted commit/reopen, context/crop
+restore, missing/oversized inbox refusal and manual/automatic local held
+submission. `MigrationPlanTests` and the real V58 disk fixture validate the
+additive V59 route; inventory, purge and isolated Auth-drain suites cover
+cleanup barriers. Synthetic SQLite files are retained while Core Data may hold
+descriptors; test teardown must not unlink a live store. Fixtures count against
+the approved 2 GiB local evidence allowance.
+
+Use the managed build wrapper and exact reviewed candidate manifests in
+`.artifacts/local-ios/nco1-20261015/`. A focused pass does not close the
+complete unit target, required native readiness phases or user-run
+installed/device gates. Source and runtime results, including retained failures
+and shared-checkout limitations, are recorded in the
+[NCO-1 agreement](../rfcs/client-prepared-media-native-ownership-agreement-2026-10-15.md).
+Normal access remains nil; no hosted/provider calls are authorized by these
+local tests.

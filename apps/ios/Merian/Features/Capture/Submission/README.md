@@ -229,12 +229,13 @@ refinement, and other Pro-only entry points open the soft paywall when
 unavailable. One photo/audio plus an optional note does not itself require Pro
 funding.
 
-Before a camera shutter, audio recorder, or staged submission can begin work,
-online Capture calls the authenticated, caller-scoped
-`get_my_scan_admission_preview(...)` RPC. A daily-allowance or Pro-access denial
-opens the existing root paywall immediately and leaves staged input untouched;
-Capture does not start hardware, create a queue row, open Insight, or invoke
-inference. `IdentificationEvidenceAllowance` permits one ordinary photo or
+Photo and video capture stage locally before scan admission. Before an audio
+recorder or staged submission can begin work, online Capture calls the
+authenticated, caller-scoped `get_my_scan_admission_preview(...)` RPC. A
+daily-allowance or Pro-access denial opens the existing root paywall immediately
+and leaves staged input untouched; An admission denial does not create a queue
+row, open Insight or invoke inference; existing staged photo/video input is
+retained. `IdentificationEvidenceAllowance` permits one ordinary photo or
 standalone audio plus an optional note, or one description alone, for Flash.
 Additional physical media, video-derived evidence, multiple descriptions, and
 refinement preflight as Pro-only. The RPC is a short-lived, read-only UX
@@ -587,3 +588,13 @@ source reservation from an already bound execution. Presentation cancellation
 withholds handoff while preserving committed durable work. A stage failure
 retains the plan; a later explicit retry recovers the same saved UUID. This
 method cannot invoke the legacy binder. Existing `submit` behavior is unchanged.
+
+## Inactive original-photo ownership (NCO-1)
+
+Explicit qualification composition may supply `photoOriginalPreparation`;
+`.live` leaves it nil. Its local branch retains original bytes before draft
+release, stores AI/display assets separately and freezes only into
+`preparedHeld`. It cannot request funding, upload or AI work. Original handles
+travel only in local staging, not ordinary admission/queue payloads. Failures
+retain the draft and block submission. This candidate is under native
+validation; capture-tools layout and later redesign remain separate.

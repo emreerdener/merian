@@ -12,6 +12,7 @@ struct ModelsIntegrationArchitectureTests {
             let enrollmentOwner = source.relativePath == "Core/Data/AnalysisHistory/ObservationHistoryEnrollmentService.swift"
             let stateModel = source.relativePath == "Models/ActiveSchema/LocalAnalysisStateRecord.swift"
                 || source.relativePath == "Models/Schema/SchemaV57ScanSnapshots.swift"
+                || source.relativePath == "Models/Schema/SchemaV58ScanSnapshots.swift"
             let consentFixture = source.relativePath == "App/UITesting/UITestSeedCoordinator+PublicationConsent.swift"
             if consentFixture {
                 // The sole synthetic enrollment seed is excluded from Release;
@@ -179,9 +180,11 @@ struct ModelsIntegrationArchitectureTests {
         )
         #expect(registry.contains("enum MerianMigrationPlan"))
         #expect(registry.contains("enum MerianSchemaV51"))
-        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV58.swift")
-        #expect(currentSchema.contains("enum MerianSchemaV58"))
-        #expect(registry.contains("migrateV57toV58"))
+        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV59.swift")
+        #expect(currentSchema.contains("enum MerianSchemaV59"))
+        #expect(registry.contains("migrateV58toV59"))
+        let frozen = try source(at: "apps/ios/Merian/Models/Schema/SchemaV58.swift")
+        #expect(frozen.contains("MerianSchemaV58.LocalScanRecord.self"))
     }
 
     @Test func historyPresentationRemainsAnExplicitClosedConsumer() throws {
@@ -298,6 +301,10 @@ struct ModelsIntegrationArchitectureTests {
         "OfflineQueueEvent.swift",
         "OfflineQueuedScan.swift",
         "PendingCloudDeletionTask.swift",
+        "PhotoPreparationAsset.swift",
+        "PhotoPreparationLease.swift",
+        "PhotoPreparationRecord.swift",
+        "PhotoPreparationReference.swift",
         "ScanCollection.swift",
         "UserSpeciesPreference.swift"
     ]
