@@ -88,12 +88,20 @@ identity. The canonical runtime contract is
   plan-selection coverage; this refactor does not change a schema or migration
   stage.
 
-The active schema is V58. The immediate V57 source uses
-`MerianRecentV57MigrationPlan` with lightweight V57→V58. Every older plan
-appends that stage; checksum retries try current store, V57 through V51, both
-V50 graphs and then V49 through V42. Both frozen V57 snapshot files are pinned
-in the source guard. Existing queued scans acquire ordinary qualification and
+The active schema is V59. The immediate V58 source uses
+`MerianRecentV58MigrationPlan` with lightweight V58→V59. Older supported plans
+retain their existing stages and append V58→V59; checksum retries try the
+current store, V58 through V51, both V50 graphs and then V49 through V42. V58's
+frozen scan and queue snapshots preserve the outgoing graph. V59 adds four
+standalone photo-preparation entities with scalar IDs, no relationships to the
+legacy graph and an initially empty ledger. Migration runs during ordinary
+startup even while photo-preparation access remains disabled.
+
+The earlier V57→V58 stage gives existing queued scans ordinary qualification and
 nil parent, source and owner linkage without changing saved identification or
-review state. The disk-backed migration fixture verifies media cascade and a
-current-schema reopen. See the canonical
-[SwiftData contract](../../../../../../docs/backend-and-data/04-database-schema.md#v58-qualified-queued-reanalysis-storage).
+review state. Retain its disk-backed media-cascade and current-schema-reopen
+coverage. The canonical
+[SwiftData contract](../../../../../../docs/backend-and-data/04-database-schema.md)
+and
+[startup recovery guide](../../../../../../docs/backend-and-data/08-startup-store-recovery.md)
+describe the active schema and source-isolated migration routing.
