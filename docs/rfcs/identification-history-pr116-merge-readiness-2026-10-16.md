@@ -6,6 +6,52 @@ authorization boundary. It authorizes no push, merge, workflow dispatch,
 deployment, hosted test, activation or device installation. AWS remains
 unapproved; all product, storage and runtime limits remain unchanged.
 
+## Current continuation after the audit
+
+The human subsequently requested that work continue to close the concrete merge
+blockers and clarified that beta deployment is acceptable. That supersedes the
+zero-deployment preference in the original proposal below. Do not disconnect
+Vercel simply to enforce the older preference. Activation remains disabled, AWS
+unapproved and existing limits unchanged. Exact publication scope and candidate
+approval are still required before external actions; no external action was
+performed in this local checkpoint.
+
+MC-1 completed the read-only cumulative audit and deployment inventory. Its
+StoreRecovery V59 README correction was independently reviewed and committed as
+`9c28cf036`. The audit found one service-only compatibility gap: the public
+four-argument quota API could renew a retained cancelled initial-operation
+reservation. The ordinary eight-argument caller and later dispatch/finalization
+were separately fenced; no ordinary-app exploit or duplicate AI call was shown.
+The necessary forward repair changes only that legacy public boundary, retaining
+its signature and private accounting core, with owner-then-scan serialization, a
+permanent-fence check and rejection of stale-snapshot transaction modes. The
+primary owns the repair and all shared writes.
+
+The exact repair's local qualification, review, preservation and disposition are
+recorded in `.artifacts/pr116-quota-repair-20261016/`. Earlier passing catalog
+and native receipts remain reusable evidence for unchanged source; they are not
+substituted for the repair's affected gates or final candidate CI. The initial
+audit report remains historical at `.artifacts/pr116-mc1-20261016/result.md`.
+The frozen feature scope excludes new product additions and all unrelated dirty
+paths, including the separately owned deployment-recovery work.
+
+The completed read-only dashboard inventory found both Vercel projects
+(`naturebook` and `naturebook-admin`) Git-connected with automatic previews and
+main production deployment. Publishing can therefore create previews; merging
+can deploy both sites. The Naturebook Xcode Cloud product page showed empty
+onboarding with no configured workflow visible. The Supabase source hold remains
+intact. The previously failed migration push left a partial backend release that
+must be reconciled against the actual ledger before a backend deployment;
+permission to deploy beta does not supply that reconciliation. Source
+integration, backend deployment and feature activation retain distinct checks.
+
+The remaining publication decisions are the exact push candidate and expected
+Vercel effects, final CI on that candidate, then the reviewed merge result. No
+new product or device acceptance gate is closed by this audit or repair.
+Automatic prompts remain paused. All earlier proposal-only restrictions below
+are historical where superseded by the human's continuation and beta-deployment
+decisions; the original evidence and safety boundaries are retained.
+
 ## Frozen source and publication boundary
 
 - Repository: `emreerdener/merian`;

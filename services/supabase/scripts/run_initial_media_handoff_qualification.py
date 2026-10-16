@@ -33,6 +33,7 @@ SUITES.update({
     'resource_photo_images': ('test_initial_media_handoff_resources.py', ('--shape', 'photo_audio_images')),
     'resource_video_audio': ('test_initial_media_handoff_resources.py', ('--shape', 'video_audio')),
     'merge_funding': ('test_initial_merge_target_funding.py', ()),
+    'legacy_quota': ('test_initial_media_handoff_legacy_quota.py', ()),
 })
 # These nonterminal fixtures intentionally retain exact synthetic roots. This
 # check is not a per-row erasure claim; every other suite must have zero roots.

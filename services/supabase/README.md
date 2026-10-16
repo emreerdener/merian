@@ -301,7 +301,7 @@ manifest.
 
 `python3 services/supabase/scripts/run_initial_media_handoff_qualification.py
 --suite all`
-(from the repository root) runs the 21 closed local SQL, bridge, coordinator and
+(from the repository root) runs the 22 closed local SQL, bridge, coordinator and
 synthetic-resource suites. Select one named `--suite` for focused verification;
 `--evidence-directory` selects a new output directory only. The runner reserves
 the checkout's fixed ignored ownership receipt before creating a unique
@@ -318,7 +318,7 @@ qualification; occupied ports fail without stopping another database. Each
 passing suite is followed by an inactive/invocation-free check and disposal of
 only its owned project. Before stopping, it checks exact fixture-specific
 residual counts: state and pruning retain one receipt and intent; expiry and
-public-deletion retain one receipt and no intent. The other 17 suites require
+public-deletion retain one receipt and no intent. The other 18 suites require
 zero of both. These four intentional synthetic residuals are destroyed with the
 disposable database; this does not claim per-row erasure. The runner persists
 `disposing` before stopping and the stop result immediately afterward so a
@@ -341,7 +341,7 @@ durable. The candidate workflow prepares this validation step after its ordinary
 database is stopped, then attempts a read-only ownership snapshot and evidence
 upload with `always()` conditions. The qualification step has a 115-minute limit
 within the existing 120-minute job. Retention on cancellation or job timeout is
-best-effort; the complete 21-suite duration and fit within that job limit remain
+best-effort; the complete 22-suite duration and fit within that job limit remain
 unqualified until measured. This configuration does not authorize dispatch,
 publication, activation or installed storage qualification. Synthetic byte
 transport does not establish media decoding, physical backend behavior or robust

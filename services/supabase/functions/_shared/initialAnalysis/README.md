@@ -956,8 +956,10 @@ recorded local evidence, including fresh current-source
 owners/readers/transferred-C1/cleanup/video-audio qualification. The full family
 passes 172 catalogs / 6,706 assertions and 3,935 Edge tests / 598 steps, strict
 lint and advisor gates (warnings retained). Portable runner v8 and CI wiring are
-reviewed; runtime activation remains disabled; the combined hosted 21-suite
-duration is unqualified. See the runtime RFC and
+reviewed. The current runner adds a 22nd suite for the legacy four-argument
+quota boundary; its new qualification is separate from those retained results.
+Runtime activation remains disabled; the combined hosted 22-suite duration is
+unqualified. See the runtime RFC and
 `.artifacts/initial-media-handoff-v2/runtime-implementation/` for exact source
 manifests, independent/IC-1 family decisions, outcomes, disposal and local
 commit identity. This is shared-checkout synthetic qualification, not installed

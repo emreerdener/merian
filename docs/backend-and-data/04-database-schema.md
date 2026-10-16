@@ -8462,6 +8462,20 @@ immutable content-addressed source manifest with no owner data. All three tables
 enable RLS and deny direct API-role access. The rollout row pins the reviewed
 asset digest without enabling admission.
 
+The legacy four-argument `public.reserve_ai_quota(uuid,text,uuid,text)` also
+excludes this permanent namespace. Its forward repair preserves service-role and
+consent checks and validates inputs before locking the live owner `FOR UPDATE`,
+then the scan-ingestion advisory key. The fence is read after those locks and
+before entering the unchanged private quota core. This serializes direct legacy
+calls for one owner and prevents a cancelled initial identity from renewing
+quota, lease, attempts or counters. Direct callers must use read-committed
+transactions; stronger snapshot isolation is rejected with
+`ai_quota_isolation_unsupported` rather than trusting a stale pre-lock snapshot.
+Unfenced legacy reservation/replay/renewal semantics and the five-second
+statement timeout remain unchanged. The private four-argument core remains
+available to authorized atomic admission; this repair grants no dispatch and
+does not enable the initial lifecycle.
+
 Fresh admission takes the live owner FOR UPDATE, the scan-ingestion advisory,
 any scan/history row locks, then the rollout FOR SHARE and existing entitlement,
 quota and provider-assignment owners. Its transaction-local context permits only

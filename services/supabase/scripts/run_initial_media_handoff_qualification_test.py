@@ -62,7 +62,8 @@ class QualificationRunnerTests(unittest.TestCase):
             self.assertNotIn('synthetic-private-diagnostic', (directory / 'failure.json').read_text())
 
     def test_dispatch_is_literal_and_scripts_exist(self):
-        self.assertEqual(len(runner.SUITES), 21)
+        self.assertEqual(len(runner.SUITES), 22)
+        self.assertEqual(runner.SUITES['legacy_quota'], ('test_initial_media_handoff_legacy_quota.py', ()))
         for name, (script, args) in runner.SUITES.items():
             with self.subTest(suite=name):
                 self.assertTrue((runner.SCRIPTS / script).is_file())
