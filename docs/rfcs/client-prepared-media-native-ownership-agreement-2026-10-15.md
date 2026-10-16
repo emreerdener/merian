@@ -1,3 +1,25 @@
+## October 16 — shared native allocation agreement reviewed
+
+[SMA-1](shared-media-allocation-ownership-2026-10-16.md) recommends additive V60
+ownership in the existing store, non-destructive legacy inventory, explicit
+accountless inbox ownership, and reference-directed cleanup. The 384 MiB cap
+remains pending CPM packages only; retained history occupies real disk but
+receives no new quota or eviction policy. Legacy observations confer no write,
+cleanup or fresh-admission authority.
+
+This is a proposed agreement, not implementation or mixed-producer
+qualification. G1–G4 and A2/A3/A5/A14/A16/A17 remain open. The next bounded
+dependency is the exact inactive foundation file/lock/migration packet after
+independent and IC-1 review, followed by producer integration and required
+acceptance. Existing media-required submission and exact admitted recovery
+remain unchanged. Unknown AI execution permits neither another invocation nor a
+refund.
+
+PR116 stays frozen at `135555d66`; activation and ordinary P1 access disabled,
+Supabase hold active, AWS unapproved, limits unchanged. No push, merge,
+deployment, hosted test, device operation or capture visual refactor is
+included.
+
 ## October 16 — separate local continuation; PR116 remains frozen
 
 The user authorized local feature continuation on

@@ -1,0 +1,281 @@
+# SMA-1: shared native media allocation and cleanup
+
+Status: October 16, 2026. Independently and IC-1 reviewed proposed agreement,
+following local checkpoint `0d6865e40`. This document specifies the next
+foundation; it does not install an allocator, change a schema, adopt new limits,
+or qualify mixed-producer operation. History primary remains the sole writer.
+PR116 stays frozen at `135555d66`. Activation and ordinary P1 access remain
+disabled, Supabase integration hold active, and AWS unapproved. No push, merge,
+deployment, hosted test, device operation or schedule change is included.
+
+## Recommendation
+
+Use one durable allocation authority in the existing native SwiftData store,
+with additive scalar records in the next schema, currently V60. Keep each media
+owner responsible for its namespace and semantic references. The common
+authority decides whether bytes may be allocated and when their reservation can
+be released; it does not acquire server admission, funding or erasure authority.
+
+Start with an inactive foundation and non-destructive legacy inventory. Then
+integrate producers and cleanup one bounded checkpoint at a time. Do not enable
+original-photo preparation in ordinary capture until every competing writer is
+registered or positively excluded for the complete operation lifetime. This is
+more work than counting files at enqueue, but it closes the race between
+checking free space and another producer consuming it.
+
+A separate JSON inventory is not recommended: queue/history ownership already
+lives in SwiftData, and a second authoritative database would introduce another
+cross-store commit and erasure problem. File writes still need explicit durable
+intent and recovery because a SwiftData save cannot atomically commit a file.
+Migration starts the additive inventory empty and closed to allocation; it does
+not discover files or rewrite saved operations inside a migration callback.
+
+## Evidence and unchanged boundaries
+
+The current alias is V59. `PhotoPreparationRepository` owns four P1 entities and
+reserves only within its private namespace. Its file owner takes a shared
+Documents lock and an exclusive PhotoPreparation lock. Neither that lock nor the
+legacy `OfflineQueueStoragePolicy` estimate supplies common allocation.
+`FileIOActor` now confines generic access to regular single-link flat files, but
+cannot infer durable references or prove writer closure from a path.
+
+`CapturedMediaPersistenceService`, ordinary queue admission and
+`InferenceProcessingActor` still have separate file lifetimes. Reanalysis has
+its own private file owner; `ExternalImageImportStore` has an Application
+Support inbox and JSON manifest. Queue deletion and library purge have existing
+ordering that must be adapted explicitly, not bypassed by generic cleanup.
+
+The adopted
+[CPM limits](client-prepared-media-limits-and-integration-proposal-2026-10-13.md)
+and
+[NCO-1 P1 agreement](client-prepared-media-native-ownership-agreement-2026-10-15.md)
+remain authoritative. P1's local qualification and the earlier confinement tests
+are evidence for those scopes only. The server reference agreement, audio
+quality, video preparation and integrated acceptance remain separate open gates.
+
+## Accounting contract
+
+| Account              | Existing bound and treatment                                                                                                                                                              |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CPM pending          | Four packages including the preparing draft; 384 MiB durable total; each complete package at most 96 MiB including metadata. Unknown work retains its slot and liability.                 |
+| CPM temporary        | 192 MiB total: 96 acquisition/commit, 64 preparation, 32 transfer/export. One active preparation and one active transfer; export shares that transfer slot.                               |
+| New allocation       | At most 288 MiB for a new worst-case package plus its temporary work; preserve 256 MiB free after outstanding allocations. Completely new worst-case admission requires 544 MiB.          |
+| Retained library     | Existing physical bytes reduce observed free space. The pending cap is not a total-library quota. No new eviction, TTL or retained-library size cap is introduced.                        |
+| Legacy pending/inbox | Inventory their actual bytes and unresolved future allocations. Preserve their existing contract and limits; do not convert them into CPM packages or grant fresh admission by migration. |
+
+For a locked capacity decision, require observed available bytes minus all
+previously reserved but not yet materialized bytes minus the requested new
+allocation to leave at least the existing 256 MiB reserve for CPM work.
+Materialized bytes already reduce observed free space: do not subtract them a
+second time there. Separately enforce every applicable package, role, pending
+and temporary cap using materialized bytes plus outstanding reservations. Use
+checked integer arithmetic and refuse unknown capacity, overflows or
+inconsistent totals. Recheck during bounded writes; outside processes can still
+consume disk, so reservation is not a filesystem guarantee against ENOSPC.
+
+Count each physical copy, including partials, atomic replacement copies,
+processing scratch, upload/export staging and interrupted leftovers. Matching
+hashes or APFS clones do not grant a discount. A verified rename within the same
+volume does not create a second copy; charge both sides until an ambiguous move
+is reconciled. Multiple references to the same immutable owned file count once
+physically, while every logical package still satisfies its own role/cohort
+limits. Logical sharing never permits exceeding accepted media counts.
+
+Completed-package conversion is not a counter decrement on an AI response.
+Retained ownership must be durably acquired before the pending hold is retired,
+with the same physical allocation identity preserved. Unknown transitions retain
+the conservative liability. This local conversion proves neither cloud retention
+nor server reference release.
+
+## Proposed durable authority
+
+Add scalar records for the following responsibilities; final declarations,
+indexes, uniqueness and exact file boundary belong to the implementation packet:
+
+| Record responsibility  | Required identity and state                                                                                                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inventory generation   | Library/store identity, contract version, bootstrap cursor and completion state, revision, admission/retirement generation.                                                                     |
+| Physical allocation    | Stable allocation UUID, producer/namespace, opaque relative token, physical file identity, measured bytes, byte ceiling, pool/profile, verification and cleanup state.                          |
+| Reference/hold         | Stable edge UUID, allocation UUID, authoritative local owner kind/ID, account or explicit unassigned provenance, role, owner revision and live/retired state.                                   |
+| Reservation/work lease | Stable work UUID, generation, owning operation, fixed destinations, reserved/unmaterialized and materialized bytes, purpose, process/session identity, writer/read status and closure evidence. |
+
+References and physical charges are different records. Allocation identity
+survives package-to-history handoff. No current-login default may attribute an
+unassigned import or an older account's files. Known user/account identity is
+copied only from its authoritative owner; no raw paths or media hashes enter
+diagnostic logs. Native private records may retain what their cleanup duty needs
+until verified erasure under the existing privacy contract.
+
+Use one injected authority per store/root composition, with cross-instance
+serialization and fresh-context revision checks. A process-local actor alone is
+insufficient. A stable lifetime fence covers bootstrap, writers and purge; short
+allocation transactions serialize reserve/commit/retire. Namespace owners keep
+their descriptor-relative protection. Do not hold the allocation transaction
+while awaiting a provider callback or file copy. Persist the reservation first,
+retain a lifetime lease, perform bounded work, then reconcile exact identity and
+generation in a fresh transaction. Purge closes admission before waiting for
+leases; it cannot wait while holding a lock needed by completion.
+
+Before construction, enumerate the full lock acquisition order against existing
+P1/reanalysis root locks and queue persistence locks. No adapter may call back
+into the allocation owner while holding a lower-ranked lock. Existing P1's
+namespace-lock-across-save implementation must be adapted deliberately; simply
+wrapping it with a second lock would not establish deadlock freedom.
+
+## Existing-file bootstrap
+
+Bootstrap is a restartable inventory operation, not permission to delete or
+relabel media. Keep fresh CPM allocation closed until a complete inventory
+generation and all required producer barriers agree. Read in bounded pages and
+persist progress; reopen resumes the same generation. No full-library Data load
+or unbounded decoding is needed. Before marking complete, revalidate the owner
+revision and file identity under the applicable mutation barriers.
+
+| Observed state                                                                | Required result                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| File with exact saved owner reference                                         | Record a `legacyObserved` allocation and reference evidence in place. Preserve bytes, paths, operation identity and historical media role. This observation grants no cleanup or write authority. A processed image does not become an original. |
+| Same file referenced by queue and saved history                               | Record both reference observations on one proven physical file. After owner handoff, both become durable holds before any release authority is enabled. Neither queue cleanup nor deleting one version may erase the survivor's bytes.           |
+| Referenced file absent or changed                                             | Retain a missing/conflicted record and recovery identity; block dependent fresh submission. Do not substitute another basename, preview or inferred source.                                                                                      |
+| Unreferenced or ambiguous file in a managed media root                        | Record a recovery hold and measured liability in place. No age-based sweep, account guess, automatic adoption or recursive deletion.                                                                                                             |
+| Unsupported entry, symlink, hard link, inaccessible root or corrupt inventory | Refuse adoption and keep the affected allocation gate closed. Preserve evidence/state; do not follow the entry or broaden a permitted root.                                                                                                      |
+| Other app files outside managed media roots                                   | Exclude from media ownership; their occupied space still affects actual free capacity. The allocator is not a whole-Documents cleaner.                                                                                                           |
+
+Reconciliation first asks the existing producer/queue/history owner for exact
+references and original work status. Proven completed local work can finish its
+original commit; proven abandoned local work can retire under its existing
+discard authority. An unresolved file stays held, with a specific recovery
+reason. Explicit user discard may release only the named local owner after
+writer closure and survivor checks; it cannot authorize remote erasure or infer
+an unused AI operation. Missing bytes need replacement for a fresh submission,
+while exact admitted recovery retains the original operation meaning.
+
+Ordinary existing-library reading remains available while bootstrap is held.
+Temporary-directory entries are ephemeral observations, not durable originals;
+the OS or existing producers may remove them. Scan only registered media
+destinations there, never adopt the entire temporary directory. A later producer
+handshake must establish a durable owner before a temporary source can count as
+retained media.
+
+Do not gate the currently shipping legacy path through this unfinished owner.
+Installation of coordinated writer barriers belongs to the later integration
+checkpoint; no claim of a stable concurrent inventory is made before then.
+
+## Producer and cleanup ownership
+
+| Participant                            | Required integration before mixed operation                                                                                                                                                                                                                      |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1 original acquisition/preparation    | Replace namespace-only capacity authority with shared reservations; keep P1 role/immutable-context validation and private file ownership.                                                                                                                        |
+| FileIO and capture/queue media         | Reserve before any copy/write; commit exact files and caller/queue holds durably; a failed queue insert retains caller draft and the cleanup duty for provisional copies.                                                                                        |
+| Audio/video processing                 | Reserve source, output and scratch separately before processing. Freeze only final approved recipe output; this agreement does not settle recipe/quality acceptance.                                                                                             |
+| External import inbox                  | Register before copying into Application Support; retain explicit unassigned import ownership until an account-bound handoff. Destination commit acquires a hold before source release. If copied, both files remain charged until source deletion is confirmed. |
+| Reanalysis/history                     | Acquire source holds before preparation; commit child references before retiring preparation holds. Never reconstruct submitted evidence merely to repair missing inventory.                                                                                     |
+| Upload, download and export            | Register staging and original task/session identity; reattach or reconcile existing tasks on restart. URLSession/system-owned copies need measured coverage or a proven exclusion before qualification.                                                          |
+| Queue/scan/draft/nonbiological cleanup | Request retirement of the exact owner/revision. Paths and `validPaths` cannot authorize shared-file deletion. Preserve current domain deletion authority and unrelated owners.                                                                                   |
+| Auth/library purge                     | Close admission, drain actual local/background writers, retire applicable references, reconcile/unlink through namespace owners, then remove the last cleanup authority. Failure retains the barrier and recovery records.                                       |
+
+An inbox manifest remains its content catalog, not an independent capacity
+counter. Until its adapter exists it is an excluded competing producer, not
+assumed to honor P1 locks. The same applies to every unmapped temporary writer.
+Bootstrap labels inbox entries `unboundInbox`. Retain this accountless owner
+across an account switch; do not include it in an account's erasure by guessing
+ownership. An account-bound destination obtains a separate exact handoff hold;
+source discard still belongs to the inbox owner. Global capacity sees both. Any
+producer outside the chosen composition must be demonstrably drained and blocked
+for the whole operation, not merely absent when a test starts.
+
+Cleanup saves retirement intent before unlink. Last-reference retirement must
+serialize with new reference acquisition; readers, exports, copies and
+unresolved writes retain holds. After actual writer closure and zero surviving
+holds, the namespace owner verifies the exact identity, unlinks and synchronizes
+the directory, then acknowledges physical release. Lost acknowledgement causes
+reconciliation of that identity, not a second arbitrary delete. Never reuse a
+retired token for a new file. Failure remains charged and retryable; TTL expiry
+or cancellation request is not closure.
+
+After process restart, a killed in-process writer can be reconciled only after
+exclusive lifetime fencing and inspection of its fixed destinations. Background
+URLSession work may outlive the process and needs its original session/task
+terminal evidence. Local closure does not prove that a remote PUT or AI request
+has ended. Remote reservations, references, late-upload cleanup and funding stay
+under the existing backend authority. Unknown AI execution permits
+status/outcome recovery only, never another provider invocation or refund.
+
+## User experience and acceptance
+
+At a cap, unavailable file or unresolved inventory, preserve draft text,
+selection, owned originals and the original operation identity. Explain whether
+the user needs free space, source reselection or recovery of existing work. Do
+not compress an original, discard history, silently split a package or fall back
+to text-only submission. If a provider temporary file was never durably
+acquired, state that reselection is needed rather than claiming the source was
+saved.
+
+The first implementation checkpoint is an inactive allocator/repository with
+disk-backed recovery tests and a non-destructive inventory adapter. It includes
+the outgoing V59 freeze/build before additive V60 changes, migration/startup
+registration, library-liability inspection, and isolated namespace fixtures. It
+does not wire AppDI/live capture, replace production cleanup or mutate actual
+user media. Final source/file inventory and lock order require independent and
+IC-1 review before implementation; this proposal is not that exact candidate.
+
+| Gate                         | Measurable pass criterion                                                                                                                                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Migration/bootstrap          | Disk-backed V59→V60/reopen preserves all old records and files; additive state cannot admit until inventory complete. Interrupt each page/commit and recover without duplicate charges or destructive adoption.             |
+| Accounting                   | Exact cap accepted; cap+1 denied before allocation; checked overflow/unknown space denied. Two owner instances race in both orders without oversubscription. Existing library bytes are not mischarged as pending packages. |
+| Write/commit/restart         | Interrupt reserve, write, flush, rename, ledger commit and owner handoff. Every physical copy has a conservative liability; zero cleared drafts lose the sole original. Ambiguous saves keep original IDs.                  |
+| Reference/deletion           | Two live owners share one file. Delete each first, race a new hold with retirement, interrupt unlink/acknowledgement and verify surviving owners remain readable and retired identity cannot resurrect.                     |
+| Bootstrap conflict           | Missing files, cross-account references, unknown entries, legacy text-only queues, basename collisions and private namespaces preserve exact historical semantics and cannot become fresh admission.                        |
+| Account/cleanup              | Close-before-drain and failed purge retain authority; stale generation cannot allocate/commit. Restart does not treat cancellation or elapsed time as background writer closure.                                            |
+| Mixed producer qualification | Every listed writer registers or is enforceably excluded. Measure maximum physical coexistence, scratch and transfer copies within unchanged pools; mocks alone cannot close G3.                                            |
+
+Run focused checks then complete affected native/migration/project gates using
+the managed build cache. Reuse unchanged prior evidence only for its original
+scope. Retain failures; no source edits during compilation. Workstation headroom
+must remain at least 20 GiB; it is separate from the device reserve. Device and
+hosted acceptance require their existing separate authorization.
+
+## Decision and next boundary
+
+Recommend additive SwiftData ownership, conservative in-place bootstrap and
+reference-directed release. These preserve the approved limits and retention
+policy. The tradeoff is deliberate: inconsistent legacy state blocks fresh CPM
+work until reconciled instead of being swept away. No new automatic eviction or
+legacy-data deletion policy is requested.
+
+This agreement does not close G1–G4 or permit activation. After review, prepare
+the exact inactive foundation file/lock/migration packet, then implement and
+qualify within the authorized local scope. Producer integration follows that
+foundation. Remaining media acceptance precedes version deletion/source export
+and the approved Identification/History redesign; capture-tools visual changes
+and broader engine/Field Trip ownership remain separate.
+
+## Source anchors
+
+- [Schema alias](../../apps/ios/Merian/Models/Aliases.swift),
+  [V59](../../apps/ios/Merian/Models/Schema/SchemaV59.swift),
+  [migration plans](../../apps/ios/Merian/Models/SchemaVersions.swift) and
+  [container recovery](../../apps/ios/Merian/Core/Data/StoreRecovery/Services/ModelContainerFactory.swift).
+- [P1 repository](../../apps/ios/Merian/Core/Data/PhotoPreparation/PhotoPreparationRepository.swift)
+  and
+  [file locks](../../apps/ios/Merian/Core/Data/PhotoPreparation/PhotoPreparationFileStore.swift).
+- [Legacy FileIO](../../apps/ios/Merian/Core/Data/Database/FileIOActor.swift)
+  and
+  [queue deletion](../../apps/ios/Merian/Core/Data/OfflineSync/Services/QueueMaintenance/OfflineQueueManager+QueueDeletion.swift).
+- [Captured-media persistence](../../apps/ios/Merian/Core/Data/CapturedMedia/CapturedMediaPersistenceService.swift),
+  [inbox](../../apps/ios/Merian/Core/Data/Images/ExternalImageImportStore.swift)
+  and
+  [reanalysis files](../../apps/ios/Merian/Core/Data/AnalysisHistory/ObservationReanalysisFileStore.swift).
+- [Library purge](../../apps/ios/Merian/Core/Data/Database/ScanLibraryPurgeService.swift)
+  and
+  [liability inventory](../../apps/ios/Merian/Core/Data/OfflineSync/Persistence/LibraryMutationInventory.swift).
+
+## Review result
+
+Independent review and IC-1 concurred on candidate01 without an agreement-level
+blocker. Exact hashes and review receipts are retained in
+`.artifacts/shared-media-allocation-agreement-20261016/`. This is proposal
+concurrence, not implementation or acceptance closure. The next exact packet
+must resolve lock ordering, irreversible retirement that rejects new holds,
+account-specific versus whole-library purge, and whole-lifetime producer
+registration/exclusion. These are implementation contract obligations, not
+permission to change limits, discard unknown media or activate P1.

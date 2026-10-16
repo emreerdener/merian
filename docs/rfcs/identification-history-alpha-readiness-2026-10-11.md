@@ -1,3 +1,25 @@
+## October 16 — shared native allocation agreement reviewed
+
+[SMA-1](shared-media-allocation-ownership-2026-10-16.md) recommends additive V60
+ownership in the existing store, non-destructive legacy inventory, explicit
+accountless inbox ownership, and reference-directed cleanup. The 384 MiB cap
+remains pending CPM packages only; retained history occupies real disk but
+receives no new quota or eviction policy. Legacy observations confer no write,
+cleanup or fresh-admission authority.
+
+This is a proposed agreement, not implementation or mixed-producer
+qualification. G1–G4 and A2/A3/A5/A14/A16/A17 remain open. The next bounded
+dependency is the exact inactive foundation file/lock/migration packet after
+independent and IC-1 review, followed by producer integration and required
+acceptance. Existing media-required submission and exact admitted recovery
+remain unchanged. Unknown AI execution permits neither another invocation nor a
+refund.
+
+PR116 stays frozen at `135555d66`; activation and ordinary P1 access disabled,
+Supabase hold active, AWS unapproved, limits unchanged. No push, merge,
+deployment, hosted test, device operation or capture visual refactor is
+included.
+
 ## October 16 — C1 observer correction validated locally; PR116 still frozen
 
 The retained exact-source diagnostic reproduced CI's `ZX452` with only the
@@ -1004,6 +1026,13 @@ external evidence, remaining exclusions and rollback controls. Production gates
 remain closed. A later activation decision is separate from this handoff.
 
 ## Capability and evidence matrix
+
+October 16 allocation status:
+[SMA-1](shared-media-allocation-ownership-2026-10-16.md) specifies the proposed
+native shared authority and bootstrap boundaries. It adds no passing capability
+evidence: G1–G4 and A2/A3/A5/A14/A16/A17 remain open until the relevant exact
+implementation, lifecycle and resource gates pass. Legacy readability is not
+fresh-admission eligibility; no text-only fallback is added.
 
 Owners: **History primary** is the sole implementation/evidence writer in this
 thread. **Hardening owner** is the separately owned initial-analysis effort;
