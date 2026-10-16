@@ -89,6 +89,13 @@ announcement’s Continue, Close, and swipe dismissal over the retained Capture
 workspace, saving screenshots before and after each dismissal. Its Debug-only
 seed exercises the production sheet router without writing acknowledgement.
 
+The protected-chat stale-ticket scenario uses real durable admission, proof
+settlement, state synchronization and host projection with synthetic
+authenticated response bytes. It checks reopening, explicit identification
+refresh, sheet handoff and an empty fresh composer without automatic dispatch.
+This proves the prepared native flow, not live provider/network behavior or
+production rollout.
+
 Debug fixtures must remain excluded from Release behavior. Automated tests must
 not call production endpoints, real providers, personal accounts, or static
 real-world coordinates.
@@ -256,3 +263,36 @@ and
 [canonical activation checklist](../system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist).
 Project Guardrails includes runtime workflow, manifest, and tooling paths so
 these contracts cannot change without the portable CI-tooling checks.
+
+## Protected chat proof and refresh measurements
+
+The performance manifest includes an app-process clock, CPU and memory workload
+for durable question staging, exact no-admission proof settlement and explicit
+identification refresh. Each sample launches the existing enrolled-V2 Debug
+fixture, prepares the same question outside the interval, then measures Send
+through proof presentation and refresh closing the stale chat. Reopening checks
+an empty composer and the retained proof outside the interval. Only strict
+server/state responses are synthetic; persistence, delivery, queue ownership,
+state synchronization and host projection use production components.
+
+Each test invocation requests ten XCTest measurement iterations; the audit
+requests three test invocations. Inspect actual exported sample counts. Each
+measurement uses a newly seeded process to keep durable occupancy and authority
+identical. These are report-only measurements of that bounded flow, not
+sustained heap-retention, leak, real-provider or physical-device evidence. Keep
+raw XCResult samples and matching environment/workload identity; no timing or
+memory threshold is inferred from one local run.
+
+### Saved audio chooser rendering boundary
+
+The runtime manifest includes the explicit saved-audio chooser UI smoke. It uses
+the production sheet and presentation model with a Debug/UI-test-only domain
+fixture. The smoke proves disabled-until-selected actions, distinct consumed
+result-checking copy, unavailable feedback, refresh clearing selection and
+closing the sheet. It does not call a provider, authorize work, access media,
+open an account lease or mutate the database.
+
+Persistence and exact consumed-request handoff remain native integration tests.
+This rendering evidence does not substitute for durable restart, audio/device,
+video, hosted runtime, erasure or storage/CDN qualification. Ordinary App
+installation remains disabled; the alternatives card is unaffected.

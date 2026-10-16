@@ -55,6 +55,15 @@ also rejects any Auth-first delete until cleanup has removed that profile. The
 scan-ingestion replay worker treats an ownerless tombstone as terminal and never
 dispatches another AI request for it.
 
+Prepared migration `20261005151359_retain_acknowledged_observation_science.sql`
+adds a strict scientific allowlist only for enrolled history. It materializes
+selected acknowledged scalar facts separately from unchanged original AI facts,
+then clears private/review fields and cascades child history under the same
+owner-first transaction. Selected-state inconsistency and publication lock
+contention abort before partial erasure. Detached enrolled rows, including an
+explicit no-selection marker, are immutable. Legacy detachment and the HTTP
+contract remain unchanged; no activation is enabled.
+
 1. `request_account_deletion_with_recovery(user_id, secret_hash)` inserts or
    returns the active `pending` job and atomically binds the caller's
    server-hashed recovery proof. Legacy callers retain the service-only

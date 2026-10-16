@@ -210,6 +210,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
         }
 
         .onChange(of: supabaseManager.currentUser?.id) { oldUserId, newUserId in
+            viewModel.handleDraftAccountChange()
             guard viewModel.captureGoalAccountId(
                 for: oldUserId
             ) != viewModel.captureGoalAccountId(
@@ -225,6 +226,9 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
                     accountId: currentAccountId
                 )
             }
+        }
+        .onChange(of: supabaseManager.authSessionGeneration) { _, _ in
+            viewModel.handleDraftAccountChange()
         }
         .onChange(of: appSettings.showsCaptureGoalProgress) { _, isVisible in
             captureGoalIndicatorExpansionState =

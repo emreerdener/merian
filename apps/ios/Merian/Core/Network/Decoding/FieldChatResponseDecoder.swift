@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Stateless wire decoding and candidate-success validation for all Field Chat sources.
@@ -48,6 +49,54 @@ enum FieldChatResponseDecoder {
             )
         }
         return decoder
+    }
+
+    /// Recovery binds the exact request and deterministic assistant without adopting a thread.
+    static func decodeProtectedCompletion(
+        _ data: Data,
+        expectedSubjectId: UUID,
+        expectedClientMessageId: UUID
+    ) throws -> InsightChatProtectedCompletion {
+        guard data.count <= 32_768,
+              let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              Set(envelope.keys) == ["data"],
+              let receipt = envelope["data"] as? [String: Any],
+              Set(receipt.keys) == ["context_version", "completed", "message"],
+              let message = receipt["message"] as? [String: Any],
+              Set(message.keys) == ["id", "conversation_id", "scan_id", "role", "text", "client_message_id",
+                                    "model", "is_refusal", "refusal_reason", "created_at"],
+              let encoded = try? JSONSerialization.data(withJSONObject: receipt),
+              let value = try? makeDecoder().decode(InsightChatProtectedCompletion.self, from: encoded),
+              value.contextVersion == 1, value.completed,
+              value.message.scanId == expectedSubjectId.uuidString.lowercased(),
+              value.message.clientMessageId == expectedClientMessageId.uuidString.lowercased(),
+              let conversation = UUID(uuidString: value.message.conversationId),
+              value.message.conversationId == conversation.uuidString.lowercased(),
+              value.message.role == .assistant,
+              !value.message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              value.message.text.unicodeScalars.count <= 4_000,
+              validProtectedReceiptAuthority(value.message),
+              value.message.refusalReason.map({ !$0.isEmpty && $0.unicodeScalars.count <= 100 }) ?? true else {
+            throw MerianError.invalidResponse
+        }
+        let source = "merian-field-chat-assistant-v1:" + conversation.uuidString.lowercased()
+            + ":" + expectedClientMessageId.uuidString.lowercased()
+        var bytes = Array(SHA256.hash(data: Data(source.utf8)).prefix(16))
+        bytes[6] = (bytes[6] & 0x0f) | 0x80
+        bytes[8] = (bytes[8] & 0x3f) | 0x80
+        let hex = bytes.map { String(format: "%02x", $0) }.joined()
+        let groups = [0..<8, 8..<12, 12..<16, 16..<20, 20..<32].map { range in
+            String(hex.dropFirst(range.lowerBound).prefix(range.count))
+        }
+        guard value.message.id == groups.joined(separator: "-") else { throw MerianError.invalidResponse }
+        return value
+    }
+
+    private static func validProtectedReceiptAuthority(_ message: InsightChatMessage) -> Bool {
+        guard message.isRefusal || message.refusalReason == nil else { return false }
+        if let model = message.model { return model == "gemini-2.5-flash" }
+        let localReasons = ["foraging_or_ingestion", "medical_or_veterinary", "dangerous_handling", "legal_or_collection"]
+        return message.isRefusal && message.refusalReason.map(localReasons.contains) == true
     }
 
     /// Treats a chat HTTP 200 as candidate evidence until every message is

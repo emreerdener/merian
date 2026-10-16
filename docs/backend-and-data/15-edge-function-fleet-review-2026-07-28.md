@@ -31,6 +31,52 @@ candidate. A future main push includes configured source in the normal
 deployment plan; runtime-off is not a deployment exclusion. See the
 [worker contract](05-api-contracts.md#prepared-public-photo-erasure-worker).
 
+**2026-10-06 private-evidence cleanup source addendum:**
+`erase-observation-evidence` adds a separately gated service-only
+private-history worker. It performs one atomic expired-cohort retirement and one
+opaque claimed marker write/verification under shared request and original-claim
+deadlines. It returns aggregate no-store counts and accepts no caller keys. No
+hosted schedule, deployment, credential change or activation is implied. See the
+[worker contract](05-api-contracts.md#prepared-private-evidence-cleanup-rpcs).
+
+**2026-10-07 retirement source addendum:** `retire-observation-analysis` adds an
+authenticated, default-off admitted-execution retirement boundary. Its scoped
+five-second/4-KiB service transport returns only an exact permanent receipt;
+errors never authorize replacement or inference. Canonical SQL locks prevent
+retirement racing a later dispatch. It is prepared source, not deployed or
+installed into native UI. See the
+[endpoint contract](../../services/supabase/functions/retire-observation-analysis/README.md).
+
+**2026-10-09 source-reservation addendum:**
+`reserve-observation-analysis-source` adds an authenticated wrapper for reader11
+source occupancy reservation. The scoped five-second/2-KiB transport returns
+only exact reserved/held/unavailable observations. Definite immutable-operation
+conflict returns409; errors never prove vacancy or execution permission. The SQL
+gate remains false. That backend checkpoint included no native caller,
+deployment or scheduling. Later native photo V2 work adds a durable queue
+handoff and retained injected delivery service. No composition/UI/scheduler
+caller is installed; installed composition and native retirement remain
+separate. See the
+[endpoint contract](../../services/supabase/functions/reserve-observation-analysis-source/README.md).
+
+**2026-10-09 unfunded-retirement source addendum:**
+`retire-observation-analysis-source` separately accepts the full original
+candidate and stable retirement operation. It uses the reader11 unfunded RPC,
+not reader10 funded retirement, with a five-second/2-KiB transport. Only an
+exact `retired_unfunded` receipt proves this operation; errors and other states
+do not release occupancy. The independent SQL gate stays false; no native
+consumer or deployment is included. See the
+[endpoint contract](../../services/supabase/functions/retire-observation-analysis-source/README.md).
+
+**2026-10-10 video-ingress source addendum:** `upload-observation-video` adds an
+owner-authenticated binary reader12 item upload route. The shared deadline
+bounds authentication, streamed ingress and exact allocation/write/completion.
+It reuses private conditional storage and erasure-marker fences; both media and
+video evidence SQL gates remain disabled. This source addition extends the
+current inventory only, not historical hosted or release qualification. No
+native caller, provider dispatch, deployment or activation is included. See the
+[endpoint contract](../../services/supabase/functions/upload-observation-video/README.md).
+
 ## Scope
 
 This review inventories every configured deployable Supabase Edge Function
@@ -224,7 +270,10 @@ confirm-observation-analysis
 confirm-scan-species
 resolve-history-photo
 analyze-observation
+analyze-observation-video
 recover-observation-analyses
+recover-observation-video-analyses
+erase-observation-evidence
 erase-publication-photos
 review-scan-identification
 create-explore-comment
@@ -290,11 +339,19 @@ report-user
 request-community-identification
 request-observation-publication
 get-observation-publication-status
+get-observation-publication-target
+prepare-observation-publication-consent
+upload-observation-audio
+upload-observation-video
+upload-observation-evidence
 moderate-publication-photos
 copy-publication-photos
 request-export-dwca
 resolve-purchase-principal
 restore-community-identification
+reserve-observation-analysis-source
+retire-observation-analysis
+retire-observation-analysis-source
 revenuecat-webhook
 safe-delete
 scan-media-health
@@ -438,3 +495,57 @@ moderation reason, source or post ID escapes; no state advances. Generated
 per-function deployment config and both candidate test lists cover the route.
 Publication gates remain false and release is not authorized. See its
 [README](../../services/supabase/functions/get-observation-publication-status/README.md).
+
+### October 4 consent preflight addition
+
+`prepare-observation-publication-consent` is an owner-authenticated bounded POST
+read under existing closed publication gates. It shares locked eligibility with
+intent admission, returning only revisions, active taxonomy and ordered V2
+candidate metadata. It creates no operation or media-read capability. The closed
+response validator reuses the V2 manifest contract, so its transitive Identify
+dependency participates in deployment planning. Native UI and activation remain
+separate. See its
+[README](../../services/supabase/functions/prepare-observation-publication-consent/README.md).
+
+`upload-observation-evidence` adds a prepared owner-authenticated binary POST,
+with a five-MiB raw photo cap, atomic service-only immutable cohort reservation
+and deadline-bound private storage verification. No rollout gate or worker is
+activated. Its
+[README](../../services/supabase/functions/upload-observation-evidence/README.md)
+owns the strict framing, retry and privacy contract.
+
+### October 6: prepared publication target recovery
+
+`get-observation-publication-target` is a separate owner-authenticated bounded
+reader using `withEdgeHandler` and a fixed service RPC. It returns explicit
+owned vacancy or one original sanitized status, rejects legacy duplicates, and
+never exposes private consent or chooses a latest operation. The unchanged
+exact-operation status reader still owns saved-request recovery. Responses are
+private/no-store and the RPC has a twelve-second deadline. A strict native
+caller and queue-retained read-only recovery access are now prepared; local held
+status and remote historical status remain separate. Prepared History consent
+now reads this boundary before preflight; ordinary access remains disabled and
+there is no deployment/activation authorization. See its
+[README](../../services/supabase/functions/get-observation-publication-target/README.md).
+
+### Prepared private audio upload addition
+
+`upload-observation-audio` adds an independently gated, owner-authenticated
+binary WAV upload boundary. It validates the entire bounded container before
+reserving an immutable cohort, computes its digest, writes once, and rechecks
+ownership and deletion during completion. The shared deadline covers body, fixed
+RPCs and storage. Its narrow response exposes only immutable media descriptors.
+All audio/media rollout gates remain false; native audio inference and hosted
+qualification remain separate. See the
+[endpoint contract](../../services/supabase/functions/upload-observation-audio/README.md).
+
+### October 10 gated video route addendum
+
+The source inventory now includes `analyze-observation-video` (verified JWT
+owner, strict V4 input, private status) and `recover-observation-video-analyses`
+(exact environment-resolved service credential, closed empty input, aggregate
+counts). Both register through `serveEdge`; generic execution still rejects V4.
+One-time dispatch and known-result-only recovery retain separate fences. All
+activation gates stay disabled. This source addition is not hosted route or
+customer smoke qualification; see the
+[current API contract](05-api-contracts.md#gated-video-edge-execution).

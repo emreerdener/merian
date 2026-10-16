@@ -5,6 +5,23 @@ import Testing
 
 @MainActor
 struct LibraryMutationInventoryTests {
+    @Test func photoPreparationIncludingOrphanRowsBlocksLibraryReplacement() async throws {
+        let h = try PhotoPreparationTestHarness(); defer { h.cleanup() }
+        let defaultsName = "nco1-inventory-" + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: defaultsName))
+        defer { defaults.removePersistentDomain(forName: defaultsName) }
+        let owner = try h.owner(), bytes = PhotoPreparationTestHarness.image()
+        let handle = try await owner.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0,
+            sourceKind: "picker", load: { bytes })
+        #expect(!(try LibraryMutationInventory.read(from: h.container, sourceUserID: UUID(), userDefaults: defaults)).isReady)
+        #expect(!(try LibraryMutationInventory.isEmptyLibrary(in: h.container, userDefaults: defaults)))
+        let context = ModelContext(h.container)
+        try context.delete(model: PhotoPreparationRecord.self)
+        try context.save()
+        // Even malformed ownership cannot disappear from readiness accounting.
+        #expect(!(try LibraryMutationInventory.read(from: h.container, sourceUserID: handle.ownerID, userDefaults: defaults)).isReady)
+    }
+
     @Test func upgradeProofCannotAssignSourceLibraryToUnacknowledgedDestination() {
         let source = UUID(), destination = UUID()
         #expect(LibraryAccountOwnershipPolicy.canAdoptUnmarkedLibrary(session: source, pendingSourceIDs: [source.uuidString]))

@@ -1,0 +1,4 @@
+# Frozen models live inside a versioned schema namespace. Allow that additional
+# level without rewriting immutable snapshots or relaxing other model owners.
+nesting:
+  type_level: 2

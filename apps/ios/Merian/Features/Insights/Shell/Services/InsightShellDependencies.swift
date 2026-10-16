@@ -8,7 +8,12 @@ struct InsightAuthenticationSnapshot: Equatable {
 
 @MainActor
 struct InsightShellDependencies {
+    var protectedChatAccess: ProtectedInsightChatAccess?
+    var selectedReviewAccess: SelectedAnalysisReviewAccess?
     var historyAccess: IdentificationHistoryAccess? = nil
+    var reanalysisStatusAccess: ReanalysisStatusAccess?
+    var savedReanalysisAccess: SavedIdentificationReanalysisAccess?
+    let candidateRendering: CandidateReviewRendering
     let appEvents: AnyPublisher<AppEvent, Never>
     let authenticationSnapshot: @MainActor () -> InsightAuthenticationSnapshot
     let defaultAppSettings: @MainActor () -> AppSettings
@@ -51,6 +56,7 @@ struct InsightShellDependencies {
     let presentMediaShare: @MainActor (_ payload: MediaSharePayload) -> Void
 
     init(
+        candidateRendering: CandidateReviewRendering = .init(),
         appEvents: AnyPublisher<AppEvent, Never> = Empty().eraseToAnyPublisher(),
         authenticationSnapshot: @escaping @MainActor () ->
             InsightAuthenticationSnapshot = {
@@ -104,6 +110,7 @@ struct InsightShellDependencies {
             _ payload: MediaSharePayload
         ) -> Void = { _ in }
     ) {
+        self.candidateRendering = candidateRendering
         self.appEvents = appEvents
         self.authenticationSnapshot = authenticationSnapshot
         self.defaultAppSettings = defaultAppSettings
@@ -135,9 +142,20 @@ struct InsightShellDependencies {
         let container = AppDIContainer.shared
         let hapticManager = container.hapticManager
         let mediaExportService = MediaExportService.live
+        #if DEBUG
+        let candidateRendering: CandidateReviewRendering = UITestSeedCoordinator.publicationConsentEnabled ? .init() : .live
+        #else
+        let candidateRendering = CandidateReviewRendering.live
+        #endif
         var result = Self(
+            candidateRendering: candidateRendering,
             appEvents: container.appEventPublisher.publisher,
             authenticationSnapshot: {
+                #if DEBUG
+                if UITestSeedCoordinator.publicationConsentEnabled {
+                    return .init(isAuthenticated: true, accountID: PublicationConsentUIFixture.owner.uuidString)
+                }
+                #endif
                 let manager = SupabaseManager.shared
                 return InsightAuthenticationSnapshot(
                     isAuthenticated: manager.isAuthenticated,
@@ -233,7 +251,14 @@ struct InsightShellDependencies {
             }
         )
         #if DEBUG
-        result.historyAccess = UITestSeedCoordinator.identificationHistoryAccess
+        if UITestSeedCoordinator.publicationConsentEnabled, let fixture = UITestSeedCoordinator.publicationConsentFixture {
+            if UITestSeedCoordinator.protectedChatEnabled { result.protectedChatAccess = fixture.protectedChat }
+            result.selectedReviewAccess = .prepared(cloud: fixture.cloud, session: fixture.session)
+            result.historyAccess = .prepared(cloud: fixture.cloud, session: fixture.session)
+        } else {
+            result.historyAccess = UITestSeedCoordinator.identificationHistoryAccess
+        }
+        result.savedReanalysisAccess = UITestSeedCoordinator.savedReanalysisFailureAccess
         #endif
         return result
     }

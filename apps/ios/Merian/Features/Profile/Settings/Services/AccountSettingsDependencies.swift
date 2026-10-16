@@ -5,12 +5,12 @@ struct AccountLocalDataDependencies {
     let purgeAllData: @MainActor (
         _ modelContext: ModelContext,
         _ resetDerivedState: @MainActor () -> Void
-    ) -> Bool
+    ) async -> Bool
 
     static var live: Self {
         Self(
             purgeAllData: { modelContext, resetDerivedState in
-                ScanRepository.shared.purgeAllData(
+                await ScanRepository.shared.purgeAllData(
                     modelContext: modelContext,
                     resetDerivedState: resetDerivedState
                 )
@@ -25,10 +25,10 @@ struct AccountDeletionDependencies {
     let hasPendingPurchaseContinuityFailClosed: @MainActor () -> Bool
     let isRecoveryPending: @MainActor () -> Bool
     let deleteAccount: @MainActor (
-        _ purgeLocalData: @MainActor @escaping () -> Bool
+        _ purgeLocalData: @MainActor @escaping () async -> Bool
     ) async throws -> Void
     let resumeDeletion: @MainActor (
-        _ purgeLocalData: @MainActor @escaping () -> Bool
+        _ purgeLocalData: @MainActor @escaping () async -> Bool
     ) async -> Bool
     let stableErrorCode: @MainActor (_ error: Error) -> String?
     let logFailure: @MainActor (_ error: Error) -> Void

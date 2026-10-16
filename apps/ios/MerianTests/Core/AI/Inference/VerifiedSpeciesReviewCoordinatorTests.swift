@@ -11,6 +11,7 @@ private final class VerifiedReviewCoordinatorHarness {
     var syncGate: InferenceOperationGate?
     var applyGate: InferenceOperationGate?
     var failure = false
+    var preparationFailure = false
     var outcome: VerifiedSpeciesReviewOutcome
     var events: [String] = []
 
@@ -33,8 +34,9 @@ private final class VerifiedReviewCoordinatorHarness {
             })
         return InferenceIdentificationReviewCoordinator(writeCoordinator: writes, reviewService: service,
             snapshotService: legacy.snapshotService, dependencies: legacy.dependencies,
-            verifiedDependencies: .init(prepare: { [self] container, mutation in
-                let request = try await BackgroundDatabaseActor(modelContainer: container).prepareVerifiedSpeciesReview(mutation)
+            verifiedDependencies: .init(prepare: { [self] container, mutation, expectedReview in
+                if preparationFailure { throw ConfirmedSpeciesReview.IntegrityError.invalidEnvelope }
+                let request = try await BackgroundDatabaseActor(modelContainer: container).prepareVerifiedSpeciesReview(mutation, expectedReview: expectedReview)
                 events.append("prepared")
                 return request
             }, apply: { [self] container, scanID, review, intent in
@@ -60,6 +62,24 @@ private final class VerifiedReviewCoordinatorHarness {
 
 @MainActor
 struct VerifiedSpeciesReviewCoordinatorTests {
+    @Test func staleAuthorityFreeConfirmationCannotPrepareOrCallVerifiedServer() async throws {
+        let harness = try VerifiedReviewCoordinatorHarness(); try await harness.seed()
+        let context = ModelContext(harness.container)
+        let record = try #require(try context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        let expected = record.localAIIdentificationReview
+        let rejected = LocalAIIdentificationReview(authority: .init(revision: 1, state: .aiRejected,
+            originScanID: VerifiedReviewFixtures.scanID, originIdentification: nil))
+        record.aiIdentificationReviewData = try rejected.storedData(); try context.save()
+        let subject = harness.makeSubject()
+        let mutation = InferenceIdentificationReviewMutation.aiConfirmation(scanID: VerifiedReviewFixtures.scanID, confirmedSpeciesID: nil)
+        await subject.enqueueVerifiedReviewMutation(mutation, actionGeneration: subject.beginReviewAction(scanId: mutation.scanID),
+            modelContainer: harness.container, expectedReview: expected, didPrepare: { Issue.record("Stale review published") },
+            didReconcile: { _ in Issue.record("Stale review reconciled") })?.value
+        let saved = try #require(try ModelContext(harness.container).fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(saved.localAIIdentificationReview == rejected && !saved.userConfirmedIdentification)
+        #expect(harness.events.isEmpty && harness.legacy.events == [.syncFailure])
+    }
+
     @Test func durableIntentPrecedesSendAndAuthorityPrecedesPresentation() async throws {
         let harness = try VerifiedReviewCoordinatorHarness(); try await harness.seed()
         let subject = harness.makeSubject()
@@ -70,10 +90,18 @@ struct VerifiedSpeciesReviewCoordinatorTests {
     }
 
     @Test func failedPreparationDoesNotPublishOrCallServer() async throws {
-        let harness = try VerifiedReviewCoordinatorHarness()
+        let harness = try VerifiedReviewCoordinatorHarness(); try await harness.seed()
+        harness.preparationFailure = true
         let subject = harness.makeSubject()
         await harness.submit(subject)?.value
         #expect(harness.events.isEmpty && harness.legacy.events == [.syncFailure])
+    }
+
+    @Test func missingScanNeverBeginsPreparationOrPublishes() async throws {
+        let harness = try VerifiedReviewCoordinatorHarness()
+        let subject = harness.makeSubject()
+        await harness.submit(subject)?.value
+        #expect(harness.events.isEmpty && harness.legacy.events.isEmpty)
     }
 
     @Test func failedRequestRetainsPendingIntentWithoutAuthorityOrSuccessEffects() async throws {

@@ -147,6 +147,206 @@ token; it is not part of automatic candidate validation and does not clear a
 hold. Follow the
 [canonical probe procedure](../../docs/backend-and-data/06-supabase-deployment-runbook.md#field-chat-hosted-authentication-probe).
 
+## Local atomic admission and cancellation qualification
+
+`test_initial_atomic_admission_c1.py` prepares a synthetic complete committed
+admission and exercises actual service-role C1 cancellation, proof/role
+boundaries and terminal replay. Its `explicit`, `terminal`, `terminal-held`,
+`session-authority`, `explicit-edges`, `cross-owner`, `recovery-order`,
+`counter-images`, `counter-order`, `scan-delete-order`, `account-order`,
+`registry-order`, `ghost-order`, `account-batch`, `admitted-expiry`,
+`legacy-media-expiry`, `historical-no-media-expiry` and `resource` suites each
+require a fresh local migration replay. The candidate workflow resets only its
+disposable database between suites and retains sanitized JSON receipts on
+success or failure. Run it with `--disposable-container`,
+`--evidence-directory`, `--replay-manifest` and `--suite`; no hosted DSN is
+supported. The replay owner must supply a ready container/project/migration-byte
+manifest; the harness verifies it against the current files and live versions.
+Dispose or reset the named database after each run, including failures.
+
+The transaction-authority suite uses two trusted PostgreSQL owner sessions with
+service claims and a third lock observer. It verifies that another transaction
+cannot borrow captured or advanced quota/credit authority, observes actual
+blocking, rolls the actor back, and checks unchanged accounting/evidence. This
+is not a service-role public endpoint test. Persistent sessions have bounded
+statement/lock/marker waits and retain sanitized failures; closing only their
+own connections rolls back unfinished transactions.
+
+The absent-credit `explicit-edges` suite retains reviewed proof-drift, injected
+failure, original-owner seam and precedence checks. Every case restores the
+original 21-relation projection. Deliberately invalid corruption fixtures roll
+back; they do not establish deferred integrity of the injected state. Authentic
+completion and partial-stage checks retain their original constraint flushes.
+
+The `cross-owner` suite exercises actual public service-role cancellation in
+both valid/foreign caller orders. It observes blocking, requires exact foreign
+owner denial without mutation and verifies one original refund and held-credit
+release. A trusted scheduler locks only the selected admitted scan. Sanitized
+backend labels and structural deadlock edges are retained on failure; these two
+schedules do not qualify all current or future concurrency.
+
+The `recovery-order` suite creates eight successive held admissions using one
+persistent trusted fixture connection. Each returns an explicit immutable
+owner/scan/receipt identity; setup rows are installed once, and earlier terminal
+records remain for peer-preservation assertions. Only the trusted fixture
+connection uses a 45-second SQL timeout and 55-second marker wait; competing
+actors retain 12/20 seconds and all lock waits remain 10 seconds. These harness
+limits do not alter saved application phase deadlines. Status, finalize, create
+and execution-status wrappers run against cancellation in both observed lock
+orders, with exact original recovery/terminal denial and accounting checks.
+
+The `counter-images` suite retains three complete held admissions: two share an
+owner and IP identity, while a third uses the other installed synthetic owner
+and a different IP identity. Its fixture rebinds only the connection-local media
+helper. Actual service-role cancellation checks independently derived
+quota-counter postimages, 19-relation peer preservation and exact replay. This
+is sequential accounting coverage; contention remains a separate suite.
+
+The `counter-order` suite runs public C1 cancellation against the trusted
+synthetic admission actor in both orders. The fixture installs at most four
+validated synthetic owners and forbids rebinding while an admission is pending.
+It verifies that admission's exact receipt identity before committing. Only this
+trusted composer uses 45/55-second SQL/marker limits; public C1 and observers
+retain 12/20, with 10-second lock waits everywhere. Independent expected
+counters and peer images stay in memory. Observed transaction-ID waits, counter
+relation access and actual same-IP key/window equality provide bounded wait
+attribution; no third lock scheduler is used. This does not qualify public
+admission, production timing or all possible lock graphs.
+
+The `scan-delete-order` suite exercises the public scan-deletion `not_found`
+path against C1 in both observed orders. It proves no scan or deletion tombstone
+is created, preserves accounting and peer rows, and verifies the original
+cancellation. It does not exercise successful scan erasure or external storage
+deletion.
+
+The `account-order` suite runs public account tombstoning against C1 in both
+orders. Temporary test observers verify accounting immediately before user
+deletion and verify the exact rows removed by its cascades. Private cancellation
+receipts follow the user cascade; global operation fences and retired media
+registries survive. The account-first path retains unknown dispatch accounting
+and requires later C1 to reject the unavailable owner, without a new refund.
+These local SQL observations do not establish external erasure.
+
+The `registry-order` suite checks empty source/media erasure claims before and
+during uncommitted C1, then each registry family's lease, failed finish,
+reclaim, stale-token and acknowledgment behavior after commit. Empty results
+establish visibility and return ordering; they do not prove lock skipping. SQL
+marker acknowledgment does not prove an external worker deleted stored media.
+
+The `ghost-order` suite uses a dedicated synthetic identity/handoff fixture.
+Authenticated handoff consumption must reject preserved references before and
+after C1. The Ghost-first order uses a trusted relation-lock scheduler and
+observes C1 waiting on the Ghost actor. A caught denial releases subtransaction
+locks; no outer-transaction lock-retention claim follows. Identity/handoff
+values remain in memory and the disposable database. The 24-relation projection
+excludes purchase-principal tables; the fixture proves those tables are empty,
+so principal contention, successful merge and Auth API behavior remain untested.
+
+The `account-batch` suite uses two committed held admissions for one synthetic
+owner. It retains the corrected pre-user-delete accounting projection, original
+quota/credit/link cascade observers, rollback after a second cancellation
+failure, partial-evidence isolation, deferred constraint checks and final
+committed account cleanup. Private cancellation receipts follow the owner
+cascade; global cancellation fences survive. No Auth API or worker is exercised.
+
+The `admitted-expiry` suite seeds two complete held v3 admissions and waits at
+most 360 seconds for their original deadlines, with bounded read-only clock
+observations and no timeline edits. After actual expiry, create/status/finalize
+must retain the admitted binding with no authority; the five legacy execution
+wrappers must return their held response. The preserved eight-relation
+accounting projection, cancellation/invocation absence and inactive gate checks
+remain. This is local SQL expiry/recovery qualification, not provider execution
+or production timing qualification.
+
+The `legacy-media-expiry` suite reconstructs the synthetic catalog in each
+rollback-only transaction, creates an unadmitted media intent and applies the
+reviewed historical v2 codec/timeline projection with its storage guard
+restored. Seven actual service wrappers must preserve the historical expiry/held
+behavior, remove the expired intent without funding and record prevented
+dispatch. This is historical compatibility coverage, not a fresh legacy writer
+or product route. The synthetic setup gate is transaction-local in effect and
+rolls back each time.
+
+The `historical-no-media-expiry` suite loads exact historical v2 vectors from
+the checked-in saved-assignment catalog. A dedicated trusted fixture inserts
+three already-expired intents with activation false; it never requests a new
+text-only admission. Actual service create/status/finalize calls expire those
+records, preserve accounting and other intents, flush deferred constraints under
+write tripwires, then commit. Fresh connections replay only the original
+cancellation. The vector source is included in the exact candidate manifest.
+
+The `resource` suite retains the distinct synthetic 140,000 ms admission and
+210,000 ms total profile, preserving the other seven phases and the original
+expiry envelope. Its dedicated 240-second observer drains sanitized errors and
+budget/phase/counter notices while measuring five-source cohorts and valid
+plain, control-character and non-BMP one-MiB inputs. Actual service C1 uses
+independent counter postimages and peer preservation, followed by original
+replay. Fourth frames and cap-plus-one inputs deny without business mutation.
+Before/after backend context samples are not peak memory, and measured wall time
+includes fixture and transport overhead. Neither this budget nor its timing
+qualifies production workers, providers, HTTP or media blob processing.
+
+The fixture uses the checked-in stage catalog's explicit composer marker and
+performs original funding, materialization, ledger freeze and completion of
+admission before testing public cancellation. Trusted unknown/authorized state
+fixtures are synthetic projections, not successful provider dispatch. Full
+runtime/concurrency packaging, production timing and installed qualification
+remain separate acceptance requirements. Activation stays disabled outside
+synthetic setup; receipts contain source hashes and bounded results, never SQL,
+input descriptions or response bodies. Migration version checks alone do not
+prove SQL byte identity: bind receipts to the caller's exact fresh-replay
+manifest.
+
+## Private handoff runtime qualification
+
+`python3 services/supabase/scripts/run_initial_media_handoff_qualification.py
+--suite all`
+(from the repository root) runs the 22 closed local SQL, bridge, coordinator and
+synthetic-resource suites. Select one named `--suite` for focused verification;
+`--evidence-directory` selects a new output directory only. The runner reserves
+the checkout's fixed ignored ownership receipt before creating a unique
+temporary project, copies and hashes the exact migration bytes, verifies the
+pinned CLI and local Unix Docker context, then checks a fresh inactive catalog
+before admission. macOS uses `/private/tmp`; Linux uses `/tmp`. It requires 24
+GiB free before provisioning and preserves the 20 GiB floor.
+
+Every Docker and Supabase child is pinned to the verified Unix endpoint. The
+bridge compares the endpoint in the ownership receipt with the current context
+and rejects drift, unsupported platforms, non-ready receipts and mismatched
+project labels. Ports 57630–57639 are reserved for this sequential
+qualification; occupied ports fail without stopping another database. Each
+passing suite is followed by an inactive/invocation-free check and disposal of
+only its owned project. Before stopping, it checks exact fixture-specific
+residual counts: state and pruning retain one receipt and intent; expiry and
+public-deletion retain one receipt and no intent. The other 18 suites require
+zero of both. These four intentional synthetic residuals are destroyed with the
+disposable database; this does not claim per-row erasure. The runner persists
+`disposing` before stopping and the stop result immediately afterward so a
+partial cleanup failure cannot masquerade as a still-ready database. Exact
+replay, result, source hashes and disposal evidence are retained. Every
+lifecycle transition also writes an allowlisted `ownership.json` mirror in that
+suite's output directory, including reservation, starting, failed startup and
+disposal. The `--snapshot-ownership --evidence-directory <output>` mode reads
+only the fixed receipt and saves its sanitized current metadata; it never calls
+Docker, provisions, retries or cleans up. Unknown future fields are excluded.
+
+Failure stops the sequence and retains the live ownership receipt. Before
+disposal, the original database is retained for read-only outcome
+reconciliation; a partial disposal failure instead requires inspection of the
+remaining owned resources. Do not delete the receipt to rerun, retry a writer,
+reset, invoke a provider or refund. Raw CLI output, SQL rows and credentials are
+never written to the runner's evidence. A hosted CI runner cannot promise
+persistence of its database after the job; only sanitized uploaded evidence is
+durable. The candidate workflow prepares this validation step after its ordinary
+database is stopped, then attempts a read-only ownership snapshot and evidence
+upload with `always()` conditions. The qualification step has a 115-minute limit
+within the existing 120-minute job. Retention on cancellation or job timeout is
+best-effort; the complete 22-suite duration and fit within that job limit remain
+unqualified until measured. This configuration does not authorize dispatch,
+publication, activation or installed storage qualification. Synthetic byte
+transport does not establish media decoding, physical backend behavior or robust
+performance headroom.
+
 ## Migration Replay
 
 Every migration must survive a complete fresh-catalog replay, not only an
@@ -644,6 +844,15 @@ contract: exact coordinates/elevation and every other scientific fact are left
 unchanged while free-form intervention notes and account context are cleared.
 `replay-scan-ingestion` treats that state as terminal and cannot dispatch
 another AI request for a deleted account's scan.
+
+Prepared migration `20261005151359_retain_acknowledged_observation_science.sql`
+adds an explicit scientific allowlist for enrolled observations only. It
+preserves original AI facts and materializes the selected acknowledged
+interpretation as a separate, closed scalar `scans.retained_identification`
+before private-history cascade. Raw review state, private payloads and media
+clear; owner-first locks serialize selection/review/deletion, and detached
+enrolled rows are immutable. All gates remain off and no client response
+changes.
 
 The complete retained-versus-cleared field boundary, visibility rules, change
 procedure, and verification requirements are canonicalized in
@@ -3113,8 +3322,17 @@ owner receipt resolution and an erasure worker seam. Its media gates remain
 closed; read adapter/endpoint source is prepared, with no deployed route or
 worker schedule, and result V1 append still accepts descriptions only. The
 separate gated V2 photo binder now joins ready receipts to funded completion;
-native protocol-9 history accepts V1/V2/V3 while private photo resolution
-remains V2-only on protocol 8. See the canonical
+native page/state reader 11 accepts V1–V5 while private photo resolution remains
+V2-only on protocol 8. The separate default-off backend audio path binds input 3
+to immutable WAV receipts and emits result 4 for reader 10. Action RPCs accept
+readers 9/10 with whole-audio-history refusal for reader 9. Native V4 review and
+receipt-bound confirmation/rejection Undo use strict reader-10 tickets. Explicit
+V4 selection/selection Undo use the existing retained projection and receipt
+transaction. Candidate selection, publication and selected chat remain
+unavailable for V4; prepared audio execution remains default-off. V5 history is
+read-only: selection, review, source reuse, publication and selected chat remain
+unavailable. Queue-level video execution does not install a video editor route.
+No activation is authorized. See the canonical
 [protected evidence lifecycle](../../docs/backend-and-data/05-api-contracts.md#prepared-protected-evidence-lifecycle).
 
 The prepared `analysisHistory/intent.ts` owner and funded-child migration now
@@ -3123,10 +3341,11 @@ append a result with shared complimentary settlement. Admission/dispatch gates
 remain closed; there is no live provider or recovery caller. See the
 [private lifecycle contract](../../docs/backend-and-data/05-api-contracts.md#prepared-funded-child-analysis-lifecycle).
 
-The prepared protocol-8 read slice adds mixed immutable V1/V2 owner pages,
-`resolve-history-photo` authenticated temporary photo delivery, and native
-`ObservationHistoryPhotoReference` / `ObservationHistoryPhotoLoader` validation.
-All gates remain closed and no UI is connected. The canonical contract is
+The original prepared protocol-8 read slice added mixed immutable V1/V2 owner
+pages, `resolve-history-photo` authenticated temporary photo delivery, and
+native `ObservationHistoryPhotoReference` / `ObservationHistoryPhotoLoader`
+validation. All gates and ordinary app access remain closed; explicit injected
+qualification UI exists. The canonical contract is
 [protocol-8 owner reads](../../docs/backend-and-data/05-api-contracts.md#prepared-protocol-8-reads-and-private-photo-resolution).
 
 ### Prepared analysis orchestration — 2026-10-03
@@ -3142,9 +3361,10 @@ activation requirements. See the function READMEs and canonical API contract.
 The prepared history backend additionally includes protocol-9
 saved-identification enrollment, held by `saved_import_enabled` and existing
 rollout gates. It preserves current server corrections/reviews and explicitly
-marks unavailable original execution evidence. Native V56 now reads protocol 9
-and preserves unknown completion dates; native state admission is still held.
-See the
+marks unavailable original execution evidence. The original V56 reader added
+protocol-9 saved imports with unknown completion dates; current native
+page/state reads use reader 11, while enrollment retains reader 9. Ordinary
+installation remains held. See the
 [owner enrollment contract](../../docs/backend-and-data/05-api-contracts.md#prepared-saved-identification-enrollment-and-protocol-9)
 before extending or enabling this path.
 
@@ -3154,7 +3374,7 @@ observation revision. Its independent `state_reader_enabled` gate remains false.
 No local authority persistence or restore caller is connected. See the
 [state contract](../../docs/backend-and-data/05-api-contracts.md#prepared-owner-observation-state-read).
 
-Prepared protocol-9 selection now has an authenticated owner RPC,
+Prepared reader-9/10 selection now has an authenticated owner RPC,
 `select_owned_observation_analysis`, and native live adapter. The new
 `selection_api_enabled` gate remains false. Exact durable success and
 revision-conflict outcomes share one immutable ledger and replay after admission
@@ -3163,7 +3383,7 @@ a current-state read. No ordinary Restore/Undo caller or reconciliation worker
 is enabled. See the
 [selection contract](../../docs/backend-and-data/05-api-contracts.md#prepared-native-selection-requests-and-undo-receipts).
 
-Prepared protocol-9 owner review now includes
+Prepared reader-9/10 owner review now includes
 `review_owned_observation_analysis` for Reject/Undo, a private immutable outcome
 ledger, and a separate default-false `rejection_api_enabled` gate. Legacy review
 and community writers refuse enrolled observations rather than transferring
@@ -3173,6 +3393,11 @@ checks remain authoritative. See the
 [analysis-bound review contract](../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-reject-and-undo).
 Native review admission, community/publication integration and ordinary history
 activation remain outstanding. Confirmation is separately prepared below.
+
+The prepared rejection recovery lookup shares mutation-time target/receipt
+eligibility while exposing no receipt body. Its existing rejection/reader gates
+remain disabled; cross-device native admission is a separate checkpoint. See the
+[rejection recovery contract](../../docs/backend-and-data/05-api-contracts.md#prepared-cross-device-rejection-undo-discovery).
 
 ## Prepared analysis-bound confirmation
 
@@ -3184,6 +3409,14 @@ or transfers authority between results. The
 [canonical API contract](../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-confirmation)
 owns held legacy/community behavior, retry semantics and remaining native and
 rollout work. This source preparation authorizes no deployment or activation.
+
+The candidate-provenance backend checkpoint adds schema-2 `confirm_name` with an
+analysis-scoped raw ordinal and fixed representation. Both phases validate
+membership in the immutable species-candidate array; receipts preserve the
+reference, and confirmation Undo validates the same association. Schema-1
+requests replay unchanged. Rankless legacy and opaque imported candidates stay
+unsupported. The native producer and existing alternatives-control wiring are
+separate checkpoints; this changes no card layout or activation gate.
 
 ## Private community authority foundation
 
@@ -3220,9 +3453,11 @@ publisher integration.
 Private pre-I/O preparation now freezes a caller operation, named-result
 revisions and exact owned V2 photo receipt tuples. Historical retry and fresh
 revalidation are separate; neither permits media publication. The new gate
-defaults false and no API caller is granted. The prepared moderation and copy
-workers below consume this intent behind closed gates. Native operation recovery
-and authorized runtime qualification remain required. See the
+defaults false and preparation helpers remain private. The separate
+authenticated consent preflight exposes only descriptive metadata under the same
+locked eligibility. The prepared moderation and copy workers below consume this
+intent behind closed gates. Native consent/UI integration and authorized runtime
+qualification remain required. See the
 [intent contract](../../docs/backend-and-data/05-api-contracts.md#prepared-protected-photo-publication-intent).
 
 ## Prepared photo moderation lifecycle
@@ -3282,6 +3517,18 @@ survive the staging deadline; actual removal queues permanent erasure, while
 reversible health quarantine keeps recovery possible. See the
 [atomic binding contract](../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-public-photo-binding).
 
+## Prepared private-evidence erasure worker
+
+`erase-observation-evidence` connects one locked expired-cohort retirement and
+one opaque private outbox claim to permanent marker PUT/HEAD and exact-token
+settlement. Its independent gate defaults false. One 90-second request respects
+the original 60-second claim, reserves completion time and propagates storage
+cancellation. It accepts no caller object keys, emits aggregate counts only, and
+never dispatches inference or charges credits. No schedule or activation is
+included; configured source participates in normal future main deployment. See
+the [worker README](functions/erase-observation-evidence/README.md) and
+[canonical contract](../../docs/backend-and-data/05-api-contracts.md#prepared-private-evidence-cleanup-rpcs).
+
 ## Prepared public-photo erasure worker
 
 `erase-publication-photos` performs one service-authenticated registry claim,
@@ -3298,8 +3545,8 @@ The prepared `photoCopyExecution.ts` owner now connects reservation, verified
 private bytes, conditional writes and bounded completion recovery through
 explicitly scoped repository callbacks. Failed writes/completions attempt
 targeted registry cleanup even after deletion, without erasing a valid bound
-publication. Live repository and authenticated operation admission remain
-unconnected. See the
+publication. The scoped copy repository and service worker now connect this
+owner beneath authenticated durable intake; activation remains disabled. See the
 [copy execution contract](../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-copy-execution).
 
 ## Prepared durable publication intake
@@ -3308,8 +3555,9 @@ unconnected. See the
 consent before external work, returning an immutable acceptance receipt.
 `publicationOperation.ts` owns strict parsing; the default-off service RPC and
 private records preserve replay, original hash and deletion fences. Acceptance
-never authorizes copying or means publication completed. Live execution/status
-workers and native delivery remain required. See the
+never authorizes copying or means publication completed. Prepared
+moderation/copy workers, owner status and native durable delivery are connected
+behind closed activation gates; ordinary UI admission remains separate. See the
 [intake contract](../../docs/backend-and-data/05-api-contracts.md#prepared-authenticated-publication-operation-intake).
 
 ## Prepared publication worker ownership
@@ -3318,9 +3566,9 @@ Separate private work records now provide bounded discovery, scoped expiring
 claims and gate-independent release/status beneath immutable intake. Only a
 durable cohort receipt establishes historical admission; orchestration leases
 confer no provider or public-copy authority. The execution gate remains false,
-and the prepared moderation worker is connected; owner status and native
-delivery remain unconnected. Optional public notes still require their own
-moderation boundary. See the
+and prepared moderation/copy workers, owner status and native durable delivery
+are connected; ordinary UI admission remains separate. Optional public notes
+still require their own moderation boundary. See the
 [worker contract](../../docs/backend-and-data/05-api-contracts.md#prepared-publication-operation-worker-ownership).
 
 ## Scoped moderation recovery and preflight
@@ -3340,8 +3588,9 @@ now uses this path; gates stay false. See the
 
 Durable provider outcomes now remove completed or refused operations from
 moderation discovery. `photos_approved` is historical provider state only;
-`needs_action` never schedules a successor or refunds unknown dispatch.
-Copy/note execution and native delivery remain unconnected. All activation gates
+`needs_action` never schedules a successor or refunds unknown dispatch. Prepared
+copy execution and native durable delivery consume these outcomes; exact-note
+moderation and ordinary UI admission remain separate. All activation gates
 remain false.
 
 See the
@@ -3453,5 +3702,38 @@ retires copy work before best-effort cleanup. See its
 owner status for an exact saved operation. Auth-derived ownership, deletion
 fences, strict decoding, bounded reads and private no-store apply. Historical
 admission is not current visibility. No private reason, media or post ID is
-returned. Native delivery and activation remain separate. See the
+returned. Native durable delivery recovers this status before exact admission
+and remains status-only after acknowledgement. Ordinary UI admission and
+activation remain separate. See the
 [status contract](../../docs/backend-and-data/05-api-contracts.md#owner-publication-operation-status).
+
+## Prepared owner consent preflight
+
+`prepare-observation-publication-consent` reads one explicit analysis with owner
+and deletion fences, returning exact revisions, active taxonomy, a fixed-null
+initial taxon and ordered V2 photo candidates. It creates no operation and
+confers no ready-media authority; final 1–6 selection still passes exact intent
+admission. Default-false gates remain closed. Native consent/UI integration is
+next. See the
+[canonical contract](../../docs/backend-and-data/05-api-contracts.md#owner-publication-consent-preflight).
+
+### Private reanalysis photo ingress
+
+The prepared owner-authenticated
+[`upload-observation-evidence`](functions/upload-observation-evidence/README.md)
+accepts a bounded raw-byte cohort, computes digests, atomically freezes ordered
+receipts and their deadline, then verifies conditional private writes. Immutable
+cohort metadata prevents analysis identity reuse after abandoned-object cleanup.
+It returns only V2 content references. Native append-only capture/queue wiring
+and private storage/erasure qualification remain outstanding; all activation
+controls remain disabled.
+
+## Prepared owner publication target recovery
+
+`get-observation-publication-target` resolves observation-wide occupancy under
+authenticated owner/deletion fences. It returns literal null only for a valid
+owned vacant observation, one original sanitized status, or a conflict for
+legacy duplicates. It never selects the latest operation, exposes consent or
+creates work. Native target transport remains unconnected and all gates stay
+false. See the
+[target recovery contract](../../docs/backend-and-data/05-api-contracts.md#owner-publication-target-recovery).

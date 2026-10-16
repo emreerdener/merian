@@ -6,6 +6,7 @@ import SwiftData
 @MainActor
 enum ObservationHistorySelectionProjection {
     struct Retained {
+        let snapshotVersion: Int
         let authority: ObservationHistoryAuthority
         let reviewRevision: Int
         let observationRevision: Int
@@ -41,7 +42,7 @@ enum ObservationHistorySelectionProjection {
             throw ObservationHistoryError.resultConflict
         }
         _ = try ObservationHistoryDisplayProjection.restore(display, matching: saved)
-        return Retained(authority: try ObservationHistoryAuthority.decode(JSONSerialization.jsonObject(with: state.reviewSnapshotData)),
+        return Retained(snapshotVersion: saved.version, authority: try ObservationHistoryAuthority.decode(JSONSerialization.jsonObject(with: state.reviewSnapshotData)),
             reviewRevision: state.reviewRevision, observationRevision: state.observationStateRevision)
     }
 }

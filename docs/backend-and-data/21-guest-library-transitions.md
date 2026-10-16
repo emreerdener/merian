@@ -214,3 +214,26 @@ Ship the migrations and merge function before a client requiring private-detail
 RPCs. This document authorizes no deployment, hosted mutation, retention change,
 TestFlight distribution or external publication. Follow the existing exact-SHA
 release controls under a separately authorized operation and target.
+
+## Inactive NCO-1 photo ownership and account cleanup
+
+The V59 photo ledger is local work even when it has no runnable scan job.
+`LibraryMutationInventory` includes all four P1 entities, including orphaned or
+foreign-account rows, when deciding whether identity replacement is safe.
+`SupabaseManager` has an optional pre-drain owner hook: close preparation,
+cancel active work, await actual callback termination and preserve its durable
+intent before the existing account-work drain. Failure keeps the barrier closed.
+Normal composition leaves this hook nil.
+
+`ScanRepository` forwards an optional photo-owner purge to
+`ScanLibraryPurgeService`. Rows or a private namespace without that owner block
+purge before legacy data is erased. The owner retires references, preserves
+shared assets needed by surviving owners, confirms file unlink/synchronization
+and removes its namespace before dropping the ledger. External inbox liability
+requires an exact source-owner acknowledgement; an attempted cancellation or an
+expired lease is insufficient. A failed purge retains the authority required to
+reconcile it. No account operation or production binding is enabled here.
+
+See the
+[NCO-1 agreement](../rfcs/client-prepared-media-native-ownership-agreement-2026-10-15.md)
+for the qualification-only composition and remaining installed-product gates.

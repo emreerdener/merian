@@ -13,6 +13,14 @@ struct CandidatesCard: View {
     var onAskCommunity: (() -> Void)?
     var onMatchConfirmed: (() -> Void)?
     var onRefineScan: (() -> Void)?
+    var prepareCommunityConsent: CommunityConsentPreparation?
+    @State private var pendingCommunityConsent: CommunityConsentTicket?
+    var prepareSavedReanalysis: SavedReanalysisPreparation?
+    var resumeCommunityConsent: ((CommunityConsentTicket) -> Void)?
+    var resumeSavedReanalysis: ((SavedReanalysisTicket) -> Void)?
+    @State private var pendingReanalysis: SavedReanalysisTicket?
+    var confidenceReviewControls = ConfidenceReviewControls()
+    var resumeCandidateReview: ((CandidateReviewTicket) -> Void)?
     var showDismissButton: Bool = true
 
     @Environment(InferenceEngine.self) private var inferenceEngine
@@ -27,7 +35,13 @@ struct CandidatesCard: View {
         onAskCommunity: (() -> Void)? = nil,
         onMatchConfirmed: (() -> Void)? = nil,
         onRefineScan: (() -> Void)? = nil,
+        prepareCommunityConsent: CommunityConsentPreparation? = nil,
+        prepareSavedReanalysis: SavedReanalysisPreparation? = nil,
+        resumeCommunityConsent: ((CommunityConsentTicket) -> Void)? = nil,
+        resumeSavedReanalysis: ((SavedReanalysisTicket) -> Void)? = nil,
         showDismissButton: Bool = true,
+        confidenceReviewControls: ConfidenceReviewControls = .init(),
+        resumeCandidateReview: ((CandidateReviewTicket) -> Void)? = nil,
         dependencies: CandidateReviewDependencies = .live
     ) {
         self.candidates = candidates
@@ -39,10 +53,21 @@ struct CandidatesCard: View {
         self.onAskCommunity = onAskCommunity
         self.onMatchConfirmed = onMatchConfirmed
         self.onRefineScan = onRefineScan
+        self.prepareCommunityConsent = prepareCommunityConsent
+        self.prepareSavedReanalysis = prepareSavedReanalysis
+        self.resumeCommunityConsent = resumeCommunityConsent
+        self.resumeSavedReanalysis = resumeSavedReanalysis
+        self.confidenceReviewControls = confidenceReviewControls
+        self.resumeCandidateReview = resumeCandidateReview
         self.showDismissButton = showDismissButton
         self._viewModel = State(
             initialValue: CandidateReviewViewModel(dependencies: dependencies)
         )
+    }
+
+    private func permitsLegacyReview(_ scanID: String?) -> Bool {
+        guard let scanID else { return false }
+        return ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanID, container: modelContext.container)
     }
 
     private var isWeakMatch: Bool {
@@ -83,8 +108,8 @@ struct CandidatesCard: View {
         }
     }
 
-    private func confirmOriginal(scanId: String, generation: UInt64) async {
-        guard isSubjectPresentationCurrent(
+    private func confirmOriginal(scanId: String, generation: UInt64, expectedReview: LocalAIIdentificationReview?) async {
+        guard let expectedReview, permitsLegacyReview(scanId), isSubjectPresentationCurrent(
             scanId: scanId,
             generation: generation
         ) else {
@@ -97,7 +122,7 @@ struct CandidatesCard: View {
         guard await viewModel.confirmOriginal(
             subject: subject,
             inferenceEngine: inferenceEngine,
-            modelContext: modelContext
+            modelContext: modelContext, expectedReview: expectedReview
         ) else { return }
         viewModel.feedback.successPulse()
         onMatchConfirmed?()
@@ -106,13 +131,30 @@ struct CandidatesCard: View {
     var body: some View {
         let presentedScanId = inferenceEngine.speciesData?.scanId
         let presentedGeneration = inferenceEngine.scanPresentationGeneration
+        let presentedReview = inferenceEngine.speciesData?.aiReview
         let guardedAskCommunity = guardedAction(
             onAskCommunity,
             scanId: presentedScanId,
             generation: presentedGeneration
         )
         Group {
-            if viewModel.shouldHideCard(scanId: presentedScanId) {
+            if !permitsLegacyReview(presentedScanId) {
+                if !confidenceReviewControls.candidateChoices.isEmpty {
+                    CandidateAlternativesView(
+                        candidates: confidenceReviewControls.candidateChoices.map(\.display),
+                        confirmButtonTitle: confirmButtonTitle, isWeakMatch: false,
+                        onReviewAlternatives: {
+                            guard let presentedScanId,
+                                  isSubjectPresentationCurrent(scanId: presentedScanId, generation: presentedGeneration),
+                                  let ticket = confidenceReviewControls.prepareCandidateReview?() else { return }
+                            if let resumeCandidateReview { resumeCandidateReview(ticket) } else { ticket.resume() }
+                        }, onConfirm: {}, onDismiss: {}, showDismissButton: false,
+                        showsOriginalConfirmation: false, imageDependencies: viewModel.imageDependencies,
+                        feedback: viewModel.feedback
+                    )
+                    .disabled(confidenceReviewControls.prepareCandidateReview == nil)
+                } else if let guardedAskCommunity { Button("Ask the community", action: guardedAskCommunity) }
+            } else if viewModel.shouldHideCard(scanId: presentedScanId) {
                 EmptyView()
             } else if candidates.isEmpty {
                 CandidateVerificationView(
@@ -122,12 +164,12 @@ struct CandidatesCard: View {
                         guard let presentedScanId else { return }
                         await confirmOriginal(
                             scanId: presentedScanId,
-                            generation: presentedGeneration
+                            generation: presentedGeneration, expectedReview: presentedReview
                         )
                     },
                     onAskCommunity: guardedAskCommunity,
                     onDismiss: {
-                        guard let presentedScanId,
+                        guard let presentedScanId, permitsLegacyReview(presentedScanId),
                               isSubjectPresentationCurrent(
                                   scanId: presentedScanId,
                                   generation: presentedGeneration
@@ -151,7 +193,7 @@ struct CandidatesCard: View {
                     confirmButtonTitle: confirmButtonTitle,
                     isWeakMatch: isWeakMatch,
                     onReviewAlternatives: {
-                        guard let presentedScanId,
+                        guard let presentedScanId, permitsLegacyReview(presentedScanId),
                               isSubjectPresentationCurrent(
                                   scanId: presentedScanId,
                                   generation: presentedGeneration
@@ -169,11 +211,11 @@ struct CandidatesCard: View {
                         guard let presentedScanId else { return }
                         await confirmOriginal(
                             scanId: presentedScanId,
-                            generation: presentedGeneration
+                            generation: presentedGeneration, expectedReview: presentedReview
                         )
                     },
                     onDismiss: {
-                        guard let presentedScanId,
+                        guard let presentedScanId, permitsLegacyReview(presentedScanId),
                               isSubjectPresentationCurrent(
                                   scanId: presentedScanId,
                                   generation: presentedGeneration
@@ -221,11 +263,25 @@ struct CandidatesCard: View {
                     allowsAskCommunity: onAskCommunity != nil,
                     allowsRefinement: onRefineScan != nil,
                     onRequestDismissalAction: { request in
+                        pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
+                        if case .askCommunity = request.action, let prepareCommunityConsent {
+                            pendingCommunityConsent = prepareCommunityConsent(request.scanId, request.presentationGeneration)
+                        }
+                        pendingReanalysis?.cancel()
+                        pendingReanalysis = nil
+                        if case .refineScan = request.action, let prepareSavedReanalysis {
+                            pendingReanalysis = prepareSavedReanalysis(request.scanId, request.presentationGeneration)
+                        }
                         viewModel.stageDismissalRequest(request)
                     },
                     dependencies: viewModel.childDependencies
                 )
             }
+        }
+        .onDisappear {
+            pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
+            pendingReanalysis?.cancel()
+            pendingReanalysis = nil
         }
         .onChange(of: presentedScanId) {
             viewModel.invalidateSwipeModal()
@@ -258,8 +314,15 @@ struct CandidatesCard: View {
     }
 
     private func resumePendingSwipeDismissalRequest() {
+        let community = pendingCommunityConsent
+        pendingCommunityConsent = nil
+        var communityForwarded = false
+        defer { if !communityForwarded { community?.cancel() } }
+        let prepared = pendingReanalysis
+        pendingReanalysis = nil
         guard let currentScanId = inferenceEngine.speciesData?.scanId else {
             viewModel.invalidateSwipeModal()
+            prepared?.cancel()
             return
         }
         let currentSubject = IdentificationReviewSubject(
@@ -268,28 +331,40 @@ struct CandidatesCard: View {
         )
         guard let request = viewModel.takePendingDismissalRequest(
             matching: currentSubject
-        ) else { return }
+        ) else { prepared?.cancel(); return }
+        if case .refineScan = request.action {} else { prepared?.cancel() }
 
         switch request.action {
         case .applyOverride(let scientificName):
             Task { @MainActor in
+                guard let expectedReview = request.expectedReview, permitsLegacyReview(request.scanId) else { return }
                 await viewModel.applyOverride(
                     scientificName: scientificName,
                     subject: request.subject,
                     inferenceEngine: inferenceEngine,
-                    modelContext: modelContext
+                    modelContext: modelContext, expectedReview: expectedReview
                 )
             }
         case .confirmOriginal:
             Task { @MainActor in
                 await confirmOriginal(
                     scanId: request.scanId,
-                    generation: request.presentationGeneration
+                    generation: request.presentationGeneration, expectedReview: request.expectedReview
                 )
             }
         case .askCommunity:
+            if let community {
+                if let resumeCommunityConsent { communityForwarded = true; resumeCommunityConsent(community) } else { community.resume() }
+                return
+            }
+            guard prepareCommunityConsent == nil, permitsLegacyReview(request.scanId) else { return }
             onAskCommunity?()
         case .refineScan:
+            if let prepared {
+                if let resumeSavedReanalysis { resumeSavedReanalysis(prepared) } else { prepared.resume() }
+                return
+            }
+            guard prepareSavedReanalysis == nil else { return }
             onRefineScan?()
         }
     }

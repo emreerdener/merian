@@ -149,7 +149,7 @@ struct DeleteAccountSheet: View {
 
     private func performDeletion() async {
         let didDelete = await viewModel.deleteAccount {
-            localDataDependencies.purgeAllData(
+            await localDataDependencies.purgeAllData(
                 modelContext,
                 privateScanMapStore.resetSensitiveState
             )

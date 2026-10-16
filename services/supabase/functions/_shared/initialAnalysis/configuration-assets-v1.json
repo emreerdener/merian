@@ -1,0 +1,264 @@
+{
+  "digest": "a2e87aae39606224487f74c7f9e286d0653ade4cbee87ab3d158d0973ad0f6c0",
+  "manifest": {
+    "schema_version": 1,
+    "roots": [
+      "_shared/ai/production.ts",
+      "_shared/identify/media.ts",
+      "identify-describe/provider.ts",
+      "identify-multimodal/audio.ts",
+      "identify-multimodal/provider.ts",
+      "identify/provider.ts"
+    ],
+    "files": [
+      {
+        "path": "services/supabase/functions/_shared/ai/admission.ts",
+        "sha256": "518db95eee5d7db36551900782a92e342d7b6fa3da67abef79f578bab1b176eb"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/contentRegistry.ts",
+        "sha256": "d120f445ba0f0035ccc477ab0c6ebedb60fd3ad6f032de577d716125e686bd60"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/execution.ts",
+        "sha256": "e53c7f34db6b9afa9340948f4f05bbfa280ceb7812cc5a06db077e6129f491d5"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/gemini.ts",
+        "sha256": "6bc849a1add789d4e10e6df6422649d23da2aeaeff12559547f6e513c023424f"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/geminiContent.ts",
+        "sha256": "2a0aeda771e36631618281091f5e5015307117bebd4021807475db0d4fd93246"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/geminiRequest.ts",
+        "sha256": "57d2475cc1844885161e9e9311a38ad302407a8ee2801d4b59b76fc137da4d0e"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/identificationInput.ts",
+        "sha256": "3cc1aaeecd17d1da1a913244bae9e8008f17bfcce7b7b9c155632d1338319c97"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/openai.ts",
+        "sha256": "b12b1e4000ee440f2ecc4a25e5983cc26283dcb69d0b9759a1af479f7565bd8e"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/openaiConfidenceRules.ts",
+        "sha256": "99967c62c406fd9abf6d7a838655fa51695166dfe1b0e5f8ed8fca2b16bb8749"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/openaiLunaEvidenceLimits.ts",
+        "sha256": "0034c16dca03915cb066d4ef7ccbd7ac1b1933717d33c1d26250f49681a7eba9"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/openaiNullFields.ts",
+        "sha256": "62e31d330cee7231feca7288cd82966556d646d4d5787dd5f2f51f90edbc7018"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/openaiPhoto.ts",
+        "sha256": "50b932bcb7602dbe96ec259aafb731e9f2b16c718aa4fc71116a7c7e762bf12a"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/openaiPhotoConfidence.ts",
+        "sha256": "23a85c54fdd8685cff739ff14eb2fa4fbc5d546cc4dc8e564bc88471ea1f5590"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/openaiPhotoEvidence.ts",
+        "sha256": "fcc5a14bf7003269c7b71fcf5e05dcc00d30d44cf9f4937e50dd066680d7bfa4"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/openaiPhotoModels.ts",
+        "sha256": "1b2361664050e025c5f443e7c64761356b7d0cb2ccf26905a32dbedacbfaa7d5"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/openaiPhotoPrimary.ts",
+        "sha256": "c5867e3bcd1f14b94849abe58fb070e16e24c9f9d07c445b0a6a4d1df4f8df3f"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/openaiPhotoReasoning.ts",
+        "sha256": "3924c3f5e74b700323b6a91ef8f9bde62ec37f7527b3f78cc77746f794a01a36"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/openaiRequest.ts",
+        "sha256": "890ef2d4a382959a991977d6ce7e8953db3853bcf74a8600e29508f930dfa8e8"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/openaiSolPrimary.ts",
+        "sha256": "656c270707b76ae4fb848ee2cf70a877f20c8ca7ffa477573f70f99d2e7b2764"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/openaiSolPrimaryContract.ts",
+        "sha256": "8b2113595eff5f86f400d32c2abf1eaa234b04e98b0771fe5c021d6a66f74792"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/openaiSolPrimaryInstructions.ts",
+        "sha256": "7f36739402fc5d44af0d9f0163b2ffb490c4f68713204e01a636518528b1c9d2"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/openaiSolRank.ts",
+        "sha256": "fa679c3fb2a4ae9bd9db1200567b3999706b6ef176f23cde72d00cd9dbeb2e0a"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/production.ts",
+        "sha256": "d22e59d929736bd75cbec218809618ce3f912ee6e65ace439523e69fb4489cda"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/registry.ts",
+        "sha256": "2739b45335c491d88b8fd5d08ba16c81eb16511b49a220e8e4db58d8c451456e"
+      },
+      {
+        "path": "services/supabase/functions/_shared/aiUsage.ts",
+        "sha256": "f76d2ee7b79277102d1d9e6730826bd6b8a7f00368f478508990c70eb3767d4d"
+      },
+      {
+        "path": "services/supabase/functions/_shared/audioProcessing.ts",
+        "sha256": "69601412422152a62095358838a1b7be4a6ab4cca2a27bb601f0287266b6d5b6"
+      },
+      {
+        "path": "services/supabase/functions/_shared/auth.ts",
+        "sha256": "3ca912abd3a5b1a152e0e0fb1fae0553815cfb38faea948075638b25ebf56524"
+      },
+      {
+        "path": "services/supabase/functions/_shared/aws.ts",
+        "sha256": "8cc0c72a593afc15bcd29873a909ed38cc4ed412bb8e95800858b95062098c63"
+      },
+      {
+        "path": "services/supabase/functions/_shared/capturedMediaContract.ts",
+        "sha256": "e6167ca10093479a39cd80c9c7096e4ebb2dbc9019b72078c6672a1c910cb712"
+      },
+      {
+        "path": "services/supabase/functions/_shared/concurrency.ts",
+        "sha256": "e65371063f2efa150032db1b9afc3ce21a9d2ead0e1da82d6283fde659384493"
+      },
+      {
+        "path": "services/supabase/functions/_shared/edgeHandler.ts",
+        "sha256": "6d3bb449a2d0f7aa77734488b9c71fc35379f721130412cde076906570105a39"
+      },
+      {
+        "path": "services/supabase/functions/_shared/encoding.ts",
+        "sha256": "8921b3b7bf3466426524fbc6e135b5789d950e6d491305bf7123875924f1827e"
+      },
+      {
+        "path": "services/supabase/functions/_shared/gemini.ts",
+        "sha256": "3ad152eac0ee77758555fbead6b18cc97ac895ae00cfd0a8e3025d26bdc65dbd"
+      },
+      {
+        "path": "services/supabase/functions/_shared/http.ts",
+        "sha256": "539a9ff6906d1b0322ca203d681b891b4f480c33e1095d10b36c2670f6788596"
+      },
+      {
+        "path": "services/supabase/functions/_shared/identify/audioSubjectPolicy.ts",
+        "sha256": "5ce04dde2e970f266894cbb35e18441793b7787d0d93a28b93b2391226b6c601"
+      },
+      {
+        "path": "services/supabase/functions/_shared/identify/context.ts",
+        "sha256": "eba9982710d145cf0ae97bfd8bc17e76db874a43b6241a513ead3a98a21112c3"
+      },
+      {
+        "path": "services/supabase/functions/_shared/identify/contract.ts",
+        "sha256": "6a765e0286101721d9b0f995cf471320a299ac91342af68e1d2d7261a938a4c2"
+      },
+      {
+        "path": "services/supabase/functions/_shared/identify/googleSchema.ts",
+        "sha256": "0c3ccb02172cd8a224387fc1eaa1e8386019cb9fdea950a122bf887b4928450b"
+      },
+      {
+        "path": "services/supabase/functions/_shared/identify/media.ts",
+        "sha256": "e845f3e5132e7c5422ba42b2724bfce43f9d6bbe4202f64c8a09ed760763136b"
+      },
+      {
+        "path": "services/supabase/functions/_shared/identify/schema.ts",
+        "sha256": "9a0f05df0590fa29b78eb099644b732ac8f5bb06863016b2c628d0509d7c237d"
+      },
+      {
+        "path": "services/supabase/functions/_shared/identify/thresholds.ts",
+        "sha256": "658cb9b056e3ad3f3cf618ac18ee6e792d8a2267d35bea7f59167bcc87ad443b"
+      },
+      {
+        "path": "services/supabase/functions/_shared/mediaBudgets.ts",
+        "sha256": "88f7fded8dcc01ea0cefd95840ccbc5cb725e4a2297831dbdaee9f2b3be06f81"
+      },
+      {
+        "path": "services/supabase/functions/_shared/outbound.ts",
+        "sha256": "1b42cd13285279e09f0e982253a78c730c14325df6b1cb5f0cf811a7f7b6d587"
+      },
+      {
+        "path": "services/supabase/functions/_shared/publishableKey.ts",
+        "sha256": "0bb662ee653aa246dd673a688417668fb2d58009383ee6130e29a2bf7db8bcc4"
+      },
+      {
+        "path": "services/supabase/functions/_shared/serviceRoleAuth.ts",
+        "sha256": "18d3443ec5e09470be7a16c9dd0f761c894be3c548f116acda44cb930eda3dcb"
+      },
+      {
+        "path": "services/supabase/functions/_shared/serviceRoleClient.ts",
+        "sha256": "7c902ab75359ddd04e634c23f88ea8817678a65b4e8417062d5182e636deb5b0"
+      },
+      {
+        "path": "services/supabase/functions/_shared/taxonomy.ts",
+        "sha256": "7306f67cee982fb007a417ddc2c6ef38c30f9d2d3fd288d3ff39ada9423b59f6"
+      },
+      {
+        "path": "services/supabase/functions/audio-spec/instructions.ts",
+        "sha256": "ac7de56e2a08f6b9f126c42a03764af609162fdf2c86c05650b69b55408d8c17"
+      },
+      {
+        "path": "services/supabase/functions/audio-spec/resample.ts",
+        "sha256": "697a29cd6e937d08d7bbf6a5d9df7d32589227a21034db119feb43a723d45de1"
+      },
+      {
+        "path": "services/supabase/functions/audio-spec/wav.ts",
+        "sha256": "b8f3fbf2aed80b4873a82f32d1271476426f2411d4ab17138a810b2041a5dfdc"
+      },
+      {
+        "path": "services/supabase/functions/deno.json",
+        "sha256": "5f9b19300d164f5c406e5aca9a7f6965fa630da7bfabe01d0b01afb52a8c5b6b"
+      },
+      {
+        "path": "services/supabase/functions/dependencies.lock",
+        "sha256": "c1cd6d302423798701d58af8b4ccbd7fed45aed9ad23082e431ed72bc9454d72"
+      },
+      {
+        "path": "services/supabase/functions/identify-describe/provider.ts",
+        "sha256": "7c514fd897e4442f52705249ce4056a41fab3984535cbc5a1a0497341543fb36"
+      },
+      {
+        "path": "services/supabase/functions/identify-describe/schema.ts",
+        "sha256": "5bcc551eda43586a49654d03fd210a0aeba4ccd6afcc4d452f06054f543017bb"
+      },
+      {
+        "path": "services/supabase/functions/identify-multimodal/audio.ts",
+        "sha256": "ff70036c97f6110b20824d7cfbc4f38b5cc92367d9d8acec95f9f5ce3f852706"
+      },
+      {
+        "path": "services/supabase/functions/identify-multimodal/capturedMedia.ts",
+        "sha256": "3a28246917f962b251144ddd43ed3d97d105113c39dcc0711a9eb157e341a253"
+      },
+      {
+        "path": "services/supabase/functions/identify-multimodal/comparison/promptInstruction.ts",
+        "sha256": "39824ffe181bd457508e622d6fe4d0c233e55314144fbe8ea9e46a9754318ef7"
+      },
+      {
+        "path": "services/supabase/functions/identify-multimodal/instructions.ts",
+        "sha256": "da038dc3292068b3da132dbbce3908a14926798ded597a3cb6de13078b35e783"
+      },
+      {
+        "path": "services/supabase/functions/identify-multimodal/provider.ts",
+        "sha256": "0f88e88c80aef67888d2ff5356974f6f5ccb9cabe9400e76b05bb531eedca49f"
+      },
+      {
+        "path": "services/supabase/functions/identify/provider.ts",
+        "sha256": "c63b919d2fceb53a51833abbfdb7a40133038415dbf946c0bd476f4b18124f6f"
+      }
+    ],
+    "external_specifiers": [
+      "@google/genai",
+      "@supabase/supabase-js",
+      "aws4fetch"
+    ],
+    "repository_revision": "86e007a5f1b2ae3064bbe21f9fd140a4b3dead4b",
+    "retention_owner": "initial_engine_release_archive",
+    "resolver_id": "git_blob_sha256_v1"
+  }
+}

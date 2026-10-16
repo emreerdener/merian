@@ -19,7 +19,9 @@ extension InsightSheetViewModel {
               ),
               record.id.caseInsensitiveCompare(expectedScanId) ==
                 .orderedSame,
-              !state.isRequestingCommunityIdentification else { return }
+              !state.isRequestingCommunityIdentification,
+              ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                  scanID: expectedScanId, container: modelContext.container) else { return }
 
         let scanId = record.id
         let generation = scanBoundActionGeneration
@@ -39,9 +41,13 @@ extension InsightSheetViewModel {
                     note,
                     locationSharing
                 )
+            guard ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                scanID: scanId, container: modelContext.container) else { return }
             sharingDependencies.storeCachedPostID(nil, scanId)
             sharingDependencies.publishShareStateChanged(scanId, nil)
-            guard isPresentingLocalRecord(
+            guard ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                scanID: scanId, container: modelContext.container),
+            isPresentingLocalRecord(
                 scanId: scanId,
                 generation: generation
             ) else { return }
@@ -66,7 +72,9 @@ extension InsightSheetViewModel {
                 generation: generation
             )
         } catch {
-            guard isPresentingLocalRecord(
+            guard ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                scanID: scanId, container: modelContext.container),
+            isPresentingLocalRecord(
                 scanId: scanId,
                 generation: generation
             ) else { return }
@@ -84,14 +92,17 @@ extension InsightSheetViewModel {
         note: String?,
         locationSharing: ExplorePostLocationSharing,
         expectedScanId: String,
-        expectedGeneration: UInt64
+        expectedGeneration: UInt64,
+        modelContext: ModelContext
     ) async {
         guard let scanId = presentedLocalRecordScanId,
               scanId.caseInsensitiveCompare(expectedScanId) == .orderedSame,
               expectedGeneration == scanBoundActionGeneration,
               let requestId =
                 state.sharedCommunityIdentificationRequestId,
-              !state.isRequestingCommunityIdentification else { return }
+              !state.isRequestingCommunityIdentification,
+              ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                  scanID: expectedScanId, container: modelContext.container) else { return }
 
         let generation = scanBoundActionGeneration
         state.isRequestingCommunityIdentification = true
@@ -108,7 +119,9 @@ extension InsightSheetViewModel {
                     note,
                     locationSharing
                 )
-            guard isPresentingLocalRecord(
+            guard ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                scanID: scanId, container: modelContext.container),
+            isPresentingLocalRecord(
                 scanId: scanId,
                 generation: generation
             ),
@@ -133,7 +146,9 @@ extension InsightSheetViewModel {
                 generation: generation
             )
         } catch {
-            guard isPresentingLocalRecord(
+            guard ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                scanID: scanId, container: modelContext.container),
+            isPresentingLocalRecord(
                 scanId: scanId,
                 generation: generation
             ),

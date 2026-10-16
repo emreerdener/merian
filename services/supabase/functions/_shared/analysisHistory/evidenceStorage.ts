@@ -61,7 +61,12 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
     return await config.s3Client.fetch(r2RequestWithDeadline(url, init));
   }
 
-  async writeOnce(receipt: EvidenceReceipt, bytes: Uint8Array): Promise<void> {
+  async writeOnce(
+    receipt: EvidenceReceipt,
+    bytes: Uint8Array,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    signal?.throwIfAborted();
     // Defence in depth: only bytes matching the admitted immutable tuple enter R2.
     const body = bytes.slice();
     if (
@@ -69,20 +74,34 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
       await evidenceDigest(body) !== receipt.sha256
     ) throw new Error("invalid_history_evidence");
     const config = this.writeConfig();
-    const response = await this.request(config, receipt.object_id, "PUT", {
-      "If-None-Match": "*",
-      "Content-Type": receipt.content_type,
-      "Content-Length": String(receipt.byte_count),
-      "Cache-Control": "private, no-store",
-      "x-amz-meta-sha256": receipt.sha256,
-    }, body);
+    const response = await this.request(
+      config,
+      receipt.object_id,
+      "PUT",
+      {
+        "If-None-Match": "*",
+        "Content-Type": receipt.content_type,
+        "Content-Length": String(receipt.byte_count),
+        "Cache-Control": "private, no-store",
+        "x-amz-meta-sha256": receipt.sha256,
+      },
+      body,
+      signal,
+    );
     await response.body?.cancel();
     if (!response.ok && response.status !== 412) {
       throw new Error("history_evidence_storage_unavailable");
     }
     // A lost PUT response can be retried; an existing marker or different object
     // cannot pass this tuple. Only this trusted writer can set hash metadata.
-    const head = await this.request(config, receipt.object_id, "HEAD");
+    const head = await this.request(
+      config,
+      receipt.object_id,
+      "HEAD",
+      {},
+      undefined,
+      signal,
+    );
     await head.body?.cancel();
     if (
       !head.ok ||
@@ -155,19 +174,37 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
     );
     return signed.url;
   }
-  async erase(objectId: string): Promise<void> {
+  async erase(objectId: string, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
+    const config = this.writeConfig();
     // Never DELETE this key. An unconditional empty PUT atomically replaces any
     // content and blocks every delayed conditional upload, in either ordering.
-    const response = await this.request(this.writeConfig(), objectId, "PUT", {
-      "Content-Type": "application/octet-stream",
-      "Content-Length": "0",
-      "Cache-Control": "private, no-store",
-      "x-amz-meta-erased": "true",
-    }, new Uint8Array());
+    const response = await this.request(
+      config,
+      objectId,
+      "PUT",
+      {
+        "Content-Type": "application/octet-stream",
+        "Content-Length": "0",
+        "Cache-Control": "private, no-store",
+        "x-amz-meta-erased": "true",
+      },
+      new Uint8Array(),
+      signal,
+    );
     await response.body?.cancel();
     if (!response.ok) throw new Error("history_evidence_erasure_failed");
-    const head = await this.request(this.writeConfig(), objectId, "HEAD");
+    signal?.throwIfAborted();
+    const head = await this.request(
+      config,
+      objectId,
+      "HEAD",
+      {},
+      undefined,
+      signal,
+    );
     await head.body?.cancel();
+    signal?.throwIfAborted();
     if (
       !head.ok || head.headers.get("Content-Length") !== "0" ||
       head.headers.get("x-amz-meta-erased") !== "true" ||

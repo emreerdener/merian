@@ -561,7 +561,8 @@ struct BackgroundInferenceArchitectureTests {
             lifecyclePath,
             watchdogPath,
             accountWorkPath,
-            terminalRoutingPath
+            terminalRoutingPath,
+            "Services/QueueMaintenance/OfflineQueueManager+ReanalysisErasure.swift"
         ],
         "scheduleInferenceStatusProbe(": [
             dispatchPath,
@@ -625,7 +626,8 @@ struct BackgroundInferenceArchitectureTests {
             lifecyclePath,
             watchdogPath,
             "OfflineQueueManager.swift",
-            "Services/QueueMaintenance/OfflineQueueManager+QueueDeletion.swift"
+            "Services/QueueMaintenance/OfflineQueueManager+QueueDeletion.swift",
+            "Services/QueueMaintenance/OfflineQueueManager+ReanalysisErasure.swift"
         ],
         "BackgroundInferencePolicy.requiredConsentAttentionMessage": [
             completionPath
@@ -656,7 +658,8 @@ struct BackgroundInferenceArchitectureTests {
             retryPath,
             watchdogPath,
             "Services/InferenceReplay/OfflineQueueManager+InferenceReplay.swift",
-            "Services/QueueMaintenance/OfflineQueueManager+QueueDeletion.swift"
+            "Services/QueueMaintenance/OfflineQueueManager+QueueDeletion.swift",
+            "Services/QueueMaintenance/OfflineQueueManager+ReanalysisErasure.swift"
         ]
     ]
 

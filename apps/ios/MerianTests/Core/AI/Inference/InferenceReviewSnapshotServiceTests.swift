@@ -43,7 +43,7 @@ struct InferenceReviewSnapshotServiceTests {
         )
 
         await engine.confirmAIIdentification(
-            modelContext: try makeContext()
+            modelContext: try makeContext(scanID: "confirm-unreadable")
         )
 
         #expect(engine.speciesData?.userConfirmedIdentification == false)
@@ -61,7 +61,7 @@ struct InferenceReviewSnapshotServiceTests {
         )
 
         await engine.resetIdentificationReview(
-            modelContext: try makeContext()
+            modelContext: try makeContext(scanID: "reset-unreadable")
         )
 
         #expect(
@@ -84,7 +84,7 @@ struct InferenceReviewSnapshotServiceTests {
         )
     }
 
-    private func makeContext() throws -> ModelContext {
+    private func makeContext(scanID: String? = nil) throws -> ModelContext {
         let schema = Schema(CurrentSchema.models)
         let configuration = ModelConfiguration(
             schema: schema,
@@ -94,7 +94,12 @@ struct InferenceReviewSnapshotServiceTests {
             for: schema,
             configurations: [configuration]
         )
-        return ModelContext(container)
+        let context = ModelContext(container)
+        if let scanID {
+            context.insert(LocalScanRecord(id: scanID, speciesId: "species", scientificName: "Procyon lotor", commonName: "Raccoon"))
+            try context.save()
+        }
+        return context
     }
 
     private func speciesData(

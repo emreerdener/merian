@@ -1,0 +1,24 @@
+\set ON_ERROR_STOP on
+BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+SELECT extensions.no_plan();
+SELECT extensions.ok(NOT has_function_privilege('anon','internal.insight_chat_context_projection(jsonb)','EXECUTE') AND NOT has_function_privilege('authenticated','internal.insight_chat_context_projection(jsonb)','EXECUTE') AND NOT has_function_privilege('service_role','internal.insight_chat_context_projection(jsonb)','EXECUTE'),'projector remains private');
+SELECT extensions.is(internal.insight_chat_context_projection('{}')->'candidates','null'::JSONB,'absent alternatives remain unavailable');
+SELECT extensions.is(internal.insight_chat_context_projection('{"candidates":null}')->'candidates','null'::JSONB,'explicit null alternatives stay null');
+SELECT extensions.is(internal.insight_chat_context_projection('{"candidates":[]}')->'candidates','[]'::JSONB,'explicit empty alternatives stay empty');
+SELECT extensions.is(internal.insight_chat_context_projection('{"candidates":[{"taxon_rank":"species","scientific_name":"Fixture species","confidence_score":0.8,"private_media":"discard"}]}')->'candidates','[{"taxon_rank":"species","scientific_name":"Fixture species","confidence_score":0.8}]'::JSONB,'rank survives while unknown candidate payload is removed');
+SELECT extensions.is(internal.insight_chat_context_projection('{"candidates":[{"taxon_rank":"genus"}]}')#>>'{candidates,0,taxon_rank}','genus','invalid rank is preserved for semantic denial, never upgraded');
+SELECT extensions.throws_ok($$SELECT internal.insight_chat_context_projection('{"candidates":"damaged"}')$$,'55000','field_chat_context_unavailable','scalar evidence fails closed');
+SELECT extensions.throws_ok($$SELECT internal.insight_chat_context_projection('{"candidates":[null]}')$$,'55000','field_chat_context_unavailable','damaged members are not filtered to empty');
+SELECT extensions.throws_ok($$SELECT internal.insight_chat_context_projection(jsonb_build_object('candidates',(SELECT jsonb_agg('{}'::JSONB) FROM generate_series(1,7))))$$,'55000','field_chat_context_unavailable','oversized alternatives are not truncated');
+SELECT extensions.is(internal.insight_chat_context_projection('{}')->'metrics_qualified','false'::JSONB,'missing provenance is not legacy null');
+SELECT extensions.is(internal.insight_chat_context_projection('{"identification_provenance":null}')->'metrics_qualified','true'::JSONB,'explicit legacy null preserves original metric semantics');
+CREATE TEMP TABLE original_metadata AS SELECT '{"inference_tier":"flash","identification_provenance":{"version":1,"provider":"gemini","binding":"gemini_baseline_v1","model":"gemini-2.5-flash","policy_version":1,"timeout_ms":90000,"variant":"audio_compat","operation":"scan_audio_identification","prompt":"identify_audio_compat_v2","schema":"merian_audio_v2","confidence":"gemini_audio_compat_v2","diagnostic_trigger":null,"prompt_diagnostic_trigger":null,"safety":null,"generation":{"temperature":0.1,"seed":42,"top_k":null,"max_output_tokens":2048,"thinking_budget":2048}}}'::JSONB AS source;
+SELECT extensions.is((SELECT internal.insight_chat_context_projection(source)->'metrics_qualified' FROM original_metadata),'true'::JSONB,'exact original Gemini profile qualifies');
+SELECT extensions.is((SELECT internal.insight_chat_context_projection(source||'{"inference_tier":"unknown"}')->'metrics_qualified' FROM original_metadata),'false'::JSONB,'unknown tier fails qualification');
+CREATE TEMP TABLE expanded_metadata AS SELECT jsonb_set(source,'{identification_provenance,unknown_key}','"discard"') AS source FROM original_metadata UNION ALL SELECT jsonb_set(source,'{identification_provenance,generation,unknown_key}','1') FROM original_metadata;
+SELECT extensions.ok((SELECT bool_and(internal.insight_chat_context_projection(source)->'metrics_qualified'='false'::JSONB) FROM expanded_metadata),'unknown raw metadata cannot gain qualification through sanitation');
+SELECT extensions.ok((SELECT bool_and(internal.insight_chat_context_projection(source)->'identification_provenance'=(SELECT source->'identification_provenance' FROM original_metadata)) FROM expanded_metadata),'unknown raw keys are still removed from stored context');
+SELECT extensions.is(internal.insight_chat_context_projection('{"identification_provenance":{"version":2,"provider":"openai","generation":{}}}')->'metrics_qualified','false'::JSONB,'non-compatible provider metadata remains unqualified');
+SELECT * FROM extensions.finish();
+ROLLBACK;

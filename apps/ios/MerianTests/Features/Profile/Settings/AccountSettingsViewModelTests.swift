@@ -55,7 +55,8 @@ final class AccountSettingsViewModelTests: XCTestCase {
             dependencies: makeDeletionDependencies(
                 deleteAccount: { purgeLocalData in
                     deleteCallCount += 1
-                    XCTAssertTrue(purgeLocalData())
+                    let purged = await purgeLocalData()
+                    XCTAssertTrue(purged)
                 }
             )
         )
@@ -214,10 +215,10 @@ final class AccountSettingsViewModelTests: XCTestCase {
             @escaping @MainActor () -> Bool = { false },
         isRecoveryPending: @escaping @MainActor () -> Bool = { false },
         deleteAccount: @escaping @MainActor (
-            @MainActor @escaping () -> Bool
+            @MainActor @escaping () async -> Bool
         ) async throws -> Void = { _ in },
         resumeDeletion: @escaping @MainActor (
-            @MainActor @escaping () -> Bool
+            @MainActor @escaping () async -> Bool
         ) async -> Bool = { _ in true },
         stableErrorCode: @escaping @MainActor (Error) -> String? = { _ in
             nil

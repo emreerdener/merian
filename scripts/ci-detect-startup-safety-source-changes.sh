@@ -106,6 +106,18 @@ is_startup_runtime_file() {
     apps/ios/Merian/Models/Schema/SchemaV56ScanSnapshots.swift | \
     apps/ios/Merian/Models/Schema/SchemaV56QueueSnapshots.swift | \
     apps/ios/Merian/Models/Schema/SchemaV57.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV57ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV57QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV58.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV58ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV58QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV59.swift | \
+    apps/ios/Merian/Models/ActiveSchema/PhotoPreparationRecord.swift | \
+    apps/ios/Merian/Models/ActiveSchema/PhotoPreparationAsset.swift | \
+    apps/ios/Merian/Models/ActiveSchema/PhotoPreparationReference.swift | \
+    apps/ios/Merian/Models/ActiveSchema/PhotoPreparationLease.swift | \
+    apps/ios/Merian/Core/Data/PhotoPreparation/* | \
+    apps/ios/MerianTests/Core/Data/PhotoPreparation/* | \
     apps/ios/MerianTests/Models/LocalAnalysisStateRecordTests.swift | \
     apps/ios/Merian/Models/SchemaVersions.swift | \
     apps/ios/MerianTests/Core/Data/StoreRecovery/* | \

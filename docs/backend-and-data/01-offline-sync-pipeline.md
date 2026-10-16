@@ -1833,6 +1833,71 @@ revalidation. This protection does not lift the
 Scan permanence and user privacy require that explicitly deleted datasets are
 permanently erased, even fully offline.
 
+Prepared reanalysis staging now atomically persists a qualified V58 child and
+its exact immutable request before upload or analysis admission. It preserves
+the parent selection, verifies enrolled owner/source membership and shares the
+parent deletion transaction lock. Missing row/job pairs cannot be reconstructed
+by retry, and terminal jobs never reopen. Child media uses an isolated local
+namespace; the preparation and execution owners must verify the original bytes.
+These rows remain held until explicit durable execution admission. The
+completion validator rechecks the full V2 result, exact source and saved request
+digest, and the complete ordered manifest before atomic append; it does not
+apply selection or review state. Ordinary scheduler deadlines ignore qualified,
+invalid and orphan ingestion work; a separate strict owner-qualified reader now
+restores explicitly admitted reanalysis pending/waiting/running deadlines. New
+bound metadata version seven durably consumes the first analyze attempt before
+network dispatch. Consumed work and older bound version-one work recover
+outcomes only; target absence never authorizes another analyze call. Unbound
+versions 2–6 and original request bytes remain compatible. See the
+[local persistence contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-immutable-reanalysis-staging).
+
+Offline preparation now has a strict local draft phase containing the permanent
+child/parent/source/owner linkage and original ordered evidence before recipient
+preflight. No provider is guessed to persist it. Binding compares the saved
+draft and replaces only its metadata with one immutable request; later changes
+conflict and terminal work never revives. A recovery-only preflight cannot bind
+an unbound draft. Drafts remain held until explicit admission; pristine bound
+work requires that same durable admission before execution. This adds no
+SwiftData model field or schema version.
+
+Explicit submission intent now has a separate prepared local path: version-4
+files-pending metadata records the user's requested action before private
+writes, and verified completion/recovery preserves its original source
+fingerprint in version-5 admission-pending metadata. Legacy held preparations
+remain held. Submitted unbound work is not an execution candidate; source-proof
+validation and current consent precede atomic binding. Bounded admission
+recovery is connected for explicitly submitted work; saving an ordinary held
+draft remains inert and the final editor action is not yet connected.
+
+The prepared admission store adds a closed version-6 recovery wrapper retaining
+that exact submitted preparation. Its private phase, claim generation, retry and
+hold fields do not modify execution queue fields. Only locked successful cohort
+verification promotes files-pending to admission-pending; recipient binding
+consumes the current ready claim and source proof atomically. Consent-off ready
+work and all held work contribute no admission deadline. A dedicated advisory
+runtime now schedules recovery separately from the general network scheduler,
+including local file recovery offline. Producer and targeted local recovery now
+require the shared queue-owned preparation coordinator. It reserves the child
+before metadata access, retains cancelled tasks until exit, and is
+cancelled/awaited before the final Auth lease drain. Automatic admission uses
+that same reservation and claims only after file locking. The prepared
+single-phase advisory executor now implements that locked claim and source-proof
+boundary. It verifies local files without inference consent and distinguishes
+pre-claim uncertainty from durable retry. Ready admission requires current
+consent and connectivity; only an explicit grant CAS rearms a consent hold.
+Recovery-only responses hold for reconciliation. Automatic scanning, bounded
+pre-lock cooldowns, grant events and final Capture submission remain
+unconnected.
+
+Dedicated delivery now processes only explicitly admitted bound children. Atomic
+processor binding plus pristine `pending` status closes the restart gap before
+first dispatch. The retained single-flight owner cancels on offline/constrained
+paths and is awaited before Auth lease drain. Foreground target recovery
+precedes inference consent; absent targets still require current saved-processor
+consent. Strict candidate reads keep drafts, remediation holds and damaged
+records out of automatic wakes. Local persistence uncertainty uses a bounded
+fallback floor. Ordinary UI submission and all activation gates remain disabled.
+
 ### 1. Transactional Destruction (`ScanRepository.eradicateScan`)
 
 Reanalysis must first pass `InferenceScanReplacement`: a typed persisted
@@ -2395,6 +2460,23 @@ acceptance nor durable pausing alone authorizes identity replacement.
 
 ### Prepared history enrollment and local erasure protection
 
+QueueManager retains a bounded explicit enrollment owner, separate from the
+scheduled drain and child-analysis preparation. At most four parent operations
+run; repeated taps share work only under the same owner, auth generation and
+container and exact review/display baseline. The caller can capture an eligible
+baseline before suspension; the same ticket must match before durable staging,
+when joining existing work and at commit. This prevents a later tap for a
+different correction from joining the original request. Environment and token
+checks fence service admission and returned results. Cancelling a waiting caller
+withholds its result without cancelling shared work. Auth cancels and awaits
+retained operations before draining account leases; cancelled operation slots
+remain occupied until transport exits. Direct repository deletion cancels a
+matching parent/container only after its database commit. Other erasure paths
+preserve their durable deletion fences. None of these events removes an
+ambiguous enrollment hold or schedules its retry. History/status reads do not
+enroll, and enrollment requires no inference consent. Ordinary entry remains
+disabled.
+
 Before the prepared enrollment RPC, native code persists an owner-bound intent
 in the existing `.future` job store. The namespace is never scheduled; errors
 and restart preserve its explicit-retry hold. Under the shared persistence lock,
@@ -2407,3 +2489,365 @@ local fence does not authorize remote deletion of retained history or release
 backend rollout controls. The
 [native history owner](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-native-enrollment)
 defines the exact intent and tombstone lifecycle.
+
+## Legacy review protection during history enrollment
+
+The native review outbox retains a scan-only request when staged or acknowledged
+history makes it ineligible. Its enqueue, carry endpoints, dispatch admission,
+response commit and conflict-recovery writes check a fresh context under the
+shared review persistence lock. Existing protected jobs become `needsAttention`
+with no deadline and retain their exact payload. The server's exact
+`analysis_bound_review_required` response applies the same hold even when this
+device has not yet learned about enrollment. No alternative endpoint, automatic
+revision rebase or legacy-authority fetch is attempted. Carry rechecks both
+observations after post-acceptance work before source retirement.
+
+The interactive review/Community guard also requires exactly one current local
+record; missing context, deletion, duplicate rows and lookup failure deny the
+operation. History activation remains disabled.
+
+## Prepared analysis-bound review outbox
+
+The separate native review outbox saves exact owner, observation, analysis,
+operation, decision and expected revisions before dispatch. An operation UUID
+cannot rebind locally; an exact replay recovers its original request or receipt
+before checking whether a new foreground decision is still current. Undo needs
+the saved applied Reject association for the same owner and target. A current
+rejected flag alone is insufficient.
+
+Server receipt and local projection completion are separate durable phases.
+After receipt storage, request dispatch is forbidden. The prepared reconciler
+reads exact target and selected states under one account lease and requires the
+same observation revision and selection. Its fresh locked transaction applies
+the selected state before advancing the outgoing target cache, then completes
+the receipt in that same save. Reading a nonselected target cannot advance the
+parent revision by itself. Baseline, claim, account and deletion changes deny
+commit; failed admission or save rolls everything back. New reads require a live
+claim, while an unchanged late final reply can settle. The prepared delivery
+service handles one saved operation under an account lease. Its mutation
+validator rechecks the exact claim after Auth awaits before sending; ambiguous
+replies retain the original request. Acknowledgement requires a new
+receipt-phase claim, and reconciliation failures never resubmit a received
+decision. A dedicated queue-owned pass delivers at most eight due operations
+under a retained account lease without blocking other drains. Its task remains
+retained through cancellation and is awaited before Auth lease drain. Offline,
+constrained, owner and context changes invalidate work. Strict review candidate
+dates restore pending and interrupted work; the raw kind stays outside generic
+wake discovery. Malformed running claims cannot be reclaimed without their
+original start/expiry, and held work has no recurring timer. Database
+uncertainty propagates to a five-second owner/manager/container-qualified
+fallback, rather than silently losing recovery. Ordinary UI remains unconnected.
+This adds no SwiftData stored fields or schema version.
+
+Owner, deletion and claim fences apply to every commit. Direct/bulk deletion
+uses the immutable observation-qualified job namespace even after metadata
+corruption; cloud-confirmed cleanup requires decoded ownership. The
+[native review owner](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-analysis-bound-review-persistence)
+defines the receipt, claim and recovery boundary. History activation remains
+disabled.
+
+## Prepared community-help delivery completion
+
+The queue-owned publication drain retains one task across joined callers and
+Auth cancellation. Only the actual task exit, after account-lease release,
+notifies `publicationDeliveryGeneration`; a replaced account or model context
+suppresses that notification. Scheduling is rearmed by the same exit, not by
+each joiner. The generation supports local exact-operation status refresh and is
+not proof of successful admission or current public visibility. No idle polling
+or idle account lease is introduced, and ordinary consent access stays disabled
+pending the remaining presentation and rollout qualifications.
+
+The prepared local operation-status reader requires exact owner, observation,
+analysis and operation identities. A valid parent/child scope with no exact job
+returns absence; deletion, account mismatch or malformed state returns an error.
+It shares structural validation with discovery and direct claims, preventing a
+running row with a missing or changed recovery deadline from redispatching.
+Acknowledged waiting work without a previous dispatch remains valid. Local
+attention and terminal receipts stay out of scheduling; storage failures retain
+the bounded recovery wake. The status is a minimal saved-operation projection,
+not current public visibility, and adds no idle network work.
+
+Foreground community-help preparation has a separate retained owner, bounded to
+four exact ticket/session/generation/container scopes. It coalesces identical
+reads and withholds stale private results. Queue account-transition quiescence
+cancels and awaits these tasks before Auth lease drain; slots remain occupied
+until the service releases its lease, including cancellation-ignoring responses.
+Overlapping drains block admission until all captured work exits. A cancelled
+waiter does not cancel another caller's shared read. This adds no durable
+intent, automatic replay, timer, idle lease or ordinary UI activation.
+
+### Prepared native audio task lifetime
+
+`ObservationAudioExecutionOwner` is queue-retained independently of the photo
+scheduler. It admits at most one explicit operation and coalesces only an exact
+saved snapshot/session/generation/container key. The task owns an injected
+account lease through actual operation exit; lease release precedes clearing the
+slot and its sole completion callback. A duplicate caller neither starts another
+operation nor emits a completion notification.
+
+Offline or constrained connectivity cancels dispatch but retains the slot and
+same-account known-answer settlement. Auth invalidation immediately revokes both
+predicates, closes admission even before awaiting, and overlapping drains keep
+admission closed until retained work exits. Both existing queue Auth quiescence
+seams invalidate and await the audio owner. Common scope must fence account,
+session, generation and container; presentation dismissal and connectivity must
+not be folded into the known-answer predicate. Durable claim/source/deletion
+checks remain mandatory in the execution store.
+
+The owner cannot grant a dispatch permit or reset a consumed attempt. The
+explicit queue entry and execution ordering below connect injected service work
+to this owner; App/UI callers and automatic scheduling remain absent. All gates
+remain disabled.
+
+### Exact audio interruption recovery
+
+The retained audio scope now gates `readForInterruption` and `interruptRunning`.
+These use a separate, narrow noncancelling persistence transaction for reads and
+safety holds; ordinary dispatch transactions still check cancellation. Scope
+construction remains private to the owner file. It binds the full original
+intent and container, current settlement authority, at most one claim
+advancement and preserved consumed-marker lineage. The original source, owner,
+parent including pending deletion, child namespace, erasure absence and
+queue/job shape are revalidated under the shared persistence lock. Current
+settlement scope is checked again before saving.
+
+The only mutation is exact running-to-held CAS. An exact duplicate can recover
+its corresponding held state after a lost save acknowledgement. A replaced
+snapshot, later generation, completed child, erasure receipt, changed source or
+invalidated owner fails closed. Request bytes, attempt and consumed marker are
+unchanged; no claim or dispatch capability is returned. After consumption
+commits then throws, the cancelled task can read the saved marker and hold it;
+it cannot use the failed call to authorize HTTP. Consumed held work permits only
+outcome recovery. Unconsumed held work still requires explicit fresh consent and
+the existing resume transaction. The explicit retained queue connection
+preserves these fences; no timer or automatic adoption was added.
+
+### Explicit audio execution ordering
+
+The prepared `ObservationAudioExecutionService` is dependency-injected and can
+run only with an exact-entry scope from the retained audio owner. It does not
+install live delivery or automatic queue admission. Explicit running recovery
+first persists a hold. Held consumed work advances a recovery claim and performs
+only exact outcome lookup; it never reads files, asks for inference consent,
+uploads or analyzes. Held unconsumed work needs fresh fixed-Gemini authorization
+before resuming. Initial idle work can claim its first invocation.
+
+For unconsumed claims, locked WAV verification and exact upload receipt checks
+precede a fresh authorization and consumed-marker save. A throwing save grants
+no dispatch capability, including commit-then-throw. Noncomplete dispatch
+receipts, missing/malformed outcomes and network uncertainty persist a hold.
+Complete receipts require exact V4 outcome recovery before append and cleanup.
+Ordinary cancellation can settle already received result bytes; account/claim
+loss cannot. No timer, successor, refund, selection change or legacy funding is
+introduced. `ObservationAudioExecutionDependencies.live` binds an explicit
+client and file store to the closed audio boundaries. `requestAudioExecution`
+requires the original snapshot and verified preparation, current account context
+and eligible connectivity. Its retained task awaits a single exact receipt erase
+through the injected erasure owner, then checks settlement scope before its
+completion notification. This bounded cleanup never joins the backlog loop.
+Cancellation, purge suspension or I/O failure preserves a pending erasure
+receipt without changing successful result completion. Auth teardown awaits
+actual lease exit. App/UI invocation and automatic scheduling remain separate,
+disabled work.
+
+### Audio submission recovery before binding
+
+The typed `ObservationAudioExecutionStore.admissionState` read is the
+prerequisite for explicit Capture submission retry. Under the shared transaction
+it validates the frozen source and namespace, then returns only exact absence,
+an exact preparation phase (`files_pending` or `admission_pending`) or the saved
+execution snapshot. Damaged, mixed or unknown state fails closed. Both binding
+replay and the final binding CAS use that same strict discriminator; decoding
+errors cannot authorize another preparation.
+
+`ObservationAudioSubmissionBinding` retains authorization through the shared
+preparation owner, acquiring and releasing its account lease inside the task.
+Existing Auth drains cancel and await it. Exact saved binding is recovered
+before current inference consent; this preserves the original request and
+consumed marker but grants no provider invocation. Fresh authorization is used
+only for verified `admission_pending` work. A throwing save returns no success,
+even if committed; a later explicit retry recovers the exact binding. File
+preparation and explicit queue start remain separate operations. This owner has
+no scheduler or live Capture/UI caller, and all activation gates remain
+disabled.
+
+### Capture audio submission handoff
+
+The prepared `CaptureAudioReanalysisSession` freezes its source/container and
+presentation generation at entry, then freezes child/media IDs, exact WAV bytes
+and ordered descriptions synchronously at the explicit submit tap. Off-main
+verification uses only this plan. Every retry retains it; changed input fails
+instead of silently reminting a child.
+
+Strict admission recovery precedes file preparation. Bound work bypasses files
+and fresh consent; unbound work uses the existing producer and retained binder
+with common account scope. Presentation currentness separately gates post-await
+return and queue handoff. A bind that throws cannot start execution, even when
+its save committed; later explicit retry reads the same binding. A fresh exact
+snapshot read must match before invoking the injected queue entry. Queue
+unavailability retains the request. The queue's long-lived predicate must not
+capture presentation lifetime. No ordinary Capture route or scheduler is
+installed, V4 source reuse remains explicitly unsupported, and activation gates
+stay disabled.
+
+### Inert audio Capture access
+
+`CaptureAudioReanalysisAccess` binds the prepared session to explicit App-owned
+cloud, preparation, authorization and queue dependencies. Opening checks owner,
+auth session/generation and container, captures the exact historical source, and
+releases its short lease before returning. Submit retains the frozen common
+scope independently of its caller's presentation predicate. The queue adapter
+receives only the saved snapshot, proof, frozen auth/session generation,
+container and file store. It uses the existing retained audio execution and
+receipt-bound erasure owners. Connectivity controls dispatch, while known-result
+settlement remains account scoped.
+
+The App installer stays false and ordinary Capture routing is unchanged. A
+closed presentation can leave durable work inert. The explicit resume adapter
+below supplies the saved-child boundary; bounded child-selection UI, ordinary
+installation and the V4 source contract remain required before the complete
+audio journey is qualified. No opening, construction or ordinary scheduler
+dispatches that work.
+
+### Exact audio child recovery proof
+
+The read-only `ObservationAudioResumeStore` takes explicit owner, observation,
+source and child IDs. It recaptures that source's immutable local snapshot,
+reads only the exact child/job pair, and reconstructs the saved submitted
+preparation from its original manifest or bound request. Source digest and
+identity must match. Off-main reconstruction is followed by the shared strict
+admission validator, so current row shape, deletion/erasure namespace, source
+and account fences apply after suspension. Missing work is unavailable, never
+new preparation; malformed and held-draft metadata fail closed.
+
+The returned phase or exact execution snapshot preserves any consumed marker. It
+grants no claim or provider capability and performs no network, file, consent,
+scheduling or write operation. A valid in-flight phase advancement may be
+reflected only when immutable proof still matches. Explicit resume ownership,
+user-selected child presentation and locked missing/changed-file remediation
+remain separate. Ordinary access and activation stay disabled.
+
+### Retained explicit audio resume phases
+
+`ObservationAudioResumeSubmission` uses the shared preparation owner
+sequentially for exact proof lookup, existing-only file recovery and binding.
+Account leases begin and finish inside each retained task, so Auth quiescence
+includes actual lease release. It never holds an owner slot while invoking
+another phase that requires that slot. Suspended callers revalidate account and
+the frozen source through the lock-owning boundary before returning private
+state.
+
+A nil-byte audio producer is now a recovery operation only: missing saved work
+fails instead of inserting a child. Bound resume bypasses files and binding
+consent and preserves original request and consumed marker. The returned ready
+value contains proof and snapshot, not provider authority. Unbound recovery
+verifies the exact saved file under the filesystem lock, then uses current
+consent for binding. Concurrent binding may require another explicit same-ID
+retry; there is no automatic replacement, timer or provider replay. UI and queue
+handoff remain uninstalled, and activation stays disabled.
+
+### Inert explicit audio resume handoff
+
+The prepared audio access accepts an explicit owner/observation/source/child
+identity and freezes common account/session/generation/container scope with a
+short opening lease. It creates no new Capture plan and defers proof recovery to
+`ObservationAudioResumeSubmission`. No lease remains idle in the presentation.
+
+The returned closure gates entry and handoff on presentation currentness, but
+passes only common account scope to retained preparation and the execution
+queue. After recovery it requires a fresh exact saved snapshot before starting
+the existing queue owner. Presentation loss preserves committed binding for a
+later explicit same-ID resume; account loss prevents stale binding/handoff.
+Consumed requests retain outcome-only recovery, never a provider successor. The
+ordinary installer remains false. Bounded saved-child selection/status UI and
+automatic adoption are not introduced by this adapter.
+
+### Saved audio status is not execution authority
+
+The local `ObservationAudioSavedStatus` reader uses owner/parent-scoped lexical
+child pagination with a 1–20 limit and one look-ahead. It releases the shared
+persistence lock before exact asynchronous proof reads, and rechecks common
+scope and enrolled parent before return. A cursor cannot cross owner or parent.
+
+Each accepted summary contains the exact four-ID child identity and persisted
+phase only. Running/held states retain the distinction between consumed and
+unconsumed attempts. Reading never rearms, binds, claims or dispatches work,
+reads files, requests consent, or acquires an Auth lease. Omitted records are
+counted without exposing their metadata. Expected validation failures can be
+omitted; cancellation, account changes and unclassified store/parser failures
+abort the page. Cursor advancement includes omitted links, not the look-ahead.
+
+Pages are advisory per-child reads, not an atomic execution snapshot or proof
+that new work is admissible. A later explicit action revalidates through exact
+resume and queue admission. Retained account-scoped presentation, saved-child
+selection UI and ordinary App installation remain separate work.
+
+### Retained audio status account lifetime
+
+The queue's `audioStatusOwner` retains up to four local status reads. Coalescing
+requires the same owner, observation, account session, generation, container,
+cursor and page limit. The injected reader remains responsible for locked
+identity/proof validation; the owner checks the captured account lease around
+the await. Lease release precedes slot removal, including failure and
+cancellation. The owner has no idle lease, polling or connectivity requirement.
+
+Cancelling one joined waiter only withholds that page. Its presentation must be
+checked separately after return; it cannot cancel another waiter or substitute
+for the common account predicate. Exact common-scope cancellation and Auth
+invalidation cancel retained work. Both queue Auth quiescence seams close
+admission immediately, then await actual read exit before account-lease drain. A
+drain count and invalidation token preserve closure across overlapping drains
+and a later invalidation; cancellation alone never releases a live read's slot.
+
+No status access or selection UI is installed by this owner. Reading neither
+starts execution nor authorizes retry or replacement. Every explicit saved-child
+action still requires exact resume and execution admission. Gates remain false.
+
+### Inert audio status presentation boundary
+
+`CaptureAudioStatusAccess` captures exact owner/observation/session/generation/
+container scope during a short leased opening. The reader's shared-lock parent
+validator checks current enrollment without enumerating children. The lease ends
+before the page closure escapes. The injected queue status owner retains only
+active page reads, repeating parent/proof validation and accounting for all
+cursor and page-limit checks.
+
+Presentation currentness is checked before and after each awaited page and is
+never part of shared account ownership. A cancelled or stale waiter receives no
+page; it does not cancel a different joined waiter. The inert composition
+installs this optional capability separately from audio capture/resume, using
+the same injected cloud and account context. Ordinary App installation stays
+false. No UI route, selection, execution wake or automatic recovery is added.
+
+### Explicit saved audio presentation model
+
+The inert App factory connects `CaptureAudioSavedRequestsModel` to its scoped
+status capability and the separate exact four-ID resume access. It does not
+install a rendered chooser or ordinary route. Status pages remain advisory:
+loading, paging and reopening never select or resume a request.
+
+The model retains one bounded page, clears previous rows/selection before each
+load, and offers no stale action after errors. Only an explicit current-row
+selection followed by the final Continue tap opens resume, synchronously before
+creating its presentation task. No identity is minted or substituted; failure
+retains the selected saved identity. Existing preparation/binding and execution
+transactions remain the authority for every action, including consumed
+outcome-only recovery.
+
+Stale page/resume callbacks cannot restore a closed presentation. Closing
+cancels only its waiter; queue-retained tasks and durable work remain separately
+owned. Opening a model has no idle lease, timer, automatic rearm or dispatch.
+Account scope still comes from the injected access; the model never adopts a new
+account generation. All installation gates remain false.
+
+### Retained video reservation boundary
+
+The queue owns one explicit initial video reservation task independently of
+presentation. It saves its claim, verifies the complete saved cohort, and sends
+one exact reader12 candidate. Known settlement may complete after connectivity
+cancellation under the original account lease; Auth invalidation prevents it.
+Both account-transition barriers await actual retained-task exit. Running,
+unknown and terminal work never redispatch through this entry point. Upload,
+execution and restart lookup remain separate; no scheduler or ordinary UI access
+is enabled. See the
+[canonical contract](05-api-contracts.md#native-retained-video-reservation-delivery).

@@ -55,6 +55,7 @@ extension BackgroundDatabaseActor {
                 let scans = try modelContext.fetch(descriptor)
                 let now = Date()
                 for scan in scans {
+                    guard scan.permitsOrdinaryInference else { continue }
                     guard scan.queueNextRetryAt.map({ $0 <= now }) ?? true else {
                         continue
                     }
@@ -163,6 +164,7 @@ extension BackgroundDatabaseActor {
             )
             return .discarded
         }
+        guard scan.permitsOrdinaryInference else { return .discarded }
         // Only advance from .uploading — do not resurrect tombstoned
         // (.failed) scans.
         guard scan.scanStateRaw == ScanQueueState.uploading.rawValue else {
@@ -305,7 +307,7 @@ extension BackgroundDatabaseActor {
         var resetIds: [String] = []
         let now = Date()
         for scan in scans
-        where scan.queueUpdatedAt <= observedThrough
+        where scan.permitsOrdinaryInference && scan.queueUpdatedAt <= observedThrough
             && !activeScanIds.contains(scan.id)
             && (candidateScanIds?.contains(scan.id) ?? true) {
             let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scan.id)

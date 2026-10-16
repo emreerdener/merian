@@ -29,3 +29,26 @@ checks actual roles, immutable admission, dual revisions, authority isolation
 and deletion. `_tests/observationAnalysisConfirmationConcurrencyDb.test.ts` uses
 separate database sessions for duplicate/competing completion, selection,
 rejection, deletion/account erasure and pending operation rebinding.
+
+The prepared native `ObservationAnalysisReviewRequest`/receipt boundary now
+mirrors these exact fields and limits. Its closed typed transport disables
+automatic transient replay and 401 recovery and never treats a receipt as
+current authority. Durable native delivery and ordinary UI remain separate; this
+adds no activation or deployment.
+
+The versioned candidate checkpoint accepts schema-2 `confirm_name` with an exact
+analysis-bound `stored_species_candidates_v1` reference. Preparation and
+completion validate raw immutable membership; receipt replay retains the whole
+reference. The private SQL resolver rejects rankless/imported or unsupported
+candidate evidence, and confirmation Undo recognizes the same correction.
+Schema-1 requests remain unchanged. Native candidate controls are a separate
+checkpoint; this adds no ordinary producer or UI layout change.
+
+Both fixed database calls advertise reader 10. Reader 9 is still accepted by SQL
+for compatible histories, but refuses a whole observation containing a completed
+audio result before receipt replay. Reader 10 preserves exact receipt replay
+before fresh gates. Native V4 review now uses a strictly decoded immutable
+ticket with the existing confirmation and both Undo contracts. This does not
+extend candidate membership or photo publication to audio. Explicit native
+selection uses its separate receipt/projection owner; ordinary access and
+activation gates remain disabled.

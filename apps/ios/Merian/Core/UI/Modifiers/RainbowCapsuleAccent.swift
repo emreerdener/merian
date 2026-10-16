@@ -12,11 +12,16 @@ private struct RainbowCapsuleAccentModifier: ViewModifier {
             .background {
                 RainbowCapsuleGlow()
                     .frame(width: width, height: height)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
             .overlay {
                 RainbowCapsuleBorderShimmer(phase: shimmerPhase)
                     .frame(width: width, height: height)
                     .opacity(reduceMotion ? 0 : 1)
+                    .clipped()
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
             .task(id: reduceMotion) {
                 guard !reduceMotion else {

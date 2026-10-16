@@ -4,7 +4,8 @@ import SwiftUI
 struct OverriddenView: View {
     let overrideName: String
     let aiScientificName: String
-    let onUndo: () -> Void
+    var onUndo: (() -> Void)?
+    var unavailableReason: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -15,10 +16,13 @@ struct OverriddenView: View {
                     .font(.system(.headline))
                     .foregroundColor(.green)
                 Spacer()
-                Button("Undo", action: onUndo)
+                if let onUndo {
+                    Button("Undo", action: onUndo)
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.green)
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("ConfidenceUndoConfirmation")
+                }
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -33,6 +37,9 @@ struct OverriddenView: View {
                         .foregroundColor(.secondary)
                 }
                 .font(.subheadline)
+            }
+            if let unavailableReason {
+                Text(unavailableReason).font(.callout).foregroundStyle(.secondary)
             }
         }
         .padding(20)

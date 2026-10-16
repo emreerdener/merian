@@ -3,6 +3,24 @@ import UIKit
 /// One staged photograph. Its inference, display, thumbnail, and original
 /// representations stay together so collection indexes cannot drift apart.
 struct StagedImage {
+    /// UI identity is separate from immutable history-media identity. Edits retain lineage only.
+    enum ReanalysisProvenance: Equatable, Sendable {
+        case added
+        case original(analysisID: UUID, photo: ObservationHistoryPhotoReference)
+        case editedOriginal(analysisID: UUID, photo: ObservationHistoryPhotoReference)
+
+        var edited: Self {
+            switch self {
+            case .added: return .added
+            case let .original(analysisID, photo), let .editedOriginal(analysisID, photo):
+                return .editedOriginal(analysisID: analysisID, photo: photo)
+            }
+        }
+    }
+
+    let photoOriginalReference: PhotoOriginalReference?
+    let reanalysisProvenance: ReanalysisProvenance
+
     /// Tier-bounded WebP/JPEG payload used for inference, never UI rendering.
     let compressedData: Data
 
@@ -27,14 +45,18 @@ struct StagedImage {
         uiImage: UIImage,
         original: IdentifiableImage,
         focusRegion: NormalizedImageFocusRegion? = nil,
-        addedAt: Date = Date()
+        addedAt: Date = Date(),
+        reanalysisProvenance: ReanalysisProvenance = .added,
+        photoOriginalReference: PhotoOriginalReference? = nil
     ) {
+        self.photoOriginalReference = photoOriginalReference
         self.compressedData = compressedData
         self.displayData = displayData
         self.uiImage = uiImage
         self.original = original
         self.focusRegion = focusRegion
         self.addedAt = addedAt
+        self.reanalysisProvenance = reanalysisProvenance
     }
 
     func replacing(
@@ -49,7 +71,9 @@ struct StagedImage {
             uiImage: uiImage ?? self.uiImage,
             original: original ?? self.original,
             focusRegion: focusRegion,
-            addedAt: addedAt
+            addedAt: addedAt,
+            reanalysisProvenance: compressedData != nil || original != nil ? reanalysisProvenance.edited : reanalysisProvenance,
+            photoOriginalReference: photoOriginalReference
         )
     }
 
@@ -60,7 +84,9 @@ struct StagedImage {
             uiImage: uiImage,
             original: original,
             focusRegion: focusRegion,
-            addedAt: addedAt
+            addedAt: addedAt,
+            reanalysisProvenance: reanalysisProvenance,
+            photoOriginalReference: photoOriginalReference
         )
     }
 }

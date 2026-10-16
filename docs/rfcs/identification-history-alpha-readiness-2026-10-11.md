@@ -1,0 +1,964 @@
+## October 16 — PR116 feature scope frozen; merge-readiness proposal
+
+The human requested a feature freeze and exact merge-readiness proposal with
+independent/IC-1 review. The frozen implementation is
+`ca5a30f76e48acb157ed8d013186d0b3ca79fe6f`; its local evidence checkpoint is
+`fdddf66198f0fbfd568534c62fa4b3a7e18e3254`. The 102 unrelated working-tree paths
+are excluded. No further feature additions belong in PR116. This current
+direction supersedes the immediate common-allocation next-step recommendation
+below and the historical October 13 integration cut; existing evidence and
+remaining acceptance requirements are preserved.
+
+Proposal:
+`docs/rfcs/identification-history-pr116-merge-readiness-2026-10-16.md`. ISQ-1
+closes only isolated local NCO/BI qualification. Cumulative PR safety, exact
+final CI and live deployment containment remain open. The local active history
+hold blocks the entire Supabase production job, but does not protect old jobs or
+external Vercel hooks. Remote PR116 remains draft at `878932268`; its checks do
+not qualify the 101 newer local commits. No push, merge, hosted qualification,
+deployment, device installation or activation is authorized.
+
+The proposed next checkpoint is a two-hour read-only readiness audit, at most
+128 MiB evidence and the 20 GiB disk floor; execution awaits approval. Exact
+proposal review receipts are retained in
+`.artifacts/pr116-merge-readiness-20261016/`. Proposal concurrence is not
+whole-PR acceptance or release approval. Common-allocation/original-photo
+integration continues in the next feature PR after the integration boundary;
+later version deletion/export and redesign retain their sequence and ownership.
+No acceptance gate is waived. Activation disabled, ordinary P1 access nil, AWS
+unapproved, limits unchanged; automatic scheduling remains stopped.
+
+## October 15 local / October 16 UTC — ISQ-1 isolated execution passed
+
+The approved XcodeGen 2.45.4 selection correction resumed ISQ-1 within its
+original 03:07:08–07:07:08 UTC window and unchanged bounds. The clean managed
+worktree at `ca5a30f76e48acb157ed8d013186d0b3ca79fe6f` passed generation with
+identical project bytes, project/migration/CI-tooling/source-membership checks,
+managed Debug build, 561 acceptance tests, all 27 UI cases, all ten report-only
+performance workloads, all 5,923 unit tests, the actual critical-result
+validator and unsigned generic Release compilation. No failures or skips were
+reported. The unit XCResult's 9,363 per-device executions are a separate count;
+BI-1's earlier 5,945 total remains shared-checkout evidence.
+
+Source and pinned hashes remain unchanged; all 102 unrelated primary file
+identities are preserved. Storage accounting normalizes only the reviewed
+simulator-container relocation, charges new/grown files including 23 new fixture
+roots, and preserves raw alarms. Working allocation/evidence/free-space checks
+remain within the original bounds. No performance baseline was adopted; high
+variance and missing hitch samples remain explicit limitations.
+
+Result: `docs/rfcs/client-prepared-media-isq1-isolated-result-2026-10-16.md`.
+Evidence: `.artifacts/local-ios/isq1-20261015/result-resumed.json`; final exact
+independent/IC-1 disposition belongs in `result-review-02.json` in that
+directory. Closure is limited to the isolated local NCO/BI portion of A19 after
+that concurrence. P1 common-allocation/photo and device, audio/video quality,
+server admission/shared references, integrated history, external/CI and later
+version deletion/export/redesign gates remain open. The next recommendation is a
+bounded common-allocation/original-photo ownership and integration proposal.
+
+Activation disabled, ordinary P1 access nil, AWS unapproved, existing limits
+unchanged. No push, merge, deployment, hosted test or device installation. Stop
+at this local checkpoint; automatic scheduling remains stopped. Earlier stopped
+attempts and proposal states below are historical and retain their evidence.
+
+## October 15 local / October 16 UTC — ISQ-1 stopped at tool prerequisite
+
+The human approved ISQ-1 for 03:07:08–07:07:08 UTC. Exact independent and IC-1
+execution concurrence preceded the first qualification command. The clean
+managed worktree at `ca5a30f76e48acb157ed8d013186d0b3ca79fe6f` selected XcodeGen
+2.45.2; the project requires 2.45.4. The primary checkout had selected the
+installed 2.45.4 executable, so its preliminary tool inventory did not establish
+the clean worktree's command lookup. Generation failed before changing files.
+
+Stopped without retry or repair. No package downloads, builds, runtime tests or
+later qualification gates ran. Worktree remains clean; all 106 primary file
+identities (102 unrelated plus four proposal/status paths) were preserved before
+this owned reporting update. Source qualification and all remaining product
+gates stay open. Result and proposed environment-only correction:
+`docs/rfcs/client-prepared-media-isq1-qualification-result-2026-10-15.md`.
+Evidence: `.artifacts/local-ios/isq1-20261015/`. Independent and IC-1 concur
+with this stopped disposition; exact receipts are in
+`.artifacts/local-ios/isq1-20261015/final-review.json`.
+
+Activation disabled, ordinary P1 access nil, AWS unapproved, existing limits
+unchanged. No push, merge, deployment, hosted action or device installation;
+automatic continuation remains stopped. Earlier proposal/active statements below
+are historical; human approval does not erase this failed preflight.
+
+## October 15 local / October 16 UTC — ISQ-1 proposed; execution awaits approval
+
+BI-1 is committed locally as `ca5a30f76e48acb157ed8d013186d0b3ca79fe6f`. Its
+passing validation is shared-checkout evidence; 102 unrelated dirty paths remain
+preserved. Earlier pending-commit or active-window statements below are
+historical. Automatic continuation stopped at BI-1 completion.
+
+The next proposal is
+`docs/rfcs/client-prepared-media-isolated-qualification-proposal-2026-10-15.md`:
+one four-hour local window, one clean managed worktree at the exact commit,
+explicit locked package downloads, managed native qualification, 16 GiB new
+working allocation and 2 GiB retained evidence, with the 20 GiB disk floor.
+Independent and IC-1 concur on proposal SHA-256
+`8043861c9d55968175a9123ca944e891f622b63e88779f029b70a54458957862`; receipts are
+in `.artifacts/local-ios/isq1-proposal-20261015/review.json`. Human execution
+approval remains pending. No execution or implementation is authorized by this
+entry. The proposal separates isolated-source evidence from
+common-allocation/device, audio/video, server admission, integrated history,
+external/CI and later deletion/export/redesign acceptance; those remain open.
+
+Fresh initial/reanalysis requires photo/audio/video, with optional immutable
+supporting text; retained originals suffice, missing media blocks, historical
+records and exact admitted recovery remain preserved. No new Supabase project is
+required: the later human shared-alpha-target decision supersedes historical
+nonproduction-only wording, without granting any current hosted operation.
+Activation disabled, ordinary P1 access nil, AWS unapproved, existing product
+and runtime limits unchanged. No push, merge, deployment, device or hosted work;
+automation remains stopped. Prior evidence and failures remain unchanged below.
+
+## October 15 local / October 16 UTC — BI-1 validation passed; inactive integration checkpoint
+
+BI-1 completed its planned local validation within the approved
+01:56:04–03:56:04 UTC window and 1 GiB additional evidence allowance. Candidate
+02 passed managed Debug compilation, 96 focused tests, all 5,945 unit tests, all
+six critical UI smokes, unsigned generic Release compilation, full CI tooling,
+project validation and the actual critical-result validator. Raw XCResult
+per-device counts are retained separately. These are shared-checkout results,
+not isolated selected-source qualification or P1/alpha acceptance.
+
+Final staging exposed two whitespace diagnostics in newly added files. The
+frozen V58 snapshot retains its exact inherited bytes; the test file loses only
+one terminal blank line (candidate 03). The staged audit permits only the known
+frozen-line diagnostic. Final review must concur with evidence reuse for this
+formatting-only correction; candidate-02 runtime results remain accurately
+labeled in the result and raw artifacts.
+
+Independent and IC-1 source-selection review concurred on the 59-file NCO/BI
+source/configuration/project selection. Local commit requires final exact
+combined-patch review; receipts and commit identity are retained in
+`.artifacts/local-ios/bi1-20261015/`. Unrelated working-tree edits remain
+intact. BI-1 automatic continuation ends at this checkpoint and does not advance
+the broader roadmap. Earlier active/paused/proposal status below is historical.
+
+Activation disabled, ordinary P1 access nil, AWS unapproved, existing limits
+unchanged. No hosted action, push, merge, deployment, device installation or
+distribution occurred. Installed/mixed-allocator, audio/video, server admission,
+integrated history and later deletion/export/redesign acceptance remain open.
+Result: `docs/rfcs/client-prepared-media-bi1-integration-result-2026-10-15.md`.
+
+## October 15 local / October 16 UTC — BI-1 approved; bounded validation active
+
+The human approved automatic continuation for BI-1 only, from 01:56:04 through
+03:56:04 UTC, with at most 1 GiB additional retained evidence. Candidate 02 has
+exact independent and IC-1 concurrence, a passing managed simulator build, all
+96 focused tests passed and a passing full CI-tooling gate. Complete unit
+validation and selected-tree/final evidence review are in progress. These are
+shared-checkout results; no clean-source acceptance claim. No runtime source
+change beyond the reviewed Auth consolidation was added by BI-1.
+
+The BI-1 follow-up is active only within this fixed window and stops at
+completion or a genuine blocker. Earlier paused/proposal-only status is
+historical. Activation disabled, ordinary P1 access nil, AWS unapproved and
+existing limits unchanged. No push, merge, deployment, hosted or device actions
+are authorized. Evidence: `.artifacts/local-ios/bi1-20261015/`. Proposal
+boundary:
+`docs/rfcs/client-prepared-media-bounded-integration-proposal-2026-10-15.md`.
+
+## October 15 local / October 16 UTC — BI-1 integration proposal; execution gated
+
+The human requested a bounded proposal for the remaining Auth guard, stale
+capture CI selector and baseline dependency. BI-1 proposes a fresh two-hour
+local window with at most 1 GiB additional evidence: consolidate existing Auth
+helpers without changing caps or fences; prove pending-video interruption and
+late-result cleanup before replacing the critical selector; and explicitly
+integrate the account-bound capture baseline hunks needed by NCO. The dependency
+includes admission fields, account-change hooks and cleanup, not just
+CaptureDraftSession.
+
+Independent and IC-1 re-review concur on proposal SHA
+`4125ea97f243d0b6d6d03ef19500bfc2cac60308f7b226f40c6ef845adc2e15a`. The
+corrected critical test targets pending startup cancellation and preserves
+started-recording stop/completion. Human implementation approval remains
+pending. Review receipt: `.artifacts/local-ios/bi1-20261015/review.json`. No new
+runtime change, build or test is authorized by this proposal. NCO's existing
+shared-checkout evidence and open full/UI/Release/installed/integrated gates
+remain unchanged. Activation disabled, production P1 access nil, AWS unapproved,
+all existing limits unchanged, auto-prompts paused. Unrelated visual/backend
+work remains outside the handoff. Canonical proposal:
+`docs/rfcs/client-prepared-media-bounded-integration-proposal-2026-10-15.md`.
+Earlier entries remain historical.
+
+## October 16, 2026 — NCO-1 local checkpoint; shared acceptance blocked
+
+The approved local implementation and four-script validation extension are
+implemented. Candidate 07 passed 103 focused native tests; its complete unit
+target had 5,939 passed and four failed. Candidate 08 fixes the V59 factory's
+three architecture failures and passes its managed build plus all 18 affected
+architecture tests. The unchanged Auth budget failure and pre-existing capture
+critical-selector mismatch remain open; the full gate is not green.
+
+Evidence is for the shared checkout. P1 depends on uncommitted baseline
+CaptureDraftSession account APIs, so no standalone NCO commit was made or
+unrelated changes absorbed. The bounded patch and exact source snapshot are
+retained. Further baseline/CI ownership reconciliation is required; UI/Release
+runs are held, and P1/integrated acceptance remains open. Activation disabled,
+production access nil, AWS unapproved, limits unchanged, auto-prompts paused. No
+hosted action, push, merge, deployment or device installation occurred. Current
+result: `docs/rfcs/client-prepared-media-nco1-local-result-2026-10-15.md`.
+Earlier entries remain historical and do not supersede this checkpoint.
+
+## October 15, 2026 — NCO-1 implementation authorized; validation in progress
+
+The human approved a four-hour local implementation and validation window from
+23:17:59 UTC through October 16 03:17:59 UTC, including up to 2 GiB of new
+native evidence. The outgoing V58 model freeze passed independent/IC-1 review
+and managed build-for-testing. The V59 ledger, inactive capture ownership seams
+and cleanup integration are now under exact-candidate review; they have not
+passed runtime acceptance. Earlier proposal-only status below is historical.
+
+No P1 completion or integrated qualification is claimed. Production access stays
+nil, activation disabled, AWS unapproved, package/storage limits unchanged and
+auto-prompts paused. No hosted action, push, merge, deployment or device
+installation is authorized. Current local evidence:
+`.artifacts/local-ios/nco1-20261015/`. The native ownership agreement remains
+the scope authority; capture-tools/redesign work remains separate.
+
+## October 15, 2026 — NCO-1 native agreement; P1 execution awaits approval
+
+The authorized two-hour local agreement scope after `600b5ce28` prepares P1-L1:
+freeze V58, add four standalone V59 ownership entities, retain exact original
+bytes before draft release, and bind capture/cleanup to account-work leases and
+fail-closed purge. The canonical NCO-1 packet records the concrete file boundary
+and acceptance plan. Exact independent/IC-1 review is required for closure; its
+evidence is retained with this candidate. The next request is one four-hour
+local implementation/validation window, including up to 2 GiB new native test
+evidence under the existing managed-build procedure. It is not authorized yet.
+Qualification excludes competing non-P1 allocators; installed mixed-allocator
+and integrated product gates remain open. No tests, builds, runtime edits or
+hosted actions occurred. No transport rerun is justified. Activation disabled,
+ordinary access nil, AWS unapproved, existing limits unchanged, auto-prompts
+paused. Canonical packet:
+`docs/rfcs/client-prepared-media-native-ownership-agreement-2026-10-15.md`.
+Earlier entries remain historical and exactly recoverable.
+
+## October 15, 2026 — CP-1 reviewed source boundary; native ownership agreement required
+
+CP-1 preparation was authorized after `cae2329a1`. Its twelve-file source review
+finds that original-photo retention needs durable draft/package ownership,
+separate from ordinary queue funding and dispatch. Proposed P1-L1 typed native
+ledger and the exact schema/capture/cleanup handoff remain unadopted;
+implementation is not ready. Next proposed scope is at most two hours to close
+those two named agreements and return the exact four-hour P1 packet. No tests,
+builds, runtime changes or hosted actions occurred. No new transport test is
+justified. Activation disabled, AWS unapproved, limits unchanged, auto-prompts
+paused. Current result:
+`docs/rfcs/client-prepared-media-original-photo-cp1-result-2026-10-15.md`.
+Earlier entries remain historical and exactly recoverable.
+
+> Current October 15 GAC-1 local result: the loader fix and validation passed;
+> one offline package, denial control and 20-read serial campaign completed. All
+> 20 media reads verified and closed on one worker; teardown/removal passed.
+> GAC-1 passed with case-4 warning retained. Peak partial proxy: 38.796025 MiB;
+> cross-cohort Q increase: 7.8125 MiB, close to the unchanged 8 MiB gate. This
+> closes only the finite local checkpoint, not hosted, whole-worker/native/CPU
+> or product acceptance. Exact result and limits:
+> docs/rfcs/client-prepared-media-gac1-local-result-2026-10-15.md. Activation
+> disabled, AWS/160 MiB unapproved, all other limits unchanged, auto-prompts
+> paused. The single package/control/campaign allowances are consumed. Earlier
+> entries below are historical and remain exactly recoverable.
+
+---
+
+> Current October 15 GAC-1 continuation result: the corrected explicit-file type
+> gate passed, reusing 54 unchanged passing tests. Staged/main lint then found
+> unsafe throws in both local bundle loaders; the first-failure stop closed this
+> window before packaging, control or campaign. The concrete cleanup-error
+> preservation proposal requires a new implementation decision:
+> docs/rfcs/client-prepared-media-gac1-loader-lint-result-2026-10-15.md.
+> Activation disabled, AWS/160 MiB unapproved, all other limits unchanged,
+> auto-prompts paused. Product/native/integrated gates remain open. Entries
+> below are historical; their exact source bytes remain recoverable.
+
+---
+
+> Current October 15 GAC-1 precheck result: the approved local scope stopped
+> when pinned Deno 2.9.4 rejected the recursive type-check command before
+> checking source. Formatting/lint and 54 tests passed; recursive typing and
+> staged lint remain unqualified. No packaging, control or campaign ran.
+> Independent and IC-1 review recommend a command-only correction; another
+> execution requires a new decision. Canonical result and continuation proposal:
+> docs/rfcs/client-prepared-media-gac1-precheck-result-2026-10-15.md. Activation
+> disabled, AWS/160 MiB unapproved, all other limits unchanged, auto-prompts
+> paused. Product/native/integrated gates remain open. Entries below are
+> historical; their exact source bytes remain recoverable.
+
+---
+
+> Current October 15 GAC-1 adoption: the user approved the revised local
+> acceptance contract and bounded implementation preparation. Exact independent
+> and IC-1 source review is required; no tests, packaging, control or campaign
+> execution is authorized yet. Canonical adoption and execution proposal:
+> docs/rfcs/client-prepared-media-gac1-implementation-2026-10-15.md. The old
+> four-point stop becomes a reported warning only for the explicit GAC-1
+> candidate; the 8 MiB comparison tolerance and other limits stay fixed. Prior
+> failures retain their original classifications. Activation disabled, AWS/160
+> MiB unapproved, auto-prompts paused. Product/native/integrated gates and
+> follow-up sequencing remain open. All entries below are historical.
+
+---
+
+> Current October 15 result: the denial control passed; the four-read prefix
+> stopped at the unchanged 8 MiB growth gate (10.278900 MiB increase). All four
+> media bodies closed; teardown and removal passed. Original-call bins localized
+> rises/falls within verified reading/hashing; stopped case4 remains
+> unclassified. No leak/GC/idle conclusion or qualification pass. Both
+> allowances consumed, no retry. Canonical result:
+> docs/rfcs/client-prepared-media-memory-bins-result-2026-10-15.md. Activation
+> disabled, AWS/160 MiB unapproved, all limits unchanged, auto-prompts paused.
+> Product/native/integrated gates and follow-up order remain open. Earlier
+> entries below are historical; no hosted or credential action occurred.
+
+---
+
+> Current October 15 approved scope: local fixed-bin diagnostics in the fresh
+> 16:37:22–18:37:22 UTC window. No new memory call or timer; unchanged gates and
+> limits. One denial control and conditional four-read prefix each require exact
+> independent/IC-1 concurrence; current candidate is not yet execution-approved.
+> Scope and evidence: .artifacts/client-prepared-media/memory-bins/scope.md.
+> Activation disabled, AWS/160 MiB unapproved, auto-prompts paused. Prior
+> results remain historical; product/native/integrated acceptance and follow-up
+> order remain open. No hosted, credential, deployment, push, merge or device
+> action.
+
+# Identification history alpha readiness
+
+> Current October 15 memory review: retained data shows phase-varying external
+> memory and a valid 8 MiB growth stop, without establishing a leak or
+> reclamation mechanism. A bounded proposal would expose existing samples in
+> fixed bins and run only the original four-read prefix, after human approval
+> and exact independent/IC-1 concurrence. No additional memory calls, idle
+> timers or gate changes are proposed. Packaging must fit existing storage caps;
+> feasibility remains conditional. Canonical proposal:
+> docs/rfcs/client-prepared-media-memory-growth-review-2026-10-15.md. This turn
+> performs no construction or runtime test. Prior failures and exact evidence
+> remain preserved; activation disabled, AWS/160 MiB unapproved, limits
+> unchanged, auto-prompts paused. Product gates and follow-up order remain open.
+> Earlier status entries are historical.
+
+> Current October 15 result: the baseline reproduced the retained pool error;
+> the proposed control and campaign teardown passed with no runtime errors and
+> confirmed removal. The campaign workload FAILED the unchanged 8 MiB growth
+> gate after 42.235 seconds: one worker, five requests, four media
+> reads/closures, three verified and 13.654 MiB four-point growth. Sustained
+> reuse remains unqualified. Both controls and the single campaign are consumed;
+> no retry. Canonical result:
+> docs/rfcs/client-prepared-media-pool-retirement-result-2026-10-15.md. Executed
+> candidate af9802a14a9833e1ef8e2eb9f7c5b6f65a2549cef3351347dff5f607b3e4e147
+> received separate exact independent/IC-1 concurrence before controls and
+> campaign. Both reviewers concurred with the result and stop disposition; final
+> review receipts are retained under
+> .artifacts/client-prepared-media/pool-retirement/. Source and prior evidence
+> remain preserved with status snapshots. Activation disabled, AWS/160 MiB
+> unapproved, all limits unchanged, auto-prompts paused.
+> Product/native/integrated gates and approved follow-up order remain open. No
+> hosted/credential action or cleanup obligation. Earlier status entries are
+> historical.
+
+> User approved bounded pool-retirement construction and local execution in a
+> fresh October 15 window,15:48:12–17:48:12UTC. Exact independent/IC-1
+> executable concurrence is required before two one-shot controls, and
+> separately before the conditional unchanged campaign. Scope:
+> .artifacts/client-prepared-media/pool-retirement/scope.md. No new
+> clock/watchdog controls; reuse qualified unchanged sources only after review.
+> Earlier failures remain preserved. Activation disabled, AWS/160MiB unapproved,
+> all limits unchanged, auto-prompts paused. No hosted or credential operation.
+> Product gates and follow-up sequencing remain unchanged; earlier status
+> entries are historical.
+
+> Current October 15 proposal: read-only pinned-runtime review identifies a
+> pool-channel teardown ordering issue. A bounded post-terminal idle retirement
+> request plus positive empty-registry observation is proposed as a hypothesis,
+> preserving zero grace and every existing limit. See the
+> [retirement proposal](client-prepared-media-pool-retirement-proposal-2026-10-15.md).
+> Proposal review does not authorize construction or another run; human approval
+> and exact independent/IC-1 executable concurrence remain required. Prior
+> lifecycle failure stands. Activation disabled, AWS/160 MiB unapproved,
+> auto-prompts paused; earlier status notes are historical.
+
+> Current October 15 result: shared-clock qualification and the independent
+> stalled-parent watchdog passed. Replacement baseline reproduced the original
+> failure; proposed listener retention still produced the pool shutdown-send
+> error. Complete receipt ordering and cleanup do not override lifecycle
+> failure. The conditional campaign did not run; no retry is authorized. See the
+> [exact result](client-prepared-media-clock-qualification-result-2026-10-15.md).
+> Activation disabled, AWS/160 MiB unapproved, all limits unchanged,
+> auto-prompts paused. Earlier states below are historical; product gates remain
+> open.
+
+> User approved the reviewed clock-method amendment in a fresh October 15 local
+> window, 14:57:29–16:57:29 UTC. Construction and focused tests are complete;
+> exact independent and IC-1 review is pending before execution. One
+> delayed-child clock check, one inert watchdog control and two replacement
+> case-26 controls are allowed; campaign remains conditional on successful
+> controls and separate exact concurrence. Scope:
+> .artifacts/client-prepared-media/clock-qualification/scope.md. Prior failed
+> baseline and candidate evidence remain historical and preserved. Activation
+> disabled, AWS/160 MiB unapproved, all limits unchanged, auto-prompts paused.
+> No hosted or credential actions. Product gates and follow-up order remain
+> unchanged. Earlier approval requirements below are historical for this new
+> scope.
+
+> Current October 15: the approved first shutdown control reproduced both
+> runtime errors and exit 1; EOF and external cleanup are confirmed. Python
+> 3.9.6/macOS clock origins invalidate cross-process ordering and transferred
+> absolute-deadline qualification. Independent and IC-1 review concur with
+> stopping; the second control and campaign remain unused. See the
+> [clock finding and bounded next-method recommendation](client-prepared-media-shutdown-clock-finding-2026-10-15.md).
+> No runtime change or further execution follows without explicit amendment and
+> exact review. Activation disabled, AWS/160 MiB unapproved, all limits
+> unchanged, auto-prompts paused. Earlier status text is historical; product
+> gates remain open.
+
+> Current October 14: the approved request-boundary campaign completed all 20
+> media reads on one worker in 682.342 seconds, but failed runtime shutdown
+> qualification after a worker-pool shutdown error (exit 1). External container
+> removal is confirmed. See the
+> [exact result](client-prepared-media-request-boundary-result-2026-10-14.md).
+> The single campaign is consumed; no retry or limit change. Activation
+> disabled, AWS unapproved, auto-prompts paused. Earlier preparation/proposal
+> states below are historical; product acceptance remains open.
+
+> Current October 14: the user approved local preparation, but independent and
+> IC-1 review found an unproven parent-to-worker idle-timer cancellation path.
+> Two inert controls are complete; no bundle or verifier campaign ran. See the
+> [prelaunch finding and proposed method amendment](client-prepared-media-allocation-diagnostics-preflight-2026-10-14.md).
+> Launch remains blocked pending explicit scope resolution and exact-candidate
+> review. Activation disabled, AWS unapproved, limits unchanged. Earlier
+> approval/status text below is historical.
+
+> Current October 14 follow-up: local allocation diagnostics and harness
+> shutdown correction are proposed in the
+> [bounded approval scope](client-prepared-media-allocation-diagnostics-proposal-2026-10-14.md).
+> Draft/review only; human approval is required before construction, controls or
+> another run, followed by exact-candidate independent/IC-1 concurrence before
+> execution. Previous failed campaign and cleanup evidence remain valid.
+> Activation disabled, AWS unapproved, all limits unchanged. Earlier status
+> entries below remain historical.
+
+> Current October 14: the approved local campaign ran after exact independent
+> and IC-1 concurrence, then stopped at the unchanged 8 MiB growth gate after
+> approximately 42 seconds. One worker, five attempts, three verified reads; all
+> four opened bodies closed and the container was removed. No retry. See the
+> [exact result](client-prepared-media-controlled-worker-result-2026-10-14.md).
+> Post-run independent/IC-1 review concurs with the corrected report, including
+> its shutdown defect. Sustained reuse and product acceptance remain open.
+> Activation disabled, AWS/160 MiB unapproved, all other limits unchanged.
+> Earlier status/approval statements below are historical.
+
+> Current October 14 prelaunch finding: the user approved local preparation and
+> execution only after exact-candidate review. The pinned runtime's default
+> supervisor retires at half the configured lifetime, so the 900-second setting
+> conflicts with the 682-second schedule. No campaign launched; allowance
+> unused. See the
+> [prelaunch finding and unapproved amendment](client-prepared-media-controlled-worker-preflight-2026-10-14.md).
+> Existing limits remain unchanged, activation disabled, AWS unapproved. Earlier
+> approval/status notes below are historical.
+
+> Current October 14 controlled-reuse proposal: the attended v1.77.0 run
+> completed all 26 checks and cleanup, but all 25 reads reported different
+> worker aliases. Hosted warm reuse, growth and physical read overlap remain
+> unobserved. The user authorized only the
+> [local controlled-worker proposal](client-prepared-media-controlled-worker-reuse-proposal-2026-10-14.md)
+> and independent/IC-1 review; construction and execution await approval.
+> Activation disabled, AWS and 160 MiB unapproved, credentials retained,
+> auto-prompts paused. Earlier status entries below are historical. No product
+> acceptance, ownership or follow-up sequencing changes.
+
+> Current October 14 v1.77.0 qualification: the reviewed startup correction
+> passed the hosted denial and two closed controls, then stopped at the runtime
+> version gate. Cleanup completed; both credentials are retained by explicit
+> user decision. Old control closure is reconciled; its private object remains
+> untouched. Local v1.77.0 compatibility and independent/IC-1 review are covered
+> by the
+> [current packet](client-prepared-media-runtime-177-hosted-packet-2026-10-14.md).
+> No new hosted action is authorized. Activation disabled, AWS and 160 MiB
+> unapproved, auto-prompts paused. Earlier current-state entries below are
+> historical; product acceptance and follow-up sequencing are unchanged.
+
+> Current October 14 runtime correction: the approved test-auth attempt stopped
+> at case 26; route/settings were removed. Both R2 keys remain active per the
+> user's corrected statement, and the old private control object remains
+> unresolved. Local pinned-runtime reproduction found a decorated-version
+> validator defect; correction and safe diagnostics are under independent/IC-1
+> review. The
+> [new exact packet](client-prepared-media-runtime-diagnostics-hosted-packet-2026-10-14.md)
+> requires fresh hosted approval. Earlier preparation-only entries below are
+> historical. Activation disabled, AWS unapproved, auto-prompts paused.
+
+> Current October 14 test-auth revision: local construction and independent/IC-1
+> review are authorized; the
+> [revised hosted packet](client-prepared-media-test-auth-hosted-packet-2026-10-14.md)
+> requires new approval before uploads, secret installation or deployment. The
+> previous JWT candidate was never deployed/run. A dedicated short-lived test
+> key removes the iOS app-session prerequisite only for this experiment;
+> production authentication, G1–G4, media-required scope and product acceptance
+> remain unchanged. The existing R2 credentials are locally available with no
+> values logged. Activation is disabled, AWS unapproved, auto-prompts paused.
+> Earlier runtime-packaging status below is historical for its exact candidate.
+
+> October 14 runtime-packaging update: the user authorized four hours of local
+> construction and independent/IC-1 review. See the
+> [exact hosted-test packet](client-prepared-media-runtime-packaging-and-hosted-packet-2026-10-14.md).
+> User-reported private R2 fixture setup is complete; no credentials have been
+> read/installed and no hosted test or deployment is authorized. Local packaging
+> does not close CPM-1 G1–G4 or IC-1 product acceptance. Package/storage limits,
+> media-required scope, historical recovery and later version-actions/redesign
+> sequence remain unchanged. AWS is unapproved, activation disabled and
+> auto-prompts paused. A single experimental-route exception to the
+> whole-backend release hold requires the separate exact hosted approval; PR116
+> remains held.
+
+> October 13 subsequent human approval: proceed with the reviewed CPM-1 policy
+> targets, bounded local feasibility preparation and PR116 whole-backend source
+> hold under the
+> [approved local plan](client-prepared-media-approved-local-plan-2026-10-13.md).
+> Earlier pending-approval wording below is historical for that decision.
+> Runtime schema/audio/reference agreement and candidate qualification remain
+> open; hosted/device/push/merge/deployment restrictions remain unchanged. AWS
+> is unapproved and activation disabled. The hold is a local source change only.
+
+> October 13 evaluation update: the user authorized drafting and reviewing the
+> [CPM-1 client-prepared media amendment](client-prepared-media-amendment-2026-10-13.md)
+> before any AWS decision. It proposes a distinct fresh-submission version; it
+> does not weaken or reinterpret this document’s existing server-prepared or
+> historical contracts. Adoption and implementation remain pending. AWS is
+> unapproved, activation disabled, and all external-operation restrictions
+> remain. Revision 3 records the user-required G1–G4 acceptance gates:
+> original-byte retention, final audio plus signal/quality evidence, concrete
+> storage limits, and end-to-end recovery/shared-asset deletion. Specification
+> closure and candidate proof remain separate and open; missing numeric budgets
+> or feasibility decisions block implementation, not merely release.
+>
+> The
+> [concrete limits and PR116 integration proposal](client-prepared-media-limits-and-integration-proposal-2026-10-13.md)
+> now supplies recommended defaults for approval. Its proposed whole-backend
+> source hold is separate from activation flags and is not installed. Neither
+> integration, new resource limits nor implementation is authorized by the
+> proposal.
+
+Status: revised media-required execution roadmap, October 12, 2026. This records
+the accepted fresh-library scope and preimplementation requirements; it does not
+claim that the proposed contracts are implemented or externally qualified.
+
+The immutable implementation baseline is
+`b8eb3d64f66045ba95c4e4fa5feec82d0462d5df`, following the integrated audit at
+`07c381d9d77936b85d36109c43b51ceea7b1dae7`. Unrelated working-tree changes are
+excluded. Existing evidence remains in
+`.artifacts/integrated-identification-history-audit/report.md` and
+`.artifacts/v2-description-parity/checkpoint.md`. This roadmap supersedes
+earlier planning assumptions about compatibility, not those historical test
+results.
+
+## Scope and endpoint
+
+The user confirmed in
+[Check current slice](codex://threads/01a12460-a2c6-7b21-abcf-d3be41331b45),
+turn `01a12ddc-270a-7b23-a131-e45a7a6f284f`: both new identifications and
+reanalysis require media, and video reanalysis is included in current scope.
+This supersedes the October 11 standalone text-child plan and blanket video
+read-only exclusion. Historical implementation and evidence are not rewritten.
+
+- New initial and reanalysis requests require image, audio or video evidence.
+  Text is optional accompanying context, preserved as exact submitted evidence;
+  neither nonempty text nor all modalities together is required.
+- Reanalysis stages the applicable retained or explicitly chosen source media
+  with context. Original media is sufficient; no mandatory fresh capture.
+  Missing or removed source media requires replacement or blocked submission,
+  never a text-only fallback, another version's media or a thumbnail as source.
+- Include source-bound photo, audio and video reanalysis through the existing
+  preparation, accounting, durable queue, recovery and completion owners. Video
+  community publication/review is not implied; supported actions require their
+  own authoritative policy.
+- Qualify fresh libraries. Preserve historical text records, original evidence,
+  valid already server-admitted operations, exact recovery and deletion. No
+  backfill, destructive old-data removal or reinterpretation of saved inputs. A
+  local-only queued text request is not an accepted replay: preserve it and
+  require explicit media/remediation for fresh admission. Unknown server
+  admission must first recover the original status, never rewrite or resubmit.
+- End at a qualified release candidate with production installation disabled and
+  ordinary access nil. Push, merge, deployment, hosted scheduling, activation,
+  device installation, TestFlight and distribution need separate authorization.
+  PR116 publication remains blocked on the existing exact-push approval.
+
+The
+[Simplify capture tools](codex://threads/01a12c47-6f54-7500-bab9-679c2babf9a0)
+plan provides product context: Scan/photo/video and Record/audio with optional
+Add details; eligible Auto-submit bypasses optional details. Its full visual and
+session-ownership refactor remains separately planned, awaiting both relevant
+workstream handoffs and fresh final implementation approval there. Do not absorb
+that refactor here or change its schedule. This roadmap owns required fresh
+native/backend media admission and media-backed history journeys. Later
+photo/audio/video deletion/download and Identification/History/menu redesign
+milestones remain afterwards.
+
+Those follow-ups are authorized work, not optional suggestions: after this scope
+and its required acceptance close, continue individual-version deletion and
+photo/audio/video source export, then the Identification/History redesign and
+approved insight menu under the
+[version-actions plan](identification-history-version-actions-and-redesign-2026-10-11.md).
+No routine proceed confirmation is needed. Completing this roadmap alone does
+not complete that follow-up assignment. External-only blockers remain recorded
+and do not silently reorder the milestones.
+
+## Current checkpoint boundary — October 13, 2026
+
+Following private admitted-proof SQL parity at `8d4f8c50c`, atomic admission,
+original funding, M1 allocation, complete private receipt/status recovery,
+positive-unused C1 cancellation/expiry and erasure are accepted locally at
+`bc2a5af507a0ee56cbdb1a357f5221bec611371b`. Independent and IC-1 acceptance,
+exact source manifests and validation are recorded in
+`.artifacts/initial-atomic-admission/final-gates/local-checkpoint.json`. Full
+gates qualify the recorded shared checkout, not an isolated commit tree or
+hosted runtime. The original stage93 deadlocks remain unreproduced with unknown
+cause; their explicit residual-risk acceptance is limited to this inactive
+boundary and does not waive new lock qualification. **C1 covers cancellation and
+eligible expiry**, as defined by its
+[addendum](initial-cancellation-interface-2026-10-11.md), not successful
+analysis completion. Provider dispatch, quota commit, result capture and
+successful completion stay blocked until their later reviewed S0 owner.
+Receipt/status existence never authorizes them. These boundaries are specified
+by the [handoff contract](initial-preparation-handoff-2026-10-11.md) and
+[admitted-proof transaction matrix](initial-admitted-proof-2026-10-12.md).
+
+Pure Deno handoff codecs are accepted locally at
+`10ffb151a4bf38bdf557cbf163fa27a3682a8b3f`; private SQL parity follows at
+`f7b7181ec016b4d37206a290d0f54bce822d463d`. Exact evidence is
+`.artifacts/initial-media-handoff-v2/sql-parity/local-checkpoint.json`. The
+latter passes all 172 catalogs/6,672 assertions and 3,821 DB-backed Edge tests
+with no failures or ignored cases, plus the recorded affected gates. These are
+pure consistency helpers with no stored claim issuance, runtime I/O or grants.
+
+The inactive runtime copy/M2 v2/transfer family is implemented and passes its
+required local full gates and current-source focused qualification under the
+[handoff runtime contract](initial-media-handoff-runtime-2026-10-13.md).
+Full-family v6 passes 172 catalogs / 6,706 assertions, 3,935 Edge tests / 598
+steps, strict lint and advisor gates (warnings retained). Five affected focused
+suites cover owners, private readers, transferred recovery/C1, cleanup
+contention and one video/audio resource cohort. Exact shared-checkout sources,
+independent and IC-1 decisions, original outcomes, database disposal and local
+checkpoint identity are recorded in
+`.artifacts/initial-media-handoff-v2/runtime-implementation/`. This does not
+qualify an isolated commit tree, hosted CI, installed backend, media structural
+validation or device behavior. Historical deadlock evidence remains unresolved
+and preserved under its recorded scope; later passes do not waive recurrence
+handling. The narrow Ghost target-funding prerequisite stays with history
+primary; broader identity-merge and Field Trip ownership do not transfer.
+
+The next bounded dependency is a concrete structural-validator and
+transform-attestation protocol for the same immutable retained bytes, under the
+[S0 dispatch-fence agreement](initial-dispatch-fence-interface-2026-10-13.md).
+The
+[revised dependency inventory](initial-media-structure-attestation-2026-10-13.md)
+recognizes existing local WAV executable qualification and the original
+pre-admission preparation ordering. Its dependency boundary is independently and
+IC-1 reviewed. The concrete
+[local owner integration agreement](initial-preparation-local-owner-integration-2026-10-13.md)
+has exact-source independent and IC-1 launch review. The local owner run and
+both existing artifact regressions pass. Independent and IC-1 final evidence
+review is complete, and local checkpoint
+`b3864361dd5c8b4d921650891ca1926a798d9bb0` is committed. Exact decisions are
+retained in `.artifacts/initial-media-structure/owner-final-reviews.json`. The
+[next target composition proposal](initial-preparation-target-composition-2026-10-13.md)
+names an unqualified Linux worker and its feasibility gaps. Independent and IC-1
+bounded design concurrence is recorded in
+`.artifacts/initial-media-structure/target-design-v4-reviews.json`; the next
+implementation agreement awaits a concrete named target. This authorizes no
+installation or execution. This binds the original preparation owner to the
+pinned WAV artifact only in a separate Edge-ineligible synthetic fixture; it
+does not close target runtime or other-format S0 acceptance. No post-M2
+transform or duplicate WAV helper is required. Retained-byte transfer alone does
+not authorize a provider grant. Initial dispatch, durable result capture,
+successful completion, native media-backed journeys and integrated acceptance
+remain open. Installed signer/backend and device qualification retain separately
+named authorization requirements. Activation remains disabled and ordinary
+access nil. History primary retains all overlapping writes; broader hardening
+and capture visual work remain separate. Approved deletion/export/redesign
+follow current-scope acceptance.
+
+## Checkpoint 0: evidence and integration agreement
+
+Establish the matrix below before checkpoint 1. The history primary agent is the
+only writer for this roadmap, history code and shared migrations. Independent
+agents review read-only. The initial-analysis hardening effort remains
+separately owned under its
+[coordination contract](main-analysis-lifecycle-hardening-2026-10-10.md).
+
+The shared interface is recorded in
+[Initial completion and history interface, IC-1](initial-completion-history-interface-2026-10-11.md).
+It pins the initial input/result/receipt owners, six fixed service operations,
+fresh media route adapters and historical Describe recovery, retry/recovery
+semantics, private erasure, scoped locking, writer responsibilities and forward
+dependency order. IC-1 revision 2 was acknowledged and independently reviewed.
+Revision 3 records the media-required scope amendment; its exact review is
+recorded separately. Exact revision acknowledgement is retained in
+`.artifacts/initial-completion-agreement/checkpoint.md`.
+
+The agreed minimum dependency S0 includes immutable original input, permanent
+logical-operation dispatch fencing, durable validated-result evidence, original
+configuration/funding and exact media binding. Checkpoint 1 may prepare inactive
+schema/contracts/adapters and isolated tests. The new initial completion path
+cannot run until all S0 dependencies, fresh media admission guards and
+applicable original-route recovery/cleanup adapters are integrated. Existing
+live handlers must not adopt a partial sidecar path.
+`initial_analysis_lifecycle_enabled` remains false until a separately authorized
+coordinated cutover with incompatible workers quiesced.
+
+This resolves the interface design before checkpoint 1; it does not implement or
+qualify S0, transfer shared writing ownership, or close the initial-engine
+hardening row. The generated initial capture DTO remains unchanged. Current
+private scan/ingestion payloads and scan-only success verification cannot be
+substituted for the agreed immutable input and exact completion receipt.
+
+## Checkpoint 1: private evidence and media-backed source contracts
+
+### Initial evidence privacy and idempotency
+
+The proposed record is private and write-once during its lifetime, not retained
+scientific data. It is owner/scan/operation-bound and stores canonical submitted
+descriptions in their original order. Ordinary clients cannot write it, and
+public/history projections expose only the authorized contract.
+
+Erase the record on individual scan deletion and account detachment, whether or
+not the observation has enrolled in history. A foreign key on scan deletion
+alone is insufficient because account detachment can retain the scan row.
+Deletion admission must fence late completion; erasure and completion serialize
+so neither transaction order can recreate private text after deletion. Retain
+only content-free tombstone/operation identity needed to reject resurrection;
+text-derived digests remain private evidence and are erased too. Any
+immutability guard must permit authorized erasure, including cascades, under the
+reviewed lock discipline. Recheck live ownership and deletion fences before both
+first insert and duplicate-receipt return. Identical retries are accepted only
+while the original live ownership remains valid; erasure takes precedence over
+idempotent replay.
+
+Test enrolled and unenrolled deletion, both race orders, duplicate completion,
+conflicting text/order/owner/operation retries, lost responses, and delayed
+completion after detachment. Evidence must be absent from scientific retention,
+logs, public output, remaining private history and recovery payloads after the
+applicable erasure completes. Update the
+[retention contract](../backend-and-data/17-scientific-observation-retention.md)
+with implementation; its current enrolled/unenrolled distinction is not an
+exception for this new private record.
+
+### Coordinated media-required admission and transition
+
+Do not implement the superseded standalone V1 text child, `multimodal_text_v1`
+profile, no-upload execution path, text-only editor or
+`source_text_analysis_enabled` gate. Existing versioned readers retain their
+exact supported historical shapes; no source-null or old record may fall through
+into a new execution case.
+
+Fresh native and backend admission must require actual eligible media, including
+non-UI callers and the old Describe entrypoint. Text may be added to that media;
+its accepted ordered bytes must survive source fingerprinting, queue
+restoration, provider input, completion and history reading. Do not force a
+profile/provider change merely because accompanying text exists. Preserve
+existing provider policy and reject conflicting source, permission or profile
+before funding or invocation. DTO/version changes, if needed, require
+coordinated producer and reader review; this scope decision does not itself bump
+protocols.
+
+Separate fresh requests from already server-admitted work by original durable
+identity and positive server evidence. Accepted old Describe operations retain
+exact status/result/completion/cancellation recovery under their saved route and
+funding. Local-only queued no-media work remains preserved but blocked for user
+remediation; it is not silently rewritten into another operation. Admission
+uncertainty permits original-operation recovery only. This transition must not
+create another provider invocation, retroactively demand replacement media for
+an already accepted operation, or resurrect deleted evidence.
+
+Every new history child requires the correct source analysis ID, immutable
+source media provenance, media availability and accompanying ordered
+descriptions. Use the existing source reservation, fingerprint, funding,
+prepared-media queue, dispatch, settlement and completion contracts. Exact
+source identity must cover raw evidence and derived preparation, not display
+thumbnails. Editing details never detaches the child from the explicitly
+targeted source analysis/version. Explicit replacement is validated before
+admission and cannot mutate an admitted operation's input.
+
+Complete the video extension across source availability/loading, queue-owned
+original video and applicable frames/audio, preparation and verified byte
+binding, retention/cleanup, original funding and exact recovery, result readers
+and native routing. Existing V5 execution/history reading is useful evidence,
+not proof of source reuse or the full video journey. Missing/removed raw media
+blocks or requires explicit replacement; no media-less fallback or synthesized
+source.
+
+Initial completion still stores private immutable submitted context atomically
+with the original scan/result receipt. Enrollment may use the agreed closed V3
+available/unavailable description projection, but descriptions alone never
+confer reanalysis eligibility. Media must have independently verified source
+identity and availability. No notes, model reasoning or mutable replay fallback.
+Child completion does not automatically change selection/review; unknown
+execution permits recovery of the original operation only. Erasure rules above
+apply.
+
+## Checkpoint 2: native journey and installed qualification build
+
+Retain immutable source-description context alongside the explicitly targeted
+source analysis/version and its media in `ObservationReanalysisSource`. Route
+explicitly to photo, audio or video based on validated source capability. Allow
+context editing within that media-backed journey; there is no separate text-only
+submission/editor. Persist source and child identity, media ownership and exact
+context in the durable queue. Restore before dispatch, recover after uncertain
+dispatch, await receipt-bound cleanup and reopen the completed child with its
+original source evidence.
+
+Add native admission guards for missing media and transition handling for old
+local-only no-media queue records. Preserve valid accepted operation recovery.
+This functional work does not authorize the separate capture visual refactor or
+its detailed Add details session/occupancy redesign. Qualify functional media
+admission and photo/audio/video journeys in existing shells first; neither S0
+nor this acceptance waits for that later visual refactor. Its implementation
+waits for both relevant workstream handoffs and fresh final approval, preventing
+a circular qualification dependency.
+
+Prepare a dedicated `HistoryQualification` configuration and scheme in
+`project.yml` and regenerate the project. Installation and use against a named
+nonproduction environment require separate authorization. It must use actual app
+navigation, `AppDIContainer`, prepared history composition, normal durable queue
+owners and disk-backed storage. Use distinct bundle, app-group, keychain, disk
+and auth namespaces and explicit nonproduction backend configuration that fails
+closed if absent or pointing to production. Require a compiled qualification
+marker and validated nonproduction project/host before creating the live client
+or installing history. A warning-only check is insufficient. No preference or
+remote flag may install history in the production app.
+`PreparedHistoryReanalysisComposition.isAppInstallationQualified` stays false; a
+separate immutable compile-time qualification branch selects the prepared
+composition only in `HistoryQualification` after environment validation. Debug
+and Release retain the hard-false ordinary installation path. The qualification
+branch must be structurally absent from those builds, with executable
+configuration-specific acceptance tests.
+
+Current source boundaries are
+[`PreparedHistoryReanalysisComposition`](../../apps/ios/Merian/App/Composition/PreparedHistoryReanalysisComposition.swift),
+`MerianApp`, `MerianEnvironment` and `project.yml`. Current Debug and Release
+both use `Config.xcconfig`; ordinary Debug includes a production-Supabase
+allowance. Reusing those defaults without fail-closed qualification checks is
+insufficient.
+
+Existing in-memory fixtures are useful component evidence, not installed-app
+qualification. The user owns device installation and testing after the specific
+build/environment is authorized. Record the artifact hash, source SHA,
+configuration, backend revision and sanitized results. For each of photo, audio
+and video, exercise actual navigation, submission, process termination,
+relaunch, durable restoration, backend status/outcome recovery, completion and
+history reopening. Kill after dispatch as well as before dispatch; prove that
+recovery does not resend provider work. Preserve pending environment answers and
+prior device results; request only missing information needed for this specific
+qualification configuration.
+
+## Checkpoint 3: actions, contention and integrated candidate
+
+Qualify supported selection, review, Undo and protected-chat behavior for
+photo/audio/video with revision and account fences. Photo publication must be
+offered only for qualifying V2 photo evidence, never inferred merely from a
+non-audio result version. Tighten
+`ObservationAnalysisReviewTicket.supportsPhotoPublicationFormat` and verify that
+historical text baselines do not advertise publication. Video reanalysis is
+required; video selection/review/publication/chat remain subject to separately
+supported policy and must not be inferred from V5 alone. Capture the
+supported-action mapping in native and server contract tests.
+
+Close the bounded contention gaps from the integrated audit: cross-version quota
+admission and settlement, terminal transitions in both transaction orders, and
+multi-owner cases, including media/context changes and the new video source
+path. Reuse accepted source release/cascade evidence when its source hashes
+remain unchanged; do not invent new slices or rerun broad suites without a
+changed boundary. The
+[C1 deadlock acceptance](initial-cancellation-interface-2026-10-11.md#deadlock-evidence-and-public-path-acceptance--october-12-2026)
+requirement is part of this existing contention gate and applies at final
+integration/acceptance before atomic/C1 public-path qualification; fixture
+isolation alone cannot close it. Per the user's sequencing clarification,
+historical stage93 is not reproduced in subsequent runs; dedicated root-cause
+investigation is deferred to final acceptance. Continue implementation and
+normal regression/concurrency testing without making that investigation an
+intermediate checkpoint prerequisite. Reopen it earlier if it blocks
+implementation or reliable validation, or recurs in normal application paths.
+Passing reruns are not a fix; retain failures and diagnostics and require
+independent/IC-1 final disposition. Normal gates and release/activation
+restrictions are unchanged.
+
+Each checkpoint updates contracts/docs and the matrix, receives independent
+read-only review and re-review after fixes, and runs focused verification.
+Milestones run the full affected repository gates against the scoped candidate.
+Preserve failures and distinguish shared-worktree runs from scoped validation.
+Record the changed-path CI mapping for handwritten source-media/context
+contracts, Swift/Deno/SQL fingerprint vectors, and the new
+qualification-configuration guard. Update the shared analysis-history README,
+database/API/retention contracts, deployment runbook, testing strategy,
+identification-history device review guide and affected iOS ownership READMEs
+with their corresponding implementation. Do not describe proposed behavior there
+as already implemented. Final CI must name the exact candidate commit and all
+required checks; pending, skipped or older-head runs cannot establish
+acceptance.
+
+## Checkpoint 4: external acceptance and release handoff
+
+Close installed-device and authorized nonproduction backend qualification,
+including hardware/resource behavior for photo/audio/video, account changes,
+scan and account erasure, storage cleanup, and operational recovery. Keep
+initial-engine hardening and Field Trip's held reconciliation consumer
+separately identified; neither is satisfied by history test totals. No hosted
+mutation, deployment or worker scheduling occurs without authorization naming
+the operation and target.
+
+The handoff contains the exact source/artifact/backend revisions, completed
+matrix, independent review findings and their disposition, required CI results,
+external evidence, remaining exclusions and rollback controls. Production gates
+remain closed. A later activation decision is separate from this handoff.
+
+## Capability and evidence matrix
+
+Owners: **History primary** is the sole implementation/evidence writer in this
+thread. **Hardening owner** is the separately owned initial-analysis effort;
+shared writes require the checkpoint 0 agreement. **User/operator** owns device
+testing and explicitly authorized nonproduction operations. Reviewers are
+independent and read-only. These assignments do not grant external permissions.
+
+Status meanings: **ready locally** means only the named local checkpoint passed;
+**blocked** means a specific prerequisite is missing; **unqualified** means
+implementation or external evidence is still required. A row becomes qualified
+only when all its pass conditions have exact-candidate evidence. Update evidence
+references and status after each checkpoint; do not erase prior failures.
+
+| ID  | Required capability                                       | Accountable owner                                                                       | Current status / evidence                                                                                | Concrete pass condition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --- | --------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A0  | Foundation and parity repair                              | History primary                                                                         | Ready locally: `b8eb3d64f`; parity checkpoint                                                            | Preserve reviewed foundation and its scoped validation; publish only after resolving the exact push approval blocker.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| A1  | Initial completion agreement and media-required amendment | History primary, with Hardening owner interface agreement                               | Design only; revision 3 evidence in media-required-scope                                                 | Exact IC-1 revision 3 acknowledged and independently reviewed, including fresh media admission, accepted-operation recovery, local-only queue remediation, video source scope, owners and dependency order.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| A2  | Fresh media-backed initial submitted evidence             | History primary after A1 interface agreement                                            | Unqualified: S0 and fresh admission integration open                                                     | Native and every fresh backend entry require eligible media; original media plus ordered optional context, result and scan commit atomically; identical replay succeeds, conflicts reject, no scan-only success inference.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| A3  | Evidence privacy before and after enrollment              | History primary after A1 interface agreement                                            | Unqualified: new erasure contract                                                                        | Scan deletion and account detachment erase text in both enrollment states; both race orders and delayed completion cannot resurrect it; retention/public/log projections exclude it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| A4  | Media-backed initial enrollment and original evidence     | History primary                                                                         | Unqualified: coordinated evidence/source projection pending                                              | Both closed V3 description variants read exactly; media provenance/availability independently determines reanalysis eligibility; no fabricated execution date/digest, notes fallback or deleted/foreign evidence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| A5  | Source-bound media/context contracts and transition       | History primary                                                                         | Unqualified: combined contract and transition not implemented                                            | Photo/audio/video source IDs, exact media/context fingerprints, preparation, readers and native actions agree; old text records remain readable; already-admitted operations recover exactly; local-only no-media work is preserved/held and unknown admission recovers before classification.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| A6  | Source-bound video child lifecycle                        | History primary                                                                         | Unqualified: execution/reader foundation is not complete source reuse                                    | Correct retained/chosen raw video plus applicable frames/audio and context flows through source reservation, durable queue, preparation, verified binding, original funding, exact recovery and one completion; missing media blocks, no auto-selection/review transfer.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| A7  | Photo child lifecycle                                     | History primary                                                                         | Ready locally at foundation; integrated/installed journey unqualified                                    | Existing scoped photo evidence remains valid by hash; final source-media/context, transition, cancellation/deletion and recovery integration passes; installed evidence satisfies A11.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| A8  | Audio child lifecycle                                     | History primary                                                                         | Ready locally at foundation; integrated/installed journey unqualified                                    | Retained source/capture queue ownership, exact context, receipt-bound awaited cleanup and separate dispatch/settlement fences remain proven; integration passes and installed evidence satisfies A12.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| A9  | Nonproduction installed configuration                     | History primary; User/operator authorizes target/use                                    | Inactive preparation authorized; implementation pending; installed use awaits named target authorization | Generated HistoryQualification configuration alone compiles the qualification selector and installs real DI/navigation/disk storage with isolated bundle/app-group/keychain/disk/auth namespaces; pinned nonproduction project/host validation fails closed; Debug/Release remain nil in executable checks.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| A10 | Installed initial video and video child                   | User/operator; History primary packages evidence                                        | Unqualified                                                                                              | Exact artifact/backend run proves initial media save/enroll, retained/chosen video source with context, real preparation, restart before/after dispatch, original operation recovery, history reopen and deletion; in-memory fixtures do not count.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| A11 | Installed initial photo and photo child                   | User/operator; History primary packages evidence                                        | Unqualified                                                                                              | Same real installed journey as A10 for photo, with source/new-media handling and acknowledged cleanup; actual navigation and persistence survive relaunch.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| A12 | Installed initial audio and audio child                   | User/operator; History primary packages evidence                                        | Unqualified                                                                                              | Same real installed journey as A10 for audio, including retained composition, source/capture routing, hardware interruptions and receipt-bound cleanup.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| A13 | Supported media-backed actions and exclusions             | History primary                                                                         | Unqualified: combined video/media-context routing pending                                                | Photo/audio/video reanalysis routes correctly and fails closed without source media; selection/review/Undo/chat and qualifying photo publication follow explicit policy. Video reanalysis is included; no inferred video publication/review permission.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| A14 | Database contention                                       | History primary                                                                         | Unqualified: bounded audit gaps remain                                                                   | Both-order admission/settlement/terminal races across media input versions, context edits, accepted legacy transition and multi-owner cases pass; unchanged source-release/cascade evidence remains applicable. Follow [C1 deadlock acceptance](initial-cancellation-interface-2026-10-11.md#deadlock-evidence-and-public-path-acceptance--october-12-2026): preserve stage93 failures, continue normal real-owner overlap tests under actual permissions, capture sanitized correlation on recurrence, and record verified correction or independently/IC-1-reviewed unreproduced residual risk at final acceptance. Dedicated historical investigation is deferred until then unless it blocks work/reliable validation or recurs in normal paths; passing reruns are not a fix. Reproduced unresolved runtime cycles block acceptance; no evidence waiver or scope reduction without explicit user approval. |
+| A15 | Initial-engine hardening dependencies                     | Hardening owner; History primary verifies integration                                   | Unqualified: S0 and broader hardening remain open                                                        | Validate IC-1 S0 and media-required admission across fresh entrypoints; preserve original-route recovery/cleanup for accepted Describe work and safely hold local-only no-media requests. Broader hardening and installed/hosted qualification remain separate.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| A16 | Hosted privacy, storage and operational recovery          | User/operator; History primary defines/evaluates cases                                  | Unqualified; target and operation authorization required                                                 | Authorized nonproduction run records its explicit server gate set and proves erasure, storage/cleanup and recovery on exact revisions, including unenrolled evidence deletion and no provider reinvocation after unknown execution; production gates remain false.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| A17 | Device/resource acceptance                                | User/operator                                                                           | Unqualified; preserve prior results and pending answers                                                  | Agreed photo/audio/video hardware, media preparation, interruption, background/resource pressure and fresh-library disk-backed restart cases pass on the exact candidate.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| A18 | Field Trip held reconciliation                            | History primary tracks closure; separate consumer implementer must be named before work | Blocked separately; consumer assignment not established here                                             | Named consumer acceptance demonstrates required reconciliation or the candidate explicitly remains blocked for that requirement; history tests cannot substitute.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| A19 | Final candidate review and local gates                    | History primary; independent reviewers                                                  | NCO/BI isolated local gates passed; full alpha/PR candidate open                                         | Reviewed scoped diff, synchronized contracts/docs, full affected gates and independent re-review pass on exact final source; later changes have explicit evidence applicability.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| A20 | Final candidate CI                                        | History primary                                                                         | Blocked: follow-up candidate unpublished                                                                 | Required CI for the exact final PR candidate SHA passes; record check names, run links and head identity. Resolve private-source export approval first; no previous-head green substitute.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| A21 | Qualified release-candidate handoff                       | History primary; User/operator supplies external evidence                               | Blocked on required rows                                                                                 | A1–A20 are satisfied with evidence or an explicit user scope decision changes the requirement; exact artifacts/revisions, exclusions and rollback controls recorded; production gates remain disabled.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+
+No new execution tests are claimed by this planning document. The foundation's
+5,893 native tests preceded two test-only lint edits; its final rebuilt focused
+26 tests and backend 3,493 tests plus 484 steps are documented separately. Those
+results do not qualify the required media-admission transition, video
+reanalysis, installed build or hosted flows. Historical roadmap text and hashes
+remain in `.artifacts/media-required-scope/`; this revision replaces planned
+behavior, not completed implementation evidence.

@@ -6,17 +6,36 @@ import Foundation
 enum ObservationHistoryDisplayProjection {
     /// Cached display is usable only when its provenance still matches evidence.
     static func restore(_ data: Data, matching result: ObservationHistoryPage.Result) throws -> AnalysisDisplaySnapshot {
-        let display: AnalysisDisplaySnapshot
-        let expected: Data?
         if result.version == 3 {
-            display = try SavedIdentificationDisplayBaseline.restore(data, analysisID: result.analysisID)
-            expected = try SavedIdentificationDisplayBaseline.capture(display, matching: result)
-        } else {
-            display = try AnalysisDisplaySnapshot.restore(data, analysisID: result.analysisID)
-            expected = try snapshot(result)
+            let display = try SavedIdentificationDisplayBaseline.restore(data, analysisID: result.analysisID)
+            guard try SavedIdentificationDisplayBaseline.capture(display, matching: result) == data else {
+                throw ObservationHistoryError.resultConflict
+            }
+            return display
         }
-        guard expected == data else { throw ObservationHistoryError.resultConflict }
-        return display
+        // Earlier caches embedded unsorted JSON bytes. Key order/whitespace in those
+        // two payloads cannot invalidate otherwise identical immutable evidence.
+        _ = try AnalysisDisplaySnapshot.restore(data, analysisID: result.analysisID)
+        guard let expected = try snapshot(result), try comparable(data) == comparable(expected) else {
+            throw ObservationHistoryError.resultConflict
+        }
+        // Render only the trusted rederivation, never reparsed legacy nested bytes.
+        return try AnalysisDisplaySnapshot.restore(expected, analysisID: result.analysisID)
+    }
+
+    private static func comparable(_ data: Data) throws -> Data {
+        guard var object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw ObservationHistoryError.invalidSnapshot
+        }
+        for key in ["candidatesData", "petIdentificationData"] {
+            if object[key] is NSNull { continue }
+            guard let encoded = object[key] as? String, let nested = Data(base64Encoded: encoded) else {
+                throw ObservationHistoryError.invalidSnapshot
+            }
+            let value = try JSONSerialization.jsonObject(with: nested)
+            object[key] = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]).base64EncodedString()
+        }
+        return try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
     }
 
     static func snapshot(_ result: ObservationHistoryPage.Result) throws -> Data? {
@@ -31,8 +50,10 @@ enum ObservationHistoryDisplayProjection {
             speciesId: "", timestamp: date, captureDate: date, capturedMediaJSON: nil,
             coverImagePath: nil, isLiveCapture: false, fieldNotes: nil)
         record.wikipediaOverview = mapped.wikipediaOverview
-        record.candidatesData = try mapped.candidates.map { try JSONEncoder().encode($0) }
-        record.petIdentificationData = try mapped.petIdentification.map { try JSONEncoder().encode($0) }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        record.candidatesData = try mapped.candidates.map { try encoder.encode($0) }
+        record.petIdentificationData = try mapped.petIdentification.map { try encoder.encode($0) }
         return try AnalysisDisplaySnapshot(analysisID: result.analysisID, record: record).storedData()
     }
 }

@@ -63,6 +63,12 @@ extension CaptureWorkspaceViewModel {
     ) async -> CaptureScanAdmissionRoute? {
         let draftGeneration = draftSession.generation
         let admission = dependencies.submission.admission
+        guard !admission.isLibraryAccessBlocked() else {
+            revokeAutomaticSubmission()
+            offlineToastMessage = .information("Your capture is kept in this draft. Open Library or Profile to restore access before identifying.")
+            return nil
+        }
+        guard bindDraftToCurrentAccount() else { return nil }
         let canStartLocally = admission.canStartLocally(
             flashFallbackEligible
         )
@@ -74,6 +80,7 @@ extension CaptureWorkspaceViewModel {
             previewResult = nil
         }
         guard !Task.isCancelled, draftSession.generation == draftGeneration else { return nil }
+        guard !admission.isLibraryAccessBlocked(), bindDraftToCurrentAccount() else { return nil }
 
         switch CaptureScanAdmissionPolicy.resolve(
             isOnline: isOnline,

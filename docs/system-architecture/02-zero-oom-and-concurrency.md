@@ -2084,30 +2084,22 @@ Two fixes were applied together:
 startup so `MerianApp` can attach the root SwiftUI environment, repository
 wiring, and safe-mode state before user workflows begin. The launch path must
 therefore avoid unnecessary deep migration validation. Startup reads the store
-metadata first: fresh/current V53 stores open without a migration plan, known
-recent stores use the narrow source-isolated
-V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and unknown older stores use
-the full historical migration plan. V50 uses its custom V50→V51
-preference-ownership stage and lightweight V51→V52→V53; V49 first uses the
-lightweight V49→V50 hop. The full plan remains linear through
-V42→V49→V50→V51→V52→V53 so older-store migration does not validate the
-duplicate-prone V43...V48 source cluster. V42/V43 use short direct plans to
-avoid validating older full-historical custom stages that can raise SwiftData's
-equal-model-reference exception. The V46 plan keeps V46 as the only
-duplicate-cluster source representative and jumps directly to V49 because V46
-was a shipped no-op schema, while true V47 stores use a source-isolated V47→V49
-plan with a self-contained scalar queued-scan snapshot. Every chosen older lane
-then uses V49→V50→V51→V52→V53. V52 uses only its immediate lightweight V52→V53
-stage. Duplicate-checksum failures retry through the same recent-plan ladder,
-ordered current store then V52, V51, both V50 graphs and down through V42,
-before legacy rescue or safe mode. Safe mode then opens an empty in-memory
-`CurrentSchema` container without a migration plan, so historical stage
-validation cannot defeat the last-resort workspace. The full plan remains an
-independently tested contract. Supported recent sources are a finite enum ending
-at the immediate predecessor of `CurrentSchema`, and app dispatch is compiler-
-exhaustive with no full-history default. This keeps the synchronous launch
-boundary bounded for normal upgrades while preserving a deterministic recovery
-surface if SwiftData cannot open the store.
+metadata first: fresh/current V58 stores open without a migration plan. Known
+V42...V57 stores use source-isolated plans, and unknown older stores use the
+full historical plan. V57 uses only V57→V58. Older lanes retain their
+source-specific repairs and append the shared tail through V58, including V50
+preference-owner partitioning and the analysis/history stages. The full chain
+keeps V43...V48 out of the duplicate-prone source cluster, while their isolated
+lanes preserve the previously shipped recovery paths. Duplicate-checksum
+failures retry current store, V57 through V51, both V50 graphs, and V49 down
+through V42, before legacy rescue or safe mode. Safe mode then opens an empty
+in-memory `CurrentSchema` container without a migration plan, so historical
+stage validation cannot defeat the last-resort workspace. The full plan remains
+an independently tested contract. Supported recent sources are a finite enum
+ending at the immediate predecessor of `CurrentSchema`, and app dispatch is
+compiler- exhaustive with no full-history default. This keeps the synchronous
+launch boundary bounded for normal upgrades while preserving a deterministic
+recovery surface if SwiftData cannot open the store.
 
 ### App Boot SDK Stutter (`MerianApp`)
 

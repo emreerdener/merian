@@ -9,6 +9,9 @@ import SwiftData
 /// Manages the global Supabase connection, auth state, and OAuth sign-in flows.
 @MainActor
 @Observable final class SupabaseManager: NSObject {
+    // Qualification-only pre-drain seam. Ordinary production composition is nil.
+    @ObservationIgnored var photoPreparationAccountTransitionDrain: (@MainActor () async -> Bool)?
+
     // MARK: - Singleton Architecture
     static let shared = SupabaseManager()
 
@@ -164,8 +167,8 @@ import SwiftData
     // MARK: - Session Deduplication
     /// Invalidates suspended Auth-session work whenever the SDK emits a new
     /// lifecycle event, including a same-user refresh.
-    // Presentation may retain this value to invalidate private UI without
-    // retaining a work lease that would block Auth transition draining.
+    /// Presentation may retain this value to invalidate private UI without
+    /// retaining a work lease that would block Auth transition draining.
     var authSessionGeneration: UInt64 {
         authRuntimeState.sessionGeneration
     }
@@ -509,16 +512,7 @@ import SwiftData
             ConsentManager.shared.beginAnalyticsAccountTransition(),
             for: token
         )
-        appRouteSessionController?.beginAccountSession(
-            accountID: nil,
-            origin: .runtimeTransition,
-            now: Date()
-        )
-        milestoneToastSessionController?.beginAccountSession(
-            accountID: nil,
-            origin: .runtimeTransition,
-            now: Date()
-        )
+        beginAccountSession(userID: nil, origin: .runtimeTransition)
         return token
     }
 
@@ -566,16 +560,7 @@ import SwiftData
         } else {
             finalUserID = nil
         }
-        appRouteSessionController?.beginAccountSession(
-            accountID: finalUserID?.uuidString,
-            origin: .runtimeTransition,
-            now: Date()
-        )
-        milestoneToastSessionController?.beginAccountSession(
-            accountID: finalUserID?.uuidString,
-            origin: .runtimeTransition,
-            now: Date()
-        )
+        beginAccountSession(userID: finalUserID, origin: .runtimeTransition)
         if let analyticsGeneration = completion.analyticsGeneration {
             _ = ConsentManager.shared.resolveAnalyticsAccountTransition(
                 generation: analyticsGeneration,
@@ -621,6 +606,17 @@ import SwiftData
         )
     }
 
+    /// The optional native owner must actually stop before the existing account
+    /// drain completes. Kept separate so ordering is testable without a session.
+    static func drainPhotoPreparationBeforeAccountWork(
+        preparation: (@MainActor () async -> Bool)?,
+        drain: @MainActor () async -> Void
+    ) async -> Bool {
+        if let preparation, !(await preparation()) { return false }
+        await drain()
+        return true
+    }
+
     private func awaitAccountBoundWorkQuiescenceForAuthTransition() async
         -> Bool {
         // Closing the Auth transition happens synchronously before this drain,
@@ -643,8 +639,11 @@ import SwiftData
             return false
         }
         await OfflineQueueManager.shared
-            .awaitCollectionSyncQuiescenceForAuthTransition()
-        await authRuntimeState.awaitAccountWorkDrain()
+            .awaitRetainedSyncQuiescenceForAuthTransition()
+        guard await Self.drainPhotoPreparationBeforeAccountWork(
+            preparation: photoPreparationAccountTransitionDrain,
+            drain: { await self.authRuntimeState.awaitAccountWorkDrain() }
+        ) else { return false }
         if let transition = activeAuthTransition,
            transition.sourceSession != nil,
            transition.sourceSession == transition.expectedSession {
@@ -1500,7 +1499,7 @@ import SwiftData
         recordManualProviderRevocation: @MainActor @escaping () -> Void = {
             ManualAppleRevocationNoticeStore.record()
         },
-        purgeLocalData: @MainActor @escaping () -> Bool
+        purgeLocalData: @MainActor @escaping () async -> Bool
     ) async throws -> AccountDeletionReceipt {
         try await AccountDeletionCoordinator(
             dependencies: accountDeletionDependencies()
@@ -1561,7 +1560,7 @@ import SwiftData
         recordManualProviderRevocation: @MainActor @escaping () -> Void = {
             ManualAppleRevocationNoticeStore.record()
         },
-        purgeLocalData: @MainActor @escaping () -> Bool
+        purgeLocalData: @MainActor @escaping () async -> Bool
     ) async -> Bool {
         await AccountDeletionRecoveryCoordinator(
             dependencies: accountDeletionDependencies()
@@ -1817,7 +1816,7 @@ import SwiftData
                 clearSourceSession: { [self] in await performVerifiedLocalSignOut(ownedBy: transition) },
                 clearLibrary: {
                     guard let context = OfflineQueueManager.shared.modelContext else { return false }
-                    guard ScanRepository.shared.purgeAllData(
+                    guard await ScanRepository.shared.purgeAllData(
                         modelContext: context,
                         resetDerivedState: AppDIContainer.shared.privateScanMapStore.resetSensitiveState
                     ) else { return false }
@@ -3606,23 +3605,11 @@ import SwiftData
         expectedAuthGeneration: UInt64,
         ownedBy transition: AuthTransitionToken?
     ) -> Bool {
-        guard !Task.isCancelled,
-              isAuthenticated,
-              authSessionGeneration == expectedAuthGeneration,
-              currentUser?.isAnonymous == true,
-              currentUser?.id.uuidString.caseInsensitiveCompare(userId)
-                == .orderedSame,
-              let sdkSession = client.auth.currentSession,
-              !sdkSession.isExpired,
-              sdkSession.user.isAnonymous,
-              sdkSession.user.id.uuidString.caseInsensitiveCompare(userId)
-                == .orderedSame else {
-            return false
-        }
-        if let transition {
-            return currentSessionMatchesAuthTransition(transition)
-        }
-        return activeAuthTransition == nil
+        guard let user = currentUser, user.isAnonymous,
+              user.id.uuidString.caseInsensitiveCompare(userId) == .orderedSame else { return false }
+        return hasCurrentPublishedSession(
+            user, expectedAuthGeneration: expectedAuthGeneration, ownedBy: transition
+        )
     }
 
     private func persistOAuthProfileMetadata(

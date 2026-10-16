@@ -95,6 +95,7 @@ struct MerianApp: App {
     // MARK: - App Dependencies
     let diContainer: AppDIContainer
     let lifecycleManager: AppLifecycleManager
+    let preparedHistoryReanalysis: PreparedHistoryReanalysisComposition?
     
     // MARK: - SwiftData Container
     let container: ModelContainer?
@@ -119,6 +120,9 @@ struct MerianApp: App {
             container: dependencies
         )
         diContainer = dependencies
+        preparedHistoryReanalysis = .appInstallation {
+            .prepared(in: dependencies)
+        }
         lifecycleManager = AppLifecycleManager(container: dependencies)
         UITestSeedCoordinator.prepareRequiredConsentIfNeeded(
             consentManager: dependencies.consentManager
@@ -207,8 +211,11 @@ struct MerianApp: App {
                                 opensExploreOnFreshLaunch: shouldOpenExploreOnFreshLaunch,
                                 showsWhatsNewOnFreshLaunch: hasPendingWhatsNew
                                     && !isAccountDeletionRecoveryPending
-                                    && !isShowingManualAppleRevocationNotice
+                                    && !isShowingManualAppleRevocationNotice,
+                                diContainer: diContainer,
+                                reanalysisAccess: preparedHistoryReanalysis?.capture
                             )
+                            .environment(\.insightHistoryReanalysisAccesses, preparedHistoryReanalysis?.insightAccesses)
                             .environment(\.acknowledgeWhatsNew) {
                                 guard appSettings.hasCompletedOnboarding,
                                       consentManager.hasCurrentRequiredConsent,
@@ -236,6 +243,10 @@ struct MerianApp: App {
                             )
                         }
                     }
+                    #if DEBUG
+                    .modifier(SavedAudioChooserUITestPresentation())
+                    .modifier(AudioReanalysisSheetUITestPresentation())
+                    #endif
                     .modelContainer(container)
                     .injectAppDependencies(container: diContainer)
                     .modifier(LibraryTransitionPresentation(supabase: diContainer.supabaseManager))
@@ -426,7 +437,7 @@ struct MerianApp: App {
         guard let modelContext = container?.mainContext else { return false }
         let completed = await diContainer.supabaseManager
             .resumePendingAccountDeletionLocalCleanup {
-                diContainer.scanRepository.purgeAllData(
+                await diContainer.scanRepository.purgeAllData(
                     modelContext: modelContext,
                     resetDerivedState:
                         diContainer.privateScanMapStore.resetSensitiveState

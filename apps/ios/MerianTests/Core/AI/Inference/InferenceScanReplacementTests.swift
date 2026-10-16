@@ -7,6 +7,31 @@ import Testing
 @MainActor
 @Suite("Inference Scan Replacement")
 struct InferenceScanReplacementTests {
+    @Test(arguments: [false, true])
+    func enrollmentAfterInferenceStartedPreventsMetadataTransfer(staged: Bool) throws {
+        let context = try makeContext()
+        let original = try insertRecord(id: UUID().uuidString.lowercased(), into: context)
+        let replacement = try insertRecord(id: UUID().uuidString.lowercased(), into: context)
+        original.customTags = ["original-tag"]; original.fieldNotes = "Original note"
+        replacement.customTags = ["child-tag"]; replacement.fieldNotes = "Child note"
+        try context.save()
+        let other = ModelContext(context.container)
+        if staged {
+            _ = try ObservationHistoryEnrollmentIntent.stage(observationID: #require(UUID(uuidString: original.id)), ownerID: UUID(), context: other)
+        } else {
+            let id = original.id
+            let source = try #require(other.fetch(FetchDescriptor<LocalScanRecord>()).first { $0.id == id })
+            source.analysisOwnerAccountID = UUID().uuidString.lowercased()
+        }
+        try other.save()
+        var saves = 0
+        #expect(InferenceScanReplacement.transferMetadata(from: original.id, after: .persisted(result(id: replacement.id)),
+            modelContext: context, saveMetadata: { _ in saves += 1 }) == nil)
+        #expect(saves == 0 && replacement.customTags == ["child-tag"] && replacement.fieldNotes == "Child note")
+        #expect(try context.fetchCount(FetchDescriptor<LocalScanRecord>()) == 2)
+        #expect(try context.fetchCount(FetchDescriptor<PendingCloudDeletionTask>()) == 0)
+    }
+
     @Test func onlyPersistedOutcomesAuthorizeReplacement() throws {
         let context = try makeContext()
         let original = try insertRecord(id: "original", into: context)

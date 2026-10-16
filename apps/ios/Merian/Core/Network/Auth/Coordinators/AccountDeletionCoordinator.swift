@@ -35,7 +35,7 @@ struct AccountDeletionCoordinator {
             -> AccountDeletionReceipt,
         recoveryCapabilityStore: AccountDeletionRecoveryCapabilityStore,
         recordManualProviderRevocation: @MainActor @escaping () -> Void,
-        purgeLocalData: @MainActor @escaping () -> Bool
+        purgeLocalData: @MainActor @escaping () async -> Bool
     ) async throws -> AccountDeletionReceipt {
         try Task.checkCancellation()
         guard !dependencies.hasPendingPurchaseIdentityHandoff() else {

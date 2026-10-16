@@ -56,6 +56,7 @@ Deno.test("provider dispatch and SDK imports stay within the adapter and deferre
   const supabaseRoot = new URL("../../", import.meta.url);
   const dispatchFiles: string[] = [];
   const sdkFiles: string[] = [];
+  const rawDispatchFiles: string[] = [];
 
   const sources = (await Promise.all(
     ["functions/", "scripts/"].map((directory) =>
@@ -76,6 +77,9 @@ Deno.test("provider dispatch and SDK imports stay within the adapter and deferre
     if (/\.generateContent\s*\(/.test(source)) {
       dispatchFiles.push(relativePath);
     }
+    if (source.includes(":generateContent")) {
+      rawDispatchFiles.push(relativePath);
+    }
     if (source.includes('from "@google/genai"')) sdkFiles.push(relativePath);
   }
 
@@ -88,6 +92,10 @@ Deno.test("provider dispatch and SDK imports stay within the adapter and deferre
     "functions/species-discovery-search/provider.ts",
     "scripts/benchmark_ai_boundary.ts",
     "scripts/evaluate_field_chat_answers.ts",
+  ]);
+  assertEquals(rawDispatchFiles.sort(), [
+    "functions/_shared/analysisHistory/photoClassifier.ts",
+    "functions/insight-chat/protectedProvider.ts",
   ]);
   assertEquals(sdkFiles.sort(), [
     "functions/_shared/ai/gemini.ts",

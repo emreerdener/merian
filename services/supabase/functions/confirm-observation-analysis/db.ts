@@ -57,7 +57,7 @@ export async function prepareConfirmation(
     {
       p_user_id: userID,
       p_request: request,
-      p_reader: 9,
+      p_reader: 10,
     },
   );
   if (error) persistenceError(error.message);
@@ -76,7 +76,7 @@ export async function completeConfirmation(
     {
       p_user_id: userID,
       p_request: request,
-      p_reader: 9,
+      p_reader: 10,
       p_verified_name: name,
       p_taxon: taxon,
     },

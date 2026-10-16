@@ -1445,6 +1445,9 @@ struct InferenceEngineTests {
     // MARK: - Identification Review: engine methods
 
     @Test func testConfirmAIIdentificationSetsConfirmedFlag() async throws {
+        let context = try createInMemoryContext()
+        context.insert(LocalScanRecord(id: "confirm_scan_001", speciesId: "species", scientificName: "Procyon lotor", commonName: "Raccoon"))
+        try context.save()
         let engine = InferenceEngine()
         engine.speciesData = SpeciesData(
             scanId: "confirm_scan_001",
@@ -1458,7 +1461,7 @@ struct InferenceEngineTests {
             ecologyType: "Terrestrial"
         )
 
-        await engine.confirmAIIdentification(modelContext: nil)
+        await engine.confirmAIIdentification(modelContext: context)
 
         #expect(engine.speciesData?.userConfirmedIdentification == true, "confirmAIIdentification must set userConfirmedIdentification to true")
         #expect(engine.speciesData?.userIdentificationOverride == nil, "confirmAIIdentification must not set an override")
@@ -1602,6 +1605,9 @@ struct InferenceEngineTests {
     }
 
     @Test func testApplyIdentificationOverrideMutatesSpeciesData() async throws {
+        let context = try createInMemoryContext()
+        context.insert(LocalScanRecord(id: "override_scan_001", speciesId: "species", scientificName: "Procyon lotor", commonName: "Raccoon"))
+        try context.save()
         let engine = InferenceEngine()
         engine.speciesData = SpeciesData(
             scanId: "override_scan_001",
@@ -1617,7 +1623,7 @@ struct InferenceEngineTests {
             isFlagged: true  // simulate the "Review again" path where all cards were rejected first
         )
 
-        await engine.applyIdentificationOverride(scientificName: "Procyon cancrivorus", modelContext: nil)
+        await engine.applyIdentificationOverride(scientificName: "Procyon cancrivorus", modelContext: context)
 
         #expect(engine.speciesData?.scientificName == "Procyon cancrivorus", "Override must update scientificName immediately")
         #expect(engine.speciesData?.userIdentificationOverride == "Procyon cancrivorus", "Override must set userIdentificationOverride")
@@ -1627,6 +1633,9 @@ struct InferenceEngineTests {
     }
 
     @Test func testResetIdentificationReviewClearsAllFields() async throws {
+        let context = try createInMemoryContext()
+        context.insert(LocalScanRecord(id: "reset_scan_001", speciesId: "species", scientificName: "Procyon lotor", commonName: "Raccoon"))
+        try context.save()
         let engine = InferenceEngine()
         engine.speciesData = SpeciesData(
             scanId: "reset_scan_001",
@@ -1665,7 +1674,7 @@ struct InferenceEngineTests {
             isFlagged: true  // simulate AllCandidatesReviewedView → Reset path
         )
 
-        await engine.resetIdentificationReview(modelContext: nil)
+        await engine.resetIdentificationReview(modelContext: context)
 
         #expect(engine.speciesData?.userIdentificationOverride == nil, "Reset must clear userIdentificationOverride")
         #expect(engine.speciesData?.userConfirmedIdentification == false, "Reset must clear userConfirmedIdentification")

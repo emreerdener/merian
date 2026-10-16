@@ -12,6 +12,9 @@ struct InsightContentView: View {
     /// the queued snapshot during the brief window before `viewModel.queuedContext` is bound.
     var queuedScan: QueuedScanContext?
     var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
+    var prepareCommunityConsent: CommunityConsentPreparation?
+    var prepareSavedReanalysis: SavedReanalysisPreparation?
+    var confidenceReviewControls = ConfidenceReviewControls()
 
     // MARK: - Layout Constants
     private let overlapRadius: CGFloat = 32
@@ -22,6 +25,8 @@ struct InsightContentView: View {
     @State var fullscreenGalleryPresentation: MediaGalleryPresentation?
     @State var fullscreenGalleryPresentationScanId: String?
     @State var fullscreenGalleryPresentationGeneration: UInt64?
+    @State var pendingCommunityConsent: CommunityConsentTicket?
+    @State var pendingCandidateReanalysis: SavedReanalysisTicket?
     @State var pendingCandidateSwipeDismissalRequest:
         InsightCandidateSwipeDismissalRequest?
     private var presentationQueuedScan: QueuedScanContext? {
@@ -108,7 +113,10 @@ struct InsightContentView: View {
                 InsightContentRouterView(
                     viewModel: viewModel,
                     queuedScan: presentationQueuedScan,
-                    onOpenFieldTripOverview: onOpenFieldTripOverview
+                    onOpenFieldTripOverview: onOpenFieldTripOverview,
+                    prepareCommunityConsent: prepareCommunityConsent,
+                    prepareSavedReanalysis: prepareSavedReanalysis,
+                    confidenceReviewControls: confidenceReviewControls
                 )
                     .padding(.top, overlapRadius)
                     .frame(maxWidth: .infinity)
@@ -129,6 +137,12 @@ struct InsightContentView: View {
         // Data Mapping Override
         .onAppear {
             viewModel.inferenceEngine = inferenceEngine
+        }
+
+        .onDisappear {
+            pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
+            pendingCandidateReanalysis?.cancel()
+            pendingCandidateReanalysis = nil
         }
 
         // One typed modal owner prevents sibling SwiftUI sheet hosts from

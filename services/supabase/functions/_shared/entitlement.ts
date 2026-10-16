@@ -121,12 +121,21 @@ function singleEntitlementRow(data: unknown): Record<string, unknown> | null {
 export async function resolveTierForUser(
   userId: string,
   supabaseAdmin: SupabaseClient,
+  signal?: AbortSignal,
 ): Promise<TierResolution> {
   try {
-    const { data, error } = await supabaseAdmin.rpc(
+    signal?.throwIfAborted();
+    const query = supabaseAdmin.rpc(
       "get_user_entitlement_service",
       { p_user_id: userId },
-    ).abortSignal(AbortSignal.timeout(5_000));
+    );
+    if (signal) query.retry(false);
+    const { data, error } = await query.abortSignal(
+      signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(5_000)])
+        : AbortSignal.timeout(5_000),
+    );
+    signal?.throwIfAborted();
 
     const row = singleEntitlementRow(data);
     if (error || !row) throw entitlementUnavailable();

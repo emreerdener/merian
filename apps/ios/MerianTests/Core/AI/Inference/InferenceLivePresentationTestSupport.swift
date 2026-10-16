@@ -263,8 +263,8 @@ final class LivePipelinePresentationHarness {
             ),
             snapshotService: InferenceReviewSnapshotService { _, _ in nil },
             dependencies: .init(
-                beginOverride: { _, _, _ in },
-                persistReview: { _, _ in },
+                beginOverride: { _, _, _, _ in true },
+                persistReview: { _, _, _ in true },
                 clearFlag: { _, _ in },
                 persistSpeciesPatch: { _, _, _ in },
                 sharedPostID: { _ in nil },

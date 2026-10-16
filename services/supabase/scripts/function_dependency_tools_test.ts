@@ -50,6 +50,7 @@ Deno.test("Identify contract changes deploy every direct and shared-adapter cons
     ], graphs),
     [
       "analyze-observation",
+      "analyze-observation-video",
       "audio-spec",
       "confirm-scan-species",
       "enrich-scan",
@@ -57,12 +58,17 @@ Deno.test("Identify contract changes deploy every direct and shared-adapter cons
       "identify-describe",
       "identify-multimodal",
       "insight-chat",
+      "prepare-observation-publication-consent",
       "recover-observation-analyses",
+      "recover-observation-video-analyses",
       "refresh-species-model-content",
       "request-community-identification",
+      "reserve-observation-analysis-source",
+      "retire-observation-analysis-source",
       "review-scan-identification",
       "share-scan-to-explore",
       "update-explore-field-notes",
+      "upload-observation-video",
     ],
   );
 });

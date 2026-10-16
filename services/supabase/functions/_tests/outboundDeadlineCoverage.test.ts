@@ -2,11 +2,12 @@ import { assert, assertEquals } from "@std/assert";
 
 const functionsRoot = new URL("../", import.meta.url);
 
-const EXPECTED_SIGNED_TRANSPORT_CALLS = new Map<string, number>([
+const EXPECTED_DEADLINE_TRANSPORT_CALLS = new Map<string, number>([
   ["_shared/aws.ts", 6],
   ["_shared/analysisHistory/evidenceStorage.ts", 1],
   ["_shared/analysisHistory/publicPhotoStorage.ts", 1],
   ["_shared/identify/media.ts", 2],
+  ["_shared/initialAnalysis/mediaHandoffStorage.ts", 1],
   ["export-dwca/storage.ts", 6],
 ]);
 const GLOBAL_FETCH_CALL_PATTERN =
@@ -16,6 +17,43 @@ interface RuntimeSource {
   path: string;
   source: string;
 }
+
+// This private adapter delegates an already signed Request to the common
+// deadline transport. Match the exact callback, including its PUT-start marker,
+// and bind the match to this call's offset; a wrapper elsewhere is insufficient.
+function isHandoffDeadlineCall(source: string, callStart: number): boolean {
+  const pattern =
+    /\bfetchWithDeadline\(\s*outgoing,\s*\{\s*signal,\s*redirect:\s*"error",\s*cache:\s*"no-store",\s*\},\s*\{\s*timeoutMs:\s*20_000,\s*fetcher:\s*\(input,\s*init\)\s*=>\s*\{\s*started\s*=\s*true;\s*return\s+deps\.fetch\(input,\s*init\);\s*\},\s*\}\s*\)/g;
+  return [...source.matchAll(pattern)].some((match) =>
+    match.index + match[0].indexOf(".fetch(") === callStart
+  );
+}
+
+Deno.test("handoff deadline audit rejects unwrapped or altered injected transports", async () => {
+  const source = await Deno.readTextFile(
+    new URL("_shared/initialAnalysis/mediaHandoffStorage.ts", functionsRoot),
+  );
+  const callStart = source.indexOf(".fetch(");
+  assert(callStart >= 0 && isHandoffDeadlineCall(source, callStart));
+  for (
+    const [before, after] of [
+      ["fetchWithDeadline(outgoing", "unboundedTransport(outgoing"],
+      ["timeoutMs: 20_000", "timeoutMs: 200_000"],
+      [
+        "fetchWithDeadline(outgoing, {\n          signal,",
+        "fetchWithDeadline(outgoing, {",
+      ],
+      ["started = true;", "started = false;"],
+      ["deps.fetch(input, init)", "deps.fetch(input)"],
+    ]
+  ) {
+    assert(source.includes(before));
+    const altered = source.replace(before, after);
+    assert(!isHandoffDeadlineCall(altered, altered.indexOf(".fetch(")));
+  }
+  const bypass = source + "\ndeps.fetch(input, init);";
+  assert(!isHandoffDeadlineCall(bypass, bypass.lastIndexOf(".fetch(")));
+});
 
 async function collectRuntimeSources(
   directory: URL,
@@ -54,7 +92,7 @@ async function collectRuntimeSources(
 
 Deno.test("production outbound transports cannot bypass reviewed deadline adapters", async () => {
   const files = await collectRuntimeSources(functionsRoot);
-  const signedCallCounts = new Map<string, number>();
+  const transportCallCounts = new Map<string, number>();
   const geminiClients: string[] = [];
 
   for (const file of files) {
@@ -79,10 +117,17 @@ Deno.test("production outbound transports cannot bypass reviewed deadline adapte
     const signedFetchPattern = /\.fetch\s*\(/g;
     const matches = [...file.source.matchAll(signedFetchPattern)];
     if (matches.length === 0) continue;
-    signedCallCounts.set(file.path, matches.length);
+    transportCallCounts.set(file.path, matches.length);
 
     for (const match of matches) {
       const callStart = match.index ?? 0;
+      if (file.path === "_shared/initialAnalysis/mediaHandoffStorage.ts") {
+        assert(
+          isHandoffDeadlineCall(file.source, callStart),
+          `${file.path} must delegate this exact fetch through its reviewed deadline callback.`,
+        );
+        continue;
+      }
       const deadlineWindow = file.source.slice(callStart, callStart + 320);
       const expectedRequestAdapter = file.path === "export-dwca/storage.ts"
         ? /\br2Request\s*\(/
@@ -95,10 +140,10 @@ Deno.test("production outbound transports cannot bypass reviewed deadline adapte
   }
 
   assertEquals(
-    [...signedCallCounts.entries()].sort(([left], [right]) =>
+    [...transportCallCounts.entries()].sort(([left], [right]) =>
       left.localeCompare(right)
     ),
-    [...EXPECTED_SIGNED_TRANSPORT_CALLS.entries()].sort(([left], [right]) =>
+    [...EXPECTED_DEADLINE_TRANSPORT_CALLS.entries()].sort(([left], [right]) =>
       left.localeCompare(right)
     ),
   );

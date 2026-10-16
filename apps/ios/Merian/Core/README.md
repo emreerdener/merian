@@ -10,6 +10,15 @@ and the staged cleanup history and residual owners are recorded in the
 
 ## Ownership boundaries
 
+`Data/AnalysisHistory/ObservationConfirmationUndoEligibility` validates exact
+local or recovered confirmation associations. Its retained lookup owner is
+injected from Offline Queue, bounds concurrent scopes to four, and drains leases
+before Auth transitions. Review admission remains the fresh transactional
+boundary; presentation cannot manufacture receipts or bypass current authority.
+The
+[History owner guide](../Features/Insights/History/README.md#durable-confirmation-undo)
+owns UI lifetime and uncertain-save recovery.
+
 - The Core root contains only `AppDIContainer.swift`, which composes live
   dependencies, and `MerianLog.swift`, which defines logging categories.
 - Each domain directory owns its local contract in a `README.md`. New code

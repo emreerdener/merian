@@ -1,0 +1,234 @@
+[
+  {
+    "name": "ordered-audio",
+    "input": {
+      "schema_version": 4,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-00000000000a",
+      "evidence_manifest": {
+        "schema_version": 4,
+        "provenance": {
+          "schema_version": 1,
+          "preprocessing_version": "retained_clip_v1",
+          "source": {
+            "media_id": "00000000-0000-4000-8000-000000000003",
+            "content_type": "video/mp4",
+            "byte_count": 100,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "parameters": {
+            "timescale": 600,
+            "frame_pipeline": "direct_inference_v1",
+            "decode_long_edge": 2048,
+            "duration_ticks": 3000,
+            "sampling": "five_interior_v1",
+            "preferred_track_transform": true,
+            "crop": "square_v1",
+            "crop_center_basis_points": 5000,
+            "inference_long_edge": 1024,
+            "encoding_quality_percent": 85
+          },
+          "frames": [
+            {
+              "index": 0,
+              "source_media_id": "00000000-0000-4000-8000-000000000003",
+              "requested_time_ticks": 300,
+              "actual_time_ticks": 300,
+              "artifact": {
+                "media_id": "00000000-0000-4000-8000-000000000004",
+                "content_type": "image/jpeg",
+                "byte_count": 100,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            },
+            {
+              "index": 1,
+              "source_media_id": "00000000-0000-4000-8000-000000000003",
+              "requested_time_ticks": 900,
+              "actual_time_ticks": 900,
+              "artifact": {
+                "media_id": "00000000-0000-4000-8000-000000000005",
+                "content_type": "image/jpeg",
+                "byte_count": 100,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            },
+            {
+              "index": 2,
+              "source_media_id": "00000000-0000-4000-8000-000000000003",
+              "requested_time_ticks": 1500,
+              "actual_time_ticks": 1500,
+              "artifact": {
+                "media_id": "00000000-0000-4000-8000-000000000006",
+                "content_type": "image/jpeg",
+                "byte_count": 100,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            },
+            {
+              "index": 3,
+              "source_media_id": "00000000-0000-4000-8000-000000000003",
+              "requested_time_ticks": 2100,
+              "actual_time_ticks": 2100,
+              "artifact": {
+                "media_id": "00000000-0000-4000-8000-000000000007",
+                "content_type": "image/jpeg",
+                "byte_count": 100,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            },
+            {
+              "index": 4,
+              "source_media_id": "00000000-0000-4000-8000-000000000003",
+              "requested_time_ticks": 2700,
+              "actual_time_ticks": 2700,
+              "artifact": {
+                "media_id": "00000000-0000-4000-8000-000000000008",
+                "content_type": "image/jpeg",
+                "byte_count": 100,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            }
+          ],
+          "audio": {
+            "source_media_id": "00000000-0000-4000-8000-000000000003",
+            "track": "first_audio_track",
+            "start_ticks": 600,
+            "end_ticks": 1800,
+            "sample_rate": 44100,
+            "sample_count": 88200,
+            "channels": 1,
+            "bits_per_sample": 16,
+            "encoding": "pcm_s16le",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000009",
+              "content_type": "audio/wav",
+              "byte_count": 176444,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        },
+        "descriptions": [
+          "  synthetic first  ",
+          "🦋 é",
+          ""
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 6,
+      "history_protocol": 9,
+      "expected_processor_permission": "google_gemini",
+      "request_digest": "aba84cfdc578ba7daf7c3e6c4704d646e9ebea406f4a6e97e0440ec2d1725bc0"
+    },
+    "canonical_body": "{\"analysis_id\":\"00000000-0000-4000-8000-000000000002\",\"entitlement_protocol\":3,\"evidence_manifest\":{\"descriptions\":[\"  synthetic first  \",\"🦋 é\",\"\"],\"provenance\":{\"audio\":{\"artifact\":{\"byte_count\":176444,\"content_type\":\"audio/wav\",\"media_id\":\"00000000-0000-4000-8000-000000000009\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"bits_per_sample\":16,\"channels\":1,\"encoding\":\"pcm_s16le\",\"end_ticks\":1800,\"sample_count\":88200,\"sample_rate\":44100,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\",\"start_ticks\":600,\"track\":\"first_audio_track\"},\"frames\":[{\"actual_time_ticks\":300,\"artifact\":{\"byte_count\":100,\"content_type\":\"image/jpeg\",\"media_id\":\"00000000-0000-4000-8000-000000000004\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"index\":0,\"requested_time_ticks\":300,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\"},{\"actual_time_ticks\":900,\"artifact\":{\"byte_count\":100,\"content_type\":\"image/jpeg\",\"media_id\":\"00000000-0000-4000-8000-000000000005\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"index\":1,\"requested_time_ticks\":900,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\"},{\"actual_time_ticks\":1500,\"artifact\":{\"byte_count\":100,\"content_type\":\"image/jpeg\",\"media_id\":\"00000000-0000-4000-8000-000000000006\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"index\":2,\"requested_time_ticks\":1500,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\"},{\"actual_time_ticks\":2100,\"artifact\":{\"byte_count\":100,\"content_type\":\"image/jpeg\",\"media_id\":\"00000000-0000-4000-8000-000000000007\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"index\":3,\"requested_time_ticks\":2100,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\"},{\"actual_time_ticks\":2700,\"artifact\":{\"byte_count\":100,\"content_type\":\"image/jpeg\",\"media_id\":\"00000000-0000-4000-8000-000000000008\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"index\":4,\"requested_time_ticks\":2700,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\"}],\"parameters\":{\"crop\":\"square_v1\",\"crop_center_basis_points\":5000,\"decode_long_edge\":2048,\"duration_ticks\":3000,\"encoding_quality_percent\":85,\"frame_pipeline\":\"direct_inference_v1\",\"inference_long_edge\":1024,\"preferred_track_transform\":true,\"sampling\":\"five_interior_v1\",\"timescale\":600},\"preprocessing_version\":\"retained_clip_v1\",\"schema_version\":1,\"source\":{\"byte_count\":100,\"content_type\":\"video/mp4\",\"media_id\":\"00000000-0000-4000-8000-000000000003\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}},\"schema_version\":4},\"expected_processor_permission\":\"google_gemini\",\"history_protocol\":9,\"identification_protocol\":6,\"observation_id\":\"00000000-0000-4000-8000-000000000001\",\"request_digest\":\"aba84cfdc578ba7daf7c3e6c4704d646e9ebea406f4a6e97e0440ec2d1725bc0\",\"schema_version\":4,\"source_analysis_id\":\"00000000-0000-4000-8000-00000000000a\"}"
+  },
+  {
+    "name": "silent",
+    "input": {
+      "schema_version": 4,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-00000000000a",
+      "evidence_manifest": {
+        "schema_version": 4,
+        "provenance": {
+          "schema_version": 1,
+          "preprocessing_version": "retained_clip_v1",
+          "source": {
+            "media_id": "00000000-0000-4000-8000-000000000003",
+            "content_type": "video/mp4",
+            "byte_count": 100,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "parameters": {
+            "timescale": 600,
+            "frame_pipeline": "direct_inference_v1",
+            "decode_long_edge": 2048,
+            "duration_ticks": 3000,
+            "sampling": "five_interior_v1",
+            "preferred_track_transform": true,
+            "crop": "square_v1",
+            "crop_center_basis_points": 5000,
+            "inference_long_edge": 1024,
+            "encoding_quality_percent": 85
+          },
+          "frames": [
+            {
+              "index": 0,
+              "source_media_id": "00000000-0000-4000-8000-000000000003",
+              "requested_time_ticks": 300,
+              "actual_time_ticks": 300,
+              "artifact": {
+                "media_id": "00000000-0000-4000-8000-000000000004",
+                "content_type": "image/jpeg",
+                "byte_count": 100,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            },
+            {
+              "index": 1,
+              "source_media_id": "00000000-0000-4000-8000-000000000003",
+              "requested_time_ticks": 900,
+              "actual_time_ticks": 900,
+              "artifact": {
+                "media_id": "00000000-0000-4000-8000-000000000005",
+                "content_type": "image/jpeg",
+                "byte_count": 100,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            },
+            {
+              "index": 2,
+              "source_media_id": "00000000-0000-4000-8000-000000000003",
+              "requested_time_ticks": 1500,
+              "actual_time_ticks": 1500,
+              "artifact": {
+                "media_id": "00000000-0000-4000-8000-000000000006",
+                "content_type": "image/jpeg",
+                "byte_count": 100,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            },
+            {
+              "index": 3,
+              "source_media_id": "00000000-0000-4000-8000-000000000003",
+              "requested_time_ticks": 2100,
+              "actual_time_ticks": 2100,
+              "artifact": {
+                "media_id": "00000000-0000-4000-8000-000000000007",
+                "content_type": "image/jpeg",
+                "byte_count": 100,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            },
+            {
+              "index": 4,
+              "source_media_id": "00000000-0000-4000-8000-000000000003",
+              "requested_time_ticks": 2700,
+              "actual_time_ticks": 2700,
+              "artifact": {
+                "media_id": "00000000-0000-4000-8000-000000000008",
+                "content_type": "image/jpeg",
+                "byte_count": 100,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            }
+          ],
+          "audio": null
+        },
+        "descriptions": [
+          "  synthetic first  ",
+          "🦋 é",
+          ""
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 6,
+      "history_protocol": 9,
+      "expected_processor_permission": "google_gemini",
+      "request_digest": "d1019ba98f969689015e387b12a3659e60e9d9d35122745abf976eaa4711427d"
+    },
+    "canonical_body": "{\"analysis_id\":\"00000000-0000-4000-8000-000000000002\",\"entitlement_protocol\":3,\"evidence_manifest\":{\"descriptions\":[\"  synthetic first  \",\"🦋 é\",\"\"],\"provenance\":{\"audio\":null,\"frames\":[{\"actual_time_ticks\":300,\"artifact\":{\"byte_count\":100,\"content_type\":\"image/jpeg\",\"media_id\":\"00000000-0000-4000-8000-000000000004\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"index\":0,\"requested_time_ticks\":300,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\"},{\"actual_time_ticks\":900,\"artifact\":{\"byte_count\":100,\"content_type\":\"image/jpeg\",\"media_id\":\"00000000-0000-4000-8000-000000000005\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"index\":1,\"requested_time_ticks\":900,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\"},{\"actual_time_ticks\":1500,\"artifact\":{\"byte_count\":100,\"content_type\":\"image/jpeg\",\"media_id\":\"00000000-0000-4000-8000-000000000006\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"index\":2,\"requested_time_ticks\":1500,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\"},{\"actual_time_ticks\":2100,\"artifact\":{\"byte_count\":100,\"content_type\":\"image/jpeg\",\"media_id\":\"00000000-0000-4000-8000-000000000007\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"index\":3,\"requested_time_ticks\":2100,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\"},{\"actual_time_ticks\":2700,\"artifact\":{\"byte_count\":100,\"content_type\":\"image/jpeg\",\"media_id\":\"00000000-0000-4000-8000-000000000008\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"index\":4,\"requested_time_ticks\":2700,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\"}],\"parameters\":{\"crop\":\"square_v1\",\"crop_center_basis_points\":5000,\"decode_long_edge\":2048,\"duration_ticks\":3000,\"encoding_quality_percent\":85,\"frame_pipeline\":\"direct_inference_v1\",\"inference_long_edge\":1024,\"preferred_track_transform\":true,\"sampling\":\"five_interior_v1\",\"timescale\":600},\"preprocessing_version\":\"retained_clip_v1\",\"schema_version\":1,\"source\":{\"byte_count\":100,\"content_type\":\"video/mp4\",\"media_id\":\"00000000-0000-4000-8000-000000000003\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}},\"schema_version\":4},\"expected_processor_permission\":\"google_gemini\",\"history_protocol\":9,\"identification_protocol\":6,\"observation_id\":\"00000000-0000-4000-8000-000000000001\",\"request_digest\":\"d1019ba98f969689015e387b12a3659e60e9d9d35122745abf976eaa4711427d\",\"schema_version\":4,\"source_analysis_id\":\"00000000-0000-4000-8000-00000000000a\"}"
+  }
+]

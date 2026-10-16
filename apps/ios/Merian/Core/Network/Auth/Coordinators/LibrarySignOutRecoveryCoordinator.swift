@@ -5,7 +5,7 @@ struct LibrarySignOutRecoveryCoordinator {
     struct Dependencies {
         let currentSession: () -> AuthTransitionSession?
         let clearSourceSession: () async -> Bool
-        let clearLibrary: () -> Bool
+        let clearLibrary: () async -> Bool
         let createDestination: () async -> AuthTransitionSession?
         let completePurchases: (UUID) async -> Bool
     }
@@ -31,7 +31,8 @@ struct LibrarySignOutRecoveryCoordinator {
             }
             if journal.phase == .sourceCleared {
                 guard dependencies.currentSession() == nil,
-                      dependencies.clearLibrary() else { return false }
+                      await dependencies.clearLibrary(),
+                      dependencies.currentSession() == nil else { return false }
                 journal.phase = .libraryCleared
                 try store.save(journal)
             }

@@ -71,3 +71,11 @@ make test-ios-event-routing
 
 See the canonical
 [Event and Presentation Routing contract](../../../../../docs/system-architecture/10-event-and-presentation-routing.md).
+
+`historicalReanalysis(HistoricalReanalysisTarget)` is an account-sensitive
+prepared route. Coalescing requires the same observation, exact historical
+analysis and expected owner. It contains no media URLs, mutable scan projection,
+provider assignment or generated child identity. Capture's optional protected
+access boundary rejects it while activation is disabled and validates its owner
+and source before presenting the separate editor. Legacy refinement retains its
+existing route contract.

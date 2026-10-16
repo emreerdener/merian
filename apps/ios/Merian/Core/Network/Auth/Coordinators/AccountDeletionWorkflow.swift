@@ -129,7 +129,7 @@ enum AccountDeletionWorkflow {
         recordCleanupPending: @MainActor () -> Bool,
         recordManualProviderRevocation: @MainActor () -> Void,
         performLocalSignOut: @MainActor () async -> Bool,
-        purgeLocalData: @MainActor () -> Bool,
+        purgeLocalData: @MainActor () async -> Bool,
         acknowledgeRecovery: @MainActor () async -> Bool,
         recordRecoveryRetirementPending: @MainActor () -> Bool,
         retireRecoveryCapability: @MainActor () -> Bool,
@@ -144,7 +144,7 @@ enum AccountDeletionWorkflow {
             recordManualProviderRevocation()
         }
         guard await performLocalSignOut() else { return false }
-        guard purgeLocalData() else { return false }
+        guard await purgeLocalData() else { return false }
         guard await acknowledgeRecovery() else { return false }
         guard recordRecoveryRetirementPending() else { return false }
         guard retireRecoveryCapability() else { return false }
@@ -153,12 +153,12 @@ enum AccountDeletionWorkflow {
 
     static func performRecoveryRetirement(
         performLocalSignOut: @MainActor () async -> Bool,
-        purgeLocalData: @MainActor () -> Bool,
+        purgeLocalData: @MainActor () async -> Bool,
         retireRecoveryCapability: @MainActor () -> Bool,
         resolveCleanup: @MainActor () -> Bool
     ) async -> Bool {
         guard await performLocalSignOut() else { return false }
-        guard purgeLocalData() else { return false }
+        guard await purgeLocalData() else { return false }
         guard retireRecoveryCapability() else { return false }
         return resolveCleanup()
     }
@@ -203,11 +203,11 @@ enum AccountDeletionWorkflow {
 
     static func performPendingLocalCleanup(
         performLocalSignOut: @MainActor () async -> Bool,
-        purgeLocalData: @MainActor () -> Bool,
+        purgeLocalData: @MainActor () async -> Bool,
         resolveCleanup: @MainActor () -> Bool
     ) async -> Bool {
         guard await performLocalSignOut() else { return false }
-        guard purgeLocalData() else { return false }
+        guard await purgeLocalData() else { return false }
         return resolveCleanup()
     }
 }

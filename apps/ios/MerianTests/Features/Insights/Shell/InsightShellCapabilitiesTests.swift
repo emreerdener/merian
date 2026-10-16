@@ -7,6 +7,33 @@ import Testing
 
 @MainActor
 struct InsightShellCapabilitiesTests {
+    @Test func audioReanalysisProposalCanBeAcceptedWithoutAlternatives() {
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        engine.activeMedia = ActiveScanMedia(items: [.audio("fixture.wav")])
+        engine.speciesData = SpeciesData(
+            scanId: "proposal", commonName: "Fixture", scientificName: "Fixtureus species",
+            insightData: InsightData(aiReasoning: "A new proposal.", hazardType: "none"),
+            confidenceScore: 0.99, isBiological: true, isLiveCapture: true,
+            isInvasive: false, ecologyType: "wild", inferenceTier: "pro"
+        )
+        engine.speciesData?.aiReview = .init(authority: .init(
+            revision: 1, state: .awaitingAcceptance, originScanID: "00000000-0000-4000-8000-000000000001", originIdentification: nil
+        ))
+        viewModel.inferenceEngine = engine
+        InsightSheetTestSupport.bindToolbarPresentation(viewModel, scanId: "proposal")
+        #expect(viewModel.hasStandaloneAudio)
+        #expect(viewModel.reviewAlternativeCandidates.isEmpty)
+        #expect(viewModel.canConfirm)
+        #expect(!viewModel.canUndoIncorrect)
+        engine.speciesData?.aiReview.needsAttention = true
+        #expect(!viewModel.canConfirm)
+        engine.speciesData?.aiReview.needsAttention = false
+        engine.speciesData?.aiReview.optimisticState = .aiRejected
+        #expect(!viewModel.canConfirm)
+        #expect(viewModel.canUndoIncorrect)
+    }
+
     @Test func testTopMenuHidesConfirmAndReviewForStrongNonCompetitiveCandidates() {
         let viewModel = InsightSheetViewModel()
         let engine = InferenceEngine()

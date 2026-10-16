@@ -157,7 +157,7 @@ observations.
 | `ImagesCarousel`                                                         | Horizontally scrolling mixed-media strip combining live captures, persisted user media pages, and reference images. `ActiveScanMedia` preserves images, videos, standalone audio clips, and descriptions in one stable timeline. A missing video resolves in place to its one retained poster or middle sampled frame; if a submitted user visual becomes unavailable and no usable user visual remains, `Original photo unavailable` is appended after all nonvisual, reference, and loading pages. Intentionally audio/description-only scans never synthesize a photo error. Images and playable videos open the Core `FullscreenMediaGallery`; audio, descriptions, loading pages, and the terminal unavailable state stay out. Page identity remains stable across queued/live/result handoff and asynchronous fallback replacement.                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `ConfidenceBadge`                                                        | Tappable liquid-glass capsule showing the AI's confidence band (Strong / Possible / Weak) with a shimmering glare animation; opens `ConfidenceExplanationSheet` on a completed-result tap. When `userIdentificationOverride` is non-nil or `userConfirmedIdentification` is `true`, shows "Confirmed" (green, `checkmark.circle.fill`). **Analyzing mode** (`analyzingPhrase != nil`): background glass layers collapse to transparent, icon switches to `sparkle`, text uses the AI gradient on a minimal capsule border, and the optional private analyzing callback receives the tap without opening the explanation sheet. Label changes use an opacity-only content transition and the capsule width springs to fit the new string. The completed-state glare is painted inside a fixed Canvas, so neither animation creates translated child geometry that can enlarge the Button's accessibility frame. Phrases are auto-suffixed with `...` if not already ending with one.                                                                                                                                                                                                                                                                            |
 | `ConfidenceSpectrum`                                                     | Visual confidence spectrum with `SpectrumNode` labels; band thresholds derived from `InferenceConfidencePolicy`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `ConfidenceExplanationSheet`                                             | Sub-sheet explaining the confidence scale, AI limitations, and tips for improving scan accuracy. When an alternatives-exhausted, override, or confirmed state is active, renders bespoke explanation cards at the top of the modal payload that allow the user to undo, reset, review again, or ask the community for help. **Review-state cards (mutually exclusive):** `AllCandidatesReviewedView` (`alternativesExhausted == true`; user rejected all swipe-deck alternatives), `OverriddenView` (user selected an alternative species), and `ConfirmedView` (user confirmed the AI match). Contains `ConfidenceHeader`, `ConfidenceSpectrum`, `ModelInfoSection`, `AIMistakesBanner`, and `ProTips`. The sheet supplies the environment-observed Pro state to `ProTips`; Settings, refinement-route, SwiftData snapshot, haptic, image, and review-mutation effects resolve only through Identification Review Services.                                                                                                                                                                                                                                                                                                                                   |
+| `ConfidenceExplanationSheet`                                             | Sub-sheet explaining the confidence scale, AI limitations, and tips for improving scan accuracy. When an alternatives-exhausted, override, or confirmed state is active, renders bespoke explanation cards at the top of the modal payload that allow the user to undo, reset, review again, or ask the community for help. **Alternative/confirmation cards (mutually exclusive within their stack):** `AllCandidatesReviewedView` (`alternativesExhausted == true`; user rejected all swipe-deck alternatives), `OverriddenView` (user selected an alternative species), and `ConfirmedView` (user confirmed the AI match). A separate review notice distinguishes explicit rejection, a reanalysis proposal awaiting acceptance, and review needing attention; it exposes eligible Undo or proposal acceptance and explains unavailable actions. Contains `ConfidenceHeader`, `ConfidenceSpectrum`, `ModelInfoSection`, `AIMistakesBanner`, and `ProTips`. The sheet supplies the environment-observed Pro state to `ProTips`; Settings, refinement-route, SwiftData snapshot, haptic, image, and review-mutation effects resolve only through Identification Review Services.                                                                              |
 | `ModelInfoSection`                                                       | Informational card inside `ConfidenceExplanationSheet` showing which Naturebook AI tier processed the scan. Standard tier (`inferenceTier == nil` or `"flash"`) renders a blue `cpu` icon with a gray "Standard" capsule badge. Pro tier (`inferenceTier == "pro"`) renders an indigo `sparkles` icon with an indigo "Pro" capsule badge and a "Powered by Gemini 2.5 Pro" footnote. Positioned between `ConfidenceSpectrum` and `AIMistakesBanner`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `CandidatesCard`                                                         | Identification candidates card with a multi-state approve/deny and Community handoff UX. Shown only with policy-visible candidates from `CandidateReviewVisibilityPolicy`, not raw `speciesData.candidates`. Hidden after confirmation, override, or alternatives exhaustion; when `alternativesExhausted == true`, `AllCandidatesReviewedView` inside `ConfidenceExplanationSheet` replaces the card with a condensed summary, Review again, and Ask the community affordances.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `TaxonomyCard`                                                           | Collapsible card showing the full Linnaean tree. Also reused by the Explore detail page when public taxonomy data is available.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -2508,6 +2508,17 @@ presentation generation.
   original date is unavailable; import time is not relabeled as completion.
   Older candidate JSON that cannot decode as current alternatives is omitted; it
   does not prevent previewing or restoring an otherwise valid saved result.
+- When a prepared assembler explicitly injects the historical reanalysis route,
+  a source-qualified preview exposes **Reanalyze from this identification**.
+  This preserves the exact historical source even when another result is
+  current. It opens evidence review; it does not submit inference or change
+  selection. Pending selection, missing source or stale context removes this
+  capability. History read/restore and this preparation do not require inference
+  consent; durable admission checks current consent later. Shell consumes the
+  staged handoff only after nested sheet dismissal, checking parent
+  presentation, account generation, observation context and immutable source
+  again. Root routing owns the later Insight-to-Capture transition. No ordinary
+  access gate is enabled by this prepared integration.
 - **Use this identification** stages a durable conditional selection before
   dispatch. The current scan remains unchanged until current server authority
   and the operation outcome are admitted together. Choosing a result does not
@@ -2521,6 +2532,22 @@ presentation generation.
   Dismissing the sheet clears private presentation values but preserves that
   operation. Opening the sheet again can retry it. Ordinary scheduling remains
   disabled.
+
+A separate prepared `ObservationReanalysisOperationStatus` read projects local
+submitted work for one owner and observation in bounded child-ID pages. It keeps
+consent, unavailable evidence, reconciliation, retry-limit and terminal failure
+states distinct, without returning private job payloads. Reading status never
+retries or discards work and does not require inference consent. Its local
+processing phase makes no claim about provider execution. Completed results
+belong to history; a cleanup receipt alone never means completion. A separate
+prepared **Reanalysis status** menu and native sheet use this reader, including
+when history contains only one completed result. The history menu still requires
+multiple results. Status offers refresh and bounded paging, without retry,
+discard or inference actions. An empty page with a continuation keeps its More
+requests action so omitted corruption cannot hide later valid work. Account,
+parent and presentation changes clear the sheet; delayed reads cannot restore
+its private state. Phase-only rows contain no source photos or provider claims.
+Explicit remediation remains separate, and ordinary status access is nil.
 
 An acknowledged selection or authority revision invalidates the existing rows,
 preview and photo, including titles derived from community review. A delayed
@@ -2553,3 +2580,290 @@ after harmless pagination or preview. History lives in
 [local ownership map](../../apps/ios/Merian/Features/Insights/History/README.md)
 and
 [activation hold](../backend-and-data/06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
+
+### Prepared account composition
+
+The inert App-owned `PreparedHistoryReanalysisComposition` binds History,
+Reanalysis status and protected Capture to one supplied cloud/auth context.
+Availability, sheet sessions, private-photo resolution, editor loading and
+original-photo preparation use that context. Same-owner return after an account
+generation change cannot revive an earlier sheet or route handoff. Construction
+performs no I/O or queue work. Exact submitted-child and erasure callbacks use
+the AppDI queue's existing owners.
+
+Ordinary live access remains nil. This composition neither enrolls a scan nor
+changes selection, and read-only History/status does not require inference
+consent. Explicit enrollment admission and activation qualification remain
+separate work.
+
+The prepared saved-result entry reuses the existing **Reanalyze species** menu
+action. When injected, it takes precedence over legacy refinement and supplies
+its own unlocked presentation independently of legacy Pro access. A first result
+is enrolled using the correction visible at the tap, then opens the exact
+imported identification; older results with no immutable photos start an empty
+editor for explicit added evidence. An enrolled result freezes the selected
+analysis and acknowledged revision before suspension. A changed account,
+container, correction, source or presentation prevents routing. Failures do not
+fall back to the replacement flow. Dismissing the caller does not cancel another
+caller's shared enrollment. Ordinary access remains disabled, History still
+requires more than one result, and opening History/status never enrolls or
+requires inference consent.
+
+The prepared protection applies to Reanalyze from Field Chat, incorrect-result
+guidance, candidate review and the confidence explanation as well as the menu.
+The request is fixed at the tap, before any child dialog closes. A nested
+candidate/confidence handoff carries that same request through both dismissals.
+Changing the displayed result, closing the parent or switching accounts
+invalidates the handoff; it cannot select a newer result or enter legacy
+replacement. The parent remains visible on failure. All ordinary activation
+gates remain disabled.
+
+### Default-off atomic installation
+
+The App root retains a single optional prepared bundle. Its source-controlled
+qualification constant is false and prevents factory evaluation. No runtime
+preference, remote flag or consent change enables this gate. The prepared root
+wiring passes its exact Capture access before workspace State initialization and
+supplies History/status/saved-result entry together through a feature-owned
+optional environment value to all Insight hosts. Explicitly injected test
+feature dependencies win. Ordinary live factories remain unchanged and all
+accesses remain nil while the gate is false. This assembly does not enroll,
+select, publish or start work; current account/session and presentation fences
+continue to govern every explicit action.
+
+### Legacy mutations during enrollment
+
+Staged enrollment and acknowledged history metadata block the scan-only review
+and Insight Community create/edit workflows locally. The common review owner
+checks before optimistic changes, action generations, lookups or queue writes.
+Community callbacks use a fresh ModelContext check even when their editor was
+opened before enrollment. Missing review context, deleted or ambiguous scan
+rows, or failed lookups deny the operation; async completions recheck before
+presentation effects. Unenrolled legacy workflows remain available. This
+protection does not substitute the selected analysis or authorize analysis-bound
+review or publication.
+
+Queued legacy writes also check inside their database transaction. An existing
+legacy review job blocked by enrollment keeps its original request in a held
+state without a retry deadline. A late success, failure or conflict-recovery
+response cannot overwrite history authority. Backend generation locks remain the
+final authority for an enrollment race during network execution.
+
+### Prepared historical-result review
+
+The gated history preview now has explicitly injected analysis-bound review
+controls. Confirmation names the immutable primary result or an explicitly
+entered, validated species name. Mark incorrect and Undo apply only to the
+previewed result; neither selects it. Undo requires its completed applied Reject
+receipt and exact current rejection association.
+
+The button callback captures one immutable request and durably stages it before
+any asynchronous delivery. An uncertain local save retains that request for an
+exact retry, even if a status read returns nothing. Pending and held reviews are
+shown distinctly; held work is not automatically restarted. A terminal conflict
+or unverified name requires a fresh preview without silently updating the old
+request's revisions.
+
+A queue pass-exit generation and foreground entry trigger scoped local status
+reads, without idle polling or an idle account lease. Closing, backing out,
+paging, account changes and acknowledged revision changes invalidate nested
+review controls. Fresh unfinished-review checks block restoration, selection
+Undo and reanalysis. All ordinary access and activation gates remain disabled;
+prepared community consent is described below, with operational qualification
+still pending.
+
+### Prepared selected-result review baseline
+
+The default-off App composition also prepares an owner-bound selected-result
+review capability using the existing history Session. Its toolbar snapshot
+records the exact selected analysis and revision only after loading the saved
+parent into the presentation. Metadata refreshes and collection edits cannot
+adopt a newer identification while an older result remains visible. Opening the
+capability requires that frozen baseline and its immutable review ticket still
+match fresh local authority, with no pending selection. It neither enrolls nor
+dispatches review and holds no idle Auth lease. Ordinary access stays disabled.
+
+The retained selected-review host binds during presentation lifecycle rather
+than view rendering. Protected toolbar actions use its immutable ticket and
+primary scientific name; the actual tap synchronously persists one request
+before waking delivery. Retry saving review retains the same operation after an
+uncertain local save. Delayed confirmation callbacks carry a binding token, so
+closing and reopening even the same scan cannot authorize an old action.
+
+The confidence badge consumes that same ticket's protected confirmation state,
+so an acknowledged primary confirmation or named correction displays
+**Confirmed** even when legacy display flags are intentionally absent. Pending
+review attention, rejection and awaiting-acceptance presentation retain their
+existing priority. The badge does not infer Undo permission: the receipt lookup,
+current ticket and retained action still establish eligibility independently.
+
+When the immutable primary does not permit direct species confirmation but
+allows an explicit name, that same menu action reads **Confirm species name**
+and opens `SelectedAnalysisNameConfirmationSheet`. Opening and typing create no
+review operation. The final tap validates the bounded name and original host,
+owner, displayed authority and both presentation generations, then persists
+synchronously through the retained review model. A busy or dismissing shell
+cannot install a new form. Dismissal clears only the name form; an uncertain
+saved request remains in the parent host for exact retry. A stale dismissal
+cannot clear a newer form. No legacy taxonomy override or fresh ticket is used.
+
+The prepared selected-result **Review alternatives** menu and History preview
+open a retained candidate review bound to that exact displayed ticket. Each
+choice retains its original immutable array ordinal and scientific name;
+duplicate names remain distinct. The final button or right-swipe stages the
+candidate synchronously before animation or dismissal. Local skipping and deck
+restart do not reject or exhaust an analysis. Closing the deck leaves an
+uncertain review request with its parent owner for exact retry.
+
+The candidate card uses saved provenance for confidence qualification and the
+exact historical photo loader for original evidence. Unavailable originals show
+an unavailable state, never a current-parent substitute. Species-reference
+imagery remains separately injected. The alternatives card design is unchanged.
+Biological and Confidence controls carry the same frozen choices and a
+`CandidateReviewTicket`. The actual tap prepares the retained model before the
+Confidence sheet dismisses; only the matching current, idle root can consume
+that one-use ticket. Cancellation closes only its deck, preserving any durable
+review. Both local and engine presentation generations are checked. A legacy
+Chat alternatives callback rechecks enrollment after dismissal and is dropped if
+legacy mutation is no longer permitted; it never constructs a replacement
+history ticket. History owns its nested candidate presentation above the dynamic
+list section; opening or closing that child does not end the parent review
+session. Actual shell dismissal and account/scope loss still retire the session.
+Protected candidate cards allow vertical scrolling alongside horizontal review;
+the alternatives card layout remains unchanged. Ordinary access and activation
+gates stay disabled.
+
+Queue pass completion refreshes owner-bound receipt status. Applied completion
+refreshes the reconciled parent once; it never projects a child directly. A
+conflict or unsuccessful verification retires the old controls and requires an
+explicit fresh presentation. Scope loss or dismissal clears private presentation
+state without canceling durable delivery. There is no idle polling or Auth
+lease.
+
+Fresh enrollment protection takes precedence even for a staged intent, missing
+protected access, or a failed local lookup. Protected scans withhold older
+candidate, override, reset and Confidence review controls; callbacks already
+queued by those surfaces recheck protection before mutation. Ordinary unenrolled
+scans retain their legacy review flow. Protected reanalysis in the Confidence
+footer keeps its separate exact-source handoff. All activation gates remain
+false; prepared community consent is described below, and integrated operational
+qualification remains open.
+
+## Prepared community photo consent
+
+With explicit prepared History access, **Ask the community** checks for an
+existing request before showing **Choose photos to share**. An existing local
+request and a remote request are displayed separately; neither can be replaced
+from this screen. Uncertain reads keep new sharing blocked. The descriptive
+preflight must still match the displayed historical identification and its
+review revisions.
+
+The chooser starts with no selection and lists every immutable candidate. Users
+explicitly select one to six photos, in the order they want to share, and can
+preview one downsampled saved photo at a time. Final confirmation submits
+exactly that ordered selection, without private notes. The selected
+identification does not change. Existing AI rejection does not itself prohibit
+community help; backend preflight remains authoritative for eligibility.
+
+A save failure retains the exact choice and operation UUID at the parent Insight
+scope. Closing and reopening History, switching historical entries or refreshing
+authority cannot create a replacement while that choice is held. Retry saves the
+same request. Actual parent teardown or account/container change clears private
+presentation state; persisted operations continue under their existing owner
+fences. A committed save followed by an error is recovered as the original
+durable operation, never interpreted as permission to resubmit with another
+identity.
+
+Status uses local receipt refresh after actual delivery passes and foreground
+opportunities. No idle polling or Auth lease is retained. Server admission is a
+historical receipt, not a guarantee that a post is currently visible. All
+ordinary access and activation gates remain disabled; dedicated consent UI
+automation and integrated operational qualification remain pending.
+
+The selected Insight screen shares this flow through its existing retained
+History session. Its toolbar and biological content use the already-displayed
+selected ticket. Confidence and candidate sheets capture a one-use presentation
+handle at the tap before dismissing; they never reconstruct the target in a
+dismissal callback. Scope, authority or selection changes invalidate the handle.
+The chooser shares the parent continuation with History, so moving between the
+two entry points cannot replace an uncertain sharing choice. Protected scans
+with unavailable access do not fall back to legacy publication. The shell admits
+a chooser only when its presentation and dismissal slots are idle, so an earlier
+sheet's delayed dismissal cannot close a newer chooser.
+
+The Debug-only photo-consent UI scenario uses real enrolled V2 storage and the
+production prepare/stage path with strict synthetic external boundaries. It
+checks empty-selection admission, explicit photo order, private preview and
+existing-request occupancy after reopening from selected Insight and a different
+History result. Its local wake checks the durable request and unchanged
+selection; it never calls a provider or enables rollout. Execution evidence is
+recorded separately from this fixture contract.
+
+### Legacy reanalysis admission fence
+
+Legacy refinement routes check fresh enrollment protection before Capture
+staging or the Pro paywall. A staged enrollment intent, acknowledged history,
+damaged intent, missing record or unavailable context denies the route. The
+independent historical route still requires its exact protected access. Insight
+toolbar, chat, biological/candidate and confidence actions withhold legacy
+reanalysis when protected access is absent and repeat the fence at delayed
+handoffs. The content action checks again before feedback or navigation.
+Ordinary unenrolled scans retain legacy behavior; protected failure never
+authorizes replacement.
+
+Already-open legacy drafts repeat enrollment checks before admission preview and
+after its suspension, before enqueue. A denial preserves the draft and its
+original target. Completed legacy results also check fresh protection before
+copying source tags, collections or notes; the existing deletion fence remains
+independent. This does not cancel or refund an already dispatched legacy child,
+and legacy requests do not carry a server-verifiable parent association.
+
+### Prepared protected Field Chat presentation
+
+Enrolled scans use a dedicated Field Chat presentation, with the identification
+actually displayed at entry. Protected entry runs before legacy Pro or chat
+availability caches; missing access or a stale baseline shows an unavailable
+message without falling back. The initial request preserves the displayed
+analysis and revisions, exact question and original IDs before any network work.
+
+The composer saves synchronously at the final tap. If saving is uncertain, its
+parent retains the same question and IDs across sheet reopening and offers
+retrying that save without sending it. Saved pending questions offer an explicit
+send action; interrupted questions offer recovery of that same request. A
+running attempt cannot replay until its original claim expires. Reading status,
+reopening or changing connectivity never automatically sends. Completed replies
+display only the original saved question and immutable assistant receipt, with
+bounded pages.
+
+Closing the sheet releases UI state without cancelling durable delivery.
+Account/container/route changes invalidate presentation, and task-exit signals
+refresh local state without polling. An uncertain request continues to occupy
+its observation; a generic HTTP error or absent read cannot authorize a new
+question in its place. Server-issued no-admission remediation remains required.
+The UI is assembled only in the inert complete History bundle; rollout and
+ordinary access remain disabled. A dedicated Debug UI smoke covers durable
+question identity across reopening; runtime and device qualification remain
+open.
+
+## Integrated identification-history review corrections
+
+An explicit rejection displays **Incorrect**. A legacy reanalysis replacement
+awaiting acceptance displays **Review new result** and offers explicit species
+acceptance without requiring alternative candidates. Pending or conflicted
+review explains unavailable actions; it never presents a new proposal as a user
+rejection. This preserves the legacy carry contract. Prepared history reanalysis
+instead appends an unreviewed child, leaving selection and the original result's
+rejection unchanged.
+
+Protected Undo uses the same exact retained review action in the main menu and
+confidence card, with presentation, owner and receipt checks. It never confirms
+an identification. Completed prepared reanalysis emits a library change after
+its atomic append. An idle History list and Status page refresh from their
+current scoped readers; an open preview or unresolved decision is preserved,
+with the list refresh deferred until it is safe. The menu reevaluates history
+availability independently of presentation generation. No refresh selects the
+new result or rewrites an immutable review or publication ticket.
+
+Ordinary prepared access and activation gates remain disabled. Local and CI
+verification do not replace device migration/restart, retained-memory, hosted
+runtime, storage/CDN or independently scheduled erasure qualification.

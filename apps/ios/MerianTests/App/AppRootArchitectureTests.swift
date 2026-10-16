@@ -25,6 +25,7 @@ struct AppRootArchitectureTests {
         }
 
         #expect(directories == [
+            "Composition",
             "Lifecycle",
             "Presentation",
             "Routing",
@@ -37,6 +38,7 @@ struct AppRootArchitectureTests {
         let sources = try appSources()
         let expectedOwners = [
             "final class AppDelegate:": "AppDelegate.swift",
+            "struct PreparedHistoryReanalysisComposition {": "Composition/PreparedHistoryReanalysisComposition.swift",
             "enum AppRootPresentation:":
                 "Presentation/AppRootPresentation.swift",
             "struct AppRootAlertHost:": "Presentation/AppRootAlertHost.swift",

@@ -19,7 +19,7 @@ extension BackgroundDatabaseActor {
         )
         scanDescriptor.fetchLimit = 1
         do {
-            guard try modelContext.fetch(scanDescriptor).first != nil else {
+            guard let scan = try modelContext.fetch(scanDescriptor).first, scan.permitsOrdinaryInference else {
                 return false
             }
         } catch {
@@ -95,6 +95,7 @@ extension BackgroundDatabaseActor {
             mappedData: initialMappedData,
             originalImagePaths: originalImagePaths,
             recordId: recordId,
+            queueScanId: scanId,
             originalTimestamp: originalTimestamp,
             observationContextsJSON: observationContextsJSON,
             audioFilePaths: audioFilePaths,
@@ -109,6 +110,7 @@ extension BackgroundDatabaseActor {
         mappedData initialMappedData: SpeciesData,
         originalImagePaths: [String],
         recordId: String,
+        queueScanId: String,
         originalTimestamp: Date,
         observationContextsJSON: [String]?,
         audioFilePaths: [String]?,
@@ -118,6 +120,10 @@ extension BackgroundDatabaseActor {
         guard !Task.isCancelled else { return .notProcessed }
 
         do {
+            let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == queueScanId })
+            guard let queued = try modelContext.fetch(descriptor).first, queued.permitsOrdinaryInference else {
+                return .notProcessed
+            }
             var mappedData = initialMappedData
             let existing = try localScanRecord(id: recordId)
             try validatePrimaryCompletion(mappedData, existing: existing)

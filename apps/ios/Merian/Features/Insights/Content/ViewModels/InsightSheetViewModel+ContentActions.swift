@@ -32,7 +32,9 @@ extension InsightSheetViewModel {
         expectedGeneration: UInt64,
         modelContext: ModelContext
     ) -> Bool {
-        guard isPresentingLocalRecord(
+        guard ObservationHistoryEnrollmentService.permitsLegacyMutation(
+            scanID: expectedScanId, container: modelContext.container
+        ), isPresentingLocalRecord(
             scanId: expectedScanId,
             generation: expectedGeneration
         ), inferenceEngine?.speciesData?.scanId?

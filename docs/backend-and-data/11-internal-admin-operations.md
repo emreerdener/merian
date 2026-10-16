@@ -168,8 +168,8 @@ deploy from a commit whose admin-quality job was skipped, cancelled, or failed.
 The registry-backed audit is intentionally blocking: high/critical findings and
 an unavailable audit registry both stop the admin release.
 `lib/dependency-security.test.ts` independently checks the frozen Next.js,
-PostCSS, and Sharp versions and protects the workflow sequence from silent
-drift.
+PostCSS, Sharp, and `source-map-js` versions and protects the workflow sequence
+from silent drift.
 
 Main accepts direct pushes without a required pre-push status check. In the
 separate admin Vercel project's
@@ -182,9 +182,11 @@ Promote/direct manual promotion. Record and verify the external deployment
 control during initial setup and after changing GitHub or Vercel integration
 settings.
 
-The checked-in dependency graph, reviewed on 2026-09-30, is:
+The checked-in dependency graph, reviewed on 2026-10-07, is:
 
-- Next.js 16.3.6, including the
+- Next.js 16.3.8, including the
+  [October security patches](https://github.com/vercel/next.js/releases/tag/v16.3.8)
+  and the
   [next/og ImageResponse RCE fix](https://github.com/vercel/next.js/security/advisories/GHSA-vcvr-r3jv-pc5j),
   pinned exactly above the
   [Windows-hosted RCE](https://github.com/advisories/GHSA-p293-qw3h-jr36) and
@@ -193,9 +195,14 @@ The checked-in dependency graph, reviewed on 2026-09-30, is:
 - PostCSS 8.5.28, pinned exactly and enforced for Next.js transitively at the
   [path-traversal patched floor](https://github.com/advisories/GHSA-r28c-9q8g-f849);
   and
-- Sharp 0.35.4, enforced through the Next.js override, following the
-  [libheif advisory recommendation](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c)
-  and including its optional native packages.
+- Sharp 0.35.5, enforced through the Next.js override, following the
+  [librsvg advisory recommendation](https://github.com/advisories/GHSA-wq5f-xc86-pv6w),
+  retaining the earlier libheif fixes and including its optional native
+  packages.
+
+On 2026-10-06, the frozen `source-map-js` entry was updated to 1.2.2 for the
+[indexed source-map event-loop denial of service](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
+The executable security contract enforces that floor for every resolved copy.
 
 The selector parser lockfile floor is 7.1.3 for the reviewed
 [uncontrolled recursion vulnerability](https://github.com/advisories/GHSA-w9m9-85wc-3x92).

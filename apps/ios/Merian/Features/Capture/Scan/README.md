@@ -1,5 +1,15 @@
 # Capture Scan
 
+## Pending video startup interruption
+
+The critical lifecycle test is
+`testLifecycleInterruptionCancelsPendingVideoStartupWithoutAdmission`. It holds
+the injected recorder before the started callback, interrupts startup, and
+checks cancellation plus late-file cleanup without touching a replacement draft.
+A started recording is stopped and may complete; completed preparation retains
+its existing interruption behavior. Capture CI requires the pending-startup test
+explicitly, including a negative fixture for its absence.
+
 `Capture/Scan` owns the visual Capture modality: camera preview presentation,
 focus and zoom interaction, photo/video capture actions, bounded media
 preparation, and the staged-media commit boundary. It does not own the
@@ -110,11 +120,11 @@ boundary.
 
 Shell interrupts visual work when the scene becomes inactive, the user leaves
 Scan, a root or feature presentation takes ownership, the workspace disappears,
-or capture state is cleared. A still shutter or pre-recording admission request
-is cancelled and generation-fenced, so a non-cooperative late response cannot
-newly save, prepare, stage, or auto-submit media. A video that has already begun
-recording retains the established graceful-stop path and may stage its partial
-clip; only work that has not reached recording is discarded.
+or capture state is cleared. A still shutter or pending video hardware startup
+is cancelled and generation-fenced, so a non-cooperative late capture result
+cannot newly save, prepare, stage, or auto-submit media. A video that has
+already begun recording retains the established graceful-stop path and may stage
+its partial clip; only work that has not reached recording is discarded.
 
 The original-recording and PhotoKit lifetime contract is documented in
 [`27-camera-roll-media-export.md`](../../../../../../docs/features-and-hardware/27-camera-roll-media-export.md).

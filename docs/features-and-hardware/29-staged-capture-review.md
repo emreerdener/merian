@@ -260,3 +260,29 @@ The
 [verification matrix](../development-guides/08-testing-strategy.md#staged-review-and-shared-describe-validation)
 contains exact suite and UI selectors. The dated implementation record preserves
 completed local checks and remaining device, database, and release evidence.
+
+## Inactive NCO-1 original-photo qualification
+
+An explicitly injected `CapturePhotoOriginalPreparationAccess` uses a dedicated
+private file root, disk container and synthetic account. Normal `.live` access
+is nil. This seam retains the exact delivered still-image bytes before releasing
+a source, gives originals/AI inputs/displays separate identities, and persists
+crop presentation and ordered supporting context in a versioned bounded local
+envelope. Reopening restores committed context without applying the empty
+shared-description draft over it. Failed persistence retains the edit as
+unsaved; missing media or incomplete intent blocks submission and preserves
+recovery authority. It never falls back to text-only identification.
+
+Manual and automatic submission stop at a local `preparedHeld` receipt; no
+ordinary admission, token funding, upload or provider invocation is available
+through this branch. Background dismissal preserves the durable package. Removal
+and discard use the photo owner rather than legacy `draftOwnedFiles` cleanup. An
+interrupted inbox transfer remains charged until exact source-owner retention or
+release is acknowledged; cancellation alone does not transfer ownership.
+
+The
+[NCO-1 agreement](../rfcs/client-prepared-media-native-ownership-agreement-2026-10-15.md)
+owns limits, scope and exact validation status. Local simulator validation is
+separate from installed PhotoKit/camera/file-protection qualification. No
+capture tools, Add details, toolbar or later Identification/History redesign is
+activated by this checkpoint.

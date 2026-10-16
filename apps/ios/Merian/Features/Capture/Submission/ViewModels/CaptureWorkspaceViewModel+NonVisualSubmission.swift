@@ -60,6 +60,11 @@ extension CaptureWorkspaceViewModel {
         admissionRoute: CaptureScanAdmissionRoute? = nil
     ) async -> Bool {
         guard !mediaTimeline.isEmpty, isDraftReadyForSubmission else { return false }
+        let presentedRefinementScanId = baseRefinementContext?.scanId
+        let refinementScanId = targetEradicationScanId ?? presentedRefinementScanId
+        guard refinementScanId.map({ ObservationHistoryEnrollmentService.permitsLegacyMutation(
+            scanID: $0, container: modelContext.container
+        ) }) ?? true else { return false }
         let submittedGeneration = draftSession.generation
         #if DEBUG && targetEnvironment(simulator)
         let debugReplayProfile = stagedCapture.audios.first?.debugReplayProfile
@@ -110,7 +115,10 @@ extension CaptureWorkspaceViewModel {
             resolvedAdmissionRoute = route
         }
 
-        guard isDraftReadyForSubmission, draftSession.generation == submittedGeneration else { return false }
+        guard baseRefinementContext?.scanId == presentedRefinementScanId,
+              refinementScanId.map({ ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                  scanID: $0, container: modelContext.container
+              ) }) ?? true, isDraftReadyForSubmission, draftSession.generation == submittedGeneration else { return false }
         diContainer.cameraManager.resetZoom()
 
         let filteredAudioFileNames = audioFileNames.filter { !$0.isEmpty }

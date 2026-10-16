@@ -116,12 +116,14 @@ npm run build
 that complete sequence for every pull request and every affected `main` push. It
 deliberately reports on every pull request so GitHub can require a stable check
 without path-filtered changes remaining pending. The currently protected graph
-pins Next.js 16.3.6 and PostCSS 8.5.28 and overrides Next.js's private Sharp
-dependency to 0.35.4. `lib/dependency-security.test.ts` rejects a lockfile below
-those floors or a workflow that drops or reorders the frozen install, blocking
-audit, tests, type-check, and production build. Keep the overrides until a
-reviewed Next.js release declares equal or newer transitive versions; do not
-remove them merely because the direct PostCSS dependency is current.
+pins Next.js 16.3.8 and PostCSS 8.5.28 and overrides Next.js's private Sharp
+dependency to 0.35.5 for the
+[librsvg memory-safety fix](https://github.com/advisories/GHSA-wq5f-xc86-pv6w).
+`lib/dependency-security.test.ts` rejects a lockfile below those floors or a
+workflow that drops or reorders the frozen install, blocking audit, tests,
+type-check, and production build. Keep the overrides until a reviewed Next.js
+release declares equal or newer transitive versions; do not remove them merely
+because the direct PostCSS dependency is current.
 
 The dependency test also requires selector parser 7.1.3 or newer for the
 reviewed
@@ -208,3 +210,23 @@ Never treat the `getUser()` result alone as admin authorization.
 Supabase documents `getUser()` as an authentic network-validated user lookup;
 see the
 [JavaScript Auth reference](https://supabase.com/docs/reference/javascript/auth-getuser).
+
+### Indexed source-map dependency floor
+
+The frozen graph requires `source-map-js` 1.2.2 or newer to exclude the reviewed
+[indexed source-map event-loop denial of service](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
+The package security contract checks every resolved copy. Preserve the blocking
+dependency audit and complete frozen-install, test, type-check and production
+build sequence when updating this transitive dependency.
+
+### Sharp native dependency floors
+
+The Sharp security contract also checks every optional `@img/sharp-*` artifact,
+including nested copies: native bindings must be at least 0.35.5 and bundled
+libvips packages at least 1.3.4. A patched JavaScript wrapper alone does not
+satisfy this decoder boundary.
+
+The October 7, 2026 dependency review pins Next.js 16.3.8 for the
+[security patch release](https://github.com/vercel/next.js/releases/tag/v16.3.8),
+including Image Optimization SSRF and cache-isolation fixes. Existing PostCSS
+and Sharp overrides remain unchanged; the dependency audit is not bypassed.

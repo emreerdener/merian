@@ -9,6 +9,7 @@ struct InsightSheetView: View {
     @Environment(AppSettings.self) var appSettings
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) var dismiss
+    @Environment(\.insightHistoryReanalysisAccesses) private var installedHistoryAccesses
 
     @Binding var isPresented: Bool
     var queuedScan: QueuedScanContext?
@@ -17,10 +18,27 @@ struct InsightSheetView: View {
     var presentationStyle: InsightPresentationStyle
     var onOpenCommunityIdentificationRequest: ((String) -> Void)?
     var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
-    let dependencies: InsightShellDependencies
+    private let baseDependencies: InsightShellDependencies
+    private let hasExplicitDependencies: Bool
+    var dependencies: InsightShellDependencies {
+        guard !hasExplicitDependencies, let installedHistoryAccesses else { return baseDependencies }
+        return installedHistoryAccesses.applying(to: baseDependencies)
+    }
 
     // MARK: - State
+    @State var protectedChatModel: ProtectedInsightChatModel?
+    @State var protectedChatContinuation = ProtectedInsightChatContinuation()
+    @State var pendingHistoryReanalysis: IdentificationHistoryReanalysisHandoff?
+    @State var selectedCandidateReview: AnalysisCandidateReviewModel?
+    @State var selectedNameConfirmation: SelectedAnalysisNameConfirmation?
+    @State var selectedReviewHost = SelectedAnalysisReviewHost()
+    @State var historyAvailabilityRevision: UInt64 = 0
     @State var historyModel: IdentificationHistoryViewModel?
+    @State var selectedPublicationModel: IdentificationPublicationModel?
+    @State var publicationContinuation = PublicationConsentContinuation()
+    @State var reanalysisStatusModel: ReanalysisStatusViewModel?
+    @State var savedReanalysisHandoff = SavedReanalysisHandoff()
+    @State var pendingChatReanalysis: SavedReanalysisTicket?
     @State var viewModel: InsightSheetViewModel
     @State var chatViewModel = InsightChatViewModel()
     @State var fieldTripExploreViewModel = ExploreFeedViewModel()
@@ -55,6 +73,7 @@ struct InsightSheetView: View {
         onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)? = nil,
         dependencies: InsightShellDependencies? = nil
     ) {
+        hasExplicitDependencies = dependencies != nil
         let dependencies = dependencies ?? .live
         _isPresented = isPresented
         self.queuedScan = queuedScan
@@ -63,7 +82,7 @@ struct InsightSheetView: View {
         self.presentationStyle = presentationStyle
         self.onOpenCommunityIdentificationRequest = onOpenCommunityIdentificationRequest
         self.onOpenFieldTripOverview = onOpenFieldTripOverview
-        self.dependencies = dependencies
+        self.baseDependencies = dependencies
         _presentedScanId = State(initialValue: initialScanId)
         _viewModel = State(
             initialValue: InsightSheetViewModel(
@@ -167,7 +186,14 @@ struct InsightSheetView: View {
         }
         .onChange(of: isPresented) { _, isNowPresented in
             guard isNowPresented else {
-                historyModel?.close(); historyModel = nil
+                closeProtectedChat(clearContinuation: true)
+                cancelSavedReanalysis()
+                closeSelectedPublication()
+                closeSelectedNameConfirmation(); closeSelectedCandidateReview()
+                selectedReviewHost.close()
+                publicationContinuation.clear()
+                historyModel?.close(); historyModel = nil; pendingHistoryReanalysis = nil
+                reanalysisStatusModel?.close(); reanalysisStatusModel = nil
                 viewModel.endPresentationSession()
                 activeShellPresentation = nil
                 pendingShellPresentation = nil
@@ -189,9 +215,31 @@ struct InsightSheetView: View {
             pendingShellPresentation = nil
         }
 
+        .onChange(of: ObjectIdentifier(modelContext.container)) { _, _ in closeProtectedChat(clearContinuation: true); closeSelectedNameConfirmation(); closeSelectedCandidateReview(); closeSelectedPublication(); publicationContinuation.clear() }
+        .onChange(of: dependencies.authenticationSnapshot()) { _, _ in closeProtectedChat(clearContinuation: true); closeSelectedNameConfirmation(); closeSelectedCandidateReview(); closeSelectedPublication(); publicationContinuation.clear() }
         .onChange(of: viewModel.scanBoundActionGeneration) { _, _ in
-            historyModel?.close(); historyModel = nil
+            closeProtectedChat()
+            cancelSavedReanalysis()
+            closeSelectedNameConfirmation(); closeSelectedCandidateReview()
+            closeSelectedPublication()
+            historyModel?.close(); historyModel = nil; pendingHistoryReanalysis = nil
+            reanalysisStatusModel?.close(); reanalysisStatusModel = nil
+            cancelOrDismissShellPresentation { if case .reanalysisStatus = $0 { true } else { false } }
             cancelOrDismissShellPresentation { if case .identificationHistory = $0 { true } else { false } }
+        }
+
+        .onChange(of: inferenceEngine.scanPresentationGeneration) { _, _ in closeProtectedChat(); closeSelectedNameConfirmation(); closeSelectedCandidateReview() }
+        .onChange(of: selectedReviewKey, initial: true) { _, _ in bindSelectedReview() }
+        .onChange(of: selectedReviewHost.deliveryGeneration) { _, _ in refreshSelectedReview() }
+        .onChange(of: selectedReviewHost.scopeIsCurrent) { _, current in
+            if !current {
+                closeSelectedNameConfirmation(); closeSelectedCandidateReview()
+                closeSelectedPublication()
+                if selectedReviewHost.model != nil { selectedReviewHost.invalidateScope() }
+            }
+        }
+        .onChange(of: selectedReviewHost.message) { _, message in
+            if let message { viewModel.state.toastMessage = .information(message) }
         }
 
         // Dialogs

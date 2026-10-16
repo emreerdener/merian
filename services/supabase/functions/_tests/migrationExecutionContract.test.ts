@@ -569,3 +569,23 @@ Deno.test(
     );
   },
 );
+
+Deno.test("video source completion stays private and uses durable accounted proof", async () => {
+  const sql = await Deno.readTextFile(
+    new URL(
+      "20261010181556_prepare_video_source_completion_release.sql",
+      migrationsDirectoryUrl,
+    ),
+  );
+  assert(
+    sql.includes("CREATE TABLE internal.observation_video_source_completions"),
+  );
+  assert(sql.includes("internal.video_analysis_accounting_product(i)"));
+  assert(sql.includes("internal.video_analysis_completion_matches(i)"));
+  assert(sql.includes("source_completion_release_enabled"));
+  assert(sql.includes("merian.video_source_completion"));
+  assert(sql.includes("CREATE TRIGGER guard_video_source_completion"));
+  assert(!sql.includes("GRANT EXECUTE"));
+  assert(!sql.includes("SET source_completion_release_enabled"));
+  assert(!sql.includes("FROM internal.identification_invocations"));
+});

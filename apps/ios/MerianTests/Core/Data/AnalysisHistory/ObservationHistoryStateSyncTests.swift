@@ -62,6 +62,43 @@ struct ObservationHistoryStateSyncTests {
         return .init(cloud: cloud)
     }
 
+    @Test(arguments: [false, true])
+    func validPendingOrRunningNativeReviewBlocksBeforeFetch(_ running: Bool) async throws {
+        let container = try container()
+        _ = try await service(data: fixture(revision: 10)).syncSelected(observationID: support.observation, container: container)
+        let request = try ObservationAnalysisReviewRequest(observationID: #require(UUID(uuidString: support.observation)),
+            analysisID: #require(UUID(uuidString: analysisID)), operationID: UUID(),
+            expectedObservationRevision: 10, expectedReviewRevision: 0, decision: .reject)
+        let intent = try ObservationAnalysisReviewPersistence.stage(request, ownerID: support.owner,
+            container: container, isCurrent: { true }, validateNew: { _ in })
+        if running {
+            _ = try #require(try ObservationAnalysisReviewPersistence.claim(intent, at: Date(), container: container, isCurrent: { true }))
+        }
+        var fetches = 0
+        let refresh = service(data: try fixture(), duringFetch: { fetches += 1 })
+        await #expect(throws: Failure.pendingReview) {
+            try await refresh.syncSelected(observationID: support.observation, container: container)
+        }
+        #expect(fetches == 0)
+    }
+
+    @Test func nativeReconciliationCanFinishItsOwnWorkThenPermitRefresh() async throws {
+        let review = ObservationAnalysisReviewReconciliationTests()
+        let (container, claim) = try await review.seeded()
+        var fetches = 0
+        let refresh = service(data: try review.targetData(revision: 13, selectedID: review.target), duringFetch: { fetches += 1 })
+        await #expect(throws: Failure.pendingReview) {
+            try await refresh.syncSelected(observationID: support.observation, container: container)
+        }
+        #expect(fetches == 0)
+        let reconciliation = ObservationAnalysisReviewReconciliation(
+            cloud: review.cloud(targetData: try review.targetData(selectedID: review.target), selectedData: Data()), now: { review.date })
+        let completed = try await reconciliation.reconcile(claim, container: container, isCurrent: { true })
+        #expect(completed.isComplete)
+        #expect(try await refresh.syncSelected(observationID: support.observation, container: container) == 13)
+        #expect(fetches == 1)
+    }
+
     @Test func atomicAuthorityRefreshPreservesIdentificationAndPrivateDetailsAndReplays() async throws {
         let container = try container(), service = service(data: try fixture(rejected: true))
         #expect(try await service.syncSelected(observationID: support.observation, container: container) == 11)
@@ -149,8 +186,7 @@ struct ObservationHistoryStateSyncTests {
             let container = try container()
             let service = service(data: try fixture(), duringFetch: {
                 try update(container) { scan, context in
-                    if ownerChanged { scan.analysisOwnerAccountID = "00000000-0000-4000-8000-000000000099" }
-                    else { try context.ensurePendingCloudDeletionTask(scanId: support.observation, requestingAccountID: support.owner, origin: .explicitUserDeletion) }
+                    if ownerChanged { scan.analysisOwnerAccountID = "00000000-0000-4000-8000-000000000099" } else { try context.ensurePendingCloudDeletionTask(scanId: support.observation, requestingAccountID: support.owner, origin: .explicitUserDeletion) }
                 }
             })
             await #expect(throws: ownerChanged ? ObservationHistoryError.accountChanged : .deleted) {

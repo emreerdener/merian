@@ -25,7 +25,7 @@ struct AccountDeletionRecoveryCoordinator {
             -> AccountDeletionReceipt,
         recoveryCapabilityStore: AccountDeletionRecoveryCapabilityStore,
         recordManualProviderRevocation: @MainActor @escaping () -> Void,
-        purgeLocalData: @MainActor @escaping () -> Bool
+        purgeLocalData: @MainActor @escaping () async -> Bool
     ) async -> Bool {
         guard let recoveryState = dependencies.localState.state() else {
             return true
@@ -260,7 +260,7 @@ struct AccountDeletionRecoveryCoordinator {
             -> AccountDeletionReceipt,
         recoveryCapabilityStore: AccountDeletionRecoveryCapabilityStore,
         recordManualProviderRevocation: @MainActor () -> Void,
-        purgeLocalData: @MainActor () -> Bool
+        purgeLocalData: @MainActor () async -> Bool
     ) async -> Bool {
         guard capability.protocolVersion == 2,
               let acknowledgementCapability =
@@ -365,7 +365,7 @@ struct AccountDeletionRecoveryCoordinator {
         ) async throws -> AccountDeletionReceipt,
         recoveryCapabilityStore: AccountDeletionRecoveryCapabilityStore,
         recordManualProviderRevocation: @MainActor () -> Void,
-        purgeLocalData: @MainActor () -> Bool,
+        purgeLocalData: @MainActor () async -> Bool,
         allowAuthenticatedIntakeReplay: Bool
     ) async -> Bool {
         let capability: String
@@ -456,7 +456,7 @@ struct AccountDeletionRecoveryCoordinator {
         transition: AuthTransitionToken,
         recoveryCapabilityStore: AccountDeletionRecoveryCapabilityStore,
         recordManualProviderRevocation: @MainActor () -> Void,
-        purgeLocalData: @MainActor () -> Bool,
+        purgeLocalData: @MainActor () async -> Bool,
         acknowledgeRecovery: @MainActor () async throws -> Bool
     ) async -> Bool {
         await AccountDeletionWorkflow.performAcceptedCleanup(

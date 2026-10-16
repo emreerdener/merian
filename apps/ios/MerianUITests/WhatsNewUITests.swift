@@ -18,7 +18,13 @@ final class WhatsNewUITests: XCTestCase {
             case "close":
                 app.buttons["WhatsNew_Close"].tap()
             default:
-                title.swipeDown()
+                // Drag the sheet chrome, not a short title inside its ScrollView.
+                let close = app.buttons["WhatsNew_Close"]
+                let chrome = app.coordinate(withNormalizedOffset: .zero)
+                    .withOffset(CGVector(dx: app.frame.midX, dy: close.frame.midY))
+                chrome.press(forDuration: 0.1, thenDragTo: app.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)
+                ))
             }
 
             let dismissed = XCTNSPredicateExpectation(

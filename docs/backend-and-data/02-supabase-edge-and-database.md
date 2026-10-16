@@ -2511,14 +2511,17 @@ sign-out for the current device and deletes every active SwiftData row via
 and supplies the app-owned private-map reset closure before deletion. That
 closure synchronously empties and fences exact-coordinate snapshots, index work,
 and preview rendering and advances the active-map presentation reset generation.
-The purge explicitly removes all `CurrentSchema` rows and read-back verifies
-classified account-derived defaults while retaining device settings and durable
-deletion/manual-Apple-notice fences. It then refreshes observable settings and
-clears legacy gamification, the generation-fenced Explore unread badge, and the
-RAM image cache. This synchronous boundary does not replace the SQLite store
-file or traverse unreferenced filesystem artifacts; those require a separately
-owned storage-lifecycle contract. Ordinary in-app sign-out also uses local scope
-so another simulator or device session is not revoked.
+The asynchronous purge explicitly removes all `CurrentSchema` rows, awaits
+exclusive-lock erasure of the private `ReanalysisQueue` namespace including
+orphans, then read-back verifies classified account-derived defaults while
+retaining device settings and durable deletion/manual-Apple-notice fences. It
+then refreshes observable settings and clears legacy gamification, the
+generation-fenced Explore unread badge, and the RAM image cache. File-erasure
+failure retains the recovery barrier before preferences or runtime reset. The
+local receipt worker is drained during purge. This does not replace the SQLite
+store file or erase other unreferenced media; those require a separately owned
+storage-lifecycle contract. Ordinary in-app sign-out also uses local scope so
+another simulator or device session is not revoked.
 
 ## Scan Erasure & The Deletion Pipeline (`delete-scan`)
 

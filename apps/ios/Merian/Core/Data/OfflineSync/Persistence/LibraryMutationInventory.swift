@@ -83,6 +83,12 @@ struct LibraryMutationInventory: Equatable, Sendable {
         } else {
             localOnlyChanges += preferences.count
         }
+        // Any P1 row, including an orphan or incomplete lease, blocks identity
+        // replacement even though P1 cannot create a runnable queue job.
+        localOnlyChanges += try context.fetchCount(FetchDescriptor<PhotoPreparationRecord>())
+            + context.fetchCount(FetchDescriptor<PhotoPreparationAsset>())
+            + context.fetchCount(FetchDescriptor<PhotoPreparationReference>())
+            + context.fetchCount(FetchDescriptor<PhotoPreparationLease>())
         return try Self(
             queuedScans: context.fetchCount(FetchDescriptor<OfflineQueuedScan>()),
             pendingJobs: context.fetchCount(FetchDescriptor<OfflineJobRecord>(

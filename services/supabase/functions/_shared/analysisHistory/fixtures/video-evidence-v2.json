@@ -1,0 +1,657 @@
+[
+  {
+    "request": {
+      "schema_version": 2,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "source_analysis_id": "00000000-0000-4000-8000-00000000000a",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "request_digest": "aba84cfdc578ba7daf7c3e6c4704d646e9ebea406f4a6e97e0440ec2d1725bc0",
+      "fingerprint_version": 1,
+      "fingerprint": "a33cfc901dd402787d150109c7b0cb2628ae53b685b6954b8a05dbe996d37a01",
+      "items": [
+        {
+          "role": "source",
+          "index": null,
+          "media_id": "00000000-0000-4000-8000-000000000003",
+          "content_type": "video/mp4",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "frame",
+          "index": 0,
+          "media_id": "00000000-0000-4000-8000-000000000004",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "frame",
+          "index": 1,
+          "media_id": "00000000-0000-4000-8000-000000000005",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "frame",
+          "index": 2,
+          "media_id": "00000000-0000-4000-8000-000000000006",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "frame",
+          "index": 3,
+          "media_id": "00000000-0000-4000-8000-000000000007",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "frame",
+          "index": 4,
+          "media_id": "00000000-0000-4000-8000-000000000008",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "audio",
+          "index": null,
+          "media_id": "00000000-0000-4000-8000-000000000009",
+          "content_type": "audio/wav",
+          "byte_count": 176444,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ]
+    },
+    "allocated": {
+      "schema_version": 2,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "source_analysis_id": "00000000-0000-4000-8000-00000000000a",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "request_digest": "aba84cfdc578ba7daf7c3e6c4704d646e9ebea406f4a6e97e0440ec2d1725bc0",
+      "fingerprint_version": 1,
+      "fingerprint": "a33cfc901dd402787d150109c7b0cb2628ae53b685b6954b8a05dbe996d37a01",
+      "items": [
+        {
+          "role": "source",
+          "index": null,
+          "media_id": "00000000-0000-4000-8000-000000000003",
+          "content_type": "video/mp4",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000100",
+          "ready_at": null
+        },
+        {
+          "role": "frame",
+          "index": 0,
+          "media_id": "00000000-0000-4000-8000-000000000004",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000101",
+          "ready_at": null
+        },
+        {
+          "role": "frame",
+          "index": 1,
+          "media_id": "00000000-0000-4000-8000-000000000005",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000102",
+          "ready_at": null
+        },
+        {
+          "role": "frame",
+          "index": 2,
+          "media_id": "00000000-0000-4000-8000-000000000006",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000103",
+          "ready_at": null
+        },
+        {
+          "role": "frame",
+          "index": 3,
+          "media_id": "00000000-0000-4000-8000-000000000007",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000104",
+          "ready_at": null
+        },
+        {
+          "role": "frame",
+          "index": 4,
+          "media_id": "00000000-0000-4000-8000-000000000008",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000105",
+          "ready_at": null
+        },
+        {
+          "role": "audio",
+          "index": null,
+          "media_id": "00000000-0000-4000-8000-000000000009",
+          "content_type": "audio/wav",
+          "byte_count": 176444,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000106",
+          "ready_at": null
+        }
+      ],
+      "owner_id": "00000000-0000-4000-8000-000000000090",
+      "state": "allocated",
+      "expires_at": "2026-10-10T00:05:00.000Z"
+    },
+    "ready": {
+      "schema_version": 2,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "source_analysis_id": "00000000-0000-4000-8000-00000000000a",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "request_digest": "aba84cfdc578ba7daf7c3e6c4704d646e9ebea406f4a6e97e0440ec2d1725bc0",
+      "fingerprint_version": 1,
+      "fingerprint": "a33cfc901dd402787d150109c7b0cb2628ae53b685b6954b8a05dbe996d37a01",
+      "items": [
+        {
+          "role": "source",
+          "index": null,
+          "media_id": "00000000-0000-4000-8000-000000000003",
+          "content_type": "video/mp4",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000100",
+          "ready_at": "2026-10-10T00:00:00.000Z"
+        },
+        {
+          "role": "frame",
+          "index": 0,
+          "media_id": "00000000-0000-4000-8000-000000000004",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000101",
+          "ready_at": "2026-10-10T00:00:01.000Z"
+        },
+        {
+          "role": "frame",
+          "index": 1,
+          "media_id": "00000000-0000-4000-8000-000000000005",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000102",
+          "ready_at": "2026-10-10T00:00:02.000Z"
+        },
+        {
+          "role": "frame",
+          "index": 2,
+          "media_id": "00000000-0000-4000-8000-000000000006",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000103",
+          "ready_at": "2026-10-10T00:00:03.000Z"
+        },
+        {
+          "role": "frame",
+          "index": 3,
+          "media_id": "00000000-0000-4000-8000-000000000007",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000104",
+          "ready_at": "2026-10-10T00:00:04.000Z"
+        },
+        {
+          "role": "frame",
+          "index": 4,
+          "media_id": "00000000-0000-4000-8000-000000000008",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000105",
+          "ready_at": "2026-10-10T00:00:05.000Z"
+        },
+        {
+          "role": "audio",
+          "index": null,
+          "media_id": "00000000-0000-4000-8000-000000000009",
+          "content_type": "audio/wav",
+          "byte_count": 176444,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000106",
+          "ready_at": "2026-10-10T00:00:06.000Z"
+        }
+      ],
+      "owner_id": "00000000-0000-4000-8000-000000000090",
+      "state": "ready",
+      "expires_at": "2026-10-10T00:05:00.000Z"
+    }
+  },
+  {
+    "request": {
+      "schema_version": 2,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "source_analysis_id": "00000000-0000-4000-8000-00000000000a",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "request_digest": "d1019ba98f969689015e387b12a3659e60e9d9d35122745abf976eaa4711427d",
+      "fingerprint_version": 1,
+      "fingerprint": "915450f79128fce7ad507ee8786acbd523cbfe0146df0525c37387baab2f99ed",
+      "items": [
+        {
+          "role": "source",
+          "index": null,
+          "media_id": "00000000-0000-4000-8000-000000000003",
+          "content_type": "video/mp4",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "frame",
+          "index": 0,
+          "media_id": "00000000-0000-4000-8000-000000000004",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "frame",
+          "index": 1,
+          "media_id": "00000000-0000-4000-8000-000000000005",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "frame",
+          "index": 2,
+          "media_id": "00000000-0000-4000-8000-000000000006",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "frame",
+          "index": 3,
+          "media_id": "00000000-0000-4000-8000-000000000007",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "frame",
+          "index": 4,
+          "media_id": "00000000-0000-4000-8000-000000000008",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ]
+    },
+    "allocated": {
+      "schema_version": 2,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "source_analysis_id": "00000000-0000-4000-8000-00000000000a",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "request_digest": "d1019ba98f969689015e387b12a3659e60e9d9d35122745abf976eaa4711427d",
+      "fingerprint_version": 1,
+      "fingerprint": "915450f79128fce7ad507ee8786acbd523cbfe0146df0525c37387baab2f99ed",
+      "items": [
+        {
+          "role": "source",
+          "index": null,
+          "media_id": "00000000-0000-4000-8000-000000000003",
+          "content_type": "video/mp4",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000110",
+          "ready_at": null
+        },
+        {
+          "role": "frame",
+          "index": 0,
+          "media_id": "00000000-0000-4000-8000-000000000004",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000111",
+          "ready_at": null
+        },
+        {
+          "role": "frame",
+          "index": 1,
+          "media_id": "00000000-0000-4000-8000-000000000005",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000112",
+          "ready_at": null
+        },
+        {
+          "role": "frame",
+          "index": 2,
+          "media_id": "00000000-0000-4000-8000-000000000006",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000113",
+          "ready_at": null
+        },
+        {
+          "role": "frame",
+          "index": 3,
+          "media_id": "00000000-0000-4000-8000-000000000007",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000114",
+          "ready_at": null
+        },
+        {
+          "role": "frame",
+          "index": 4,
+          "media_id": "00000000-0000-4000-8000-000000000008",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000115",
+          "ready_at": null
+        }
+      ],
+      "owner_id": "00000000-0000-4000-8000-000000000090",
+      "state": "allocated",
+      "expires_at": "2026-10-10T00:05:00.000Z"
+    },
+    "ready": {
+      "schema_version": 2,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "source_analysis_id": "00000000-0000-4000-8000-00000000000a",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "request_digest": "d1019ba98f969689015e387b12a3659e60e9d9d35122745abf976eaa4711427d",
+      "fingerprint_version": 1,
+      "fingerprint": "915450f79128fce7ad507ee8786acbd523cbfe0146df0525c37387baab2f99ed",
+      "items": [
+        {
+          "role": "source",
+          "index": null,
+          "media_id": "00000000-0000-4000-8000-000000000003",
+          "content_type": "video/mp4",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000110",
+          "ready_at": "2026-10-10T00:00:00.000Z"
+        },
+        {
+          "role": "frame",
+          "index": 0,
+          "media_id": "00000000-0000-4000-8000-000000000004",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000111",
+          "ready_at": "2026-10-10T00:00:01.000Z"
+        },
+        {
+          "role": "frame",
+          "index": 1,
+          "media_id": "00000000-0000-4000-8000-000000000005",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000112",
+          "ready_at": "2026-10-10T00:00:02.000Z"
+        },
+        {
+          "role": "frame",
+          "index": 2,
+          "media_id": "00000000-0000-4000-8000-000000000006",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000113",
+          "ready_at": "2026-10-10T00:00:03.000Z"
+        },
+        {
+          "role": "frame",
+          "index": 3,
+          "media_id": "00000000-0000-4000-8000-000000000007",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000114",
+          "ready_at": "2026-10-10T00:00:04.000Z"
+        },
+        {
+          "role": "frame",
+          "index": 4,
+          "media_id": "00000000-0000-4000-8000-000000000008",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000115",
+          "ready_at": "2026-10-10T00:00:05.000Z"
+        }
+      ],
+      "owner_id": "00000000-0000-4000-8000-000000000090",
+      "state": "ready",
+      "expires_at": "2026-10-10T00:05:00.000Z"
+    }
+  },
+  {
+    "request": {
+      "schema_version": 2,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "source_analysis_id": "00000000-0000-4000-8000-00000000000a",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "request_digest": "d1019ba98f969689015e387b12a3659e60e9d9d35122745abf976eaa4711427d",
+      "fingerprint_version": 1,
+      "fingerprint": "09f2bca19c4406af24fd14cad79213bf724e235db26ed3858ca06e0febb2268d",
+      "items": [
+        {
+          "role": "source",
+          "index": null,
+          "media_id": "00000000-0000-4000-8000-000000000003",
+          "content_type": "video/mp4",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "frame",
+          "index": 0,
+          "media_id": "00000000-0000-4000-8000-000000000004",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "frame",
+          "index": 1,
+          "media_id": "00000000-0000-4000-8000-000000000005",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "frame",
+          "index": 2,
+          "media_id": "00000000-0000-4000-8000-000000000006",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "frame",
+          "index": 3,
+          "media_id": "00000000-0000-4000-8000-000000000007",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "role": "frame",
+          "index": 4,
+          "media_id": "00000000-0000-4000-8000-000000000008",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ]
+    },
+    "allocated": {
+      "schema_version": 2,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "source_analysis_id": "00000000-0000-4000-8000-00000000000a",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "request_digest": "d1019ba98f969689015e387b12a3659e60e9d9d35122745abf976eaa4711427d",
+      "fingerprint_version": 1,
+      "fingerprint": "09f2bca19c4406af24fd14cad79213bf724e235db26ed3858ca06e0febb2268d",
+      "items": [
+        {
+          "role": "source",
+          "index": null,
+          "media_id": "00000000-0000-4000-8000-000000000003",
+          "content_type": "video/mp4",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000120",
+          "ready_at": null
+        },
+        {
+          "role": "frame",
+          "index": 0,
+          "media_id": "00000000-0000-4000-8000-000000000004",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000121",
+          "ready_at": null
+        },
+        {
+          "role": "frame",
+          "index": 1,
+          "media_id": "00000000-0000-4000-8000-000000000005",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000122",
+          "ready_at": null
+        },
+        {
+          "role": "frame",
+          "index": 2,
+          "media_id": "00000000-0000-4000-8000-000000000006",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000123",
+          "ready_at": null
+        },
+        {
+          "role": "frame",
+          "index": 3,
+          "media_id": "00000000-0000-4000-8000-000000000007",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000124",
+          "ready_at": null
+        },
+        {
+          "role": "frame",
+          "index": 4,
+          "media_id": "00000000-0000-4000-8000-000000000008",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000125",
+          "ready_at": null
+        }
+      ],
+      "owner_id": "00000000-0000-4000-8000-000000000090",
+      "state": "allocated",
+      "expires_at": "2026-10-10T00:05:00.000Z"
+    },
+    "ready": {
+      "schema_version": 2,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "source_analysis_id": "00000000-0000-4000-8000-00000000000a",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "request_digest": "d1019ba98f969689015e387b12a3659e60e9d9d35122745abf976eaa4711427d",
+      "fingerprint_version": 1,
+      "fingerprint": "09f2bca19c4406af24fd14cad79213bf724e235db26ed3858ca06e0febb2268d",
+      "items": [
+        {
+          "role": "source",
+          "index": null,
+          "media_id": "00000000-0000-4000-8000-000000000003",
+          "content_type": "video/mp4",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000120",
+          "ready_at": "2026-10-10T00:00:00.000Z"
+        },
+        {
+          "role": "frame",
+          "index": 0,
+          "media_id": "00000000-0000-4000-8000-000000000004",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000121",
+          "ready_at": "2026-10-10T00:00:01.000Z"
+        },
+        {
+          "role": "frame",
+          "index": 1,
+          "media_id": "00000000-0000-4000-8000-000000000005",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000122",
+          "ready_at": "2026-10-10T00:00:02.000Z"
+        },
+        {
+          "role": "frame",
+          "index": 2,
+          "media_id": "00000000-0000-4000-8000-000000000006",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000123",
+          "ready_at": "2026-10-10T00:00:03.000Z"
+        },
+        {
+          "role": "frame",
+          "index": 3,
+          "media_id": "00000000-0000-4000-8000-000000000007",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000124",
+          "ready_at": "2026-10-10T00:00:04.000Z"
+        },
+        {
+          "role": "frame",
+          "index": 4,
+          "media_id": "00000000-0000-4000-8000-000000000008",
+          "content_type": "image/jpeg",
+          "byte_count": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "object_id": "00000000-0000-4000-8000-000000000125",
+          "ready_at": "2026-10-10T00:00:05.000Z"
+        }
+      ],
+      "owner_id": "00000000-0000-4000-8000-000000000090",
+      "state": "ready",
+      "expires_at": "2026-10-10T00:05:00.000Z"
+    }
+  }
+]
