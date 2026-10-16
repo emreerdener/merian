@@ -1,12 +1,46 @@
+## October 16 — inactive SMA-1 L1 foundation locally validated
+
+The local implementation freezes V59 and adds four scalar V60 storage entities,
+explicit fixture ownership, durable reservations/references/leases, and a
+fail-closed identity/purge guard. The SQLite parent and authority directories
+provide lifetime exclusion; SQLite file locking remains with Core Data. There is
+no live composition, file writer, physical-release acknowledgement or AI
+admission. Legacy observations remain advisory, with no completeness or
+promotion claim.
+
+The V59 disk migration and startup recovery passed. Candidate09 passed all 16
+focused storage tests; its full shared-checkout execution ran 5,972 tests and
+retained four failures (three size inventories and an outdated purge inventory).
+Candidate10 changed production code only by formatting and corrected purge
+coverage; all 23 targeted checks passed, including each new row blocking purge
+before callbacks in saved and unsaved states. Independent and IC-1 review concur
+with reuse of unchanged passing results. This is combined local evidence, not a
+green full rerun on candidate10 or isolated-source qualification. Receipts and
+failed runs remain in `.artifacts/shared-media-foundation-20261016/`.
+
+The next dependency is an isolated P1/shared-storage handoff with explicit
+ownership links, joint durable transitions, and enforced producer exclusion.
+Whole-product allocation, source import, physical release and mixed-producer
+qualification remain open; this is not overall acceptance closure. Limits stay
+unchanged. PR116 remains frozen at `135555d66`, activation and ordinary P1
+access disabled, Supabase hold active and AWS unapproved. Local continuation
+needs no routine proceed prompt; push, merge, deployment and hosted tests remain
+barred.
+
 # SMA-1: shared native media allocation and cleanup
 
-Status: October 16, 2026. Independently and IC-1 reviewed proposed agreement,
-following local checkpoint `0d6865e40`. This document specifies the next
-foundation; it does not install an allocator, change a schema, adopt new limits,
-or qualify mixed-producer operation. History primary remains the sole writer.
-PR116 stays frozen at `135555d66`. Activation and ordinary P1 access remain
-disabled, Supabase integration hold active, and AWS unapproved. No push, merge,
-deployment, hosted test, device operation or schedule change is included.
+The agreement below records the original pre-implementation proposal. Current
+implementation and validation status is recorded above; outstanding integration
+obligations in this agreement still apply.
+
+Proposal-time status (historical): October 16, 2026. Independently and IC-1
+reviewed proposed agreement, following local checkpoint `0d6865e40`. This
+document specifies the next foundation; it does not install an allocator, change
+a schema, adopt new limits, or qualify mixed-producer operation. History primary
+remains the sole writer. PR116 stays frozen at `135555d66`. Activation and
+ordinary P1 access remain disabled, Supabase integration hold active, and AWS
+unapproved. No push, merge, deployment, hosted test, device operation or
+schedule change is included.
 
 ## Recommendation
 
@@ -32,12 +66,13 @@ not discover files or rewrite saved operations inside a migration callback.
 
 ## Evidence and unchanged boundaries
 
-The current alias is V59. `PhotoPreparationRepository` owns four P1 entities and
-reserves only within its private namespace. Its file owner takes a shared
-Documents lock and an exclusive PhotoPreparation lock. Neither that lock nor the
-legacy `OfflineQueueStoragePolicy` estimate supplies common allocation.
-`FileIOActor` now confines generic access to regular single-link flat files, but
-cannot infer durable references or prove writer closure from a path.
+At proposal time, the current alias was V59. `PhotoPreparationRepository` owns
+four P1 entities and reserves only within its private namespace. Its file owner
+takes a shared Documents lock and an exclusive PhotoPreparation lock. Neither
+that lock nor the legacy `OfflineQueueStoragePolicy` estimate supplies common
+allocation. `FileIOActor` now confines generic access to regular single-link
+flat files, but cannot infer durable references or prove writer closure from a
+path.
 
 `CapturedMediaPersistenceService`, ordinary queue admission and
 `InferenceProcessingActor` still have separate file lifetimes. Reanalysis has

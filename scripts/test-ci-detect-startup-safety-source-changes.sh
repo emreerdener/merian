@@ -160,6 +160,12 @@ for history_path in \
   apps/ios/Merian/Models/Schema/SchemaV58ScanSnapshots.swift \
   apps/ios/Merian/Models/Schema/SchemaV58QueueSnapshots.swift \
   apps/ios/Merian/Models/Schema/SchemaV59.swift \
+  apps/ios/Merian/Models/Schema/SchemaV59ScanSnapshots.swift \
+  apps/ios/Merian/Models/Schema/SchemaV59QueueSnapshots.swift \
+  apps/ios/Merian/Models/Schema/SchemaV59PhotoPreparationSnapshots.swift \
+  apps/ios/Merian/Models/Schema/SchemaV60.swift \
+  apps/ios/Merian/Core/Data/SharedMediaStorage/SharedMediaStorageRepository.swift \
+  apps/ios/MerianTests/Core/Data/SharedMediaStorage/SharedMediaStorageTests.swift \
   apps/ios/Merian/Models/ActiveSchema/PhotoPreparationRecord.swift \
   apps/ios/Merian/Models/ActiveSchema/PhotoPreparationAsset.swift \
   apps/ios/Merian/Models/ActiveSchema/PhotoPreparationReference.swift \

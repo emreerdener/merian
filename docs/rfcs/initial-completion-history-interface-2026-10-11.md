@@ -1,3 +1,32 @@
+## October 16 — inactive SMA-1 L1 foundation locally validated
+
+The local implementation freezes V59 and adds four scalar V60 storage entities,
+explicit fixture ownership, durable reservations/references/leases, and a
+fail-closed identity/purge guard. The SQLite parent and authority directories
+provide lifetime exclusion; SQLite file locking remains with Core Data. There is
+no live composition, file writer, physical-release acknowledgement or AI
+admission. Legacy observations remain advisory, with no completeness or
+promotion claim.
+
+The V59 disk migration and startup recovery passed. Candidate09 passed all 16
+focused storage tests; its full shared-checkout execution ran 5,972 tests and
+retained four failures (three size inventories and an outdated purge inventory).
+Candidate10 changed production code only by formatting and corrected purge
+coverage; all 23 targeted checks passed, including each new row blocking purge
+before callbacks in saved and unsaved states. Independent and IC-1 review concur
+with reuse of unchanged passing results. This is combined local evidence, not a
+green full rerun on candidate10 or isolated-source qualification. Receipts and
+failed runs remain in `.artifacts/shared-media-foundation-20261016/`.
+
+The next dependency is an isolated P1/shared-storage handoff with explicit
+ownership links, joint durable transitions, and enforced producer exclusion.
+Whole-product allocation, source import, physical release and mixed-producer
+qualification remain open; this is not overall acceptance closure. Limits stay
+unchanged. PR116 remains frozen at `135555d66`, activation and ordinary P1
+access disabled, Supabase hold active and AWS unapproved. Local continuation
+needs no routine proceed prompt; push, merge, deployment and hosted tests remain
+barred.
+
 ## October 16 — shared native allocation agreement reviewed
 
 [SMA-1](shared-media-allocation-ownership-2026-10-16.md) recommends additive V60

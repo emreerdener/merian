@@ -15,6 +15,12 @@ enum ScanLibraryPurgeService {
             try await ObservationReanalysisFileStore(documents: .documentsDirectory).purgeNamespace()
         }
     ) async -> Bool {
+        // No callback, producer suspension or file cleanup may precede this guard.
+        // A missing/corrupt ledger is not permission to erase its only authority.
+        do {
+            guard try !SharedMediaStorageRepository.hasLiabilities(in: modelContext),
+                  try !SharedMediaStorageRepository.hasLiabilities(in: ModelContext(modelContext.container)) else { return false }
+        } catch { return false }
         let cleanup = OfflineQueueManager.shared.reanalysisErasureOwner
         await cleanup.suspendForLibraryPurge()
         defer { cleanup.resumeAfterLibraryPurge() }

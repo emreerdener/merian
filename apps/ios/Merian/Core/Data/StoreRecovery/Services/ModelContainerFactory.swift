@@ -8,11 +8,7 @@ enum ModelContainerFactory {
     ) throws -> ModelContainer {
         let schema = Schema(versionedSchema: CurrentSchema.self)
         let config = persistentStoreConfiguration(for: schema)
-        return try ModelContainer(
-            for: schema,
-            migrationPlan: migrationPlan,
-            configurations: [config]
-        )
+        return try ModelContainer(for: schema, migrationPlan: migrationPlan, configurations: [config])
     }
 
     private static func makePersistentContainerUncheckedWithoutMigrationPlan() throws -> ModelContainer {
@@ -37,10 +33,7 @@ enum ModelContainerFactory {
 
     private static func makeInMemoryContainerUnchecked() throws -> ModelContainer {
         let schema = Schema(versionedSchema: CurrentSchema.self)
-        let config = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: true
-        )
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         return try ModelContainer(for: schema, configurations: [config])
     }
 
@@ -166,6 +159,10 @@ enum ModelContainerFactory {
 
         // The named helper records each failure in the startup diagnostic.
         // A failed recent source advances to the next exact representative.
+        if let recovered = try? makePersistentContainer(
+            migrationPlan: MerianRecentV59MigrationPlan.self, named: "checksum-recent-v59", diagnostic: &diagnostic
+        ) { return recovered }
+
         if let recovered = try? makePersistentContainer(
             migrationPlan: MerianRecentV58MigrationPlan.self, named: "checksum-recent-v58", diagnostic: &diagnostic
         ) { return recovered }
@@ -422,6 +419,8 @@ enum ModelContainerFactory {
         diagnostic: inout StartupStoreDiagnostic
     ) throws -> ModelContainer {
         switch source {
+        case .v59:
+            return try makePersistentContainer(migrationPlan: MerianRecentV59MigrationPlan.self, named: "recent-v59", diagnostic: &diagnostic)
         case .v58:
             return try makePersistentContainer(migrationPlan: MerianRecentV58MigrationPlan.self, named: "recent-v58", diagnostic: &diagnostic)
         case .v57:

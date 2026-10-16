@@ -5537,11 +5537,20 @@ snapshot SHA-256 values, so a property, annotation, default, relationship,
 initializer, or helper edit requires an explicit historical-shape review.
 `SchemaV51Snapshots.swift` freezes all eight `MerianSchemaV51` model classes and
 their relationships; the unchanged goal-hint companion retains its V50 owner.
-`MerianSchemaV59` owns the active global models and four standalone inactive
-photo-preparation entities. V58 is frozen in `SchemaV58ScanSnapshots.swift` and
-`SchemaV58QueueSnapshots.swift`; that complete outgoing graph compiled before
-adding the scalar P1 ledger. V59 migration/runtime acceptance is still pending
-in the approved NCO-1 local window. V57 is frozen in
+`MerianSchemaV60` owns the active global models, four inactive photo-preparation
+entities and four inactive shared-storage entities. V59 is frozen in
+`SchemaV59ScanSnapshots.swift`, `SchemaV59QueueSnapshots.swift` and
+`SchemaV59PhotoPreparationSnapshots.swift`; that complete graph compiled before
+adding V60. The V59→V60 disk migration and startup recovery passed locally. The
+inactive storage suite passed 16 tests. A full shared-checkout run retained four
+architecture/inventory failures; the formatting-only production correction and
+expanded purge tests passed all 23 targeted checks. Unchanged passing runtime
+results are reused with independent/IC-1 concurrence; neither an exact-candidate
+full green rerun nor isolated-source qualification is claimed. See the current
+[SMA-1 status](../rfcs/shared-media-allocation-ownership-2026-10-16.md). V58 is
+frozen in `SchemaV58ScanSnapshots.swift` and `SchemaV58QueueSnapshots.swift`;
+that complete outgoing graph compiled before adding the scalar P1 ledger. V59
+source evidence remains in the NCO-1/ISQ-1 records. V57 is frozen in
 `SchemaV57ScanSnapshots.swift` and `SchemaV57QueueSnapshots.swift`; the full
 relationship graph compiled before adding queue qualification. V56 is frozen in
 `SchemaV56ScanSnapshots.swift` and `SchemaV56QueueSnapshots.swift`; the graph
@@ -5584,8 +5593,19 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current source schema is `MerianSchemaV59` (NCO-1 acceptance pending). V59
-adds `PhotoPreparationRecord`, `PhotoPreparationAsset`,
+The current source schema is `MerianSchemaV60`. It adds scalar
+`SharedMediaInventoryRecord`, `SharedMediaAllocationRecord`,
+`SharedMediaReferenceRecord` and `SharedMediaLeaseRecord` through lightweight
+V59→V60. Migration starts these tables empty and does not inventory files. The
+inactive repository requires explicit qualification roots and persists
+root/store binding, generation/revision, reservations and logical holds. Legacy
+observations never grant completeness, admission or deletion authority. Any new
+row blocks identity replacement and library purge before existing callbacks;
+only future reviewed owner adapters can release that barrier. No live producer
+uses the new allocator. See the
+[owner README](../../apps/ios/Merian/Core/Data/SharedMediaStorage/README.md).
+
+V59 adds `PhotoPreparationRecord`, `PhotoPreparationAsset`,
 `PhotoPreparationReference` and `PhotoPreparationLease`, with scalar IDs and no
 relationships to the legacy graph. The immediate V58 plan is additive and starts
 this ledger empty. Optional lease `sourceIdentity` binds an app-owned inbox
@@ -5636,13 +5656,13 @@ Ordinary Capture access remains nil. Recent milestones:
   directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
-  `ModelContainer`: fresh/current V59 stores open without a migration plan,
+  `ModelContainer`: fresh/current V60 stores open without a migration plan,
   known recent stores use the source-isolated
-  V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and
-  only unknown older stores use the full historical plan. V58 needs only
-  lightweight V58→V59; earlier plans retain their previous stages and append
-  V58→V59. Each V50 plan contains its custom V50→V51 preference-ownership stage
-  followed by V51→V52→V53→V54→V55→V56→V57→V58→V59; the V49 plan prepends the
+  V59/V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans,
+  and only unknown older stores use the full historical plan. V59 needs only
+  lightweight V59→V60; earlier plans retain their previous stages and append
+  V59→V60. Each V50 plan contains its custom V50→V51 preference-ownership stage
+  followed by V51→V52→V53→V54→V55→V56→V57→V58→V59→V60; the V49 plan prepends the
   required lightweight V49→V50 hop. Immediate predecessors therefore never
   validate unrelated history. The V42 and V43 recent plans jump directly to V49
   to avoid validating older full-historical custom stages and to keep V42 off

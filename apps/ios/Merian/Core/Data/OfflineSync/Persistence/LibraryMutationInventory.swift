@@ -89,6 +89,8 @@ struct LibraryMutationInventory: Equatable, Sendable {
             + context.fetchCount(FetchDescriptor<PhotoPreparationAsset>())
             + context.fetchCount(FetchDescriptor<PhotoPreparationReference>())
             + context.fetchCount(FetchDescriptor<PhotoPreparationLease>())
+        // Any SMA row, including orphaned references or leases, requires its owner.
+        if try SharedMediaStorageRepository.hasLiabilities(in: context) { localOnlyChanges += 1 }
         return try Self(
             queuedScans: context.fetchCount(FetchDescriptor<OfflineQueuedScan>()),
             pendingJobs: context.fetchCount(FetchDescriptor<OfflineJobRecord>(

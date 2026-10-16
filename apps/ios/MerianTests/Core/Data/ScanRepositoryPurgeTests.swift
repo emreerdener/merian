@@ -198,6 +198,46 @@ struct ScanRepositoryPurgeTests {
         #expect(!FieldNotesStore.hasStoredValues(userDefaults: defaults))
     }
 
+    @Test(arguments: [false, true])
+    func everySharedMediaRecordBlocksBeforeAnyPurgeCallback(saved: Bool) async throws {
+        for row in sharedMediaPurgeBlockers() {
+            let schema = Schema(CurrentSchema.models)
+            let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+            let context = ModelContext(container)
+            context.autosaveEnabled = false
+            context.insert(OfflineJobRecord(id: "shared-storage-purge-sentinel", kind: .scanIngestion))
+            try context.save()
+            context.insert(row)
+            if saved { try context.save() }
+            let suite = "merian.tests.shared-purge." + UUID().uuidString
+            let defaults = try #require(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            FieldNotesStore.setFieldNotes("Synthetic note", for: "fixture", userDefaults: defaults)
+            var callbacks = 0
+            let result = await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+                resetRuntimeState: { callbacks += 1 }, erasePhotoPreparation: { callbacks += 1 },
+                eraseReanalysis: { callbacks += 1 })
+            #expect(!result && callbacks == 0)
+            #expect(try SharedMediaStorageRepository.hasLiabilities(in: context))
+            #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
+            #expect(FieldNotesStore.hasStoredValues(userDefaults: defaults))
+        }
+    }
+
+    private func sharedMediaPurgeBlockers() -> [any PersistentModel] {
+        [
+            SharedMediaInventoryRecord(id: UUID(), rootIdentity: "fixture", storeIdentity: "fixture",
+                generation: UUID(), revision: 0, modeRaw: "qualification", phaseRaw: "closed", cursor: ""),
+            SharedMediaAllocationRecord(id: UUID(), inventoryID: UUID(), accountID: nil, packageID: nil,
+                namespaceRaw: "fixture", fileToken: "fixture", poolRaw: "durable", stateRaw: "retiring",
+                materializedBytes: 0, reservedBytes: 1, physicalIdentity: nil),
+            SharedMediaReferenceRecord(id: UUID(), allocationID: UUID(), accountID: nil,
+                ownerID: "fixture", roleRaw: "source", stateRaw: "live", revision: 0),
+            SharedMediaLeaseRecord(id: UUID(), allocationID: UUID(), processEpoch: UUID(),
+                purposeRaw: "unknown", stateRaw: "unknown")
+        ]
+    }
+
     @Test func purgeInventoryTracksEveryCurrentSchemaEntity() {
         let purgedModelTypes: [any PersistentModel.Type] = [
             LocalScanRecord.self,
@@ -216,11 +256,14 @@ struct ScanRepositoryPurgeTests {
             PhotoPreparationReference.self, PhotoPreparationLease.self
         ]
 
-        #expect(
-            Set(purgedModelTypes.map(ObjectIdentifier.init))
-                == Set(CurrentSchema.models.map(ObjectIdentifier.init)),
-            "Every active-schema entity must participate in account purge"
-        )
+        // L1 has no physical-release authority: each of these rows blocks purge
+        // before callbacks. The test above exercises saved and unsaved liabilities.
+        let blockedModelTypes = sharedMediaPurgeBlockers().map { type(of: $0) }
+        let purged = Set(purgedModelTypes.map(ObjectIdentifier.init))
+        let blocked = Set(blockedModelTypes.map(ObjectIdentifier.init))
+        #expect(purged.isDisjoint(with: blocked))
+        #expect(purged.union(blocked) == Set(CurrentSchema.models.map(ObjectIdentifier.init)),
+            "Every active-schema entity must be purged by its owner or block purge")
 
         let purgedModelNames = [
             "CapturedMediaEntry",

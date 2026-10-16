@@ -1,0 +1,62 @@
+import Foundation
+
+/// Accounting only: this grants neither file access nor admission to inference.
+enum SharedMediaStoragePolicy {
+    static let pageSize = 128
+    static let maximumTokenBytes = 1_024
+    static let reserve: Int64 = 256 * PhotoPreparationPolicy.mib
+
+    static func add(_ lhs: Int64, _ rhs: Int64) throws -> Int64 {
+        let (value, overflow) = lhs.addingReportingOverflow(rhs)
+        guard lhs >= 0, rhs >= 0, !overflow else { throw SharedMediaStorageFailure.invalid }
+        return value
+    }
+
+    static func token(_ value: String) throws {
+        guard !value.isEmpty, value.utf8.count <= maximumTokenBytes,
+              value != ".", value != "..", !value.contains("/"), !value.contains("\\"),
+              !value.contains("\0") else { throw SharedMediaStorageFailure.invalid }
+    }
+
+    struct Totals {
+        private var packages: [UUID: Int64] = [:]
+        private var pools: [SharedMediaStoragePool: Int64] = [:]
+        private var outstanding: Int64 = 0
+        private var exclusivePackages: [SharedMediaStoragePool: UUID] = [:]
+
+        mutating func include(_ charge: SharedMediaStorageCharge) throws {
+            let bytes = try SharedMediaStoragePolicy.add(charge.materialized, charge.reserved)
+            if charge.pool == .observed {
+                guard charge.reserved == 0, charge.packageID == nil else { throw SharedMediaStorageFailure.invalid }
+                return // Occupied bytes already reduce the filesystem's available space.
+            }
+            guard let package = charge.packageID else { throw SharedMediaStorageFailure.invalid }
+            if charge.pool == .preparation || charge.pool == .transfer {
+                guard exclusivePackages[charge.pool].map({ $0 == package }) ?? true else { throw SharedMediaStorageFailure.capacity }
+                exclusivePackages[charge.pool] = package
+            }
+            outstanding = try SharedMediaStoragePolicy.add(outstanding, charge.reserved)
+            pools[charge.pool] = try SharedMediaStoragePolicy.add(pools[charge.pool, default: 0], bytes)
+            // Temporary copies belong to a package but are outside its durable envelope.
+            packages[package] = try SharedMediaStoragePolicy.add(packages[package, default: 0], charge.pool == .durable ? bytes : 0)
+            guard packages.count <= PhotoPreparationPolicy.maximumPackages,
+                  packages[package, default: 0] <= PhotoPreparationPolicy.package,
+                  pools[.durable, default: 0] <= PhotoPreparationPolicy.durable,
+                  pools[.acquisition, default: 0] <= 96 * PhotoPreparationPolicy.mib,
+                  pools[.preparation, default: 0] <= 64 * PhotoPreparationPolicy.mib,
+                  pools[.transfer, default: 0] <= 32 * PhotoPreparationPolicy.mib else {
+                throw SharedMediaStorageFailure.capacity
+            }
+            let temporary = try SharedMediaStoragePolicy.add(
+                SharedMediaStoragePolicy.add(pools[.acquisition, default: 0], pools[.preparation, default: 0]),
+                pools[.transfer, default: 0])
+            guard temporary <= PhotoPreparationPolicy.temporary else { throw SharedMediaStorageFailure.capacity }
+        }
+
+        func checkAvailable(_ available: Int64) throws {
+            guard available >= 0, available >= (try SharedMediaStoragePolicy.add(outstanding, SharedMediaStoragePolicy.reserve)) else {
+                throw SharedMediaStorageFailure.capacity
+            }
+        }
+    }
+}
