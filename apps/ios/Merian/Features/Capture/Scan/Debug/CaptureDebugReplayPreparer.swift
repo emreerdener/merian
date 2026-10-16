@@ -51,8 +51,8 @@ enum PreparedCaptureDebugReplay: Sendable {
         }
     }
 
-    func discard(documentsDirectory: URL = .documentsDirectory) async {
-        await FileIOActor.shared.deleteFiles(
+    func discard(documentsDirectory: URL = .documentsDirectory, files: FileIOActor = .shared) async {
+        await files.deleteFiles(
             at: ownedFileURLs(documentsDirectory: documentsDirectory).map(\.path)
         )
     }
@@ -68,6 +68,7 @@ enum CaptureDebugReplayPreparer {
     struct Dependencies: Sendable {
         var metadata: @Sendable (URL) async throws -> Metadata
         var video: @Sendable (CaptureScanVideoPreparationRequest) async throws -> PreparedCaptureScanVideo
+        var files: FileIOActor = .shared
 
         static var live: Self {
             Self(
@@ -156,12 +157,12 @@ enum CaptureDebugReplayPreparer {
             try Task.checkCancellation()
             guard let prepared else { throw CaptureDebugReplayError.invalidSource }
             if !prepared.ownedFileURLs(documentsDirectory: documentsDirectory).contains(copy) {
-                await FileIOActor.shared.deleteFiles(at: [copy.path])
+                await dependencies.files.deleteFiles(at: [copy.path])
             }
             return prepared
         } catch {
-            await prepared?.discard(documentsDirectory: documentsDirectory)
-            await FileIOActor.shared.deleteFiles(at: [copy.path])
+            await prepared?.discard(documentsDirectory: documentsDirectory, files: dependencies.files)
+            await dependencies.files.deleteFiles(at: [copy.path])
             throw error
         }
     }

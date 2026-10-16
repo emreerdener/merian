@@ -61,6 +61,36 @@ remains read-only with respect to cloud metadata. See the
 [Core Data Images README](Images/README.md) for ownership and verification
 details.
 
+## Legacy file ownership
+
+`Database/FileIOActor.swift` owns generic legacy flat-file access. Local files
+must be regular, single-link, direct children of Documents or temporary storage;
+private namespaces, Application Support inbox files, nested paths, directories,
+traversal and symlinks are refused. `validPaths` is only a presence check, never
+reference or submission authority. Its bare-name lookup remains Documents-only;
+remote read references remain unchanged. Generic deletion checks both legacy
+roots for bare names; audio deletion retains its Documents-only bare lookup.
+Absolute paths always name exactly their permitted file. Simulator replay
+preparation and discard share an explicitly injected FileIO owner; ordinary
+callers retain the live owner. A fixture directory does not expand the live
+actor's cleanup authority.
+
+Audio/video persistence adopts permitted Documents files or copies permitted
+temporary bytes in bounded chunks. An absolute source cannot be replaced by an
+unrelated Documents basename. A bare source uses Documents first, then temporary
+storage; an invalid existing entry blocks fallback. Copy failure retains the
+source, and destination flush precedes source cleanup. Refusal before unlink
+retains the source; a directory-sync failure after unlink leaves deletion
+durability uncertain, with the flushed destination still available. Descriptor
+checks refuse observed replacement, but POSIX unlink cannot atomically compare
+an inode and remove it. Complete common-writer lifetime fencing and allocation
+accounting remain open; this boundary does not supply them.
+
+Only the private store owners can retire their references and erase their media.
+See [photo preparation](PhotoPreparation/README.md) and the disk-backed
+[FileIO tests](../../../MerianTests/Core/Data/FileIOActorTests.swift), including
+shared-original preservation across generic cleanup and owner-directed deletion.
+
 ## Purpose
 
 This area acts as the source of truth for app data. It encompasses SwiftData

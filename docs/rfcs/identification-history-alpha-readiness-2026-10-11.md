@@ -1,3 +1,48 @@
+## October 16 — separate local continuation; PR116 remains frozen
+
+The user authorized local feature continuation on
+`codex/history-original-media-followup`, based on
+`135555d66434dbd6cdf812849745295f6db4f760`, with reviewed local commits. PR116
+remains frozen at that exact head. This supersedes earlier instructions to wait
+for integration before local follow-up construction; no push, merge, deployment
+or hosted test is authorized. Activation stays disabled, ordinary P1 access nil,
+Supabase integration hold active, AWS unapproved and all limits unchanged.
+
+The first reviewed scope confines legacy FileIO operations so paths cannot
+bypass the private PhotoPreparation, ReanalysisQueue or inbox owner. It also
+removes absolute-source basename substitution. This is an ownership
+prerequisite, not common allocation or product-wide lifetime qualification. The
+durable shared allocator/inventory agreement, remaining media and integrated
+acceptance, then version deletion/export and redesign remain in their approved
+order. No capture visual refactor or broader engine ownership is absorbed.
+
+The ownership correction passed 47 focused tests and the complete native unit
+run: 5,955 expanded cases, zero failures or skips (4,497 test declarations in
+665 suites). The required critical-suite result validator also passed. These are
+shared-checkout simulator results, not isolated-source or device qualification.
+The earlier full run, with ten failing replay declarations, remains retained:
+the replay fixture had injected its Documents root but still used global
+cleanup. Explicit FileIO owner injection corrected that mismatch without
+broadening cleanup authority; success, cancellation and error paths now use the
+same owner.
+
+Independent and IC-1 exact-source concurrence preceded the corrected execution.
+Scope and failed/passing results are retained in
+`.artifacts/history-media-confinement-20261016/`. A local commit requires
+separate final result review; review and commit receipts must identify the exact
+candidate in that directory. All 102 unrelated paths are preserved. Auto-prompts
+remain paused.
+
+PR116's iOS Build/Test and Startup Safety checks passed. Supabase Candidate
+Validation run `38864594630` failed C1 `account-batch` at
+`actual_two_item_account_tombstone_rollback`, SQLSTATE `ZX452`. Its compound
+pre-user-delete accounting assertion does not reveal the failed predicate; root
+cause remains unresolved. The disabled-gate restoration passed. The next backend
+diagnostic must distinguish those predicates on the exact CI candidate; no
+backend source change or CI rerun is part of this local checkpoint. See
+`pr116-ci-blocker.json` in the evidence directory. PR116 remains frozen and is
+not merge-ready.
+
 ## October 16 — PR116 feature scope frozen; merge-readiness proposal
 
 The human requested a feature freeze and exact merge-readiness proposal with

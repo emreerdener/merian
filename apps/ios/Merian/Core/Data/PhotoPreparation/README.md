@@ -43,5 +43,11 @@ the draft as needing recovery and blocks freeze. A failed edit stays unsaved.
 `CaptureWorkspaceDependencies.live` supplies no access. The explicit
 qualification factory requires a dedicated on-disk container/private root and
 synthetic account. Installed/device use and shared allocation with ordinary
-capture remain unqualified. Current implementation is undergoing NCO-1 review
-and tests; this document does not claim acceptance.
+capture remain unqualified. The local foundation and confinement checks do not
+close those acceptance gates.
+
+Generic `FileIOActor` operations accept only individual flat legacy files and
+cannot adopt or delete this namespace or its descendants. Original/reference
+retirement still belongs exclusively to the P1 owner; a generic path is never a
+release capability. This protection is a separate local ownership prerequisite,
+not mixed-allocator accounting or a live-composition qualification.
