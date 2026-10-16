@@ -1,7 +1,6 @@
 import CryptoKit
 import Darwin
 import Foundation
-import ImageIO
 
 /// Qualification roots must already exist. A lock is held across the entire
 /// reservation, provider callback, file commit and fresh-context ledger save.
@@ -186,22 +185,6 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
         }
     }
 
-    static func validateImage(_ data: Data, maximumBytes: Int64) throws -> String {
-        guard !data.isEmpty, data.count <= maximumBytes,
-              let source = CGImageSourceCreateWithData(data as CFData,
-                [kCGImageSourceShouldCache: false] as CFDictionary),
-              CGImageSourceGetCount(source) > 0,
-              let type = CGImageSourceGetType(source) as String?,
-              (CGImageSourceCopyTypeIdentifiers() as? [String] ?? []).contains(type),
-              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-              let width = properties[kCGImagePropertyPixelWidth] as? NSNumber,
-              let height = properties[kCGImagePropertyPixelHeight] as? NSNumber,
-              width.int64Value > 0, height.int64Value > 0 else { throw PhotoPreparationFailure.invalidMedia }
-        let (pixels, overflow) = width.int64Value.multipliedReportingOverflow(by: height.int64Value)
-        guard !overflow, pixels <= PhotoPreparationPolicy.maximumPixels else { throw PhotoPreparationFailure.sizeLimit }
-        return type
-    }
-
     func write(_ data: Data, intent: PhotoPreparationIntent) throws -> PhotoPreparationFile {
         guard !data.isEmpty, data.count <= intent.maximumBytes else { throw PhotoPreparationFailure.sizeLimit }
         let contentType = try Self.validateImage(data, maximumBytes: intent.maximumBytes)
@@ -287,6 +270,33 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
     func sharedProof(_ file: PhotoPreparationFile) throws -> SharedMediaPhotoFileProof {
         guard let sharedBinding else { throw PhotoPreparationFailure.unsupportedComposition }
         return try SharedMediaPhotoFileProof(file: file, identity: verifiedIdentity(file), binding: sharedBinding.bytes)
+    }
+
+    /// The callback cannot escape. Its descriptors name only this retained
+    /// destination under this already locked namespace; no second lock owner.
+    func withInboxDestination<T>(_ handoff: SharedMediaInboxHandoff, create: Bool,
+                                _ body: (SharedMediaInboxDestinationFiles) throws -> T) throws -> T {
+        guard let sharedBinding else { throw PhotoPreparationFailure.unsupportedComposition }
+        try handoff.request.validate()
+        let token = handoff.request.intent(epoch: handoff.writerEpoch).fileToken
+        let fd: Int32, name: String
+        do { (fd, name) = try directory(token, create: create) }
+        catch PhotoPreparationFailure.missingMedia {
+            guard !create else { throw SharedMediaStorageFailure.conflict }
+            fd = -1; name = handoff.request.assetID.uuidString.lowercased()
+        }
+        defer { if fd >= 0 { Darwin.close(fd) } }
+        let access = SharedMediaInboxDestinationAccess(parent: fd, namespace: namespaceFD, name: name, check: {
+            if fd >= 0 { try self.checkDirectoryIdentity(fd, token: token) }
+            else {
+                try self.checkIdentity()
+                do { let (found, _) = try self.directory(token, create: false); Darwin.close(found) }
+                catch PhotoPreparationFailure.missingMedia { return }
+                throw SharedMediaStorageFailure.conflict
+            }
+        })
+        defer { access.close() }
+        return try body(SharedMediaInboxDestinationFiles(access: access, handoff: handoff, binding: sharedBinding))
     }
 
     private func directoryIdentity(_ fd: Int32) throws -> String {
@@ -506,6 +516,24 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
         try checkDirectoryIdentity(fd, token: token)
     }
 }
+
+/// Only the locked P1 namespace can construct this dynamic-scope capability.
+struct SharedMediaInboxDestinationAccess {
+    private let parent: Int32, namespace: Int32
+    let name: String
+    private let check: () throws -> Void
+    private let lifetime = SharedMediaInboxDestinationScope()
+    fileprivate init(parent: Int32, namespace: Int32, name: String, check: @escaping () throws -> Void) {
+        self.parent = parent; self.namespace = namespace; self.name = name; self.check = check
+    }
+    func perform<T>(_ body: (Int32, Int32) throws -> T) throws -> T {
+        guard lifetime.open else { throw SharedMediaStorageFailure.closed }
+        try check(); let result = try body(parent, namespace); try check(); return result
+    }
+    fileprivate func close() { lifetime.open = false }
+}
+
+private final class SharedMediaInboxDestinationScope { var open = true }
 
 struct SharedMediaPhotoFileProof: Sendable {
     let file: PhotoPreparationFile

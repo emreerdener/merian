@@ -7,6 +7,7 @@ import SwiftData
 final class SharedMediaInboxOwner {
     private let storage: SharedMediaStorageRepository
     private let io: SharedMediaInboxIO
+    private let destinationIO: SharedMediaInboxDestinationIO
     private var active: (() async -> Void)?
     private var cancel: (() -> Void)?
     private var suspended = false
@@ -17,9 +18,15 @@ final class SharedMediaInboxOwner {
             sources: [SharedMediaInboxFiles.namespace: inboxRoot, SharedMediaPhotoLedger.namespace: photoRoot])
         guard let files = storage.inboxFiles else { throw SharedMediaStorageFailure.closed }
         io = SharedMediaInboxIO(files: files)
+        guard let destination = storage.photoFiles else { throw SharedMediaStorageFailure.closed }
+        destinationIO = SharedMediaInboxDestinationIO(files: destination)
     }
 
     #if DEBUG
+    func setHandoffAvailableBytes(_ value: Int64?) { storage.handoffAvailableBytes = value }
+    func setHandoffPause(_ pause: (@Sendable () async -> Void)?) async { await destinationIO.setPause(pause) }
+    func setHandoffFault(_ fault: ((SharedMediaInboxHandoffBoundary) throws -> Void)?) { storage.handoffFault = fault }
+    func setHandoffFileFault(_ fault: (@Sendable (SharedMediaInboxHandoffBoundary) throws -> Void)?) async { await destinationIO.setFault(fault) }
     func setFault(_ fault: ((SharedMediaInboxBoundary) throws -> Void)?) { storage.inboxFault = fault }
     func setFileFault(_ fault: (@Sendable (SharedMediaInboxBoundary) throws -> Void)?) async { await io.setFault(fault) }
     #endif
@@ -39,6 +46,7 @@ final class SharedMediaInboxOwner {
         try await perform { [self] in
             let sources = try storage.inboxSources()
             try await io.validate(sources)
+            try await destinationIO.validate(storage.inboxRead { try $0.photos.inventory() })
             for source in sources where source.writerState == "closed" && source.phase != "retiring" {
                 try await reconcileOccupancy(source)
             }
@@ -85,6 +93,7 @@ final class SharedMediaInboxOwner {
         try await perform { [self] in
             let sources = try storage.inboxSources()
             try await io.validate(sources)
+            try await destinationIO.validate(storage.inboxRead { try $0.photos.inventory() })
             var result: [SharedMediaInboxRecovery] = []
             for initial in sources {
                 try Task.checkCancellation()
@@ -118,6 +127,181 @@ final class SharedMediaInboxOwner {
                 source = try transaction(before: .beforeRetirementSave, after: .afterRetirementSave) { try $0.retire(inspection) }
             }
             try await finishRetirement(source.handle)
+        }
+    }
+
+    func prepareHandoff(_ source: SharedMediaInboxHandle, account: PhotoOriginalPreparationOwner.AccountAccess,
+                        packageID: UUID, draftGeneration: UUID, ordinal: Int64 = 0) throws -> SharedMediaInboxHandoffRequest {
+        guard active == nil, !suspended else { throw SharedMediaStorageFailure.busy }
+        let lease = try account.begin(); defer { account.finish(lease) }
+        try check(account, lease)
+        return try storage.inboxRead { try $0.handoffs.prepare($0.source(source), ownerID: account.ownerID,
+            packageID: packageID, draftGeneration: draftGeneration, ordinal: ordinal) }
+    }
+
+    func handoff(_ request: SharedMediaInboxHandoffRequest,
+                 account: PhotoOriginalPreparationOwner.AccountAccess) async throws -> PhotoOriginalReference {
+        try await accountOperation(account, ownerID: request.ownerID) { [self] lease in
+            // Saved state is recovery only. Never resume an incomplete write by
+            // rereading the source or issuing a replacement request.
+            if let saved = try handoffState(request) {
+                guard saved.completed else { throw PhotoPreparationFailure.cleanupPending }
+                guard let proof = try await destinationIO.recover(saved) else { throw PhotoPreparationFailure.missingMedia }
+                try check(account, lease)
+                _ = try handoffTransaction(before: .beforeCompletionSave, after: .afterCompletionSave) { try $0.handoffs.complete(proof) }
+                try check(account, lease); return request.handle
+            }
+            try await destinationIO.validate(storage.inboxRead { try $0.photos.inventory() }); try check(account, lease)
+            var state = try handoffTransaction(before: .beforeReservationSave, after: .afterReservationSave, requiresFreeSpace: true) {
+                try $0.handoffs.reserve(request)
+            }
+            do {
+                let source = try storage.inboxSource(request.source)
+                let data = try await io.read(source); try check(account, lease)
+                let partial = try await destinationIO.begin(state); try check(account, lease)
+                state = try handoffTransaction(before: .beforeIdentitySave, after: .afterIdentitySave) { try $0.handoffs.partial(partial) }
+                let proof = try await destinationIO.write(data, state: state); try check(account, lease)
+                _ = try await io.read(source); try check(account, lease)
+                _ = try handoffTransaction(before: .beforeCompletionSave, after: .afterCompletionSave) { try $0.handoffs.complete(proof) }
+                try check(account, lease); return request.handle
+            } catch {
+                // Both actor calls have returned. Closing the local writer is
+                // accountless and retains all liabilities if proof cannot form.
+                if let current = try? handoffState(request) { _ = try? await closeHandoff(current) }
+                throw error
+            }
+        }
+    }
+
+    func recoverHandoffs(account: PhotoOriginalPreparationOwner.AccountAccess) async throws -> [SharedMediaInboxHandoffRecovery] {
+        try await accountOperation(account, ownerID: account.ownerID) { [self] lease in
+            try await destinationIO.prune(storage.inboxRead { try $0.photos.inventory() }); try check(account, lease)
+            let states = try storage.inboxRead { try $0.handoffs.all() }.filter { $0.request.ownerID == account.ownerID }
+            var result: [SharedMediaInboxHandoffRecovery] = []
+            for initial in states {
+                try check(account, lease)
+                if initial.detached { result.append(.detached(initial.request)); continue }
+                if initial.phase == "sourceRetiring" {
+                    // This irreversible intent is already pinned and may be
+                    // completed by the source owner even after account change.
+                    let source = try storage.inboxSources().first { $0.handle.id == initial.request.source.id }
+                    guard let source else { throw SharedMediaStorageFailure.conflict }
+                    try await finishRetirement(source.handle); try check(account, lease)
+                    result.append(.completed(initial.request, initial.request.handle)); continue
+                }
+                do {
+                    let state = try await closeHandoff(initial); try check(account, lease)
+                    if let proof = try await destinationIO.recover(state) {
+                        try check(account, lease)
+                        _ = try handoffTransaction(before: .beforeCompletionSave, after: .afterCompletionSave) { try $0.handoffs.complete(proof) }
+                        result.append(.completed(state.request, state.request.handle))
+                    } else { try check(account, lease); result.append(.incomplete(state.request)) }
+                } catch {
+                    try check(account, lease); result.append(.conflict(initial.request))
+                }
+            }
+            return result
+        }
+    }
+
+    func abandonHandoff(_ request: SharedMediaInboxHandoffRequest) async throws {
+        try await perform { [self] in
+            guard let initial = try handoffState(request) else { throw SharedMediaStorageFailure.stale }
+            if initial.detached { return }
+            let closed = try await closeHandoff(initial)
+            let proof = try await destinationIO.closure(closed)
+            do {
+                try storage.handoffWrite(before: .beforeAbandonSave, after: .afterAbandonSave) {
+                    try $0.handoffs.abandon(proof)
+                }
+            } catch {
+                if let saved = try handoffState(request), !saved.detached { throw error }
+            }
+        }
+    }
+
+    func retireHandoffSource(_ request: SharedMediaInboxHandoffRequest,
+                             account: PhotoOriginalPreparationOwner.AccountAccess) async throws {
+        try await accountOperation(account, ownerID: request.ownerID) { [self] lease in
+            guard let state = try handoffState(request) else { throw SharedMediaStorageFailure.stale }
+            if state.phase != "sourceRetiring" {
+                guard state.completed, let proof = try await destinationIO.recover(state) else { throw PhotoPreparationFailure.cleanupPending }
+                try check(account, lease)
+                _ = try handoffTransaction(before: .beforeCompletionSave, after: .afterCompletionSave) { try $0.handoffs.complete(proof) }
+                let source = try storage.inboxSource(request.source)
+                let inspection = try await io.inspectRetirement(source); try check(account, lease)
+                _ = try transaction(before: .beforeRetirementSave, after: .afterRetirementSave) { try $0.retireHandoff(inspection, request: request) }
+            }
+            guard let source = try storage.inboxSources().first(where: { $0.handle.id == request.source.id }) else { throw SharedMediaStorageFailure.stale }
+            try await finishRetirement(source.handle)
+        }
+    }
+
+    func discardDetachedHandoff(_ request: SharedMediaInboxHandoffRequest,
+                                account: PhotoOriginalPreparationOwner.AccountAccess) async throws {
+        try await accountOperation(account, ownerID: request.ownerID) { [self] lease in
+            guard let state = try handoffState(request), state.detached else { throw SharedMediaStorageFailure.stale }
+            if state.phase == "detached" {
+                let inspection = try await destinationIO.inspectRetirement(state); try check(account, lease)
+                _ = try handoffTransaction(before: .beforeRetirementSave, after: .afterRetirementSave) { try $0.handoffs.retireDetached(inspection) }
+            }
+            let intent = try storage.detachedRetirement(request)
+            try check(account, lease)
+            let proof = try await destinationIO.release(intent)
+            try check(account, lease)
+            do { try storage.handoffWrite(before: .beforeReleaseSave, after: .afterReleaseSave) { try $0.handoffs.releaseDetached(proof) } }
+            catch { guard try handoffState(request) == nil else { throw error } }
+            try await destinationIO.prune(storage.inboxRead { try $0.photos.inventory() }); try check(account, lease)
+        }
+    }
+
+    func destinationOriginalData(_ handle: PhotoOriginalReference,
+                                 account: PhotoOriginalPreparationOwner.AccountAccess) async throws -> Data {
+        try await accountOperation(account, ownerID: handle.ownerID) { [self] lease in
+            let (file, identity) = try storage.inboxRead { ledger in
+                let file = try ledger.photos.resolve(handle), inventory = try ledger.photos.inventory()
+                guard let identity = inventory.identities[file.assetID] else { throw SharedMediaStorageFailure.conflict }
+                return (file, identity)
+            }
+            let bytes = try await destinationIO.read(file, identity: identity); try check(account, lease)
+            return bytes
+        }
+    }
+
+    private func accountOperation<T: Sendable>(_ account: PhotoOriginalPreparationOwner.AccountAccess, ownerID: UUID,
+                                               _ body: @escaping @MainActor (AccountBoundWorkLease) async throws -> T) async throws -> T {
+        guard ownerID == account.ownerID else { throw PhotoPreparationFailure.accountChanged }
+        return try await perform { [self] in
+            let lease = try account.begin(); defer { account.finish(lease) }
+            try check(account, lease); return try await body(lease)
+        }
+    }
+
+    private func check(_ account: PhotoOriginalPreparationOwner.AccountAccess, _ lease: AccountBoundWorkLease) throws {
+        guard !suspended, account.ownerID == lease.session.userID, account.isCurrent(lease) else { throw PhotoPreparationFailure.accountChanged }
+        try Task.checkCancellation()
+    }
+
+    private func handoffState(_ request: SharedMediaInboxHandoffRequest) throws -> SharedMediaInboxHandoff? {
+        try storage.inboxRead { try $0.handoffs.saved(request) }
+    }
+
+    private func closeHandoff(_ state: SharedMediaInboxHandoff) async throws -> SharedMediaInboxHandoff {
+        let proof = try await destinationIO.closure(state)
+        return try handoffTransaction(before: .beforeClosureSave, after: .afterClosureSave) { try $0.handoffs.close(proof) }
+    }
+
+    private func handoffTransaction(before: SharedMediaInboxHandoffBoundary, after: SharedMediaInboxHandoffBoundary,
+                                    requiresFreeSpace: Bool = false,
+                                    _ body: (SharedMediaInboxLedger) throws -> SharedMediaInboxHandoff) throws -> SharedMediaInboxHandoff {
+        var expected: SharedMediaInboxHandoff?
+        do {
+            return try storage.handoffWrite(before: before, after: after, requiresFreeSpace: requiresFreeSpace) {
+                let value = try body($0); expected = value; return value
+            }
+        } catch {
+            guard let expected, try handoffState(expected.request) == expected else { throw error }
+            return expected
         }
     }
 
@@ -190,4 +374,58 @@ private actor SharedMediaInboxIO {
     #if DEBUG
     func setFault(_ fault: (@Sendable (SharedMediaInboxBoundary) throws -> Void)?) { files.fault = fault }
     #endif
+}
+
+private actor SharedMediaInboxDestinationIO {
+    let files: PhotoPreparationLockedFiles
+    #if DEBUG
+    var fault: (@Sendable (SharedMediaInboxHandoffBoundary) throws -> Void)?
+    var pause: (@Sendable () async -> Void)?
+    func setPause(_ value: (@Sendable () async -> Void)?) { pause = value }
+    func setFault(_ value: (@Sendable (SharedMediaInboxHandoffBoundary) throws -> Void)?) { fault = value }
+    #endif
+    init(files: PhotoPreparationLockedFiles) { self.files = files }
+    private func withFiles<T>(_ state: SharedMediaInboxHandoff, create: Bool = false,
+                              _ body: (SharedMediaInboxDestinationFiles) throws -> T) throws -> T {
+        try files.withInboxDestination(state, create: create) { value in
+            var value = value
+            #if DEBUG
+            value.fault = fault
+            #endif
+            return try body(value)
+        }
+    }
+    func begin(_ state: SharedMediaInboxHandoff) throws -> SharedMediaInboxDestinationPartial {
+        try withFiles(state, create: true) { try $0.begin() }
+    }
+    func write(_ data: Data, state: SharedMediaInboxHandoff) async throws -> SharedMediaInboxDestinationCompletion {
+        #if DEBUG
+        await pause?()
+        #endif
+        return try withFiles(state) { try $0.write(data) }
+    }
+    func recover(_ state: SharedMediaInboxHandoff) throws -> SharedMediaInboxDestinationCompletion? {
+        do { return try withFiles(state) { try $0.recover() } }
+        catch PhotoPreparationFailure.missingMedia {
+            guard state.phase == "reserved", state.inode == nil else { throw SharedMediaStorageFailure.conflict }
+            return nil
+        }
+    }
+    func prune(_ inventory: SharedMediaPhotoInventory) throws {
+        try files.pruneSharedEmptyDirectories(knownTokens: Set(inventory.files.map(\.token)).union(inventory.pendingTokens))
+    }
+    func validate(_ inventory: SharedMediaPhotoInventory) throws {
+        try files.checkInventory(knownTokens: Set(inventory.files.map(\.token)).union(inventory.pendingTokens))
+    }
+    func read(_ file: PhotoPreparationFile, identity: String) throws -> Data {
+        guard try files.verifiedIdentity(file) == identity else { throw SharedMediaStorageFailure.conflict }
+        return try files.read(file)
+    }
+    func inspectRetirement(_ state: SharedMediaInboxHandoff) throws -> SharedMediaInboxDestinationInspection {
+        try withFiles(state) { try $0.inspectRetirement() }
+    }
+    func release(_ intent: SharedMediaInboxDestinationRetirement) throws -> SharedMediaInboxDestinationRelease {
+        try withFiles(intent.handoff) { try $0.release(intent) }
+    }
+    func closure(_ state: SharedMediaInboxHandoff) throws -> SharedMediaInboxDestinationClosure { try withFiles(state) { try $0.closure() } }
 }

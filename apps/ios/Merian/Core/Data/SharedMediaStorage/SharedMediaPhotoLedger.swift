@@ -49,7 +49,7 @@ final class SharedMediaPhotoLedger {
             references: bounded(PhotoPreparationReference.self, maximum: 128),
             work: bounded(PhotoPreparationLease.self, maximum: 96),
             allocations: bounded(SharedMediaAllocationRecord.self, maximum: includesInbox ? 104 : 96).filter { !includesInbox || $0.namespaceRaw != SharedMediaInboxFiles.namespace },
-            edges: bounded(SharedMediaReferenceRecord.self, maximum: includesInbox ? 136 : 128).filter { !includesInbox || $0.roleRaw != SharedMediaInboxFiles.namespace },
+            edges: bounded(SharedMediaReferenceRecord.self, maximum: includesInbox ? 144 : 128).filter { !includesInbox || ![SharedMediaInboxFiles.namespace, SharedMediaInboxHandoffLedger.holdRole].contains($0.roleRaw) },
             leases: bounded(SharedMediaLeaseRecord.self, maximum: includesInbox ? 104 : 96).filter { !includesInbox || $0.purposeRaw != SharedMediaInboxFiles.namespace })
     }
 
@@ -65,7 +65,7 @@ final class SharedMediaPhotoLedger {
               Set(r.allocations.map(\.fileToken)).count == r.allocations.count,
               r.allocations.count == r.leases.count,
               r.references.count == r.edges.count,
-              r.allocations.count == r.assets.count + r.work.count else { throw SharedMediaStorageFailure.conflict }
+              r.allocations.count == r.assets.count + r.work.filter({ $0.writerStateRaw != "closedSourceRetained" }).count else { throw SharedMediaStorageFailure.conflict }
         var totals = SharedMediaStoragePolicy.Totals()
         for p in r.packages {
             let envelope = try PhotoPreparationPolicy.decodeDraft(p.supportingContextData)
@@ -75,7 +75,7 @@ final class SharedMediaPhotoLedger {
             let bytes = try PhotoPreparationPolicy.add(r.assets.filter { ids.contains($0.id) }.map(\.byteCount))
             let reserved = try PhotoPreparationPolicy.add(work.map(\.reservedByteCount))
             let retiring = !refs.isEmpty && refs.allSatisfy { !$0.isLive }
-            guard !refs.isEmpty || !work.isEmpty, refs.count + work.count <= 2,
+            guard !refs.isEmpty || !work.isEmpty, refs.count + work.filter({ $0.writerStateRaw != "closedSourceRetained" }).count <= 2,
                   p.contractVersion == PhotoPreparationPolicy.contract, p.draftID == p.id,
                   p.retirementRequested == retiring, p.revision >= 0,
                   (retiring ? p.phaseRaw == "retiring" : ["acquiring", "draftOwned", "needsAttention"].contains(p.phaseRaw)),
@@ -101,7 +101,8 @@ final class SharedMediaPhotoLedger {
                 let refs = r.references.filter { $0.assetID == a.id }
                 guard a.reservedBytes == 0, a.materializedBytes > 0, a.materializedBytes <= PhotoPreparationPolicy.original,
                       let identity = a.physicalIdentity, !identity.isEmpty, identity.utf8.count <= 512,
-                      lease.stateRaw == "closed", !r.work.contains(where: { $0.assetID == a.id }),
+                      lease.stateRaw == "closed",
+                      r.work.filter({ $0.assetID == a.id }).allSatisfy({ includesInbox && $0.writerStateRaw == "closedSourceRetained" }),
                       let asset = r.assets.first(where: { $0.id == a.id }), asset.ownerID == owner,
                       asset.fileToken == a.fileToken, asset.byteCount == a.materializedBytes,
                       asset.cleanupStateRaw == (retiring ? "retiring" : "ready"),
@@ -110,6 +111,14 @@ final class SharedMediaPhotoLedger {
                       !refs.isEmpty, refs.allSatisfy({ $0.isLive != retiring }),
                       !retiring || refs.count == 1 else { throw SharedMediaStorageFailure.conflict }
                 if retiring { _ = try SharedMediaPhotoRetirementIdentity.decode(identity) }
+            } else if includesInbox && a.stateRaw.hasPrefix("p1Inbox") {
+                // The paired handoff validator owns the exact request/source
+                // joins. B is already inside H; detached A is added there once.
+                guard a.materializedBytes >= 0, a.reservedBytes >= 0,
+                      try SharedMediaStoragePolicy.add(a.materializedBytes, a.reservedBytes) <= PhotoPreparationPolicy.original,
+                      !r.assets.contains(where: { $0.id == a.id }),
+                      !r.references.contains(where: { $0.assetID == a.id }),
+                      !r.edges.contains(where: { $0.allocationID == a.id }) else { throw SharedMediaStorageFailure.conflict }
             } else {
                 guard ["p1Reserved", "p1Held"].contains(a.stateRaw), a.materializedBytes == 0,
                       a.reservedBytes > 0, a.reservedBytes <= PhotoPreparationPolicy.original, a.physicalIdentity == nil,

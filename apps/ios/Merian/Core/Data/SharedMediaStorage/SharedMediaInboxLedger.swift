@@ -16,6 +16,9 @@ final class SharedMediaInboxLedger {
         self.joint = joint; self.inventory = inventory; self.binding = binding; self.rootIdentity = rootIdentity
     }
 
+    var photos: SharedMediaPhotoLedger { .init(joint: joint, inventoryID: inventory.id, includesInbox: true) }
+    var handoffs: SharedMediaInboxHandoffLedger { .init(joint: joint, inventory: inventory, binding: binding) }
+
     func sources() throws -> [SharedMediaInboxSource] { try rows().map(value) }
 
     func source(_ handle: SharedMediaInboxHandle) throws -> SharedMediaInboxSource {
@@ -26,7 +29,7 @@ final class SharedMediaInboxLedger {
         let current = try rows()
         guard current.count < 8, !current.contains(where: { $0.id == id || $0.workID == workID }),
               !current.contains(where: { $0.writerStateRaw == "open" || $0.phaseRaw == "retiring" }),
-              try context.fetchCount(FetchDescriptor<SharedMediaInboxHandoffRecord>()) == 0,
+              try handoffs.all().allSatisfy({ $0.detached }),
               maximumBytes > 0, maximumBytes <= PhotoPreparationPolicy.original else { throw SharedMediaStorageFailure.inUse }
         let row = SharedMediaInboxSourceRecord(id: id, inventoryID: inventory.id, generation: generation,
             receivedAt: Date(), rootIdentity: rootIdentity, maximumBytes: maximumBytes, workID: workID, writerEpoch: binding.epoch)
@@ -87,10 +90,20 @@ final class SharedMediaInboxLedger {
     }
 
     func retire(_ inspection: SharedMediaInboxRetirementInspection) throws -> SharedMediaInboxSource {
+        try handoffs.requireNoHold(sourceID: inspection.source.handle.id)
+        return try retireUnheld(inspection)
+    }
+
+    func retireHandoff(_ inspection: SharedMediaInboxRetirementInspection, request: SharedMediaInboxHandoffRequest) throws -> SharedMediaInboxSource {
+        guard inspection.source.handle == request.source else { throw SharedMediaStorageFailure.stale }
+        try handoffs.pinRetirement(request)
+        return try retireUnheld(inspection)
+    }
+
+    private func retireUnheld(_ inspection: SharedMediaInboxRetirementInspection) throws -> SharedMediaInboxSource {
         let row = try exact(inspection.source)
         guard inspection.binding == binding.bytes, inspection.epoch == binding.epoch,
-              row.writerStateRaw == "closed", row.retirementID == nil,
-              try context.fetchCount(FetchDescriptor<SharedMediaInboxHandoffRecord>()) == 0 else { throw SharedMediaStorageFailure.inUse }
+              row.writerStateRaw == "closed", row.retirementID == nil else { throw SharedMediaStorageFailure.inUse }
         row.retirementID = UUID(); row.retirementPartialIdentity = inspection.partial
         row.retirementFinalIdentity = inspection.final; row.phaseRaw = "retiring"
         try allocation(row).stateRaw = "inboxRetiring"
@@ -101,8 +114,8 @@ final class SharedMediaInboxLedger {
     func release(_ proof: SharedMediaInboxReleaseProof) throws {
         let intent = proof.retirement, row = try exact(intent.source)
         guard intent.binding == binding.bytes, intent.epoch == binding.epoch, row.phaseRaw == "retiring",
-              row.writerStateRaw == "closed", row.retirementID != nil,
-              try context.fetchCount(FetchDescriptor<SharedMediaInboxHandoffRecord>()) == 0 else { throw SharedMediaStorageFailure.conflict }
+              row.writerStateRaw == "closed", row.retirementID != nil else { throw SharedMediaStorageFailure.conflict }
+        try handoffs.releaseSource(row.id)
         context.delete(try allocation(row)); context.delete(try work(row))
         if let reference = try reference(row) { context.delete(reference) }
         context.delete(row)
@@ -124,11 +137,10 @@ final class SharedMediaInboxLedger {
 
     func validate() throws -> SharedMediaStoragePolicy.Totals {
         let sources = try rows()
-        // The handoff extension validates destination links before it can be admitted.
-        guard try context.fetchCount(FetchDescriptor<SharedMediaInboxHandoffRecord>()) == 0 else { throw SharedMediaStorageFailure.conflict }
+        let handoffCharges = try handoffs.validate()
         var total: Int64 = 0, outstanding: Int64 = 0
         let allocations = try fetch(SharedMediaAllocationRecord.self, maximum: 104)
-        let references = try fetch(SharedMediaReferenceRecord.self, maximum: 136)
+        let references = try fetch(SharedMediaReferenceRecord.self, maximum: 144)
         let leases = try fetch(SharedMediaLeaseRecord.self, maximum: 104)
         guard allocations.filter({ $0.namespaceRaw == SharedMediaInboxFiles.namespace }).count == sources.count,
               leases.filter({ $0.purposeRaw == SharedMediaInboxFiles.namespace }).count == sources.count,
@@ -173,8 +185,10 @@ final class SharedMediaInboxLedger {
             outstanding = try SharedMediaStoragePolicy.add(outstanding, a.reservedBytes)
         }
         let headroom: Int64 = sources.isEmpty ? 0 : PhotoPreparationPolicy.original
+        guard handoffCharges.active <= headroom else { throw SharedMediaStorageFailure.conflict }
         var totals = try SharedMediaPhotoLedger(joint: joint, inventoryID: inventory.id, includesInbox: true).validate()
-        try totals.includeInboxAcquisition(bytes: SharedMediaStoragePolicy.add(total, headroom), unmaterialized: SharedMediaStoragePolicy.add(outstanding, headroom))
+        try totals.includeInboxAcquisition(bytes: SharedMediaStoragePolicy.add(SharedMediaStoragePolicy.add(total, headroom), handoffCharges.abandoned),
+            unmaterialized: SharedMediaStoragePolicy.add(outstanding, headroom - handoffCharges.active))
         return totals
     }
 
@@ -199,7 +213,7 @@ final class SharedMediaInboxLedger {
         guard let result = try fetch(SharedMediaLeaseRecord.self, maximum: 104).first(where: { $0.id == row.workID }) else { throw SharedMediaStorageFailure.conflict }; return result
     }
     private func reference(_ row: SharedMediaInboxSourceRecord) throws -> SharedMediaReferenceRecord? {
-        try fetch(SharedMediaReferenceRecord.self, maximum: 136).first(where: { $0.id == row.id })
+        try fetch(SharedMediaReferenceRecord.self, maximum: 144).first(where: { $0.id == row.id })
     }
     private func advance(_ row: SharedMediaInboxSourceRecord) throws -> SharedMediaInboxSource {
         row.revision = try SharedMediaStoragePolicy.add(row.revision, 1); return value(row)

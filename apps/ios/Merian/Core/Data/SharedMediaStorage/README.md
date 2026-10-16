@@ -1,12 +1,12 @@
 # Inactive shared media storage
 
-## Isolated typed source inbox — implementation in progress
+## Isolated typed source inbox
 
 `SharedMediaInboxOwner` adds a distinct `p1InboxQualification` composition with
 sibling SQLite, authority, inbox and P1 fixture roots. It uses the scalar V61
 source/handoff schema. The current increment implements source acquisition,
-reopen and explicit source discard; handoff rows remain rejected until the joint
-destination adapter is implemented and reviewed. There is no live Capture or
+reopen, explicit source discard and joint handoff. Local focused and full native
+qualification passed for the isolated composition. There is no live Capture or
 AppDI composition and no adoption of the legacy inbox.
 
 The source catalog is a bounded projection of ready source rows, not a JSON
@@ -26,8 +26,8 @@ reconciliation splits an unfinished source's charge into occupied bytes and its
 unwritten reservation. The total charge is retained; filesystem availability
 subtracts only the latter. A failed reconciliation retains the conservative
 reservation and cannot grant completion or deletion authority. S+H+A handoff
-accounting remains pending; this is not whole-inventory acceptance. No source is
-automatically reloaded.
+accounting is qualified locally in the handoff extension; this is not
+whole-inventory acceptance. No source is automatically reloaded.
 
 Explicit discard requires a closed local writer, no handoff hold and exact
 fixed-file inspection. Saved irreversible intent precedes unlink. Only the
@@ -48,6 +48,46 @@ architecture/inventory failures alongside 6,021 passing cases; the reviewed
 formatting and purge-fixture corrections passed 50 targeted checks. Unchanged
 runtime evidence is carried forward with independent and IC-1 review, without
 claiming a final-candidate full-green or live retention result.
+
+## Joint inbox/P1 handoff — locally validated
+
+The same `SharedMediaInboxOwner` and one operation coordinator retain all store,
+inbox and P1 fences. No standalone owner is nested. Immutable Codable requests
+bind every source, destination, nonce and inventory revision. One joint save
+creates the source hold (`SharedMediaReferenceRecord` with `inboxHandoffV1`
+role), P1 reservation and shared destination allocation/lease before file work.
+A fixed partial's inode is saved before payload; source and destination
+identities and digest are checked before completion. Exact saved readback
+resolves uncertain saves; an interrupted copy is never restarted automatically.
+Original-account recovery can verify and finish only a complete original
+partial/final.
+
+Source operations remain accountless. Destination operations use one current
+account-work lease, with checks around asynchronous work. The shared controller
+holds exclusion until cancellation actually drains. Abandonment uses a sealed,
+stat-only destination closure/liability proof and never reads or deletes a
+foreign draft or changes its phase/revision. It has no admission free-space
+precondition; all numerical accounting checks still apply. Incomplete
+abandonment retains the destination reservation and typed detached row, while
+restoring the source to unassigned readiness. Its original account must become
+current with a fresh lease before cleanup. Completed abandonment removes only
+the P1 `PhotoPreparationLease`, handoff record and source hold; the complete
+inbox graph/file and durable destination survive.
+
+Separate physical allocations account for both copies. Logical acquisition is
+S+H+A, with active B consuming part of H; the P1 physical reservation is counted
+once and has no second logical B charge. Restoring headroom on abandonment must
+fit the unchanged limit. Closed incomplete destinations split occupied bytes
+from unwritten reservation. Source release requires a verified destination and
+saved irreversible source intent. It deletes only the source graph, hold,
+handoff and P1 source-liability lease after exact absence proof; destination
+shared lease, asset/allocation/reference survive. Detached destination cleanup
+similarly saves identity-bound intent before unlink and releases its reservation
+only after namespace synchronization and absence acknowledgement. Unknown
+identities stay held. Cleanup and recovery reclaim only unreferenced empty
+directories, preserving all live and pending tokens. The exact runtime candidate
+passed 94 focused and 6,038 complete native cases with zero failures or skips.
+These mechanisms are not live Capture/AppDI integration or full acceptance.
 
 `SharedMediaPhotoAcquisitionOwner` is the isolated P1 adapter. It opens a
 distinct `p1Qualification` inventory with sibling database, authority and photo

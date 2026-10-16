@@ -1,3 +1,41 @@
+## October 16 — joint inbox/P1 handoff locally validated
+
+The inactive joint handoff now uses one coordinator and fenced repository for
+source holds, exact destination copies, original-account recovery and cleanup.
+Abandonment preserves the source and account-owned draft phase/revision; it can
+release liabilities under low disk while unchanged S+H+A caps remain enforced.
+Saved irreversible intents and exact inode/directory proofs govern source and
+detached-destination release. Surviving originals and destination references
+remain owned. Empty-directory cleanup preserves all live and pending tokens.
+
+Candidate04 passed 94 focused tests across six suites and the complete native
+target: 6,038 XCResult cases, zero failures or skips (4,580 Swift Testing tests
+across 669 suites). Independent and IC-1 pre-execution review concurred. The
+initial compile failure from an extracted helper's missing actor annotation is
+retained; the corrected helper restores its original main-actor isolation.
+Project generation/membership, migration guardrails, Markdown and diff checks
+passed. Evidence: `.artifacts/shared-media-handoff-20261016/`; full result
+`.artifacts/local-ios/3c0cc00700dd4a4abf6c64e3cc23e1ae.xcresult`.
+
+This validates the isolated handoff in the shared checkout, with 102 unrelated
+paths and their generated-project delta preserved. It does not close isolated-
+source, live capture, device, hosted or whole-product acceptance. Continue the
+shared derivative lifecycle under existing local authorization, retaining the
+approved retire-old-first/incomplete-needs-attention behavior. Activation stays
+disabled, PR116 frozen, Supabase hold active, AWS unapproved and limits
+unchanged. No push, merge, deployment or hosted action occurred.
+
+## October 16 — joint handoff construction under review
+
+The source inbox foundation is committed locally as `6342477a`. Its successor
+implements the adopted joint inbox/P1 agreement in the same isolated owner:
+exact request replay, paired source holds, original-account recovery, stat-only
+abandonment, S+H+A accounting, and proof-backed source/detached cleanup. Source
+and destination work leases have separate disposal rules. Runtime qualification
+is pending; no new schema, numeric limit, live composition or activation is
+adopted. The current owner contract is the
+[shared-storage README](../../apps/ios/Merian/Core/Data/SharedMediaStorage/README.md).
+
 ## October 16 — typed source inbox locally validated
 
 SMA-1 L4 now has an inactive durable source-inbox foundation on V61. Exact
@@ -424,3 +462,36 @@ must resolve lock ordering, irreversible retirement that rejects new holds,
 account-specific versus whole-library purge, and whole-lifetime producer
 registration/exclusion. These are implementation contract obligations, not
 permission to change limits, discard unknown media or activate P1.
+
+## Cloud-backed local-cache policy proposal — not adopted
+
+Planning coordination requested this proposal be considered at cloud-retention
+integration before final acceptance. It does not enable eviction or change
+current pending-package, temporary-space or whole-library limits. Do not
+introduce a second storage owner for it.
+
+Originals would remain durably retained in private R2 while surviving history
+needs them; replaceable cloud-backed originals could use a bounded device cache.
+Never evict the only copy, local-only media, an unsynced draft, pending,
+interrupted or uncertain work, or any file with active local ownership/leases.
+Eligibility requires exact backend durable-retention acknowledgement and release
+of local dependencies. An upload response or successful analysis receipt alone
+is insufficient.
+
+Proposed starting defaults are 256 MiB aggregate eligible-original cache,
+least-recently-used eviction, and expiry after seven days without use, with
+earlier eviction under storage pressure. These numbers require explicit policy
+adoption and realistic photo/audio/video validation. Thumbnails/previews need
+separate bounded accounting. Reanalysis/export after eviction must download the
+exact authorized original and clearly require connectivity. An original larger
+than the cache may be held for an active operation and released afterward within
+existing temporary-space/admission limits. Optional Keep offline is future work.
+
+Removing an app-private cache copy must never delete the user's Photos-library
+original or retained cloud object. Local eviction is distinct from permanent
+version/cloud deletion and must use existing references, leases, saved release
+intent and recovery ownership. Reconcile feasibility and contracts at the
+cloud-retention milestone, then present any actual policy decision before
+adoption. The planning request supplied Apple's
+[file-system guidance](https://developer.apple.com/documentation/foundation/using-the-file-system-effectively)
+as background; this proposal is not platform qualification evidence.

@@ -118,9 +118,15 @@ final class PhotoPreparationRepository {
         try reserve(intent, context: joint.context)
     }
 
-    private static func reserve(_ intent: PhotoPreparationIntent, context: ModelContext) throws {
+    static func reserveInbox(_ permit: SharedMediaInboxReservationPermit, joint: SharedMediaPhotoTransaction) throws {
+        try reserve(permit.intent, context: joint.context, allowsDetached: true)
+    }
+
+    private static func reserve(_ intent: PhotoPreparationIntent, context: ModelContext, allowsDetached: Bool = false) throws {
         let s = try state(in: context)
-        guard s.leases.allSatisfy({ $0.writerStateRaw == "closedSourceRetained" }) else { throw PhotoPreparationFailure.cleanupPending }
+        guard s.leases.allSatisfy({ $0.writerStateRaw == "closedSourceRetained" || (allowsDetached
+            && $0.writerStateRaw == "closedNeedsAttention" && $0.allocatedByteCount == 0
+            && $0.sourceIdentity == nil && $0.terminalProof == "sourceOwnerAcceptedReturn") }) else { throw PhotoPreparationFailure.cleanupPending }
         guard (intent.sourceByteLiability == 0 && intent.sourceIdentity == nil)
             || (intent.sourceByteLiability > 0 && intent.sourceIdentity != nil
                 && (intent.sourceIdentity?.utf8.count ?? 0) <= 128) else { throw PhotoPreparationFailure.inconsistentOwnership }

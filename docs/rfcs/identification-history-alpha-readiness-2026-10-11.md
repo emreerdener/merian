@@ -1,3 +1,38 @@
+## October 16 — joint inbox/P1 handoff locally validated
+
+The inactive joint handoff now uses one coordinator and fenced repository for
+source holds, exact destination copies, original-account recovery and cleanup.
+Abandonment preserves the source and account-owned draft phase/revision; it can
+release liabilities under low disk while unchanged S+H+A caps remain enforced.
+Saved irreversible intents and exact inode/directory proofs govern source and
+detached-destination release. Surviving originals and destination references
+remain owned. Empty-directory cleanup preserves all live and pending tokens.
+
+Candidate04 passed 94 focused tests across six suites and the complete native
+target: 6,038 XCResult cases, zero failures or skips (4,580 Swift Testing tests
+across 669 suites). Independent and IC-1 pre-execution review concurred. The
+initial compile failure from an extracted helper's missing actor annotation is
+retained; the corrected helper restores its original main-actor isolation.
+Project generation/membership, migration guardrails, Markdown and diff checks
+passed. Evidence: `.artifacts/shared-media-handoff-20261016/`; full result
+`.artifacts/local-ios/3c0cc00700dd4a4abf6c64e3cc23e1ae.xcresult`.
+
+This validates the isolated handoff in the shared checkout, with 102 unrelated
+paths and their generated-project delta preserved. It does not close isolated-
+source, live capture, device, hosted or whole-product acceptance. Continue the
+shared derivative lifecycle under existing local authorization, retaining the
+approved retire-old-first/incomplete-needs-attention behavior. Activation stays
+disabled, PR116 frozen, Supabase hold active, AWS unapproved and limits
+unchanged. No push, merge, deployment or hosted action occurred.
+
+## October 16 — proposed cloud-cache policy retained for later review
+
+The cloud-retention integration milestone must consider the
+[unadopted cache proposal](shared-media-allocation-ownership-2026-10-16.md#cloud-backed-local-cache-policy-proposal--not-adopted)
+before final acceptance. The proposed 256 MiB/seven-day defaults are not current
+limits or eviction authority. Current local handoff implementation continues
+under the existing agreement, with activation disabled and PR116 frozen.
+
 ## October 16 — typed source inbox locally validated
 
 SMA-1 L4 now has an inactive durable source-inbox foundation on V61. Exact
