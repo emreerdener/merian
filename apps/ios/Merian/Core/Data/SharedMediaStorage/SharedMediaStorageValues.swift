@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 enum SharedMediaStorageFailure: Error, Equatable {
@@ -37,4 +38,60 @@ struct SharedMediaStorageSnapshot: Equatable, Sendable {
     let revision: Int64
     let phase: String
     let cursor: String
+}
+
+/// Retain this exact value across uncertain saves; never rebase it during recovery.
+struct SharedMediaPhotoShareRequest: Codable, Sendable {
+    let source: PhotoOriginalReference
+    let packageID: UUID
+    let draftGeneration: UUID
+    let inventoryGeneration: UUID
+    let expectedRevision: Int64
+    let nonce: UUID
+
+    init(source: PhotoOriginalReference, packageID: UUID, draftGeneration: UUID,
+                     snapshot: SharedMediaStorageSnapshot) {
+        self.source = source; self.packageID = packageID; self.draftGeneration = draftGeneration
+        inventoryGeneration = snapshot.generation; expectedRevision = snapshot.revision; nonce = UUID()
+    }
+
+    func destination() throws -> PhotoOriginalReference {
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        let bytes = Array(SHA256.hash(data: Data("merian.photo-share.v1\0".utf8) + (try encoder.encode(self))))
+        let id = UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                            bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
+        return PhotoOriginalReference(ownerID: source.ownerID, packageID: packageID, referenceID: id,
+            assetID: source.assetID, assetGeneration: source.assetGeneration,
+            draftGeneration: draftGeneration, referenceRevision: 0)
+    }
+}
+
+struct SharedMediaPhotoRetirementIdentity: Codable, Equatable, Sendable {
+    let version: Int
+    let file: String
+    let parent: String
+    let namespace: String
+    func encoded() throws -> String {
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        let bytes = try encoder.encode(self)
+        guard bytes.count <= 512, let text = String(data: bytes, encoding: .utf8) else { throw SharedMediaStorageFailure.conflict }
+        return text
+    }
+    static func decode(_ value: String) throws -> Self {
+        guard value.utf8.count <= 512 else { throw SharedMediaStorageFailure.conflict }
+        let result = try JSONDecoder().decode(Self.self, from: Data(value.utf8))
+        guard result.version == 1, !result.file.isEmpty, !result.parent.isEmpty, !result.namespace.isEmpty else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        return result
+    }
+}
+
+
+enum SharedMediaPhotoReferenceState: Sendable {
+    case absent, live(PhotoPreparationFile), retiring(SharedMediaPhotoRetirement)
+}
+
+enum SharedMediaPhotoRetirementResult: Sendable, Equatable {
+    case referenceAbsent, referenceRetired, physicalReleaseConfirmed
 }

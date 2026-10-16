@@ -63,7 +63,7 @@ final class SharedMediaStorageRepository {
                 }
             }
             photoFiles = try PhotoPreparationLockedFiles(root: sources[SharedMediaPhotoLedger.namespace]!,
-                sharedBinding: SharedMediaPhotoBinding(bytes: storeBinding, initializing: initializing), inspection: photoInspection)
+                sharedBinding: SharedMediaPhotoBinding(bytes: storeBinding, initializing: initializing, epoch: processEpoch), inspection: photoInspection)
         } else { photoFiles = nil }
         try files.bindStore(storeBinding, initializing: initializing)
         if initializing {
@@ -442,6 +442,73 @@ final class SharedMediaStorageRepository {
         _ = try save(context, inventory)
     }
 
+    func preparePhotoShare(_ source: PhotoOriginalReference, packageID: UUID, draftGeneration: UUID) throws -> SharedMediaPhotoShareRequest {
+        _ = try resolvePhoto(source)
+        return try .init(source: source, packageID: packageID, draftGeneration: draftGeneration, snapshot: snapshot())
+    }
+
+    func sharedPhoto(_ request: SharedMediaPhotoShareRequest) throws -> PhotoOriginalReference? {
+        try photoBoundary(.beforeLifecycleReadback)
+        guard mode == .p1Qualification else { throw SharedMediaStorageFailure.closed }
+        let (context, inventory) = try state()
+        guard request.inventoryGeneration == inventory.generation else { throw SharedMediaStorageFailure.stale }
+        let handle = try request.destination()
+        guard let (_, _, retiring) = try photoLedger(context).reference(handle) else { return nil }
+        guard !retiring else { throw SharedMediaStorageFailure.stale }
+        _ = try photoLedger(context).resolve(handle)
+        return handle
+    }
+
+    func sharePhoto(_ request: SharedMediaPhotoShareRequest) throws {
+        guard mode == .p1Qualification else { throw SharedMediaStorageFailure.closed }
+        let (context, inventory) = try state()
+        guard request.inventoryGeneration == inventory.generation, request.expectedRevision == inventory.revision else { throw SharedMediaStorageFailure.stale }
+        let ledger = photoLedger(context)
+        try ledger.share(request)
+        try ledger.validate().checkAvailable(files.availableBytes())
+        try photoBoundary(.beforeShareSave)
+        _ = try save(context, inventory)
+        try photoBoundary(.afterShareSave)
+    }
+
+    func photoReferenceState(_ handle: PhotoOriginalReference) throws -> SharedMediaPhotoReferenceState {
+        guard mode == .p1Qualification else { throw SharedMediaStorageFailure.closed }
+        try photoBoundary(.beforeLifecycleReadback)
+        let ledger = try photoLedger(state().0)
+        guard let (file, identity, retiring) = try ledger.reference(handle) else { return .absent }
+        if !retiring { return .live(file) }
+        return try .retiring(.init(handle: handle, file: file, identity: .decode(identity), binding: storeBinding, epoch: processEpoch))
+    }
+
+    func retirePhoto(_ handle: PhotoOriginalReference, inspection: SharedMediaPhotoRetirementInspection) throws {
+        guard mode == .p1Qualification, inspection.binding == storeBinding, inspection.epoch == processEpoch else { throw SharedMediaStorageFailure.closed }
+        let (context, inventory) = try state(), ledger = photoLedger(context)
+        try ledger.retire(handle, inspection: inspection)
+        _ = try ledger.validate()
+        try photoBoundary(.beforeRetirementSave)
+        _ = try save(context, inventory)
+        try photoBoundary(.afterRetirementSave)
+    }
+
+    func photoRetirements(ownerID: UUID) throws -> [SharedMediaPhotoRetirement] {
+        guard mode == .p1Qualification else { throw SharedMediaStorageFailure.closed }
+        return try photoLedger(state().0).retirementHandles(ownerID: ownerID).map {
+            guard case .retiring(let intent) = try photoReferenceState($0) else { throw SharedMediaStorageFailure.conflict }
+            return intent
+        }
+    }
+
+    func releasePhoto(_ proof: SharedMediaPhotoReleaseProof) throws {
+        let intent = proof.retirement
+        guard mode == .p1Qualification, intent.binding == storeBinding, intent.epoch == processEpoch else { throw SharedMediaStorageFailure.closed }
+        let (context, inventory) = try state(), ledger = photoLedger(context)
+        try ledger.release(intent)
+        _ = try ledger.validate()
+        try photoBoundary(.beforeReleaseSave)
+        _ = try save(context, inventory)
+        try photoBoundary(.afterReleaseSave)
+    }
+
     private func photoBoundary(_ boundary: SharedMediaPhotoBoundary) throws {
         #if DEBUG
         try photoFault?(boundary)
@@ -500,10 +567,27 @@ struct SharedMediaPhotoTransaction {
 struct SharedMediaPhotoBinding {
     let bytes: Data
     let initializing: Bool
-    fileprivate init(bytes: Data, initializing: Bool) {
+    let epoch: UUID
+    fileprivate init(bytes: Data, initializing: Bool, epoch: UUID) {
         self.bytes = bytes
         self.initializing = initializing
+        self.epoch = epoch
     }
 }
 
-enum SharedMediaPhotoBoundary: Sendable, Equatable { case beforeReservationSave, afterReservationSave, beforeCompletionSave, afterCompletionSave, beforeReadback }
+enum SharedMediaPhotoBoundary: Sendable, Equatable { case beforeReservationSave, afterReservationSave, beforeCompletionSave, afterCompletionSave, beforeReadback
+    case beforeShareSave, afterShareSave, beforeRetirementSave, afterRetirementSave, beforeReleaseSave, afterReleaseSave, beforeLifecycleReadback
+}
+
+/// Only this repository can authorize the namespace owner to release an intent.
+struct SharedMediaPhotoRetirement: Equatable, Sendable {
+    let handle: PhotoOriginalReference
+    let file: PhotoPreparationFile
+    let identity: SharedMediaPhotoRetirementIdentity
+    let binding: Data
+    let epoch: UUID
+    fileprivate init(handle: PhotoOriginalReference, file: PhotoPreparationFile,
+                     identity: SharedMediaPhotoRetirementIdentity, binding: Data, epoch: UUID) {
+        self.handle = handle; self.file = file; self.identity = identity; self.binding = binding; self.epoch = epoch
+    }
+}

@@ -1,3 +1,34 @@
+## October 16 — shared-photo lifecycle locally validated
+
+SMA-1 L3 extends the inactive isolated photo adapter with same-account sharing,
+exact reference retirement, restart-safe physical release and bounded
+row/directory reclamation. Surviving references preserve the original bytes and
+their charge. Retained share requests cannot resurrect reclaimed references.
+Saved retirement binds exact file and directory identities; absence
+reconciliation proves current absence, never acquisition or AI closure. Pending
+acquisition remains charged. Numeric limits and V60 fields are unchanged.
+
+Independent and IC-1 review concurred on exact candidate03 manifest
+`ef3abced1ba2cbfd5dc0906e31159a09b789bbe7521808e7a4bf21b70751f6a8`. The focused
+gate passed 66 tests across four suites. The complete native target passed 6,009
+XCResult cases (4,551 Swift Testing tests across 667 suites), with zero failures
+or skips. Project generation/membership, migration guardrails, Markdown and diff
+checks passed. Review-held candidates01/02 remain retained; candidate03 only
+corrects an EOF blank line after candidate02 source concurrence. Final
+documentation and scoped staging receive carry-forward review before the local
+commit.
+
+Evidence: `.artifacts/shared-media-lifecycle-20261016/`, with full result
+`.artifacts/local-ios/c567429f8f9d48dd98e6c8a20b4b7888.xcresult`. Validation ran
+in the shared checkout with 102 unrelated paths preserved, including a
+separately retained generated-project delta. This closes the isolated reference
+and release checkpoint, not isolated-source, device, hosted or whole-product
+acceptance. Inbox/source handoff, derivatives and shared live composition remain
+open. Canonical behavior is in
+`apps/ios/Merian/Core/Data/SharedMediaStorage/README.md`. Activation stays
+disabled, PR116 frozen, Supabase hold active and AWS unapproved. No external
+action occurred.
+
 ## October 16 — isolated P1/shared-storage adapter locally validated
 
 The local adapter adds `SharedMediaPhotoAcquisitionOwner` for exact

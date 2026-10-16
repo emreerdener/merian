@@ -8,12 +8,16 @@ P1 construction now takes a shared lifetime lock on the zero-byte
 shared-ledger rows; the root marker also rejects standalone file access before
 namespace creation. Unbound standalone qualification remains available.
 
-The adapter supports acquisition and exact committed-original reads/recovery
-only. A failed or uncertain operation never repeats the provider. Partial/final
-files and maximum liabilities remain held until a later explicit reconciliation
-protocol. Source import, derivatives, metadata editing, freeze, sharing and
-cleanup remain unavailable in bound fixtures. Ordinary capture still has nil
-access. See the [shared owner](../SharedMediaStorage/README.md).
+The adapter supports exact committed-original acquisition, sharing and reference
+retirement with proof-backed physical release. Saved share requests recover by
+exact identity and monotonic revision; reclaimed references cannot be recreated
+by replay. The shared graph preserves surviving drafts and counts physical bytes
+once. Explicit retirement recovery can reconcile synchronized absence under
+saved directory identities; generic token unlink cannot release shared charges.
+Uncertain acquisition still holds its maximum and never repeats the provider.
+Source import, derivatives, metadata editing and freeze remain unavailable in
+bound fixtures. Ordinary capture still has nil access. See the
+[shared owner](../SharedMediaStorage/README.md).
 
 # Inactive local photo preparation
 

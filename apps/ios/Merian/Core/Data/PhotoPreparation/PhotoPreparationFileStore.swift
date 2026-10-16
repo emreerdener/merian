@@ -28,6 +28,7 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
     private var namespaceFD: Int32 = -1
     #if DEBUG
     var sharedWriteFault: (@Sendable (Int) throws -> Void)?
+    var sharedReleaseFault: (@Sendable (SharedMediaPhotoReleaseBoundary) throws -> Void)?
     #endif
 
     init(root: URL, sharedBinding: SharedMediaPhotoBinding? = nil,
@@ -288,6 +289,69 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
         return try SharedMediaPhotoFileProof(file: file, identity: verifiedIdentity(file), binding: sharedBinding.bytes)
     }
 
+    private func directoryIdentity(_ fd: Int32) throws -> String {
+        var info = stat()
+        guard fstat(fd, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else { throw PhotoPreparationFailure.inconsistentOwnership }
+        return "\(info.st_dev):\(info.st_ino)"
+    }
+
+    func inspectSharedRetirement(_ file: PhotoPreparationFile) throws -> SharedMediaPhotoRetirementInspection {
+        guard let sharedBinding else { throw PhotoPreparationFailure.unsupportedComposition }
+        let identity = try verifiedIdentity(file)
+        let (fd, _) = try directory(file.token, create: false)
+        defer { Darwin.close(fd) }
+        try checkDirectoryIdentity(fd, token: file.token)
+        return try .init(file: file, identity: .init(version: 1, file: identity,
+            parent: directoryIdentity(fd), namespace: directoryIdentity(namespaceFD)),
+            binding: sharedBinding.bytes, epoch: sharedBinding.epoch)
+    }
+
+    /// A saved exact retirement capability is mandatory even when the fixed
+    /// object is already absent. This is not the legacy token-only unlink API.
+    func releaseSharedPhoto(_ retirement: SharedMediaPhotoRetirement) throws -> SharedMediaPhotoReleaseProof {
+        guard let sharedBinding, retirement.binding == sharedBinding.bytes,
+              retirement.epoch == sharedBinding.epoch else { throw PhotoPreparationFailure.unsupportedComposition }
+        try Task.checkCancellation()
+        let file = retirement.file
+        let (fd, name) = try directory(file.token, create: false)
+        defer { Darwin.close(fd) }
+        func checkDirectories() throws {
+            try checkDirectoryIdentity(fd, token: file.token)
+            guard try directoryIdentity(fd) == retirement.identity.parent,
+                  try directoryIdentity(namespaceFD) == retirement.identity.namespace else { throw PhotoPreparationFailure.inconsistentOwnership }
+        }
+        try checkDirectories()
+        var info = stat()
+        let absent: Bool
+        if fstatat(fd, name, &info, AT_SYMLINK_NOFOLLOW) != 0 {
+            guard errno == ENOENT else { throw PhotoPreparationFailure.unavailable }
+            absent = true
+        } else {
+            absent = false
+            guard try verifiedIdentity(file) == retirement.identity.file else { throw PhotoPreparationFailure.inconsistentOwnership }
+            try checkDirectories()
+            try releaseBoundary(.beforeUnlink)
+            guard try verifiedIdentity(file) == retirement.identity.file else { throw PhotoPreparationFailure.inconsistentOwnership }
+            try checkDirectories()
+            try Task.checkCancellation()
+            guard unlinkat(fd, name, 0) == 0 else { throw PhotoPreparationFailure.cleanupPending }
+            try releaseBoundary(.afterUnlink)
+        }
+        try releaseBoundary(.beforeSync)
+        guard fsync(fd) == 0, fsync(namespaceFD) == 0 else { throw PhotoPreparationFailure.cleanupPending }
+        try releaseBoundary(.afterSync)
+        guard fstatat(fd, name, &info, AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else { throw PhotoPreparationFailure.cleanupPending }
+        try checkDirectories()
+        if absent { return .reconciledAbsence(.init(retirement: retirement)) }
+        return .unlinked(.init(retirement: retirement))
+    }
+
+    private func releaseBoundary(_ boundary: SharedMediaPhotoReleaseBoundary) throws {
+        #if DEBUG
+        try sharedReleaseFault?(boundary)
+        #endif
+    }
+
     /// Borrowed only while this lock is held. Verify again after decoding before
     /// accepting any output. No URL is stored in a handle or legacy file owner.
     func preparationURL(_ file: PhotoPreparationFile) throws -> URL {
@@ -329,6 +393,19 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
         }
         guard data.count == info.st_size else { throw PhotoPreparationFailure.inconsistentOwnership }
         return data
+    }
+
+    /// Empty directory remnants carry no media authority. Preserve every
+    /// prefix still named by the ledger, including absent/pending originals.
+    func pruneSharedEmptyDirectories(knownTokens: Set<String>) throws {
+        guard sharedBinding != nil else { throw PhotoPreparationFailure.unsupportedComposition }
+        try checkIdentity()
+        for _ in 0..<4 {
+            let complete = try inspection.pruneEmptyDirectories(namespaceFD: namespaceFD, knownTokens: knownTokens)
+            try checkIdentity()
+            if complete { return }
+        }
+        throw PhotoPreparationFailure.cleanupPending // Bounded progress; explicitly retry.
     }
 
     /// Inventory is bounded before trusting ledger counts. Unknown/symlinked
@@ -441,26 +518,36 @@ struct SharedMediaPhotoFileProof: Sendable {
     }
 }
 
-enum PhotoPreparationInspectionStage: Sendable { case initialEmpty, inventory }
-
-/// POSIX EOF is distinct from enumeration failure. Error injection exists only
-/// in Debug and follows the same errno branch as a real filesystem failure.
-struct PhotoPreparationDirectoryInspection: Sendable {
-    #if DEBUG
-    private var failure: PhotoPreparationInspectionStage?
-    init(failing stage: PhotoPreparationInspectionStage) { failure = stage }
-    #endif
-    init() {}
-
-    func next(stage: PhotoPreparationInspectionStage, read: () -> UnsafeMutablePointer<dirent>?) throws -> UnsafeMutablePointer<dirent>? {
-        errno = 0
-        let entry: UnsafeMutablePointer<dirent>?
-        #if DEBUG
-        if failure == stage { errno = EIO; entry = nil } else { entry = read() }
-        #else
-        entry = read()
-        #endif
-        guard entry != nil || errno == 0 else { throw PhotoPreparationFailure.unavailable }
-        return entry
+struct SharedMediaPhotoRetirementInspection: Sendable {
+    let file: PhotoPreparationFile
+    let identity: SharedMediaPhotoRetirementIdentity
+    let binding: Data
+    let epoch: UUID
+    fileprivate init(file: PhotoPreparationFile, identity: SharedMediaPhotoRetirementIdentity, binding: Data, epoch: UUID) {
+        self.file = file; self.identity = identity; self.binding = binding; self.epoch = epoch
     }
 }
+
+struct SharedMediaPhotoUnlinkProof: Sendable {
+    let retirement: SharedMediaPhotoRetirement
+    fileprivate init(retirement: SharedMediaPhotoRetirement) { self.retirement = retirement }
+}
+
+/// Proves current synchronized absence, not who performed the prior unlink.
+struct SharedMediaPhotoAbsenceReconciliation: Sendable {
+    let retirement: SharedMediaPhotoRetirement
+    fileprivate init(retirement: SharedMediaPhotoRetirement) { self.retirement = retirement }
+}
+
+enum SharedMediaPhotoReleaseProof: Sendable {
+    case unlinked(SharedMediaPhotoUnlinkProof)
+    case reconciledAbsence(SharedMediaPhotoAbsenceReconciliation)
+    var retirement: SharedMediaPhotoRetirement {
+        switch self {
+        case .unlinked(let proof): proof.retirement
+        case .reconciledAbsence(let proof): proof.retirement
+        }
+    }
+}
+
+enum SharedMediaPhotoReleaseBoundary: Sendable { case beforeUnlink, afterUnlink, beforeSync, afterSync }

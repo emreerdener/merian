@@ -64,6 +64,21 @@ enum SharedMediaStoragePolicy {
             guard temporary <= PhotoPreparationPolicy.temporary else { throw SharedMediaStorageFailure.capacity }
         }
 
+        /// Photo references charge each package logically, while shared bytes
+        /// and each envelope are charged only once to physical durable storage.
+        mutating func includePhotoPhysical(materialized: Int64, reserved: Int64) throws {
+            let bytes = try SharedMediaStoragePolicy.add(materialized, reserved)
+            outstanding = try SharedMediaStoragePolicy.add(outstanding, reserved)
+            pools[.durable] = try SharedMediaStoragePolicy.add(pools[.durable, default: 0], bytes)
+            guard pools[.durable, default: 0] <= PhotoPreparationPolicy.durable else { throw SharedMediaStorageFailure.capacity }
+        }
+
+        mutating func includePhotoPackage(id: UUID, bytes: Int64) throws {
+            guard bytes >= 0, packages[id] == nil, bytes <= PhotoPreparationPolicy.package else { throw SharedMediaStorageFailure.capacity }
+            packages[id] = bytes
+            guard packages.count <= PhotoPreparationPolicy.maximumPackages else { throw SharedMediaStorageFailure.capacity }
+        }
+
         func checkAvailable(_ available: Int64) throws {
             guard available >= 0, available >= (try SharedMediaStoragePolicy.add(outstanding, SharedMediaStoragePolicy.reserve)) else {
                 throw SharedMediaStorageFailure.capacity

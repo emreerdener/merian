@@ -6,6 +6,7 @@ struct SharedMediaPhotoInventory: Sendable {
     let originals: [PhotoOriginalReference]
     let identities: [UUID: String]
     let pendingTokens: Set<String>
+    let retiringIDs: Set<UUID>
     var hasPending: Bool { !pendingTokens.isEmpty }
 }
 
@@ -61,57 +62,60 @@ final class SharedMediaPhotoLedger {
               Set(r.leases.map(\.id)).count == r.leases.count,
               Set(r.allocations.map(\.fileToken)).count == r.allocations.count,
               r.allocations.count == r.leases.count,
-              r.assets.count == r.references.count, r.references.count == r.edges.count,
+              r.references.count == r.edges.count,
               r.allocations.count == r.assets.count + r.work.count else { throw SharedMediaStorageFailure.conflict }
         var totals = SharedMediaStoragePolicy.Totals()
         for p in r.packages {
             let envelope = try PhotoPreparationPolicy.decodeDraft(p.supportingContextData)
-            let allocations = r.allocations.filter { $0.packageID == p.id }
-            let assets = r.assets.filter { a in allocations.contains { $0.id == a.id } }
             let refs = r.references.filter { $0.packageID == p.id }
-            guard !allocations.isEmpty, allocations.count <= 2,
+            let work = r.work.filter { $0.packageID == p.id }
+            let ids = Set(refs.map(\.assetID))
+            let bytes = try PhotoPreparationPolicy.add(r.assets.filter { ids.contains($0.id) }.map(\.byteCount))
+            let reserved = try PhotoPreparationPolicy.add(work.map(\.reservedByteCount))
+            let retiring = !refs.isEmpty && refs.allSatisfy { !$0.isLive }
+            guard !refs.isEmpty || !work.isEmpty, refs.count + work.count <= 2,
                   p.contractVersion == PhotoPreparationPolicy.contract, p.draftID == p.id,
-                  !p.retirementRequested, p.revision >= 0,
-                  ["acquiring", "draftOwned", "needsAttention"].contains(p.phaseRaw),
+                  p.retirementRequested == retiring, p.revision >= 0,
+                  (retiring ? p.phaseRaw == "retiring" : ["acquiring", "draftOwned", "needsAttention"].contains(p.phaseRaw)),
                   envelope.contexts.isEmpty, envelope.presentation.isEmpty,
                   p.supportingContextData.count <= PhotoPreparationPolicy.metadata,
-                  p.allocatedByteCount == (try PhotoPreparationPolicy.add(assets.map(\.byteCount))),
+                  p.allocatedByteCount == bytes,
                   Set(refs.map(\.ordinal)).count == refs.count,
-                  try PhotoPreparationPolicy.add(allocations.map { try SharedMediaStoragePolicy.add($0.materializedBytes, $0.reservedBytes) }) <= PhotoPreparationPolicy.originalCohort else {
+                  try SharedMediaStoragePolicy.add(bytes, reserved) <= PhotoPreparationPolicy.originalCohort else {
                 throw SharedMediaStorageFailure.conflict
             }
-            try totals.includeLogical(package: p.id, pool: .durable, bytes: Int64(p.supportingContextData.count))
+            try totals.includePhotoPackage(id: p.id, bytes: PhotoPreparationPolicy.add([bytes, reserved, Int64(p.supportingContextData.count)]))
+            try totals.includePhotoPhysical(materialized: Int64(p.supportingContextData.count), reserved: 0)
         }
         for a in r.allocations {
-            guard a.inventoryID == inventoryID, let owner = a.accountID, let package = a.packageID,
-                  let p = r.packages.first(where: { $0.id == package && $0.ownerID == owner }),
+            guard a.inventoryID == inventoryID, let owner = a.accountID, let origin = a.packageID,
                   a.namespaceRaw == Self.namespace, a.poolRaw == "durable",
-                  a.fileToken == owner.uuidString.lowercased() + "/" + package.uuidString.lowercased() + "/" + a.id.uuidString.lowercased(),
+                  a.fileToken == owner.uuidString.lowercased() + "/" + origin.uuidString.lowercased() + "/" + a.id.uuidString.lowercased(),
                   r.leases.filter({ $0.allocationID == a.id }).count == 1,
                   let lease = r.leases.first(where: { $0.allocationID == a.id }),
                   lease.purposeRaw == "p1AcquireV1" else { throw SharedMediaStorageFailure.conflict }
-            if a.stateRaw == "p1Materialized" {
+            if ["p1Materialized", "p1Retiring"].contains(a.stateRaw) {
+                let retiring = a.stateRaw == "p1Retiring"
+                let refs = r.references.filter { $0.assetID == a.id }
                 guard a.reservedBytes == 0, a.materializedBytes > 0, a.materializedBytes <= PhotoPreparationPolicy.original,
-                      let identity = a.physicalIdentity, !identity.isEmpty, identity.utf8.count <= 256,
+                      let identity = a.physicalIdentity, !identity.isEmpty, identity.utf8.count <= 512,
                       lease.stateRaw == "closed", !r.work.contains(where: { $0.assetID == a.id }),
                       let asset = r.assets.first(where: { $0.id == a.id }), asset.ownerID == owner,
-                      asset.fileToken == a.fileToken, asset.byteCount == a.materializedBytes, asset.cleanupStateRaw == "ready",
+                      asset.fileToken == a.fileToken, asset.byteCount == a.materializedBytes,
+                      asset.cleanupStateRaw == (retiring ? "retiring" : "ready"),
                       asset.sha256.count == 64, asset.sha256.allSatisfy({ "0123456789abcdef".contains($0) }),
                       !asset.contentType.isEmpty, asset.contentType.utf8.count <= 128,
-                      let edge = r.references.first(where: { $0.assetID == a.id }),
-                      r.references.filter({ $0.assetID == a.id }).count == 1,
-                      edge.ownerID == owner, edge.packageID == package, edge.roleRaw == "original", edge.isLive,
-                      (0..<2).contains(edge.ordinal), edge.revision == 0,
-                      let shared = r.edges.first(where: { $0.id == edge.id }),
-                      shared.allocationID == a.id, shared.accountID == owner,
-                      shared.ownerID == edge.id.uuidString.lowercased(), shared.roleRaw == Self.namespace,
-                      shared.stateRaw == "live", shared.revision == edge.revision else { throw SharedMediaStorageFailure.conflict }
+                      !refs.isEmpty, refs.allSatisfy({ $0.isLive != retiring }),
+                      !retiring || refs.count == 1 else { throw SharedMediaStorageFailure.conflict }
+                if retiring { _ = try SharedMediaPhotoRetirementIdentity.decode(identity) }
             } else {
                 guard ["p1Reserved", "p1Held"].contains(a.stateRaw), a.materializedBytes == 0,
                       a.reservedBytes > 0, a.reservedBytes <= PhotoPreparationPolicy.original, a.physicalIdentity == nil,
-                      !r.assets.contains(where: { $0.id == a.id }), !r.edges.contains(where: { $0.allocationID == a.id }),
+                      !r.assets.contains(where: { $0.id == a.id }), !r.references.contains(where: { $0.assetID == a.id }),
+                      !r.edges.contains(where: { $0.allocationID == a.id }),
                       let work = r.work.first(where: { $0.id == lease.id }),
-                      work.assetID == a.id, work.packageID == package, work.ownerID == owner,
+                      let p = r.packages.first(where: { $0.id == origin && $0.ownerID == owner }),
+                      work.assetID == a.id, work.packageID == origin, work.ownerID == owner,
                       work.processEpoch == lease.processEpoch, work.purposeRaw == "acquire",
                       work.finalFileToken == a.fileToken, work.partialFileToken == a.fileToken + ".partial",
                       work.reservedByteCount == a.reservedBytes, work.allocatedByteCount == 0, work.sourceIdentity == nil,
@@ -119,9 +123,20 @@ final class SharedMediaPhotoLedger {
                       lease.stateRaw == (a.stateRaw == "p1Reserved" ? "open" : "unknown"),
                       work.writerStateRaw == (a.stateRaw == "p1Reserved" ? "open" : "unknown"),
                       a.stateRaw != "p1Held" || p.phaseRaw == "needsAttention" else { throw SharedMediaStorageFailure.conflict }
-                try totals.includeLogical(package: package, pool: .acquisition, bytes: a.reservedBytes)
+                try totals.includeLogical(package: origin, pool: .acquisition, bytes: a.reservedBytes)
             }
-            try totals.include(.init(packageID: package, pool: .durable, materialized: a.materializedBytes, reserved: a.reservedBytes))
+            try totals.includePhotoPhysical(materialized: a.materializedBytes, reserved: a.reservedBytes)
+        }
+        for edge in r.references {
+            guard let asset = r.assets.first(where: { $0.id == edge.assetID }), asset.ownerID == edge.ownerID,
+                  r.packages.contains(where: { $0.id == edge.packageID && $0.ownerID == edge.ownerID }),
+                  edge.roleRaw == "original", (0..<2).contains(edge.ordinal), edge.revision == (edge.isLive ? 0 : 1),
+                  let shared = r.edges.first(where: { $0.id == edge.id }),
+                  shared.allocationID == edge.assetID, shared.accountID == edge.ownerID,
+                  shared.ownerID == edge.id.uuidString.lowercased(), shared.roleRaw == Self.namespace,
+                  shared.stateRaw == (edge.isLive ? "live" : "retired"), shared.revision == edge.revision else {
+                throw SharedMediaStorageFailure.conflict
+            }
         }
         return totals
     }
@@ -129,7 +144,7 @@ final class SharedMediaPhotoLedger {
     func inventory() throws -> SharedMediaPhotoInventory {
         _ = try validate()
         let r = try rows()
-        let handles = try r.references.map { edge in
+        let handles = try r.references.filter(\.isLive).map { edge in
             guard let asset = r.assets.first(where: { $0.id == edge.assetID }),
                   let package = r.packages.first(where: { $0.id == edge.packageID }) else { throw SharedMediaStorageFailure.conflict }
             return PhotoOriginalReference(ownerID: edge.ownerID, packageID: edge.packageID, referenceID: edge.id,
@@ -138,12 +153,13 @@ final class SharedMediaPhotoLedger {
         }
         return SharedMediaPhotoInventory(files: r.assets.map(Self.file), originals: handles,
             identities: Dictionary(uniqueKeysWithValues: r.allocations.compactMap { a in a.physicalIdentity.map { (a.id, $0) } }),
-            pendingTokens: Set(r.work.flatMap { [$0.partialFileToken, $0.finalFileToken] }))
+            pendingTokens: Set(r.work.flatMap { [$0.partialFileToken, $0.finalFileToken] }),
+            retiringIDs: Set(r.allocations.filter { $0.stateRaw == "p1Retiring" }.map(\.id)))
     }
 
     func reserve(_ intent: PhotoPreparationIntent) throws {
         let r = try rows()
-        guard r.work.isEmpty, intent.role == .original, intent.sourceByteLiability == 0, intent.sourceIdentity == nil,
+        guard r.work.isEmpty, !r.assets.contains(where: { $0.cleanupStateRaw == "retiring" }), intent.role == .original, intent.sourceByteLiability == 0, intent.sourceIdentity == nil,
               !r.allocations.contains(where: { $0.id == intent.assetID }), !r.leases.contains(where: { $0.id == intent.leaseID }),
               !r.edges.contains(where: { $0.id == intent.referenceID }) else { throw SharedMediaStorageFailure.conflict }
         try PhotoPreparationRepository.reserve(intent, joint: joint)
@@ -206,8 +222,8 @@ final class SharedMediaPhotoLedger {
         guard let p = r.packages.first(where: { $0.id == handle.packageID }), p.ownerID == handle.ownerID,
               p.draftGeneration == handle.draftGeneration,
               let ref = r.references.first(where: { $0.id == handle.referenceID }), ref.assetID == handle.assetID,
-              ref.packageID == handle.packageID, ref.revision == handle.referenceRevision,
-              let asset = r.assets.first(where: { $0.id == handle.assetID }), asset.generation == handle.assetGeneration else {
+              ref.packageID == handle.packageID, ref.ownerID == handle.ownerID, ref.isLive, ref.revision == handle.referenceRevision,
+              let asset = r.assets.first(where: { $0.id == handle.assetID }), asset.generation == handle.assetGeneration, asset.cleanupStateRaw == "ready" else {
             throw PhotoPreparationFailure.staleGeneration
         }
         return Self.file(asset)
@@ -226,6 +242,107 @@ final class SharedMediaPhotoLedger {
         work.writerStateRaw = "unknown"
         package.phaseRaw = "needsAttention"
         package.revision = try SharedMediaStoragePolicy.add(package.revision, 1)
+    }
+
+    func share(_ request: SharedMediaPhotoShareRequest) throws {
+        let r = try rows(), destination = try request.destination()
+        guard r.work.isEmpty, !r.assets.contains(where: { $0.cleanupStateRaw == "retiring" }) else { throw SharedMediaStorageFailure.inUse }
+        let file = try resolve(request.source)
+        guard r.packages.count < 4, !r.packages.contains(where: { $0.id == destination.packageID }),
+              !r.references.contains(where: { $0.id == destination.referenceID }) else { throw SharedMediaStorageFailure.conflict }
+        context.insert(PhotoPreparationRecord(id: destination.packageID, ownerID: destination.ownerID,
+            contractVersion: PhotoPreparationPolicy.contract, draftID: destination.packageID,
+            draftGeneration: destination.draftGeneration, revision: 0, phaseRaw: "draftOwned",
+            supportingContextData: try PhotoPreparationPolicy.encodeDraft(contexts: []), allocatedByteCount: file.byteCount, retirementRequested: false))
+        context.insert(PhotoPreparationReference(id: destination.referenceID, packageID: destination.packageID,
+            assetID: destination.assetID, ownerID: destination.ownerID, roleRaw: "original", ordinal: 0, revision: 0, isLive: true))
+        context.insert(SharedMediaReferenceRecord(id: destination.referenceID, allocationID: destination.assetID,
+            accountID: destination.ownerID, ownerID: destination.referenceID.uuidString.lowercased(), roleRaw: Self.namespace, stateRaw: "live", revision: 0))
+    }
+
+    /// Missing IDs convey no file authority and never recreate a row.
+    func reference(_ handle: PhotoOriginalReference) throws -> (PhotoPreparationFile, String, Bool)? {
+        try handle.validate()
+        _ = try validate()
+        let r = try rows()
+        guard let edge = r.references.first(where: { $0.id == handle.referenceID }) else {
+            if let asset = r.assets.first(where: { $0.id == handle.assetID }) {
+                guard asset.ownerID == handle.ownerID, asset.generation == handle.assetGeneration else { throw SharedMediaStorageFailure.conflict }
+            }
+            return nil
+        }
+        guard let package = r.packages.first(where: { $0.id == edge.packageID }),
+              let asset = r.assets.first(where: { $0.id == edge.assetID }),
+              let allocation = r.allocations.first(where: { $0.id == asset.id }),
+              edge.ownerID == handle.ownerID, edge.packageID == handle.packageID, edge.assetID == handle.assetID,
+              package.draftGeneration == handle.draftGeneration, asset.generation == handle.assetGeneration,
+              edge.revision == (try SharedMediaStoragePolicy.add(handle.referenceRevision, edge.isLive ? 0 : 1)),
+              let identity = allocation.physicalIdentity else { throw SharedMediaStorageFailure.stale }
+        return (Self.file(asset), identity, !edge.isLive)
+    }
+
+    func retirementHandles(ownerID: UUID) throws -> [PhotoOriginalReference] {
+        _ = try validate()
+        let r = try rows()
+        guard r.work.isEmpty else { throw SharedMediaStorageFailure.inUse }
+        return try r.references.filter { !$0.isLive && $0.ownerID == ownerID }.map { edge in
+            guard let asset = r.assets.first(where: { $0.id == edge.assetID }),
+                  let package = r.packages.first(where: { $0.id == edge.packageID }), edge.revision > 0 else { throw SharedMediaStorageFailure.conflict }
+            return PhotoOriginalReference(ownerID: ownerID, packageID: package.id, referenceID: edge.id,
+                assetID: asset.id, assetGeneration: asset.generation, draftGeneration: package.draftGeneration, referenceRevision: edge.revision - 1)
+        }
+    }
+
+    func retire(_ handle: PhotoOriginalReference, inspection: SharedMediaPhotoRetirementInspection) throws {
+        let r = try rows()
+        guard r.work.isEmpty else { throw SharedMediaStorageFailure.inUse }
+        guard let (file, identity, retiring) = try reference(handle), !retiring,
+              file == inspection.file, identity == inspection.identity.file,
+              let edge = r.references.first(where: { $0.id == handle.referenceID }),
+              let shared = r.edges.first(where: { $0.id == edge.id }),
+              let allocation = r.allocations.first(where: { $0.id == edge.assetID }),
+              let asset = r.assets.first(where: { $0.id == edge.assetID }) else { throw SharedMediaStorageFailure.stale }
+        if r.references.contains(where: { $0.assetID == asset.id && $0.id != edge.id && $0.isLive }) {
+            context.delete(edge); context.delete(shared)
+            try refreshPackages(r, excluding: [edge.id])
+        } else {
+            edge.isLive = false; edge.revision = try SharedMediaStoragePolicy.add(edge.revision, 1)
+            shared.stateRaw = "retired"; shared.revision = edge.revision
+            allocation.stateRaw = "p1Retiring"; allocation.physicalIdentity = try inspection.identity.encoded()
+            asset.cleanupStateRaw = "retiring"
+            try refreshPackages(r, excluding: [])
+        }
+    }
+
+    func release(_ retirement: SharedMediaPhotoRetirement) throws {
+        let r = try rows()
+        guard r.work.isEmpty, let (file, identity, retiring) = try reference(retirement.handle), retiring,
+              file == retirement.file, try SharedMediaPhotoRetirementIdentity.decode(identity) == retirement.identity,
+              let asset = r.assets.first(where: { $0.id == file.assetID }),
+              let allocation = r.allocations.first(where: { $0.id == file.assetID }),
+              let lease = r.leases.first(where: { $0.allocationID == file.assetID }), lease.stateRaw == "closed" else {
+            throw SharedMediaStorageFailure.stale
+        }
+        let refs = r.references.filter { $0.assetID == file.assetID }
+        guard refs.count == 1, refs.allSatisfy({ !$0.isLive }) else { throw SharedMediaStorageFailure.inUse }
+        let ids = Set(refs.map(\.id))
+        for edge in refs { context.delete(edge) }
+        for edge in r.edges where ids.contains(edge.id) { context.delete(edge) }
+        context.delete(asset); context.delete(allocation); context.delete(lease)
+        try refreshPackages(r, excluding: ids)
+    }
+
+    private func refreshPackages(_ r: Rows, excluding ids: Set<UUID>) throws {
+        for package in r.packages {
+            let refs = r.references.filter { $0.packageID == package.id && !ids.contains($0.id) }
+            let work = r.work.filter { $0.packageID == package.id }
+            if refs.isEmpty && work.isEmpty { context.delete(package); continue }
+            let assetIDs = Set(refs.map(\.assetID))
+            package.allocatedByteCount = try PhotoPreparationPolicy.add(r.assets.filter { assetIDs.contains($0.id) }.map(\.byteCount))
+            package.retirementRequested = !refs.isEmpty && refs.allSatisfy { !$0.isLive }
+            if package.retirementRequested { package.phaseRaw = "retiring" }
+            package.revision = try SharedMediaStoragePolicy.add(package.revision, 1)
+        }
     }
 
     private static func file(_ asset: PhotoPreparationAsset) -> PhotoPreparationFile {

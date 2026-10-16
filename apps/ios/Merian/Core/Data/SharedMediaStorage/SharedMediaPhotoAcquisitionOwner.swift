@@ -1,8 +1,8 @@
 import Foundation
 import SwiftData
 
-/// Isolated original acquisition only. No live Capture composition, preparation,
-/// transport, deletion, source handoff or admission to inference is exposed.
+/// Isolated original acquisition and reference lifecycle. No live Capture,
+/// preparation, transport, source handoff or inference admission is exposed.
 @MainActor
 final class SharedMediaPhotoAcquisitionOwner {
     private let storage: SharedMediaStorageRepository
@@ -27,6 +27,8 @@ final class SharedMediaPhotoAcquisitionOwner {
     #if DEBUG
     func setFault(_ fault: ((SharedMediaPhotoBoundary) throws -> Void)?) { storage.photoFault = fault }
     func setWriteFault(_ fault: (@Sendable (Int) throws -> Void)?) async { await io.setWriteFault(fault) }
+    func setReleaseFault(_ fault: (@Sendable (SharedMediaPhotoReleaseBoundary) throws -> Void)?) async { await io.setReleaseFault(fault) }
+    func setReleasePause(_ pause: (@Sendable () async -> Void)?) async { await io.setReleasePause(pause) }
     #endif
 
     private func check(_ lease: AccountBoundWorkLease) throws {
@@ -58,7 +60,7 @@ final class SharedMediaPhotoAcquisitionOwner {
             ordinal: ordinal, acquisitionKind: "sharedQualification", maximumBytes: maximumBytes)
         return try await perform { [self] lease in
             let inventory = try storage.photoInventory()
-            guard !inventory.hasPending else { throw PhotoPreparationFailure.cleanupPending }
+            guard !inventory.hasPending, inventory.retiringIDs.isEmpty else { throw PhotoPreparationFailure.cleanupPending }
             try await io.validate(inventory)
             try await io.preflight()
             try check(lease)
@@ -94,7 +96,7 @@ final class SharedMediaPhotoAcquisitionOwner {
             try await io.validate(inventory)
             try check(lease)
             return SharedMediaPhotoRecovery(originals: inventory.originals.filter { $0.ownerID == account.ownerID },
-                requiresRecovery: inventory.hasPending)
+                requiresRecovery: inventory.hasPending || !inventory.retiringIDs.isEmpty)
         }
     }
 
@@ -110,11 +112,102 @@ final class SharedMediaPhotoAcquisitionOwner {
         }
     }
 
+    /// The caller retains this exact Codable request through uncertain outcomes.
+    /// A new request is a new explicit share, never an automatic recovery action.
+    func prepareShare(_ source: PhotoOriginalReference, packageID: UUID, draftGeneration: UUID) throws -> SharedMediaPhotoShareRequest {
+        guard cancelActive == nil else { throw PhotoPreparationFailure.busy }
+        let lease = try account.begin()
+        defer { account.finish(lease) }
+        try check(lease)
+        guard source.ownerID == account.ownerID else { throw PhotoPreparationFailure.accountChanged }
+        return try storage.preparePhotoShare(source, packageID: packageID, draftGeneration: draftGeneration)
+    }
+
+    func share(_ request: SharedMediaPhotoShareRequest) async throws -> PhotoOriginalReference {
+        guard request.source.ownerID == account.ownerID else { throw PhotoPreparationFailure.accountChanged }
+        return try await perform { [self] lease in
+            if let saved = try storage.sharedPhoto(request) { try check(lease); return saved }
+            let inventory = try storage.photoInventory()
+            guard !inventory.hasPending, inventory.retiringIDs.isEmpty else { throw PhotoPreparationFailure.cleanupPending }
+            try await io.validate(inventory)
+            try check(lease)
+            do { try storage.sharePhoto(request) }
+            catch {
+                guard let saved = try storage.sharedPhoto(request) else { throw error }
+                try check(lease); return saved
+            }
+            guard let saved = try storage.sharedPhoto(request) else { throw SharedMediaStorageFailure.conflict }
+            try check(lease)
+            return saved
+        }
+    }
+
+    func retire(_ handle: PhotoOriginalReference) async throws -> SharedMediaPhotoRetirementResult {
+        guard handle.ownerID == account.ownerID else { throw PhotoPreparationFailure.accountChanged }
+        return try await perform { [self] lease in
+            switch try storage.photoReferenceState(handle) {
+            case .absent: return .referenceAbsent
+            case .retiring(let intent):
+                return try await finish(intent, lease: lease)
+            case .live(let file):
+                let inventory = try storage.photoInventory()
+                guard !inventory.hasPending else { throw PhotoPreparationFailure.cleanupPending }
+                try await io.validate(inventory)
+                let inspection = try await io.inspectRetirement(file)
+                try check(lease)
+                do { try storage.retirePhoto(handle, inspection: inspection) }
+                catch {
+                    // Only exact fresh readback can resolve ambiguous save.
+                    if case .live = try storage.photoReferenceState(handle) { throw error }
+                }
+                switch try storage.photoReferenceState(handle) {
+                case .absent: try check(lease); return .referenceRetired
+                case .retiring(let intent): return try await finish(intent, lease: lease)
+                case .live: throw SharedMediaStorageFailure.conflict
+                }
+            }
+        }
+    }
+
+    /// Explicit, bounded current-account recovery; never replays acquisition.
+    func finishRetirements() async throws {
+        try await perform { [self] lease in
+            let inventory = try storage.photoInventory()
+            guard !inventory.hasPending else { throw PhotoPreparationFailure.cleanupPending }
+            try await io.prune(inventory)
+            try await io.validate(inventory)
+            try check(lease)
+            for intent in try storage.photoRetirements(ownerID: account.ownerID) {
+                _ = try await finish(intent, lease: lease)
+            }
+        }
+    }
+
+    private func finish(_ intent: SharedMediaPhotoRetirement, lease: AccountBoundWorkLease) async throws -> SharedMediaPhotoRetirementResult {
+        try check(lease)
+        guard intent.handle.ownerID == account.ownerID else { throw PhotoPreparationFailure.accountChanged }
+        // Revalidate the complete graph/store fences immediately before I/O.
+        guard case .retiring(let current) = try storage.photoReferenceState(intent.handle), current == intent,
+              !(try storage.photoInventory().hasPending) else { throw SharedMediaStorageFailure.conflict }
+        let proof = try await io.release(intent)
+        try check(lease)
+        do { try storage.releasePhoto(proof) }
+        catch {
+            guard case .absent = try storage.photoReferenceState(intent.handle) else { throw error }
+        }
+        guard case .absent = try storage.photoReferenceState(intent.handle) else { throw SharedMediaStorageFailure.conflict }
+        try check(lease)
+        try await io.prune(storage.photoInventory())
+        try check(lease)
+        return .physicalReleaseConfirmed
+    }
+
     func invalidateAndAwaitForAccountTransition() async -> Bool {
         suspended = true
         cancelActive?()
         await awaitActive?()
-        return !failed
+        guard !failed, let inventory = try? storage.photoInventory() else { return false }
+        return !inventory.hasPending && inventory.retiringIDs.isEmpty
     }
 }
 
@@ -122,11 +215,18 @@ final class SharedMediaPhotoAcquisitionOwner {
 /// its exclusive store/root fences throughout every awaited callback and I/O.
 private actor SharedMediaPhotoIO {
     private let files: PhotoPreparationLockedFiles
+    #if DEBUG
+    private var releasePause: (@Sendable () async -> Void)?
+    #endif
     init(files: PhotoPreparationLockedFiles) { self.files = files }
+
+    func prune(_ inventory: SharedMediaPhotoInventory) throws {
+        try files.pruneSharedEmptyDirectories(knownTokens: Set(inventory.files.map(\.token)).union(inventory.pendingTokens))
+    }
 
     func validate(_ inventory: SharedMediaPhotoInventory) throws {
         try files.checkInventory(knownTokens: Set(inventory.files.map(\.token)).union(inventory.pendingTokens))
-        for file in inventory.files {
+        for file in inventory.files where !inventory.retiringIDs.contains(file.assetID) {
             guard try files.verifiedIdentity(file) == inventory.identities[file.assetID] else {
                 throw SharedMediaStorageFailure.conflict
             }
@@ -135,7 +235,16 @@ private actor SharedMediaPhotoIO {
 
     #if DEBUG
     func setWriteFault(_ fault: (@Sendable (Int) throws -> Void)?) { files.sharedWriteFault = fault }
+    func setReleaseFault(_ fault: (@Sendable (SharedMediaPhotoReleaseBoundary) throws -> Void)?) { files.sharedReleaseFault = fault }
+    func setReleasePause(_ pause: (@Sendable () async -> Void)?) { releasePause = pause }
     #endif
+    func inspectRetirement(_ file: PhotoPreparationFile) throws -> SharedMediaPhotoRetirementInspection { try files.inspectSharedRetirement(file) }
+    func release(_ intent: SharedMediaPhotoRetirement) async throws -> SharedMediaPhotoReleaseProof {
+        #if DEBUG
+        await releasePause?()
+        #endif
+        return try files.releaseSharedPhoto(intent)
+    }
     func preflight() throws { try files.checkFreeSpace() }
     func load(_ provider: @Sendable () async throws -> Data) async throws -> Data { try await provider() }
     func write(_ data: Data, intent: PhotoPreparationIntent) throws -> SharedMediaPhotoFileProof {

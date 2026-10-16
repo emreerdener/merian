@@ -385,6 +385,285 @@ struct SharedMediaPhotoAcquisitionTests {
         #expect(try await owner.recover().originals.isEmpty)
     }
 
+    @Test(arguments: [true, false])
+    func sharedOriginalSurvivesEitherRetirementOrder(originFirst: Bool) async throws {
+        let h = try Harness(), bytes = PhotoPreparationTestHarness.image()
+        var owner: SharedMediaPhotoAcquisitionOwner? = try h.owner()
+        let original = try await owner!.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0, load: { bytes })
+        let request = try owner!.prepareShare(original, packageID: UUID(), draftGeneration: UUID())
+        let shared = try await owner!.share(request)
+        let first = originFirst ? original : shared, survivor = originFirst ? shared : original
+        #expect(try await owner!.retire(first) == .referenceRetired)
+        let context = ModelContext(h.container)
+        #expect(try context.fetchCount(FetchDescriptor<PhotoPreparationRecord>()) == 1)
+        #expect(try context.fetchCount(FetchDescriptor<SharedMediaAllocationRecord>()) == 1)
+        #expect(try context.fetch(FetchDescriptor<SharedMediaAllocationRecord>()).first?.packageID == original.packageID)
+        owner = nil
+        let reopened = try h.owner()
+        #expect(try await reopened.originalData(survivor) == bytes)
+        #expect(try await reopened.recover().originals == [survivor])
+        await #expect(throws: (any Error).self) { try await reopened.originalData(first) }
+        #expect(try await reopened.retire(first) == .referenceAbsent)
+        #expect(try await reopened.retire(survivor) == .physicalReleaseConfirmed)
+        #expect(try await reopened.recover().originals.isEmpty)
+        let fresh = ModelContext(h.container)
+        #expect(try fresh.fetchCount(FetchDescriptor<PhotoPreparationRecord>()) == 0)
+        #expect(try fresh.fetchCount(FetchDescriptor<PhotoPreparationAsset>()) == 0)
+        #expect(try fresh.fetchCount(FetchDescriptor<SharedMediaAllocationRecord>()) == 0)
+        #expect(try fresh.fetchCount(FetchDescriptor<SharedMediaLeaseRecord>()) == 0)
+        #expect(try fresh.fetchCount(FetchDescriptor<SharedMediaReferenceRecord>()) == 0)
+    }
+
+    @Test func shareRequestRecoversAcrossRestartAndCannotResurrectReclaimedEdge() async throws {
+        let h = try Harness(), bytes = PhotoPreparationTestHarness.image()
+        var owner: SharedMediaPhotoAcquisitionOwner? = try h.owner()
+        let original = try await owner!.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0, load: { bytes })
+        let request = try owner!.prepareShare(original, packageID: UUID(), draftGeneration: UUID())
+        let encoded = try JSONEncoder().encode(request)
+        var saved = false
+        owner!.setFault {
+            if $0 == .afterShareSave { saved = true; throw Fault.injected }
+            if $0 == .beforeLifecycleReadback && saved { throw Fault.injected }
+        }
+        await #expect(throws: Fault.injected) { try await owner!.share(request) }
+        owner = nil
+        let reopened = try h.owner()
+        let retained = try JSONDecoder().decode(SharedMediaPhotoShareRequest.self, from: encoded)
+        let shared = try await reopened.share(retained)
+        #expect(try await reopened.share(retained) == shared)
+        #expect(try await reopened.retire(shared) == .referenceRetired)
+        await #expect(throws: SharedMediaStorageFailure.stale) { try await reopened.share(retained) }
+        let freshRequest = try reopened.prepareShare(original, packageID: shared.packageID, draftGeneration: shared.draftGeneration)
+        let replacement = try await reopened.share(freshRequest)
+        #expect(replacement.referenceID != shared.referenceID)
+        #expect(try await reopened.retire(shared) == .referenceAbsent)
+        #expect(try await reopened.originalData(replacement) == bytes)
+    }
+
+    @Test(arguments: [SharedMediaPhotoBoundary.beforeRetirementSave, .afterRetirementSave, .beforeReleaseSave, .afterReleaseSave])
+    func retirementSaveFaultsReconcileWithoutCapacityLoss(boundary: SharedMediaPhotoBoundary) async throws {
+        let h = try Harness(), bytes = PhotoPreparationTestHarness.image()
+        var owner: SharedMediaPhotoAcquisitionOwner? = try h.owner()
+        let original = try await owner!.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0, load: { bytes })
+        owner!.setFault { if $0 == boundary { throw Fault.injected } }
+        if boundary == .beforeRetirementSave || boundary == .beforeReleaseSave {
+            await #expect(throws: Fault.injected) { try await owner!.retire(original) }
+        } else {
+            #expect(try await owner!.retire(original) == .physicalReleaseConfirmed)
+        }
+        let c = ModelContext(h.container)
+        #expect(try c.fetchCount(FetchDescriptor<SharedMediaAllocationRecord>()) == (boundary == .beforeRetirementSave || boundary == .beforeReleaseSave ? 1 : 0))
+        if boundary == .beforeReleaseSave {
+            let allocation = try #require(c.fetch(FetchDescriptor<SharedMediaAllocationRecord>()).first)
+            #expect(allocation.stateRaw == "p1Retiring" && allocation.materializedBytes == Int64(bytes.count))
+            #expect(!FileManager.default.fileExists(atPath: h.photo.appendingPathComponent("PhotoPreparation").appendingPathComponent(allocation.fileToken).path))
+        }
+        owner = nil
+        let reopened = try h.owner()
+        if boundary == .beforeRetirementSave { _ = try await reopened.retire(original) }
+        else { try await reopened.finishRetirements() }
+        #expect(try ModelContext(h.container).fetchCount(FetchDescriptor<SharedMediaAllocationRecord>()) == 0)
+    }
+
+    @Test(arguments: [SharedMediaPhotoReleaseBoundary.beforeUnlink, .afterUnlink, .beforeSync, .afterSync])
+    func interruptedPhysicalReleaseRemainsChargedAndReopens(boundary: SharedMediaPhotoReleaseBoundary) async throws {
+        let h = try Harness(), bytes = PhotoPreparationTestHarness.image()
+        var owner: SharedMediaPhotoAcquisitionOwner? = try h.owner()
+        let original = try await owner!.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0, load: { bytes })
+        await owner!.setReleaseFault { if $0 == boundary { throw Fault.injected } }
+        await #expect(throws: Fault.injected) { try await owner!.retire(original) }
+        let c = ModelContext(h.container)
+        #expect(try c.fetch(FetchDescriptor<SharedMediaAllocationRecord>()).first?.materializedBytes == Int64(bytes.count))
+        #expect(try c.fetch(FetchDescriptor<PhotoPreparationReference>()).allSatisfy { !$0.isLive })
+        owner = nil
+        let reopened = try h.owner()
+        #expect(try await reopened.recover().requiresRecovery)
+        try await reopened.finishRetirements()
+        #expect(try ModelContext(h.container).fetchCount(FetchDescriptor<SharedMediaAllocationRecord>()) == 0)
+    }
+
+    @Test(arguments: ["replacement", "symlink", "hardlink", "missing", "parent"])
+    func retirementNeverDeletesChangedOriginalOrReleasesReplacedDirectory(kind: String) async throws {
+        let h = try Harness(), bytes = PhotoPreparationTestHarness.image()
+        var owner: SharedMediaPhotoAcquisitionOwner? = try h.owner()
+        let handle = try await owner!.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0, load: { bytes })
+        let asset = try #require(ModelContext(h.container).fetch(FetchDescriptor<PhotoPreparationAsset>()).first)
+        let url = h.photo.appendingPathComponent("PhotoPreparation").appendingPathComponent(asset.fileToken)
+        if kind == "parent" {
+            await owner!.setReleaseFault { if $0 == .afterUnlink { throw Fault.injected } }
+            await #expect(throws: Fault.injected) { try await owner!.retire(handle) }
+            owner = nil
+            let parent = url.deletingLastPathComponent()
+            try FileManager.default.moveItem(at: parent, to: h.other.appendingPathComponent("retained-parent"))
+            try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: false)
+            let reopened = try h.owner()
+            await #expect(throws: (any Error).self) { try await reopened.finishRetirements() }
+        } else {
+            if kind == "hardlink" { try FileManager.default.linkItem(at: url, to: h.other.appendingPathComponent("other")) }
+            else {
+                try FileManager.default.moveItem(at: url, to: h.other.appendingPathComponent("retained-original"))
+                if kind == "replacement" { try bytes.write(to: url) }
+                if kind == "symlink" { try FileManager.default.createSymbolicLink(at: url, withDestinationURL: h.other.appendingPathComponent("retained-original")) }
+            }
+            await #expect(throws: (any Error).self) { try await owner!.retire(handle) }
+        }
+        #expect(try ModelContext(h.container).fetchCount(FetchDescriptor<SharedMediaAllocationRecord>()) == 1)
+    }
+
+    @Test func sharedAccountingCountsPhysicalBytesOnceAndLogicalLimitsIndependently() throws {
+        let mib = PhotoPreparationPolicy.mib
+        var totals = SharedMediaStoragePolicy.Totals()
+        try totals.includePhotoPhysical(materialized: 64 * mib, reserved: 32 * mib)
+        for _ in 0..<4 { try totals.includePhotoPackage(id: UUID(), bytes: 96 * mib) }
+        try totals.checkAvailable(288 * mib)
+        #expect(throws: SharedMediaStorageFailure.capacity) { try totals.checkAvailable(288 * mib - 1) }
+        #expect(throws: SharedMediaStorageFailure.capacity) { try totals.includePhotoPackage(id: UUID(), bytes: 1) }
+        var limit = SharedMediaStoragePolicy.Totals()
+        #expect(throws: SharedMediaStorageFailure.capacity) { try limit.includePhotoPackage(id: UUID(), bytes: 96 * mib + 1) }
+        var durable = SharedMediaStoragePolicy.Totals()
+        #expect(throws: SharedMediaStorageFailure.capacity) { try durable.includePhotoPhysical(materialized: 384 * mib + 1, reserved: 0) }
+    }
+
+    @Test func repeatedShareRetireReclaimsRowsAndPackageSlots() async throws {
+        let h = try Harness(), owner = try h.owner(), bytes = PhotoPreparationTestHarness.image()
+        let original = try await owner.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0, load: { bytes })
+        for _ in 0..<100 {
+            let request = try owner.prepareShare(original, packageID: UUID(), draftGeneration: UUID())
+            let shared = try await owner.share(request)
+            #expect(try await owner.retire(shared) == .referenceRetired)
+        }
+        let context = ModelContext(h.container)
+        #expect(try context.fetchCount(FetchDescriptor<PhotoPreparationRecord>()) == 1)
+        #expect(try context.fetchCount(FetchDescriptor<SharedMediaReferenceRecord>()) == 1)
+        #expect(try context.fetchCount(FetchDescriptor<SharedMediaAllocationRecord>()) == 1)
+        #expect(try await owner.originalData(original) == bytes)
+        _ = try await owner.retire(original)
+    }
+
+    @Test func closedReleaseProofCannotBeReplayedOrUsedByAnotherLifetime() async throws {
+        let h = try Harness(), bytes = PhotoPreparationTestHarness.image()
+        var owner: SharedMediaPhotoAcquisitionOwner? = try h.owner()
+        let original = try await owner!.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0, load: { bytes })
+        owner = nil
+        var repository: SharedMediaStorageRepository? = try h.repository()
+        let file = try repository!.resolvePhoto(original)
+        let inspection = try repository!.photoFiles!.inspectSharedRetirement(file)
+        try repository!.retirePhoto(original, inspection: inspection)
+        guard case .retiring(let intent) = try repository!.photoReferenceState(original) else { Issue.record("No retirement"); return }
+        let proof = try repository!.photoFiles!.releaseSharedPhoto(intent)
+        try repository!.releasePhoto(proof)
+        #expect(throws: (any Error).self) { try repository!.releasePhoto(proof) }
+        repository = nil
+        let reopened = try h.repository()
+        #expect(throws: SharedMediaStorageFailure.closed) { try reopened.releasePhoto(proof) }
+        #expect(throws: PhotoPreparationFailure.unsupportedComposition) { try reopened.photoFiles!.releaseSharedPhoto(intent) }
+    }
+
+    @Test func heldAcquisitionBlocksReferenceAndReleaseMutations() async throws {
+        let h = try Harness(), bytes = PhotoPreparationTestHarness.image()
+        var owner: SharedMediaPhotoAcquisitionOwner? = try h.owner()
+        let original = try await owner!.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0, load: { bytes })
+        let request = try owner!.prepareShare(original, packageID: UUID(), draftGeneration: UUID())
+        owner!.setFault { if $0 == .beforeCompletionSave { throw Fault.injected } }
+        await #expect(throws: (any Error).self) {
+            try await owner!.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0, load: { bytes })
+        }
+        owner = nil
+        let reopened = try h.owner()
+        await #expect(throws: PhotoPreparationFailure.cleanupPending) { try await reopened.share(request) }
+        await #expect(throws: PhotoPreparationFailure.cleanupPending) { try await reopened.retire(original) }
+        await #expect(throws: PhotoPreparationFailure.cleanupPending) { try await reopened.finishRetirements() }
+        #expect(try await reopened.originalData(original) == bytes)
+    }
+
+    @Test func sharingHonorsPackageCeilingAndRejectsForeignAndStaleClaims() async throws {
+        let h = try Harness(), owner = try h.owner(), bytes = PhotoPreparationTestHarness.image()
+        let original = try await owner.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0, load: { bytes })
+        for _ in 0..<3 {
+            _ = try await owner.share(owner.prepareShare(original, packageID: UUID(), draftGeneration: UUID()))
+        }
+        let fifth = try owner.prepareShare(original, packageID: UUID(), draftGeneration: UUID())
+        await #expect(throws: (any Error).self) { try await owner.share(fifth) }
+        let foreign = PhotoOriginalReference(ownerID: UUID(), packageID: original.packageID, referenceID: original.referenceID,
+            assetID: original.assetID, assetGeneration: original.assetGeneration, draftGeneration: original.draftGeneration, referenceRevision: 0)
+        await #expect(throws: PhotoPreparationFailure.accountChanged) { try await owner.retire(foreign) }
+        let stale = PhotoOriginalReference(ownerID: original.ownerID, packageID: original.packageID, referenceID: original.referenceID,
+            assetID: original.assetID, assetGeneration: UUID(), draftGeneration: original.draftGeneration, referenceRevision: 0)
+        await #expect(throws: (any Error).self) { try await owner.retire(stale) }
+        #expect(try await owner.originalData(original) == bytes)
+    }
+
+    @Test func retirementRecoveryIsAccountScoped() async throws {
+        let h = try Harness(), bytes = PhotoPreparationTestHarness.image()
+        var owner: SharedMediaPhotoAcquisitionOwner? = try h.owner()
+        let original = try await owner!.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0, load: { bytes })
+        await owner!.setReleaseFault { if $0 == .beforeUnlink { throw Fault.injected } }
+        await #expect(throws: Fault.injected) { try await owner!.retire(original) }
+        owner = nil
+        var foreign: SharedMediaPhotoAcquisitionOwner? = try .init(container: h.container, authorityRoot: h.root, photoRoot: h.photo,
+            inventoryID: h.inventory, account: PhotoOriginalPreparationOwner.syntheticAccount(ownerID: UUID(), runtime: h.runtime))
+        try await foreign!.finishRetirements()
+        #expect(try ModelContext(h.container).fetchCount(FetchDescriptor<SharedMediaAllocationRecord>()) == 1)
+        foreign = nil
+        let reopened = try h.owner()
+        #expect(await reopened.invalidateAndAwaitForAccountTransition() == false)
+        await #expect(throws: (any Error).self) { try await reopened.finishRetirements() }
+        #expect(try ModelContext(h.container).fetchCount(FetchDescriptor<SharedMediaAllocationRecord>()) == 1)
+    }
+
+    @Test func accountDrainWaitsForRetirementIOAndPreservesPendingIntent() async throws {
+        let h = try Harness(), owner = try h.owner(), bytes = PhotoPreparationTestHarness.image(), gate = CallbackGate()
+        let original = try await owner.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0, load: { bytes })
+        await owner.setReleasePause { await gate.wait() }
+        let work = Task { try await owner.retire(original) }
+        await gate.waitUntilStarted()
+        await #expect(throws: PhotoPreparationFailure.busy) { try await owner.originalData(original) }
+        var finished = false
+        let drain = Task { let value = await owner.invalidateAndAwaitForAccountTransition(); finished = true; return value }
+        for _ in 0..<10 { await Task.yield() }
+        #expect(!finished)
+        #expect(throws: SharedMediaStorageFailure.busy) { try h.owner() }
+        await gate.release()
+        _ = await work.result
+        #expect(await drain.value == false)
+        let c = ModelContext(h.container)
+        #expect(try c.fetch(FetchDescriptor<SharedMediaAllocationRecord>()).first?.stateRaw == "p1Retiring")
+        #expect(try c.fetch(FetchDescriptor<SharedMediaAllocationRecord>()).first?.materializedBytes == Int64(bytes.count))
+    }
+
+    @Test func emptyDirectoryRecoveryPrecedesCappedInventoryAndKeepsHeldPrefixes() async throws {
+        let h = try Harness(), owner = try h.owner(), bytes = PhotoPreparationTestHarness.image()
+        let handle = try await owner.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0, load: { bytes })
+        let namespace = h.photo.appendingPathComponent("PhotoPreparation")
+        let account = namespace.appendingPathComponent(h.accountID.uuidString.lowercased())
+        for _ in 0..<270 {
+            try FileManager.default.createDirectory(at: account.appendingPathComponent(UUID().uuidString.lowercased()), withIntermediateDirectories: false)
+        }
+        await #expect(throws: PhotoPreparationFailure.inconsistentOwnership) { try await owner.recover() }
+        try await owner.finishRetirements()
+        #expect(try await owner.originalData(handle) == bytes)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: account.path) == [handle.packageID.uuidString.lowercased()])
+        _ = try await owner.retire(handle)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: namespace.path).isEmpty)
+    }
+
+    @Test func emptyDirectoryCleanupPreservesUnknownFilesAndSymlinks() async throws {
+        let h = try Harness(), owner = try h.owner()
+        let namespace = h.photo.appendingPathComponent("PhotoPreparation")
+        let account = namespace.appendingPathComponent(UUID().uuidString.lowercased())
+        let package = account.appendingPathComponent(UUID().uuidString.lowercased())
+        try FileManager.default.createDirectory(at: package, withIntermediateDirectories: true)
+        let unknown = package.appendingPathComponent("unknown")
+        try Data([1]).write(to: unknown)
+        await #expect(throws: (any Error).self) { try await owner.finishRetirements() }
+        #expect(try Data(contentsOf: unknown) == Data([1]))
+        try FileManager.default.removeItem(at: unknown)
+        try FileManager.default.removeItem(at: package)
+        try FileManager.default.createSymbolicLink(at: package, withDestinationURL: h.other)
+        await #expect(throws: (any Error).self) { try await owner.finishRetirements() }
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: package.path) == h.other.path)
+    }
+
     @MainActor private struct Harness {
         let base: URL
         let root: URL
@@ -405,6 +684,10 @@ struct SharedMediaPhotoAcquisitionTests {
         func owner(inspection: PhotoPreparationDirectoryInspection = .init()) throws -> SharedMediaPhotoAcquisitionOwner {
             try .init(container: container, authorityRoot: root, photoRoot: photo, inventoryID: inventory,
                 account: PhotoOriginalPreparationOwner.syntheticAccount(ownerID: accountID, runtime: runtime), inspection: inspection)
+        }
+        func repository() throws -> SharedMediaStorageRepository {
+            try .init(container: container, authorityRoot: root, inventoryID: inventory, mode: .p1Qualification,
+                sources: [SharedMediaPhotoLedger.namespace: photo])
         }
         func standalone(root: URL) throws -> PhotoOriginalPreparationOwner {
             try .qualification(container: container, root: root,

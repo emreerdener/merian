@@ -41,8 +41,45 @@ same ceiling logically to acquisition/temporary budgets, and the encoded empty
 P1 envelope contributes once per package. No schema field or numeric limit
 changes.
 
-The adapter exposes no source handoff, metadata editing, derivatives, sharing,
-freeze, deletion, physical release, transport or AI admission. Generic L1
+The adapter now supports explicit same-account sharing and exact-reference
+retirement of committed originals. A share request retains the complete source
+handle, destination, fresh nonce and inventory generation/revision. Exact saved
+readback recovers an uncertain outcome; an absent result may be saved only at
+that revision. Replaying a reclaimed request cannot resurrect an old handle. The
+caller must retain that request; a live caller adapter is not yet installed.
+
+The joint graph counts each physical original once and each package's logical
+original cohort separately. Allocation package IDs remain immutable origin
+provenance; an empty origin package can disappear while another package retains
+the file. Paired references and their revisions stay authoritative. Retiring one
+reference preserves survivors. Last-reference retirement saves intent before
+file work, prevents new holds and retains the charge until proof-backed release.
+
+The namespace owner verifies bytes and saves parent/namespace identities with
+the retirement intent. Only typed, current-lifetime capabilities authorize exact
+unlink and synchronization. Restart may confirm an absent fixed file only under
+the saved irreversible intent, same intact directories, exclusive admission/
+store/root/namespace fences, zero live references/work and successful fsync plus
+absence recheck. This proves current absence, not who removed the bytes. Missing
+files before intent, changed objects and missing/replaced directories remain
+blocked. The generic token-only unlink API grants no shared release authority.
+Explicit current-account `finishRetirements()` retries saved intents;
+cancellation drains actual I/O and unresolved retirement keeps account
+transition incomplete. Final joint deletion reclaims graph rows and capacity;
+stale absent handles are no-ops without file authority, not historical-success
+receipts. No unbounded release tombstones are accumulated. After release, a
+bounded descriptor-relative empty-directory pass removes only canonical
+directories with no ledger token prefix. Every held, missing, pending or
+retiring prefix is preserved. Explicit `finishRetirements()` performs this pass
+before the capped ordinary inventory, so crash remnants can be reclaimed even
+after exceeding that scan's steady-state entry ceiling. Inspection errors,
+unknown files or symlinks block cleanup; no file, namespace or root is removed
+by this pass. The pass makes at most four 128-entry scans; any further progress
+requires another explicit recovery call.
+
+Pending acquisition remains charged and blocks share/retire/release; no writer
+closure or provider replay is inferred. The adapter exposes no source handoff,
+metadata editing, derivatives, freeze, transport or AI admission. Generic L1
 mutation APIs reject adapter mode, and any shared row still blocks ordinary
 library purge. These local mechanisms do not qualify mixed production
 allocators.
