@@ -1,3 +1,44 @@
+## October 16 — C1 observer correction validated locally; PR116 still frozen
+
+The retained exact-source diagnostic reproduced CI's `ZX452` with only the
+unknown-cancellation count predicate failing. The owner-delete fence now erases
+private cancellation records before the old test observer ran. Funding and the
+protected accounting projection were unchanged. The correction changes only the
+account-batch test: preserve its full original assertion before the real fence,
+then independently verify private erasure and unchanged accounting after it.
+Enabled trigger order/function and exactly-once observations are checked. No
+production migration, runtime behavior, API or activation change is needed.
+
+Exact independent and IC-1 execution review preceded the corrected candidate.
+The complete affected account-batch and admitted-expiry suites passed 9 and 12
+checks on separate fresh owned local databases. Expiry waited 292.165 seconds
+for the original deadline, without timeline edits. All three diagnostic/test
+databases were reconciled and disposed; failed evidence remains retained.
+Recursive formatting/lint and Python syntax passed. The complete tooling gate's
+TypeScript, evaluation and DTO checks passed; a sandboxed synthetic terminal
+fixture stopped its shell phase. That failure is retained, and the failed plus
+remaining ten mock-only shell tests passed with terminal access. Passing prefix
+checks were reused rather than repeated. No hosted credential or provider call
+was made.
+
+Evidence and exact review/commit receipts:
+`.artifacts/c1-account-batch-diagnostic-20261016/` and
+`.artifacts/c1-account-batch-correction-20261016/`. This is scoped
+shared-checkout local evidence, not a new full candidate/remote CI verdict.
+PR116 remains frozen at `135555d66`, with its failed CI result unchanged until
+separately authorized publication. All unrelated edits are preserved. Activation
+stays disabled, ordinary P1 access nil, Supabase hold active, AWS unapproved and
+limits unchanged. No push, merge, deployment, hosted test or schedule change
+occurred.
+
+The next feature dependency remains durable shared allocation/inventory and
+cleanup ownership, then original-media integration and remaining acceptance,
+followed by approved version deletion/export and redesign. Existing
+media-required submission, immutable descriptions and exact admitted recovery
+rules remain; unknown execution grants neither another AI invocation nor a
+refund. The capture visual refactor and broader engine work retain their
+separate ownership.
+
 ## October 16 — separate local continuation; PR116 remains frozen
 
 The user authorized local feature continuation on
@@ -36,10 +77,11 @@ remain paused.
 PR116's iOS Build/Test and Startup Safety checks passed. Supabase Candidate
 Validation run `38864594630` failed C1 `account-batch` at
 `actual_two_item_account_tombstone_rollback`, SQLSTATE `ZX452`. Its compound
-pre-user-delete accounting assertion does not reveal the failed predicate; root
-cause remains unresolved. The disabled-gate restoration passed. The next backend
-diagnostic must distinguish those predicates on the exact CI candidate; no
-backend source change or CI rerun is part of this local checkpoint. See
+pre-user-delete accounting assertion did not reveal the failed predicate at this
+checkpoint. The disabled-gate restoration passed. That unresolved assessment and
+proposed diagnostic are superseded by the later October 16 C1 observer
+correction recorded at the top of the alpha-readiness RFC. The original CI
+failure remains historical evidence; remote CI has not been rerun. See
 `pr116-ci-blocker.json` in the evidence directory. PR116 remains frozen and is
 not merge-ready.
 

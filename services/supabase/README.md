@@ -243,11 +243,16 @@ excludes purchase-principal tables; the fixture proves those tables are empty,
 so principal contention, successful merge and Auth API behavior remain untested.
 
 The `account-batch` suite uses two committed held admissions for one synthetic
-owner. It retains the corrected pre-user-delete accounting projection, original
-quota/credit/link cascade observers, rollback after a second cancellation
-failure, partial-evidence isolation, deferred constraint checks and final
-committed account cleanup. Private cancellation receipts follow the owner
-cascade; global cancellation fences survive. No Auth API or worker is exercised.
+owner. An enabled BEFORE DELETE observer runs before the production owner fence
+and verifies both unknown cancellations plus the original protected accounting
+projection. A second observer runs after that fence, verifies private erasure
+and unchanged accounting, and requires the first observation. The suite checks
+the effective trigger order/function and requires both observations exactly
+once. Original quota/credit/link cascade observers, second-cancellation
+rollback, partial-evidence isolation, deferred constraints and final committed
+cleanup remain. The owner fence erases private cancellation receipts before the
+user-row cascade; global cancellation fences survive. No Auth API or worker is
+exercised.
 
 The `admitted-expiry` suite seeds two complete held v3 admissions and waits at
 most 360 seconds for their original deadlines, with bounded read-only clock

@@ -36,10 +36,11 @@ remain paused.
 PR116's iOS Build/Test and Startup Safety checks passed. Supabase Candidate
 Validation run `38864594630` failed C1 `account-batch` at
 `actual_two_item_account_tombstone_rollback`, SQLSTATE `ZX452`. Its compound
-pre-user-delete accounting assertion does not reveal the failed predicate; root
-cause remains unresolved. The disabled-gate restoration passed. The next backend
-diagnostic must distinguish those predicates on the exact CI candidate; no
-backend source change or CI rerun is part of this local checkpoint. See
+pre-user-delete accounting assertion did not reveal the failed predicate at this
+checkpoint. The disabled-gate restoration passed. That unresolved assessment and
+proposed diagnostic are superseded by the later October 16 C1 observer
+correction recorded at the top of the alpha-readiness RFC. The original CI
+failure remains historical evidence; remote CI has not been rerun. See
 `pr116-ci-blocker.json` in the evidence directory. PR116 remains frozen and is
 not merge-ready.
 
