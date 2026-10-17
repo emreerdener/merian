@@ -268,6 +268,45 @@ final class SharedMediaInboxOwner {
         }
     }
 
+    func prepareDerivatives(_ original: PhotoOriginalReference, ai: Data, display: Data,
+                            account: PhotoOriginalPreparationOwner.AccountAccess) async throws -> SharedMediaDerivativeRequest {
+        try await accountOperation(account, ownerID: original.ownerID) { [self] lease in
+            try await derivatives(account, lease).prepare(original, ai: ai, display: display)
+        }
+    }
+
+    func replaceDerivatives(_ request: SharedMediaDerivativeRequest, ai: Data, display: Data,
+                            account: PhotoOriginalPreparationOwner.AccountAccess) async throws -> SharedMediaDerivativeReceipt {
+        try await accountOperation(account, ownerID: request.original.ownerID) { [self] lease in
+            try await derivatives(account, lease).replace(request, ai: ai, display: display)
+        }
+    }
+
+    func readyDerivatives(_ request: SharedMediaDerivativeRequest,
+                          account: PhotoOriginalPreparationOwner.AccountAccess) async throws -> SharedMediaDerivativeReceipt {
+        try await accountOperation(account, ownerID: request.original.ownerID) { [self] lease in
+            try await derivatives(account, lease).ready(request)
+        }
+    }
+
+    func recoverDerivatives(account: PhotoOriginalPreparationOwner.AccountAccess) async throws -> [SharedMediaDerivativeRecovery] {
+        try await accountOperation(account, ownerID: account.ownerID) { [self] lease in
+            try await derivatives(account, lease).recover(ownerID: account.ownerID)
+        }
+    }
+
+    func discardDerivatives(_ request: SharedMediaDerivativeRequest,
+                            account: PhotoOriginalPreparationOwner.AccountAccess) async throws {
+        try await accountOperation(account, ownerID: request.original.ownerID) { [self] lease in
+            try await derivatives(account, lease).discard(request)
+        }
+    }
+
+    private func derivatives(_ account: PhotoOriginalPreparationOwner.AccountAccess,
+                             _ lease: AccountBoundWorkLease) -> SharedMediaDerivativeOperations {
+        .init(storage: storage, io: destinationIO, check: { [self] in try check(account, lease) })
+    }
+
     private func accountOperation<T: Sendable>(_ account: PhotoOriginalPreparationOwner.AccountAccess, ownerID: UUID,
                                                _ body: @escaping @MainActor (AccountBoundWorkLease) async throws -> T) async throws -> T {
         guard ownerID == account.ownerID else { throw PhotoPreparationFailure.accountChanged }
@@ -374,58 +413,4 @@ private actor SharedMediaInboxIO {
     #if DEBUG
     func setFault(_ fault: (@Sendable (SharedMediaInboxBoundary) throws -> Void)?) { files.fault = fault }
     #endif
-}
-
-private actor SharedMediaInboxDestinationIO {
-    let files: PhotoPreparationLockedFiles
-    #if DEBUG
-    var fault: (@Sendable (SharedMediaInboxHandoffBoundary) throws -> Void)?
-    var pause: (@Sendable () async -> Void)?
-    func setPause(_ value: (@Sendable () async -> Void)?) { pause = value }
-    func setFault(_ value: (@Sendable (SharedMediaInboxHandoffBoundary) throws -> Void)?) { fault = value }
-    #endif
-    init(files: PhotoPreparationLockedFiles) { self.files = files }
-    private func withFiles<T>(_ state: SharedMediaInboxHandoff, create: Bool = false,
-                              _ body: (SharedMediaInboxDestinationFiles) throws -> T) throws -> T {
-        try files.withInboxDestination(state, create: create) { value in
-            var value = value
-            #if DEBUG
-            value.fault = fault
-            #endif
-            return try body(value)
-        }
-    }
-    func begin(_ state: SharedMediaInboxHandoff) throws -> SharedMediaInboxDestinationPartial {
-        try withFiles(state, create: true) { try $0.begin() }
-    }
-    func write(_ data: Data, state: SharedMediaInboxHandoff) async throws -> SharedMediaInboxDestinationCompletion {
-        #if DEBUG
-        await pause?()
-        #endif
-        return try withFiles(state) { try $0.write(data) }
-    }
-    func recover(_ state: SharedMediaInboxHandoff) throws -> SharedMediaInboxDestinationCompletion? {
-        do { return try withFiles(state) { try $0.recover() } }
-        catch PhotoPreparationFailure.missingMedia {
-            guard state.phase == "reserved", state.inode == nil else { throw SharedMediaStorageFailure.conflict }
-            return nil
-        }
-    }
-    func prune(_ inventory: SharedMediaPhotoInventory) throws {
-        try files.pruneSharedEmptyDirectories(knownTokens: Set(inventory.files.map(\.token)).union(inventory.pendingTokens))
-    }
-    func validate(_ inventory: SharedMediaPhotoInventory) throws {
-        try files.checkInventory(knownTokens: Set(inventory.files.map(\.token)).union(inventory.pendingTokens))
-    }
-    func read(_ file: PhotoPreparationFile, identity: String) throws -> Data {
-        guard try files.verifiedIdentity(file) == identity else { throw SharedMediaStorageFailure.conflict }
-        return try files.read(file)
-    }
-    func inspectRetirement(_ state: SharedMediaInboxHandoff) throws -> SharedMediaInboxDestinationInspection {
-        try withFiles(state) { try $0.inspectRetirement() }
-    }
-    func release(_ intent: SharedMediaInboxDestinationRetirement) throws -> SharedMediaInboxDestinationRelease {
-        try withFiles(intent.handoff) { try $0.release(intent) }
-    }
-    func closure(_ state: SharedMediaInboxHandoff) throws -> SharedMediaInboxDestinationClosure { try withFiles(state) { try $0.closure() } }
 }

@@ -64,6 +64,7 @@ enum SharedMediaInboxHandoffRecovery: Equatable, Sendable {
 }
 
 enum SharedMediaInboxHandoffBoundary: Sendable, Equatable {
+    case beforePairPlanSave, afterPairPlanSave, beforePairPublishSave, afterPairPublishSave
     case beforeReservationSave, afterReservationSave
     case afterPartialCreate, beforeIdentitySave, afterIdentitySave, duringWrite, afterRename
     case beforeCompletionSave, afterCompletionSave

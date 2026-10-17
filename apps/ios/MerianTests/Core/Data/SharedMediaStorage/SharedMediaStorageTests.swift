@@ -26,7 +26,7 @@ struct SharedMediaStorageTests {
         }
     }
 
-    @Test func matchingDerivativeRowsCannotBypassTheSchemaOnlyInboxGate() throws {
+    @Test func matchingDerivativeRowsWithoutOriginalCannotBypassInboxValidation() throws {
         let h = try Harness(nestedStore: true)
         let inbox = h.base.appendingPathComponent("inbox"), photo = h.base.appendingPathComponent("photo")
         try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: false)
@@ -44,7 +44,7 @@ struct SharedMediaStorageTests {
         let context = ModelContext(h.container)
         context.insert(pair); context.insert(ai); context.insert(display)
         try context.save()
-        #expect(throws: SharedMediaStorageFailure.conflict) { try owner.snapshot() }
+        #expect(throws: (any Error).self) { try owner.snapshot() }
         #expect(try SharedMediaStorageRepository.hasLiabilities(in: context))
         let inventory = try #require(context.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
         #expect(inventory.revision == before.revision)

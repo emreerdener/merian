@@ -64,6 +64,12 @@ enum SharedMediaStoragePolicy {
             guard temporary <= PhotoPreparationPolicy.temporary else { throw SharedMediaStorageFailure.capacity }
         }
 
+        /// Preparation overlap charges the existing temporary pool only; its
+        /// reservation has already been counted once by physical ownership.
+        mutating func includePhotoPreparation(package: UUID, bytes: Int64) throws {
+            try includeBudget(package: package, pool: .preparation, bytes: bytes, unmaterialized: 0)
+        }
+
         /// Photo references charge each package logically, while shared bytes
         /// and each envelope are charged only once to physical durable storage.
         mutating func includePhotoPhysical(materialized: Int64, reserved: Int64) throws {

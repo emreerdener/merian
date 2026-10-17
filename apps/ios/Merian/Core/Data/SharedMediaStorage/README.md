@@ -1,16 +1,33 @@
 # Inactive shared media storage
 
-## Derivative schema prerequisite
+## Paired derivatives — isolated implementation
 
-V62 adds scalar `SharedMediaDerivativePairRecord` and
-`SharedMediaDerivativeWorkRecord` tables. They retain pair publication, exact
-original assertions and per-role prepared/file/retirement identities. Migration
-starts them empty and preserves V61 inbox records. Their presence blocks purge;
-until paired runtime qualification, it also blocks fresh inventory admission. No
-derivative writer, live composition, new limit or activation is exposed by this
-prerequisite. The focused migration and storage suites passed 82 tests after
-reviewed fixture corrections; six other focused suites retain their passing
-evidence. Paired runtime and whole-product acceptance remain open.
+V62 adds scalar pair/work rows, preserving all V61 inbox fields and starting
+empty. The isolated inbox composition now validates the exact derivative joins;
+standalone P1 owners and purge still reject these liabilities. The schema's
+focused migration/storage validation passed 82 cases. Runtime candidate04 passed
+four focused suites after correcting an account boundary and extracting lookup
+helpers. The full run retained 6,055 passing cases and two size-guard failures,
+both resolved by that focused rerun. This is shared-checkout evidence; see the
+current SMA-1 status for exact results.
+
+The existing inbox coordinator, account lease, repository and destination actor
+own both AI-input and display roles. One saved plan retires the previous pair
+and records both prepared replacements. Original bytes remain separately owned.
+After exact old-file cleanup, one reservation admits both bounded roles; both
+verified completions are required for atomic pair publication. Incomplete edits
+remain `needsAttention`, and reopened plans require explicit discard/new edit.
+Recovery verifies only the saved complete partial/final; it never reloads an
+encoder or invokes AI. Fixed-inode proofs, saved retirement readback and joint
+absence acknowledgement govern cleanup, including zero/one/two completed roles.
+Ready receipts reverify both role files and the original. Low disk blocks fresh
+reservation but does not prevent identity-proven discard.
+
+Typed handoff and derivative adapters share only descriptor byte mechanics.
+Role-qualified references preserve original ordinals; derivative reservations
+consume the existing preparation overlap and physical storage once. Limits,
+activation, live Capture/AppDI composition, metadata/freeze and cloud behavior
+are unchanged. This increment is fixture-only, not whole-product acceptance.
 
 ## Isolated typed source inbox
 

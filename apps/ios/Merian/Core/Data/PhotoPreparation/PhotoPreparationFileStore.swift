@@ -278,12 +278,28 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
                                 _ body: (SharedMediaInboxDestinationFiles) throws -> T) throws -> T {
         guard let sharedBinding else { throw PhotoPreparationFailure.unsupportedComposition }
         try handoff.request.validate()
-        let token = handoff.request.intent(epoch: handoff.writerEpoch).fileToken
+        return try withSharedDestination(handoff.request.intent(epoch: handoff.writerEpoch).fileToken, create: create) { access in
+            try body(SharedMediaInboxDestinationFiles(access: access, handoff: handoff, binding: sharedBinding))
+        }
+    }
+
+    func withDerivativeDestination<T>(_ work: SharedMediaDerivativeWork, create: Bool,
+                                      _ body: (SharedMediaDerivativeWorkFiles) throws -> T) throws -> T {
+        guard let sharedBinding else { throw PhotoPreparationFailure.unsupportedComposition }
+        try work.request.validate(); try work.input.validate()
+        guard work.request.inputs.contains(work.input) else { throw SharedMediaStorageFailure.conflict }
+        return try withSharedDestination(work.token, create: create) { access in
+            try body(SharedMediaDerivativeWorkFiles(access: access, state: work, binding: sharedBinding))
+        }
+    }
+
+    private func withSharedDestination<T>(_ token: String, create: Bool,
+                                          _ body: (SharedMediaInboxDestinationAccess) throws -> T) throws -> T {
         let fd: Int32, name: String
         do { (fd, name) = try directory(token, create: create) }
         catch PhotoPreparationFailure.missingMedia {
             guard !create else { throw SharedMediaStorageFailure.conflict }
-            fd = -1; name = handoff.request.assetID.uuidString.lowercased()
+            fd = -1; name = String(token.split(separator: "/").last ?? "")
         }
         defer { if fd >= 0 { Darwin.close(fd) } }
         let access = SharedMediaInboxDestinationAccess(parent: fd, namespace: namespaceFD, name: name, check: {
@@ -296,7 +312,7 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
             }
         })
         defer { access.close() }
-        return try body(SharedMediaInboxDestinationFiles(access: access, handoff: handoff, binding: sharedBinding))
+        return try body(access)
     }
 
     private func directoryIdentity(_ fd: Int32) throws -> String {

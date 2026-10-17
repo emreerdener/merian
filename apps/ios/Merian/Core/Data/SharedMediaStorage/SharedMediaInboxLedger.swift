@@ -17,6 +17,7 @@ final class SharedMediaInboxLedger {
     }
 
     var photos: SharedMediaPhotoLedger { .init(joint: joint, inventoryID: inventory.id, includesInbox: true) }
+    var derivatives: SharedMediaDerivativeLedger { .init(joint: joint, inventory: inventory, binding: binding) }
     var handoffs: SharedMediaInboxHandoffLedger { .init(joint: joint, inventory: inventory, binding: binding) }
 
     func sources() throws -> [SharedMediaInboxSource] { try rows().map(value) }
@@ -136,11 +137,9 @@ final class SharedMediaInboxLedger {
     }
 
     func validate() throws -> SharedMediaStoragePolicy.Totals {
-        // Schema-only prerequisite: no derivative owner may admit these rows yet.
-        guard try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>()) == 0,
-              try context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>()) == 0 else { throw SharedMediaStorageFailure.conflict }
+        let derivativeLeases = try derivatives.validate()
         let sources = try rows()
-        let handoffCharges = try handoffs.validate()
+        let handoffCharges = try handoffs.validate(excludingDerivativeLeases: derivativeLeases)
         var total: Int64 = 0, outstanding: Int64 = 0
         let allocations = try fetch(SharedMediaAllocationRecord.self, maximum: 104)
         let references = try fetch(SharedMediaReferenceRecord.self, maximum: 144)

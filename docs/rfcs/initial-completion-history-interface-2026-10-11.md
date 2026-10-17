@@ -1,3 +1,30 @@
+## October 16 — paired derivative runtime locally validated
+
+L5 now owns paired AI-input/display files through the existing isolated inbox
+coordinator, repository, account lease and destination actor. Originals remain
+separately owned. Replacement retires the old pair before reserving the new
+pair; publication requires both verified completions. Recovery reads saved
+complete files only, and cleanup retains charges until both exact file
+identities are absent and synchronized. Account validity is rechecked after
+normal and lost-ack save returns before further file work or acknowledgement.
+
+Independent and IC-1 review cleared candidate04. Its four focused suites passed
+all 44 cases with zero failures/skips. Full01 retained 6,055 passing cases, two
+file-size guard failures and no skips; the reviewed lookup extraction fixed both
+failures, and the four-suite rerun passed. Unchanged full-run passes are reused;
+this is not a claim of a new all-green full-target run. Earlier failed compile,
+account-boundary and formatting evidence remains retained. XcodeGen, source
+membership, Markdown and scoped diff checks passed. Evidence lives in
+`.artifacts/shared-media-derivatives-20261016/`; final focused result is
+`.artifacts/local-ios/1fdbde7fd30a480291de5eea21d8788f.xcresult`.
+
+This is scoped shared-checkout qualification, not isolated-source or live
+product acceptance. Continue the reviewed L6 metadata/local-freeze agreement
+without a new proceed prompt. Live composition, cloud retention and integrated
+acceptance remain open, followed by version actions and redesign. Numeric limits
+are unchanged; activation disabled, PR116 frozen, Supabase hold active and AWS
+unapproved. No hosted action, push or deployment occurred.
+
 ## October 16 — derivative schema prerequisite locally validated
 
 L5 uses the existing isolated inbox coordinator for paired AI-input/display

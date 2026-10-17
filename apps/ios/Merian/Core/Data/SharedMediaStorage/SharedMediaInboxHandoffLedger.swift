@@ -190,10 +190,10 @@ final class SharedMediaInboxHandoffLedger {
 
     /// Prove both sides of every additional edge before any joint save. Detached
     /// rows retain immutable request provenance, never authority over a source.
-    func validate() throws -> (active: Int64, abandoned: Int64) {
+    func validate(excludingDerivativeLeases: Set<UUID> = []) throws -> (active: Int64, abandoned: Int64) {
         let rows = try rows(), states = rows.map(Self.value)
         let edges = try fetch(SharedMediaReferenceRecord.self, 144)
-        let allWork = try fetch(PhotoPreparationLease.self, 96)
+        let allWork = try fetch(PhotoPreparationLease.self, 96).filter { !excludingDerivativeLeases.contains($0.id) }
         let allocations = try fetch(SharedMediaAllocationRecord.self, 104)
         let active = states.filter { !$0.detached }
         guard active.count <= 1,

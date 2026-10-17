@@ -86,14 +86,7 @@ final class SharedMediaStorageRepository {
     }
 
     static func hasLiabilities(in context: ModelContext) throws -> Bool {
-        try context.fetchCount(FetchDescriptor<SharedMediaInventoryRecord>()) > 0
-            || context.fetchCount(FetchDescriptor<SharedMediaAllocationRecord>()) > 0
-            || context.fetchCount(FetchDescriptor<SharedMediaReferenceRecord>()) > 0
-            || context.fetchCount(FetchDescriptor<SharedMediaLeaseRecord>()) > 0
-            || context.fetchCount(FetchDescriptor<SharedMediaInboxSourceRecord>()) > 0
-            || context.fetchCount(FetchDescriptor<SharedMediaInboxHandoffRecord>()) > 0
-            || context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>()) > 0
-            || context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>()) > 0
+        try SharedMediaStorageLookup.hasLiabilities(in: context)
     }
 
     func snapshot() throws -> SharedMediaStorageSnapshot {
@@ -133,7 +126,7 @@ final class SharedMediaStorageRepository {
             return value(inventory) // Exact saved reservation, never a renewed identity/allowance.
         }
         try revision(inventory, expected)
-        try visit(context, SharedMediaAllocationRecord.self) {
+        try SharedMediaStorageLookup.visit(context, SharedMediaAllocationRecord.self) {
             if $0.packageID == request.packageID && $0.accountID != request.accountID { throw SharedMediaStorageFailure.conflict }
         }
         var totals = try accounting(context)
@@ -223,8 +216,8 @@ final class SharedMediaStorageRepository {
         try revision(inventory, expected)
         _ = try mutableAllocation(context, allocationID)
         var held = false
-        try visit(context, SharedMediaReferenceRecord.self) { if $0.allocationID == allocationID && $0.stateRaw != "retired" { held = true } }
-        try visit(context, SharedMediaLeaseRecord.self) { if $0.allocationID == allocationID && $0.stateRaw != "closed" { held = true } }
+        try SharedMediaStorageLookup.visit(context, SharedMediaReferenceRecord.self) { if $0.allocationID == allocationID && $0.stateRaw != "retired" { held = true } }
+        try SharedMediaStorageLookup.visit(context, SharedMediaLeaseRecord.self) { if $0.allocationID == allocationID && $0.stateRaw != "closed" { held = true } }
         guard !held else { throw SharedMediaStorageFailure.inUse }
         allocation.stateRaw = "retiring" // Irreversible; bytes remain charged, no physical-release API.
         return try save(context, inventory)
@@ -246,7 +239,7 @@ final class SharedMediaStorageRepository {
         guard !mode.includesPhotoStorage else { throw SharedMediaStorageFailure.closed }
         let (context, inventory) = try state()
         try revision(inventory, expected)
-        try visit(context, SharedMediaReferenceRecord.self) {
+        try SharedMediaStorageLookup.visit(context, SharedMediaReferenceRecord.self) {
             if $0.accountID == accountID && $0.stateRaw == "live" {
                 $0.stateRaw = "retired"
                 $0.revision = try SharedMediaStoragePolicy.add($0.revision, 1)
@@ -317,19 +310,6 @@ final class SharedMediaStorageRepository {
 
     private func value(_ row: SharedMediaInventoryRecord) -> SharedMediaStorageSnapshot {
         .init(generation: row.generation, revision: row.revision, phase: row.phaseRaw, cursor: row.cursor)
-    }
-
-    private func visit<T: SharedMediaStorageRow>(_ context: ModelContext, _ type: T.Type, body: (T) throws -> Void) throws {
-        var offset = 0
-        while true {
-            var descriptor = FetchDescriptor<T>(sortBy: [SortDescriptor(\.id)])
-            descriptor.fetchLimit = SharedMediaStoragePolicy.pageSize
-            descriptor.fetchOffset = offset
-            let page = try context.fetch(descriptor)
-            for row in page { try body(row) }
-            if page.count < SharedMediaStoragePolicy.pageSize { break }
-            offset += page.count
-        }
     }
 
     private func photoLedger(_ context: ModelContext) -> SharedMediaPhotoLedger {
@@ -532,6 +512,14 @@ final class SharedMediaStorageRepository {
         return .init(handoff: state, identity: identity, binding: storeBinding, epoch: processEpoch)
     }
 
+    func derivativeRetirements(_ request: SharedMediaDerivativeRequest) throws -> [SharedMediaDerivativeRetirement] {
+        let values = try inboxRead { ledger in
+            guard let pair = try ledger.derivatives.saved(request), pair.phase == "retiring" else { throw SharedMediaStorageFailure.stale }
+            return try pair.work.map { ($0, try ledger.derivatives.retirementIdentity($0)) }
+        }
+        return values.map { .init(work: $0.0, identity: $0.1, binding: storeBinding, epoch: processEpoch) }
+    }
+
     var inboxEpoch: UUID { processEpoch }
     #if DEBUG
     var inboxFault: ((SharedMediaInboxBoundary) throws -> Void)?
@@ -541,11 +529,6 @@ final class SharedMediaStorageRepository {
 
 
 }
-
-private protocol SharedMediaStorageRow: PersistentModel { var id: UUID { get } }
-extension SharedMediaAllocationRecord: SharedMediaStorageRow {}
-extension SharedMediaReferenceRecord: SharedMediaStorageRow {}
-extension SharedMediaLeaseRecord: SharedMediaStorageRow {}
 
 /// Only the shared repository can issue the held-store transaction capability.
 struct SharedMediaPhotoTransaction {
@@ -595,5 +578,16 @@ struct SharedMediaInboxDestinationRetirement: Sendable {
     let binding: Data, epoch: UUID
     fileprivate init(handoff: SharedMediaInboxHandoff, identity: SharedMediaInboxDestinationRetirementIdentity, binding: Data, epoch: UUID) {
         self.handoff = handoff; self.identity = identity; self.binding = binding; self.epoch = epoch
+    }
+}
+
+/// Minted only by a fresh saved-intent read under the repository's store fence.
+struct SharedMediaDerivativeRetirement: Sendable {
+    let work: SharedMediaDerivativeWork
+    let identity: SharedMediaInboxDestinationRetirementIdentity
+    let binding: Data
+    let epoch: UUID
+    fileprivate init(work: SharedMediaDerivativeWork, identity: SharedMediaInboxDestinationRetirementIdentity, binding: Data, epoch: UUID) {
+        self.work = work; self.identity = identity; self.binding = binding; self.epoch = epoch
     }
 }
