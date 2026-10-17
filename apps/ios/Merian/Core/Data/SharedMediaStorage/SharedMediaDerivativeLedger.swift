@@ -156,7 +156,8 @@ final class SharedMediaDerivativeLedger {
         let row = try exact(request), pair = try value(row)
         guard row.phaseRaw != "retiring", inspections.count == 2,
               Set(inspections.map { $0.work.input.id }) == Set(pair.work.map { $0.input.id }) else { throw SharedMediaStorageFailure.inUse }
-        _ = try originalRows(request.original)
+        let (package, _) = try originalRows(request.original)
+        guard ["draftOwned", "needsAttention"].contains(package.phaseRaw) else { throw PhotoPreparationFailure.immutablePackage }
         for inspection in inspections {
             try proofBinding(inspection.binding, inspection.epoch)
             let work = try exact(inspection.work)

@@ -1,3 +1,33 @@
+## October 16 — shared metadata and local freeze locally validated
+
+L6 uses the same inbox coordinator and fenced store for bounded supporting
+metadata and exact local freeze. Positive metadata growth reserves additional
+free-space headroom; shrinking adds no reservation. Freeze verifies the entire
+saved envelope, ordered originals, both derivative roles and every exact file
+identity. Prepared-held packages reject draft mutations. Lost-ack/restart
+recovery requires the retained exact request; no server admission or provider
+invocation is added.
+
+Independent and IC-1 review cleared candidate03. Eight focused suites passed 109
+cases; the complete native target passed 6,066 cases, zero failures or skips.
+Source hashes stayed unchanged through both runs. XcodeGen, source membership,
+Markdown and scoped diff checks passed. Evidence:
+`.artifacts/shared-media-freeze-20261016/`; full result
+`.artifacts/local-ios/16c5efaf0b4c484c9393459fa7c298c5.xcresult`. This is local
+shared-checkout qualification, not isolated-source or live product acceptance.
+
+Continue durable shared-owner library cleanup, then real producer composition,
+cloud retention and integrated acceptance under existing local authorization.
+The cleanup contract preserves a closed terminal inventory/root binding and
+requires exact physical release before ordinary library deletion. Its agreement
+is `.artifacts/shared-media-purge-20261016/agreement.md`; independent/IC-1
+concurrence is recorded there. No production composition is enabled.
+
+The approved future cloud-backed LRU direction has no age-only expiry; final
+original/preview cache budgets remain undecided. Current numeric limits are
+unchanged. Activation remains disabled, PR116 frozen, Supabase hold active and
+AWS unapproved. No push, hosted action or deployment occurred.
+
 ## October 16 — paired derivative runtime locally validated
 
 L5 now owns paired AI-input/display files through the existing isolated inbox

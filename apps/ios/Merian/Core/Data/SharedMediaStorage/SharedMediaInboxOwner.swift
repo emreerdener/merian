@@ -302,6 +302,41 @@ final class SharedMediaInboxOwner {
         }
     }
 
+    func saveDraftMetadata(packageID: UUID, revision: Int64, contexts: [ObservationContext],
+                           presentation: [PhotoPreparationImagePresentation]? = nil,
+                           account: PhotoOriginalPreparationOwner.AccountAccess) async throws -> Int64 {
+        try await accountOperation(account, ownerID: account.ownerID) { [self] lease in
+            try drafts(account, lease).saveMetadata(packageID: packageID, ownerID: account.ownerID,
+                revision: revision, contexts: contexts, presentation: presentation)
+        }
+    }
+
+    func draftCatalog(account: PhotoOriginalPreparationOwner.AccountAccess) async throws -> [PhotoPreparationDraft] {
+        try await accountOperation(account, ownerID: account.ownerID) { [self] lease in
+            let result = try storage.inboxRead { try $0.drafts.catalog(ownerID: account.ownerID) }
+            try check(account, lease); return result
+        }
+    }
+
+    func prepareFreeze(_ snapshot: PhotoPreparationSnapshot,
+                       account: PhotoOriginalPreparationOwner.AccountAccess) async throws -> SharedMediaFreezeRequest {
+        try await accountOperation(account, ownerID: account.ownerID) { [self] lease in
+            try await drafts(account, lease).prepare(snapshot, ownerID: account.ownerID)
+        }
+    }
+
+    func freeze(_ request: SharedMediaFreezeRequest,
+                account: PhotoOriginalPreparationOwner.AccountAccess) async throws -> PhotoPreparationReceipt {
+        try await accountOperation(account, ownerID: account.ownerID) { [self] lease in
+            try await drafts(account, lease).freeze(request, ownerID: account.ownerID)
+        }
+    }
+
+    private func drafts(_ account: PhotoOriginalPreparationOwner.AccountAccess,
+                        _ lease: AccountBoundWorkLease) -> SharedMediaDraftOperations {
+        .init(storage: storage, io: destinationIO, check: { [self] in try check(account, lease) })
+    }
+
     private func derivatives(_ account: PhotoOriginalPreparationOwner.AccountAccess,
                              _ lease: AccountBoundWorkLease) -> SharedMediaDerivativeOperations {
         .init(storage: storage, io: destinationIO, check: { [self] in try check(account, lease) })

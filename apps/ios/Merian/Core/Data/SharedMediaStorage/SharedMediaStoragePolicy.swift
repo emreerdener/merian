@@ -98,8 +98,8 @@ enum SharedMediaStoragePolicy {
             }
         }
 
-        func checkAvailable(_ available: Int64) throws {
-            guard available >= 0, available >= (try SharedMediaStoragePolicy.add(outstanding, SharedMediaStoragePolicy.reserve)) else {
+        func checkAvailable(_ available: Int64, additionalReservation: Int64 = 0) throws {
+            guard available >= 0, available >= (try SharedMediaStoragePolicy.add(SharedMediaStoragePolicy.add(outstanding, SharedMediaStoragePolicy.reserve), additionalReservation)) else {
                 throw SharedMediaStorageFailure.capacity
             }
         }

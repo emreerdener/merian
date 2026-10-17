@@ -1,3 +1,33 @@
+## October 16 — shared metadata and local freeze locally validated
+
+L6 uses the same inbox coordinator and fenced store for bounded supporting
+metadata and exact local freeze. Positive metadata growth reserves additional
+free-space headroom; shrinking adds no reservation. Freeze verifies the entire
+saved envelope, ordered originals, both derivative roles and every exact file
+identity. Prepared-held packages reject draft mutations. Lost-ack/restart
+recovery requires the retained exact request; no server admission or provider
+invocation is added.
+
+Independent and IC-1 review cleared candidate03. Eight focused suites passed 109
+cases; the complete native target passed 6,066 cases, zero failures or skips.
+Source hashes stayed unchanged through both runs. XcodeGen, source membership,
+Markdown and scoped diff checks passed. Evidence:
+`.artifacts/shared-media-freeze-20261016/`; full result
+`.artifacts/local-ios/16c5efaf0b4c484c9393459fa7c298c5.xcresult`. This is local
+shared-checkout qualification, not isolated-source or live product acceptance.
+
+Continue durable shared-owner library cleanup, then real producer composition,
+cloud retention and integrated acceptance under existing local authorization.
+The cleanup contract preserves a closed terminal inventory/root binding and
+requires exact physical release before ordinary library deletion. Its agreement
+is `.artifacts/shared-media-purge-20261016/agreement.md`; independent/IC-1
+concurrence is recorded there. No production composition is enabled.
+
+The approved future cloud-backed LRU direction has no age-only expiry; final
+original/preview cache budgets remain undecided. Current numeric limits are
+unchanged. Activation remains disabled, PR116 frozen, Supabase hold active and
+AWS unapproved. No push, hosted action or deployment occurred.
+
 ## October 16 — paired derivative runtime locally validated
 
 L5 now owns paired AI-input/display files through the existing isolated inbox
@@ -516,35 +546,31 @@ account-specific versus whole-library purge, and whole-lifetime producer
 registration/exclusion. These are implementation contract obligations, not
 permission to change limits, discard unknown media or activate P1.
 
-## Cloud-backed local-cache policy proposal — not adopted
+## Cloud-backed local-cache policy direction — approved October 16
 
-Planning coordination requested this proposal be considered at cloud-retention
-integration before final acceptance. It does not enable eviction or change
-current pending-package, temporary-space or whole-library limits. Do not
-introduce a second storage owner for it.
+The user approved this revised direction in planning thread
+`01a12460-a2c6-7b21-abcf-d3be41331b45`, turn
+`01a14730-9707-7a03-b0b6-0ec88a3c58be`, for the cloud-retention integration
+checkpoint. It does not interrupt the current local implementation, enable cache
+eviction now, or change pending-package, temporary-space or safety limits. Use
+the existing shared ownership/recovery system; no separate storage owner.
 
-Originals would remain durably retained in private R2 while surviving history
-needs them; replaceable cloud-backed originals could use a bounded device cache.
-Never evict the only copy, local-only media, an unsynced draft, pending,
-interrupted or uncertain work, or any file with active local ownership/leases.
-Eligibility requires exact backend durable-retention acknowledgement and release
-of local dependencies. An upload response or successful analysis receipt alone
-is insufficient.
+Replaceable cloud-backed originals use a bounded least-recently-used cache.
+Evict eligible local replicas for budget or storage pressure, not solely because
+of elapsed age. The earlier seven-day expiry suggestion is superseded. Backend
+acknowledgement must establish that the exact original is durably retained and
+recoverable under the correct owner, with no active local dependencies or
+leases. Never evict the only copy, unsynced drafts, or pending, interrupted or
+uncertain work. Upload success or an analysis receipt alone is insufficient.
 
-Proposed starting defaults are 256 MiB aggregate eligible-original cache,
-least-recently-used eviction, and expiry after seven days without use, with
-earlier eviction under storage pressure. These numbers require explicit policy
-adoption and realistic photo/audio/video validation. Thumbnails/previews need
-separate bounded accounting. Reanalysis/export after eviction must download the
-exact authorized original and clearly require connectivity. An original larger
-than the cache may be held for an active operation and released afterward within
-existing temporary-space/admission limits. Optional Keep offline is future work.
+Local eviction preserves history, cloud originals/references and the user's
+Photos library. Reanalysis/export retrieves the exact authorized original when
+absent. Offline original availability is best-effort; guaranteed Keep offline is
+separate future work. Previews require separate bounded policy and accounting.
 
-Removing an app-private cache copy must never delete the user's Photos-library
-original or retained cloud object. Local eviction is distinct from permanent
-version/cloud deletion and must use existing references, leases, saved release
-intent and recovery ownership. Reconcile feasibility and contracts at the
-cloud-retention milestone, then present any actual policy decision before
-adoption. The planning request supplied Apple's
-[file-system guidance](https://developer.apple.com/documentation/foundation/using-the-file-system-effectively)
-as background; this proposal is not platform qualification evidence.
+The 256 MiB original-cache size remains a provisional test candidate, not an
+approved final limit or measured optimum. Validate representative photo, audio
+and video workloads at cloud-retention integration, then resolve final original
+and preview budgets explicitly. Eligibility, release intent, writer closure and
+recovery proofs remain mandatory. This policy approval does not authorize hosted
+testing, deployment, external publication or activation.

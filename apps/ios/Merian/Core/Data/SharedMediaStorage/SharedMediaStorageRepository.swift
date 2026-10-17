@@ -487,14 +487,14 @@ final class SharedMediaStorageRepository {
     }
 
     func handoffWrite<T>(before: SharedMediaInboxHandoffBoundary, after: SharedMediaInboxHandoffBoundary,
-                         requiresFreeSpace: Bool = false, _ body: (SharedMediaInboxLedger) throws -> T) throws -> T {
+                         requiresFreeSpace: Bool = false, additionalFreeBytes: Int64 = 0, _ body: (SharedMediaInboxLedger) throws -> T) throws -> T {
         let (context, inventory) = try state(), ledger = try inboxLedger(context, inventory)
         let result = try body(ledger), totals = try ledger.validate()
         if requiresFreeSpace {
             #if DEBUG
-            try totals.checkAvailable(handoffAvailableBytes ?? files.availableBytes())
+            try totals.checkAvailable(handoffAvailableBytes ?? files.availableBytes(), additionalReservation: additionalFreeBytes)
             #else
-            try totals.checkAvailable(files.availableBytes())
+            try totals.checkAvailable(files.availableBytes(), additionalReservation: additionalFreeBytes)
             #endif
         }
         #if DEBUG

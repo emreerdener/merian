@@ -1,5 +1,21 @@
 # Inactive shared media storage
 
+## Metadata and local freeze — locally validated
+
+The isolated inbox composition saves bounded metadata through the same account
+operation and joint store. Growth needs the unchanged reserve plus outstanding
+reservations and the positive encoded-byte delta. Local freeze requires an
+ordered, complete original/AI/display graph and verifies every file identity.
+The caller retains a private request containing the entire encoded envelope,
+references and file facts; only that exact request can reconcile a saved
+`preparedHeld` receipt. The snapshot alone omits presentation and is
+insufficient. Prepared-held packages reject fresh draft mutations, including
+pair discard. No server admission or inference occurs. Independent and IC-1
+review cleared candidate03; eight focused suites passed 109 cases and the full
+native target passed 6,066 cases, with no failures, skips or source drift. This
+is shared-checkout qualification, not live composition acceptance. See SMA-1 for
+the exact retained evidence and remaining integration requirements.
+
 ## Paired derivatives — isolated implementation
 
 V62 adds scalar pair/work rows, preserving all V61 inbox fields and starting

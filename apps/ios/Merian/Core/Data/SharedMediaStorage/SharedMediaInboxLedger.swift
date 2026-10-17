@@ -16,6 +16,7 @@ final class SharedMediaInboxLedger {
         self.joint = joint; self.inventory = inventory; self.binding = binding; self.rootIdentity = rootIdentity
     }
 
+    var drafts: SharedMediaDraftLedger { .init(joint: joint, inventory: inventory) }
     var photos: SharedMediaPhotoLedger { .init(joint: joint, inventoryID: inventory.id, includesInbox: true) }
     var derivatives: SharedMediaDerivativeLedger { .init(joint: joint, inventory: inventory, binding: binding) }
     var handoffs: SharedMediaInboxHandoffLedger { .init(joint: joint, inventory: inventory, binding: binding) }

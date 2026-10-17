@@ -78,12 +78,26 @@ final class SharedMediaPhotoLedger {
             guard !refs.isEmpty || !work.isEmpty, work.filter({ $0.purposeRaw == "acquire" && $0.writerStateRaw != "closedSourceRetained" }).count + refs.filter({ $0.roleRaw == "original" }).count <= 2,
                   p.contractVersion == PhotoPreparationPolicy.contract, p.draftID == p.id,
                   p.retirementRequested == retiring, p.revision >= 0,
-                  (retiring ? p.phaseRaw == "retiring" : ["acquiring", "draftOwned", "needsAttention"].contains(p.phaseRaw)),
-                  envelope.contexts.isEmpty, envelope.presentation.isEmpty,
+                  (retiring ? p.phaseRaw == "retiring" : (includesInbox ? ["acquiring", "draftOwned", "needsAttention", "preparedHeld"] : ["acquiring", "draftOwned", "needsAttention"]).contains(p.phaseRaw)),
+                  (includesInbox || (envelope.contexts.isEmpty && envelope.presentation.isEmpty)),
+                  envelope.presentation.allSatisfy({ photo in refs.contains { $0.id == photo.referenceID && $0.isLive && $0.roleRaw == "original" } }),
                   p.supportingContextData.count <= PhotoPreparationPolicy.metadata,
                   p.allocatedByteCount == bytes,
                   Set(refs.filter(\.isLive).map { $0.roleRaw + ":" + String($0.ordinal) }).count == refs.filter(\.isLive).count else {
                 throw SharedMediaStorageFailure.conflict
+            }
+            if p.phaseRaw == "preparedHeld" {
+                let originals = refs.filter { $0.isLive && $0.roleRaw == "original" }.map(\.ordinal).sorted()
+                var handoffQuery = FetchDescriptor<SharedMediaInboxHandoffRecord>(); handoffQuery.fetchLimit = 9
+                var pairQuery = FetchDescriptor<SharedMediaDerivativePairRecord>(); pairQuery.fetchLimit = 10
+                let handoffs = try context.fetch(handoffQuery), pairs = try context.fetch(pairQuery)
+                guard !originals.isEmpty, work.isEmpty, refs.allSatisfy(\.isLive), handoffs.count <= 8, pairs.count <= 9,
+                      handoffs.allSatisfy({ $0.packageID != p.id }),
+                      pairs.filter({ $0.packageID == p.id }).count == originals.count,
+                      pairs.filter({ $0.packageID == p.id }).allSatisfy({ $0.phaseRaw == "ready" }),
+                      ["aiInput", "display"].allSatisfy({ role in refs.filter { $0.roleRaw == role }.map(\.ordinal).sorted() == originals }) else {
+                    throw SharedMediaStorageFailure.conflict
+                }
             }
             let originalIDs = Set(refs.filter { $0.roleRaw == "original" }.map(\.assetID))
             let originalBytes = try PhotoPreparationPolicy.add(r.assets.filter { originalIDs.contains($0.id) }.map(\.byteCount)
@@ -267,6 +281,7 @@ final class SharedMediaPhotoLedger {
     func share(_ request: SharedMediaPhotoShareRequest) throws {
         let r = try rows(), destination = try request.destination()
         guard r.work.isEmpty, !r.assets.contains(where: { $0.cleanupStateRaw == "retiring" }) else { throw SharedMediaStorageFailure.inUse }
+        guard r.packages.first(where: { $0.id == request.source.packageID })?.phaseRaw != "preparedHeld" else { throw PhotoPreparationFailure.immutablePackage }
         let file = try resolve(request.source)
         guard r.packages.count < 4, !r.packages.contains(where: { $0.id == destination.packageID }),
               !r.references.contains(where: { $0.id == destination.referenceID }) else { throw SharedMediaStorageFailure.conflict }
@@ -321,6 +336,7 @@ final class SharedMediaPhotoLedger {
         }
         let r = try rows()
         guard r.work.isEmpty else { throw SharedMediaStorageFailure.inUse }
+        guard r.packages.first(where: { $0.id == handle.packageID })?.phaseRaw != "preparedHeld" else { throw PhotoPreparationFailure.immutablePackage }
         guard let (file, identity, retiring) = try reference(handle), !retiring,
               file == inspection.file, identity == inspection.identity.file,
               let edge = r.references.first(where: { $0.id == handle.referenceID }),
