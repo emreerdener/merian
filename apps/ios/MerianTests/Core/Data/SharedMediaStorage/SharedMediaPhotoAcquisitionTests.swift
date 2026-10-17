@@ -548,6 +548,12 @@ struct SharedMediaPhotoAcquisitionTests {
         var repository: SharedMediaStorageRepository? = try h.repository()
         let file = try repository!.resolvePhoto(original)
         let inspection = try repository!.photoFiles!.inspectSharedRetirement(file)
+        // The native codec accepts the actual descriptor producer's shape;
+        // this synthetic binding grants no native cleanup authority.
+        let native = try SharedMediaNativeRetirementIdentity(retirementID: UUID(), assetID: original.assetID,
+            assetGeneration: original.assetGeneration, inventoryID: UUID(), inventoryGeneration: UUID(),
+            ownerID: original.ownerID, proof: inspection.identity)
+        #expect(try SharedMediaNativeRetirementIdentity.decode(native.encoded()) == native)
         try repository!.retirePhoto(original, inspection: inspection)
         guard case .retiring(let intent) = try repository!.photoReferenceState(original) else { Issue.record("No retirement"); return }
         let proof = try repository!.photoFiles!.releaseSharedPhoto(intent)

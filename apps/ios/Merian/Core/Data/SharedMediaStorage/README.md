@@ -1,5 +1,26 @@
 # Inactive shared media storage
 
+## Pending graph and retirement format — locally verified
+
+`SharedMediaPendingGraph` discovers bounded mutable package rows from logical
+references, reservation work, handoffs and derivative pairs. It preserves source
+holds as dependencies and follows shared allocations independently of their
+physical-origin package. Exact membership checks include the inventory and draft
+generations and the existing combined metadata allowance. Retained packages do
+not consume pending slots. The reader does not save, reconstruct missing rows,
+validate every lifecycle phase, audit whole-store orphans, or grant file access
+or cleanup. Native mutation, reverse accounting and complete audit owners remain
+required before composition can open. Existing qualification barriers remain.
+
+`SharedMediaNativeRetirementIdentity` encodes the native original retirement ID,
+asset/generation, inventory/generation, account and exact descriptor facts in a
+canonical V2 record within the existing 512-byte allowance. Its distinct
+`nativeOriginalRetiringV2` state cannot enter the qualification V1 path. Parsing
+rejects noncanonical UUIDs, numeric descriptors and JSON. This value is not a
+cleanup capability; the native owner must still jointly persist retirement and
+reference accounting and prove writer closure and exact physical absence. No
+native caller or composition is enabled by the codec.
+
 ## October 16 — native consumer foundation locally qualified
 
 NCI-1 adds V63 explicit legacy/shared authority, scalar consumer identity and

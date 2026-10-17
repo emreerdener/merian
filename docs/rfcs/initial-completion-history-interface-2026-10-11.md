@@ -1,3 +1,32 @@
+## October 17 — pending graph and native retirement format locally verified
+
+The bounded pending graph follows logical package references, reservation work,
+handoffs and derivative pairs independently of an allocation's physical-origin
+package. Exact membership checks reject missing, stale or over-budget saved
+assertions. The native-only V2 retirement format binds the stable retirement,
+asset/generation, inventory/generation, account and descriptor facts within the
+unchanged 512-byte allowance. Qualification V1 remains separate and unchanged.
+Neither helper grants mutation, file access, cleanup or provider authority.
+
+Independent and IC-1 review cleared candidate03. Pending-graph focused coverage
+passed 40 tests; the codec passed five methods and the separately selected real
+filesystem roundtrip/release case passed. The complete native target then passed
+6,103 tests with zero failures or skips. Candidate and recorded shared-baseline
+hashes remained unchanged. This is shared-checkout validation, not
+isolated-source or live acceptance. Evidence:
+`.artifacts/shared-media-pending-20261016/`; full result
+`.artifacts/local-ios/4e832e68b3c54a8fad056b966735301c.xcresult`. The earlier
+actor-isolation compile failure, simulator no-launch failure, omitted-method
+coverage gap and shell-selector failure remain retained.
+
+Continue the reviewed closed native accounting operations, paired reference and
+count updates, exact pending memberships, complete native audit and atomic
+queue/history ownership. A dedicated native validator must preserve legacy
+qualification rejection of retained/V2 states. Native composition remains closed
+until these owners and their acceptance gates are complete. Activation stays
+disabled, PR116 frozen, the deployment hold active, AWS unapproved and numeric
+limits unchanged. No push, merge, deployment or hosted action occurred.
+
 ## October 16 — V63 consumer ownership foundation locally verified
 
 V63 freezes V62 and adds explicit consumer authority, pending membership,
