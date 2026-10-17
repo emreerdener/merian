@@ -18,9 +18,12 @@ final class SharedMediaPhotoLedger {
     private let joint: SharedMediaPhotoTransaction
     private let inventoryID: UUID
     private let includesInbox: Bool
+    private let inventoryRow: SharedMediaInventoryRecord?
+    private var purging: Bool { inventoryRow?.phaseRaw == "purgingP1" }
     private var context: ModelContext { joint.context }
 
-    init(joint: SharedMediaPhotoTransaction, inventoryID: UUID, includesInbox: Bool = false) {
+    init(joint: SharedMediaPhotoTransaction, inventoryID: UUID, includesInbox: Bool = false, inventory: SharedMediaInventoryRecord? = nil) {
+        self.inventoryRow = inventory
         self.joint = joint
         self.inventoryID = inventoryID
         self.includesInbox = includesInbox
@@ -78,9 +81,9 @@ final class SharedMediaPhotoLedger {
             guard !refs.isEmpty || !work.isEmpty, work.filter({ $0.purposeRaw == "acquire" && $0.writerStateRaw != "closedSourceRetained" }).count + refs.filter({ $0.roleRaw == "original" }).count <= 2,
                   p.contractVersion == PhotoPreparationPolicy.contract, p.draftID == p.id,
                   p.retirementRequested == retiring, p.revision >= 0,
-                  (retiring ? p.phaseRaw == "retiring" : (includesInbox ? ["acquiring", "draftOwned", "needsAttention", "preparedHeld"] : ["acquiring", "draftOwned", "needsAttention"]).contains(p.phaseRaw)),
+                  (retiring ? p.phaseRaw == "retiring" : (includesInbox ? (["acquiring", "draftOwned", "needsAttention", "preparedHeld"] + (purging ? ["purging"] : [])) : ["acquiring", "draftOwned", "needsAttention"]).contains(p.phaseRaw)),
                   (includesInbox || (envelope.contexts.isEmpty && envelope.presentation.isEmpty)),
-                  envelope.presentation.allSatisfy({ photo in refs.contains { $0.id == photo.referenceID && $0.isLive && $0.roleRaw == "original" } }),
+                  (purging || envelope.presentation.allSatisfy({ photo in refs.contains { $0.id == photo.referenceID && $0.isLive && $0.roleRaw == "original" } })),
                   p.supportingContextData.count <= PhotoPreparationPolicy.metadata,
                   p.allocatedByteCount == bytes,
                   Set(refs.filter(\.isLive).map { $0.roleRaw + ":" + String($0.ordinal) }).count == refs.filter(\.isLive).count else {
@@ -316,6 +319,20 @@ final class SharedMediaPhotoLedger {
         return (Self.file(asset), identity, !edge.isLive)
     }
 
+    func purgeHandles() throws -> [PhotoOriginalReference] {
+        guard purging else { throw SharedMediaStorageFailure.closed }
+        _ = try validate()
+        let r = try rows()
+        guard r.work.isEmpty else { throw SharedMediaStorageFailure.inUse }
+        return try r.references.filter { $0.roleRaw == "original" }.map { edge in
+            guard let asset = r.assets.first(where: { $0.id == edge.assetID }),
+                  let package = r.packages.first(where: { $0.id == edge.packageID }) else { throw SharedMediaStorageFailure.conflict }
+            return .init(ownerID: edge.ownerID, packageID: package.id, referenceID: edge.id,
+                assetID: asset.id, assetGeneration: asset.generation, draftGeneration: package.draftGeneration,
+                referenceRevision: edge.isLive ? edge.revision : edge.revision - 1)
+        }.sorted { $0.referenceID.uuidString < $1.referenceID.uuidString }
+    }
+
     func retirementHandles(ownerID: UUID) throws -> [PhotoOriginalReference] {
         _ = try validate()
         let r = try rows()
@@ -336,7 +353,7 @@ final class SharedMediaPhotoLedger {
         }
         let r = try rows()
         guard r.work.isEmpty else { throw SharedMediaStorageFailure.inUse }
-        guard r.packages.first(where: { $0.id == handle.packageID })?.phaseRaw != "preparedHeld" else { throw PhotoPreparationFailure.immutablePackage }
+        guard purging || r.packages.first(where: { $0.id == handle.packageID })?.phaseRaw != "preparedHeld" else { throw PhotoPreparationFailure.immutablePackage }
         guard let (file, identity, retiring) = try reference(handle), !retiring,
               file == inspection.file, identity == inspection.identity.file,
               let edge = r.references.first(where: { $0.id == handle.referenceID }),
@@ -382,6 +399,7 @@ final class SharedMediaPhotoLedger {
             package.allocatedByteCount = try PhotoPreparationPolicy.add(r.assets.filter { assetIDs.contains($0.id) }.map(\.byteCount))
             package.retirementRequested = !refs.isEmpty && refs.allSatisfy { !$0.isLive }
             if package.retirementRequested { package.phaseRaw = "retiring" }
+            else if purging { package.phaseRaw = "purging" }
             package.revision = try SharedMediaStoragePolicy.add(package.revision, 1)
         }
     }

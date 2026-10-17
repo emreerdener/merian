@@ -3,32 +3,46 @@ import os
 import SwiftData
 
 /// Account erasure's local persistence and preference boundary. Repository
-/// composition resets view projections before entering this asynchronous owner.
+/// composition resets projections only after the complete erasure succeeds.
 @MainActor
 enum ScanLibraryPurgeService {
     static func purge(
         modelContext: ModelContext,
         userDefaults: UserDefaults,
         resetRuntimeState: @MainActor () -> Void,
+        sharedMedia: SharedMediaLibraryPurgeRequest? = nil,
         erasePhotoPreparation: (@MainActor () async throws -> Void)? = nil,
         eraseReanalysis: @MainActor () async throws -> Void = {
             try await ObservationReanalysisFileStore(documents: .documentsDirectory).purgeNamespace()
         }
     ) async -> Bool {
-        // No callback, producer suspension or file cleanup may precede this guard.
-        // A missing/corrupt ledger is not permission to erase its only authority.
-        do {
-            guard try !SharedMediaStorageRepository.hasLiabilities(in: modelContext),
-                  try !SharedMediaStorageRepository.hasLiabilities(in: ModelContext(modelContext.container)) else { return false }
-        } catch { return false }
         let cleanup = OfflineQueueManager.shared.reanalysisErasureOwner
-        await cleanup.suspendForLibraryPurge()
-        defer { cleanup.resumeAfterLibraryPurge() }
-        LocalScanMediaRecoveryResolver.resetRegisteredRecoveryMappings()
+        var suspended = false
+        defer { if suspended { cleanup.resumeAfterLibraryPurge() } }
+        var completion: SharedMediaPurgeCompletion?
+        do {
+            if let sharedMedia {
+                try sharedMedia.owner.validatePurgeTarget(in: modelContext)
+                completion = try await sharedMedia.owner.purgeWholeLibrary(resetID: sharedMedia.resetID) {
+                    await cleanup.suspendForLibraryPurge()
+                    suspended = true
+                }
+                try completion?.validate(in: modelContext)
+            } else {
+                // Without the exact owner, fail before any unrelated callback.
+                guard try !SharedMediaStorageRepository.hasLiabilities(in: modelContext),
+                      try !SharedMediaStorageRepository.hasLiabilities(in: ModelContext(modelContext.container)) else { return false }
+                await cleanup.suspendForLibraryPurge()
+                suspended = true
+            }
+        } catch { return false }
         do {
             let hasP1Namespace = FileManager.default.fileExists(atPath:
                 URL.documentsDirectory.appendingPathComponent("PhotoPreparation").path)
-            if let erasePhotoPreparation {
+            if let completion {
+                guard !hasP1Namespace else { throw PhotoPreparationFailure.cleanupPending }
+                try completion.validate(in: modelContext)
+            } else if let erasePhotoPreparation {
                 try await erasePhotoPreparation()
                 guard try !PhotoPreparationRepository.hasLiabilities(in: ModelContext(modelContext.container)) else {
                     throw PhotoPreparationFailure.cleanupPending
@@ -75,6 +89,7 @@ enum ScanLibraryPurgeService {
             return false
         }
 
+        LocalScanMediaRecoveryResolver.resetRegisteredRecoveryMappings()
         resetRuntimeState()
         AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
         MerianLog.data.debug(
@@ -82,4 +97,12 @@ enum ScanLibraryPurgeService {
         )
         return true
     }
+}
+
+/// Explicit reset request. Live composition remains absent until all producer
+/// registrations and the outer Auth transition barrier are integrated.
+@MainActor
+struct SharedMediaLibraryPurgeRequest {
+    let owner: SharedMediaInboxOwner
+    let resetID: UUID
 }

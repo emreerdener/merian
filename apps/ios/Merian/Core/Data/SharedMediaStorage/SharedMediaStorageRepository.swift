@@ -16,6 +16,8 @@ final class SharedMediaStorageRepository {
     private let sources: [String: URL]
     private let rootBinding: String
     private let storeBinding: Data
+    private let purgeCoordinatorID: UUID?
+    private lazy var purgeAuthority = makePurgeAuthority()
     let inboxFiles: SharedMediaInboxFiles?
     let photoFiles: PhotoPreparationLockedFiles?
     #if DEBUG
@@ -23,9 +25,10 @@ final class SharedMediaStorageRepository {
     #endif
 
     init(container: ModelContainer, authorityRoot: URL, inventoryID: UUID, mode: SharedMediaStorageMode, sources: [String: URL] = [:],
-         photoInspection: PhotoPreparationDirectoryInspection = .init()) throws {
+         photoInspection: PhotoPreparationDirectoryInspection = .init(), purgeCoordinatorID: UUID? = nil, resumePurgeID: UUID? = nil) throws {
         guard container.configurations.count == 1, let configuration = container.configurations.first,
               !configuration.isStoredInMemoryOnly else { throw SharedMediaStorageFailure.invalid }
+        self.purgeCoordinatorID = purgeCoordinatorID
         self.container = container
         self.inventoryID = inventoryID
         self.mode = mode
@@ -82,7 +85,10 @@ final class SharedMediaStorageRepository {
                 phaseRaw: mode == .observation ? "observing" : (mode == .qualification ? "readyQualification" : "readyP1"), cursor: ""))
             try context.save()
         }
-        _ = try state()
+        let initial = try state(allowPurge: resumePurgeID != nil).1
+        if let resumePurgeID {
+            guard try SharedMediaPurgeState.read(initial).id == resumePurgeID else { throw SharedMediaStorageFailure.stale }
+        }
     }
 
     static func hasLiabilities(in context: ModelContext) throws -> Bool {
@@ -113,142 +119,64 @@ final class SharedMediaStorageRepository {
         return try save(context, inventory)
     }
 
-    /// Retains a fixed destination reservation only. L1 has no media writer.
     func reserve(_ request: SharedMediaStorageReservation, expected: SharedMediaStorageSnapshot) throws -> SharedMediaStorageSnapshot {
         let (context, inventory) = try state()
-        try requireQualification(inventory)
-        guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
-        guard request.pool != .observed, request.bytes > 0 else { throw SharedMediaStorageFailure.invalid }
-        if let prior: SharedMediaAllocationRecord = try SharedMediaStorageLookup.one(context, id: request.id) {
-            guard prior.stateRaw == "reserved", prior.accountID == request.accountID,
-                  prior.packageID == request.packageID, prior.poolRaw == request.pool.rawValue,
-                  prior.reservedBytes == request.bytes else { throw SharedMediaStorageFailure.conflict }
-            return value(inventory) // Exact saved reservation, never a renewed identity/allowance.
-        }
-        try revision(inventory, expected)
-        try SharedMediaStorageLookup.visit(context, SharedMediaAllocationRecord.self) {
-            if $0.packageID == request.packageID && $0.accountID != request.accountID { throw SharedMediaStorageFailure.conflict }
-        }
-        var totals = try accounting(context)
-        try totals.include(.init(packageID: request.packageID, pool: request.pool, materialized: 0, reserved: request.bytes))
-        try totals.checkAvailable(files.availableBytes())
-        context.insert(SharedMediaAllocationRecord(id: request.id, inventoryID: inventoryID,
-            accountID: request.accountID, packageID: request.packageID, namespaceRaw: "qualification",
-            fileToken: request.id.uuidString.lowercased(), poolRaw: request.pool.rawValue,
-            stateRaw: "reserved", materializedBytes: 0, reservedBytes: request.bytes, physicalIdentity: nil))
+        let ledger = SharedMediaQualificationLedger(context: context, inventory: inventory, mode: mode, processEpoch: processEpoch)
+        guard try ledger.reserve(request, expected: expected, availableBytes: { try files.availableBytes() }) else { return value(inventory) }
         return try save(context, inventory)
     }
 
     func acquireReference(id: UUID, allocationID: UUID, accountID: UUID, ownerID: String,
                           role: String, expected: SharedMediaStorageSnapshot) throws -> SharedMediaStorageSnapshot {
         let (context, inventory) = try state()
-        try requireQualification(inventory)
-        try SharedMediaStoragePolicy.token(ownerID)
-        try SharedMediaStoragePolicy.token(role)
-        let allocation = try mutableAllocation(context, allocationID)
-        guard allocation.accountID == accountID else { throw SharedMediaStorageFailure.conflict }
-        guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
-        if let prior: SharedMediaReferenceRecord = try SharedMediaStorageLookup.one(context, id: id) {
-            guard prior.allocationID == allocationID, prior.accountID == accountID,
-                  prior.ownerID == ownerID, prior.roleRaw == role, prior.stateRaw == "live" else {
-                throw SharedMediaStorageFailure.conflict
-            }
-            return value(inventory)
-        }
-        try revision(inventory, expected)
-        context.insert(SharedMediaReferenceRecord(id: id, allocationID: allocationID,
-            accountID: accountID, ownerID: ownerID, roleRaw: role, stateRaw: "live", revision: 0))
+        let ledger = SharedMediaQualificationLedger(context: context, inventory: inventory, mode: mode, processEpoch: processEpoch)
+        guard try ledger.acquireReference(id: id, allocationID: allocationID, accountID: accountID, ownerID: ownerID, role: role, expected: expected) else { return value(inventory) }
         return try save(context, inventory)
     }
 
     func releaseReference(id: UUID, expected: SharedMediaStorageSnapshot) throws -> SharedMediaStorageSnapshot {
-        guard !mode.includesPhotoStorage else { throw SharedMediaStorageFailure.closed }
         let (context, inventory) = try state()
-        guard let edge: SharedMediaReferenceRecord = try SharedMediaStorageLookup.one(context, id: id) else { throw SharedMediaStorageFailure.invalid }
-        guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
-        if edge.stateRaw == "retired" { return value(inventory) }
-        try revision(inventory, expected)
-        guard edge.stateRaw == "live" else { throw SharedMediaStorageFailure.conflict }
-        edge.stateRaw = "retired"
-        edge.revision = try SharedMediaStoragePolicy.add(edge.revision, 1)
+        let ledger = SharedMediaQualificationLedger(context: context, inventory: inventory, mode: mode, processEpoch: processEpoch)
+        guard try ledger.releaseReference(id: id, expected: expected) else { return value(inventory) }
         return try save(context, inventory)
     }
 
     func startLocalLease(id: UUID, allocationID: UUID, expected: SharedMediaStorageSnapshot) throws -> SharedMediaStorageSnapshot {
         let (context, inventory) = try state()
-        try requireQualification(inventory)
-        _ = try mutableAllocation(context, allocationID)
-        guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
-        if let old: SharedMediaLeaseRecord = try SharedMediaStorageLookup.one(context, id: id) {
-            guard old.allocationID == allocationID, old.processEpoch == processEpoch,
-                  old.stateRaw == "open" else { throw SharedMediaStorageFailure.conflict }
-            return value(inventory)
-        }
-        try revision(inventory, expected)
-        context.insert(SharedMediaLeaseRecord(id: id, allocationID: allocationID, processEpoch: processEpoch,
-            purposeRaw: "localQualification", stateRaw: "open"))
+        let ledger = SharedMediaQualificationLedger(context: context, inventory: inventory, mode: mode, processEpoch: processEpoch)
+        guard try ledger.startLocalLease(id: id, allocationID: allocationID, expected: expected) else { return value(inventory) }
         return try save(context, inventory)
     }
 
-    /// Cannot close an earlier process's lease or any background/remote work.
     func finishLocalLease(id: UUID, expected: SharedMediaStorageSnapshot) throws -> SharedMediaStorageSnapshot {
-        guard !mode.includesPhotoStorage else { throw SharedMediaStorageFailure.closed }
         let (context, inventory) = try state()
-        guard let lease: SharedMediaLeaseRecord = try SharedMediaStorageLookup.one(context, id: id),
-              lease.processEpoch == processEpoch, lease.purposeRaw == "localQualification" else {
-            throw SharedMediaStorageFailure.conflict
-        }
-        guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
-        if lease.stateRaw == "closed" { return value(inventory) }
-        try revision(inventory, expected)
-        guard lease.stateRaw == "open" else { throw SharedMediaStorageFailure.inUse }
-        lease.stateRaw = "closed"
+        let ledger = SharedMediaQualificationLedger(context: context, inventory: inventory, mode: mode, processEpoch: processEpoch)
+        guard try ledger.finishLocalLease(id: id, expected: expected) else { return value(inventory) }
         return try save(context, inventory)
     }
 
     func retire(allocationID: UUID, expected: SharedMediaStorageSnapshot) throws -> SharedMediaStorageSnapshot {
         let (context, inventory) = try state()
-        guard mode == .qualification else { throw SharedMediaStorageFailure.closed }
-        guard let allocation: SharedMediaAllocationRecord = try SharedMediaStorageLookup.one(context, id: allocationID),
-              allocation.poolRaw != "observed" else { throw SharedMediaStorageFailure.invalid }
-        guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
-        if allocation.stateRaw == "retiring" { return value(inventory) }
-        try revision(inventory, expected)
-        _ = try mutableAllocation(context, allocationID)
-        var held = false
-        try SharedMediaStorageLookup.visit(context, SharedMediaReferenceRecord.self) { if $0.allocationID == allocationID && $0.stateRaw != "retired" { held = true } }
-        try SharedMediaStorageLookup.visit(context, SharedMediaLeaseRecord.self) { if $0.allocationID == allocationID && $0.stateRaw != "closed" { held = true } }
-        guard !held else { throw SharedMediaStorageFailure.inUse }
-        allocation.stateRaw = "retiring" // Irreversible; bytes remain charged, no physical-release API.
+        let ledger = SharedMediaQualificationLedger(context: context, inventory: inventory, mode: mode, processEpoch: processEpoch)
+        guard try ledger.retire(allocationID: allocationID, expected: expected) else { return value(inventory) }
         return try save(context, inventory)
     }
 
-    /// Global admission closure only; preserves every reference, lease and charge.
     func closeAdmission(expected: SharedMediaStorageSnapshot) throws -> SharedMediaStorageSnapshot {
-        guard !mode.includesPhotoStorage else { throw SharedMediaStorageFailure.closed }
         let (context, inventory) = try state()
-        guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
-        if inventory.phaseRaw == "retiring" { return value(inventory) }
-        try revision(inventory, expected)
-        inventory.phaseRaw = "retiring"
+        let ledger = SharedMediaQualificationLedger(context: context, inventory: inventory, mode: mode, processEpoch: processEpoch)
+        guard try ledger.closeAdmission(expected: expected) else { return value(inventory) }
         return try save(context, inventory)
     }
 
-    /// Local account reference retirement only, not permission to erase files or remote data.
     func retireAccountReferences(_ accountID: UUID, expected: SharedMediaStorageSnapshot) throws -> SharedMediaStorageSnapshot {
-        guard !mode.includesPhotoStorage else { throw SharedMediaStorageFailure.closed }
         let (context, inventory) = try state()
-        try revision(inventory, expected)
-        try SharedMediaStorageLookup.visit(context, SharedMediaReferenceRecord.self) {
-            if $0.accountID == accountID && $0.stateRaw == "live" {
-                $0.stateRaw = "retired"
-                $0.revision = try SharedMediaStoragePolicy.add($0.revision, 1)
-            }
-        }
+        let ledger = SharedMediaQualificationLedger(context: context, inventory: inventory, mode: mode, processEpoch: processEpoch)
+        guard try ledger.retireAccountReferences(accountID, expected: expected) else { return value(inventory) }
         return try save(context, inventory)
     }
 
-    private func state() throws -> (ModelContext, SharedMediaInventoryRecord) {
+    private func state(allowPurge: Bool = false) throws -> (ModelContext, SharedMediaInventoryRecord) {
         try files.requireEmpty()
         try files.bindStore(storeBinding, initializing: false)
         let context = ModelContext(container)
@@ -260,10 +188,11 @@ final class SharedMediaStorageRepository {
               item.id == inventoryID, item.rootIdentity == rootBinding,
               rootBinding == (try SharedMediaStorageLookup.binding(authority: files.identity, sources: sources)), item.storeIdentity == storeIdentity,
               item.modeRaw == mode.rawValue, item.revision >= 0,
-              (mode.includesPhotoStorage ? item.phaseRaw == "readyP1" :
+              (mode.includesPhotoStorage ? (item.phaseRaw == "readyP1" || (allowPurge && mode == .p1InboxQualification && ["purgingP1", "purgedP1"].contains(item.phaseRaw))) :
                 (mode == .qualification ? ["readyQualification", "retiring"].contains(item.phaseRaw) : ["observing", "retiring"].contains(item.phaseRaw))) else {
             throw SharedMediaStorageFailure.conflict
         }
+        if mode == .p1InboxQualification && item.phaseRaw != "readyP1" { _ = try SharedMediaPurgeState.read(item) }
         if mode.includesPhotoStorage {
             try inboxFiles?.check()
             try photoFiles?.checkIdentity()
@@ -285,16 +214,7 @@ final class SharedMediaStorageRepository {
         return try SharedMediaReservationLedger(context: context, inventoryID: inventoryID, mode: mode, sources: Set(sources.keys)).validate()
     }
 
-    private func mutableAllocation(_ context: ModelContext, _ id: UUID) throws -> SharedMediaAllocationRecord {
-        guard let item: SharedMediaAllocationRecord = try SharedMediaStorageLookup.one(context, id: id), item.stateRaw == "reserved" else {
-            throw SharedMediaStorageFailure.closed
-        }
-        return item
-    }
 
-    private func requireQualification(_ inventory: SharedMediaInventoryRecord) throws {
-        guard mode == .qualification, inventory.phaseRaw == "readyQualification" else { throw SharedMediaStorageFailure.closed }
-    }
 
     private func revision(_ inventory: SharedMediaInventoryRecord, _ expected: SharedMediaStorageSnapshot) throws {
         guard inventory.generation == expected.generation, inventory.revision == expected.revision else { throw SharedMediaStorageFailure.stale }
@@ -459,8 +379,8 @@ final class SharedMediaStorageRepository {
         return try inboxLedger(context, inventory).source(handle)
     }
 
-    func inboxRetirement(_ handle: SharedMediaInboxHandle) throws -> SharedMediaInboxRetirement {
-        let source = try inboxSource(handle)
+    func inboxRetirement(_ handle: SharedMediaInboxHandle, purge: SharedMediaPurgeAccess? = nil) throws -> SharedMediaInboxRetirement {
+        let source = try purge.map { try purgeRead($0) { try $0.source(handle) } } ?? inboxSource(handle)
         guard source.phase == "retiring", source.writerState == "closed", source.retirementID != nil else { throw SharedMediaStorageFailure.conflict }
         return .init(source: source, binding: storeBinding, epoch: processEpoch)
     }
@@ -507,18 +427,66 @@ final class SharedMediaStorageRepository {
         return result
     }
 
-    func detachedRetirement(_ request: SharedMediaInboxHandoffRequest) throws -> SharedMediaInboxDestinationRetirement {
-        let (state, identity) = try inboxRead { try $0.handoffs.detachedRetirement(request) }
+    func detachedRetirement(_ request: SharedMediaInboxHandoffRequest, purge: SharedMediaPurgeAccess? = nil) throws -> SharedMediaInboxDestinationRetirement {
+        let read: (SharedMediaInboxLedger) throws -> (SharedMediaInboxHandoff, SharedMediaInboxDestinationRetirementIdentity) = { try $0.handoffs.detachedRetirement(request) }
+        let (state, identity) = try purge.map { try purgeRead($0, read) } ?? inboxRead(read)
         return .init(handoff: state, identity: identity, binding: storeBinding, epoch: processEpoch)
     }
 
-    func derivativeRetirements(_ request: SharedMediaDerivativeRequest) throws -> [SharedMediaDerivativeRetirement] {
-        let values = try inboxRead { ledger in
+    func derivativeRetirements(_ request: SharedMediaDerivativeRequest, purge: SharedMediaPurgeAccess? = nil) throws -> [SharedMediaDerivativeRetirement] {
+        let read: (SharedMediaInboxLedger) throws -> [(SharedMediaDerivativeWork, SharedMediaInboxDestinationRetirementIdentity)] = { ledger in
             guard let pair = try ledger.derivatives.saved(request), pair.phase == "retiring" else { throw SharedMediaStorageFailure.stale }
             return try pair.work.map { ($0, try ledger.derivatives.retirementIdentity($0)) }
         }
+        let values = try purge.map { try purgeRead($0, read) } ?? inboxRead(read)
         return values.map { .init(work: $0.0, identity: $0.1, binding: storeBinding, epoch: processEpoch) }
     }
+
+    private func makePurgeAuthority() -> SharedMediaPurgeAuthority {
+        .init(transaction: .init(container: container, binding: storeBinding, epoch: processEpoch, coordinatorID: purgeCoordinatorID,
+            read: { [weak self] in
+                guard let self, self.mode == .p1InboxQualification else { throw SharedMediaStorageFailure.closed }
+                return try self.state(allowPurge: true)
+            }, save: { [weak self] context, inventory in
+                guard let self else { throw SharedMediaStorageFailure.closed }; _ = try self.save(context, inventory)
+            }, ledger: { [weak self] context, inventory in
+                guard let self else { throw SharedMediaStorageFailure.closed }; return try self.inboxLedger(context, inventory)
+            }, verifyEmpty: { [weak self] in
+                guard let self, let inboxFiles = self.inboxFiles, let photoFiles = self.photoFiles else { throw SharedMediaStorageFailure.closed }
+                try inboxFiles.validateInventory([]); try photoFiles.requireSharedEmptyNamespace()
+            }))
+    }
+    func purgePhotoState(_ handle: PhotoOriginalReference, access: SharedMediaPurgeAccess) throws -> SharedMediaPhotoReferenceState {
+        guard let (file, identity, retiring) = try purgeRead(access, { try $0.photos.reference(handle) }) else { return .absent }
+        if !retiring { return .live(file) }
+        return try .retiring(.init(handle: handle, file: file, identity: .decode(identity), binding: storeBinding, epoch: processEpoch))
+    }
+
+    func purgeRetirePhoto(_ handle: PhotoOriginalReference, inspection: SharedMediaPhotoRetirementInspection,
+                          access: SharedMediaPurgeAccess) throws {
+        guard inspection.binding == storeBinding, inspection.epoch == processEpoch else { throw SharedMediaStorageFailure.closed }
+        try purgeWrite(access, before: .beforeRetirementSave, after: .afterRetirementSave) { try $0.photos.retire(handle, inspection: inspection) }
+    }
+
+    func purgeReleasePhoto(_ proof: SharedMediaPhotoReleaseProof, access: SharedMediaPurgeAccess) throws {
+        guard proof.retirement.binding == storeBinding, proof.retirement.epoch == processEpoch else { throw SharedMediaStorageFailure.closed }
+        try purgeWrite(access, before: .beforeReleaseSave, after: .afterReleaseSave) { try $0.photos.release(proof.retirement) }
+    }
+
+    func requirePurgeContainer(_ target: ModelContainer) throws {
+        guard target === container, mode == .p1InboxQualification else { throw SharedMediaStorageFailure.conflict }
+        _ = try state(allowPurge: true)
+    }
+    func beginPurge(id: UUID) throws { try purgeAuthority.begin(id: id) }
+    func purgeAccess(id: UUID, drained: SharedMediaPurgeDrain) throws -> SharedMediaPurgeAccess { try purgeAuthority.access(id: id, drained: drained) }
+    func purgeRead<T>(_ access: SharedMediaPurgeAccess, _ body: (SharedMediaInboxLedger) throws -> T) throws -> T { try purgeAuthority.read(access, body) }
+    func purgeWrite<T>(_ access: SharedMediaPurgeAccess, before: SharedMediaPurgeBoundary, after: SharedMediaPurgeBoundary,
+                       _ body: (SharedMediaInboxLedger) throws -> T) throws -> T { try purgeAuthority.write(access, before: before, after: after, body) }
+    func isPurgeComplete(_ access: SharedMediaPurgeAccess) throws -> Bool { try purgeAuthority.isComplete(access) }
+    func finishPurge(_ access: SharedMediaPurgeAccess) throws -> SharedMediaPurgeCompletion { try purgeAuthority.finish(access) }
+    #if DEBUG
+    func setPurgeFault(_ fault: ((SharedMediaPurgeBoundary) throws -> Void)?) { purgeAuthority.fault = fault }
+    #endif
 
     var inboxEpoch: UUID { processEpoch }
     #if DEBUG
@@ -589,5 +557,26 @@ struct SharedMediaDerivativeRetirement: Sendable {
     let epoch: UUID
     fileprivate init(work: SharedMediaDerivativeWork, identity: SharedMediaInboxDestinationRetirementIdentity, binding: Data, epoch: UUID) {
         self.work = work; self.identity = identity; self.binding = binding; self.epoch = epoch
+    }
+}
+
+/// Only this fenced repository supplies identity-checked lifecycle transactions.
+@MainActor
+struct SharedMediaPurgeTransaction {
+    let container: ModelContainer
+    let binding: Data
+    let epoch: UUID
+    let coordinatorID: UUID?
+    let read: () throws -> (ModelContext, SharedMediaInventoryRecord)
+    let save: (ModelContext, SharedMediaInventoryRecord) throws -> Void
+    let ledger: (ModelContext, SharedMediaInventoryRecord) throws -> SharedMediaInboxLedger
+    let verifyEmpty: () throws -> Void
+    fileprivate init(container: ModelContainer, binding: Data, epoch: UUID, coordinatorID: UUID?,
+                     read: @escaping () throws -> (ModelContext, SharedMediaInventoryRecord),
+                     save: @escaping (ModelContext, SharedMediaInventoryRecord) throws -> Void,
+                     ledger: @escaping (ModelContext, SharedMediaInventoryRecord) throws -> SharedMediaInboxLedger,
+                     verifyEmpty: @escaping () throws -> Void) {
+        self.container = container; self.binding = binding; self.epoch = epoch; self.coordinatorID = coordinatorID
+        self.read = read; self.save = save; self.ledger = ledger; self.verifyEmpty = verifyEmpty
     }
 }

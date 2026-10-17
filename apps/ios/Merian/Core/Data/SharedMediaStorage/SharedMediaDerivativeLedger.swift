@@ -13,6 +13,8 @@ final class SharedMediaDerivativeLedger {
         self.joint = joint; self.inventory = inventory; self.binding = binding
     }
 
+    private var purging: Bool { inventory.phaseRaw == "purgingP1" }
+
     func all() throws -> [SharedMediaDerivativePair] { try fetch(SharedMediaDerivativePairRecord.self, 9).map(value) }
     func saved(_ request: SharedMediaDerivativeRequest) throws -> SharedMediaDerivativePair? {
         try request.validate()
@@ -157,7 +159,7 @@ final class SharedMediaDerivativeLedger {
         guard row.phaseRaw != "retiring", inspections.count == 2,
               Set(inspections.map { $0.work.input.id }) == Set(pair.work.map { $0.input.id }) else { throw SharedMediaStorageFailure.inUse }
         let (package, _) = try originalRows(request.original)
-        guard ["draftOwned", "needsAttention"].contains(package.phaseRaw) else { throw PhotoPreparationFailure.immutablePackage }
+        guard purging || ["draftOwned", "needsAttention"].contains(package.phaseRaw) else { throw PhotoPreparationFailure.immutablePackage }
         for inspection in inspections {
             try proofBinding(inspection.binding, inspection.epoch)
             let work = try exact(inspection.work)
@@ -175,7 +177,7 @@ final class SharedMediaDerivativeLedger {
                 try one(PhotoPreparationAsset.self, id: work.assetID, maximum: 96).cleanupStateRaw = "retiring"
             }
         }
-        row.phaseRaw = "retiring"; try originalRows(request.original).0.phaseRaw = "needsAttention"
+        row.phaseRaw = "retiring"; try originalRows(request.original).0.phaseRaw = purging ? "purging" : "needsAttention"
         return try value(row)
     }
 
@@ -213,7 +215,7 @@ final class SharedMediaDerivativeLedger {
         package.allocatedByteCount -= removed
         context.delete(row)
         if !replacing { package.revision = try plus(package.revision, 1) }
-        package.phaseRaw = "needsAttention"
+        package.phaseRaw = purging ? "purging" : "needsAttention"
     }
 
     func retirementIdentity(_ state: SharedMediaDerivativeWork) throws -> SharedMediaInboxDestinationRetirementIdentity {
@@ -254,14 +256,14 @@ final class SharedMediaDerivativeLedger {
                   request.ordinal == original.ordinal, ["planned", "writing", "ready", "retiring"].contains(pair.phase),
                   pair.work.count == 2 else { throw SharedMediaStorageFailure.conflict }
             if ["planned", "writing"].contains(pair.phase) {
-                guard row.publishedRevision == nil, package.phaseRaw == "needsAttention",
+                guard row.publishedRevision == nil, (package.phaseRaw == "needsAttention" || (purging && package.phaseRaw == "purging")),
                       package.revision == (try plus(request.expectedPackageRevision, 1)) else { throw SharedMediaStorageFailure.conflict }
             }
             if pair.phase == "ready" {
                 guard row.publishedRevision == (try plus(request.expectedPackageRevision, 2)),
                       package.revision >= (row.publishedRevision ?? Int64.max) else { throw SharedMediaStorageFailure.conflict }
             }
-            if pair.phase == "retiring" { guard package.phaseRaw == "needsAttention" else { throw SharedMediaStorageFailure.conflict } }
+            if pair.phase == "retiring" { guard package.phaseRaw == "needsAttention" || (purging && package.phaseRaw == "purging") else { throw SharedMediaStorageFailure.conflict } }
             for state in pair.work {
                 let input = state.input, retiring = pair.phase == "retiring", completed = state.finalIdentity != nil
                 let allocated = state.writerState != "absent"

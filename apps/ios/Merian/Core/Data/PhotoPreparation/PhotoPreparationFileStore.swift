@@ -438,41 +438,16 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
     /// entries block allocation and remain quarantined rather than being erased.
     func checkInventory(knownTokens: Set<String>) throws {
         try checkIdentity()
-        var count = 0
-        func walk(_ fd: Int32, prefix: String, depth: Int) throws {
-            let copy = dup(fd)
-            guard copy >= 0 else { throw PhotoPreparationFailure.unavailable }
-            guard let stream = fdopendir(copy) else { Darwin.close(copy); throw PhotoPreparationFailure.unavailable }
-            defer { closedir(stream) }
-            // dup shares the directory offset with the held descriptor. Each
-            // traversal must restart, including purge after inventory.
-            rewinddir(stream)
-            while let entry = try inspection.next(stage: .inventory, read: { readdir(stream) }) {
-                let name = withUnsafePointer(to: &entry.pointee.d_name) {
-                    $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXNAMLEN) + 1) { String(cString: $0) }
-                }
-                if name == "." || name == ".." { continue }
-                count += 1
-                guard count <= 256 else { throw PhotoPreparationFailure.inconsistentOwnership }
-                var info = stat()
-                guard fstatat(fd, name, &info, AT_SYMLINK_NOFOLLOW) == 0 else { throw PhotoPreparationFailure.unavailable }
-                let token = prefix + name
-                if depth < 2 {
-                    guard let id = UUID(uuidString: name), id.uuidString.lowercased() == name,
-                          info.st_mode & S_IFMT == S_IFDIR else { throw PhotoPreparationFailure.inconsistentOwnership }
-                    let child = openat(fd, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
-                    guard child >= 0 else { throw PhotoPreparationFailure.inconsistentOwnership }
-                    do { try walk(child, prefix: token + "/", depth: depth + 1) }
-                    catch { Darwin.close(child); throw error }
-                    Darwin.close(child)
-                } else {
-                    guard info.st_mode & S_IFMT == S_IFREG, info.st_nlink == 1,
-                          knownTokens.contains(token), info.st_size >= 0,
-                          info.st_size <= PhotoPreparationPolicy.original else { throw PhotoPreparationFailure.inconsistentOwnership }
-                }
-            }
-        }
-        try walk(namespaceFD, prefix: "", depth: 0)
+        try inspection.checkInventory(namespaceFD: namespaceFD, knownTokens: knownTokens)
+    }
+
+    /// Terminal verification preserves the locked namespace and create-only
+    /// store binding. Even empty child directories prevent completion.
+    func requireSharedEmptyNamespace() throws {
+        guard sharedBinding != nil else { throw PhotoPreparationFailure.unsupportedComposition }
+        try checkIdentity()
+        try inspection.requireEmpty(namespaceFD: namespaceFD)
+        try checkIdentity()
     }
 
     func removeEmptyNamespace() throws {

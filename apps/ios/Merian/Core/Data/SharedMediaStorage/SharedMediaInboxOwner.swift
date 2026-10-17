@@ -11,11 +11,21 @@ final class SharedMediaInboxOwner {
     private var active: (() async -> Void)?
     private var cancel: (() -> Void)?
     private var suspended = false
+    private var purgeInProgress = false
+    private let purgeCoordinatorID: UUID
 
-    init(container: ModelContainer, authorityRoot: URL, inboxRoot: URL, photoRoot: URL, inventoryID: UUID) throws {
+    convenience init(container: ModelContainer, authorityRoot: URL, inboxRoot: URL, photoRoot: URL, inventoryID: UUID) throws {
+        try self.init(container: container, authorityRoot: authorityRoot, inboxRoot: inboxRoot, photoRoot: photoRoot, inventoryID: inventoryID, resumePurgeID: nil)
+    }
+    static func resumePurge(id: UUID, container: ModelContainer, authorityRoot: URL, inboxRoot: URL, photoRoot: URL, inventoryID: UUID) throws -> SharedMediaInboxOwner {
+        try .init(container: container, authorityRoot: authorityRoot, inboxRoot: inboxRoot, photoRoot: photoRoot, inventoryID: inventoryID, resumePurgeID: id)
+    }
+    private init(container: ModelContainer, authorityRoot: URL, inboxRoot: URL, photoRoot: URL, inventoryID: UUID, resumePurgeID: UUID?) throws {
+        let coordinator = UUID(); purgeCoordinatorID = coordinator; suspended = resumePurgeID != nil
         storage = try SharedMediaStorageRepository(container: container, authorityRoot: authorityRoot,
             inventoryID: inventoryID, mode: .p1InboxQualification,
-            sources: [SharedMediaInboxFiles.namespace: inboxRoot, SharedMediaPhotoLedger.namespace: photoRoot])
+            sources: [SharedMediaInboxFiles.namespace: inboxRoot, SharedMediaPhotoLedger.namespace: photoRoot],
+            purgeCoordinatorID: coordinator, resumePurgeID: resumePurgeID)
         guard let files = storage.inboxFiles else { throw SharedMediaStorageFailure.closed }
         io = SharedMediaInboxIO(files: files)
         guard let destination = storage.photoFiles else { throw SharedMediaStorageFailure.closed }
@@ -23,6 +33,8 @@ final class SharedMediaInboxOwner {
     }
 
     #if DEBUG
+    func setPurgeFault(_ fault: ((SharedMediaPurgeBoundary) throws -> Void)?) { storage.setPurgeFault(fault) }
+    func setPurgeReleaseFault(_ fault: (@Sendable (SharedMediaPhotoReleaseBoundary) throws -> Void)?) async { await destinationIO.setOriginalReleaseFault(fault) }
     func setHandoffAvailableBytes(_ value: Int64?) { storage.handoffAvailableBytes = value }
     func setHandoffPause(_ pause: (@Sendable () async -> Void)?) async { await destinationIO.setPause(pause) }
     func setHandoffFault(_ fault: ((SharedMediaInboxHandoffBoundary) throws -> Void)?) { storage.handoffFault = fault }
@@ -379,6 +391,36 @@ final class SharedMediaInboxOwner {
         }
     }
 
+    func validatePurgeTarget(in context: ModelContext) throws {
+        guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
+        try storage.requirePurgeContainer(context.container)
+    }
+
+    /// Explicit whole-library reset only. No production caller is composed.
+    /// The same stable reset ID is required for restart/lost-ack recovery.
+    func purgeWholeLibrary(resetID: UUID, afterAdmissionClosed: @MainActor () async throws -> Void = {}) async throws -> SharedMediaPurgeCompletion {
+        guard !purgeInProgress else { throw SharedMediaStorageFailure.busy }
+        purgeInProgress = true; suspended = true
+        defer { purgeInProgress = false }
+        do { try storage.beginPurge(id: resetID) }
+        catch { try storage.beginPurge(id: resetID) } // Exact saved intent only.
+        cancel?(); if let active { await active() }
+        guard active == nil else { throw SharedMediaStorageFailure.busy }
+        try await afterAdmissionClosed()
+        let drained = SharedMediaPurgeDrain(coordinatorID: purgeCoordinatorID)
+        let access: SharedMediaPurgeAccess
+        do { access = try storage.purgeAccess(id: resetID, drained: drained) }
+        catch { access = try storage.purgeAccess(id: resetID, drained: drained) }
+        let task = Task { @MainActor [self] in
+            defer { active = nil; cancel = nil }
+            let operations = SharedMediaPurgeOperations(storage: storage, sourceIO: io, destinationIO: destinationIO, access: access,
+                closeSource: { [self] source in .init(source: source, epoch: storage.inboxEpoch) })
+            return try await operations.run()
+        }
+        active = { _ = await task.result }; cancel = { task.cancel() }
+        return try await withTaskCancellationHandler { try await task.value } onCancel: { task.cancel() }
+    }
+
     func suspendAndDrain() async {
         suspended = true; cancel?()
         if let active { await active() }
@@ -432,20 +474,10 @@ struct SharedMediaInboxWriterClosure: Sendable {
     fileprivate init(source: SharedMediaInboxSource, epoch: UUID) { self.source = source; self.epoch = epoch }
 }
 
-private actor SharedMediaInboxIO {
-    let files: SharedMediaInboxFiles
-    init(files: SharedMediaInboxFiles) { self.files = files }
-    func load(_ callback: @Sendable () async throws -> Data) async throws -> Data { try await callback() }
-    func prepare(_ data: Data, maximum: Int64) throws -> SharedMediaInboxPrepared { try SharedMediaInboxFiles.prepare(data, maximumBytes: maximum) }
-    func validate(_ sources: [SharedMediaInboxSource]) throws { try files.validateInventory(sources) }
-    func occupancy(_ source: SharedMediaInboxSource) throws -> SharedMediaInboxOccupancyProof { try files.occupancy(source) }
-    func begin(_ source: SharedMediaInboxSource) throws -> SharedMediaInboxFileIdentity { try files.begin(source) }
-    func write(_ data: Data, source: SharedMediaInboxSource) throws -> SharedMediaInboxCompletionProof { try files.write(data, source: source) }
-    func recover(_ source: SharedMediaInboxSource) throws -> SharedMediaInboxCompletionProof? { try files.recover(source) }
-    func read(_ source: SharedMediaInboxSource) throws -> Data { try files.read(source) }
-    func inspectRetirement(_ source: SharedMediaInboxSource) throws -> SharedMediaInboxRetirementInspection { try files.inspectRetirement(source) }
-    func release(_ intent: SharedMediaInboxRetirement) throws -> SharedMediaInboxReleaseProof { try files.release(intent) }
-    #if DEBUG
-    func setFault(_ fault: (@Sendable (SharedMediaInboxBoundary) throws -> Void)?) { files.fault = fault }
-    #endif
+
+/// Created only after this coordinator has closed admission and awaited its
+/// actual tracked task. It is never serialized or accepted by another lifetime.
+struct SharedMediaPurgeDrain {
+    let coordinatorID: UUID
+    fileprivate init(coordinatorID: UUID) { self.coordinatorID = coordinatorID }
 }

@@ -103,3 +103,152 @@ private protocol SharedMediaReservationRow: PersistentModel { var id: UUID { get
 extension SharedMediaAllocationRecord: SharedMediaReservationRow {}
 extension SharedMediaReferenceRecord: SharedMediaReservationRow {}
 extension SharedMediaLeaseRecord: SharedMediaReservationRow {}
+
+/// Held-context mutations for the original non-file qualification graph. The
+/// repository retains identity checks, exclusive fences and every save.
+@MainActor
+struct SharedMediaQualificationLedger {
+    let context: ModelContext
+    let inventory: SharedMediaInventoryRecord
+    let mode: SharedMediaStorageMode
+    let processEpoch: UUID
+    private var inventoryID: UUID { inventory.id }
+
+    func reserve(_ request: SharedMediaStorageReservation, expected: SharedMediaStorageSnapshot, availableBytes: () throws -> Int64) throws -> Bool {
+        try requireQualification(inventory)
+        guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
+        guard request.pool != .observed, request.bytes > 0 else { throw SharedMediaStorageFailure.invalid }
+        if let prior: SharedMediaAllocationRecord = try SharedMediaStorageLookup.one(context, id: request.id) {
+            guard prior.stateRaw == "reserved", prior.accountID == request.accountID,
+                  prior.packageID == request.packageID, prior.poolRaw == request.pool.rawValue,
+                  prior.reservedBytes == request.bytes else { throw SharedMediaStorageFailure.conflict }
+            return false // Exact saved reservation, never a renewed identity/allowance.
+        }
+        try revision(inventory, expected)
+        try SharedMediaStorageLookup.visit(context, SharedMediaAllocationRecord.self) {
+            if $0.packageID == request.packageID && $0.accountID != request.accountID { throw SharedMediaStorageFailure.conflict }
+        }
+        var totals = try SharedMediaReservationLedger(context: context, inventoryID: inventoryID, mode: mode, sources: []).validate()
+        try totals.include(.init(packageID: request.packageID, pool: request.pool, materialized: 0, reserved: request.bytes))
+        try totals.checkAvailable(availableBytes())
+        context.insert(SharedMediaAllocationRecord(id: request.id, inventoryID: inventoryID,
+            accountID: request.accountID, packageID: request.packageID, namespaceRaw: "qualification",
+            fileToken: request.id.uuidString.lowercased(), poolRaw: request.pool.rawValue,
+            stateRaw: "reserved", materializedBytes: 0, reservedBytes: request.bytes, physicalIdentity: nil))
+        return true
+    }
+
+    func acquireReference(id: UUID, allocationID: UUID, accountID: UUID, ownerID: String,
+                          role: String, expected: SharedMediaStorageSnapshot) throws -> Bool {
+        try requireQualification(inventory)
+        try SharedMediaStoragePolicy.token(ownerID)
+        try SharedMediaStoragePolicy.token(role)
+        let allocation = try mutableAllocation(context, allocationID)
+        guard allocation.accountID == accountID else { throw SharedMediaStorageFailure.conflict }
+        guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
+        if let prior: SharedMediaReferenceRecord = try SharedMediaStorageLookup.one(context, id: id) {
+            guard prior.allocationID == allocationID, prior.accountID == accountID,
+                  prior.ownerID == ownerID, prior.roleRaw == role, prior.stateRaw == "live" else {
+                throw SharedMediaStorageFailure.conflict
+            }
+            return false
+        }
+        try revision(inventory, expected)
+        context.insert(SharedMediaReferenceRecord(id: id, allocationID: allocationID,
+            accountID: accountID, ownerID: ownerID, roleRaw: role, stateRaw: "live", revision: 0))
+        return true
+    }
+
+    func releaseReference(id: UUID, expected: SharedMediaStorageSnapshot) throws -> Bool {
+        guard !mode.includesPhotoStorage else { throw SharedMediaStorageFailure.closed }
+        guard let edge: SharedMediaReferenceRecord = try SharedMediaStorageLookup.one(context, id: id) else { throw SharedMediaStorageFailure.invalid }
+        guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
+        if edge.stateRaw == "retired" { return false }
+        try revision(inventory, expected)
+        guard edge.stateRaw == "live" else { throw SharedMediaStorageFailure.conflict }
+        edge.stateRaw = "retired"
+        edge.revision = try SharedMediaStoragePolicy.add(edge.revision, 1)
+        return true
+    }
+
+    func startLocalLease(id: UUID, allocationID: UUID, expected: SharedMediaStorageSnapshot) throws -> Bool {
+        try requireQualification(inventory)
+        _ = try mutableAllocation(context, allocationID)
+        guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
+        if let old: SharedMediaLeaseRecord = try SharedMediaStorageLookup.one(context, id: id) {
+            guard old.allocationID == allocationID, old.processEpoch == processEpoch,
+                  old.stateRaw == "open" else { throw SharedMediaStorageFailure.conflict }
+            return false
+        }
+        try revision(inventory, expected)
+        context.insert(SharedMediaLeaseRecord(id: id, allocationID: allocationID, processEpoch: processEpoch,
+            purposeRaw: "localQualification", stateRaw: "open"))
+        return true
+    }
+
+    func finishLocalLease(id: UUID, expected: SharedMediaStorageSnapshot) throws -> Bool {
+        guard !mode.includesPhotoStorage else { throw SharedMediaStorageFailure.closed }
+        guard let lease: SharedMediaLeaseRecord = try SharedMediaStorageLookup.one(context, id: id),
+              lease.processEpoch == processEpoch, lease.purposeRaw == "localQualification" else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
+        if lease.stateRaw == "closed" { return false }
+        try revision(inventory, expected)
+        guard lease.stateRaw == "open" else { throw SharedMediaStorageFailure.inUse }
+        lease.stateRaw = "closed"
+        return true
+    }
+
+    func retire(allocationID: UUID, expected: SharedMediaStorageSnapshot) throws -> Bool {
+        guard mode == .qualification else { throw SharedMediaStorageFailure.closed }
+        guard let allocation: SharedMediaAllocationRecord = try SharedMediaStorageLookup.one(context, id: allocationID),
+              allocation.poolRaw != "observed" else { throw SharedMediaStorageFailure.invalid }
+        guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
+        if allocation.stateRaw == "retiring" { return false }
+        try revision(inventory, expected)
+        _ = try mutableAllocation(context, allocationID)
+        var held = false
+        try SharedMediaStorageLookup.visit(context, SharedMediaReferenceRecord.self) { if $0.allocationID == allocationID && $0.stateRaw != "retired" { held = true } }
+        try SharedMediaStorageLookup.visit(context, SharedMediaLeaseRecord.self) { if $0.allocationID == allocationID && $0.stateRaw != "closed" { held = true } }
+        guard !held else { throw SharedMediaStorageFailure.inUse }
+        allocation.stateRaw = "retiring" // Irreversible; bytes remain charged, no physical-release API.
+        return true
+    }
+
+    func closeAdmission(expected: SharedMediaStorageSnapshot) throws -> Bool {
+        guard !mode.includesPhotoStorage else { throw SharedMediaStorageFailure.closed }
+        guard inventory.generation == expected.generation else { throw SharedMediaStorageFailure.stale }
+        if inventory.phaseRaw == "retiring" { return false }
+        try revision(inventory, expected)
+        inventory.phaseRaw = "retiring"
+        return true
+    }
+
+    func retireAccountReferences(_ accountID: UUID, expected: SharedMediaStorageSnapshot) throws -> Bool {
+        guard !mode.includesPhotoStorage else { throw SharedMediaStorageFailure.closed }
+        try revision(inventory, expected)
+        try SharedMediaStorageLookup.visit(context, SharedMediaReferenceRecord.self) {
+            if $0.accountID == accountID && $0.stateRaw == "live" {
+                $0.stateRaw = "retired"
+                $0.revision = try SharedMediaStoragePolicy.add($0.revision, 1)
+            }
+        }
+        return true
+    }
+
+    private func mutableAllocation(_ context: ModelContext, _ id: UUID) throws -> SharedMediaAllocationRecord {
+        guard let item: SharedMediaAllocationRecord = try SharedMediaStorageLookup.one(context, id: id), item.stateRaw == "reserved" else {
+            throw SharedMediaStorageFailure.closed
+        }
+        return item
+    }
+
+    private func requireQualification(_ inventory: SharedMediaInventoryRecord) throws {
+        guard mode == .qualification, inventory.phaseRaw == "readyQualification" else { throw SharedMediaStorageFailure.closed }
+    }
+
+    private func revision(_ inventory: SharedMediaInventoryRecord, _ expected: SharedMediaStorageSnapshot) throws {
+        guard inventory.generation == expected.generation, inventory.revision == expected.revision else { throw SharedMediaStorageFailure.stale }
+    }
+}

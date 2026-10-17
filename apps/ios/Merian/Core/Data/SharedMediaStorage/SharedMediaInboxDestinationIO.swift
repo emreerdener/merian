@@ -53,6 +53,18 @@ actor SharedMediaInboxDestinationIO {
     }
     func closure(_ state: SharedMediaInboxHandoff) throws -> SharedMediaInboxDestinationClosure { try withFiles(state) { try $0.closure() } }
 
+    func inspectOriginal(_ file: PhotoPreparationFile) throws -> SharedMediaPhotoRetirementInspection {
+        try files.inspectSharedRetirement(file)
+    }
+    func releaseOriginal(_ intent: SharedMediaPhotoRetirement) throws -> SharedMediaPhotoReleaseProof {
+        try files.releaseSharedPhoto(intent)
+    }
+    #if DEBUG
+    func setOriginalReleaseFault(_ value: (@Sendable (SharedMediaPhotoReleaseBoundary) throws -> Void)?) {
+        files.sharedReleaseFault = value
+    }
+    #endif
+
     private func withDerivative<T>(_ work: SharedMediaDerivativeWork, create: Bool = false,
                                    _ body: (SharedMediaDerivativeWorkFiles) throws -> T) throws -> T {
         try files.withDerivativeDestination(work, create: create) { value in

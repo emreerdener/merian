@@ -332,3 +332,21 @@ struct SharedMediaInboxOccupancyProof: Sendable {
         self.source = source; self.bytes = bytes; self.binding = binding; self.epoch = epoch
     }
 }
+
+actor SharedMediaInboxIO {
+    private let files: SharedMediaInboxFiles
+    init(files: SharedMediaInboxFiles) { self.files = files }
+    func load(_ callback: @Sendable () async throws -> Data) async throws -> Data { try await callback() }
+    func prepare(_ data: Data, maximum: Int64) throws -> SharedMediaInboxPrepared { try SharedMediaInboxFiles.prepare(data, maximumBytes: maximum) }
+    func validate(_ sources: [SharedMediaInboxSource]) throws { try files.validateInventory(sources) }
+    func occupancy(_ source: SharedMediaInboxSource) throws -> SharedMediaInboxOccupancyProof { try files.occupancy(source) }
+    func begin(_ source: SharedMediaInboxSource) throws -> SharedMediaInboxFileIdentity { try files.begin(source) }
+    func write(_ data: Data, source: SharedMediaInboxSource) throws -> SharedMediaInboxCompletionProof { try files.write(data, source: source) }
+    func recover(_ source: SharedMediaInboxSource) throws -> SharedMediaInboxCompletionProof? { try files.recover(source) }
+    func read(_ source: SharedMediaInboxSource) throws -> Data { try files.read(source) }
+    func inspectRetirement(_ source: SharedMediaInboxSource) throws -> SharedMediaInboxRetirementInspection { try files.inspectRetirement(source) }
+    func release(_ intent: SharedMediaInboxRetirement) throws -> SharedMediaInboxReleaseProof { try files.release(intent) }
+    #if DEBUG
+    func setFault(_ fault: (@Sendable (SharedMediaInboxBoundary) throws -> Void)?) { files.fault = fault }
+    #endif
+}

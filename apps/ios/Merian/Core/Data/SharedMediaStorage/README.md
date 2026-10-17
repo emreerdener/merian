@@ -1,5 +1,49 @@
 # Inactive shared media storage
 
+## October 16 — durable shared-library cleanup locally validated
+
+The isolated shared inbox owner now has an explicit whole-library purge path. It
+saves a versioned, stable reset intent before cancellation, drains its tracked
+work, then uses sealed cleanup authority for exact retirement and release.
+Restart accepts only the same purge ID through the cleanup constructor. Normal
+construction and preparation remain closed. Cleanup orders detached liabilities
+and unheld sources before abandoning the remaining handoff, preserving the
+unchanged 96 MiB acquisition bound without a new reservation.
+
+Prepared-held envelopes remain immutable. Per-package `purging` is valid only
+inside the durable inventory purge. Originals are unlinked after the last local
+reference; interrupted release reconciles only saved exact identities.
+Completion requires empty shared/P1 graphs and physical namespaces, while
+retaining the closed inventory and root bindings. The ordinary liability barrier
+stays broad. A typed purge-service seam verifies the same container and terminal
+state; legacy P1 namespace presence still blocks ordinary erasure. Reset
+projections are deferred until the complete library purge succeeds. No live
+composition or automatic reopening is added.
+
+Independent and IC-1 review cleared candidate07. Its purge rerun passed 15
+methods / 31 parameterized cases; the complete native target passed 6,081 tests
+with zero failures or skips. Source hashes stayed unchanged during both
+successful runs. XcodeGen/source membership, Markdown and scoped diff checks
+passed. Evidence: `.artifacts/shared-media-purge-20261016/`; full result
+`.artifacts/local-ios/1d56d47ebb38427d9d196391e703da42.xcresult`.
+
+Earlier compilation failures and focused03's incorrect lost-ack expectation are
+retained. The latter test correction occurred after its compiler/test host had
+exited while Xcode still collected diagnostics; the execution-time source pins
+and post-execution edit disclosure are retained. No
+unchanged-through-finalization claim is made for that failed run. Review also
+corrected the legacy namespace bypass and rejected a wrong target before any
+destructive work.
+
+This is shared-checkout qualification, not isolated-source or live product
+acceptance. Continue native consumer/producer integration, retained accounting,
+cloud retention and integrated acceptance. Read-only integration review confirms
+atomic freeze/queue/job ownership, version-specific final bindings and separate
+pending/retained accounting; no new schema or live composition is claimed here.
+Activation remains disabled, PR116 frozen, the deployment hold active, AWS
+unapproved and numeric limits unchanged. No push, merge or hosted action
+occurred.
+
 ## Metadata and local freeze — locally validated
 
 The isolated inbox composition saves bounded metadata through the same account

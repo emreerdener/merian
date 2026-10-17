@@ -582,15 +582,16 @@ final class ScanRepository {
         userDefaults: UserDefaults = .standard,
         resetDerivedState: @MainActor () -> Void,
         erasePhotoPreparation: (@MainActor () async throws -> Void)? = nil,
+        sharedMedia: SharedMediaLibraryPurgeRequest? = nil,
         resetRuntimeState: @MainActor () -> Void = {
             AccountScopedRuntimeState.reset()
         }
     ) async -> Bool {
-        resetDerivedState()
-        libraryRestoration.reset()
-        return await ScanLibraryPurgeService.purge(
+        let succeeded = await ScanLibraryPurgeService.purge(
             modelContext: modelContext, userDefaults: userDefaults,
-            resetRuntimeState: resetRuntimeState, erasePhotoPreparation: erasePhotoPreparation
+            resetRuntimeState: resetRuntimeState, sharedMedia: sharedMedia, erasePhotoPreparation: erasePhotoPreparation
         )
+        if succeeded { resetDerivedState(); libraryRestoration.reset() }
+        return succeeded
     }
 }

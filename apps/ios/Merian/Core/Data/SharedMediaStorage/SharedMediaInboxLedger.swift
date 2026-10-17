@@ -17,7 +17,7 @@ final class SharedMediaInboxLedger {
     }
 
     var drafts: SharedMediaDraftLedger { .init(joint: joint, inventory: inventory) }
-    var photos: SharedMediaPhotoLedger { .init(joint: joint, inventoryID: inventory.id, includesInbox: true) }
+    var photos: SharedMediaPhotoLedger { .init(joint: joint, inventoryID: inventory.id, includesInbox: true, inventory: inventory) }
     var derivatives: SharedMediaDerivativeLedger { .init(joint: joint, inventory: inventory, binding: binding) }
     var handoffs: SharedMediaInboxHandoffLedger { .init(joint: joint, inventory: inventory, binding: binding) }
 
@@ -189,7 +189,7 @@ final class SharedMediaInboxLedger {
         }
         let headroom: Int64 = sources.isEmpty ? 0 : PhotoPreparationPolicy.original
         guard handoffCharges.active <= headroom else { throw SharedMediaStorageFailure.conflict }
-        var totals = try SharedMediaPhotoLedger(joint: joint, inventoryID: inventory.id, includesInbox: true).validate()
+        var totals = try SharedMediaPhotoLedger(joint: joint, inventoryID: inventory.id, includesInbox: true, inventory: inventory).validate()
         try totals.includeInboxAcquisition(bytes: SharedMediaStoragePolicy.add(SharedMediaStoragePolicy.add(total, headroom), handoffCharges.abandoned),
             unmaterialized: SharedMediaStoragePolicy.add(outstanding, headroom - handoffCharges.active))
         return totals
