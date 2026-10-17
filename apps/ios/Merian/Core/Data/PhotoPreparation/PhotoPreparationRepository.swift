@@ -47,7 +47,7 @@ final class PhotoPreparationRepository {
             references: context.fetch(FetchDescriptor<PhotoPreparationReference>()),
             leases: context.fetch(FetchDescriptor<PhotoPreparationLease>()))
         guard result.records.allSatisfy({ $0.contractVersion == PhotoPreparationPolicy.contract
-            && $0.revision >= 0 && ["acquiring", "draftOwned", "preparedHeld", "needsAttention", "retiring"].contains($0.phaseRaw) }),
+            && $0.accountingTierRaw == "pending" && $0.revision >= 0 && ["acquiring", "draftOwned", "preparedHeld", "needsAttention", "retiring"].contains($0.phaseRaw) }),
               result.references.allSatisfy({ PhotoPreparationRole(rawValue: $0.roleRaw) != nil && $0.revision >= 0 && $0.ordinal >= 0 }),
               result.assets.allSatisfy({ $0.byteCount > 0 && $0.byteCount <= PhotoPreparationPolicy.original
                   && ["ready", "missing", "retiring"].contains($0.cleanupStateRaw) }),

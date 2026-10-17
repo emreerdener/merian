@@ -5,6 +5,8 @@ import SwiftData
 /// Scalar IDs are validated references, never implicit relationships or AI admission.
 @Model
 final class PhotoPreparationRecord {
+    /// Pending limits do not define retained-library capacity. No migration promotes a package.
+    var accountingTierRaw: String = "pending"
     @Attribute(.unique) var id: UUID
     var ownerID: UUID
     var contractVersion: String

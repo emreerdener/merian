@@ -1,3 +1,36 @@
+## October 16 — V63 consumer ownership foundation locally verified
+
+V63 freezes V62 and adds explicit consumer authority, pending membership,
+inventory bootstrap and reverse-reference metadata. Legacy rows retain their
+semantics. Canonical, bounded cohort joins bind exact originals, AI inputs,
+previews and supporting context; they grant no file, cleanup or provider
+authority. Nonempty native metadata blocks the old qualification owners.
+
+Independent and IC-1 review cleared foundation candidate08. The focused run
+passed 115 tests with zero failures or skips, including disk migration/cold
+reopen, lexical keyset pagination, malformed ownership, exact pending membership
+and orphan cleanup barriers. Sources remained unchanged through the run.
+Evidence: `.artifacts/shared-media-consumers-20261016/`; result
+`.artifacts/local-ios/105372ecfbee4974aef38d9c34da8fae.xcresult`. The complete
+native target on candidate09 passed 6,092 tests and failed one stale
+purge-inventory assertion, with zero skips and unchanged pinned sources.
+Candidate10 added the four new entities to the existing saved/unsaved purge
+barrier fixtures without changing runtime code. Independent and IC-1 review
+cleared the targeted rerun: all five tests passed with unchanged sources. Reuse
+the 6,092 unaffected passes; the failed full result remains failed evidence, not
+a clean full rerun. Earlier failures and corrections are retained. This is
+shared-checkout qualification, not isolated or live acceptance.
+
+Continue the reviewed pending-membership transaction owner, retained accounting,
+atomic queue/result ownership, native composition and remaining acceptance.
+Pending slots begin at package creation; retained packages do not consume those
+slots. Shared asset release must consider all surviving consumers. New initial
+and reanalysis requests still require photo/audio/video media, with optional
+supporting text; historical records and admitted recovery retain their meaning.
+The later version actions and redesign remain authorized follow-ups. Activation
+stays disabled, PR116 frozen, the deployment hold active, AWS unapproved and
+numeric limits unchanged. No external action is authorized by this foundation.
+
 ## October 16 — durable shared-library cleanup locally validated
 
 The isolated shared inbox owner now has an explicit whole-library purge path. It

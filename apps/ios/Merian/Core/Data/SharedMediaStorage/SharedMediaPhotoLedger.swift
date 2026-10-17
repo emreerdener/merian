@@ -79,7 +79,7 @@ final class SharedMediaPhotoLedger {
             let reserved = try PhotoPreparationPolicy.add(work.map(\.reservedByteCount))
             let retiring = !refs.isEmpty && refs.allSatisfy { !$0.isLive }
             guard !refs.isEmpty || !work.isEmpty, work.filter({ $0.purposeRaw == "acquire" && $0.writerStateRaw != "closedSourceRetained" }).count + refs.filter({ $0.roleRaw == "original" }).count <= 2,
-                  p.contractVersion == PhotoPreparationPolicy.contract, p.draftID == p.id,
+                  p.contractVersion == PhotoPreparationPolicy.contract, p.draftID == p.id, p.accountingTierRaw == "pending",
                   p.retirementRequested == retiring, p.revision >= 0,
                   (retiring ? p.phaseRaw == "retiring" : (includesInbox ? (["acquiring", "draftOwned", "needsAttention", "preparedHeld"] + (purging ? ["purging"] : [])) : ["acquiring", "draftOwned", "needsAttention"]).contains(p.phaseRaw)),
                   (includesInbox || (envelope.contexts.isEmpty && envelope.presentation.isEmpty)),

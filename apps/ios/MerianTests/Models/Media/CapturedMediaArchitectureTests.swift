@@ -17,7 +17,7 @@ struct CapturedMediaArchitectureTests {
             // Released V51–V57 retain frozen nested models independently
             // of the active declaration; migration guards pin their snapshots.
             let expectedOwners = expectation.token == "public final class CapturedMediaEntry"
-                ? [expectation.path, "Models/Schema/SchemaV51Snapshots.swift", "Models/Schema/SchemaV52QueueSnapshots.swift", "Models/Schema/SchemaV53QueueSnapshots.swift", "Models/Schema/SchemaV54QueueSnapshots.swift", "Models/Schema/SchemaV55QueueSnapshots.swift", "Models/Schema/SchemaV56QueueSnapshots.swift", "Models/Schema/SchemaV57QueueSnapshots.swift", "Models/Schema/SchemaV58QueueSnapshots.swift", "Models/Schema/SchemaV59QueueSnapshots.swift"]
+                ? [expectation.path, "Models/Schema/SchemaV51Snapshots.swift", "Models/Schema/SchemaV52QueueSnapshots.swift", "Models/Schema/SchemaV53QueueSnapshots.swift", "Models/Schema/SchemaV54QueueSnapshots.swift", "Models/Schema/SchemaV55QueueSnapshots.swift", "Models/Schema/SchemaV56QueueSnapshots.swift", "Models/Schema/SchemaV57QueueSnapshots.swift", "Models/Schema/SchemaV58QueueSnapshots.swift", "Models/Schema/SchemaV59QueueSnapshots.swift", "Models/Schema/SchemaV62QueueSnapshots.swift"]
                 : [expectation.path]
             #expect(
                 owners == expectedOwners,
@@ -57,7 +57,7 @@ struct CapturedMediaArchitectureTests {
     @Test func capturedMediaShapeRemainsStableInV61AndAggregateStaysRetired() throws {
         let entry = try source(at: Self.entryPath)
         let schemaVersions = try source(
-            at: "apps/ios/Merian/Models/Schema/SchemaV62.swift"
+            at: "apps/ios/Merian/Models/Schema/SchemaV63.swift"
         )
         let aliases = try source(
             at: "apps/ios/Merian/Models/Aliases.swift"
@@ -70,8 +70,8 @@ struct CapturedMediaArchitectureTests {
             "CapturedMediaEntry stored shape changed without a reviewed migration"
         )
         #expect(!entry.contains("@Relationship"))
-        #expect(aliases.contains("typealias CurrentSchema = MerianSchemaV62"))
-        #expect(schemaVersions.contains("enum MerianSchemaV62"))
+        #expect(aliases.contains("typealias CurrentSchema = MerianSchemaV63"))
+        #expect(schemaVersions.contains("enum MerianSchemaV63"))
         let frozen = try source(at: "apps/ios/Merian/Models/Schema/SchemaV58.swift")
         #expect(frozen.contains("MerianSchemaV58.CapturedMediaEntry.self"))
         for retiredPath in Self.retiredPaths {

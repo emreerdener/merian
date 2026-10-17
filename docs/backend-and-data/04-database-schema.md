@@ -5537,21 +5537,34 @@ snapshot SHA-256 values, so a property, annotation, default, relationship,
 initializer, or helper edit requires an explicit historical-shape review.
 `SchemaV51Snapshots.swift` freezes all eight `MerianSchemaV51` model classes and
 their relationships; the unchanged goal-hint companion retains its V50 owner.
-`MerianSchemaV62` owns the active global models, four inactive photo-preparation
-entities, four shared-storage entities, two typed inbox ownership entities and
-two scalar derivative ownership entities. V61 freezes its inbox records in
+`MerianSchemaV63` owns the active global models and adds scalar
+`SharedMediaConsumerRecord` ownership. Queue, scan and analysis records default
+to explicit legacy authority with no binding; photo packages default to pending
+accounting. The lightweight V62→V63 stage never infers ownership from paths,
+rewrites submitted snapshots or adopts files. V62 freezes its complete changed
+relationship graph and preparation records in three snapshot files; that
+outgoing graph compiled before active models changed. Disk migration and
+cold-reopen validation passed in the 115-test focused foundation run. Native
+consumer transaction integration remains in progress. Nonempty consumer state
+blocks legacy shared-storage construction and cleanup until the corresponding
+owner is implemented. No production consumer is created by this foundation.
+
+The preceding V62 graph includes four inactive photo-preparation entities, four
+shared-storage entities, two typed inbox ownership entities and two scalar
+derivative ownership entities. V61 freezes its inbox records in
 `SchemaV61InboxSnapshots.swift` and aliases the unchanged V60 graph. That
 outgoing graph compiled before adding V62. The lightweight V61→V62 stage starts
 pair/work tables empty and never adopts files or infers completion. Disk
-preservation, startup and purge validation for this prerequisite are pending.
-V60 freezes its four shared records in `SchemaV60SharedStorageSnapshots.swift`
-and aliases the unchanged frozen V59 graph. That outgoing graph compiled before
-adding V61. V60→V61 is additive; migration creates empty inbox tables and does
-not adopt files or infer historical ownership. Its disk and startup validation
-passed in the 116-case schema gate. Source validation and the retained full-run
-failures plus 50 passing correction checks are documented in the current SMA-1
-status; no exact-final-candidate full-green or live retention claim is made. V59
-is frozen in `SchemaV59ScanSnapshots.swift`, `SchemaV59QueueSnapshots.swift` and
+preservation and startup validation passed; the subsequent shared-purge
+qualification and its full native run are recorded in SMA-1. V60 freezes its
+four shared records in `SchemaV60SharedStorageSnapshots.swift` and aliases the
+unchanged frozen V59 graph. That outgoing graph compiled before adding V61.
+V60→V61 is additive; migration creates empty inbox tables and does not adopt
+files or infer historical ownership. Its disk and startup validation passed in
+the 116-case schema gate. Source validation and the retained full-run failures
+plus 50 passing correction checks are documented in the current SMA-1 status; no
+exact-final-candidate full-green or live retention claim is made. V59 is frozen
+in `SchemaV59ScanSnapshots.swift`, `SchemaV59QueueSnapshots.swift` and
 `SchemaV59PhotoPreparationSnapshots.swift`; that complete graph compiled before
 adding V60. The V59→V60 disk migration and startup recovery passed locally. The
 inactive storage suite passed 16 tests. A full shared-checkout run retained four
@@ -5605,7 +5618,9 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current source schema is `MerianSchemaV62`. V62 adds
+The current source schema is `MerianSchemaV63`. V63 adds explicit native
+consumer authority and pending/retained accounting through lightweight V62→V63.
+All existing rows retain their legacy semantics. V62 added
 `SharedMediaDerivativePairRecord` and `SharedMediaDerivativeWorkRecord` through
 lightweight V61→V62. Pair rows bind an exact original, revision and AI/display
 membership; work rows retain prepared identities, writer state and explicit
@@ -5681,13 +5696,13 @@ Ordinary Capture access remains nil. Recent milestones:
   directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
-  `ModelContainer`: fresh/current V62 stores open without a migration plan,
+  `ModelContainer`: fresh/current V63 stores open without a migration plan,
   known recent stores use the source-isolated
-  V61/V60/V59/V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42
-  plans, and only unknown older stores use the full historical plan. V61 needs
-  only lightweight V61→V62; earlier plans retain their previous stages and
-  append V61→V62. Each V50 plan contains its custom V50→V51 preference-ownership
-  stage followed by V51→V52→V53→V54→V55→V56→V57→V58→V59→V60→V61→V62; the V49
+  V62/V61/V60/V59/V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42
+  plans, and only unknown older stores use the full historical plan. V62 needs
+  only lightweight V62→V63; earlier plans retain their previous stages and
+  append V62→V63. Each V50 plan contains its custom V50→V51 preference-ownership
+  stage followed by V51→V52→V53→V54→V55→V56→V57→V58→V59→V60→V61→V62→V63; the V49
   plan prepends the required lightweight V49→V50 hop. Immediate predecessors
   therefore never validate unrelated history. The V42 and V43 recent plans jump
   directly to V49 to avoid validating older full-historical custom stages and to
@@ -9051,3 +9066,18 @@ unchanged canonical limits (1,048,576 and 65,563 respectively), derived from the
 unchanged. Types, semantic codecs, immutable identity, role restrictions,
 triggers and disabled activation remain unchanged. See the
 [bound derivation and qualification scope](../rfcs/initial-admitted-proof-2026-10-12.md#submission-storage-representation-bounds--october-13-2026).
+
+### V63 native consumer metadata construction
+
+The unactivated V63 candidate includes `SharedMediaPendingMembershipRecord`
+(unique package ID), `SharedMediaMembershipBootstrapRecord` (unique inventory
+ID) and `SharedMediaAssetReferenceCountRecord` (unique asset/allocation ID). The
+consumer stores a bounded versioned cohort assertion and digest. All are scalar
+models compatible with the iOS 17.2 deployment target; no iOS 18-only `#Index`
+requirement is introduced. V62 migration leaves these tables empty and preserves
+legacy media authority. An orphan in any of these tables blocks legacy cleanup.
+
+The lookup assertion is not ownership authority and a zero reverse count is not
+a physical-release proof. The native transaction/retirement owner must maintain
+these records atomically with authoritative edges before runtime use. The
+current qualification repository remains closed when this metadata exists.

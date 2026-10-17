@@ -226,6 +226,16 @@ struct ScanRepositoryPurgeTests {
 
     private func sharedMediaPurgeBlockers() -> [any PersistentModel] {
         [
+            SharedMediaConsumerRecord(id: UUID(), kindRaw: "queue", consumerID: "fixture", originQueueID: "fixture",
+                observationID: "fixture", inventoryID: UUID(), inventoryGeneration: UUID(), ownerID: UUID(),
+                packageID: UUID(), draftGeneration: UUID(), frozenPackageRevision: 1,
+                contractVersion: PhotoPreparationPolicy.contract, digestVersion: 1,
+                cohortSHA256: String(repeating: "a", count: 64), executionKindRaw: "ordinaryV1", inferenceGeneration: UUID()),
+            SharedMediaPendingMembershipRecord(packageID: UUID(), inventoryID: UUID(), inventoryGeneration: UUID(),
+                ownerID: UUID(), draftGeneration: UUID(), membersData: Data()),
+            SharedMediaMembershipBootstrapRecord(inventoryID: UUID(), inventoryGeneration: UUID()),
+            SharedMediaAssetReferenceCountRecord(assetID: UUID(), assetGeneration: UUID(), inventoryID: UUID(),
+                inventoryGeneration: UUID(), ownerID: UUID(), liveCount: 1),
             SharedMediaDerivativePairRecord(id: UUID(), nonce: UUID(), inventoryID: UUID(), inventoryGeneration: UUID(), expectedInventoryRevision: 0, ownerID: UUID(), packageID: UUID(), draftGeneration: UUID(), originalReferenceID: UUID(), originalReferenceRevision: 0, originalAssetID: UUID(), originalAssetGeneration: UUID(), ordinal: 0, expectedPackageRevision: 0, aiWorkID: UUID(), displayWorkID: UUID()),
             SharedMediaDerivativeWorkRecord(id: UUID(), pairID: UUID(), roleRaw: "aiInput", assetID: UUID(), assetGeneration: UUID(), referenceID: UUID(), leaseID: UUID(), writerEpoch: UUID(), byteCount: 1, sha256: String(repeating: "a", count: 64), contentType: "image/jpeg"),
             SharedMediaInventoryRecord(id: UUID(), rootIdentity: "fixture", storeIdentity: "fixture",

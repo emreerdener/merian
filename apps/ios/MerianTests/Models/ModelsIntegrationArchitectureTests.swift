@@ -14,6 +14,7 @@ struct ModelsIntegrationArchitectureTests {
                 || source.relativePath == "Models/Schema/SchemaV57ScanSnapshots.swift"
                 || source.relativePath == "Models/Schema/SchemaV58ScanSnapshots.swift"
                 || source.relativePath == "Models/Schema/SchemaV59ScanSnapshots.swift"
+                || source.relativePath == "Models/Schema/SchemaV62ScanSnapshots.swift"
             let consentFixture = source.relativePath == "App/UITesting/UITestSeedCoordinator+PublicationConsent.swift"
             if consentFixture {
                 // The sole synthetic enrollment seed is excluded from Release;
@@ -181,8 +182,8 @@ struct ModelsIntegrationArchitectureTests {
         )
         #expect(registry.contains("enum MerianMigrationPlan"))
         #expect(registry.contains("enum MerianSchemaV51"))
-        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV62.swift")
-        #expect(currentSchema.contains("enum MerianSchemaV62"))
+        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV63.swift")
+        #expect(currentSchema.contains("enum MerianSchemaV63"))
         #expect(registry.contains("migrateV61toV62"))
         let frozen = try source(at: "apps/ios/Merian/Models/Schema/SchemaV58.swift")
         #expect(frozen.contains("MerianSchemaV58.LocalScanRecord.self"))
@@ -308,12 +309,16 @@ struct ModelsIntegrationArchitectureTests {
         "PhotoPreparationReference.swift",
         "ScanCollection.swift",
         "SharedMediaAllocationRecord.swift",
+        "SharedMediaAssetReferenceCountRecord.swift",
+        "SharedMediaConsumerRecord.swift",
         "SharedMediaDerivativePairRecord.swift",
         "SharedMediaDerivativeWorkRecord.swift",
         "SharedMediaInboxHandoffRecord.swift",
         "SharedMediaInboxSourceRecord.swift",
         "SharedMediaInventoryRecord.swift",
         "SharedMediaLeaseRecord.swift",
+        "SharedMediaMembershipBootstrapRecord.swift",
+        "SharedMediaPendingMembershipRecord.swift",
         "SharedMediaReferenceRecord.swift",
         "UserSpeciesPreference.swift"
     ]

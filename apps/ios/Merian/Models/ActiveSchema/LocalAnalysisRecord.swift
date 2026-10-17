@@ -8,6 +8,9 @@ import SwiftData
 /// A future live completion producer must prove durable protected evidence.
 @Model
 public final class LocalAnalysisRecord {
+    /// V63 native ownership; legacy defaults never infer a shared binding.
+    public var mediaAuthorityRaw: String = "legacy"
+    public var sharedMediaConsumerID: UUID?
     @Attribute(.unique) public private(set) var id: String
     public private(set) var observationID: String
     public private(set) var ownerAccountID: String

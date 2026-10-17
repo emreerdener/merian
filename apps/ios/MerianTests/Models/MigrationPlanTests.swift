@@ -1752,11 +1752,12 @@ struct MigrationPlanTests {
             try context.save()
         }
         // Exactly the outgoing active V59 models, before adding the four V60 tables.
-        let outgoing = Schema([LocalScanRecord.self, LocalAnalysisRecord.self, LocalAnalysisStateRecord.self,
-            OfflineQueuedScan.self, CapturedMediaEntry.self, ScanCollection.self, PendingCloudDeletionTask.self,
-            UserSpeciesPreference.self, OfflineJobRecord.self, OfflineQueueEvent.self,
-            MerianActiveSchemaV50.OfflineQueuedScanGoalHint.self, PhotoPreparationRecord.self,
-            PhotoPreparationAsset.self, PhotoPreparationReference.self, PhotoPreparationLease.self])
+        let outgoing = Schema(MerianSchemaV60.models.filter {
+            ObjectIdentifier($0) != ObjectIdentifier(MerianSchemaV60.SharedMediaInventoryRecord.self)
+                && ObjectIdentifier($0) != ObjectIdentifier(MerianSchemaV60.SharedMediaAllocationRecord.self)
+                && ObjectIdentifier($0) != ObjectIdentifier(MerianSchemaV60.SharedMediaReferenceRecord.self)
+                && ObjectIdentifier($0) != ObjectIdentifier(MerianSchemaV60.SharedMediaLeaseRecord.self)
+        })
         do {
             let container = try ModelContainer(for: outgoing, configurations: [ModelConfiguration(schema: outgoing, url: activeURL, cloudKitDatabase: .none)])
             try ModelContext(container).save()
@@ -1802,11 +1803,9 @@ struct MigrationPlanTests {
             context.insert(MerianSchemaV60.PhotoPreparationLease(id: lease, packageID: package, assetID: allocation, ownerID: owner, processEpoch: generation, purposeRaw: "acquire", partialFileToken: "synthetic.partial", finalFileToken: "synthetic", reservedByteCount: 123, allocatedByteCount: 0, writerStateRaw: "unknown", terminalProof: nil, sourceIdentity: nil))
             try context.save()
         }
-        let outgoing = Schema(CurrentSchema.models.filter {
-            ObjectIdentifier($0) != ObjectIdentifier(SharedMediaInboxSourceRecord.self)
-                && ObjectIdentifier($0) != ObjectIdentifier(SharedMediaInboxHandoffRecord.self)
-                && ObjectIdentifier($0) != ObjectIdentifier(SharedMediaDerivativePairRecord.self)
-                && ObjectIdentifier($0) != ObjectIdentifier(SharedMediaDerivativeWorkRecord.self)
+        let outgoing = Schema(MerianSchemaV61.models.filter {
+            ObjectIdentifier($0) != ObjectIdentifier(MerianSchemaV61.SharedMediaInboxSourceRecord.self)
+                && ObjectIdentifier($0) != ObjectIdentifier(MerianSchemaV61.SharedMediaInboxHandoffRecord.self)
         })
         do {
             let container = try ModelContainer(for: outgoing, configurations: [ModelConfiguration(schema: outgoing, url: activeURL, cloudKitDatabase: .none)])
@@ -1895,9 +1894,9 @@ struct MigrationPlanTests {
             context.insert(handoff)
             try context.save()
         }
-        let outgoing = Schema(CurrentSchema.models.filter {
-            ObjectIdentifier($0) != ObjectIdentifier(SharedMediaDerivativePairRecord.self)
-                && ObjectIdentifier($0) != ObjectIdentifier(SharedMediaDerivativeWorkRecord.self)
+        let outgoing = Schema(MerianSchemaV62.models.filter {
+            ObjectIdentifier($0) != ObjectIdentifier(MerianSchemaV62.SharedMediaDerivativePairRecord.self)
+                && ObjectIdentifier($0) != ObjectIdentifier(MerianSchemaV62.SharedMediaDerivativeWorkRecord.self)
         })
         do {
             let container = try ModelContainer(for: outgoing, configurations: [ModelConfiguration(schema: outgoing, url: activeURL, cloudKitDatabase: .none)])
@@ -1962,31 +1961,126 @@ struct MigrationPlanTests {
         #expect(try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>()) == 0)
         #expect(try context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>()) == 0)
         #expect(try SharedMediaStorageRepository.hasLiabilities(in: context))
-        #expect(ModelStoreRecoveryCoordinator.migrationDecision(at: frozenURL, currentSchemaMajor: 62).hint == .currentStore)
+        #expect(ModelStoreRecoveryCoordinator.migrationDecision(at: frozenURL, currentSchemaMajor: CurrentSchema.versionIdentifier.major).hint == .currentStore)
     }
 
-    @Test func allForwardPlansEndWithDerivativeOwnershipStage() throws {
+
+    @Test func v62MigrationPreservesMediaAndAddsLegacyConsumerDefaults() throws {
+        let url = migrationStoreURL(named: "v62-consumer-defaults")
+        let owner = UUID(), analysis = UUID(), package = UUID(), generation = UUID()
+        let scanID = UUID().uuidString, queueID = UUID().uuidString
+        let bytes = Data("{ \"synthetic\" : true }".utf8)
+        let media = "[ { \"historicalTextOnly\" : \"retained verbatim\" } ]"
+        do {
+            let schema = Schema(versionedSchema: MerianSchemaV62.self)
+            let container = try makeModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+            let context = ModelContext(container)
+            let scan = MerianSchemaV62.LocalScanRecord(id: scanID, speciesId: "fixture", scientificName: "Saved fixture", commonName: "Fixture", capturedMediaJSON: media)
+            scan.selectedAnalysisID = analysis.uuidString.lowercased()
+            scan.analysisOwnerAccountID = owner.uuidString.lowercased()
+            scan.observationStateRevision = 9
+            scan.userIdentificationOverride = "Retained correction"
+            scan.coverImagePath = "synthetic-original.jpg"
+            scan.capturedMediaEntries = [MerianSchemaV62.CapturedMediaEntry(orderIndex: 0, item: .image("synthetic-original.jpg"))]
+            let child = try MerianSchemaV62.LocalAnalysisRecord(analysisID: analysis, observationID: scanID,
+                ownerAccountID: owner, completedAt: nil, snapshotVersion: 3, resultSnapshotData: bytes)
+            child.state = try MerianSchemaV62.LocalAnalysisStateRecord(analysisID: analysis, observationID: scanID,
+                ownerAccountID: owner, observationStateRevision: 9, reviewRevision: 2, reviewSnapshotData: bytes)
+            scan.analysisRecords = [child]
+            let collection = MerianSchemaV62.ScanCollection(name: "Fixture", scans: [scan])
+            context.insert(scan); context.insert(collection)
+            let queue = MerianSchemaV62.OfflineQueuedScan(id: queueID, capturedMediaJSON: media,
+                coverImagePath: "synthetic-display.jpg", scanState: .staged, stagedR2Keys: ["synthetic/key"],
+                inferenceImagePaths: ["synthetic-ai.jpg"], visualMediaItemsJSON: "[]", fieldNotes: "immutable supporting text")
+            queue.capturedMediaEntries = [MerianSchemaV62.CapturedMediaEntry(orderIndex: 0, item: .image("synthetic-display.jpg"))]
+            context.insert(queue)
+            context.insert(MerianSchemaV62.OfflineJobRecord(id: "scan-ingestion:" + queueID, kind: .scanIngestion,
+                subjectId: queueID, metadataJSON: "{\"generation\":\"synthetic\"}"))
+            context.insert(MerianSchemaV62.PhotoPreparationRecord(id: package, ownerID: owner,
+                contractVersion: "photoOriginalV1", draftID: package, draftGeneration: generation,
+                revision: 7, phaseRaw: "preparedHeld", supportingContextData: bytes,
+                allocatedByteCount: 17, retirementRequested: false))
+            let pair = MerianSchemaV62.SharedMediaDerivativePairRecord(id: UUID(), nonce: UUID(), inventoryID: UUID(),
+                inventoryGeneration: generation, expectedInventoryRevision: 5, ownerID: owner, packageID: package,
+                draftGeneration: generation, originalReferenceID: UUID(), originalReferenceRevision: 0,
+                originalAssetID: UUID(), originalAssetGeneration: generation, ordinal: 0,
+                expectedPackageRevision: 6, aiWorkID: UUID(), displayWorkID: UUID())
+            pair.phaseRaw = "ready"; pair.publishedRevision = 7
+            context.insert(pair)
+            context.insert(MerianSchemaV62.SharedMediaDerivativeWorkRecord(id: pair.aiWorkID, pairID: pair.id, roleRaw: "aiInput",
+                assetID: UUID(), assetGeneration: generation, referenceID: UUID(), leaseID: UUID(), writerEpoch: generation,
+                byteCount: 17, sha256: String(repeating: "a", count: 64), contentType: "image/jpeg"))
+            try context.save()
+        }
+        #expect(ModelStoreRecoveryCoordinator.migrationDecision(at: url,
+            currentSchemaMajor: CurrentSchema.versionIdentifier.major).hint == .recentSource(.v62))
+        // A physical outgoing store, followed by migration and another cold reopen.
+        for usePlan in [true, false] {
+            let schema = Schema(versionedSchema: CurrentSchema.self)
+            let configuration = ModelConfiguration(schema: schema, url: url)
+            let container: ModelContainer
+            if usePlan {
+                container = try makeModelContainer(for: schema,
+                    migrationPlan: MerianRecentV62MigrationPlan.self, configurations: [configuration])
+            } else {
+                container = try makeModelContainer(for: schema, configurations: [configuration])
+            }
+            let context = ModelContext(container)
+            let scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+            #expect(scan.id == scanID && scan.capturedMediaJSON == media && scan.coverImagePath == "synthetic-original.jpg")
+            #expect(scan.mediaAuthorityRaw == "legacy" && scan.sharedMediaConsumerID == nil)
+            #expect(scan.userIdentificationOverride == "Retained correction" && scan.observationStateRevision == 9)
+            #expect(scan.selectedAnalysisID == analysis.uuidString.lowercased() && scan.analysisOwnerAccountID == owner.uuidString.lowercased())
+            #expect(scan.capturedMediaEntries?.first?.mediaPath == "synthetic-original.jpg")
+            #expect(scan.collections?.first?.name == "Fixture")
+            let child = try #require(scan.analysisRecords?.first)
+            #expect(child.id == analysis.uuidString.lowercased() && child.completedAt == nil && child.resultSnapshotData == bytes)
+            #expect(child.state?.reviewSnapshotData == bytes && child.state?.reviewRevision == 2)
+            #expect(child.mediaAuthorityRaw == "legacy" && child.sharedMediaConsumerID == nil)
+            let queue = try #require(context.fetch(FetchDescriptor<OfflineQueuedScan>()).first)
+            #expect(queue.id == queueID && queue.capturedMediaJSON == media && queue.coverImagePath == "synthetic-display.jpg")
+            #expect(queue.inferenceImagePaths == ["synthetic-ai.jpg"] && queue.stagedR2Keys == ["synthetic/key"])
+            #expect(queue.fieldNotes == "immutable supporting text" && queue.visualMediaItemsJSON == "[]")
+            #expect(queue.capturedMediaEntries?.first?.mediaPath == "synthetic-display.jpg")
+            #expect(queue.mediaAuthorityRaw == "legacy" && queue.sharedMediaConsumerID == nil && queue.permitsOrdinaryInference)
+            #expect(try context.fetch(FetchDescriptor<OfflineJobRecord>()).first?.metadataJSON == "{\"generation\":\"synthetic\"}")
+            let draft = try #require(context.fetch(FetchDescriptor<PhotoPreparationRecord>()).first)
+            #expect(draft.id == package && draft.accountingTierRaw == "pending" && draft.phaseRaw == "preparedHeld")
+            #expect(draft.revision == 7 && draft.supportingContextData == bytes && draft.allocatedByteCount == 17)
+            #expect(draft.draftGeneration == generation && !draft.retirementRequested)
+            let pair = try #require(context.fetch(FetchDescriptor<SharedMediaDerivativePairRecord>()).first)
+            #expect(pair.packageID == package && pair.phaseRaw == "ready" && pair.publishedRevision == 7)
+            let work = try #require(context.fetch(FetchDescriptor<SharedMediaDerivativeWorkRecord>()).first)
+            #expect(work.pairID == pair.id && work.id == pair.aiWorkID && work.byteCount == 17 && work.writerEpoch == generation)
+            #expect(try context.fetchCount(FetchDescriptor<SharedMediaConsumerRecord>()) == 0)
+            #expect(try context.fetchCount(FetchDescriptor<SharedMediaMembershipBootstrapRecord>()) == 0)
+            #expect(try context.fetchCount(FetchDescriptor<SharedMediaPendingMembershipRecord>()) == 0)
+            #expect(try context.fetchCount(FetchDescriptor<SharedMediaAssetReferenceCountRecord>()) == 0)
+        }
+    }
+
+    @Test func allForwardPlansEndWithConsumerOwnershipStage() throws {
         let plans: [any SchemaMigrationPlan.Type] = [MerianMigrationPlan.self,
             MerianRecentV42MigrationPlan.self, MerianRecentV43MigrationPlan.self,
             MerianRecentV44MigrationPlan.self, MerianRecentV45MigrationPlan.self,
             MerianRecentV46MigrationPlan.self, MerianRecentV47MigrationPlan.self,
             MerianRecentV48MigrationPlan.self, MerianOptionalQueueV48RecoveryPlan.self,
             MerianRecentV49MigrationPlan.self, MerianRecentV50MigrationPlan.self,
-            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self, MerianRecentV53MigrationPlan.self, MerianRecentV54MigrationPlan.self, MerianRecentV55MigrationPlan.self, MerianRecentV56MigrationPlan.self, MerianRecentV57MigrationPlan.self, MerianRecentV58MigrationPlan.self, MerianRecentV59MigrationPlan.self, MerianRecentV60MigrationPlan.self, MerianRecentV61MigrationPlan.self]
+            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self, MerianRecentV53MigrationPlan.self, MerianRecentV54MigrationPlan.self, MerianRecentV55MigrationPlan.self, MerianRecentV56MigrationPlan.self, MerianRecentV57MigrationPlan.self, MerianRecentV58MigrationPlan.self, MerianRecentV59MigrationPlan.self, MerianRecentV60MigrationPlan.self, MerianRecentV61MigrationPlan.self, MerianRecentV62MigrationPlan.self]
         for plan in plans {
-            #expect(plan.schemas.last?.versionIdentifier.major == 62)
+            #expect(plan.schemas.last?.versionIdentifier.major == 63)
             switch try #require(plan.stages.last) {
             case let .lightweight(fromVersion, toVersion):
-                #expect(fromVersion.versionIdentifier.major == 61)
-                #expect(toVersion.versionIdentifier.major == 62)
+                #expect(fromVersion.versionIdentifier.major == 62)
+                #expect(toVersion.versionIdentifier.major == 63)
             default:
-                Issue.record("Derivative ownership requires the additive V61 to V62 stage.")
+                Issue.record("Consumer ownership requires the additive V62 to V63 stage.")
             }
         }
-        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62])
-        #expect(MerianRecentV51MigrationPlan.stages.count == 11)
-        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62])
-        #expect(MerianRecentV52MigrationPlan.stages.count == 10)
+        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63])
+        #expect(MerianRecentV51MigrationPlan.stages.count == 12)
+        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63])
+        #expect(MerianRecentV52MigrationPlan.stages.count == 11)
     }
 
     @Test func outgoingV51ModelsAndRelationshipsAreFrozen() throws {
@@ -2013,7 +2107,7 @@ struct MigrationPlanTests {
     @Test func activeCollectionTombstoneUsesSourceOnlyV50RenameMapping() throws {
         let source = try currentScanCollectionSource()
 
-        #expect(CurrentSchema.versionIdentifier.major == 62)
+        #expect(CurrentSchema.versionIdentifier.major == 63)
         #expect(source.contains("@Attribute(originalName: \"isDeleted\")"))
         #expect(source.contains("public var isPendingDeletion: Bool = false"))
         #expect(source.contains("isPendingDeletion: Bool = false"))
@@ -2474,10 +2568,10 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV49MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62])
+        #expect(schemaMajors == [49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63])
 
         let stages = MerianRecentV49MigrationPlan.stages
-        #expect(stages.count == 13)
+        #expect(stages.count == 14)
         switch try #require(stages.first) {
         case let .lightweight(fromVersion, toVersion):
             #expect(fromVersion.versionIdentifier.major == 49)
@@ -2503,8 +2597,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62])
-        #expect(MerianRecentV50MigrationPlan.stages.count == 12)
+        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63])
+        #expect(MerianRecentV50MigrationPlan.stages.count == 13)
 
         switch try #require(MerianRecentV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):
@@ -2521,8 +2615,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianReleasedActiveV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62])
-        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 12)
+        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63])
+        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 13)
 
         switch try #require(MerianReleasedActiveV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):

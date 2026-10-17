@@ -1,5 +1,19 @@
 # Inactive shared media storage
 
+## October 16 — native consumer foundation locally qualified
+
+NCI-1 adds V63 explicit legacy/shared authority, scalar consumer identity and
+pending/retained accounting after compiling the frozen V62 graph. Migration
+preserves existing paths, submitted snapshots and relationships without creating
+bindings. Consumer state blocks unsupported legacy construction and purge;
+shared-tagged queues cannot use ordinary legacy inference. Exact bounded cohort
+joins and migration/reopen passed focused qualification. The complete native run
+retained 6,092 passes and one stale test inventory failure; its test-only
+correction passed the reviewed purge-suite rerun. Typed mutation owners,
+retained accounting and producer integration remain under construction. This is
+inactive local work, not completed product acceptance. PR116 remains frozen and
+the deployment hold remains active.
+
 ## October 16 — durable shared-library cleanup locally validated
 
 The isolated shared inbox owner now has an explicit whole-library purge path. It
@@ -332,3 +346,22 @@ See
 [SMA-1](../../../../../../docs/rfcs/shared-media-allocation-ownership-2026-10-16.md)
 and the canonical
 [local schema](../../../../../../docs/backend-and-data/04-database-schema.md).
+
+### NCI-1 bounded ownership metadata (implementation in progress)
+
+V63 additionally defines the pending-membership lookup record, inventory
+bootstrap receipt and per-asset reverse-reference accounting record. These
+records remain behind the closed native integration boundary. Missing metadata
+is a liability, not permission to reconstruct ownership or release files. The
+pending lookup assertion and immutable consumer cohort use versioned,
+size-bounded canonical encodings. Context, lookup and cohort bytes share the
+unchanged 1 MiB metadata allowance; they do not each receive a separate
+allowance.
+
+The consumer join verifies exact package, inventory, reference, asset,
+allocation, lease, derivative pair/work and reverse-accounting identities.
+Hashes assert byte identity; they do not establish safe decoding or faithful
+video provenance. Pure joined values grant no file access, cleanup, funding or
+provider authority. Pending/retained transitions, bootstrap, reverse-count
+maintenance and production composition remain unqualified until their
+transactional owner is integrated and tested.

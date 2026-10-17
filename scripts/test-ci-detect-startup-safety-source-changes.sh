@@ -168,6 +168,14 @@ for history_path in \
   apps/ios/Merian/Models/Schema/SchemaV61.swift \
   apps/ios/Merian/Models/Schema/SchemaV61InboxSnapshots.swift \
   apps/ios/Merian/Models/Schema/SchemaV62.swift \
+  apps/ios/Merian/Models/Schema/SchemaV62ScanSnapshots.swift \
+  apps/ios/Merian/Models/Schema/SchemaV62QueueSnapshots.swift \
+  apps/ios/Merian/Models/Schema/SchemaV62PreparationSnapshots.swift \
+  apps/ios/Merian/Models/Schema/SchemaV63.swift \
+  apps/ios/Merian/Models/ActiveSchema/SharedMediaConsumerRecord.swift \
+  apps/ios/Merian/Models/ActiveSchema/SharedMediaAssetReferenceCountRecord.swift \
+  apps/ios/Merian/Models/ActiveSchema/SharedMediaMembershipBootstrapRecord.swift \
+  apps/ios/Merian/Models/ActiveSchema/SharedMediaPendingMembershipRecord.swift \
   apps/ios/Merian/Models/ActiveSchema/SharedMediaDerivativePairRecord.swift \
   apps/ios/Merian/Models/ActiveSchema/SharedMediaDerivativeWorkRecord.swift \
   apps/ios/Merian/Models/ActiveSchema/SharedMediaInboxSourceRecord.swift \

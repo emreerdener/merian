@@ -1,5 +1,19 @@
 # App Models
 
+## October 16 — native consumer foundation locally qualified
+
+NCI-1 adds V63 explicit legacy/shared authority, scalar consumer identity and
+pending/retained accounting after compiling the frozen V62 graph. Migration
+preserves existing paths, submitted snapshots and relationships without creating
+bindings. Consumer state blocks unsupported legacy construction and purge;
+shared-tagged queues cannot use ordinary legacy inference. Exact bounded cohort
+joins and migration/reopen passed focused qualification. The complete native run
+retained 6,092 passes and one stale test inventory failure; its test-only
+correction passed the reviewed purge-suite rerun. Typed mutation owners,
+retained accounting and producer integration remain under construction. This is
+inactive local work, not completed product acceptance. PR116 remains frozen and
+the deployment hold remains active.
+
 This directory owns values and persistence declarations shared across product
 features. It is not a home for feature state, networking, filesystem work, or
 live dependency resolution.

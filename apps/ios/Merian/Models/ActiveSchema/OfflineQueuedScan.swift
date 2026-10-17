@@ -4,6 +4,9 @@ import SwiftData
 /// V58 queue identity. Reanalysis routing and erasure never depend on job JSON.
 @Model
 public final class OfflineQueuedScan {
+    /// V63 native ownership; legacy defaults never infer a shared binding.
+    public var mediaAuthorityRaw: String = "legacy"
+    public var sharedMediaConsumerID: UUID?
     @Attribute(.unique) public var id: String
     /// Old stores migrate to ordinary work; the three linkage fields remain nil.
     public var workKindRaw: String = "ordinary"
@@ -152,5 +155,7 @@ extension OfflineQueuedScan {
                   sourceID: sourceAnalysisID, ownerID: reanalysisOwnerAccountID)
     }
     /// Qualified and damaged rows must never enter legacy upload/identify/finalization.
-    var permitsOrdinaryInference: Bool { work == .ordinary }
+    var permitsOrdinaryInference: Bool {
+        work == .ordinary && mediaAuthorityRaw == "legacy" && sharedMediaConsumerID == nil
+    }
 }
