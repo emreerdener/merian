@@ -1,3 +1,44 @@
+## October 18 — native draft metadata locally verified
+
+The inactive registered native owner now prepares metadata-only draft edits.
+Requests bind the inventory, account, package/draft generation, prior revisions,
+exact prior envelope and unchanged membership tuple. Desired validated envelope
+bytes are produced once and retained across retries. Inventory and package
+advance once; membership bytes and revision do not change. Exact post-save
+readback precedes old-state CAS; later edits are stale even when their text
+matches. Fresh ownership and exact old-state checks run immediately before save.
+
+Presentation entries must resolve to live same-package/same-owner originals and
+their paired shared references. Existing geometry/duplicate bounds remain. The
+native graph audit now validates these entries instead of rejecting all nonempty
+presentation. Metadata, membership and receipt headroom share the unchanged
+budget; positive envelope growth adds free-space demand, with no advance credit
+for shrinkage. Readback queries return only values under repository-minted
+authority; contexts, constructors, account drain and file authority remain
+sealed.
+
+Independent review found and corrected repeated full-graph auditing in the
+extracted paged reader before execution. A separate sealed inspection authority
+now checks the expected header/account lease per page; each receipt must belong
+to the current owner. Mutation authority remains unchanged. A 257-receipt test
+proves one three-page snapshot performs only its two boundary full audits.
+
+Independent and IC-1 review cleared exact candidate04. Ten focused suites passed
+81 methods / 224 executions; the complete native target passed 6,187 methods /
+9,947 executions, with zero failures or skips and no recorded runtime warnings.
+Finalized results are `605c37a7e42b48c5a94c65aae3918b8a` and
+`21e915d769f845deb0298fc328b82024`. Source and all 102 unrelated baseline hashes
+remained unchanged. Each run removed only its 42 emitted synthetic fixture
+directories after the test host exited. Earlier review holds remain retained.
+
+No saved submission, file, provider, sharing, deletion, schema or numeric limit
+changes. Evidence: `.artifacts/shared-media-native-metadata-20261017/`. This is
+shared-checkout native qualification, not isolated-source or live
+Capture/Auth/queue/history acceptance. Native sharing/removal/recovery and final
+composition remain pending in the documented order. Activation stays disabled,
+PR116 frozen, Supabase hold active and AWS unapproved. Earlier entries retain
+historical evidence.
+
 ## October 17 — native atomic acquisition locally verified
 
 The inactive registered fixture controller now prepares atomic original

@@ -176,13 +176,29 @@ enum SharedMediaNativeAcquisitionGraph {
         }
     }
 
+    static func validatePresentation(_ presentation: [PhotoPreparationImagePresentation], package: PhotoPreparationRecord, context: ModelContext) throws {
+        for photo in presentation {
+            let id = photo.referenceID
+            let ref = try one(context, FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.id == id }))
+            let edge = try one(context, FetchDescriptor<SharedMediaReferenceRecord>(predicate: #Predicate { $0.id == id }))
+            let assetID = ref.assetID
+            let asset = try one(context, FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.id == assetID }))
+            guard ref.packageID == package.id, ref.ownerID == package.ownerID, ref.roleRaw == "original", ref.isLive,
+                  asset.ownerID == package.ownerID, asset.cleanupStateRaw == "ready",
+                  edge.allocationID == assetID, edge.accountID == package.ownerID, edge.stateRaw == "live",
+                  edge.ownerID == id.uuidString.lowercased(), edge.roleRaw == SharedMediaPhotoLedger.namespace else {
+                throw SharedMediaStorageFailure.conflict
+            }
+        }
+    }
+
     private static func package(_ row: PhotoPreparationRecord, context: ModelContext) throws {
         let id = row.id
         guard row.draftID == id, row.contractVersion == PhotoPreparationPolicy.contract, row.revision >= 0,
               ["pending", "retained"].contains(row.accountingTierRaw),
               ["draftOwned", "acquiring", "needsAttention"].contains(row.phaseRaw) else { throw SharedMediaStorageFailure.conflict }
         let envelope = try PhotoPreparationPolicy.decodeDraft(row.supportingContextData)
-        guard envelope.presentation.isEmpty else { throw SharedMediaStorageFailure.closed }
+        try validatePresentation(envelope.presentation, package: row, context: context)
         var refsQuery = FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.packageID == id }); refsQuery.fetchLimit = 3
         var workQuery = FetchDescriptor<PhotoPreparationLease>(predicate: #Predicate { $0.packageID == id }); workQuery.fetchLimit = 3
         let refs = try context.fetch(refsQuery), jobs = try context.fetch(workQuery)
