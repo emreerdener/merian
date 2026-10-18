@@ -15,6 +15,7 @@ struct ModelsIntegrationArchitectureTests {
                 || source.relativePath == "Models/Schema/SchemaV58ScanSnapshots.swift"
                 || source.relativePath == "Models/Schema/SchemaV59ScanSnapshots.swift"
                 || source.relativePath == "Models/Schema/SchemaV62ScanSnapshots.swift"
+                || source.relativePath == "Models/Schema/SchemaV63ScanSnapshots.swift"
             let consentFixture = source.relativePath == "App/UITesting/UITestSeedCoordinator+PublicationConsent.swift"
             if consentFixture {
                 // The sole synthetic enrollment seed is excluded from Release;
@@ -182,8 +183,8 @@ struct ModelsIntegrationArchitectureTests {
         )
         #expect(registry.contains("enum MerianMigrationPlan"))
         #expect(registry.contains("enum MerianSchemaV51"))
-        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV63.swift")
-        #expect(currentSchema.contains("enum MerianSchemaV63"))
+        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV64.swift")
+        #expect(currentSchema.contains("enum MerianSchemaV64"))
         #expect(registry.contains("migrateV61toV62"))
         let frozen = try source(at: "apps/ios/Merian/Models/Schema/SchemaV58.swift")
         #expect(frozen.contains("MerianSchemaV58.LocalScanRecord.self"))
@@ -308,6 +309,7 @@ struct ModelsIntegrationArchitectureTests {
         "PhotoPreparationRecord.swift",
         "PhotoPreparationReference.swift",
         "ScanCollection.swift",
+        "SharedMediaAcquisitionReceiptRecord.swift",
         "SharedMediaAllocationRecord.swift",
         "SharedMediaAssetReferenceCountRecord.swift",
         "SharedMediaConsumerRecord.swift",

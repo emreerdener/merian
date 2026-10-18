@@ -9,6 +9,46 @@ import Testing
 struct SharedMediaNativeStorageRepositoryTests {
     enum Fault: Error, Equatable { case injected }
 
+    @Test(arguments: ["reserved", "completed", "terminal", "unknown"])
+    func acquisitionReceiptsRemainLiabilitiesAcrossColdReopen(_ phase: String) throws {
+        let base = Self.root(), inventoryID = UUID(), operationID = UUID()
+        let generation = UUID(), ownerID = UUID(), packageID = UUID(), assetID = UUID()
+        let request = Data("synthetic-request".utf8), result = Data("synthetic-result".utf8)
+        let fingerprint = String(repeating: "a", count: 64)
+        do {
+            let h = try Harness(base: base, inventoryID: inventoryID)
+            let context = ModelContext(h.container); context.autosaveEnabled = false
+            let row = SharedMediaAcquisitionReceiptRecord(operationID: operationID,
+                inventoryID: inventoryID, inventoryGeneration: generation, ownerID: ownerID,
+                requestFingerprint: fingerprint, packageID: packageID, assetID: assetID, requestData: request)
+            row.phaseRaw = phase
+            if phase == "completed" { row.resultData = result; row.revision = 1 }
+            if phase == "terminal" {
+                row.packageID = nil; row.assetID = nil; row.requestData = nil
+                row.terminalOutcomeRaw = "released"; row.revision = 2
+            }
+            context.insert(row); try context.save()
+        }
+        let h = try Harness(base: base, inventoryID: inventoryID)
+        let context = ModelContext(h.container)
+        #expect(try SharedMediaStorageRepository.hasLiabilities(in: context))
+        #expect(throws: (any Error).self) { try h.native() }
+        #expect(throws: (any Error).self) { try h.legacy() }
+        let fresh = ModelContext(h.container)
+        let row = try #require(fresh.fetch(FetchDescriptor<SharedMediaAcquisitionReceiptRecord>()).first)
+        #expect(row.id == operationID && row.schemaVersion == 1 && row.phaseRaw == phase)
+        #expect(row.inventoryID == inventoryID && row.inventoryGeneration == generation && row.ownerID == ownerID)
+        #expect(row.requestFingerprint == fingerprint)
+        #expect(row.packageID == (phase == "terminal" ? nil : packageID))
+        #expect(row.assetID == (phase == "terminal" ? nil : assetID))
+        #expect(row.requestData == (phase == "terminal" ? nil : request))
+        #expect(row.resultData == (phase == "completed" ? result : nil))
+        #expect(row.terminalOutcomeRaw == (phase == "terminal" ? "released" : nil))
+        #expect(row.revision == (phase == "terminal" ? 2 : phase == "completed" ? 1 : 0))
+        #expect(try fresh.fetchCount(FetchDescriptor<SharedMediaAcquisitionReceiptRecord>()) == 1)
+        #expect(try fresh.fetchCount(FetchDescriptor<SharedMediaInventoryRecord>()) == 0)
+    }
+
     @Test func nativeBindingAndBootstrapSurviveColdContainerReopen() throws {
         let base = Self.root(), id = UUID()
         let saved: SharedMediaStorageSnapshot

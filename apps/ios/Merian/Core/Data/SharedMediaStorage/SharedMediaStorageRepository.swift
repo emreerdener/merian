@@ -53,13 +53,7 @@ final class SharedMediaStorageRepository {
         storeBinding = try JSONEncoder().encode(["v1", inventoryID.uuidString, storeUUID, rootBinding])
         let context = ModelContext(container)
         context.autosaveEnabled = false
-        // V63 schema foundation does not grant consumer-aware qualification or cleanup.
-        guard try context.fetchCount(FetchDescriptor<SharedMediaConsumerRecord>()) == 0,
-              try context.fetchCount(FetchDescriptor<SharedMediaAssetReferenceCountRecord>()) == 0,
-              try context.fetchCount(FetchDescriptor<SharedMediaMembershipBootstrapRecord>()) == 0,
-              try context.fetchCount(FetchDescriptor<SharedMediaPendingMembershipRecord>()) == 0 else {
-            throw SharedMediaStorageFailure.closed
-        }
+        try SharedMediaStorageLookup.requireNoNativeOwnership(context)
         if mode != .observation {
             for type in CurrentSchema.models where !SharedMediaStorageLookup.ledgerTypes.contains(ObjectIdentifier(type))
                 && !(mode.includesPhotoStorage && SharedMediaStorageLookup.photoTypes.contains(ObjectIdentifier(type)))
@@ -188,13 +182,7 @@ final class SharedMediaStorageRepository {
         try files.bindStore(storeBinding, initializing: false)
         let context = ModelContext(container)
         context.autosaveEnabled = false
-        // V63 schema foundation does not grant consumer-aware qualification or cleanup.
-        guard try context.fetchCount(FetchDescriptor<SharedMediaConsumerRecord>()) == 0,
-              try context.fetchCount(FetchDescriptor<SharedMediaAssetReferenceCountRecord>()) == 0,
-              try context.fetchCount(FetchDescriptor<SharedMediaMembershipBootstrapRecord>()) == 0,
-              try context.fetchCount(FetchDescriptor<SharedMediaPendingMembershipRecord>()) == 0 else {
-            throw SharedMediaStorageFailure.closed
-        }
+        try SharedMediaStorageLookup.requireNoNativeOwnership(context)
         var query = FetchDescriptor<SharedMediaInventoryRecord>()
         query.fetchLimit = 2
         let inventories = try context.fetch(query)

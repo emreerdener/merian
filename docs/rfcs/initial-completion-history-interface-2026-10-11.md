@@ -1,3 +1,37 @@
+## October 17 — V64 acquisition receipt foundation validated locally
+
+The outgoing V63 schema was frozen and compiled before the additive V64
+acquisition receipt model was introduced. The receipt stores immutable request
+identity and supports full result retention and a minimal terminal replay
+witness. Migration preserves existing native ownership and historical text-only
+records and creates no receipts. Legacy and empty-native fixture owners reject
+all receipt rows; the model grants no writer, media, cleanup or live authority.
+
+Independent and IC-1 review cleared the exact candidates and the correction.
+Focused migration/recovery/storage verification passed 140 tests. The complete
+native run passed 6,118 and failed two architecture inventories because the
+storage repository reached 601 lines. Consolidating its identical guards in the
+existing lookup owner preserved behavior and reduced it to 587 lines; all 43
+tests in the five affected storage/purge/architecture suites then passed. No
+tests were skipped. These are composite shared-checkout results, not a clean
+full run of the corrected candidate or isolated-source acceptance. Static
+migration, project, CI-tooling and Markdown checks passed. Candidate and the 102
+hashed unrelated baseline paths remained unchanged during validation. Evidence:
+`.artifacts/shared-media-native-receipt-20261017/`; failed full result
+`bbf6648481124cc0a687569f711c3263.xcresult` and correction result
+`dd3c0c6e22674ef79185224f29477ca8.xcresult` remain under
+`.artifacts/local-ios/`.
+
+Continue the closed receipt codec and native reserve/commit owner, full
+namespace and reverse-receipt audits, and atomic queue/history ownership. The
+codec design preserves exact bounded ImageIO UTI values without later OS decoder
+dependence; completion headroom and projected memberships share the existing 1
+MiB metadata allowance. Held work cannot restart or acquire cleanup authority
+from a receipt. The schema foundation does not close native integration or later
+approved version-actions/redesign acceptance. Activation remains disabled, PR116
+frozen, Supabase deployment hold active, AWS unapproved and product limits
+unchanged. No push, merge, deployment or hosted action occurred.
+
 ## October 17 — native empty-store owner and exact namespace reopen verified
 
 The Debug-only native fixture owner now admits only pristine or exactly reopened

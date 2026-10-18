@@ -32,9 +32,10 @@ receipt: existing P1 reservation rows omit future reference, asset-generation
 and other immutable intent facts. Reviewed design preserves exact recovery and
 terminal replay rejection, counts receipt payloads within the originating
 package's existing metadata allowance, and never reruns a loader from a saved
-reservation alone. The additive schema, transaction owner and complete
-descriptor audit remain to be implemented and qualified; no live composition or
-limits change follows.
+reservation alone. The additive V64 receipt schema foundation has passed focused
+migration qualification. The transaction owner and complete descriptor audit
+remain to be implemented and qualified; no live composition or limits change
+follows.
 
 ## Native original reference audit — locally verified
 
@@ -451,3 +452,23 @@ video provenance. Pure joined values grant no file access, cleanup, funding or
 provider authority. Pending/retained transitions, bootstrap, reverse-count
 maintenance and production composition remain unqualified until their
 transactional owner is integrated and tested.
+
+### V64 acquisition receipt storage foundation
+
+The additive `SharedMediaAcquisitionReceiptRecord` preserves operation identity
+and supports full intent/result retention followed by a minimal terminal replay
+rejection witness. Its exact stored shape and phase requirements are documented
+in
+[the database schema](../../../../../../docs/backend-and-data/04-database-schema.md#v64-native-acquisition-receipt-foundation).
+Migration creates no receipts. Existing fixture owners reject these rows,
+including tombstones, and liability checks cannot silently ignore them. Closed
+codec/transaction validation, namespace audit and native capture composition
+remain separate implementation work; the model itself grants no capability.
+
+The frozen V63 build preceded the active addition. The real-store V63→V64
+migration preserves existing ownership and creates no receipts. Focused tests
+passed 140/0/0. Full candidate04 recorded 6,118 passed and two architecture
+line-count failures; candidate05 consolidated the identical legacy guards in
+`SharedMediaStorageLookup.requireNoNativeOwnership`, then passed all 43 tests in
+the five affected suites. This is composite local evidence, not a clean full
+candidate05 run. Evidence: `.artifacts/shared-media-native-receipt-20261017/`.

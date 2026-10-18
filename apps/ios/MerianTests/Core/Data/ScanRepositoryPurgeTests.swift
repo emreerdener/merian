@@ -226,6 +226,9 @@ struct ScanRepositoryPurgeTests {
 
     private func sharedMediaPurgeBlockers() -> [any PersistentModel] {
         [
+            SharedMediaAcquisitionReceiptRecord(operationID: UUID(), inventoryID: UUID(),
+                inventoryGeneration: UUID(), ownerID: UUID(), requestFingerprint: String(repeating: "a", count: 64),
+                packageID: UUID(), assetID: UUID(), requestData: Data("synthetic-request".utf8)),
             SharedMediaConsumerRecord(id: UUID(), kindRaw: "queue", consumerID: "fixture", originQueueID: "fixture",
                 observationID: "fixture", inventoryID: UUID(), inventoryGeneration: UUID(), ownerID: UUID(),
                 packageID: UUID(), draftGeneration: UUID(), frozenPackageRevision: 1,

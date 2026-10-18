@@ -48,14 +48,26 @@ enum SharedMediaStorageLookup {
     static let ledgerTypes = Set([ObjectIdentifier(SharedMediaInventoryRecord.self),
         ObjectIdentifier(SharedMediaAllocationRecord.self), ObjectIdentifier(SharedMediaReferenceRecord.self),
         ObjectIdentifier(SharedMediaLeaseRecord.self), ObjectIdentifier(SharedMediaConsumerRecord.self),
-        ObjectIdentifier(SharedMediaAssetReferenceCountRecord.self), ObjectIdentifier(SharedMediaMembershipBootstrapRecord.self), ObjectIdentifier(SharedMediaPendingMembershipRecord.self)])
+        ObjectIdentifier(SharedMediaAssetReferenceCountRecord.self), ObjectIdentifier(SharedMediaMembershipBootstrapRecord.self), ObjectIdentifier(SharedMediaPendingMembershipRecord.self), ObjectIdentifier(SharedMediaAcquisitionReceiptRecord.self)])
 
     static func count<T: PersistentModel>(_ context: ModelContext, _ type: T.Type) throws -> Int {
         try context.fetchCount(FetchDescriptor<T>())
     }
 
+    static func requireNoNativeOwnership(_ context: ModelContext) throws {
+        // V63/V64 schema foundations do not grant consumer-aware qualification or cleanup.
+        guard try context.fetchCount(FetchDescriptor<SharedMediaAcquisitionReceiptRecord>()) == 0,
+              try context.fetchCount(FetchDescriptor<SharedMediaConsumerRecord>()) == 0,
+              try context.fetchCount(FetchDescriptor<SharedMediaAssetReferenceCountRecord>()) == 0,
+              try context.fetchCount(FetchDescriptor<SharedMediaMembershipBootstrapRecord>()) == 0,
+              try context.fetchCount(FetchDescriptor<SharedMediaPendingMembershipRecord>()) == 0 else {
+            throw SharedMediaStorageFailure.closed
+        }
+    }
+
     static func hasLiabilities(in context: ModelContext) throws -> Bool {
-        try context.fetchCount(FetchDescriptor<SharedMediaAssetReferenceCountRecord>()) > 0
+        try context.fetchCount(FetchDescriptor<SharedMediaAcquisitionReceiptRecord>()) > 0
+            || context.fetchCount(FetchDescriptor<SharedMediaAssetReferenceCountRecord>()) > 0
             || context.fetchCount(FetchDescriptor<SharedMediaMembershipBootstrapRecord>()) > 0
             || context.fetchCount(FetchDescriptor<SharedMediaPendingMembershipRecord>()) > 0
             || context.fetchCount(FetchDescriptor<SharedMediaConsumerRecord>()) > 0
@@ -94,3 +106,5 @@ extension SharedMediaConsumerRecord: SharedMediaStorageRow {}
 extension SharedMediaAssetReferenceCountRecord: SharedMediaStorageRow {}
 extension SharedMediaMembershipBootstrapRecord: SharedMediaStorageRow {}
 extension SharedMediaPendingMembershipRecord: SharedMediaStorageRow {}
+
+extension SharedMediaAcquisitionReceiptRecord: SharedMediaStorageRow {}

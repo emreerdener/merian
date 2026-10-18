@@ -5537,7 +5537,10 @@ snapshot SHA-256 values, so a property, annotation, default, relationship,
 initializer, or helper edit requires an explicit historical-shape review.
 `SchemaV51Snapshots.swift` freezes all eight `MerianSchemaV51` model classes and
 their relationships; the unchanged goal-hint companion retains its V50 owner.
-`MerianSchemaV63` owns the active global models and adds scalar
+`MerianSchemaV64` owns the active global models and adds the inactive scalar
+`SharedMediaAcquisitionReceiptRecord`. The additive V63→V64 stage creates no
+receipts and reconstructs no operation. V63 is frozen, including its
+relationships and native ownership fields. V63 previously added scalar
 `SharedMediaConsumerRecord` ownership. Queue, scan and analysis records default
 to explicit legacy authority with no binding; photo packages default to pending
 accounting. The lightweight V62→V63 stage never infers ownership from paths,
@@ -5618,9 +5621,10 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current source schema is `MerianSchemaV63`. V63 adds explicit native
-consumer authority and pending/retained accounting through lightweight V62→V63.
-All existing rows retain their legacy semantics. V62 added
+The current source schema is `MerianSchemaV64`. V64 adds an empty acquisition
+receipt table through lightweight V63→V64. V63 added explicit native consumer
+authority and pending/retained accounting through lightweight V62→V63. All
+existing rows retain their legacy semantics. V62 added
 `SharedMediaDerivativePairRecord` and `SharedMediaDerivativeWorkRecord` through
 lightweight V61→V62. Pair rows bind an exact original, revision and AI/display
 membership; work rows retain prepared identities, writer state and explicit
@@ -5696,14 +5700,14 @@ Ordinary Capture access remains nil. Recent milestones:
   directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
-  `ModelContainer`: fresh/current V63 stores open without a migration plan,
+  `ModelContainer`: fresh/current V64 stores open without a migration plan,
   known recent stores use the source-isolated
-  V62/V61/V60/V59/V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42
-  plans, and only unknown older stores use the full historical plan. V62 needs
-  only lightweight V62→V63; earlier plans retain their previous stages and
-  append V62→V63. Each V50 plan contains its custom V50→V51 preference-ownership
-  stage followed by V51→V52→V53→V54→V55→V56→V57→V58→V59→V60→V61→V62→V63; the V49
-  plan prepends the required lightweight V49→V50 hop. Immediate predecessors
+  V63/V62/V61/V60/V59/V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42
+  plans, and only unknown older stores use the full historical plan. V63 needs
+  only lightweight V63→V64; earlier plans retain their previous stages and
+  append V63→V64. Each V50 plan contains its custom V50→V51 preference-ownership
+  stage followed by V51→V52→V53→V54→V55→V56→V57→V58→V59→V60→V61→V62→V63→V64; the
+  V49 plan prepends the required lightweight V49→V50 hop. Immediate predecessors
   therefore never validate unrelated history. The V42 and V43 recent plans jump
   directly to V49 to avoid validating older full-historical custom stages and to
   keep V42 off the older V42→V43 bridge that still failed on real TestFlight
@@ -9081,3 +9085,38 @@ The lookup assertion is not ownership authority and a zero reverse count is not
 a physical-release proof. The native transaction/retirement owner must maintain
 these records atomically with authoritative edges before runtime use. The
 current qualification repository remains closed when this metadata exists.
+
+### V64 native acquisition receipt foundation
+
+`SharedMediaAcquisitionReceiptRecord` stores one unique operation ID, explicit
+schema version, inventory ID/generation, owner, immutable request fingerprint,
+phase/revision, optional package/asset lookup aids, canonical request/result
+payloads and an explicit terminal outcome. It has no relationship or cascade:
+full recovery intent must outlive its originating logical package while the
+physical asset graph survives, and a minimal terminal tombstone must outlive
+physical release to reject replay of that operation ID.
+
+Reserved and completed states require the complete immutable request; completed
+states also require the exact result. A terminal tombstone strips both payloads
+and the package/asset lookup aids but preserves its identity, fingerprint and
+unambiguous outcome. These are requirements for the forthcoming closed codec and
+transaction owner; the raw scalar model grants no writer, media, admission or
+cleanup authority. Missing or inconsistent receipts may not be repaired from
+legacy reservations. Receipt payloads share the originating package's existing
+combined metadata allowance; sharing must not replicate that charge.
+
+The additive migration leaves this table empty, retains every existing native
+and legacy field, and does not adopt media. Legacy fixture owners and liability
+checks reject surviving acquisition receipts, including terminal or unknown
+states. The native empty-store owner also rejects them until closed nonempty
+operations are qualified. Activation and live composition remain disabled.
+
+The outgoing frozen V63 registry compiled before this addition. The disk-backed
+`v63MigrationPreservesNativeOwnershipAndAddsNoReceipts` fixture passes through
+migration and cold reopen. Focused migration/recovery/storage coverage passed
+140 tests. Full candidate04 passed 6,118 tests with two repository-size
+architecture failures; an equivalent guard consolidation passed all 43 affected
+checks on candidate05. This composite local evidence does not claim a clean full
+candidate05 run, installed-store qualification or live composition. Retained
+results and exact candidate manifests are in
+`.artifacts/shared-media-native-receipt-20261017/`.
