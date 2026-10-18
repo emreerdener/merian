@@ -2,21 +2,6 @@ import CryptoKit
 import Darwin
 import Foundation
 
-/// Qualification roots must already exist. A lock is held across the entire
-/// reservation, provider callback, file commit and fresh-context ledger save.
-actor PhotoPreparationFileStore {
-    let root: URL
-    init(root: URL) { self.root = root }
-
-    func locked<T: Sendable>(
-        _ body: @Sendable (PhotoPreparationLockedFiles) async throws -> T
-    ) async throws -> T {
-        let files = try PhotoPreparationLockedFiles(root: root)
-        defer { files.close() }
-        return try await body(files)
-    }
-}
-
 /// Descriptor-relative operations only; tokens are generated UUID pairs.
 /// Instances are usable only for the dynamic lifetime of `locked`.
 final class PhotoPreparationLockedFiles: @unchecked Sendable {
@@ -429,6 +414,25 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
         try checkIdentity(); try inspection.requireNamespaceRoot(rootFD: rootFD)
         try await inspection.visitNative(namespaceFD: namespaceFD, revalidate: { try self.checkIdentity() }, observe: observe)
         try checkIdentity(); try inspection.requireNamespaceRoot(rootFD: rootFD)
+    }
+
+    func inspectNativePending(_ request: SharedMediaAcquisitionIntent, binding: SharedMediaNativeBinding) throws -> SharedMediaNativePendingInspection {
+        guard sharedBinding?.bytes == binding.bytes, sharedBinding?.epoch == binding.epoch else { throw PhotoPreparationFailure.unsupportedComposition }
+        return try withSharedDestination(request.finalToken, create: false) { try SharedMediaNativePendingFiles(access: $0, request: request).inspect(binding: binding) }
+    }
+    func verifyNativePending(_ request: SharedMediaAcquisitionIntent, closure: SharedMediaNativePendingClosure, binding: SharedMediaNativeBinding) throws {
+        guard sharedBinding?.bytes == binding.bytes, sharedBinding?.epoch == binding.epoch else { throw PhotoPreparationFailure.unsupportedComposition }
+        try withSharedDestination(request.finalToken, create: false) { try SharedMediaNativePendingFiles(access: $0, request: request).verify(closure) }
+    }
+    func releaseNativePending(_ disposal: SharedMediaNativePendingDisposal) throws -> SharedMediaNativePendingAbsence {
+        guard sharedBinding?.bytes == disposal.binding, sharedBinding?.epoch == disposal.epoch else { throw PhotoPreparationFailure.unsupportedComposition }
+        return try withSharedDestination(disposal.state.request.finalToken, create: false) { access in
+            var operation = SharedMediaNativePendingFiles(access: access, request: disposal.state.request)
+            #if DEBUG
+            operation.fault = sharedReleaseFault
+            #endif
+            return try operation.release(disposal)
+        }
     }
 
     func releaseNative(_ retirement: SharedMediaNativeRetirement) throws -> SharedMediaNativeReleaseProof {

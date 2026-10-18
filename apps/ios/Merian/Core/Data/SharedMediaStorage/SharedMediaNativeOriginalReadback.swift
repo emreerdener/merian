@@ -81,6 +81,10 @@ struct SharedMediaNativeOriginalReadback {
         switch try SharedMediaNativeAcquisitionGraph.receipt(row, inventory: inventory, context: context) {
         case .reserved(let request), .held(let request):
             guard [request.finalToken, request.partialToken].contains(leaf.token), leaf.byteCount <= request.maximumBytes else { throw SharedMediaStorageFailure.conflict }
+            if let closure = try pendingClosure(request, context: context) {
+                let expected = closure.kind == .partial ? request.partialToken : request.finalToken
+                guard closure.kind != .absent, leaf.token == expected, leaf.descriptor == closure.file else { throw SharedMediaStorageFailure.conflict }
+            }
         case .completed(let request, let result):
             guard leaf.token == request.finalToken, leaf.byteCount == result.byteCount, leaf.descriptor == result.descriptor.file else { throw SharedMediaStorageFailure.conflict }
         case .released: throw SharedMediaStorageFailure.conflict
@@ -90,6 +94,7 @@ struct SharedMediaNativeOriginalReadback {
     struct Entry: Sendable {
         let receipt: SharedMediaAcquisitionReceipt
         let retirement: SharedMediaNativeRetirementIdentity?
+        let pendingClosure: SharedMediaNativePendingClosure?
     }
 
     func page(offset: Int, inspection: SharedMediaNativeInspectionAuthority) throws -> [Entry] {
@@ -106,8 +111,21 @@ struct SharedMediaNativeOriginalReadback {
             if case .completed(let request, _) = receipt {
                 retirement = try SharedMediaNativeOriginalAccounting.audit(assetID: request.assetID, inventoryID: inventoryID, context: context).retirement
             } else { retirement = nil }
-            return .init(receipt: receipt, retirement: retirement)
+            let closure: SharedMediaNativePendingClosure?
+            switch receipt {
+            case .reserved(let request), .held(let request): closure = try pendingClosure(request, context: context)
+            default: closure = nil
+            }
+            return .init(receipt: receipt, retirement: retirement, pendingClosure: closure)
         }
+    }
+
+    private func pendingClosure(_ request: SharedMediaAcquisitionIntent, context: ModelContext) throws -> SharedMediaNativePendingClosure? {
+        let id = request.operationID
+        var query = FetchDescriptor<PhotoPreparationLease>(predicate: #Predicate { $0.id == id }); query.fetchLimit = 2
+        let rows = try context.fetch(query)
+        guard rows.count == 1, let work = rows.first else { throw SharedMediaStorageFailure.conflict }
+        return try work.terminalProof.map { try SharedMediaNativePendingClosure.decode($0, request: request) }
     }
 
 }

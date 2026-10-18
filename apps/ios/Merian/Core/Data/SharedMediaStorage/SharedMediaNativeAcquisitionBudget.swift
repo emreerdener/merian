@@ -26,6 +26,7 @@ enum SharedMediaNativeAcquisitionBudget {
             guard try SharedMediaConsumerLookup.one(context, packageID: id) == nil else { throw SharedMediaStorageFailure.closed }
             let jobs = graph.work.filter { $0.packageID == id }
             var pending: [SharedMediaAcquisitionIntent] = []
+            var closureBytes: Int64 = 0
             for work in jobs {
                 let operation = work.id
                 let row = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.id == operation }))
@@ -33,6 +34,11 @@ enum SharedMediaNativeAcquisitionBudget {
                 case .reserved(let request), .held(let request):
                     guard request.assetID == work.assetID, request.packageID == id else { throw SharedMediaStorageFailure.conflict }
                     pending.append(request)
+                    if let proof = work.terminalProof {
+                        _ = try SharedMediaNativePendingClosure.decode(proof, request: request)
+                        guard work.writerStateRaw == "closedPendingCleanupV1" else { throw SharedMediaStorageFailure.conflict }
+                        closureBytes = try SharedMediaStoragePolicy.add(closureBytes, Int64(proof.utf8.count))
+                    }
                 default: throw SharedMediaStorageFailure.conflict
                 }
             }
@@ -74,7 +80,8 @@ enum SharedMediaNativeAcquisitionBudget {
             guard bytes <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
             metadata[id] = bytes
             let membershipGrowth = projected - Int64(try member.encoded().count)
-            let outstandingMetadata = try SharedMediaStoragePolicy.add(resultHeadroom, membershipGrowth)
+            guard closureBytes <= resultHeadroom else { throw SharedMediaStorageFailure.conflict }
+            let outstandingMetadata = try SharedMediaStoragePolicy.add(resultHeadroom - closureBytes, membershipGrowth)
             try totals.includePhotoPhysical(materialized: bytes - outstandingMetadata, reserved: outstandingMetadata)
             var logical = bytes
             for ref in graph.references where ref.packageID == id {

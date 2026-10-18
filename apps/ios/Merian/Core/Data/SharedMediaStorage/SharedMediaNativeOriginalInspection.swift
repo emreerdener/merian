@@ -16,7 +16,11 @@ enum SharedMediaNativeOriginalInspection {
                     try await io.verify(request: request, result: result, retirement: entry.retirement)
                     try authority.validate()
                     recovery = recovery || entry.retirement != nil
-                case .reserved, .held: recovery = true
+                case .reserved(let request), .held(let request):
+                    if let closure = entry.pendingClosure {
+                        try await io.verifyPending(request, closure: closure); try authority.validate()
+                    }
+                    recovery = true
                 case .released: break
                 }
             }

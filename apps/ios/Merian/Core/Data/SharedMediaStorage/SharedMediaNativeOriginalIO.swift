@@ -33,6 +33,13 @@ actor SharedMediaNativeOriginalIO {
             try files.requireNativeAbsence(file, retirement: retirement, binding: binding)
         }
     }
+    func inspectPending(_ request: SharedMediaAcquisitionIntent) throws -> SharedMediaNativePendingInspection {
+        try files.inspectNativePending(request, binding: binding)
+    }
+    func verifyPending(_ request: SharedMediaAcquisitionIntent, closure: SharedMediaNativePendingClosure) throws {
+        try files.verifyNativePending(request, closure: closure, binding: binding)
+    }
+    func releasePending(_ disposal: SharedMediaNativePendingDisposal) throws -> SharedMediaNativePendingAbsence { try files.releaseNativePending(disposal) }
     func inspect(_ file: PhotoPreparationFile) throws -> SharedMediaPhotoRetirementInspection { try files.inspectSharedRetirement(file) }
     func release(_ retirement: SharedMediaNativeRetirement) throws -> SharedMediaNativeReleaseProof { try files.releaseNative(retirement) }
     #if DEBUG

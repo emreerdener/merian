@@ -1,3 +1,47 @@
+## October 18 — native explicit pending abandonment locally verified
+
+The next inactive native integration adds exact-request abandonment of reserved
+or held acquisitions. Reopening, inspection and generic recovery preserve raw
+unfinished files and their full reservation; they never infer abandonment,
+repeat a loader or invoke AI. Explicit abandonment requires the registered
+owner's serial operation and exclusive file fences after prior work has drained.
+It saves a strict, bounded cleanup proof before file work. The proof binds the
+original request fingerprint, namespace and optional parent identities, and the
+exact absent, partial or final file descriptor. A current-lifetime sealed
+capability permits only matching unlink, directory sync and absence recheck.
+
+Saved abandonment is recoverable across process epochs. Changed files or parents
+block recovery; missing rows, age or cancellation do not prove release. Atomic
+release removes only the pending work/allocation/lease, records the existing
+terminal receipt and exact membership successor, and preserves other originals,
+supporting text and the empty draft. Recovery queries one fresh saved intent at
+a time. Proof bytes consume the existing result-encoding reservation; no schema
+or numeric limit changes. Legacy validators remain closed to this native-only
+substate. Typed lifecycle orchestration and sealed disposal values move
+together; raw admission, controller and native authority constructors stay
+co-located, with private file descriptors retained by the original file owner.
+
+Independent and IC-1 review cleared the implementation and exact execution
+packets. The first focused run exposed a test expectation error: cancellation
+leaves pending settlement closed until uncancelled drain finishes the held
+transition. Candidate02 corrected only that test to require drain and reopen;
+the runtime was unchanged. The failed result and both packet-review corrections
+remain retained. Thirteen focused suites passed 116 methods / 289 executions;
+the complete native target passed 6,215 methods / 10,005 executions. Both
+results have zero failures, skips and runtime warnings. Existing compile
+warnings in unchanged code remain in the logs.
+
+Finalized results are `5db93abacc964e77b34198a6d46bd86a` and
+`adf9c90bd2414d6b8ceb0e53e2df5536`. Candidate sources and all 102 unrelated
+baseline states remained unchanged through both runs. Each run removed only its
+100 emitted synthetic fixture directories after host exit. This is local
+shared-checkout qualification of inactive native sharing/removal/recovery; final
+live Capture/Auth/queue/history composition and end-to-end acceptance remain
+pending. Separate capture visual ownership stays unchanged. Evidence:
+`.artifacts/shared-media-native-pending-cleanup-20261018/`. Activation is
+disabled, PR116 frozen, Supabase deployment hold active and AWS unapproved.
+Earlier entries are historical.
+
 ## October 18 — native sharing, removal and retirement recovery locally verified
 
 The inactive registered native owner now supports sharing into a new

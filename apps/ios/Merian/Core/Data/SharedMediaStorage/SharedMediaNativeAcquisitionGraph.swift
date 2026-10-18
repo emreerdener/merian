@@ -132,30 +132,33 @@ enum SharedMediaNativeAcquisitionGraph {
         let lease = try one(context, FetchDescriptor<SharedMediaLeaseRecord>(predicate: #Predicate { $0.allocationID == assetID }))
         let work = try one(context, FetchDescriptor<PhotoPreparationLease>(predicate: #Predicate { $0.assetID == assetID }))
         let package = try one(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == packageID }))
+        let closing = allocation.stateRaw == "p1PendingCleanupV1"
+        let closure = try work.terminalProof.map { try SharedMediaNativePendingClosure.decode($0, request: request) }
+        guard closing == (closure != nil) else { throw SharedMediaStorageFailure.conflict }
         let minimumPackage: Int64
         switch request.packageExpectation {
         case .absent: minimumPackage = held ? 1 : 0
         case .revision(let value): minimumPackage = value + (held ? 2 : 1)
         }
         guard try full(assetID: assetID, context: context).id == operationID,
-              inventory.revision >= request.expectedInventoryRevision + (held ? 2 : 1),
+              inventory.revision >= (try SharedMediaStoragePolicy.add(request.expectedInventoryRevision, (held ? 2 : 1) + (closing ? 1 : 0))),
               allocation.inventoryID == inventory.id, allocation.accountID == request.ownerID,
               allocation.packageID == packageID, allocation.namespaceRaw == SharedMediaPhotoLedger.namespace,
               allocation.poolRaw == "durable", allocation.fileToken == request.finalToken,
-              allocation.stateRaw == (held ? "p1Held" : "p1Reserved"), allocation.materializedBytes == 0,
+              allocation.stateRaw == (closing ? "p1PendingCleanupV1" : (held ? "p1Held" : "p1Reserved")), allocation.materializedBytes == 0,
               allocation.reservedBytes == request.maximumBytes, allocation.physicalIdentity == nil,
               lease.id == operationID, lease.processEpoch == request.writerEpoch,
-              lease.purposeRaw == "p1AcquireV1", lease.stateRaw == (held ? "unknown" : "open"),
+              lease.purposeRaw == "p1AcquireV1", lease.stateRaw == (closing ? "closedPendingCleanupV1" : (held ? "unknown" : "open")),
               work.id == operationID, work.packageID == packageID, work.ownerID == request.ownerID,
               work.processEpoch == request.writerEpoch, work.purposeRaw == "acquire",
               work.partialFileToken == request.partialToken, work.finalFileToken == request.finalToken,
               work.reservedByteCount == request.maximumBytes, work.allocatedByteCount == 0,
-              work.sourceIdentity == nil, work.terminalProof == nil,
-              work.writerStateRaw == (held ? "unknown" : "open"),
+              work.sourceIdentity == nil,
+              work.writerStateRaw == (closing ? "closedPendingCleanupV1" : (held ? "unknown" : "open")),
               package.ownerID == request.ownerID, package.draftGeneration == request.draftGeneration,
               package.accountingTierRaw == "pending", !package.retirementRequested,
-              package.revision >= minimumPackage,
-              held ? package.phaseRaw == "needsAttention" : ["acquiring", "needsAttention"].contains(package.phaseRaw),
+              package.revision >= (try SharedMediaStoragePolicy.add(minimumPackage, closing ? 1 : 0)),
+              (held || closing) ? package.phaseRaw == "needsAttention" : ["acquiring", "needsAttention"].contains(package.phaseRaw),
               try context.fetchCount(FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.id == referenceID })) == 0,
               try context.fetchCount(FetchDescriptor<SharedMediaReferenceRecord>(predicate: #Predicate { $0.id == referenceID })) == 0,
               try context.fetchCount(FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.id == assetID })) == 0,
@@ -217,7 +220,7 @@ enum SharedMediaNativeAcquisitionGraph {
             let value = try SharedMediaAcquisitionReceipt.read(full(assetID: work.assetID, context: context))
             let intent: SharedMediaAcquisitionIntent
             switch value {
-            case .reserved(let request): intent = request
+            case .reserved(let request): intent = request; held = held || work.writerStateRaw == "closedPendingCleanupV1"
             case .held(let request): intent = request; held = true
             default: throw SharedMediaStorageFailure.conflict
             }

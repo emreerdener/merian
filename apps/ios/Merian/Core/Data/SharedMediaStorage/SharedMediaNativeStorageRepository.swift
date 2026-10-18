@@ -207,48 +207,10 @@ final class SharedMediaNativeStorageRepository {
         }
         return try metadata(packageID: request.packageID, check: check).result(request)
     }
-    fileprivate func sharing(_ check: @escaping @MainActor () throws -> Void) throws -> SharedMediaNativeSharing {
-        try lifecycleBoundary(.beforeReadback)
-        return try .init(container: container, inventoryID: inventoryID, authority: mutationAuthority(check: check))
+    fileprivate func lifecycleOperations(_ check: @escaping @MainActor () throws -> Void) throws -> SharedMediaNativeLifecycleOperations {
+        try .init(container: container, inventoryID: inventoryID, authority: mutationAuthority(check: check), io: originalIO,
+            availableBytes: { try self.files.availableBytes() }, boundary: { try self.lifecycleBoundary($0) })
     }
-    fileprivate func removal(_ check: @escaping @MainActor () throws -> Void) throws -> SharedMediaNativeRemoval {
-        try lifecycleBoundary(.beforeReadback)
-        return try .init(container: container, inventoryID: inventoryID, authority: mutationAuthority(check: check))
-    }
-    fileprivate func share(_ request: SharedMediaNativeShareRequest, check: @escaping @MainActor () throws -> Void) throws -> PhotoOriginalReference {
-        do { try sharing(check).apply(request, availableBytes: files.availableBytes(),
-            beforeSave: { try self.lifecycleBoundary(.beforeSave) }, afterSave: { try self.lifecycleBoundary(.afterSave) }) }
-        catch { let failure = error; do { return try sharing(check).result(request) } catch { throw failure } }
-        return try sharing(check).result(request)
-    }
-    fileprivate func remove(_ request: SharedMediaNativeRemovalRequest, check: @escaping @MainActor () throws -> Void) async throws {
-        // Missing logical references cannot prove an earlier removal. Only this
-        // invocation's validated save attempt may reconcile its acknowledgement.
-        let file = try removal(check).file(request)
-        let proof = request.liveCount == 1 ? try await originalIO.inspect(file) : nil
-        try check()
-        do { try removal(check).apply(request, proof: proof, beforeSave: { try self.lifecycleBoundary(.beforeSave) }, afterSave: { try self.lifecycleBoundary(.afterSave) }) }
-        catch { let failure = error; do { try removal(check).result(request) } catch { throw failure } }
-        try removal(check).result(request)
-    }
-    fileprivate func recoverRetirements(check: @escaping @MainActor () throws -> Void) async throws {
-        while let assetID = try removal(check).nextRetirementAsset() {
-            let state = try removal(check).retirement(assetID: assetID)
-            let intent = SharedMediaNativeRetirement(state: state, binding: nativeBinding.bytes, epoch: nativeBinding.epoch)
-            let proof = try await originalIO.release(intent)
-            try check()
-            func release() throws -> SharedMediaNativeRelease {
-                try lifecycleBoundary(.beforeReadback)
-                return try .init(container: container, inventoryID: inventoryID, authority: mutationAuthority(check: check))
-            }
-            do { try release().apply(proof, beforeSave: { try self.lifecycleBoundary(.beforeReleaseSave) }, afterSave: { try self.lifecycleBoundary(.afterReleaseSave) }) }
-            catch { let failure = error; do { try release().result(state) } catch { throw failure } }
-            try release().result(state)
-        }
-    }
-    #if DEBUG
-    fileprivate func setReleaseFault(_ fault: (@Sendable (SharedMediaPhotoReleaseBoundary) throws -> Void)?) async { await originalIO.setReleaseFault(fault) }
-    #endif
     private func lifecycleBoundary(_ point: SharedMediaNativeLifecycleBoundary) throws {
         #if DEBUG
         try lifecycleFault?(point)
@@ -387,20 +349,27 @@ final class SharedMediaNativeOriginalOwner {
     #endif
 
     func prepareShare(_ source: PhotoOriginalReference, packageID: UUID, draftGeneration: UUID) async throws -> SharedMediaNativeShareRequest {
-        try await lifecycle { storage, check in try storage.sharing(check).prepare(source, packageID: packageID, draftGeneration: draftGeneration) }
+        try await lifecycle { storage, check in try storage.lifecycleOperations(check).prepareShare(source, packageID: packageID, draftGeneration: draftGeneration) }
     }
     func share(_ request: SharedMediaNativeShareRequest) async throws -> PhotoOriginalReference {
-        try await lifecycle { storage, check in try storage.share(request, check: check) }
+        try await lifecycle { storage, check in try storage.lifecycleOperations(check).share(request) }
     }
     func prepareRemoval(_ source: PhotoOriginalReference) async throws -> SharedMediaNativeRemovalRequest {
-        try await lifecycle { storage, check in try storage.removal(check).prepare(source) }
+        try await lifecycle { storage, check in try storage.lifecycleOperations(check).prepareRemoval(source) }
     }
     func remove(_ request: SharedMediaNativeRemovalRequest) async throws {
-        try await lifecycle { storage, check in try await storage.remove(request, check: check) }
+        try await lifecycle { storage, check in try await storage.lifecycleOperations(check).remove(request) }
         try await recoverRetirements()
     }
     func recoverRetirements() async throws {
-        try await lifecycle(recovery: true) { storage, check in try await storage.recoverRetirements(check: check) }
+        try await lifecycle(recovery: true) { storage, check in try await storage.lifecycleOperations(check).recoverRetirements() }
+    }
+    func abandonPendingAcquisition(_ request: SharedMediaAcquisitionIntent) async throws {
+        try await lifecycle(recovery: true) { storage, check in try await storage.lifecycleOperations(check).abandon(request) }
+        try await recoverPendingAbandonments()
+    }
+    func recoverPendingAbandonments() async throws {
+        try await lifecycle(recovery: true) { storage, check in try await storage.lifecycleOperations(check).recoverPendingAbandonments() }
     }
     private func lifecycle<T: Sendable>(recovery: Bool = false,
         _ body: @escaping @MainActor (SharedMediaNativeStorageRepository, @escaping @MainActor () throws -> Void) async throws -> T) async throws -> T {
@@ -417,7 +386,7 @@ final class SharedMediaNativeOriginalOwner {
         guard phase == .ready, cancelActive == nil, let storage else { throw SharedMediaStorageFailure.closed }; storage.lifecycleFault = fault
     }
     func setReleaseFault(_ fault: (@Sendable (SharedMediaPhotoReleaseBoundary) throws -> Void)?) async throws {
-        try await lifecycle(recovery: true) { storage, _ in await storage.setReleaseFault(fault) }
+        try await lifecycle(recovery: true) { storage, check in try await storage.lifecycleOperations(check).setReleaseFault(fault) }
     }
     #endif
 
@@ -586,14 +555,4 @@ struct SharedMediaNativeInspectionAuthority {
     private let check: () throws -> Void
     fileprivate init(ownerID: UUID, check: @escaping () throws -> Void) { self.ownerID = ownerID; self.check = check }
     func validate() throws { try check() }
-}
-
-/// Only fresh saved-retirement readback in the fenced repository mints this capability.
-struct SharedMediaNativeRetirement: Sendable {
-    let state: SharedMediaNativeRetirementState
-    let binding: Data
-    let epoch: UUID
-    fileprivate init(state: SharedMediaNativeRetirementState, binding: Data, epoch: UUID) {
-        self.state = state; self.binding = binding; self.epoch = epoch
-    }
 }
