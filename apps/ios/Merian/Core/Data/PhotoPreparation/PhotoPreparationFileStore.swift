@@ -446,7 +446,24 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
     /// remain the native owner's responsibility under its unchanged fence.
     func visitNativeNamespace(_ observe: @Sendable (PhotoPreparationNativeLeaf) async throws -> Void) async throws {
         guard sharedBinding != nil else { throw PhotoPreparationFailure.unsupportedComposition }
+        try checkIdentity(); try inspection.requireNamespaceRoot(rootFD: rootFD)
         try await inspection.visitNative(namespaceFD: namespaceFD, revalidate: { try self.checkIdentity() }, observe: observe)
+        try checkIdentity(); try inspection.requireNamespaceRoot(rootFD: rootFD)
+    }
+
+    func requireNativeAbsence(_ file: PhotoPreparationFile, retirement: SharedMediaNativeRetirementIdentity,
+                              binding: SharedMediaNativeBinding) throws {
+        guard sharedBinding?.bytes == binding.bytes, sharedBinding?.epoch == binding.epoch,
+              file.assetID == retirement.assetID, file.generation == retirement.assetGeneration,
+              file.token.hasPrefix(retirement.ownerID.uuidString.lowercased() + "/"),
+              file.token.hasSuffix("/" + retirement.assetID.uuidString.lowercased()) else {
+            throw PhotoPreparationFailure.unsupportedComposition
+        }
+        let (fd, name) = try directory(file.token, create: false)
+        defer { Darwin.close(fd) }
+        try inspection.requireNativeAbsence(parentFD: fd, namespaceFD: namespaceFD, name: name, proof: retirement.proof) {
+            try self.checkDirectoryIdentity(fd, token: file.token)
+        }
     }
 
     /// Terminal verification preserves the locked namespace and create-only

@@ -27,6 +27,52 @@ struct PhotoPreparationDirectoryInspection: Sendable {
 
 
 extension PhotoPreparationDirectoryInspection {
+    /// Root ownership is closed: extra entries are not adopted or collected.
+    func requireNamespaceRoot(rootFD: Int32) throws {
+        let fd = openat(rootFD, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { throw PhotoPreparationFailure.unavailable }
+        guard let stream = fdopendir(fd) else { Darwin.close(fd); throw PhotoPreparationFailure.unavailable }
+        defer { closedir(stream) }
+        var found = false
+        while let entry = try next(stage: .inventory, read: { readdir(stream) }) {
+            try Task.checkCancellation()
+            let name = withUnsafePointer(to: &entry.pointee.d_name) {
+                $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXNAMLEN) + 1) { String(cString: $0) }
+            }
+            if name == "." || name == ".." { continue }
+            guard name == "PhotoPreparation", !found else { throw PhotoPreparationFailure.inconsistentOwnership }
+            found = true
+        }
+        guard found else { throw PhotoPreparationFailure.inconsistentOwnership }
+    }
+
+    /// Read-only absence observation; never unlinks or issues release authority.
+    /// The enclosing owner supplies held descriptors and revalidates their path.
+    func requireNativeAbsence(parentFD: Int32, namespaceFD: Int32, name: String,
+                              proof: SharedMediaPhotoRetirementIdentity, revalidate: () throws -> Void) throws {
+        func directories() throws {
+            try revalidate()
+            var parent = stat(), namespace = stat()
+            guard fstat(parentFD, &parent) == 0, fstat(namespaceFD, &namespace) == 0,
+                  parent.st_mode & S_IFMT == S_IFDIR, namespace.st_mode & S_IFMT == S_IFDIR,
+                  proof.parent == "\(parent.st_dev):\(parent.st_ino)",
+                  proof.namespace == "\(namespace.st_dev):\(namespace.st_ino)" else {
+                throw PhotoPreparationFailure.inconsistentOwnership
+            }
+        }
+        func absent() throws {
+            for leaf in [name, name + ".partial"] {
+                var info = stat()
+                guard fstatat(parentFD, leaf, &info, AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+                    throw PhotoPreparationFailure.inconsistentOwnership
+                }
+            }
+        }
+        try Task.checkCancellation(); try directories(); try absent()
+        guard fsync(parentFD) == 0, fsync(namespaceFD) == 0 else { throw PhotoPreparationFailure.unavailable }
+        try Task.checkCancellation(); try directories(); try absent()
+    }
+
     /// Bounded directory enumeration; the file owner retains its identity fence.
     func checkInventory(namespaceFD: Int32, knownTokens: Set<String>) throws {
         var count = 0

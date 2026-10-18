@@ -1,3 +1,40 @@
+## October 17 — registered native original admission locally verified
+
+The inactive Debug fixture controller now registers its mandatory account drain
+before asynchronous admission. It holds the existing store/root/namespace
+fences, rejects overlapping opens and waits for actual audit termination on
+cancellation. A dedicated I/O actor verifies completed bytes and saved directory
+identities; retiring absence requires the exact saved directories and no final
+or partial. The final complete namespace stream rejects unjoined or replaced
+leaves after awaited reverse checks. This is fenced cooperative-owner
+validation, not an atomic snapshot against arbitrary external filesystem
+mutation.
+
+The original empty-only factory keeps its restrictions. The new read-only
+controller can inspect complete native original graphs, including retained
+sharing after physical-origin deletion; reserved/held/retiring work remains
+recovery-only. It grants no mutation, loader restart or cleanup capability. Live
+Auth installation, atomic acquisition transitions, complete-target and
+isolated-source qualification remain pending. Independent and IC-1 review
+cleared candidate03 after correcting account binding and lease-release ordering
+before execution. Its eight-suite run passed 55 methods / 181 executions and
+failed one retained-sharing fixture whose draft identity differed from its
+package identity. Candidate04 changed only that fixture; the admission suite
+then passed all 9 methods / 35 executions with zero failures/skips. The other
+seven passing suites are reused unchanged: composite focused coverage is 56
+methods / 182 executions, not a clean eight-suite rerun.
+
+Failed XCResult `93c06d249aa54786a39a1ccdeb6afe4a` and passing XCResult
+`a8a1d4f8694f4a8da97db8f6bbff2c80` are retained. Xcode's failed-run simulator
+diagnostic collection timed out after 600 seconds; no managed build was
+cancelled or duplicated. Candidate and 102 unrelated baseline hashes remained
+unchanged through each run. Project and Markdown gates passed. Evidence:
+`.artifacts/shared-media-native-admission-20261017/`. Continue the
+already-reviewed atomic reserve/commit/held integration, then full native and
+isolated-source acceptance before live queue/history composition. Activation
+stays disabled, PR116 frozen, Supabase hold active, AWS unapproved and existing
+limits unchanged. Earlier entries below retain historical scope.
+
 ## October 17 — native acquisition graph and metadata locally verified
 
 The inactive native acquisition prerequisite now checks receipt/work/asset/lease
