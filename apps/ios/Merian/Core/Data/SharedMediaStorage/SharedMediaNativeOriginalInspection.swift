@@ -28,6 +28,17 @@ enum SharedMediaNativeOriginalInspection {
             let (next, overflow) = offset.addingReportingOverflow(page.count)
             guard !overflow else { throw SharedMediaStorageFailure.capacity }; offset = next
         }
+        offset = 0
+        while true {
+            let page = try reader.pairPage(offset: offset, inspection: authority)
+            for state in page {
+                try await io.verifyPair(state); try authority.validate()
+                recovery = recovery || state.phase != "ready"
+            }
+            if page.count < SharedMediaStoragePolicy.pageSize { break }
+            let (next, overflow) = offset.addingReportingOverflow(page.count)
+            guard !overflow else { throw SharedMediaStorageFailure.capacity }; offset = next
+        }
         // Hash reads can suspend. Finish the reverse leaf join after all reads.
         try await io.visit { @MainActor leaf in try reader.verifyLeaf(leaf, inspection: authority) }
         try authority.validate()

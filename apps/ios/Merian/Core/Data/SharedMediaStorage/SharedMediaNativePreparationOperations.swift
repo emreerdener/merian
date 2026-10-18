@@ -54,6 +54,83 @@ final class SharedMediaNativePreparationOperations {
         }
         return output
     }
+    private func filesMutation(_ packageID: UUID) throws -> SharedMediaNativePairFileMutation {
+        try boundary(.beforeReadback)
+        return try .init(container: container, inventoryID: inventoryID, packageID: packageID, authority: authority)
+    }
+    func fileState(packageID: UUID) throws -> SharedMediaNativePairFileState { try filesMutation(packageID).state() }
+    func prepareFiles(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe) async throws -> SharedMediaNativePairFileState {
+        let output = try await prepare(original: original, recipe: recipe, savePlan: true), id = original.packageID
+        let saved = try filesMutation(id).state()
+        var current = try filesMutation(id).reserve(saved, availableBytes: availableBytes(),
+            beforeSave: { try self.boundary(.beforeFileReserve) }, afterSave: { try self.boundary(.afterFileReserve) })
+        for (input, data) in [(output.intent.ai, output.ai), (output.intent.display, output.display)] {
+            try authority.validate(); try Task.checkCancellation()
+            let partial = try await io.beginPair(current, workID: input.id)
+            try authority.validate()
+            current = try filesMutation(id).partial(partial,
+                beforeSave: { try self.boundary(.beforeFileIdentity) }, afterSave: { try self.boundary(.afterFileIdentity) })
+            let completed = try await io.writePair(data, state: current, workID: input.id)
+            try authority.validate()
+            current = try filesMutation(id).complete(completed,
+                beforeSave: { try self.boundary(.beforeFileCompletion) }, afterSave: { try self.boundary(.afterFileCompletion) })
+        }
+        return try await publishFiles(current)
+    }
+    private func publishFiles(_ state: SharedMediaNativePairFileState) async throws -> SharedMediaNativePairFileState {
+        let original = try state.intent().preparation.original
+        let observed = try await io.inspect(original.file)
+        try authority.validate()
+        guard observed.identity == original.descriptor else { throw SharedMediaStorageFailure.conflict }
+        var proofs: [SharedMediaNativePairCompletion] = []
+        for work in state.work {
+            guard let proof = try await io.recoverPair(state, workID: work.id) else { throw SharedMediaStorageFailure.conflict }
+            proofs.append(proof); try authority.validate()
+        }
+        if state.phase == "ready" { return state }
+        return try filesMutation(state.plan.packageID).publish(state, proofs: proofs,
+            beforeSave: { try self.boundary(.beforeFilePublish) }, afterSave: { try self.boundary(.afterFilePublish) })
+    }
+    /// Saved processing is never dispatched again. Recovery only validates or
+    /// finishes the already-saved bytes; incomplete writes require retirement.
+    func recoverFiles(packageID: UUID) async throws -> SharedMediaNativePairFileState {
+        var state = try filesMutation(packageID).state()
+        guard ["writing", "ready"].contains(state.phase) else { throw SharedMediaStorageFailure.closed }
+        for work in state.work {
+            guard ["writing", "completed"].contains(work.phase) else { return state }
+            guard let proof = try await io.recoverPair(state, workID: work.id) else { return state }
+            try authority.validate()
+            state = try filesMutation(packageID).complete(proof,
+                beforeSave: { try self.boundary(.beforeFileCompletion) }, afterSave: { try self.boundary(.afterFileCompletion) })
+        }
+        return try await publishFiles(state)
+    }
+    func retireFiles(_ expected: SharedMediaNativePairFileState) async throws {
+        let packageID = expected.plan.packageID
+        guard try filesMutation(packageID).state() == expected else { throw SharedMediaStorageFailure.stale }
+        var state = expected
+        if state.phase != "retiring" {
+            var proofs: [SharedMediaNativePairInspection] = []
+            for work in state.work {
+                proofs.append(try await io.inspectPair(state, workID: work.id)); try authority.validate()
+            }
+            state = try filesMutation(packageID).retire(state, proofs: proofs,
+                beforeSave: { try self.boundary(.beforeFileRetire) }, afterSave: { try self.boundary(.afterFileRetire) })
+        }
+        let disposal = try filesMutation(packageID).disposal(state)
+        var absence: [SharedMediaNativePairAbsence] = []
+        for work in state.work {
+            absence.append(try await io.releasePair(disposal, workID: work.id)); try authority.validate()
+        }
+        try filesMutation(packageID).release(absence,
+            beforeSave: { try self.boundary(.beforeFileRelease) }, afterSave: { try self.boundary(.afterFileRelease) })
+    }
+    #if DEBUG
+    func setPairFileFault(_ fault: (@Sendable (SharedMediaInboxHandoffBoundary) throws -> Void)?) async {
+        await io.setPairFault(fault)
+    }
+    #endif
+
     private func pairMutation(_ packageID: UUID) throws -> SharedMediaNativePairPlanMutation {
         try boundary(.beforeReadback)
         return try .init(container: container, inventoryID: inventoryID, packageID: packageID, authority: authority)

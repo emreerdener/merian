@@ -92,6 +92,7 @@ final class SharedMediaNativePairPlanMutation {
         // files before this transition; no physical absence is inferred from age.
         let intent = try SharedMediaNativeDerivativeIntent.decode(plan.intent.bytes), pairID = intent.pairID
         let pair = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == pairID }))
+        guard pair.phaseRaw == "planned" else { throw SharedMediaStorageFailure.closed }
         for id in [intent.ai.id, intent.display.id] {
             context.delete(try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaDerivativeWorkRecord>(predicate: #Predicate { $0.id == id })))
         }

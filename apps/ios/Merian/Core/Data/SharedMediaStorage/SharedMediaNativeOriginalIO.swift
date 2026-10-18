@@ -63,6 +63,41 @@ actor SharedMediaNativeOriginalIO {
         return result
     }
 
+    func verifyPair(_ state: SharedMediaNativePairFileState) throws {
+        for work in state.work {
+            try files.withNativePairDestination(state, workID: work.id, binding: binding, create: false) { try $0.verify() }
+        }
+    }
+    #if DEBUG
+    private var pairFault: (@Sendable (SharedMediaInboxHandoffBoundary) throws -> Void)?
+    func setPairFault(_ fault: (@Sendable (SharedMediaInboxHandoffBoundary) throws -> Void)?) { pairFault = fault }
+    #endif
+    private func withPair<T>(_ state: SharedMediaNativePairFileState, workID: UUID, create: Bool,
+                             _ body: (SharedMediaNativePairFiles) throws -> T) throws -> T {
+        try files.withNativePairDestination(state, workID: workID, binding: binding, create: create) { value in
+            var value = value
+            #if DEBUG
+            value.fault = pairFault
+            #endif
+            return try body(value)
+        }
+    }
+    func releasePair(_ disposal: SharedMediaNativePairDisposal, workID: UUID) throws -> SharedMediaNativePairAbsence {
+        try withPair(disposal.state, workID: workID, create: false) { try $0.release(disposal) }
+    }
+    func beginPair(_ state: SharedMediaNativePairFileState, workID: UUID) throws -> SharedMediaNativePairPartial {
+        try withPair(state, workID: workID, create: true) { try $0.begin() }
+    }
+    func writePair(_ data: Data, state: SharedMediaNativePairFileState, workID: UUID) throws -> SharedMediaNativePairCompletion {
+        try withPair(state, workID: workID, create: false) { try $0.write(data) }
+    }
+    func recoverPair(_ state: SharedMediaNativePairFileState, workID: UUID) throws -> SharedMediaNativePairCompletion? {
+        try withPair(state, workID: workID, create: false) { try $0.recover() }
+    }
+    func inspectPair(_ state: SharedMediaNativePairFileState, workID: UUID) throws -> SharedMediaNativePairInspection {
+        try withPair(state, workID: workID, create: false) { try $0.inspect() }
+    }
+
     func write(_ data: Data, request: SharedMediaAcquisitionIntent) throws -> SharedMediaPhotoRetirementInspection {
         let intent = PhotoPreparationIntent(leaseID: request.operationID, ownerID: request.ownerID, packageID: request.packageID,
             assetID: request.assetID, assetGeneration: request.assetGeneration, referenceID: request.referenceID,

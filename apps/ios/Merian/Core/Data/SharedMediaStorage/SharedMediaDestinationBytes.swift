@@ -67,6 +67,14 @@ struct SharedMediaDestinationBytes {
         }
     }
 
+    func verifyFinal() throws {
+        try access.perform { parent, _ in
+            guard try inspect(parent, access.name + ".partial") == nil,
+                  let final = try inspect(parent, access.name), final.exact == finalIdentity else { throw SharedMediaStorageFailure.conflict }
+            _ = try verified(parent, access.name)
+        }
+    }
+
     func occupancy() throws -> Int64 {
         try access.perform { parent, _ in
             let partial = try inspect(parent, access.name + ".partial"), final = try inspect(parent, access.name)
@@ -95,6 +103,20 @@ struct SharedMediaDestinationBytes {
             }
             return try .init(partial: partial?.exact ?? "absent", final: final?.exact ?? "absent",
                              parent: directoryIdentity(parent), namespace: directoryIdentity(namespace))
+        }
+    }
+
+    /// Read-only capture for a crash before the empty partial descriptor was
+    /// saved. It cannot adopt nonempty bytes or a final file as owned work.
+    func inspectReservedEmpty() throws -> SharedMediaInboxDestinationRetirementIdentity {
+        guard device == nil, inode == nil, finalIdentity == nil else { throw SharedMediaStorageFailure.conflict }
+        return try access.perform { parent, namespace in
+            let partial = try inspect(parent, access.name + ".partial")
+            guard try inspect(parent, access.name) == nil, partial == nil || partial?.bytes == 0 else {
+                throw SharedMediaStorageFailure.conflict
+            }
+            return try .init(partial: partial?.exact ?? "absent", final: "absent",
+                parent: directoryIdentity(parent), namespace: directoryIdentity(namespace))
         }
     }
 

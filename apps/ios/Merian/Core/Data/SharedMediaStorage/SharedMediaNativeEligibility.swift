@@ -1,9 +1,41 @@
+import CoreData
 import Foundation
 import SwiftData
 
 /// Read-only admission validation. It grants no store, file or mutation authority.
 @MainActor
 enum SharedMediaNativeEligibility {
+    static func requireTopology(storeURL: URL, authorityRoot: URL, photoRoot: URL, inboxRoot: URL) throws {
+        let parent = authorityRoot.standardizedFileURL.deletingLastPathComponent()
+        guard photoRoot.standardizedFileURL.deletingLastPathComponent() == parent,
+              inboxRoot.standardizedFileURL.deletingLastPathComponent() == parent,
+              storeURL.standardizedFileURL.deletingLastPathComponent().deletingLastPathComponent() == parent,
+              [authorityRoot, photoRoot, inboxRoot, storeURL, storeURL.deletingLastPathComponent()].allSatisfy(fixtureLocation) else {
+            throw SharedMediaStorageFailure.invalid
+        }
+    }
+
+    static func storeIdentity(at url: URL) throws -> String {
+        let metadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(ofType: NSSQLiteStoreType, at: url)
+        guard let identity = metadata[NSStoreUUIDKey] as? String, UUID(uuidString: identity) != nil else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        return identity
+    }
+
+    /// Unknown fixture-root content is never adopted, cleared or converted.
+    static func requireEmptyBootstrapRoots(_ roots: [URL]) throws {
+        for root in roots {
+            guard try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty else { throw SharedMediaStorageFailure.conflict }
+        }
+    }
+
+    static func requireOnlyPhotoNamespace(_ root: URL?) throws {
+        guard let root, try FileManager.default.contentsOfDirectory(atPath: root.path) == ["PhotoPreparation"] else {
+            throw SharedMediaStorageFailure.conflict
+        }
+    }
+
     static func requireOriginalAccount(_ context: ModelContext, ownerID: UUID) throws {
         // Full and stripped terminal receipts both retain their account identity.
         // Package ownership also covers empty drafts without an acquisition row.

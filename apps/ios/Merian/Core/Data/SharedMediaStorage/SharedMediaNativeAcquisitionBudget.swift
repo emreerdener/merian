@@ -32,19 +32,27 @@ enum SharedMediaNativeAcquisitionBudget {
                 plan = try SharedMediaNativePairPlanGraph.state(context: context, inventory: inventory, package: package, member: member)
             } else { plan = nil }
             let plannedOutput: Int64
+            var pairState: SharedMediaNativePairFileState?
             let planBytes: Int64
             if let plan {
                 let intent = try SharedMediaNativeDerivativeIntent.decode(plan.intent.bytes)
                 plannedOutput = try SharedMediaStoragePolicy.add(intent.ai.byteCount, intent.display.byteCount)
                 // This bounded canonical projection charges duplicated row facts,
                 // not only the envelope. It includes the future saved witness.
-                planBytes = Int64(try SharedMediaNativeDraftEnvelope.bytes(plan).count)
+                let member = try one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
+                let state = try SharedMediaNativePairFileGraph.state(context: context, inventory: inventory, package: package, member: member)
+                pairState = state
+                // Charge the complete assertion and both saved cleanup proofs.
+                // Reserve the maximum canonical closure encoding before files.
+                planBytes = try SharedMediaNativePairClosure.maximumStateBytes(state)
+                guard Int64(try SharedMediaNativeDraftEnvelope.bytes(state).count) <= planBytes else { throw SharedMediaStorageFailure.capacity }
             } else { plannedOutput = 0; planBytes = 0 }
             guard try SharedMediaConsumerLookup.one(context, packageID: id) == nil else { throw SharedMediaStorageFailure.closed }
             let jobs = graph.work.filter { $0.packageID == id }
             var pending: [SharedMediaAcquisitionIntent] = []
             var closureBytes: Int64 = 0
             for work in jobs {
+                if try SharedMediaNativePairFileGraph.nativeWork(assetID: work.assetID, context: context) != nil { continue }
                 let operation = work.id
                 let row = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.id == operation }))
                 switch try SharedMediaAcquisitionReceipt.read(row) {
@@ -70,6 +78,7 @@ enum SharedMediaNativeAcquisitionBudget {
                 let allocations = try context.fetch(origins)
                 for allocation in allocations {
                     let assetID = allocation.id
+                    if try SharedMediaNativePairFileGraph.nativeWork(assetID: assetID, context: context) != nil { continue }
                     let row = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == assetID }))
                     let request: SharedMediaAcquisitionIntent, result: SharedMediaAcquisitionResult?
                     switch try SharedMediaAcquisitionReceipt.read(row) {
@@ -93,15 +102,19 @@ enum SharedMediaNativeAcquisitionBudget {
             }
             let member = try graph.membership(packageID: id)
             let projected = try maximumMembershipBytes(member, pending: pending)
-            let bytes = try PhotoPreparationPolicy.add([Int64(package.supportingContextData.count), projected, receiptBytes])
-            guard try SharedMediaStoragePolicy.add(bytes, planBytes) <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
+            let bytes = try PhotoPreparationPolicy.add([Int64(package.supportingContextData.count), projected, receiptBytes, planBytes])
+            guard bytes <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
             // Reserve the entire remaining existing metadata allowance before
             // processing. Later pair/result/member encodings must fit it.
-            let preparationMetadata = attempt == nil && plan == nil ? 0 : PhotoPreparationPolicy.metadata - bytes
+            let preparing = attempt != nil || pairState?.phase == "planned" || pairState?.phase == "writing"
+            let preparationMetadata = preparing ? PhotoPreparationPolicy.metadata - bytes : 0
             metadata[id] = bytes + preparationMetadata
             let membershipGrowth = projected - Int64(try member.encoded().count)
             guard closureBytes <= resultHeadroom else { throw SharedMediaStorageFailure.conflict }
-            let outstandingMetadata = try SharedMediaStoragePolicy.add(resultHeadroom - closureBytes, membershipGrowth)
+            // The bounded closure projection is future liability, not bytes already on disk.
+            let outstandingMetadata = try SharedMediaStoragePolicy.add(
+                SharedMediaStoragePolicy.add(resultHeadroom - closureBytes, membershipGrowth), planBytes)
+            guard outstandingMetadata <= bytes else { throw SharedMediaStorageFailure.conflict }
             try totals.includePhotoPhysical(materialized: bytes - outstandingMetadata, reserved: outstandingMetadata)
             try totals.includePhotoPhysical(materialized: 0, reserved: preparationMetadata)
             var logical = bytes + preparationMetadata
@@ -118,18 +131,27 @@ enum SharedMediaNativeAcquisitionBudget {
                 // in the existing preparation pool (not counted free twice).
                 try totals.includePhotoPhysical(materialized: 0, reserved: attempt.outputReservation)
             }
-            if plan != nil {
+            if pairState?.phase == "planned" {
                 logical = try SharedMediaStoragePolicy.add(logical, plannedOutput)
                 try totals.includePhotoPhysical(materialized: 0, reserved: plannedOutput)
             }
             try totals.includePhotoPackage(id: id, bytes: logical)
-            if plan != nil {
+            if let pairState, pairState.phase == "retiring" {
+                // Retirement cannot resume preparation. Keep unfinished output
+                // reservations until both absence proofs release the rows, but
+                // do not reacquire scratch or duplicate completed references.
+                let unfinished = try pairState.work.filter { $0.finalIdentity == nil }.reduce(Int64(0)) { sum, work in
+                    try SharedMediaStoragePolicy.add(sum, pairState.selected(work.id).1.byteCount)
+                }
+                if unfinished > 0 { try totals.includePhotoPreparation(package: id, bytes: unfinished) }
+            } else if pairState != nil && pairState?.phase != "ready" {
                 try totals.includePhotoPreparation(package: id, bytes: try SharedMediaStoragePolicy.add(plannedOutput, preparationMetadata))
             }
             if let attempt {
                 try totals.includePhotoPreparation(package: id, bytes: try SharedMediaStoragePolicy.add(attempt.outputReservation, preparationMetadata))
             }
             for job in jobs {
+                if try SharedMediaNativePairFileGraph.nativeWork(assetID: job.assetID, context: context) != nil { continue }
                 try totals.includeLogical(package: id, pool: .acquisition, bytes: job.reservedByteCount)
             }
         }

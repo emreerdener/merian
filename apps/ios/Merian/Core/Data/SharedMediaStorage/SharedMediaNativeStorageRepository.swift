@@ -1,4 +1,3 @@
-import CoreData
 import Foundation
 import SwiftData
 
@@ -53,13 +52,7 @@ final class SharedMediaNativeStorageRepository {
                  originals: Bool = false, expectedOwnerID: UUID? = nil, originalWriterEpoch: UUID? = nil, pause: (@Sendable () async -> Void)? = nil) throws {
         guard container.configurations.count == 1, let configuration = container.configurations.first,
               !configuration.isStoredInMemoryOnly, !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.invalid }
-        let parent = authorityRoot.standardizedFileURL.deletingLastPathComponent()
-        guard photoRoot.standardizedFileURL.deletingLastPathComponent() == parent,
-              inboxRoot.standardizedFileURL.deletingLastPathComponent() == parent,
-              configuration.url.standardizedFileURL.deletingLastPathComponent().deletingLastPathComponent() == parent,
-              [authorityRoot, photoRoot, inboxRoot, configuration.url, configuration.url.deletingLastPathComponent()].allSatisfy(SharedMediaNativeEligibility.fixtureLocation) else {
-            throw SharedMediaStorageFailure.invalid
-        }
+        try SharedMediaNativeEligibility.requireTopology(storeURL: configuration.url, authorityRoot: authorityRoot, photoRoot: photoRoot, inboxRoot: inboxRoot)
         self.originalWriterEpoch = originalWriterEpoch
         self.container = container; self.inventoryID = inventoryID; self.originals = originals; self.expectedOwnerID = expectedOwnerID
         sources = [SharedMediaPhotoLedger.namespace: photoRoot, SharedMediaInboxFiles.namespace: inboxRoot]
@@ -68,12 +61,8 @@ final class SharedMediaNativeStorageRepository {
         files = try SharedMediaStorageFileOwner(root: authorityRoot, storeURL: configuration.url, sources: sources)
         try files.requireEmpty()
         rootBinding = try SharedMediaStorageLookup.binding(authority: files.identity, sources: sources)
-        let metadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(ofType: NSSQLiteStoreType, at: configuration.url)
-        guard let storeUUID = metadata[NSStoreUUIDKey] as? String, UUID(uuidString: storeUUID) != nil else {
-            throw SharedMediaStorageFailure.conflict
-        }
-        storeIdentity = storeUUID
-        binding = try JSONEncoder().encode([Self.mode, inventoryID.uuidString, storeUUID, rootBinding])
+        storeIdentity = try SharedMediaNativeEligibility.storeIdentity(at: configuration.url)
+        binding = try JSONEncoder().encode([Self.mode, inventoryID.uuidString, storeIdentity, rootBinding])
         let context = ModelContext(container); context.autosaveEnabled = false
         let existing = try originals
             ? SharedMediaNativeEligibility.originalState(context, inventoryID: inventoryID, storeIdentity: storeIdentity, rootBinding: rootBinding)
@@ -84,16 +73,11 @@ final class SharedMediaNativeStorageRepository {
         }
         let initializing = existing == nil
         generation = existing?.generation ?? UUID()
-        if initializing {
-            // Unknown fixture-root content is never adopted, cleared or converted.
-            for root in [photoRoot, inboxRoot] {
-                guard try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty else { throw SharedMediaStorageFailure.conflict }
-            }
-        }
+        if initializing { try SharedMediaNativeEligibility.requireEmptyBootstrapRoots([photoRoot, inboxRoot]) }
         let native = SharedMediaNativeBinding(bytes: binding, initializing: initializing, epoch: UUID())
         nativeBinding = SharedMediaNativeBinding(bytes: binding, initializing: false, epoch: native.epoch)
         photos = try PhotoPreparationLockedFiles(root: photoRoot, sharedBinding: .init(native: native))
-        originalIO = SharedMediaNativeOriginalIO(files: photos, binding: native, pause: pause)
+        originalIO = SharedMediaNativeOriginalIO(files: photos, binding: nativeBinding, pause: pause)
         try fault?(.afterPhotoBinding)
         inbox = try SharedMediaInboxFiles(root: inboxRoot, binding: .init(native: native))
         try fault?(.afterInboxBinding)
@@ -122,10 +106,7 @@ final class SharedMediaNativeStorageRepository {
             throw SharedMediaStorageFailure.conflict
         }
         try photos.requireSharedEmptyNamespace()
-        guard let photoRoot = sources[SharedMediaPhotoLedger.namespace],
-              try FileManager.default.contentsOfDirectory(atPath: photoRoot.path) == ["PhotoPreparation"] else {
-            throw SharedMediaStorageFailure.conflict
-        }
+        try SharedMediaNativeEligibility.requireOnlyPhotoNamespace(sources[SharedMediaPhotoLedger.namespace])
         try inbox.validateInventory([])
         let context = ModelContext(container); context.autosaveEnabled = false
         guard let row = try SharedMediaNativeEligibility.emptyState(context, inventoryID: inventoryID, storeIdentity: storeIdentity, rootBinding: rootBinding),
@@ -426,6 +407,24 @@ final class SharedMediaNativeOriginalOwner {
     func setPreparationFault(_ fault: ((SharedMediaNativePreparationBoundary) throws -> Void)?, availableBytes: Int64? = nil, focusFactory: ImageFocusWorkFactory = .init()) throws {
         guard phase == .ready, cancelActive == nil, let storage else { throw SharedMediaStorageFailure.closed }
         storage.preparationFault = fault; storage.preparationAvailableBytes = availableBytes; storage.preparationFocusFactory = focusFactory
+    }
+    #endif
+
+    func preparedFileState(packageID: UUID) async throws -> SharedMediaNativePairFileState {
+        try await lifecycle(recovery: true) { storage, check in try storage.preparationOperations(check).fileState(packageID: packageID) }
+    }
+    func recoverPreparedFiles(packageID: UUID) async throws -> SharedMediaNativePairFileState {
+        try await lifecycle(recovery: true) { storage, check in try await storage.preparationOperations(check).recoverFiles(packageID: packageID) }
+    }
+    func retirePreparedFiles(_ state: SharedMediaNativePairFileState) async throws {
+        try await lifecycle(recovery: true) { storage, check in try await storage.preparationOperations(check).retireFiles(state) }
+    }
+    #if DEBUG
+    func qualifyPreparedFiles(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe) async throws -> SharedMediaNativePairFileState {
+        try await lifecycle { storage, check in try await storage.preparationOperations(check).prepareFiles(original: original, recipe: recipe) }
+    }
+    func setPairFileFault(_ fault: (@Sendable (SharedMediaInboxHandoffBoundary) throws -> Void)?) async throws {
+        try await lifecycle(recovery: true) { storage, check in try await storage.preparationOperations(check).setPairFileFault(fault) }
     }
     #endif
 

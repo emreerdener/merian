@@ -26,32 +26,39 @@ enum SharedMediaNativeAcquisitionGraph {
                 try uniqueFutureReference(row, context: context)
             }
         }
-        // Every physical row must have one full receipt. Lookup aids are checked
-        // in both directions; a stripped terminal row cannot cover an orphan.
+        // Physical rows have exactly one acquisition receipt or native intent.
+        // Both domains receive complete forward validation below.
         try page(context, FetchDescriptor<SharedMediaAllocationRecord>(sortBy: [SortDescriptor(\.id)])) { row in
+            if try SharedMediaNativePairFileGraph.nativeWork(assetID: row.id, context: context) != nil { return }
             let value = try full(assetID: row.id, context: context)
             _ = try receipt(value, inventory: inventory, context: context)
         }
         try page(context, FetchDescriptor<SharedMediaLeaseRecord>(sortBy: [SortDescriptor(\.id)])) { row in
+            if try SharedMediaNativePairFileGraph.nativeWork(assetID: row.allocationID, context: context) != nil { return }
             let id = row.id
             let value = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.id == id }))
             guard value.assetID == row.allocationID else { throw SharedMediaStorageFailure.conflict }
             _ = try receipt(value, inventory: inventory, context: context)
         }
         try page(context, FetchDescriptor<PhotoPreparationLease>(sortBy: [SortDescriptor(\.id)])) { row in
+            if try SharedMediaNativePairFileGraph.nativeWork(assetID: row.assetID, context: context) != nil { return }
             let value = try full(assetID: row.assetID, context: context)
             guard value.id == row.id, ["reserved", "held"].contains(value.phaseRaw) else { throw SharedMediaStorageFailure.conflict }
         }
         try page(context, FetchDescriptor<PhotoPreparationAsset>(sortBy: [SortDescriptor(\.id)])) { row in
+            if try SharedMediaNativePairFileGraph.nativeWork(assetID: row.id, context: context) != nil { return }
             guard try full(assetID: row.id, context: context).phaseRaw == "completed" else { throw SharedMediaStorageFailure.conflict }
         }
         try page(context, FetchDescriptor<SharedMediaAssetReferenceCountRecord>(sortBy: [SortDescriptor(\.id)])) { row in
+            if try SharedMediaNativePairFileGraph.nativeWork(assetID: row.id, context: context) != nil { return }
             guard try full(assetID: row.id, context: context).phaseRaw == "completed" else { throw SharedMediaStorageFailure.conflict }
         }
         try page(context, FetchDescriptor<PhotoPreparationReference>(sortBy: [SortDescriptor(\.id)])) { row in
+            if try SharedMediaNativePairFileGraph.nativeWork(assetID: row.assetID, context: context) != nil { return }
             guard try full(assetID: row.assetID, context: context).phaseRaw == "completed" else { throw SharedMediaStorageFailure.conflict }
         }
         try page(context, FetchDescriptor<SharedMediaReferenceRecord>(sortBy: [SortDescriptor(\.id)])) { row in
+            if try SharedMediaNativePairFileGraph.nativeWork(assetID: row.allocationID, context: context) != nil { return }
             guard try full(assetID: row.allocationID, context: context).phaseRaw == "completed" else { throw SharedMediaStorageFailure.conflict }
         }
         try page(context, FetchDescriptor<PhotoPreparationRecord>(sortBy: [SortDescriptor(\.id)])) { row in
@@ -204,21 +211,27 @@ enum SharedMediaNativeAcquisitionGraph {
               ["draftOwned", "acquiring", "needsAttention", "preparing"].contains(row.phaseRaw) else { throw SharedMediaStorageFailure.conflict }
         let envelope = try SharedMediaNativeDraftEnvelope.decode(row.supportingContextData)
         try validatePresentation(envelope.presentation, package: row, context: context)
-        var refsQuery = FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.packageID == id }); refsQuery.fetchLimit = 3
-        var workQuery = FetchDescriptor<PhotoPreparationLease>(predicate: #Predicate { $0.packageID == id }); workQuery.fetchLimit = 3
+        var refsQuery = FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.packageID == id }); refsQuery.fetchLimit = 7
+        var workQuery = FetchDescriptor<PhotoPreparationLease>(predicate: #Predicate { $0.packageID == id }); workQuery.fetchLimit = 7
         let refs = try context.fetch(refsQuery), jobs = try context.fetch(workQuery)
-        guard refs.count + jobs.count <= 2,
+        guard refs.count <= 6, jobs.count <= 6,
               !refs.isEmpty || !jobs.isEmpty || row.accountingTierRaw == "pending",
               row.accountingTierRaw == "pending" || jobs.isEmpty else { throw SharedMediaStorageFailure.conflict }
         var ordinals = Set<Int64>(), allocated: Int64 = 0
         for ref in refs {
-            guard ordinals.insert(ref.ordinal).inserted else { throw SharedMediaStorageFailure.conflict }
+            if ref.roleRaw == "original" {
+                guard ordinals.insert(ref.ordinal).inserted else { throw SharedMediaStorageFailure.conflict }
+            } else {
+                guard try SharedMediaNativePairFileGraph.nativeWork(assetID: ref.assetID, context: context) != nil else { throw SharedMediaStorageFailure.conflict }
+            }
             let assetID = ref.assetID
             let asset = try one(context, FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.id == assetID }))
             allocated = try SharedMediaStoragePolicy.add(allocated, asset.byteCount)
         }
-        var held = false
+        var held = false, acquisitionJobs = 0
         for work in jobs {
+            if try SharedMediaNativePairFileGraph.nativeWork(assetID: work.assetID, context: context) != nil { continue }
+            acquisitionJobs += 1
             let value = try SharedMediaAcquisitionReceipt.read(full(assetID: work.assetID, context: context))
             let intent: SharedMediaAcquisitionIntent
             switch value {
@@ -228,10 +241,16 @@ enum SharedMediaNativeAcquisitionGraph {
             }
             guard ordinals.insert(intent.ordinal).inserted else { throw SharedMediaStorageFailure.conflict }
         }
+        guard ordinals.count <= 2 else { throw SharedMediaStorageFailure.conflict }
         try SharedMediaNativePreparationGraph.validate(envelope, package: row, context: context)
         let hasPlan: Bool
         if case .preparation(let value) = envelope { hasPlan = !value.intents.isEmpty } else { hasPlan = false }
-        let expectedPhase = hasPlan ? "needsAttention" : envelope.attempt == nil ? (held ? "needsAttention" : (jobs.isEmpty ? "draftOwned" : "acquiring")) : "preparing"
+        var pairReady = false
+        if hasPlan {
+            let pair = try one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.packageID == id }))
+            pairReady = pair.phaseRaw == "ready"
+        }
+        let expectedPhase = hasPlan ? (pairReady ? "draftOwned" : "needsAttention") : envelope.attempt == nil ? (held ? "needsAttention" : (acquisitionJobs == 0 ? "draftOwned" : "acquiring")) : "preparing"
         guard allocated == row.allocatedByteCount, row.phaseRaw == expectedPhase else {
             throw SharedMediaStorageFailure.conflict
         }

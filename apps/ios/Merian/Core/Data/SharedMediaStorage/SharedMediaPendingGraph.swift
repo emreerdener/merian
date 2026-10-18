@@ -104,6 +104,7 @@ struct SharedMediaPendingGraph {
             var groups: [SharedMediaMembership.Kind: Set<UUID>] = [:]
             var allocationIDs = Set(jobs.map(\.assetID)).union(refs.map(\.assetID))
             var requiredAssets = Set(refs.map(\.assetID))
+            var validatedReadyNativeAssets = Set<UUID>()
             for row in refs { references[row.id] = row; groups[.reference, default: []].insert(row.id) }
             for row in jobs {
                 guard row.ownerID == package.ownerID else { throw SharedMediaStorageFailure.conflict }
@@ -118,6 +119,16 @@ struct SharedMediaPendingGraph {
                 let children = try fetch(context, FetchDescriptor<SharedMediaDerivativeWorkRecord>(predicate: #Predicate { $0.pairID == pairID }), maximum: 2)
                 guard children.count == 2, Set(children.map(\.id)) == Set([pair.aiWorkID, pair.displayWorkID]) else {
                     throw SharedMediaStorageFailure.conflict
+                }
+                let readyNative = pair.contractVersion == SharedMediaNativePairPlanGraph.contract && pair.phaseRaw == "ready"
+                if readyNative {
+                    guard case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData) else {
+                        throw SharedMediaStorageFailure.conflict
+                    }
+                    // Only the complete typed ready graph can omit writer leases.
+                    // Legacy pairs and unfinished native output keep their joins.
+                    try SharedMediaNativePairPlanGraph.validate(envelope, package: package, inventory: inventory, context: context)
+                    validatedReadyNativeAssets.formUnion(children.map(\.assetID))
                 }
                 for child in children {
                     guard child.roleRaw == (child.id == pair.aiWorkID ? "aiInput" : "display"),
@@ -163,13 +174,19 @@ struct SharedMediaPendingGraph {
             }
             for id in allocationIDs {
                 let allocation = try required(FetchDescriptor<SharedMediaAllocationRecord>(predicate: #Predicate { $0.id == id }))
-                let lease = try required(FetchDescriptor<SharedMediaLeaseRecord>(predicate: #Predicate { $0.allocationID == id }))
+                let joinedLeases = try fetch(context, FetchDescriptor<SharedMediaLeaseRecord>(predicate: #Predicate { $0.allocationID == id }), maximum: 1)
+                if validatedReadyNativeAssets.contains(id) {
+                    guard joinedLeases.isEmpty else { throw SharedMediaStorageFailure.conflict }
+                } else {
+                    guard let lease = joinedLeases.first else { throw SharedMediaStorageFailure.conflict }
+                    leases[lease.id] = lease; groups[.lease, default: []].insert(lease.id)
+                }
                 guard allocation.inventoryID == inventory.id, allocation.accountID == package.ownerID, allocation.namespaceRaw == SharedMediaPhotoLedger.namespace else {
                     throw SharedMediaStorageFailure.conflict
                 }
                 // allocation.packageID is the physical origin, not this logical owner.
-                allocations[id] = allocation; leases[lease.id] = lease
-                groups[.allocation, default: []].insert(id); groups[.lease, default: []].insert(lease.id)
+                allocations[id] = allocation
+                groups[.allocation, default: []].insert(id)
                 let found = try fetch(context, FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.id == id }), maximum: 1)
                 if let asset = found.first {
                     guard asset.ownerID == package.ownerID else { throw SharedMediaStorageFailure.conflict }

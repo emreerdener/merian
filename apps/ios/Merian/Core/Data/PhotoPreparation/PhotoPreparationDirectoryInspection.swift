@@ -27,6 +27,37 @@ struct PhotoPreparationDirectoryInspection: Sendable {
 
 
 extension PhotoPreparationDirectoryInspection {
+    /// Called only while the file owner holds the namespace and exclusive root lock.
+    /// Removes empty UUID descendants; the owner alone removes the namespace.
+    func removeEmptyChildren(namespaceFD: Int32) throws {
+        func removeChildren(_ fd: Int32, depth: Int) throws {
+            let copy = dup(fd)
+            guard copy >= 0 else { throw PhotoPreparationFailure.cleanupPending }
+            guard let stream = fdopendir(copy) else { Darwin.close(copy); throw PhotoPreparationFailure.cleanupPending }
+            defer { closedir(stream) }
+            // dup shares the directory offset with the held descriptor. Each
+            // traversal must restart, including purge after inventory.
+            rewinddir(stream)
+            var count = 0
+            while let entry = try next(stage: .inventory, read: { readdir(stream) }) {
+                let name = withUnsafePointer(to: &entry.pointee.d_name) {
+                    $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXNAMLEN) + 1) { String(cString: $0) }
+                }
+                if name == "." || name == ".." { continue }
+                count += 1
+                guard depth < 2, count <= 128, UUID(uuidString: name) != nil else { throw PhotoPreparationFailure.cleanupPending }
+                let child = openat(fd, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                guard child >= 0 else { throw PhotoPreparationFailure.cleanupPending }
+                do { try removeChildren(child, depth: depth + 1) }
+                catch { Darwin.close(child); throw error }
+                Darwin.close(child)
+                guard unlinkat(fd, name, AT_REMOVEDIR) == 0 else { throw PhotoPreparationFailure.cleanupPending }
+            }
+            guard fsync(fd) == 0 else { throw PhotoPreparationFailure.cleanupPending }
+        }
+        try removeChildren(namespaceFD, depth: 0)
+    }
+
     /// Root ownership is closed: extra entries are not adopted or collected.
     func requireNamespaceRoot(rootFD: Int32) throws {
         let fd = openat(rootFD, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)

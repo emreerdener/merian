@@ -1,8 +1,8 @@
 import Foundation
 import SwiftData
 
-/// Strict native V2 graph. Only attempts and no-file plans are admitted;
-/// file-writing, ready and frozen stages remain closed.
+/// Strict native V2 graph. Attempts and typed paired-file stages are admitted;
+/// frozen and receiving-consumer stages remain closed.
 @MainActor
 enum SharedMediaNativePreparationGraph {
     static func validate(_ envelope: SharedMediaNativeDraftEnvelope, package: PhotoPreparationRecord, context: ModelContext) throws {

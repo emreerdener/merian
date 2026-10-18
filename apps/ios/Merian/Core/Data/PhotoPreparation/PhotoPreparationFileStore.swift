@@ -279,6 +279,16 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
         }
     }
 
+    func withNativePairDestination<T>(_ state: SharedMediaNativePairFileState, workID: UUID,
+                                      binding: SharedMediaNativeBinding, create: Bool,
+                                      _ body: (SharedMediaNativePairFiles) throws -> T) throws -> T {
+        guard let sharedBinding, sharedBinding.bytes == binding.bytes, sharedBinding.epoch == binding.epoch,
+              !binding.initializing else { throw SharedMediaStorageFailure.closed }
+        return try withSharedDestination(state.file(workID).token, create: create) { access in
+            try body(SharedMediaNativePairFiles(access: access, state: state, workID: workID, binding: binding))
+        }
+    }
+
     private func withSharedDestination<T>(_ token: String, create: Bool,
                                           _ body: (SharedMediaInboxDestinationAccess) throws -> T) throws -> T {
         let fd: Int32, name: String
@@ -477,32 +487,7 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
         try checkIdentity()
         // Upgrade root protection before removing the lock namespace itself.
         guard flock(rootFD, LOCK_EX | LOCK_NB) == 0 else { throw PhotoPreparationFailure.busy }
-        func removeChildren(_ fd: Int32, depth: Int) throws {
-            let copy = dup(fd)
-            guard copy >= 0 else { throw PhotoPreparationFailure.cleanupPending }
-            guard let stream = fdopendir(copy) else { Darwin.close(copy); throw PhotoPreparationFailure.cleanupPending }
-            defer { closedir(stream) }
-            // dup shares the directory offset with the held descriptor. Each
-            // traversal must restart, including purge after inventory.
-            rewinddir(stream)
-            var count = 0
-            while let entry = try inspection.next(stage: .inventory, read: { readdir(stream) }) {
-                let name = withUnsafePointer(to: &entry.pointee.d_name) {
-                    $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXNAMLEN) + 1) { String(cString: $0) }
-                }
-                if name == "." || name == ".." { continue }
-                count += 1
-                guard depth < 2, count <= 128, UUID(uuidString: name) != nil else { throw PhotoPreparationFailure.cleanupPending }
-                let child = openat(fd, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
-                guard child >= 0 else { throw PhotoPreparationFailure.cleanupPending }
-                do { try removeChildren(child, depth: depth + 1) }
-                catch { Darwin.close(child); throw error }
-                Darwin.close(child)
-                guard unlinkat(fd, name, AT_REMOVEDIR) == 0 else { throw PhotoPreparationFailure.cleanupPending }
-            }
-            guard fsync(fd) == 0 else { throw PhotoPreparationFailure.cleanupPending }
-        }
-        try removeChildren(namespaceFD, depth: 0)
+        try inspection.removeEmptyChildren(namespaceFD: namespaceFD)
         guard unlinkat(rootFD, "PhotoPreparation", AT_REMOVEDIR) == 0, fsync(rootFD) == 0 else {
             throw PhotoPreparationFailure.cleanupPending
         }

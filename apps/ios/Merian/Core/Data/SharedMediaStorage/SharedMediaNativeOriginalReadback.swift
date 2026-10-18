@@ -75,6 +75,23 @@ struct SharedMediaNativeOriginalReadback {
             throw SharedMediaStorageFailure.conflict
         }
         let context = freshContext(), inventory = try inventory(context)
+        if let work = try SharedMediaNativePairFileGraph.nativeWork(assetID: assetID, context: context) {
+            let pairID = work.pairID
+            let pair = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == pairID }))
+            let token = pair.ownerID.uuidString.lowercased() + "/" + pair.packageID.uuidString.lowercased() + "/" + assetID.uuidString.lowercased()
+            guard pair.ownerID == inspection.ownerID, [token, token + ".partial"].contains(leaf.token), leaf.byteCount <= work.byteCount else { throw SharedMediaStorageFailure.conflict }
+            if pair.phaseRaw == "retiring" {
+                guard leaf.descriptor == (leaf.token == token ? work.retirementFinalIdentity : work.retirementPartialIdentity) else { throw SharedMediaStorageFailure.conflict }
+            } else if let final = work.finalIdentity {
+                guard leaf.token == token, leaf.descriptor == final, leaf.byteCount == work.byteCount else { throw SharedMediaStorageFailure.conflict }
+            } else if let device = work.partialDevice, let inode = work.partialInode {
+                let parts = leaf.descriptor.split(separator: ":")
+                guard parts.count == 7, Int64(parts[0]) == device, Int64(parts[1]) == inode else { throw SharedMediaStorageFailure.conflict }
+            } else {
+                guard pair.phaseRaw == "writing", work.phaseRaw == "reserved", leaf.token == token + ".partial", leaf.byteCount == 0 else { throw SharedMediaStorageFailure.conflict }
+            }
+            return
+        }
         var query = FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == assetID }); query.fetchLimit = 2
         let rows = try context.fetch(query)
         guard rows.count == 1, let row = rows.first, row.ownerID == inspection.ownerID else { throw SharedMediaStorageFailure.conflict }
@@ -120,6 +137,19 @@ struct SharedMediaNativeOriginalReadback {
         }
     }
 
+    func pairPage(offset: Int, inspection: SharedMediaNativeInspectionAuthority) throws -> [SharedMediaNativePairFileState] {
+        try inspection.validate()
+        let context = freshContext(), inventory = try inventory(context)
+        var query = FetchDescriptor<SharedMediaDerivativePairRecord>(sortBy: [SortDescriptor(\.id)])
+        query.fetchLimit = SharedMediaStoragePolicy.pageSize; query.fetchOffset = offset
+        return try context.fetch(query).map { pair in
+            let id = pair.packageID
+            let package = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == id }))
+            let member = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
+            return try SharedMediaNativePairFileGraph.state(context: context, inventory: inventory, package: package, member: member)
+        }
+    }
+
     func hasPreparationAttempt(inspection: SharedMediaNativeInspectionAuthority) throws -> Bool {
         try inspection.validate()
         let context = freshContext()
@@ -130,7 +160,7 @@ struct SharedMediaNativeOriginalReadback {
         return try rows.contains { row in
             guard row.ownerID == inspection.ownerID else { throw SharedMediaStorageFailure.conflict }
             let envelope = try SharedMediaNativeDraftEnvelope.decode(row.supportingContextData)
-            if case .preparation(let value) = envelope { return value.attempt != nil || !value.intents.isEmpty }
+            if case .preparation(let value) = envelope { return value.attempt != nil }
             return false
         }
     }

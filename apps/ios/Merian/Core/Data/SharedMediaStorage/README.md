@@ -1,3 +1,53 @@
+## October 18 — native paired files locally verified
+
+The inactive native owner now reserves both outputs atomically, creates
+exclusive partials, saves their descriptors before writing, completes exact
+bytes and publishes the pair. Recovery may finish only the saved bytes;
+reopening inspects without repeating preparation. Original bytes and supporting
+text remain intact. One pair is supported at this checkpoint. Multi-original
+composition, freeze, receiving consumers and live Capture integration remain
+pending.
+
+Retirement saves one canonical closure on the AI lease and an exact digest
+marker on its display sibling. It binds the prior state, immutable intent,
+envelope, prior/successor membership, writer epoch, retirement identity and both
+file identities. Both liabilities remain until both absence proofs pass in one
+fenced transaction. Cleanup retries cannot adopt replacement bytes or delete
+originals. Maximum closure/state encodings stay reserved within the existing
+metadata allowance; retirement releases processing scratch while retaining
+unfinished output reservations. No numeric limits or activation gates changed.
+
+Evidence: `.artifacts/native-pair-files-20261018/`. Candidate06
+(`497f4d194e1469c637ec08f7cc812506a79c470cbe4d0e96965dd2dfb33753bc`) passed 35
+focused methods plus two explicitly verified method selectors. Full06 passed all
+6,264 methods (10,090 executions), with no failures or skips. All 2,826
+source/project hashes and all candidate hashes stayed unchanged. The result is
+`a414c6ef15384c46ad15eb124b9f83ce`. Two runtime priority-inversion warnings were
+recorded in unchanged `TestSupport/VideoAudioFixture.swift:163`, both in
+`ObservationRetainedVideoTests.nonSquareTransformedDurationBoundaries(audio:)`;
+these are retained in `full06-summary.json`, `full06-object.json` and
+`full06-result.json`. This is a passing shared-checkout test result with those
+fixture warnings, not a warning-free or isolated-source claim.
+
+Exact independent and IC-1 reviews cleared candidate06 and the execution
+packets. XcodeGen, project validation, parse, scoped diff checks and Markdown
+formatting passed. Failed compiler/runtime candidates and the selector shell
+failure remain retained. Full05 passed 6,262 methods and failed only the two
+600-line architecture guards; candidate06 moved pure admission checks and
+descriptor-relative empty traversal to existing helpers while retaining owner
+identity checks, the root lock, namespace unlink and root fsync. No allowlist or
+limit was weakened. Full05 result `ca3232477f1a40ecadbb3084b9fd4904` remains
+historical failed evidence.
+
+Continue automatically through the reviewed local commit, native two-original
+composition and freeze, receiving ownership, integrated acceptance, individual
+version deletion/source export and the approved redesign. The next composition
+must preserve ready survivors, select pairs explicitly, account for all paired
+metadata, and exclude new acquisition/preparation in both directions while work
+is unfinished. Exact replay and recovery remain available. Activation disabled,
+PR116 frozen, deployment hold active, AWS unapproved; no external operations or
+device installation.
+
 ## October 18 — native pair plans locally verified
 
 After the verified reservation/worker-drain checkpoint, the inactive native
