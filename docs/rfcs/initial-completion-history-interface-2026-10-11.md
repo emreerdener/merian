@@ -1,3 +1,15 @@
+> October 17 inspection continuation: native namespace observations now await
+> their owning actor while retaining and rechecking ancestor/leaf descriptors.
+> Cancellation cannot detach a suspended observer. Independent/IC-1-reviewed
+> candidate02 passed six focused suites (42 methods / 87 executions, no
+> failures/skips), after retaining candidate01's pre-test SwiftLint failure.
+> Evidence: `.artifacts/shared-media-native-async-inspection-20261017/`. This is
+> scoped shared-checkout qualification only. Native admission remains
+> empty-only; the registered admission controller, complete file audit, atomic
+> transitions and full-target acceptance remain pending. Activation stays
+> disabled, PR116 frozen, Supabase hold active, AWS unapproved and limits
+> unchanged.
+
 ## October 17 — native acquisition graph and metadata locally verified
 
 The inactive native acquisition prerequisite now checks receipt/work/asset/lease

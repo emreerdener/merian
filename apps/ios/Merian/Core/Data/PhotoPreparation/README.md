@@ -83,18 +83,30 @@ errors, cancellation and observed mutations fail the traversal. Empty canonical
 ancestors are preserved. The legacy inventory's 256-entry gate is unchanged; the
 native path has no retained-library count cap or whole-library token set.
 
-`visitNativeNamespace` exposes only synchronous structural value observations
-under the locked namespace. It does not establish media hashes, receipt phases,
-missing-file completeness, writer closure or cleanup authority. Callers must
-exclude cooperating writers, perform exact per-leaf ownership joins and reverse
-row audits, and revalidate bytes before later use. An earlier observed leaf can
-be modified by an uncooperative writer after its callback; this is not a
-globally atomic filesystem snapshot. No callback may commit partial audit
-authority. The native store constructor remains empty-only and activation
-remains disabled.
+`visitNativeNamespace` awaits value-only structural observations under the
+locked namespace, allowing database joins on their owning actor. The traversal
+applies backpressure, retains its bounded ancestor/leaf descriptors across each
+await and rechecks their identities before observing another leaf. Cancellation
+requests do not detach an observer: the caller must await actual traversal
+termination before releasing its enclosing fences. It does not establish media
+hashes, receipt phases, missing-file completeness, writer closure or cleanup
+authority. Callers must exclude cooperating writers, perform exact per-leaf
+ownership joins and reverse row audits, and revalidate bytes before later use.
+An earlier observed leaf can be modified by an uncooperative writer after its
+callback; this is not a globally atomic filesystem snapshot. No callback may
+commit partial audit authority. The native store constructor remains empty-only
+and activation remains disabled.
 
 Independent and IC-1 review cleared candidate02; all six focused suites passed
 41 methods (84 parameterized executions), with zero failures/skips. Candidate
 and shared-baseline hashes stayed unchanged. Exact evidence is retained in
 `.artifacts/shared-media-native-namespace-20261017/`. This does not qualify the
 complete native transaction owner or constitute a fresh full-target run.
+
+The asynchronous observer update is separately qualified: candidate01 stopped
+before tests on SwiftLint's tuple rule; corrected candidate02 passed all six
+focused suites, 42 methods / 87 parameterized executions with zero failures or
+skips. Both candidates had independent and IC-1 review; failed evidence is
+retained. Exact records are in
+`.artifacts/shared-media-native-async-inspection-20261017/`. This does not close
+full-owner or live acceptance.

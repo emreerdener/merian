@@ -3,14 +3,15 @@ import Foundation
 import Testing
 @testable import Merian
 
+@MainActor
 @Suite("Native photo namespace traversal")
 struct PhotoPreparationNativeNamespaceTests {
-    @Test func streamsBeyondLegacyCapAndRepeatsWithoutRetainingTokens() throws {
+    @Test func streamsBeyondLegacyCapAndRepeatsWithoutRetainingTokens() async throws {
         let h = try Fixture(); defer { h.close() }
         for _ in 0..<300 { try h.add() }
         for _ in 0..<2 {
             var count = 0
-            try h.visit { leaf in count += 1; #expect(leaf.byteCount == 1); #expect(leaf.descriptor.split(separator: ":").count == 7) }
+            try await h.visit { @MainActor leaf in count += 1; #expect(leaf.byteCount == 1); #expect(leaf.descriptor.split(separator: ":").count == 7) }
             #expect(count == 300)
         }
         let names = try FileManager.default.contentsOfDirectory(atPath: h.parent.path)
@@ -20,14 +21,14 @@ struct PhotoPreparationNativeNamespaceTests {
         }
     }
 
-    @Test func emptyCanonicalAncestorsRemainUntouched() throws {
+    @Test func emptyCanonicalAncestorsRemainUntouched() async throws {
         let h = try Fixture(); defer { h.close() }
-        try h.visit { _ in Issue.record("Unexpected leaf") }
+        try await h.visit { _ in Issue.record("Unexpected leaf") }
         #expect(FileManager.default.fileExists(atPath: h.parent.path))
     }
 
     @Test(arguments: ["ancestor", "leaf", "uppercase", "depth", "symlink", "hardlink", "fifo", "both", "siblingLink", "zeroFinal", "oversize"])
-    func rejectsUnownedShapes(_ change: String) throws {
+    func rejectsUnownedShapes(_ change: String) async throws {
         let h = try Fixture(); defer { h.close() }
         let file = try h.add()
         switch change {
@@ -45,24 +46,24 @@ struct PhotoPreparationNativeNamespaceTests {
             let fd = open(file.path, O_WRONLY); defer { Darwin.close(fd) }
             #expect(fd >= 0 && ftruncate(fd, PhotoPreparationPolicy.original + 1) == 0)
         }
-        #expect(throws: PhotoPreparationFailure.self) { try h.visit { _ in } }
+        await #expect(throws: PhotoPreparationFailure.self) { try await h.visit { _ in } }
     }
 
-    @Test func zeroPartialIsOnlyAStructuralObservation() throws {
+    @Test func zeroPartialIsOnlyAStructuralObservation() async throws {
         let h = try Fixture(); defer { h.close() }
         let file = h.parent.appendingPathComponent(UUID().uuidString.lowercased() + ".partial")
         try Data().write(to: file)
         var count = 0
-        try h.visit { leaf in count += 1; #expect(leaf.byteCount == 0 && leaf.token.hasSuffix(".partial")) }
+        try await h.visit { @MainActor leaf in count += 1; #expect(leaf.byteCount == 0 && leaf.token.hasSuffix(".partial")) }
         #expect(count == 1) // No receipt phase or writer closure is established.
     }
 
     @Test(arguments: ["contents", "replacement", "ancestor", "sibling", "directoryAddition"])
-    func rejectsMutationDuringObserver(_ change: String) throws {
+    func rejectsMutationDuringObserver(_ change: String) async throws {
         let h = try Fixture(); defer { h.close() }
         let file = try h.add()
-        #expect(throws: PhotoPreparationFailure.self) {
-            try h.visit { _ in
+        await #expect(throws: PhotoPreparationFailure.self) {
+            try await h.visit { _ in
                 switch change {
                 case "contents": try h.overwrite(file, bytes: [2, 3])
                 case "replacement":
@@ -78,11 +79,11 @@ struct PhotoPreparationNativeNamespaceTests {
         }
     }
 
-    @Test func priorLeafMutationIsNotClaimedAsAnAtomicSnapshot() throws {
+    @Test func priorLeafMutationIsNotClaimedAsAnAtomicSnapshot() async throws {
         let h = try Fixture(); defer { h.close() }
         try h.add(); try h.add()
         var first: URL?, count = 0
-        try h.visit { leaf in
+        try await h.visit { @MainActor leaf in
             count += 1
             if let first { try h.overwrite(first, bytes: [2]) }
             else { first = h.root.appendingPathComponent(leaf.token) }
@@ -93,17 +94,17 @@ struct PhotoPreparationNativeNamespaceTests {
         #expect(try Data(contentsOf: #require(first)) == Data([2]))
     }
 
-    @Test func enumerationAndObserverErrorsInvalidateTraversal() throws {
+    @Test func enumerationAndObserverErrorsInvalidateTraversal() async throws {
         let h = try Fixture(); defer { h.close() }
         try h.add()
-        #expect(throws: PhotoPreparationFailure.self) {
-            try PhotoPreparationDirectoryInspection(failing: .inventory).visitNative(namespaceFD: h.fd, revalidate: {}) { _ in }
+        await #expect(throws: PhotoPreparationFailure.self) {
+            try await PhotoPreparationDirectoryInspection(failing: .inventory).visitNative(namespaceFD: h.fd, revalidate: {}) { _ in }
         }
-        #expect(throws: PhotoPreparationFailure.self) {
-            try h.visit { _ in throw PhotoPreparationFailure.unavailable }
+        await #expect(throws: PhotoPreparationFailure.self) {
+            try await h.visit { _ in throw PhotoPreparationFailure.unavailable }
         }
-        #expect(throws: PhotoPreparationFailure.self) {
-            try PhotoPreparationDirectoryInspection().visitNative(namespaceFD: h.fd, revalidate: { throw PhotoPreparationFailure.unavailable }) { _ in }
+        await #expect(throws: PhotoPreparationFailure.self) {
+            try await PhotoPreparationDirectoryInspection().visitNative(namespaceFD: h.fd, revalidate: { throw PhotoPreparationFailure.unavailable }) { _ in }
         }
     }
 
@@ -112,9 +113,64 @@ struct PhotoPreparationNativeNamespaceTests {
         if inObserver { try h.add() }
         let task = Task {
             if !inObserver { withUnsafeCurrentTask { $0?.cancel() } }
-            try h.visit { _ in withUnsafeCurrentTask { $0?.cancel() } }
+            try await h.visit { _ in withUnsafeCurrentTask { $0?.cancel() } }
         }
         await #expect(throws: CancellationError.self) { try await task.value }
+    }
+
+    @Test(arguments: ["cancel", "replacement", "ancestor"])
+    func suspendedObserverRetainsBackpressureAndRechecksAfterAwait(_ change: String) async throws {
+        let h = try Fixture(); defer { h.close() }
+        try h.add(); try h.add()
+        let pause = ObserverPause()
+        var visits = 0, completed = false
+        let task = Task { @MainActor in
+            defer { completed = true }
+            try await h.visit { @MainActor leaf in
+                visits += 1
+                await pause.suspend(leaf)
+            }
+        }
+        let leaf = await pause.waitForEntry()
+        #expect(visits == 1 && !completed)
+        switch change {
+        case "cancel": task.cancel()
+        case "replacement":
+            let file = h.root.appendingPathComponent(leaf.token)
+            try FileManager.default.removeItem(at: file)
+            try Data([1]).write(to: file)
+        default:
+            try FileManager.default.moveItem(at: h.parent, to: h.parent.appendingPathExtension("moved"))
+            try FileManager.default.createDirectory(at: h.parent, withIntermediateDirectories: false)
+        }
+        // Cancellation is a request, not observer termination. The caller still
+        // owns its traversal until the suspended observer actually returns.
+        await Task.yield()
+        #expect(visits == 1 && !completed)
+        pause.resume()
+        if change == "cancel" {
+            await #expect(throws: CancellationError.self) { try await task.value }
+        } else {
+            await #expect(throws: PhotoPreparationFailure.self) { try await task.value }
+        }
+        #expect(completed && visits == 1)
+    }
+
+    @MainActor private final class ObserverPause {
+        private var leaf: PhotoPreparationNativeLeaf?
+        private var entry: CheckedContinuation<PhotoPreparationNativeLeaf, Never>?
+        private var release: CheckedContinuation<Void, Never>?
+        func suspend(_ value: PhotoPreparationNativeLeaf) async {
+            await withCheckedContinuation { continuation in
+                release = continuation; leaf = value
+                entry?.resume(returning: value); entry = nil
+            }
+        }
+        func waitForEntry() async -> PhotoPreparationNativeLeaf {
+            if let leaf { return leaf }
+            return await withCheckedContinuation { entry = $0 }
+        }
+        func resume() { release?.resume(); release = nil }
     }
 
     private struct Fixture: Sendable {
@@ -134,8 +190,8 @@ struct PhotoPreparationNativeNamespaceTests {
             let file = parent.appendingPathComponent(UUID().uuidString.lowercased())
             try Data([1]).write(to: file); return file
         }
-        func visit(_ body: (PhotoPreparationNativeLeaf) throws -> Void) throws {
-            try PhotoPreparationDirectoryInspection().visitNative(namespaceFD: fd, revalidate: {}, observe: body)
+        func visit(_ body: @Sendable (PhotoPreparationNativeLeaf) async throws -> Void) async throws {
+            try await PhotoPreparationDirectoryInspection().visitNative(namespaceFD: fd, revalidate: {}, observe: body)
         }
         func overwrite(_ file: URL, bytes: [UInt8]) throws {
             let fileFD = open(file.path, O_WRONLY | O_TRUNC | O_NOFOLLOW)

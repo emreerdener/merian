@@ -138,10 +138,20 @@ struct PhotoPreparationNativeLeaf: Equatable, Sendable {
 }
 
 extension PhotoPreparationDirectoryInspection {
+    private struct NativeAncestor {
+        let fd: Int32
+        let parent: Int32
+        let name: String
+        let identity: stat
+    }
+
     /// Fixed-depth streaming traversal. No retained-library set or count cap.
+    /// The observer receives values only, with backpressure across actor hops.
+    /// Ancestor/leaf descriptors stay open across suspension and are checked on
+    /// return. Cancellation cannot detach the observer or close its held files.
     /// The observer must not commit authority before the entire audit succeeds.
-    func visitNative(namespaceFD: Int32, revalidate: () throws -> Void,
-                     observe: (PhotoPreparationNativeLeaf) throws -> Void) throws {
+    func visitNative(namespaceFD: Int32, revalidate: @Sendable () throws -> Void,
+                     observe: @Sendable (PhotoPreparationNativeLeaf) async throws -> Void) async throws {
         func same(_ a: stat, _ b: stat) -> Bool {
             a.st_dev == b.st_dev && a.st_ino == b.st_ino && a.st_mode == b.st_mode
                 && a.st_nlink == b.st_nlink && a.st_size == b.st_size
@@ -155,6 +165,9 @@ extension PhotoPreparationDirectoryInspection {
             guard fstat(fd, &held) == 0, fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
                   same(initial, held), same(held, named) else { throw PhotoPreparationFailure.inconsistentOwnership }
         }
+        func checkAncestors(_ ancestors: [NativeAncestor]) throws {
+            for entry in ancestors { try check(entry.fd, initial: entry.identity, parent: entry.parent, name: entry.name) }
+        }
         func noSibling(_ parent: Int32, name: String) throws {
             let sibling = name.hasSuffix(".partial") ? String(name.dropLast(8)) : name + ".partial"
             var info = stat()
@@ -162,7 +175,7 @@ extension PhotoPreparationDirectoryInspection {
                 throw PhotoPreparationFailure.inconsistentOwnership
             }
         }
-        func leaf(_ parent: Int32, name: String, token: String, named: stat) throws {
+        func leaf(_ parent: Int32, name: String, token: String, named: stat, ancestors: [NativeAncestor]) async throws {
             let base = name.hasSuffix(".partial") ? String(name.dropLast(8)) : name
             guard let id = UUID(uuidString: base), id.uuidString.lowercased() == base,
                   named.st_mode & S_IFMT == S_IFREG, named.st_nlink == 1,
@@ -175,14 +188,14 @@ extension PhotoPreparationDirectoryInspection {
             defer { Darwin.close(fd) }
             try check(fd, initial: named, parent: parent, name: name)
             try noSibling(parent, name: name)
-            try Task.checkCancellation(); try revalidate()
+            try Task.checkCancellation(); try revalidate(); try checkAncestors(ancestors)
             let identity = "\(named.st_dev):\(named.st_ino):\(named.st_size):\(named.st_mtimespec.tv_sec):\(named.st_mtimespec.tv_nsec):\(named.st_ctimespec.tv_sec):\(named.st_ctimespec.tv_nsec)"
-            try observe(.init(token: token, byteCount: named.st_size, descriptor: identity))
-            try Task.checkCancellation(); try revalidate()
+            try await observe(.init(token: token, byteCount: named.st_size, descriptor: identity))
+            try Task.checkCancellation(); try revalidate(); try checkAncestors(ancestors)
             try check(fd, initial: named, parent: parent, name: name)
             try noSibling(parent, name: name)
         }
-        func walk(_ fd: Int32, prefix: String, depth: Int) throws {
+        func walk(_ fd: Int32, prefix: String, depth: Int, ancestors: [NativeAncestor]) async throws {
             try Task.checkCancellation(); try revalidate()
             var before = stat()
             guard fstat(fd, &before) == 0, before.st_mode & S_IFMT == S_IFDIR else {
@@ -210,14 +223,15 @@ extension PhotoPreparationDirectoryInspection {
                     guard child >= 0 else { throw PhotoPreparationFailure.unavailable }
                     defer { Darwin.close(child) }
                     try check(child, initial: named, parent: fd, name: name)
-                    try walk(child, prefix: token + "/", depth: depth + 1)
+                    try await walk(child, prefix: token + "/", depth: depth + 1,
+                        ancestors: ancestors + [.init(fd: child, parent: fd, name: name, identity: named)])
                     try check(child, initial: named, parent: fd, name: name)
                     try revalidate()
-                } else { try leaf(fd, name: name, token: token, named: named) }
+                } else { try await leaf(fd, name: name, token: token, named: named, ancestors: ancestors) }
             }
             try check(enumeration, initial: before, parent: fd, name: ".")
             try Task.checkCancellation(); try revalidate()
         }
-        try walk(namespaceFD, prefix: "", depth: 0)
+        try await walk(namespaceFD, prefix: "", depth: 0, ancestors: [])
     }
 }

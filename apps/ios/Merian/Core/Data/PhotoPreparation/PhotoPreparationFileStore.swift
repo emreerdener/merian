@@ -444,9 +444,9 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
 
     /// Read-only structural observations; whole graph and exact media checks
     /// remain the native owner's responsibility under its unchanged fence.
-    func visitNativeNamespace(_ observe: (PhotoPreparationNativeLeaf) throws -> Void) throws {
+    func visitNativeNamespace(_ observe: @Sendable (PhotoPreparationNativeLeaf) async throws -> Void) async throws {
         guard sharedBinding != nil else { throw PhotoPreparationFailure.unsupportedComposition }
-        try inspection.visitNative(namespaceFD: namespaceFD, revalidate: checkIdentity, observe: observe)
+        try await inspection.visitNative(namespaceFD: namespaceFD, revalidate: { try self.checkIdentity() }, observe: observe)
     }
 
     /// Terminal verification preserves the locked namespace and create-only
