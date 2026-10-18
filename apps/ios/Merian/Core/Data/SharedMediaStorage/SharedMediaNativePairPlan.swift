@@ -38,28 +38,64 @@ enum SharedMediaNativePairPlanGraph {
         }
         // There is one actual processing lifetime across this inventory. Other
         // packages may retain originals, but no second incomplete plan/attempt.
-        let count = try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>())
-        if count > 0 {
-            guard count == 1,
-                  try context.fetchCount(FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.phaseRaw == "preparing" })) == 0 else {
-                throw SharedMediaStorageFailure.conflict
-            }
-        }
+        let active = try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.phaseRaw != "ready" }))
+        let attempts = try context.fetchCount(FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.phaseRaw == "preparing" }))
+        guard active <= 1, attempts <= 1, active == 0 || attempts == 0 else { throw SharedMediaStorageFailure.conflict }
     }
 
     static func validate(_ envelope: SharedMediaNativeDraftEnvelope.V2, package: PhotoPreparationRecord,
                          inventory: SharedMediaInventoryRecord, context: ModelContext) throws {
-        guard envelope.attempt == nil, envelope.frozen == nil, envelope.intents.count == 1,
-              let blob = envelope.intents.first, package.accountingTierRaw == "pending", !package.retirementRequested,
-              ["needsAttention", "draftOwned"].contains(package.phaseRaw) else { throw SharedMediaStorageFailure.closed }
+        guard envelope.intents.count <= 2,
+              package.accountingTierRaw == "pending", !package.retirementRequested else { throw SharedMediaStorageFailure.closed }
+        let packageID = package.id
+        var query = FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.packageID == packageID }); query.fetchLimit = 3
+        let pairs = try context.fetch(query)
+        guard pairs.count == envelope.intents.count else { throw SharedMediaStorageFailure.conflict }
+        let active = pairs.filter { $0.phaseRaw != "ready" }.count
+        guard active <= 1, envelope.attempt == nil || active == 0 else { throw SharedMediaStorageFailure.conflict }
+        if envelope.frozen != nil {
+            guard active == 0 else { throw SharedMediaStorageFailure.conflict }
+            try SharedMediaNativeFreezeGraph.validate(envelope, package: package, inventory: inventory, context: context)
+        } else if envelope.attempt != nil {
+            guard package.phaseRaw == "preparing" else { throw SharedMediaStorageFailure.conflict }
+        } else if active > 0 {
+            guard package.phaseRaw == "needsAttention" else { throw SharedMediaStorageFailure.conflict }
+        } else {
+            // Ready survivors coexist with original acquisition. The complete
+            // acquisition auditor derives the exact package phase from its jobs.
+            guard ["draftOwned", "acquiring", "needsAttention"].contains(package.phaseRaw) else { throw SharedMediaStorageFailure.conflict }
+        }
+        for blob in envelope.intents {
+            try validate(blob, sequence: envelope.sequence, package: package, inventory: inventory, context: context)
+        }
+    }
+
+    /// Membership rebuilding observes a dirty transition before its member row
+    /// advances. Prove only this ready pair's lease-free physical joins here;
+    /// the complete envelope/active-unit audit remains mandatory after rebuild.
+    static func validateReadyForMembership(_ envelope: SharedMediaNativeDraftEnvelope.V2, pairID: UUID,
+                                          package: PhotoPreparationRecord, inventory: SharedMediaInventoryRecord, context: ModelContext) throws {
+        guard let blob = try select(envelope, pairID: pairID) else { throw SharedMediaStorageFailure.conflict }
+        let pair = try one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == pairID }))
+        guard pair.phaseRaw == "ready" else { throw SharedMediaStorageFailure.conflict }
+        try validate(blob, sequence: envelope.sequence, package: package, inventory: inventory, context: context)
+    }
+
+    static func select(_ envelope: SharedMediaNativeDraftEnvelope.V2, pairID: UUID?) throws -> SharedMediaNativePreparationBlob? {
+        if let pairID { return try envelope.intents.first { try SharedMediaNativeDerivativeIntent.decode($0.bytes).pairID == pairID } }
+        guard envelope.intents.count <= 1 else { throw SharedMediaStorageFailure.invalid }
+        return envelope.intents.first
+    }
+
+    private static func validate(_ blob: SharedMediaNativePreparationBlob, sequence: Int64, package: PhotoPreparationRecord,
+                                 inventory: SharedMediaInventoryRecord, context: ModelContext) throws {
         let intent = try SharedMediaNativeDerivativeIntent.decode(blob.bytes), identity = intent.preparation
         let original = identity.original.reference, id = intent.pairID, packageID = package.id
         let member = try one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == packageID }))
         let pair = try one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == id }))
-        guard intent.previousPairID == nil, envelope.sequence == identity.sequence,
+        guard intent.previousPairID == nil, sequence >= identity.sequence,
               pair.contractVersion == contract, ["planned", "writing", "ready", "retiring"].contains(pair.phaseRaw),
-              (pair.phaseRaw == "ready" ? package.phaseRaw == "draftOwned" : package.phaseRaw == "needsAttention"),
-              (pair.phaseRaw == "ready" ? pair.publishedRevision == package.revision : pair.publishedRevision == nil),
+              (pair.phaseRaw == "ready" ? pair.publishedRevision.map { $0 >= identity.packageRevision + 2 && $0 <= package.revision } == true : pair.publishedRevision == nil),
               pair.id == intent.pairID, pair.nonce == intent.nonce, pair.previousPairID == nil,
               pair.inventoryID == inventory.id, pair.inventoryGeneration == inventory.generation,
               pair.expectedInventoryRevision == identity.inventoryRevision + 1,
@@ -72,7 +108,6 @@ enum SharedMediaNativePairPlanGraph {
               pair.originalReferenceID == original.referenceID, pair.originalReferenceRevision == original.referenceRevision,
               pair.originalAssetID == original.assetID, pair.originalAssetGeneration == original.assetGeneration,
               pair.ordinal == identity.original.ordinal, pair.aiWorkID == intent.ai.id, pair.displayWorkID == intent.display.id,
-              try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.packageID == packageID })) == 1,
               try context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>(predicate: #Predicate { $0.pairID == id })) == 2 else {
             throw SharedMediaStorageFailure.conflict
         }
@@ -102,9 +137,9 @@ enum SharedMediaNativePairPlanGraph {
     }
 
     static func state(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                      package: PhotoPreparationRecord, member: SharedMediaPendingMembershipRecord) throws -> SharedMediaNativePairPlan {
+                      package: PhotoPreparationRecord, member: SharedMediaPendingMembershipRecord, pairID: UUID? = nil) throws -> SharedMediaNativePairPlan {
         guard case .preparation(let value) = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData),
-              let blob = value.intents.first else { throw SharedMediaStorageFailure.closed }
+              let blob = try select(value, pairID: pairID) else { throw SharedMediaStorageFailure.closed }
         try validate(value, package: package, inventory: inventory, context: context)
         let id = try SharedMediaNativeDerivativeIntent.decode(blob.bytes).ai.id
         let work = try one(context, FetchDescriptor<SharedMediaDerivativeWorkRecord>(predicate: #Predicate { $0.id == id }))

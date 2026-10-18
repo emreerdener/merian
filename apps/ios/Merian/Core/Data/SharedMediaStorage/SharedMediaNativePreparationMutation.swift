@@ -37,6 +37,10 @@ final class SharedMediaNativePreparationMutation {
               try context.fetchCount(FetchDescriptor<PhotoPreparationLease>()) == 0,
               try context.fetchCount(FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.cleanupStateRaw != "ready" })) == 0 else { throw SharedMediaStorageFailure.closed }
         try SharedMediaNativePreparationGraph.requireNoUnfinished(context)
+        guard previous.intents.count < 2,
+              try !previous.intents.contains(where: { try SharedMediaNativeDerivativeIntent.decode($0.bytes).preparation.original.reference.referenceID == original.referenceID }) else {
+            throw SharedMediaStorageFailure.closed
+        }
         let id = original.referenceID, assetID = original.assetID
         let ref = try Self.one(context, FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.id == id }))
         let asset = try Self.one(context, FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.id == assetID }))
@@ -91,9 +95,9 @@ final class SharedMediaNativePreparationMutation {
                  beforeSave: () throws -> Void, afterSave: () throws -> Void) throws {
         try result(request)
         guard case .preparation(let value) = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData),
-              value.intents.isEmpty, value.frozen == nil else { throw SharedMediaStorageFailure.closed }
+              value.frozen == nil else { throw SharedMediaStorageFailure.closed }
         package.supportingContextData = try SharedMediaNativeDraftEnvelope.V2(version: 2, contexts: value.contexts,
-            presentation: value.presentation, sequence: value.sequence, attempt: nil, intents: [], frozen: nil).encoded()
+            presentation: value.presentation, sequence: value.sequence, attempt: nil, intents: value.intents, frozen: nil).encoded()
         package.phaseRaw = "draftOwned"
         package.revision = request.packageRevision + 2; inventory.revision = request.inventoryRevision + 2
         _ = try SharedMediaNativeAcquisitionBudget.evaluate(context: context, inventory: inventory)
@@ -106,7 +110,7 @@ final class SharedMediaNativePreparationMutation {
         try validateIdentity(request)
         let previous = try SharedMediaNativeDraftEnvelope.decode(request.previousEnvelope)
         let expected = try SharedMediaNativeDraftEnvelope.V2(version: 2, contexts: previous.contexts, presentation: previous.presentation,
-            sequence: request.sequence, attempt: nil, intents: [], frozen: nil).encoded()
+            sequence: request.sequence, attempt: nil, intents: previous.intents, frozen: nil).encoded()
         guard package.phaseRaw == "draftOwned", inventory.revision == request.inventoryRevision + 2,
               package.revision == request.packageRevision + 2, package.supportingContextData == expected else { throw SharedMediaStorageFailure.stale }
     }
@@ -130,10 +134,10 @@ final class SharedMediaNativePreparationMutation {
         let previous = try SharedMediaNativeDraftEnvelope.decode(request.previousEnvelope)
         guard previous.attempt == nil, request.sequence == (try SharedMediaStoragePolicy.add(previous.sequence, 1)) else { throw SharedMediaStorageFailure.stale }
         if case .preparation(let value) = previous {
-            guard value.intents.isEmpty, value.frozen == nil else { throw SharedMediaStorageFailure.closed }
+            guard value.frozen == nil else { throw SharedMediaStorageFailure.closed }
         }
         return try SharedMediaNativeDraftEnvelope.V2(version: 2, contexts: previous.contexts, presentation: previous.presentation,
-            sequence: request.sequence, attempt: .init(bytes: request.encoded()), intents: [], frozen: nil).encoded()
+            sequence: request.sequence, attempt: .init(bytes: request.encoded()), intents: previous.intents, frozen: nil).encoded()
     }
     private func fresh() throws -> SharedMediaNativePreparationMutation {
         try .init(container: container, inventoryID: inventory.id, packageID: package.id, authority: authority)
@@ -145,6 +149,7 @@ final class SharedMediaNativePreparationMutation {
 }
 
 enum SharedMediaNativePreparationBoundary: Equatable, Sendable { case beforeSave, afterSave, beforeReadback, beforePairSave, afterPairSave
+    case beforeFreezeSave, afterFreezeSave
     case beforeFileReserve, afterFileReserve, beforeFileIdentity, afterFileIdentity
     case beforeFileCompletion, afterFileCompletion, beforeFilePublish, afterFilePublish
     case beforeFileRetire, afterFileRetire, beforeFileRelease, afterFileRelease

@@ -64,6 +64,16 @@ actor SharedMediaNativeOriginalIO {
     }
 
     func verifyPair(_ state: SharedMediaNativePairFileState) throws {
+        if case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(state.plan.envelope), let frozen = envelope.frozen {
+            let commit = try SharedMediaNativeFreezeCommit.decode(frozen.bytes)
+            let cohort = try SharedMediaNativeFrozenCohort.decode(commit.cohort.bytes)
+            guard let entry = cohort.entries.first(where: { $0.intent == state.plan.intent }) else { throw SharedMediaStorageFailure.conflict }
+            let intent = try state.intent()
+            for (id, expected) in [(intent.ai.id, entry.aiDescriptor), (intent.display.id, entry.displayDescriptor)] {
+                let proof = try files.inspectSharedRetirement(state.file(id))
+                guard proof.identity == expected, proof.binding == binding.bytes, proof.epoch == binding.epoch else { throw SharedMediaStorageFailure.conflict }
+            }
+        }
         for work in state.work {
             try files.withNativePairDestination(state, workID: work.id, binding: binding, create: false) { try $0.verify() }
         }

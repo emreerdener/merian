@@ -45,6 +45,24 @@ enum SharedMediaNativeEligibility {
         }
     }
 
+    static func originalHeader(container: ModelContainer, inventoryID: UUID, generation: UUID,
+                               storeIdentity: String, rootBinding: String, ownerID: UUID?, audit: Bool) throws -> SharedMediaStorageSnapshot {
+        let context = ModelContext(container); context.autosaveEnabled = false
+        var query = FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }); query.fetchLimit = 2
+        let rows = try context.fetch(query)
+        guard rows.count == 1, let row = rows.first, row.generation == generation,
+              row.storeIdentity == storeIdentity, row.rootIdentity == rootBinding,
+              row.modeRaw == "nativeQualificationV1", row.phaseRaw == "readyNativeAccountingV1",
+              row.cursor.isEmpty, row.revision >= 0 else { throw SharedMediaStorageFailure.conflict }
+        if audit {
+            guard let ownerID else { throw SharedMediaStorageFailure.closed }
+            try requireOriginalAccount(context, ownerID: ownerID)
+            try SharedMediaNativeAcquisitionGraph.audit(context: context, inventoryID: inventoryID)
+            _ = try SharedMediaNativeAcquisitionBudget.evaluate(context: context, inventory: row)
+        }
+        return .init(generation: row.generation, revision: row.revision, phase: row.phaseRaw, cursor: row.cursor)
+    }
+
     static func originalState(_ context: ModelContext, inventoryID: UUID,
                                       storeIdentity: String, rootBinding: String) throws -> SharedMediaInventoryRecord? {
         if try context.fetchCount(FetchDescriptor<SharedMediaInventoryRecord>()) == 0 {

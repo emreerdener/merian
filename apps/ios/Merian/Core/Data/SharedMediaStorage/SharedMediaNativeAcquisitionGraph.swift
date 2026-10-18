@@ -208,7 +208,7 @@ enum SharedMediaNativeAcquisitionGraph {
         let id = row.id
         guard row.draftID == id, row.contractVersion == PhotoPreparationPolicy.contract, row.revision >= 0,
               ["pending", "retained"].contains(row.accountingTierRaw),
-              ["draftOwned", "acquiring", "needsAttention", "preparing"].contains(row.phaseRaw) else { throw SharedMediaStorageFailure.conflict }
+              ["draftOwned", "acquiring", "needsAttention", "preparing", "preparedHeld"].contains(row.phaseRaw) else { throw SharedMediaStorageFailure.conflict }
         let envelope = try SharedMediaNativeDraftEnvelope.decode(row.supportingContextData)
         try validatePresentation(envelope.presentation, package: row, context: context)
         var refsQuery = FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.packageID == id }); refsQuery.fetchLimit = 7
@@ -243,14 +243,12 @@ enum SharedMediaNativeAcquisitionGraph {
         }
         guard ordinals.count <= 2 else { throw SharedMediaStorageFailure.conflict }
         try SharedMediaNativePreparationGraph.validate(envelope, package: row, context: context)
-        let hasPlan: Bool
-        if case .preparation(let value) = envelope { hasPlan = !value.intents.isEmpty } else { hasPlan = false }
-        var pairReady = false
-        if hasPlan {
-            let pair = try one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.packageID == id }))
-            pairReady = pair.phaseRaw == "ready"
-        }
-        let expectedPhase = hasPlan ? (pairReady ? "draftOwned" : "needsAttention") : envelope.attempt == nil ? (held ? "needsAttention" : (acquisitionJobs == 0 ? "draftOwned" : "acquiring")) : "preparing"
+        let activePairs = try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.packageID == id && $0.phaseRaw != "ready" }))
+        guard activePairs <= 1 else { throw SharedMediaStorageFailure.conflict }
+        let frozen: Bool
+        if case .preparation(let value) = envelope { frozen = value.frozen != nil } else { frozen = false }
+        let expectedPhase = frozen ? "preparedHeld" : envelope.attempt != nil ? "preparing" : activePairs > 0 ? "needsAttention"
+            : held ? "needsAttention" : acquisitionJobs == 0 ? "draftOwned" : "acquiring"
         guard allocated == row.allocatedByteCount, row.phaseRaw == expectedPhase else {
             throw SharedMediaStorageFailure.conflict
         }

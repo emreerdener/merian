@@ -125,9 +125,9 @@ struct SharedMediaPendingGraph {
                     guard case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData) else {
                         throw SharedMediaStorageFailure.conflict
                     }
-                    // Only the complete typed ready graph can omit writer leases.
+                    // Only this exact typed ready pair can omit writer leases.
                     // Legacy pairs and unfinished native output keep their joins.
-                    try SharedMediaNativePairPlanGraph.validate(envelope, package: package, inventory: inventory, context: context)
+                    try SharedMediaNativePairPlanGraph.validateReadyForMembership(envelope, pairID: pair.id, package: package, inventory: inventory, context: context)
                     validatedReadyNativeAssets.formUnion(children.map(\.assetID))
                 }
                 for child in children {

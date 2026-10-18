@@ -2,16 +2,14 @@ import Foundation
 import SwiftData
 
 /// Strict native V2 graph. Attempts and typed paired-file stages are admitted;
-/// frozen and receiving-consumer stages remain closed.
+/// freeze requires its exact terminal graph; receiving consumers remain closed.
 @MainActor
 enum SharedMediaNativePreparationGraph {
     static func validate(_ envelope: SharedMediaNativeDraftEnvelope, package: PhotoPreparationRecord, context: ModelContext) throws {
         guard case .preparation(let value) = envelope else { return }
-        guard value.frozen == nil else { throw SharedMediaStorageFailure.closed }
-        if !value.intents.isEmpty {
+        if !value.intents.isEmpty || value.frozen != nil {
             let inventory = try one(context, FetchDescriptor<SharedMediaInventoryRecord>())
             try SharedMediaNativePairPlanGraph.validate(value, package: package, inventory: inventory, context: context)
-            return
         }
         guard let blob = value.attempt else { return }
         let attempt = try SharedMediaNativePreparationAttempt.decode(blob.bytes)
@@ -23,7 +21,8 @@ enum SharedMediaNativePreparationGraph {
         let inventoryID = attempt.inventoryID
         let inventory = try one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
         let previous = try SharedMediaNativeDraftEnvelope.decode(attempt.previousEnvelope)
-        guard previous.attempt == nil, try SharedMediaStoragePolicy.add(previous.sequence, 1) == attempt.sequence,
+        guard previous.attempt == nil, previous.intents == value.intents,
+              try SharedMediaStoragePolicy.add(previous.sequence, 1) == attempt.sequence,
               try SharedMediaNativeDraftEnvelope.bytes(previous.contexts) == SharedMediaNativeDraftEnvelope.bytes(value.contexts),
               try SharedMediaNativeDraftEnvelope.bytes(previous.presentation) == SharedMediaNativeDraftEnvelope.bytes(value.presentation),
               package.accountingTierRaw == "pending", !package.retirementRequested, package.phaseRaw == "preparing",
@@ -42,7 +41,7 @@ enum SharedMediaNativePreparationGraph {
             throw SharedMediaStorageFailure.conflict
         }
         if case .preparation(let old) = previous {
-            guard old.intents.isEmpty, old.frozen == nil else { throw SharedMediaStorageFailure.closed }
+            guard old.frozen == nil else { throw SharedMediaStorageFailure.closed }
         }
         // One attempt across the inventory, not merely one per package.
         guard try context.fetchCount(FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.phaseRaw == "preparing" })) == 1 else {
@@ -59,11 +58,20 @@ enum SharedMediaNativePreparationGraph {
         for row in rows {
             let envelope = try SharedMediaNativeDraftEnvelope.decode(row.supportingContextData)
             if case .preparation(let value) = envelope {
-                guard value.attempt == nil, value.intents.isEmpty, value.frozen == nil else { throw SharedMediaStorageFailure.closed }
+                guard value.attempt == nil else { throw SharedMediaStorageFailure.closed }
+                if value.frozen != nil {
+                    let inventory = try one(context, FetchDescriptor<SharedMediaInventoryRecord>())
+                    try SharedMediaNativeFreezeGraph.validate(value, package: row, inventory: inventory, context: context)
+                }
+                for blob in value.intents {
+                    let id = try SharedMediaNativeDerivativeIntent.decode(blob.bytes).pairID
+                    let pair = try one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == id }))
+                    guard pair.phaseRaw == "ready" else { throw SharedMediaStorageFailure.closed }
+                }
             }
         }
-        guard try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>()) == 0,
-              try context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>()) == 0 else { throw SharedMediaStorageFailure.closed }
+        guard try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.phaseRaw != "ready" })) == 0,
+              try context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>(predicate: #Predicate { $0.phaseRaw != "completed" })) == 0 else { throw SharedMediaStorageFailure.closed }
     }
     private static func one<T: PersistentModel>(_ context: ModelContext, _ query: FetchDescriptor<T>) throws -> T {
         var query = query; query.fetchLimit = 2; let rows = try context.fetch(query)

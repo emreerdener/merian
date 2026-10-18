@@ -157,7 +157,7 @@ struct SharedMediaNativePairClosure: Codable, Equatable, Sendable {
         let packageID = package.id
         let member = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == packageID }))
         guard let entry = entries.first(where: { $0.work.id == work.id }),
-              case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData), let blob = envelope.intents.first,
+              case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData), let blob = try SharedMediaNativePairPlanGraph.select(envelope, pairID: pair.id),
               Set(entries.map { $0.work.id }) == Set([pair.aiWorkID, pair.displayWorkID]),
               pairID == pair.id, inventoryID == inventory.id, inventoryGeneration == inventory.generation,
               inventory.revision == (try SharedMediaStoragePolicy.add(previous.inventoryRevision, 1)),

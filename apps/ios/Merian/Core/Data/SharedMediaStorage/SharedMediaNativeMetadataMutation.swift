@@ -55,6 +55,7 @@ final class SharedMediaNativeMetadataMutation {
     }
 
     func request(draftGeneration: UUID, contexts: [ObservationContext], presentation: [PhotoPreparationImagePresentation]?) throws -> SharedMediaNativeMetadataRequest {
+        try SharedMediaNativePreparationGraph.requireNoUnfinished(context)
         guard package.draftGeneration == draftGeneration else { throw SharedMediaStorageFailure.stale }
         let previous = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData)
         let photos = presentation ?? previous.presentation
@@ -78,6 +79,7 @@ final class SharedMediaNativeMetadataMutation {
         consumed = true
         try validate(request)
         if matchesResult(request) { return package.revision }
+        try SharedMediaNativePreparationGraph.requireNoUnfinished(context)
         guard inventory.revision == request.inventoryRevision, package.revision == request.packageRevision,
               package.supportingContextData == request.previousEnvelope else { throw SharedMediaStorageFailure.stale }
         package.supportingContextData = request.envelope
@@ -91,6 +93,7 @@ final class SharedMediaNativeMetadataMutation {
         try beforeSave()
         let fresh = try Self(container: container, inventoryID: inventory.id, packageID: package.id, authority: authority)
         try fresh.validate(request)
+        try SharedMediaNativePreparationGraph.requireNoUnfinished(fresh.context)
         guard fresh.inventory.revision == request.inventoryRevision, fresh.package.revision == request.packageRevision,
               fresh.package.supportingContextData == request.previousEnvelope else { throw SharedMediaStorageFailure.stale }
         do { try context.save() } catch { context.rollback(); throw error }

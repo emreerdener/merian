@@ -1,3 +1,91 @@
+## October 18 — two-original composition and native freeze verified locally
+
+The combined composition/freeze candidate passed the complete `merianTests`
+target: 6,286 methods, 10,130 parameter-expanded executions, zero failures, zero
+skips and zero Xcode runtime warnings. All 2,831 source/project hashes and all
+candidate hashes stayed unchanged. Focused03 also passed all 30 expected
+methods, including all 14 freeze methods. This is shared-checkout local
+evidence, not isolated-source, device, hosted or activation acceptance.
+
+Exact source candidate03:
+`e619e3985dde6aab1f4ac835eb0cf2518f0dfef5aa3eed057dcc3b5a80711d26`. Evidence:
+`.artifacts/native-freeze-20261018/full03-result.json` and retained XCResult
+`2b1fbc3d398a4ae38f417d523c4a55e9`. Independent and IC-1 reviews cleared this
+exact source and execution scope before the runs. The earlier multipair
+compiler/assertion failures remain in `.artifacts/native-multipair-20261018/`;
+corrected focused05 and the complete current target passed. Earlier dated
+entries below remain historical evidence.
+
+The native owner now supports two distinct prepared originals and a terminal
+`nativeFreezeV3` save binding their explicit order, immutable supporting bytes,
+previous envelope/membership hashes and exact revision transition. Original,
+AI-input and display identities stay separate. Frozen packages permit
+independent new drafts while rejecting metadata or pair retirement changes to
+the frozen package. Exact saved acknowledgement is recoverable without new
+preparation; it does not promise current physical availability. Current file
+identity and hash verification remain mandatory before new use. Historical V2
+codecs retain their prior meaning. Freeze creates no consumer, queue or
+inference authority.
+
+Next is native receiving ownership and Capture/Auth integration. The reviewed
+composition uses the existing app container and one native session/fence, with
+one account-work lease per operation and registration before opening awaits. A
+failed drain remains sealed. Admission must save freeze, consumer, queue,
+deterministic job and event together; legacy enqueue/job-reset/deletion helpers
+cannot provide this transaction. Retained consumers preserve exact historical
+membership bytes, while current references and file availability are checked
+independently. Reanalysis shares into a fresh pending package; existing retained
+versions remain immutable. Retirement precedes drain and last-reference cleanup.
+The detailed read-only review map is
+`.artifacts/native-freeze-20261018/receiving-integration-map.json`.
+
+Integrated photo/audio/video acceptance, individual-version deletion and exact
+original export, then the approved Identification/History redesign remain
+required in that order. The capture-tools visual refactor remains separately
+owned. Activation is disabled, PR116 is frozen, the deployment hold is active,
+AWS is unapproved and numeric limits are unchanged. Local work continues without
+routine proceed prompts; no push, merge, deployment or hosted test is
+authorized.
+
+## October 18 — native two-original composition candidate
+
+Paired-file recovery/retirement was committed locally as `0b38d560e`; its
+passing full-target evidence and two disclosed test-fixture QoS warnings remain
+below. The next candidate supports two distinct originals with one ready
+derivative pair each. Recovery and retirement select an explicit pair; ambiguous
+package-only selection fails. The first pair's immutable intent, work facts,
+file identities, published revision and bytes survive preparing, abandoning or
+removing the second. Only one preparation attempt or unfinished pair may own
+processing at a time.
+
+Original acquisition may follow a ready pair. Admission counts original
+references against the existing two-original cap, while the complete graph
+retains its six reference bound. Package phase reflects active preparation,
+unfinished pairs or outstanding original acquisition; a ready survivor does not
+hide held work. Acquisition and preparation exclude each other in both
+directions. Fresh metadata, sharing, original removal and ready-pair retirement
+cannot mutate unfinished work; exact recovery remains available. Prepared
+originals require explicit pair retirement before original removal.
+
+Accounting charges all ready-pair cleanup projections and each physical
+allocation and logical reference once, plus the one active reservation. Full
+encoded metadata must fit the unchanged allowance before processing or file
+ownership. Drafts and survivors remain intact on capacity failure. No schema,
+numeric limit, activation, legacy reader or provider-dispatch authority changes.
+Membership rebuilding uses a narrow ready-pair proof only during transition;
+complete aggregate validation and exact readback still precede successful
+saves/results.
+
+Evidence: `.artifacts/native-multipair-20261018/`. Source parsing, generation
+and project validation are complete; exact independent/IC-1 review and focused
+runtime qualification are pending. Tests cover late acquisition, two-ready
+reopening, second-pair interruption/retirement, held acquisition cleanup,
+active-work exclusion, capacity denial and cross-pair identity collisions. This
+entry does not claim runtime acceptance. Freeze, receiving consumers, Capture
+composition, integrated acceptance, version deletion/export and the approved
+redesign remain next. Activation disabled, PR116 frozen, deployment hold active,
+AWS unapproved; local work continues without routine proceed prompts.
+
 ## October 18 — native paired files locally verified
 
 The inactive native owner now reserves both outputs atomically, creates

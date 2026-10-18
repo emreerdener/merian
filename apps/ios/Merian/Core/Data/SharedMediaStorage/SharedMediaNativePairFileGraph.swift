@@ -6,10 +6,10 @@ import SwiftData
 @MainActor
 enum SharedMediaNativePairFileGraph {
     static func state(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                      package: PhotoPreparationRecord, member: SharedMediaPendingMembershipRecord) throws -> SharedMediaNativePairFileState {
-        let plan = try SharedMediaNativePairPlanGraph.state(context: context, inventory: inventory, package: package, member: member)
-        let intent = try SharedMediaNativeDerivativeIntent.decode(plan.intent.bytes), pairID = intent.pairID
-        let pair = try one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == pairID }))
+                      package: PhotoPreparationRecord, member: SharedMediaPendingMembershipRecord, pairID: UUID? = nil) throws -> SharedMediaNativePairFileState {
+        let plan = try SharedMediaNativePairPlanGraph.state(context: context, inventory: inventory, package: package, member: member, pairID: pairID)
+        let intent = try SharedMediaNativeDerivativeIntent.decode(plan.intent.bytes), selectedID = intent.pairID
+        let pair = try one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == selectedID }))
         let values = try [intent.ai.id, intent.display.id].map { id in
             let row = try one(context, FetchDescriptor<SharedMediaDerivativeWorkRecord>(predicate: #Predicate { $0.id == id }))
             let leaseID = row.leaseID

@@ -146,7 +146,7 @@ struct SharedMediaNativeOriginalReadback {
             let id = pair.packageID
             let package = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == id }))
             let member = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
-            return try SharedMediaNativePairFileGraph.state(context: context, inventory: inventory, package: package, member: member)
+            return try SharedMediaNativePairFileGraph.state(context: context, inventory: inventory, package: package, member: member, pairID: pair.id)
         }
     }
 

@@ -17,27 +17,32 @@ enum SharedMediaNativeDraftEnvelope: Sendable {
         let frozen: SharedMediaNativePreparationBlob?
 
         func encoded() throws -> Data {
-            guard version == 2, sequence > 0, intents.count <= 4,
+            guard version == 2, sequence > 0, intents.count <= 2,
                   frozen == nil || attempt == nil else { throw SharedMediaStorageFailure.conflict }
             _ = try PhotoPreparationPolicy.encodeDraft(contexts: contexts, presentation: presentation)
-            var sequences = Set<Int64>(), pairs = Set<UUID>(), originalCounts: [UUID: Int] = [:]
+            var sequences = Set<Int64>(), identities = Set<UUID>(), originals = Set<UUID>(), slots = Set<Int64>()
             if let attempt {
                 try attempt.validate()
                 let request = try SharedMediaNativePreparationAttempt.decode(attempt.bytes)
                 guard request.sequence == sequence else { throw SharedMediaStorageFailure.conflict }
                 sequences.insert(request.sequence)
+                originals.insert(request.original.reference.referenceID); slots.insert(request.original.ordinal)
             }
             for blob in intents {
                 try blob.validate()
                 let value = try SharedMediaNativeDerivativeIntent.decode(blob.bytes), request = try value.attempt()
                 guard request.sequence <= sequence, sequences.insert(request.sequence).inserted,
-                      pairs.insert(value.pairID).inserted else { throw SharedMediaStorageFailure.conflict }
-                originalCounts[request.original.reference.referenceID, default: 0] += 1
+                      originals.insert(request.original.reference.referenceID).inserted,
+                      slots.insert(request.original.ordinal).inserted else { throw SharedMediaStorageFailure.conflict }
+                for id in [value.pairID, value.nonce, value.ai.id, value.display.id, value.ai.assetID, value.display.assetID,
+                           value.ai.referenceID, value.display.referenceID, value.ai.leaseID, value.display.leaseID] {
+                    guard identities.insert(id).inserted else { throw SharedMediaStorageFailure.conflict }
+                }
             }
-            guard originalCounts.count <= 2, originalCounts.values.allSatisfy({ $0 <= 2 }) else { throw SharedMediaStorageFailure.conflict }
+            guard originals.count <= 2 else { throw SharedMediaStorageFailure.conflict }
             if let frozen {
                 try frozen.validate()
-                _ = try SharedMediaNativeFreezeReceipt.decode(frozen.bytes)
+                try SharedMediaNativeFreezeCommit.validateHistoricalOrCurrent(frozen.bytes)
             }
             return try SharedMediaAcquisitionEncoding.encode(self, maximum: Int(PhotoPreparationPolicy.metadata))
         }
@@ -71,6 +76,7 @@ enum SharedMediaNativeDraftEnvelope: Sendable {
     }
     var sequence: Int64 { if case .preparation(let value) = self { return value.sequence }; return 0 }
     var attempt: SharedMediaNativePreparationBlob? { if case .preparation(let value) = self { return value.attempt }; return nil }
+    var intents: [SharedMediaNativePreparationBlob] { if case .preparation(let value) = self { return value.intents }; return [] }
 
     /// Metadata cannot introduce, change or remove lifecycle authority.
     func editing(contexts: [ObservationContext], presentation: [PhotoPreparationImagePresentation]) throws -> Data {

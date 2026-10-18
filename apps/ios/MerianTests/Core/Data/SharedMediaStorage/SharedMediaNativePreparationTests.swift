@@ -218,8 +218,8 @@ struct SharedMediaNativePreparationTests {
                 photoRoot: base.appendingPathComponent("photo"), inboxRoot: base.appendingPathComponent("inbox"), inventoryID: inventoryID)
             return owner
         }
-        func acquire(_ owner: SharedMediaNativeOriginalOwner) async throws -> PhotoOriginalReference {
-            let request = try await owner.prepareOriginal(packageID: packageID, draftGeneration: draft, ordinal: 0, kind: .picker), data = bytes
+        func acquire(_ owner: SharedMediaNativeOriginalOwner, ordinal: Int64 = 0) async throws -> PhotoOriginalReference {
+            let request = try await owner.prepareOriginal(packageID: packageID, draftGeneration: draft, ordinal: ordinal, kind: .picker), data = bytes
             let result = try await owner.acquireOriginal(request) { data }
             return .init(ownerID: ownerID, packageID: packageID, referenceID: request.referenceID, assetID: request.assetID,
                 assetGeneration: request.assetGeneration, draftGeneration: draft, referenceRevision: result.referenceRevision)

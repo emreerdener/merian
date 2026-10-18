@@ -19,6 +19,7 @@ final class SharedMediaNativeRemoval {
     func prepare(_ source: PhotoOriginalReference) throws -> SharedMediaNativeRemovalRequest {
         let rows = try resolve(source, live: true)
         try requireNoRecovery()
+        try requireUnprepared(source.referenceID)
         let previous = try SharedMediaNativeDraftEnvelope.decode(rows.package.supportingContextData)
         return .init(source: source, inventoryID: inventory.id, inventoryGeneration: inventory.generation,
             inventoryRevision: inventory.revision, packageRevision: rows.package.revision, membershipRevision: rows.member.revision,
@@ -125,6 +126,7 @@ final class SharedMediaNativeRemoval {
     }
     private func requireBefore(_ request: SharedMediaNativeRemovalRequest) throws {
         try validate(request); try requireNoRecovery()
+        try requireUnprepared(request.source.referenceID)
         let rows = try resolve(request.source, live: true)
         guard inventory.revision == request.inventoryRevision, rows.package.revision == request.packageRevision,
               rows.member.revision == request.membershipRevision, rows.member.membersData == request.membershipBytes,
@@ -166,7 +168,11 @@ final class SharedMediaNativeRemoval {
               count.liveCount == (live ? count.liveCount : 0), !live || count.liveCount > 0 else { throw SharedMediaStorageFailure.stale }
         return .init(package: package, member: member, ref: ref, edge: edge, asset: asset, allocation: allocation, count: count)
     }
+    private func requireUnprepared(_ referenceID: UUID) throws {
+        guard try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.originalReferenceID == referenceID })) == 0 else { throw SharedMediaStorageFailure.inUse }
+    }
     private func requireNoRecovery() throws {
+        try SharedMediaNativePreparationGraph.requireNoUnfinished(context)
         guard try context.fetchCount(FetchDescriptor<PhotoPreparationLease>()) == 0,
               try context.fetchCount(FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.cleanupStateRaw != "ready" })) == 0 else { throw PhotoPreparationFailure.cleanupPending }
     }

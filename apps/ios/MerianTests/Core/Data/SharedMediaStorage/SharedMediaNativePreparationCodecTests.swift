@@ -123,6 +123,25 @@ struct SharedMediaNativePreparationCodecTests {
         #expect(throws: (any Error).self) { try SharedMediaNativeDerivativeIntent.decode(obsolete) }
     }
 
+    @Test(arguments: ["original", "slot", "asset", "work", "lease"])
+    func twoIntentEnvelopeRejectsCrossPairCollisions(_ collision: String) throws {
+        let firstRequest = try attempt(), first = try intent(firstRequest)
+        let secondRequest = try attempt(slot: collision == "slot" ? 0 : 1)
+        let next = replacing(collision == "original" ? firstRequest : secondRequest, sequence: 2, previous: firstRequest.previousEnvelope)
+        let second = try intent(next)
+        var object = try #require(JSONSerialization.jsonObject(with: second.encoded()) as? [String: Any])
+        if ["asset", "work", "lease"].contains(collision) {
+            var ai = try #require(object["ai"] as? [String: Any])
+            let field = collision == "asset" ? "assetID" : collision == "work" ? "id" : "leaseID"
+            let id = collision == "asset" ? first.ai.assetID : collision == "work" ? first.ai.id : first.ai.leaseID
+            ai[field] = id.uuidString; object["ai"] = ai
+        }
+        let changed = try JSONDecoder().decode(SharedMediaNativeDerivativeIntent.self, from: JSONSerialization.data(withJSONObject: object))
+        let value = try SharedMediaNativeDraftEnvelope.V2(version: 2, contexts: [], presentation: [], sequence: 2,
+            attempt: nil, intents: [.init(bytes: first.encoded()), .init(bytes: changed.encoded())], frozen: nil)
+        #expect(throws: (any Error).self) { try value.encoded() }
+    }
+
     private func replacing(_ value: SharedMediaNativePreparationAttempt, sequence: Int64, previous: Data) -> SharedMediaNativePreparationAttempt {
         .init(format: value.format, sequence: sequence, operationID: value.operationID, writerEpoch: value.writerEpoch,
             inventoryID: value.inventoryID, inventoryGeneration: value.inventoryGeneration, inventoryRevision: value.inventoryRevision,

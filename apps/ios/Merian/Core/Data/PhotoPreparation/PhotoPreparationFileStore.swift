@@ -328,6 +328,17 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
             binding: sharedBinding.bytes, epoch: sharedBinding.epoch)
     }
 
+    /// Seal an already hashed inspection immediately before a synchronous save.
+    /// No content read or decoding occurs here; the exclusive owner remains held.
+    func requireCurrentSharedInspection(_ proof: SharedMediaPhotoRetirementInspection) throws {
+        guard let sharedBinding, proof.binding == sharedBinding.bytes, proof.epoch == sharedBinding.epoch else { throw PhotoPreparationFailure.unsupportedComposition }
+        let (fd, name) = try directory(proof.file.token, create: false)
+        defer { Darwin.close(fd) }
+        try inspection.requireCurrentFile(parentFD: fd, namespaceFD: namespaceFD, name: name, proof: proof) {
+            try self.checkDirectoryIdentity(fd, token: proof.file.token)
+        }
+    }
+
     /// A saved exact retirement capability is mandatory even when the fixed
     /// object is already absent. This is not the legacy token-only unlink API.
     func releaseSharedPhoto(_ retirement: SharedMediaPhotoRetirement) throws -> SharedMediaPhotoReleaseProof {

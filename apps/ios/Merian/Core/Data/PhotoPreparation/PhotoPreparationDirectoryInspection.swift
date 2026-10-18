@@ -77,6 +77,29 @@ extension PhotoPreparationDirectoryInspection {
         guard found else { throw PhotoPreparationFailure.inconsistentOwnership }
     }
 
+    /// Descriptor-only seal of a prior hash proof. Replacement or in-place edits
+    /// change the full inode/size/mtime/ctime tuple; no proof is minted here.
+    func requireCurrentFile(parentFD: Int32, namespaceFD: Int32, name: String,
+                            proof: SharedMediaPhotoRetirementInspection, revalidate: () throws -> Void) throws {
+        try Task.checkCancellation(); try revalidate()
+        let fd = openat(parentFD, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        guard fd >= 0 else { throw PhotoPreparationFailure.missingMedia }
+        defer { Darwin.close(fd) }
+        var held = stat(), named = stat(), parent = stat(), namespace = stat()
+        func identity(_ value: stat) -> String {
+            "\(value.st_dev):\(value.st_ino):\(value.st_size):\(value.st_mtimespec.tv_sec):\(value.st_mtimespec.tv_nsec):\(value.st_ctimespec.tv_sec):\(value.st_ctimespec.tv_nsec)"
+        }
+        guard fstat(fd, &held) == 0, fstatat(parentFD, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+              fstat(parentFD, &parent) == 0, fstat(namespaceFD, &namespace) == 0,
+              held.st_mode & S_IFMT == S_IFREG, named.st_mode & S_IFMT == S_IFREG,
+              held.st_nlink == 1, named.st_nlink == 1, held.st_size == proof.file.byteCount,
+              identity(held) == proof.identity.file, identity(named) == proof.identity.file,
+              parent.st_mode & S_IFMT == S_IFDIR, namespace.st_mode & S_IFMT == S_IFDIR,
+              "\(parent.st_dev):\(parent.st_ino)" == proof.identity.parent,
+              "\(namespace.st_dev):\(namespace.st_ino)" == proof.identity.namespace else { throw PhotoPreparationFailure.inconsistentOwnership }
+        try revalidate()
+    }
+
     /// Read-only absence observation; never unlinks or issues release authority.
     /// The enclosing owner supplies held descriptors and revalidates their path.
     func requireNativeAbsence(parentFD: Int32, namespaceFD: Int32, name: String,

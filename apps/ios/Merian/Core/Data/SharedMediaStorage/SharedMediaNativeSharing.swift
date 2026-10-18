@@ -107,6 +107,7 @@ final class SharedMediaNativeSharing {
         return (package, count)
     }
     private func requireNoRecovery() throws {
+        try SharedMediaNativePreparationGraph.requireNoUnfinished(context)
         guard try context.fetchCount(FetchDescriptor<PhotoPreparationLease>()) == 0,
               try context.fetchCount(FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.cleanupStateRaw != "ready" })) == 0 else { throw PhotoPreparationFailure.cleanupPending }
     }

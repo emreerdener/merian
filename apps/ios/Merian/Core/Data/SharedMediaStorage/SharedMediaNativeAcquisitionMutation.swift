@@ -7,6 +7,8 @@ import SwiftData
 @MainActor
 final class SharedMediaNativeAcquisitionMutation {
     private let context: ModelContext
+    private let container: ModelContainer
+    private var reservation = false
     private let inventory: SharedMediaInventoryRecord
     private let request: SharedMediaAcquisitionIntent
     private let authority: SharedMediaNativeMutationAuthority
@@ -18,7 +20,7 @@ final class SharedMediaNativeAcquisitionMutation {
         try authority.validate()
         try request.validate()
         guard request.ownerID == authority.ownerID, request.writerEpoch == authority.writerEpoch else { throw SharedMediaStorageFailure.conflict }
-        self.authority = authority
+        self.authority = authority; self.container = container
         self.request = request
         context = ModelContext(container); context.autosaveEnabled = false
         let inventoryID = request.inventoryID, ownerID = request.ownerID
@@ -66,10 +68,20 @@ final class SharedMediaNativeAcquisitionMutation {
         guard prepared, !consumed else { throw SharedMediaStorageFailure.closed }
         consumed = true
         try authority.validate()
+        if reservation {
+            let fresh = ModelContext(container); fresh.autosaveEnabled = false
+            let inventoryID = request.inventoryID
+            try SharedMediaNativeAcquisitionGraph.audit(context: fresh, inventoryID: inventoryID)
+            let current = try Self.one(fresh, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
+            guard current.revision == request.expectedInventoryRevision else { throw SharedMediaStorageFailure.stale }
+            try SharedMediaNativePreparationGraph.requireNoUnfinished(fresh)
+        }
         do { try context.save() } catch { context.rollback(); throw error }
     }
 
     private func reserve(availableBytes: Int64) throws {
+        try SharedMediaNativePreparationGraph.requireNoUnfinished(context)
+        reservation = true
         guard inventory.revision == request.expectedInventoryRevision else { throw SharedMediaStorageFailure.stale }
         try requireFreshIDs()
         guard try context.fetchCount(FetchDescriptor<PhotoPreparationLease>()) == 0,
@@ -95,7 +107,7 @@ final class SharedMediaNativeAcquisitionMutation {
             package.revision = try increment(package.revision); package.phaseRaw = "acquiring"
         default: throw SharedMediaStorageFailure.stale
         }
-        var query = FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.packageID == packageID }); query.fetchLimit = 3
+        var query = FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.packageID == packageID && $0.roleRaw == "original" }); query.fetchLimit = 3
         let references = try context.fetch(query)
         guard references.count < 2, references.allSatisfy({ $0.isLive && $0.roleRaw == "original" && $0.ordinal != request.ordinal }) else {
             throw SharedMediaStorageFailure.capacity

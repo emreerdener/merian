@@ -14,7 +14,7 @@ final class SharedMediaNativePairFileMutation {
     private let pair: SharedMediaDerivativePairRecord
     private let before: SharedMediaNativePairFileState
 
-    init(container: ModelContainer, inventoryID: UUID, packageID: UUID, authority: SharedMediaNativeMutationAuthority) throws {
+    init(container: ModelContainer, inventoryID: UUID, packageID: UUID, authority: SharedMediaNativeMutationAuthority, pairID: UUID? = nil) throws {
         try authority.validate()
         self.container = container; self.authority = authority
         context = ModelContext(container); context.autosaveEnabled = false
@@ -26,11 +26,21 @@ final class SharedMediaNativePairFileMutation {
             throw SharedMediaStorageFailure.closed
         }
         try SharedMediaNativeAcquisitionGraph.audit(context: context, inventoryID: inventoryID)
-        before = try SharedMediaNativePairFileGraph.state(context: context, inventory: inventory, package: package, member: member)
-        let pairID = try before.intent().pairID
-        pair = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == pairID }))
+        before = try SharedMediaNativePairFileGraph.state(context: context, inventory: inventory, package: package, member: member, pairID: pairID)
+        let selectedID = try before.intent().pairID
+        pair = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == selectedID }))
     }
     func state() -> SharedMediaNativePairFileState { before }
+    func requireRetirementAdmission() throws {
+        if before.phase == "ready" {
+            guard case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData),
+                  envelope.frozen == nil else { throw SharedMediaStorageFailure.closed }
+            try SharedMediaNativePreparationGraph.requireNoUnfinished(context)
+            // Ready pairs own no lease. Any remaining lease belongs to an
+            // unfinished acquisition or another lifecycle and must settle first.
+            guard try context.fetchCount(FetchDescriptor<PhotoPreparationLease>()) == 0 else { throw SharedMediaStorageFailure.closed }
+        }
+    }
 
     func reserve(_ expected: SharedMediaNativePairFileState, availableBytes: Int64,
                  beforeSave: () throws -> Void, afterSave: () throws -> Void) throws -> SharedMediaNativePairFileState {
@@ -119,6 +129,7 @@ final class SharedMediaNativePairFileMutation {
                 beforeSave: () throws -> Void, afterSave: () throws -> Void) throws -> SharedMediaNativePairFileState {
         guard expected == before, ["writing", "ready"].contains(before.phase), proofs.count == 2,
               Set(proofs.map(\.workID)) == Set(before.work.map(\.id)) else { throw SharedMediaStorageFailure.stale }
+        try requireRetirementAdmission()
         let entries = try before.work.map { work -> SharedMediaNativePairClosure.Entry in
             guard let proof = proofs.first(where: { $0.workID == work.id }), proof.state == before else { throw SharedMediaStorageFailure.conflict }
             try binding(proof.binding, proof.epoch)
@@ -203,7 +214,7 @@ final class SharedMediaNativePairFileMutation {
         context.delete(pair)
         guard case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData) else { throw SharedMediaStorageFailure.conflict }
         package.supportingContextData = try SharedMediaNativeDraftEnvelope.V2(version: 2, contexts: envelope.contexts,
-            presentation: envelope.presentation, sequence: envelope.sequence, attempt: nil, intents: [], frozen: nil).encoded()
+            presentation: envelope.presentation, sequence: envelope.sequence, attempt: nil, intents: envelope.intents.filter { $0 != before.plan.intent }, frozen: nil).encoded()
         package.phaseRaw = "draftOwned"; try advance()
         _ = try SharedMediaNativeAcquisitionBudget.evaluate(context: context, inventory: inventory)
         let expected = try releaseWitness(context)
@@ -248,10 +259,10 @@ final class SharedMediaNativePairFileMutation {
         if member.membersData != bytes { member.membersData = bytes; member.revision = try SharedMediaStoragePolicy.add(member.revision, 1) }
     }
     private func fresh() throws -> SharedMediaNativePairFileMutation {
-        try .init(container: container, inventoryID: inventory.id, packageID: package.id, authority: authority)
+        try .init(container: container, inventoryID: inventory.id, packageID: package.id, authority: authority, pairID: pair.id)
     }
     private func save(_ beforeSave: () throws -> Void, _ afterSave: () throws -> Void) throws -> SharedMediaNativePairFileState {
-        let expected = try SharedMediaNativePairFileGraph.state(context: context, inventory: inventory, package: package, member: member)
+        let expected = try SharedMediaNativePairFileGraph.state(context: context, inventory: inventory, package: package, member: member, pairID: pair.id)
         _ = try SharedMediaNativeAcquisitionBudget.evaluate(context: context, inventory: inventory)
         try beforeSave(); try authority.validate()
         guard try fresh().before == before else { throw SharedMediaStorageFailure.stale }

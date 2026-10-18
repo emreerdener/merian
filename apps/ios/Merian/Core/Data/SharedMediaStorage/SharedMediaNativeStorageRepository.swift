@@ -197,7 +197,9 @@ final class SharedMediaNativeStorageRepository {
         focusFactory = preparationFocusFactory
         #endif
         return try .init(container: container, inventoryID: inventoryID, authority: mutationAuthority(check: check), io: originalIO, focusFactory: focusFactory,
-            availableBytes: {
+            verifyFreezeProofs: { proofs in
+                for proof in proofs { try self.photos.requireCurrentSharedInspection(proof) }
+            }, availableBytes: {
                 let available = try self.files.availableBytes()
                 #if DEBUG
                 if let limit = self.preparationAvailableBytes { return min(available, limit) }
@@ -245,35 +247,13 @@ final class SharedMediaNativeStorageRepository {
         try files.requireEmpty(); try files.bindStore(binding, initializing: false); try photos.checkIdentity()
         guard rootBinding == (try SharedMediaStorageLookup.binding(authority: files.identity, sources: sources)) else { throw SharedMediaStorageFailure.conflict }
         try inbox.validateInventory([])
-        let context = ModelContext(container); context.autosaveEnabled = false
-        let row = try originalInventory(context)
-        if audit {
-            #if DEBUG
-            inspectionAuditCount += 1
-            #endif
-            guard let expectedOwnerID else { throw SharedMediaStorageFailure.closed }
-            try SharedMediaNativeEligibility.requireOriginalAccount(context, ownerID: expectedOwnerID)
-            try SharedMediaNativeAcquisitionGraph.audit(context: context, inventoryID: inventoryID)
-            _ = try SharedMediaNativeAcquisitionBudget.evaluate(context: context, inventory: row)
-        }
-        return .init(generation: row.generation, revision: row.revision, phase: row.phaseRaw, cursor: row.cursor)
+        #if DEBUG
+        if audit { inspectionAuditCount += 1 }
+        #endif
+        return try SharedMediaNativeEligibility.originalHeader(container: container, inventoryID: inventoryID,
+            generation: generation, storeIdentity: storeIdentity, rootBinding: rootBinding, ownerID: expectedOwnerID, audit: audit)
     }
 
-    private func originalInventory(_ context: ModelContext) throws -> SharedMediaInventoryRecord {
-        let id = inventoryID
-        let row = try one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))
-        guard row.generation == generation, row.storeIdentity == storeIdentity, row.rootIdentity == rootBinding,
-              row.modeRaw == Self.mode, row.phaseRaw == Self.phase, row.cursor.isEmpty, row.revision >= 0 else {
-            throw SharedMediaStorageFailure.conflict
-        }
-        return row
-    }
-
-    private func one<T: PersistentModel>(_ context: ModelContext, _ query: FetchDescriptor<T>) throws -> T {
-        var query = query; query.fetchLimit = 2
-        let rows = try context.fetch(query)
-        guard rows.count == 1, let row = rows.first else { throw SharedMediaStorageFailure.conflict }; return row
-    }
 }
 
 /// Registered before admission, so Auth can reach an in-flight open. This
@@ -410,11 +390,25 @@ final class SharedMediaNativeOriginalOwner {
     }
     #endif
 
-    func preparedFileState(packageID: UUID) async throws -> SharedMediaNativePairFileState {
-        try await lifecycle(recovery: true) { storage, check in try storage.preparationOperations(check).fileState(packageID: packageID) }
+    func prepareFreeze(packageID: UUID, pairIDs: [UUID], operationID: UUID) async throws -> SharedMediaNativeFreezeRequest {
+        try await lifecycle { storage, check in
+            try await storage.preparationOperations(check).prepareFreeze(packageID: packageID, pairIDs: pairIDs, operationID: operationID)
+        }
     }
-    func recoverPreparedFiles(packageID: UUID) async throws -> SharedMediaNativePairFileState {
-        try await lifecycle(recovery: true) { storage, check in try await storage.preparationOperations(check).recoverFiles(packageID: packageID) }
+    /// Exact saved acknowledgement precedes current physical availability checks.
+    func freeze(_ request: SharedMediaNativeFreezeRequest) async throws -> SharedMediaNativeFreezeCommit {
+        guard phase == .ready, pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
+        return try await perform { [self] lease in
+            guard let storage else { throw SharedMediaStorageFailure.closed }
+            return try await storage.preparationOperations({ try self.check(lease) }).freeze(request)
+        }
+    }
+
+    func preparedFileState(packageID: UUID, pairID: UUID? = nil) async throws -> SharedMediaNativePairFileState {
+        try await lifecycle(recovery: true) { storage, check in try storage.preparationOperations(check).fileState(packageID: packageID, pairID: pairID) }
+    }
+    func recoverPreparedFiles(packageID: UUID, pairID: UUID? = nil) async throws -> SharedMediaNativePairFileState {
+        try await lifecycle(recovery: true) { storage, check in try await storage.preparationOperations(check).recoverFiles(packageID: packageID, pairID: pairID) }
     }
     func retirePreparedFiles(_ state: SharedMediaNativePairFileState) async throws {
         try await lifecycle(recovery: true) { storage, check in try await storage.preparationOperations(check).retireFiles(state) }
@@ -428,8 +422,8 @@ final class SharedMediaNativeOriginalOwner {
     }
     #endif
 
-    func plannedPreparation(packageID: UUID) async throws -> SharedMediaNativePairPlan? {
-        try await lifecycle(recovery: true) { storage, check in try storage.preparationOperations(check).plan(packageID: packageID) }
+    func plannedPreparation(packageID: UUID, pairID: UUID? = nil) async throws -> SharedMediaNativePairPlan? {
+        try await lifecycle(recovery: true) { storage, check in try storage.preparationOperations(check).plan(packageID: packageID, pairID: pairID) }
     }
     func abandonPlannedPreparation(_ plan: SharedMediaNativePairPlan) async throws {
         try await lifecycle(recovery: true) { storage, check in try storage.preparationOperations(check).abandonPlan(plan) }

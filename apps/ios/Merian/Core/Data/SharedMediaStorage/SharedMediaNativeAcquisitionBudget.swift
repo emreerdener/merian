@@ -26,27 +26,32 @@ enum SharedMediaNativeAcquisitionBudget {
             let envelope = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData)
             try SharedMediaNativePreparationGraph.validate(envelope, package: package, context: context)
             let attempt = try envelope.attempt.map { try SharedMediaNativePreparationAttempt.decode($0.bytes) }
-            let plan: SharedMediaNativePairPlan?
+            var states: [SharedMediaNativePairFileState] = []
             if case .preparation(let value) = envelope, !value.intents.isEmpty {
                 let member = try one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
-                plan = try SharedMediaNativePairPlanGraph.state(context: context, inventory: inventory, package: package, member: member)
-            } else { plan = nil }
+                for blob in value.intents {
+                    let pairID = try SharedMediaNativeDerivativeIntent.decode(blob.bytes).pairID
+                    states.append(try SharedMediaNativePairFileGraph.state(context: context, inventory: inventory,
+                        package: package, member: member, pairID: pairID))
+                }
+            }
+            let active = states.filter { $0.phase != "ready" }
+            guard active.count <= 1, attempt == nil || active.isEmpty else { throw SharedMediaStorageFailure.conflict }
+            let pairState = active.first
             let plannedOutput: Int64
-            var pairState: SharedMediaNativePairFileState?
-            let planBytes: Int64
-            if let plan {
-                let intent = try SharedMediaNativeDerivativeIntent.decode(plan.intent.bytes)
+            if let pairState {
+                let intent = try pairState.intent()
                 plannedOutput = try SharedMediaStoragePolicy.add(intent.ai.byteCount, intent.display.byteCount)
-                // This bounded canonical projection charges duplicated row facts,
-                // not only the envelope. It includes the future saved witness.
-                let member = try one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
-                let state = try SharedMediaNativePairFileGraph.state(context: context, inventory: inventory, package: package, member: member)
-                pairState = state
-                // Charge the complete assertion and both saved cleanup proofs.
-                // Reserve the maximum canonical closure encoding before files.
-                planBytes = try SharedMediaNativePairClosure.maximumStateBytes(state)
-                guard Int64(try SharedMediaNativeDraftEnvelope.bytes(state).count) <= planBytes else { throw SharedMediaStorageFailure.capacity }
-            } else { plannedOutput = 0; planBytes = 0 }
+            } else { plannedOutput = 0 }
+            var planBytes: Int64 = 0
+            for state in states {
+                // Every survivor retains its full future cleanup projection.
+                // Physical allocations and logical references are charged once
+                // below; only the one active pair can own processing scratch.
+                let maximum = try SharedMediaNativePairClosure.maximumStateBytes(state)
+                guard Int64(try SharedMediaNativeDraftEnvelope.bytes(state).count) <= maximum else { throw SharedMediaStorageFailure.capacity }
+                planBytes = try SharedMediaStoragePolicy.add(planBytes, maximum)
+            }
             guard try SharedMediaConsumerLookup.one(context, packageID: id) == nil else { throw SharedMediaStorageFailure.closed }
             let jobs = graph.work.filter { $0.packageID == id }
             var pending: [SharedMediaAcquisitionIntent] = []

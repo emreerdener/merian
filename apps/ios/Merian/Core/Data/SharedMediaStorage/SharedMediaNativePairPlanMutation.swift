@@ -12,6 +12,7 @@ final class SharedMediaNativePairPlanMutation {
     private let member: SharedMediaPendingMembershipRecord
     private let authority: SharedMediaNativeMutationAuthority
     private let before: Witness
+    private let pairID: UUID?
 
     private struct Witness: Equatable {
         let inventoryGeneration: UUID, inventoryRevision: Int64
@@ -20,9 +21,9 @@ final class SharedMediaNativePairPlanMutation {
         let plan: SharedMediaNativePairPlan?
     }
 
-    init(container: ModelContainer, inventoryID: UUID, packageID: UUID, authority: SharedMediaNativeMutationAuthority) throws {
+    init(container: ModelContainer, inventoryID: UUID, packageID: UUID, authority: SharedMediaNativeMutationAuthority, pairID: UUID? = nil) throws {
         try authority.validate()
-        self.container = container; self.authority = authority
+        self.container = container; self.authority = authority; self.pairID = pairID
         context = ModelContext(container); context.autosaveEnabled = false
         inventory = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
         package = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == packageID }))
@@ -35,7 +36,7 @@ final class SharedMediaNativePairPlanMutation {
             throw SharedMediaStorageFailure.closed
         }
         try SharedMediaNativeAcquisitionGraph.audit(context: context, inventoryID: inventoryID)
-        before = try Self.witness(context: context, inventory: inventory, package: package, member: member)
+        before = try Self.witness(context: context, inventory: inventory, package: package, member: member, pairID: pairID)
     }
 
     func saved() throws -> SharedMediaNativePairPlan? { before.plan }
@@ -50,7 +51,7 @@ final class SharedMediaNativePairPlanMutation {
         try SharedMediaDerivativeWorkFiles.validate(outputs.display, input: intent.display)
         guard before.plan == nil, intent.previousPairID == nil,
               case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData),
-              envelope.intents.isEmpty, envelope.frozen == nil, envelope.attempt?.bytes == (try attempt.encoded()) else {
+              envelope.intents.count < 2, envelope.frozen == nil, envelope.attempt?.bytes == (try attempt.encoded()) else {
             throw SharedMediaStorageFailure.closed
         }
         let blob = SharedMediaNativePreparationBlob(bytes: try intent.encoded()), original = attempt.original.reference
@@ -69,13 +70,13 @@ final class SharedMediaNativePairPlanMutation {
                 sha256: input.sha256, contentType: input.contentType))
         }
         package.supportingContextData = try SharedMediaNativeDraftEnvelope.V2(version: 2, contexts: envelope.contexts,
-            presentation: envelope.presentation, sequence: envelope.sequence, attempt: nil, intents: [blob], frozen: nil).encoded()
+            presentation: envelope.presentation, sequence: envelope.sequence, attempt: nil, intents: envelope.intents + [blob], frozen: nil).encoded()
         package.phaseRaw = "needsAttention"
         try advance()
         let budget = try SharedMediaNativeAcquisitionBudget.evaluate(context: context, inventory: inventory)
         try budget.totals.checkAvailable(availableBytes,
             additionalReservation: max(0, Int64(package.supportingContextData.count - before.envelope.count)))
-        guard let expected = try Self.witness(context: context, inventory: inventory, package: package, member: member).plan else {
+        guard let expected = try Self.witness(context: context, inventory: inventory, package: package, member: member, pairID: pairID).plan else {
             throw SharedMediaStorageFailure.conflict
         }
         try save(beforeSave: beforeSave, afterSave: afterSave)
@@ -98,7 +99,7 @@ final class SharedMediaNativePairPlanMutation {
         }
         context.delete(pair)
         package.supportingContextData = try SharedMediaNativeDraftEnvelope.V2(version: 2, contexts: envelope.contexts,
-            presentation: envelope.presentation, sequence: envelope.sequence, attempt: nil, intents: [], frozen: nil).encoded()
+            presentation: envelope.presentation, sequence: envelope.sequence, attempt: nil, intents: envelope.intents.filter { $0 != plan.intent }, frozen: nil).encoded()
         package.phaseRaw = "draftOwned"
         try advance()
         _ = try SharedMediaNativeAcquisitionBudget.evaluate(context: context, inventory: inventory)
@@ -116,7 +117,7 @@ final class SharedMediaNativePairPlanMutation {
     }
 
     private func save(beforeSave: () throws -> Void, afterSave: () throws -> Void) throws {
-        let expected = try Self.witness(context: context, inventory: inventory, package: package, member: member)
+        let expected = try Self.witness(context: context, inventory: inventory, package: package, member: member, pairID: pairID)
         try beforeSave()
         guard try fresh().before == before else { throw SharedMediaStorageFailure.stale }
         do {
@@ -130,14 +131,14 @@ final class SharedMediaNativePairPlanMutation {
         guard try fresh().before == expected else { throw SharedMediaStorageFailure.stale }
     }
     private func fresh() throws -> SharedMediaNativePairPlanMutation {
-        try .init(container: container, inventoryID: inventory.id, packageID: package.id, authority: authority)
+        try .init(container: container, inventoryID: inventory.id, packageID: package.id, authority: authority, pairID: pairID)
     }
     private static func witness(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                package: PhotoPreparationRecord, member: SharedMediaPendingMembershipRecord) throws -> Witness {
+                                package: PhotoPreparationRecord, member: SharedMediaPendingMembershipRecord, pairID: UUID?) throws -> Witness {
         let envelope = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData)
         let plan: SharedMediaNativePairPlan?
-        if case .preparation(let value) = envelope, !value.intents.isEmpty {
-            plan = try SharedMediaNativePairPlanGraph.state(context: context, inventory: inventory, package: package, member: member)
+        if case .preparation(let value) = envelope, try SharedMediaNativePairPlanGraph.select(value, pairID: pairID) != nil {
+            plan = try SharedMediaNativePairPlanGraph.state(context: context, inventory: inventory, package: package, member: member, pairID: pairID)
         } else { plan = nil }
         return .init(inventoryGeneration: inventory.generation, inventoryRevision: inventory.revision,
             draftGeneration: package.draftGeneration, packageRevision: package.revision, phase: package.phaseRaw,
