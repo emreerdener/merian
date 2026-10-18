@@ -1,3 +1,27 @@
+## October 18 — native pair plans locally verified
+
+The inactive native owner now durably transfers an exact preparation attempt
+into an immutable output plan, with both child work rows, bounded metadata
+reservation, exact save-acknowledgement recovery and explicit no-file
+abandonment. Draft text, original bytes and sequence survive abandonment; stale
+plans cannot release newer work. Global unfinished-work admission and
+bidirectional row audits remain closed to output files and ready/retained pairs.
+
+Candidate03 (`a2e48e0b3e03d115a0c3e9cbfa065674b3fc2756a0a20f165b7ccf0effaf3265`)
+passed six focused suites: 52 methods, no failures, skips or runtime warnings.
+All 2,820 source/project hashes remained unchanged. Exact independent and IC-1
+reviews cleared execution. Failed candidate02 is preserved; its duplicate
+package registration was corrected by ordering the existing preparation charge
+after package registration, with no amount or limit changes. Evidence:
+`.artifacts/native-pair-plan-20261018/`, result
+`3c71ef9df01c47d0b6609375802deda5`. This is scoped shared-checkout validation.
+
+Continue native paired-file reservation/write/retirement/recovery and ready
+publication, then freeze, receiving consumer ownership, live composition and
+required acceptance. Version deletion/source export and the approved redesign
+remain required afterward. Activation disabled, PR116 frozen, deployment hold
+active, AWS unapproved; local work only. No routine proceed approval is needed.
+
 ## October 18 — native preparation reservation and worker cleanup locally verified
 
 The inactive native owner now reserves output and metadata capacity before photo

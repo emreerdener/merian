@@ -40,7 +40,7 @@ final class SharedMediaNativePreparationOperations {
     /// A fresh reservation is mandatory. Saved attempts never dispatch again.
     /// Output remains in memory and the reservation remains held for the native
     /// pair owner; this operation is not publication or submission.
-    func prepare(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe) async throws -> SharedMediaNativePreparedOutputs {
+    func prepare(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe, savePlan: Bool = false) async throws -> SharedMediaNativePreparedOutputs {
         let attempt = try reserve(original: original, recipe: recipe)
         try authority.validate(); try Task.checkCancellation()
         try mutation(original.packageID).result(attempt)
@@ -48,7 +48,20 @@ final class SharedMediaNativePreparationOperations {
         try authority.validate(); try Task.checkCancellation()
         try mutation(original.packageID).result(attempt)
         try output.intent.preparation.requireMatch(attempt)
+        if savePlan {
+            _ = try pairMutation(original.packageID).plan(output, availableBytes: availableBytes(),
+                beforeSave: { try self.boundary(.beforePairSave) }, afterSave: { try self.boundary(.afterPairSave) })
+        }
         return output
+    }
+    private func pairMutation(_ packageID: UUID) throws -> SharedMediaNativePairPlanMutation {
+        try boundary(.beforeReadback)
+        return try .init(container: container, inventoryID: inventoryID, packageID: packageID, authority: authority)
+    }
+    func plan(packageID: UUID) throws -> SharedMediaNativePairPlan? { try pairMutation(packageID).saved() }
+    func abandonPlan(_ plan: SharedMediaNativePairPlan) throws {
+        try pairMutation(plan.packageID).abandon(plan,
+            beforeSave: { try self.boundary(.beforePairSave) }, afterSave: { try self.boundary(.afterPairSave) })
     }
     func abandon(_ request: SharedMediaNativePreparationAttempt) throws {
         // This operation runs only after the registered owner's previous task

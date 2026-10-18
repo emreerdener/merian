@@ -1,13 +1,18 @@
 import Foundation
 import SwiftData
 
-/// Strict attempt-only V2 graph. Pair/frozen codecs do not authorize rows:
-/// those stages remain rejected until their native mutation/audit owner lands.
+/// Strict native V2 graph. Only attempts and no-file plans are admitted;
+/// file-writing, ready and frozen stages remain closed.
 @MainActor
 enum SharedMediaNativePreparationGraph {
     static func validate(_ envelope: SharedMediaNativeDraftEnvelope, package: PhotoPreparationRecord, context: ModelContext) throws {
         guard case .preparation(let value) = envelope else { return }
-        guard value.intents.isEmpty, value.frozen == nil else { throw SharedMediaStorageFailure.closed }
+        guard value.frozen == nil else { throw SharedMediaStorageFailure.closed }
+        if !value.intents.isEmpty {
+            let inventory = try one(context, FetchDescriptor<SharedMediaInventoryRecord>())
+            try SharedMediaNativePairPlanGraph.validate(value, package: package, inventory: inventory, context: context)
+            return
+        }
         guard let blob = value.attempt else { return }
         let attempt = try SharedMediaNativePreparationAttempt.decode(blob.bytes)
         let original = attempt.original.reference, refID = original.referenceID, assetID = original.assetID, packageID = package.id
@@ -43,6 +48,22 @@ enum SharedMediaNativePreparationGraph {
         guard try context.fetchCount(FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.phaseRaw == "preparing" })) == 1 else {
             throw SharedMediaStorageFailure.conflict
         }
+    }
+    /// Global fresh-admission guard, also used by the sealed reservation owner.
+    /// A plan in another package still owns the sole processing reservation.
+    static func requireNoUnfinished(_ context: ModelContext) throws {
+        var query = FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.accountingTierRaw == "pending" })
+        query.fetchLimit = PhotoPreparationPolicy.maximumPackages + 1
+        let rows = try context.fetch(query)
+        guard rows.count <= PhotoPreparationPolicy.maximumPackages else { throw SharedMediaStorageFailure.capacity }
+        for row in rows {
+            let envelope = try SharedMediaNativeDraftEnvelope.decode(row.supportingContextData)
+            if case .preparation(let value) = envelope {
+                guard value.attempt == nil, value.intents.isEmpty, value.frozen == nil else { throw SharedMediaStorageFailure.closed }
+            }
+        }
+        guard try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>()) == 0,
+              try context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>()) == 0 else { throw SharedMediaStorageFailure.closed }
     }
     private static func one<T: PersistentModel>(_ context: ModelContext, _ query: FetchDescriptor<T>) throws -> T {
         var query = query; query.fetchLimit = 2; let rows = try context.fetch(query)

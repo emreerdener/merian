@@ -36,7 +36,7 @@ final class SharedMediaNativePreparationMutation {
               package.phaseRaw == "draftOwned", previous.attempt == nil,
               try context.fetchCount(FetchDescriptor<PhotoPreparationLease>()) == 0,
               try context.fetchCount(FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.cleanupStateRaw != "ready" })) == 0 else { throw SharedMediaStorageFailure.closed }
-        try Self.requireNoAttempt(context)
+        try SharedMediaNativePreparationGraph.requireNoUnfinished(context)
         let id = original.referenceID, assetID = original.assetID
         let ref = try Self.one(context, FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.id == id }))
         let asset = try Self.one(context, FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.id == assetID }))
@@ -138,19 +138,10 @@ final class SharedMediaNativePreparationMutation {
     private func fresh() throws -> SharedMediaNativePreparationMutation {
         try .init(container: container, inventoryID: inventory.id, packageID: package.id, authority: authority)
     }
-    private static func requireNoAttempt(_ context: ModelContext) throws {
-        var query = FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.accountingTierRaw == "pending" })
-        query.fetchLimit = PhotoPreparationPolicy.maximumPackages + 1
-        let rows = try context.fetch(query)
-        guard rows.count <= PhotoPreparationPolicy.maximumPackages else { throw SharedMediaStorageFailure.capacity }
-        for row in rows {
-            guard try SharedMediaNativeDraftEnvelope.decode(row.supportingContextData).attempt == nil else { throw SharedMediaStorageFailure.closed }
-        }
-    }
     private static func one<T: PersistentModel>(_ context: ModelContext, _ descriptor: FetchDescriptor<T>) throws -> T {
         var query = descriptor; query.fetchLimit = 2; let rows = try context.fetch(query)
         guard rows.count == 1, let row = rows.first else { throw SharedMediaStorageFailure.conflict }; return row
     }
 }
 
-enum SharedMediaNativePreparationBoundary: Equatable, Sendable { case beforeSave, afterSave, beforeReadback }
+enum SharedMediaNativePreparationBoundary: Equatable, Sendable { case beforeSave, afterSave, beforeReadback, beforePairSave, afterPairSave }

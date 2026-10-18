@@ -293,8 +293,6 @@ final class SharedMediaNativeStorageRepository {
         let rows = try context.fetch(query)
         guard rows.count == 1, let row = rows.first else { throw SharedMediaStorageFailure.conflict }; return row
     }
-
-
 }
 
 /// Registered before admission, so Auth can reach an in-flight open. This
@@ -412,8 +410,7 @@ final class SharedMediaNativeOriginalOwner {
     #endif
 
     /// Reserves an explicit native attempt without dispatching a processor.
-    /// The upcoming pair owner consumes this reservation under this same task
-    /// lifetime; callers receive assertions, never a source URL or write access.
+    /// Callers receive assertions, never a source URL or write access.
     func reservePreparation(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe) async throws -> SharedMediaNativePreparationAttempt {
         try await lifecycle { storage, check in
             try storage.preparationOperations(check).reserve(original: original, recipe: recipe)
@@ -432,6 +429,12 @@ final class SharedMediaNativeOriginalOwner {
     }
     #endif
 
+    func plannedPreparation(packageID: UUID) async throws -> SharedMediaNativePairPlan? {
+        try await lifecycle(recovery: true) { storage, check in try storage.preparationOperations(check).plan(packageID: packageID) }
+    }
+    func abandonPlannedPreparation(_ plan: SharedMediaNativePairPlan) async throws {
+        try await lifecycle(recovery: true) { storage, check in try storage.preparationOperations(check).abandonPlan(plan) }
+    }
     func prepareMetadata(packageID: UUID, draftGeneration: UUID, contexts: [ObservationContext],
                          presentation: [PhotoPreparationImagePresentation]? = nil) async throws -> SharedMediaNativeMetadataRequest {
         try await lifecycle { storage, check in
@@ -445,9 +448,9 @@ final class SharedMediaNativeOriginalOwner {
     #if DEBUG
     /// Qualification only until the native pair owner consumes outputs in the
     /// same retained operation. Never used by live Capture or queue composition.
-    func qualifyPhotoPreparation(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe) async throws -> SharedMediaNativePreparedOutputs {
+    func qualifyPhotoPreparation(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe, savePlan: Bool = false) async throws -> SharedMediaNativePreparedOutputs {
         try await lifecycle { storage, check in
-            try await storage.preparationOperations(check).prepare(original: original, recipe: recipe)
+            try await storage.preparationOperations(check).prepare(original: original, recipe: recipe, savePlan: savePlan)
         }
     }
     #endif

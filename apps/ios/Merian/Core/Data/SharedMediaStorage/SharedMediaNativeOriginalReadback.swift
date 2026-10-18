@@ -129,7 +129,9 @@ struct SharedMediaNativeOriginalReadback {
         guard rows.count <= PhotoPreparationPolicy.maximumPackages else { throw SharedMediaStorageFailure.capacity }
         return try rows.contains { row in
             guard row.ownerID == inspection.ownerID else { throw SharedMediaStorageFailure.conflict }
-            return try SharedMediaNativeDraftEnvelope.decode(row.supportingContextData).attempt != nil
+            let envelope = try SharedMediaNativeDraftEnvelope.decode(row.supportingContextData)
+            if case .preparation(let value) = envelope { return value.attempt != nil || !value.intents.isEmpty }
+            return false
         }
     }
 

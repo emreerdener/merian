@@ -1,3 +1,39 @@
+## October 18 — native pair plans locally verified
+
+After the verified reservation/worker-drain checkpoint, the inactive native
+owner can replace an exact active attempt with a durable `nativeDerivativeV2`
+pair plan and its two work rows. The immutable V3 intent retains exact output
+hashes, lengths, types, recipe and focus outcome. Inventory/package/membership
+revisions advance atomically; both children, all fixed row fields and the exact
+envelope are checked on fresh readback after a save error. Planning transfers
+the existing maximum output reservation to the actual prepared byte lengths
+without a gap or double charge. The remaining aggregate metadata allowance stays
+reserved; a bounded canonical row/witness projection must also fit that
+allowance.
+
+Only no-file `planned` rows are admitted by this increment. They have no output
+allocation, asset, reference, counter or writer lease. Whole-store pair/work
+reverse checks reject missing, extra or mismatched children and any premature
+physical rows. The one-incomplete-plan guard is not a retained-library cap;
+ready/retained derivative states remain closed until their typed owner lands.
+Inspection and reopen report a plan as recovery work, blocking other mutations
+and never repeating preparation. Explicit abandonment under the serial owner
+requires the exact saved plan and unchanged no-output namespace, then removes
+only those planned rows and restores original-only membership. It preserves
+sequence, original bytes and supporting content; stale plans cannot erase newer
+work. There is no file deletion in that transition.
+
+Native output reservation/write/retirement/recovery, ready publication, freeze,
+consumer ownership and live composition remain pending. Candidate03 passed the
+six focused suites (52 test methods, no failures, skips or runtime warnings)
+after exact independent/IC-1 review. All 2,820 source/project hashes remained
+unchanged. Failed candidate02 evidence is retained; its preparation-pool charge
+was reordered after package registration without changing amounts or limits.
+Evidence is in `.artifacts/native-pair-plan-20261018/`. This shared-checkout
+focused result is not acceptance for later stages or a repeat of the preceding
+full-target qualification. Activation, PR116 freeze and deployment hold remain
+unchanged.
+
 ## October 18 — native preparation reservation locally verified
 
 The inactive native owner now reserves an explicit preparation attempt in a
@@ -38,16 +74,16 @@ original, recipe, operation/revision facts and hashes/lengths of prior envelope
 and membership bytes. Raw prior bytes remain only in the active attempt for
 exact CAS; retained intents never recursively embed earlier drafts. The
 unreachable draft intent format containing `attemptBytes` is rejected. The
-current native graph **rejects** those stages until their sealed mutation and
-physical-I/O owners are implemented. Codec support is not pair, freeze, queue,
-product or activation acceptance. Independent and IC-1 review cleared
-candidate14. Its focused correction passed 28 methods / 31 executions, then the
-complete `merianTests` target passed 6,246 methods / 10,047 executions, with
-zero failures, skips and runtime warnings. Full12's failed evidence remains
-retained. All 2,815 source/project hashes were unchanged during verification.
-This qualifies the inactive reservation/processor and worker-cleanup increment
-in the shared checkout; paired files/freeze/consumer/live composition remain
-pending. Evidence is under
+reservation checkpoint rejected those later stages; the current plan-only
+increment above still rejects file-writing, ready and frozen states. Codec
+support is not pair, freeze, queue, product or activation acceptance.
+Independent and IC-1 review cleared candidate14. Its focused correction passed
+28 methods / 31 executions, then the complete `merianTests` target passed 6,246
+methods / 10,047 executions, with zero failures, skips and runtime warnings.
+Full12's failed evidence remains retained. All 2,815 source/project hashes were
+unchanged during verification. This qualifies the inactive reservation/processor
+and worker-cleanup increment in the shared checkout; paired
+files/freeze/consumer/live composition remain pending. Evidence is under
 `.artifacts/native-preparation-integration-20261018/`. All existing deployment,
 PR116 and activation holds remain in force.
 

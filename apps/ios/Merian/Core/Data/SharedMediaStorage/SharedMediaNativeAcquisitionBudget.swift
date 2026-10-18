@@ -14,7 +14,7 @@ enum SharedMediaNativeAcquisitionBudget {
 
     static func evaluate(context: ModelContext, inventory: SharedMediaInventoryRecord) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.derive(in: context, inventory: inventory)
-        guard graph.sources.isEmpty, graph.handoffs.isEmpty, graph.pairs.isEmpty, graph.derivatives.isEmpty else {
+        guard graph.sources.isEmpty, graph.handoffs.isEmpty else {
             throw SharedMediaStorageFailure.closed
         }
         var totals = SharedMediaStoragePolicy.Totals(), metadata: [UUID: Int64] = [:]
@@ -26,6 +26,20 @@ enum SharedMediaNativeAcquisitionBudget {
             let envelope = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData)
             try SharedMediaNativePreparationGraph.validate(envelope, package: package, context: context)
             let attempt = try envelope.attempt.map { try SharedMediaNativePreparationAttempt.decode($0.bytes) }
+            let plan: SharedMediaNativePairPlan?
+            if case .preparation(let value) = envelope, !value.intents.isEmpty {
+                let member = try one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
+                plan = try SharedMediaNativePairPlanGraph.state(context: context, inventory: inventory, package: package, member: member)
+            } else { plan = nil }
+            let plannedOutput: Int64
+            let planBytes: Int64
+            if let plan {
+                let intent = try SharedMediaNativeDerivativeIntent.decode(plan.intent.bytes)
+                plannedOutput = try SharedMediaStoragePolicy.add(intent.ai.byteCount, intent.display.byteCount)
+                // This bounded canonical projection charges duplicated row facts,
+                // not only the envelope. It includes the future saved witness.
+                planBytes = Int64(try SharedMediaNativeDraftEnvelope.bytes(plan).count)
+            } else { plannedOutput = 0; planBytes = 0 }
             guard try SharedMediaConsumerLookup.one(context, packageID: id) == nil else { throw SharedMediaStorageFailure.closed }
             let jobs = graph.work.filter { $0.packageID == id }
             var pending: [SharedMediaAcquisitionIntent] = []
@@ -80,10 +94,10 @@ enum SharedMediaNativeAcquisitionBudget {
             let member = try graph.membership(packageID: id)
             let projected = try maximumMembershipBytes(member, pending: pending)
             let bytes = try PhotoPreparationPolicy.add([Int64(package.supportingContextData.count), projected, receiptBytes])
-            guard bytes <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
+            guard try SharedMediaStoragePolicy.add(bytes, planBytes) <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
             // Reserve the entire remaining existing metadata allowance before
             // processing. Later pair/result/member encodings must fit it.
-            let preparationMetadata = attempt == nil ? 0 : PhotoPreparationPolicy.metadata - bytes
+            let preparationMetadata = attempt == nil && plan == nil ? 0 : PhotoPreparationPolicy.metadata - bytes
             metadata[id] = bytes + preparationMetadata
             let membershipGrowth = projected - Int64(try member.encoded().count)
             guard closureBytes <= resultHeadroom else { throw SharedMediaStorageFailure.conflict }
@@ -104,7 +118,14 @@ enum SharedMediaNativeAcquisitionBudget {
                 // in the existing preparation pool (not counted free twice).
                 try totals.includePhotoPhysical(materialized: 0, reserved: attempt.outputReservation)
             }
+            if plan != nil {
+                logical = try SharedMediaStoragePolicy.add(logical, plannedOutput)
+                try totals.includePhotoPhysical(materialized: 0, reserved: plannedOutput)
+            }
             try totals.includePhotoPackage(id: id, bytes: logical)
+            if plan != nil {
+                try totals.includePhotoPreparation(package: id, bytes: try SharedMediaStoragePolicy.add(plannedOutput, preparationMetadata))
+            }
             if let attempt {
                 try totals.includePhotoPreparation(package: id, bytes: try SharedMediaStoragePolicy.add(attempt.outputReservation, preparationMetadata))
             }

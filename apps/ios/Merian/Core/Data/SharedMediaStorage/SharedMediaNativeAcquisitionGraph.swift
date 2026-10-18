@@ -14,7 +14,8 @@ enum SharedMediaNativeAcquisitionGraph {
             SharedMediaMembershipBootstrapRecord.self, SharedMediaPendingMembershipRecord.self,
             SharedMediaAcquisitionReceiptRecord.self, PhotoPreparationRecord.self, PhotoPreparationAsset.self,
             PhotoPreparationReference.self, PhotoPreparationLease.self, SharedMediaAllocationRecord.self,
-            SharedMediaReferenceRecord.self, SharedMediaLeaseRecord.self, SharedMediaAssetReferenceCountRecord.self]
+            SharedMediaReferenceRecord.self, SharedMediaLeaseRecord.self, SharedMediaAssetReferenceCountRecord.self,
+            SharedMediaDerivativePairRecord.self, SharedMediaDerivativeWorkRecord.self]
         for type in CurrentSchema.models where !allowed.contains(where: { ObjectIdentifier($0) == ObjectIdentifier(type) }) {
             guard try SharedMediaStorageLookup.count(context, type) == 0 else { throw SharedMediaStorageFailure.closed }
         }
@@ -56,6 +57,7 @@ enum SharedMediaNativeAcquisitionGraph {
         try page(context, FetchDescriptor<PhotoPreparationRecord>(sortBy: [SortDescriptor(\.id)])) { row in
             try package(row, context: context)
         }
+        try SharedMediaNativePairPlanGraph.audit(context: context, inventory: inventory)
         let pending = try SharedMediaPendingGraph.derive(in: context, inventory: inventory)
         try pending.validateMembership(in: context, inventory: inventory)
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
@@ -227,7 +229,9 @@ enum SharedMediaNativeAcquisitionGraph {
             guard ordinals.insert(intent.ordinal).inserted else { throw SharedMediaStorageFailure.conflict }
         }
         try SharedMediaNativePreparationGraph.validate(envelope, package: row, context: context)
-        let expectedPhase = envelope.attempt == nil ? (held ? "needsAttention" : (jobs.isEmpty ? "draftOwned" : "acquiring")) : "preparing"
+        let hasPlan: Bool
+        if case .preparation(let value) = envelope { hasPlan = !value.intents.isEmpty } else { hasPlan = false }
+        let expectedPhase = hasPlan ? "needsAttention" : envelope.attempt == nil ? (held ? "needsAttention" : (jobs.isEmpty ? "draftOwned" : "acquiring")) : "preparing"
         guard allocated == row.allocatedByteCount, row.phaseRaw == expectedPhase else {
             throw SharedMediaStorageFailure.conflict
         }
