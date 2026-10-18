@@ -1,3 +1,41 @@
+## Native empty-store admission — locally verified
+
+`SharedMediaNativeStorageRepository` is a private-constructor, Debug-only
+fixture factory. It holds the existing exclusive store fence before eligibility
+and binding work, and exposes only an exact empty-store snapshot. Pristine
+initialization saves `nativeQualificationV1` / `readyNativeAccountingV1`
+inventory and bootstrap together. Reopen requires their exact identity,
+generation, revision and root/store bindings. All other model rows, real
+Documents/Application Support locations and legacy graph adoption are rejected.
+Partial marker installation is preserved and fails closed; a lost save response
+can reopen only the exact committed state. No media operations or live
+composition are enabled.
+
+A sealed native binding bridges to the existing namespace owners without
+exposing raw-byte construction. Shared photo/inbox reopen now opens existing
+namespaces without `mkdir`; missing or symlinked directories fail without being
+recreated. Standalone photo creation stays unchanged. Held-owner replacements
+are detected by existing descriptor checks. Empty-directory inode continuity
+across different owner lifetimes is not established by these root markers; this
+empty-only factory requires empty namespaces and grants no media or cleanup
+authority. Complete native namespace/file and retirement-identity qualification
+remains required before nonempty operations can open.
+
+Independent and IC-1 review cleared candidate02. Focused coverage passed 65
+tests; the full native target passed 6,118 tests, with zero failures/skips and
+unchanged candidate/shared-baseline hashes. Evidence:
+`.artifacts/shared-media-native-owner-20261017/`. The rejected first candidate
+was corrected before execution. This is local shared-checkout validation only.
+
+The next native reserve/commit owner requires a durable versioned request
+receipt: existing P1 reservation rows omit future reference, asset-generation
+and other immutable intent facts. Reviewed design preserves exact recovery and
+terminal replay rejection, counts receipt payloads within the originating
+package's existing metadata allowance, and never reruns a loader from a saved
+reservation alone. The additive schema, transaction owner and complete
+descriptor audit remain to be implemented and qualified; no live composition or
+limits change follows.
+
 ## Native original reference audit — locally verified
 
 `SharedMediaNativeOriginalAccounting` audits one persisted original under the

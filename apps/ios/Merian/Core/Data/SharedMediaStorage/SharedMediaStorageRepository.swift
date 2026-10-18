@@ -522,6 +522,9 @@ struct SharedMediaPhotoBinding {
     let bytes: Data
     let initializing: Bool
     let epoch: UUID
+    init(native: SharedMediaNativeBinding) {
+        bytes = native.bytes; initializing = native.initializing; epoch = native.epoch
+    }
     fileprivate init(bytes: Data, initializing: Bool, epoch: UUID) {
         self.bytes = bytes
         self.initializing = initializing

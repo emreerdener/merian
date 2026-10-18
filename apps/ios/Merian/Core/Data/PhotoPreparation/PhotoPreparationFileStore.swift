@@ -55,7 +55,8 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
                 } else if errno != ENOENT { throw PhotoPreparationFailure.inconsistentOwnership }
             }
             try checkSharedBinding(initializing: sharedBinding?.initializing == true)
-            if mkdirat(rootFD, "PhotoPreparation", 0o700) != 0 && errno != EEXIST {
+            if (sharedBinding == nil || sharedBinding?.initializing == true),
+               mkdirat(rootFD, "PhotoPreparation", 0o700) != 0 && errno != EEXIST {
                 throw PhotoPreparationFailure.unavailable
             }
             namespaceFD = openat(rootFD, "PhotoPreparation", O_RDONLY | O_DIRECTORY | O_NOFOLLOW)

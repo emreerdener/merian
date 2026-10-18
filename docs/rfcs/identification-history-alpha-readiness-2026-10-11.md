@@ -1,3 +1,40 @@
+## October 17 — native empty-store owner and exact namespace reopen verified
+
+The Debug-only native fixture owner now admits only pristine or exactly reopened
+empty stores. It fences eligibility and binding work, saves the native inventory
+and bootstrap together, and rejects partial initialization, mismatched metadata,
+legacy graph adoption and real Documents/Application Support roots, including
+resolved aliases. Shared photo and inbox reopen no longer recreate missing
+namespaces; standalone photo creation remains unchanged. Held directory
+replacements fail closed. This empty-only owner grants no media mutation,
+cleanup or live composition authority; cold empty-directory inode continuity is
+not claimed.
+
+Independent and IC-1 review cleared candidate02. All four focused suites passed
+65 tests; the complete native target passed 6,118 tests with zero failures or
+skips. Candidate and unrelated baseline hashes stayed unchanged. Evidence:
+`.artifacts/shared-media-native-owner-20261017/`; full result
+`.artifacts/local-ios/5cf61ea06144431d842a5d1e4332904f.xcresult`. The first
+unexecuted candidate's resolved-path admission gap and its correction remain
+recorded. This is shared-checkout validation, not isolated-source or live
+acceptance.
+
+Continue the closed native reserve/commit owner and complete namespace audit.
+Review found that existing P1 reservation rows do not preserve the full
+immutable native request. Independent and IC-1 design review concur on an
+additive versioned acquisition receipt, exact same-operation recovery, terminal
+replay rejection, an explicit partial/final presence matrix and single-save
+descriptor-bound absence settlement. The outgoing schema must be frozen and
+compiled before the additive model change. Receipt encoding, migration and
+transaction implementation remain unqualified; no existing operation is
+converted or replayed. Pending accounting limits stay unchanged and retained
+physical ownership remains separate.
+
+Activation remains disabled, PR116 frozen, the Supabase deployment hold active
+and AWS unapproved. No push, merge, deployment, hosted action or numeric-limit
+change occurred. Native queue/history ownership and the later approved
+follow-ups remain unfinished.
+
 ## October 17 — native original reverse-reference audit locally verified
 
 The read-only original audit checks saved reverse counts independently against

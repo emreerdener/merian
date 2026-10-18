@@ -23,7 +23,9 @@ final class SharedMediaInboxFiles: @unchecked Sendable {
             guard flock(rootFD, LOCK_EX | LOCK_NB) == 0 else { throw SharedMediaStorageFailure.busy }
             if binding.initializing { try names(rootFD, maximum: 0) }
             try checkBinding(initializing: binding.initializing)
-            guard mkdirat(rootFD, "InboxSources", 0o700) == 0 || errno == EEXIST else { throw SharedMediaStorageFailure.unavailable }
+            if binding.initializing {
+                guard mkdirat(rootFD, "InboxSources", 0o700) == 0 || errno == EEXIST else { throw SharedMediaStorageFailure.unavailable }
+            }
             namespaceFD = openat(rootFD, "InboxSources", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
             guard namespaceFD >= 0, flock(namespaceFD, LOCK_EX | LOCK_NB) == 0,
                   fsync(namespaceFD) == 0, fsync(rootFD) == 0 else { throw SharedMediaStorageFailure.unavailable }
