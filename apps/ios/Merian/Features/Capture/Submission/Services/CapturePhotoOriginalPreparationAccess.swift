@@ -12,7 +12,6 @@ final class CapturePhotoOriginalPreparationAccess {
     private(set) var revision: Int64 = 0
     private(set) var hasUnsavedChanges = false
     private(set) var receipt: PhotoPreparationReceipt?
-    private var nextOrdinal: Int64 = 0
     private(set) var needsRecovery = false
 
     init(owner: PhotoOriginalPreparationOwner) { self.owner = owner }
@@ -23,11 +22,10 @@ final class CapturePhotoOriginalPreparationAccess {
                  releaseSource: (@Sendable () async throws -> Void)? = nil,
                  load: @escaping @Sendable () async throws -> Data,
                  prepare: @escaping @Sendable (URL) async throws -> PreparedStagedImage?) async throws -> StagedImage {
-        guard receipt == nil, !needsRecovery, nextOrdinal < 2 else { throw PhotoPreparationFailure.sizeLimit }
+        guard receipt == nil, !needsRecovery else { throw PhotoPreparationFailure.sizeLimit }
         hasUnsavedChanges = true
         let reference = try await owner.acquire(packageID: packageID, draftGeneration: generation,
-            ordinal: nextOrdinal, sourceKind: source, sourceByteLiability: sourceByteLiability, sourceIdentity: sourceIdentity, load: load)
-        nextOrdinal += 1
+            sourceKind: source, sourceByteLiability: sourceByteLiability, sourceIdentity: sourceIdentity, load: load)
         if let sourceIdentity, let releaseSource {
             try await owner.releaseSource(reference, identity: sourceIdentity, releaseAndConfirm: releaseSource)
         }
@@ -82,7 +80,6 @@ final class CapturePhotoOriginalPreparationAccess {
         guard let reference = image.photoOriginalReference else { throw PhotoPreparationFailure.missingMedia }
         hasUnsavedChanges = true
         try await owner.remove(reference)
-        nextOrdinal = max(0, nextOrdinal - 1)
         try await refreshRevision()
     }
 
@@ -100,7 +97,7 @@ final class CapturePhotoOriginalPreparationAccess {
             }
             try await owner.discard(packageID: packageID, revision: draft.revision)
         }
-        packageID = UUID(); generation = UUID(); revision = 0; nextOrdinal = 0
+        packageID = UUID(); generation = UUID(); revision = 0
         hasUnsavedChanges = false; receipt = nil; needsRecovery = false
     }
 
@@ -112,7 +109,6 @@ final class CapturePhotoOriginalPreparationAccess {
             throw PhotoPreparationFailure.missingMedia
         }
         self.packageID = draft.packageID; generation = draft.draftGeneration; revision = draft.revision
-        nextOrdinal = Int64(draft.originals.count)
         needsRecovery = draft.needsAttention
         receipt = draft.phase == "preparedHeld" ? PhotoPreparationReceipt(packageID: packageID, revision: revision) : nil
         var images: [StagedImage] = []

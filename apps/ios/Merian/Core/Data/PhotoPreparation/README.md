@@ -1,3 +1,34 @@
+## October 18 — Capture position ownership locally verified
+
+Capture now leaves original-slot selection to the fenced preparation owner.
+Selection uses the durable repository state under the existing account and
+namespace lease; full or unfinished drafts reject another loader. Explicit
+ordinal callers retain their behavior. Legacy removal still compacts positions;
+native removal preserves positions. Capture therefore no longer assumes that an
+original count supplies a free slot. After reserving storage, cancellation and
+account validity are checked again immediately before invoking the loader.
+Revoked dispatch preserves the reservation for explicit recovery.
+
+Independent and IC-1 static review cleared candidate02. All five focused suites
+passed 26 methods / 28 executions, followed by the complete `merianTests`
+target: 6,218 methods / 10,009 executions. Both finalized results have zero
+failures, skips and runtime warnings: `afb32a361eb64aeca9a5effb0243a3d9` and
+`9461f22e9eab4c3e920cf5454950d1ff`. All 2,803 source/project baseline hashes
+remained unchanged. Compile/lint warnings remain in the logs, including the new
+selection branch's nonblocking statement-position warning. Retained
+fixtures/results and dependencies were not removed by these runs.
+
+This is shared-checkout qualification of the local correction, not native
+preparation or live composition acceptance. Native derivatives/freeze, receiving
+consumer ownership, Capture/Auth/queue/history composition and integrated
+acceptance remain open. The native V2 integration design now has independent and
+IC-1 design concurrence, with pre-processing reservations, exact persisted
+intent bytes, native-only readers, bounded replay fencing and explicit ordered
+cohorts. It still requires implementation and exact-candidate verification.
+Evidence: `.artifacts/native-preparation-integration-20261018/`. Activation
+disabled, PR116 frozen, deployment hold active and AWS unapproved. Continue the
+approved integration, then version actions/export and redesign in order.
+
 ## October 18 — native final-reference cleanup locally verified
 
 `SharedMediaNativeRetirementFiles` consumes only the fenced native repository's

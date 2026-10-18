@@ -438,6 +438,29 @@ final class PhotoPreparationRepository {
             || context.fetchCount(FetchDescriptor<PhotoPreparationLease>()) > 0
     }
 
+    /// Called only while the owner holds its namespace/account lease. A partial
+    /// acquisition must be resolved explicitly; it cannot be replaced by choosing
+    /// another slot after a lost callback or acknowledgement.
+    func nextOriginalOrdinal(packageID: UUID, ownerID: UUID, draftGeneration: UUID) throws -> Int64 {
+        let s = try state()
+        if let record = s.records.first(where: { $0.id == packageID }) {
+            guard record.ownerID == ownerID, record.draftGeneration == draftGeneration else {
+                throw PhotoPreparationFailure.staleGeneration
+            }
+            guard record.phaseRaw == "draftOwned", !record.retirementRequested,
+                  !s.leases.contains(where: { $0.packageID == packageID }) else {
+                throw PhotoPreparationFailure.cleanupPending
+            }
+        }
+        let occupied = Set(s.references.filter {
+            $0.packageID == packageID && $0.isLive && $0.roleRaw == "original"
+        }.map(\.ordinal))
+        guard let available = (Int64(0)..<2).first(where: { !occupied.contains($0) }) else {
+            throw PhotoPreparationFailure.sizeLimit
+        }
+        return available
+    }
+
     func recovery(ownerID: UUID) throws -> [PhotoPreparationDraft] {
         let s = try state()
         return try s.records.filter { $0.ownerID == ownerID }.map { record in

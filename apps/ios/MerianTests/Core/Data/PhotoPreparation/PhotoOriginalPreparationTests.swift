@@ -38,6 +38,66 @@ struct PhotoPreparationTestHarness {
 @Suite("P1 original ownership", .serialized)
 @MainActor
 struct PhotoOriginalPreparationTests {
+    @Test(arguments: [false, true])
+    func revokedDispatchAfterReservationNeverInvokesLoader(cancel: Bool) async throws {
+        let h = try PhotoPreparationTestHarness(); defer { h.cleanup() }
+        let base = PhotoOriginalPreparationOwner.syntheticAccount(ownerID: h.ownerID, runtime: h.runtime)
+        var current = true
+        let account = PhotoOriginalPreparationOwner.AccountAccess(ownerID: h.ownerID,
+            begin: base.begin, isCurrent: { current && base.isCurrent($0) }, finish: base.finish)
+        let owner = try PhotoOriginalPreparationOwner.qualification(container: h.container, root: h.root, account: account)
+        owner.beforeOriginalLoadForTesting = {
+            if cancel { withUnsafeCurrentTask { $0?.cancel() } }
+            else { current = false }
+        }
+        let package = UUID()
+        do {
+            _ = try await owner.acquire(packageID: package, draftGeneration: UUID(), sourceKind: "picker", load: {
+                Issue.record("Revoked dispatch invoked loader")
+                return Data()
+            })
+            Issue.record("Revoked dispatch was accepted")
+        } catch {
+            if cancel { #expect(error is CancellationError) }
+            else { #expect(error as? PhotoPreparationFailure == .accountChanged) }
+        }
+        let context = ModelContext(h.container)
+        let work = try #require(context.fetch(FetchDescriptor<PhotoPreparationLease>()).first)
+        #expect(work.packageID == package && work.reservedByteCount == PhotoPreparationPolicy.original)
+        #expect(try context.fetchCount(FetchDescriptor<PhotoPreparationAsset>()) == 0)
+        #expect(try context.fetch(FetchDescriptor<PhotoPreparationRecord>()).first?.phaseRaw == "needsAttention")
+        current = true
+        owner.beforeOriginalLoadForTesting = nil
+        #expect(try await owner.recover().first?.needsAttention == true)
+    }
+
+    @Test func automaticPositionUsesDurableSlotsAndRejectsUnfinishedAcquisitionBeforeLoader() async throws {
+        let h = try PhotoPreparationTestHarness(); defer { h.cleanup() }
+        let owner = try h.owner(), package = UUID(), generation = UUID()
+        let bytes = PhotoPreparationTestHarness.image()
+        // A surviving slot need not equal a UI-local count.
+        let survivor = try await owner.acquire(packageID: package, draftGeneration: generation,
+            ordinal: 1, sourceKind: "picker", load: { bytes })
+        let added = try await owner.acquire(packageID: package, draftGeneration: generation,
+            sourceKind: "camera", load: { bytes })
+        let refs = try ModelContext(h.container).fetch(FetchDescriptor<PhotoPreparationReference>())
+        #expect(refs.first { $0.id == survivor.referenceID }?.ordinal == 1)
+        #expect(refs.first { $0.id == added.referenceID }?.ordinal == 0)
+        await #expect(throws: PhotoPreparationFailure.sizeLimit) {
+            try await owner.acquire(packageID: package, draftGeneration: generation,
+                sourceKind: "camera", load: { Issue.record("Full package invoked loader"); return bytes })
+        }
+        let pending = UUID(), pendingGeneration = UUID()
+        await #expect(throws: CancellationError.self) {
+            try await owner.acquire(packageID: pending, draftGeneration: pendingGeneration,
+                sourceKind: "picker", load: { throw CancellationError() })
+        }
+        await #expect(throws: PhotoPreparationFailure.cleanupPending) {
+            try await owner.acquire(packageID: pending, draftGeneration: pendingGeneration,
+                sourceKind: "picker", load: { Issue.record("Unfinished acquisition invoked loader"); return bytes })
+        }
+    }
+
     @Test func exact32MiBCohortAndCapPlusOneUseUnchangedLimits() async throws {
         let h = try PhotoPreparationTestHarness(); defer { h.cleanup() }
         let owner = try h.owner(), package = UUID(), generation = UUID()
@@ -187,6 +247,32 @@ struct PhotoOriginalPreparationTests {
 @Suite("P1 capture lifecycle", .serialized)
 @MainActor
 struct CapturePhotoPreparationTests {
+    @Test func removeReopenAndAddPreservesSurvivorAndUsesOwnerPosition() async throws {
+        let h = try PhotoPreparationTestHarness(); defer { h.cleanup() }
+        let owner = try h.owner(), access = CapturePhotoOriginalPreparationAccess(owner: owner)
+        let bytes = PhotoPreparationTestHarness.image()
+        let cg = try #require(UIImage(data: bytes)?.cgImage)
+        let prepared = PreparedStagedImage(compressedData: bytes, displayData: bytes,
+            historicalContext: nil, previewCGImage: SendableCGImage(image: cg), focusRegion: nil)
+        let first = try await access.acquire(source: "picker", load: { bytes }, prepare: { _ in prepared })
+        let second = try await access.acquire(source: "picker", load: { bytes }, prepare: { _ in prepared })
+        let details = [ObservationContext(freeText: "Preserved supporting details")]
+        try await access.persist(images: [first, second], contexts: details)
+        try await access.remove(first)
+        try await access.persist(images: [second], contexts: details)
+        let resumed = CapturePhotoOriginalPreparationAccess(owner: try h.owner())
+        let restored = try await resumed.restore(packageID: access.packageID, prepareOriginal: { _ in prepared })
+        #expect(restored.images.count == 1)
+        #expect(restored.images.first?.photoOriginalReference == second.photoOriginalReference)
+        #expect(restored.contexts == details)
+        let added = try await resumed.acquire(source: "camera", load: { bytes }, prepare: { _ in prepared })
+        try await resumed.persist(images: restored.images + [added], contexts: details)
+        _ = try await resumed.freeze(images: restored.images + [added], contexts: details)
+        let survivor = try #require(second.photoOriginalReference)
+        #expect(try await owner.originalData(survivor) == bytes)
+        #expect(try ModelContext(h.container).fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
+    }
+
     @Test func photoPreparationSeamPersistsCropReopensAndNeverCallsAdmission() async throws {
         let h = try PhotoPreparationTestHarness(); defer { h.cleanup() }
         let access = CapturePhotoOriginalPreparationAccess(owner: try h.owner())

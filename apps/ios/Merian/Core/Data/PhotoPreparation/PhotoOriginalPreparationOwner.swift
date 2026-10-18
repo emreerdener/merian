@@ -19,6 +19,17 @@ final class PhotoOriginalPreparationOwner {
     private var cancelActive: (() -> Void)?
     private var awaitActive: (() async -> Void)?
     private var pauseFailed = false
+    #if DEBUG
+    var beforeOriginalLoadForTesting: (@MainActor () -> Void)?
+    #endif
+
+    private func validateOriginalDispatch(_ lease: AccountBoundWorkLease) throws {
+        #if DEBUG
+        beforeOriginalLoadForTesting?()
+        #endif
+        try Task.checkCancellation()
+        try checkAccount(lease)
+    }
 
     private init(container: ModelContainer, root: URL, account: AccountAccess) throws {
         repository = try PhotoPreparationRepository(container: container)
@@ -78,24 +89,29 @@ final class PhotoOriginalPreparationOwner {
         return Set(known.files.map(\.token) + known.pending)
     }
 
-    func acquire(packageID: UUID, draftGeneration: UUID, ordinal: Int64,
+    /// Capture leaves position selection to the fenced durable owner. Explicit
+    /// ordinals remain available for exact existing callers and qualification.
+    func acquire(packageID: UUID, draftGeneration: UUID, ordinal: Int64? = nil,
                  sourceKind: String, maximumBytes: Int64 = PhotoPreparationPolicy.original,
                  sourceByteLiability: Int64 = 0, sourceIdentity: String? = nil,
                  load: @escaping @Sendable () async throws -> Data) async throws -> PhotoOriginalReference {
-        let intent = PhotoPreparationIntent(leaseID: UUID(), ownerID: account.ownerID, packageID: packageID,
-            assetID: UUID(), assetGeneration: UUID(), referenceID: UUID(), draftGeneration: draftGeneration,
-            processEpoch: processEpoch, role: .original, ordinal: ordinal,
-            acquisitionKind: sourceKind, maximumBytes: maximumBytes, sourceByteLiability: sourceByteLiability, sourceIdentity: sourceIdentity)
-        return try await store(intent, load: load)
-    }
-
-    private func store(_ intent: PhotoPreparationIntent,
-                       load: @escaping @Sendable () async throws -> Data) async throws -> PhotoOriginalReference {
         try await perform { [self] files, lease in
             try files.checkInventory(knownTokens: await knownTokens())
             try files.checkFreeSpace()
+            try await checkAccount(lease)
+            let position: Int64
+            if let ordinal { position = ordinal }
+            else { position = try await repository.nextOriginalOrdinal(packageID: packageID,
+                ownerID: account.ownerID, draftGeneration: draftGeneration) }
+            let intent = PhotoPreparationIntent(leaseID: UUID(), ownerID: account.ownerID, packageID: packageID,
+                assetID: UUID(), assetGeneration: UUID(), referenceID: UUID(), draftGeneration: draftGeneration,
+                processEpoch: processEpoch, role: .original, ordinal: position,
+                acquisitionKind: sourceKind, maximumBytes: maximumBytes,
+                sourceByteLiability: sourceByteLiability, sourceIdentity: sourceIdentity)
             try await repository.reserve(intent)
             do {
+                try await validateOriginalDispatch(lease)
+                try Task.checkCancellation()
                 let data = try await load()
                 try Task.checkCancellation()
                 try await checkAccount(lease)
