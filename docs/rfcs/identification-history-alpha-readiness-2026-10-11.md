@@ -1,3 +1,32 @@
+## October 17 — native acquisition receipt codec locally qualified
+
+The V64 receipt now has a closed, versioned codec for immutable picker/camera
+original requests, exact completion results, held work and terminal replay
+witnesses. Cold recovery starts from the persisted row, including terminal rows
+that retain no request. A separate expected-intent check rejects substitutions.
+Canonical encodings reject unknown or duplicate fields and preserve historical
+UTI values without asking the current OS to decode media. The internal 8 KiB
+completion headroom stays within the existing 1 MiB metadata allowance.
+
+Independent and IC-1 review cleared the exact candidates. The initial five-suite
+run passed 36 test methods and failed one because its changed-size fixture used
+the original value. The corrected codec-only run passed all 13 methods with zero
+failures or skips; the other four unchanged suites remain passing. Failed result
+`37907a7d09fc47de8be932c74fbd17e6.xcresult` and passing correction
+`1ada1289441f4b368d313c16da2c28d1.xcresult` remain under
+`.artifacts/local-ios/`. Candidate and 102 unrelated baseline hashes stayed
+unchanged during execution. Project and Markdown validation passed. This is
+composite local shared-checkout codec evidence, not an integrated native owner,
+a fresh full-target run or isolated-source acceptance. Exact candidates, review
+and results: `.artifacts/shared-media-acquisition-codec-20261017/`.
+
+Continue native reserve/commit, complete streaming namespace and reverse-receipt
+audits, combined package metadata accounting, and atomic queue/history
+ownership. The codec alone grants no writer restart, file, cleanup or admission
+capability. Activation remains disabled, PR116 frozen, Supabase deployment hold
+active, AWS unapproved and limits unchanged. Later version-actions/redesign
+remain required.
+
 ## October 17 — V64 acquisition receipt foundation validated locally
 
 The outgoing V63 schema was frozen and compiled before the additive V64

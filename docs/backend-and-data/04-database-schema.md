@@ -9099,11 +9099,14 @@ physical release to reject replay of that operation ID.
 Reserved and completed states require the complete immutable request; completed
 states also require the exact result. A terminal tombstone strips both payloads
 and the package/asset lookup aids but preserves its identity, fingerprint and
-unambiguous outcome. These are requirements for the forthcoming closed codec and
-transaction owner; the raw scalar model grants no writer, media, admission or
-cleanup authority. Missing or inconsistent receipts may not be repaired from
-legacy reservations. Receipt payloads share the originating package's existing
-combined metadata allowance; sharing must not replicate that charge.
+unambiguous outcome. The closed `SharedMediaAcquisitionReceipt` codec now
+enforces these payload shapes, supports row-originated cold recovery and
+separately checks expected intent. Exact graph transitions remain the
+forthcoming transaction owner’s responsibility; the raw scalar model grants no
+writer, media, admission or cleanup authority. Missing or inconsistent receipts
+may not be repaired from legacy reservations. Receipt payloads share the
+originating package's existing combined metadata allowance; sharing must not
+replicate that charge.
 
 The additive migration leaves this table empty, retains every existing native
 and legacy field, and does not adopt media. Legacy fixture owners and liability

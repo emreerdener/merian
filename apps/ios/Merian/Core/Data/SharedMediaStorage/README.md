@@ -462,8 +462,8 @@ in
 [the database schema](../../../../../../docs/backend-and-data/04-database-schema.md#v64-native-acquisition-receipt-foundation).
 Migration creates no receipts. Existing fixture owners reject these rows,
 including tombstones, and liability checks cannot silently ignore them. Closed
-codec/transaction validation, namespace audit and native capture composition
-remain separate implementation work; the model itself grants no capability.
+transaction validation, namespace audit and native capture composition remain
+separate implementation work; the model itself grants no capability.
 
 The frozen V63 build preceded the active addition. The real-store V63→V64
 migration preserves existing ownership and creates no receipts. Focused tests
@@ -472,3 +472,40 @@ line-count failures; candidate05 consolidated the identical legacy guards in
 `SharedMediaStorageLookup.requireNoNativeOwnership`, then passed all 43 tests in
 the five affected suites. This is composite local evidence, not a clean full
 candidate05 run. Evidence: `.artifacts/shared-media-native-receipt-20261017/`.
+
+### Native acquisition codec — locally qualified
+
+`SharedMediaAcquisitionIntent` freezes the direct picker/camera original
+request, including exact expected revisions, package absence/revision, original
+identity, writer epoch and canonical tokens. Its versioned sorted JSON and
+SHA-256 bind all request facts; noncanonical or unknown fields fail.
+Foundation's canonical UUID encoding is used in JSON, with lowercase UUID
+components in file tokens. `SharedMediaAcquisitionResult` binds exact completion
+postconditions and bounded file descriptor facts. Descriptor syntax and hashes
+do not prove actual media or authorize cleanup. Historical UTI values are
+preserved with the existing nonempty/128-byte bound, without invoking a later OS
+decoder registry.
+
+`SharedMediaAcquisitionReceipt` interprets only reserved revision 0, held or
+completed revision 1, and released terminal revision 2. Exact same-operation
+reads do not mutate the row. Cold recovery decodes the persisted row without a
+caller-supplied request; terminal recovery returns its saved replay identity. A
+separate expected-intent check rejects conflicting inputs. Terminal rows must
+shed request/result and package/asset aids. This codec cannot perform a phase
+transition, restart a loader, reconstruct a missing row or validate the current
+ownership graph.
+
+The result encoder is bounded to an internal 8 KiB reservation within the
+existing 1 MiB metadata allowance. The closed owner must still reserve combined
+request/result headroom and projected membership/cohort bytes for every pending
+operation, derive charges from exact authoritative joins, and reject orphans.
+`metadataCharge` only computes one receipt's charge; it does not establish a
+complete package budget. Native nonempty admission remains disabled pending that
+owner, full namespace/reverse-receipt audit and transactional qualification.
+
+Independent and IC-1 review cleared the codec. The corrected codec suite passed
+all 13 test methods; four unchanged focused storage/architecture suites passed
+in the prior run. That run retains one test-fixture failure (two assertions),
+corrected without production changes. This is composite focused evidence only.
+Exact manifests and both results:
+`.artifacts/shared-media-acquisition-codec-20261017/`.
