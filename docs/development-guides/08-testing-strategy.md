@@ -4033,11 +4033,14 @@ before release.
   these suites without camera hardware; actual execution still requires a
   functioning simulator or device test destination.
 - **`apps/ios/MerianTests/Features/Capture/Shared/`**: Owns cross-modality
-  Capture contracts. `ImageFocusRegionDetectorTests` retains deterministic
-  Vision candidate, geometry, padding, area, and ambiguity resolution coverage;
-  `CaptureSharedArchitectureTests` freezes the Capture-only service owner,
-  framework imports, dependency exclusions, retired Utilities paths, mirrored
-  test location, and 600-line production ceiling.
+  Capture contracts. `CaptureSharedArchitectureTests` freezes the Capture focus
+  telemetry façade, Core worker/resolver ownership, dependency exclusions,
+  retired Utilities paths, test locations, and 600-line production ceiling. Core
+  Media's `ImageFocusRegionResolverTests` owns deterministic Vision candidate,
+  geometry, padding, area, and ambiguity resolution coverage.
+  `ImageFocusEngineTests` covers cancellation, request installation, immutable
+  outcomes and actual worker drain; `SharedMediaNativePreparationTests` covers
+  the native account-owner transition while a focus worker remains blocked.
 - **`apps/ios/MerianTests/Features/Capture/Describe/`**: Mirrors typed/dictated
   observation presentation. `DescribePromptViewModelTests` locks standard,
   funnel, Insight, and reanalysis prompt state plus taxonomy-to-subject mapping.
@@ -4158,7 +4161,8 @@ feedback policy, or focus detection:
 xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -destination 'id=<BOOTED_SIMULATOR_ID>' \
   -only-testing:merianTests/CaptureControlHapticPolicyTests \
-  -only-testing:merianTests/ImageFocusRegionDetectorTests \
+  -only-testing:merianTests/ImageFocusRegionResolverTests \
+  -only-testing:merianTests/ImageFocusEngineTests \
   -only-testing:merianTests/CaptureSharedArchitectureTests test
 ```
 
@@ -7902,9 +7906,10 @@ in-memory carousel media, that save plus offline/online changes preserve its
 cursor, and that the carousel overlay remains active for the exact handoff in
 pending, uploading, staged, and inferencing. The same matrix rejects mismatched
 IDs, failed/external-import/attention states, and ordinary queued states before
-inferencing. Capture Shared's `ImageFocusRegionDetectorTests` retain Vision
-candidate and geometry resolution coverage. `InsightMediaFocusPresentationTests`
-lock the carousel focus geometry, time-derived sweep, Reduce Motion midpoint,
+inferencing. Core Media's `ImageFocusRegionResolverTests` retains Vision
+candidate and geometry resolution coverage; `ImageFocusEngineTests` covers
+worker cancellation and termination. `InsightMediaFocusPresentationTests` lock
+the carousel focus geometry, time-derived sweep, Reduce Motion midpoint,
 same-scan animation-session continuity, and resets for a different scan or a
 later analysis after completion. Engine tests cover prepared generic handoff,
 stale-ID rejection, audio/Describe isolation, dismissal with a late producer

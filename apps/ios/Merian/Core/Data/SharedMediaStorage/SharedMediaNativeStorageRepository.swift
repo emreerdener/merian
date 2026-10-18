@@ -24,6 +24,9 @@ final class SharedMediaNativeStorageRepository {
     private let nativeBinding: SharedMediaNativeBinding
     #if DEBUG
     fileprivate var lifecycleFault: ((SharedMediaNativeLifecycleBoundary) throws -> Void)?
+    fileprivate var preparationAvailableBytes: Int64?
+    fileprivate var preparationFocusFactory = ImageFocusWorkFactory()
+    fileprivate var preparationFault: ((SharedMediaNativePreparationBoundary) throws -> Void)?
     fileprivate var metadataFault: ((SharedMediaNativeMetadataBoundary) throws -> Void)?
     fileprivate var metadataAvailableBytes: Int64?
     fileprivate var inspectionAuditCount = 0
@@ -206,6 +209,24 @@ final class SharedMediaNativeStorageRepository {
             do { return try metadata(packageID: request.packageID, check: check).result(request) } catch { throw failure }
         }
         return try metadata(packageID: request.packageID, check: check).result(request)
+    }
+    fileprivate func preparationOperations(_ check: @escaping @MainActor () throws -> Void) throws -> SharedMediaNativePreparationOperations {
+        var focusFactory = ImageFocusWorkFactory()
+        #if DEBUG
+        focusFactory = preparationFocusFactory
+        #endif
+        return try .init(container: container, inventoryID: inventoryID, authority: mutationAuthority(check: check), io: originalIO, focusFactory: focusFactory,
+            availableBytes: {
+                let available = try self.files.availableBytes()
+                #if DEBUG
+                if let limit = self.preparationAvailableBytes { return min(available, limit) }
+                #endif
+                return available
+            }, boundary: { point in
+                #if DEBUG
+                try self.preparationFault?(point)
+                #endif
+            })
     }
     fileprivate func lifecycleOperations(_ check: @escaping @MainActor () throws -> Void) throws -> SharedMediaNativeLifecycleOperations {
         try .init(container: container, inventoryID: inventoryID, authority: mutationAuthority(check: check), io: originalIO,
@@ -390,35 +411,51 @@ final class SharedMediaNativeOriginalOwner {
     }
     #endif
 
+    /// Reserves an explicit native attempt without dispatching a processor.
+    /// The upcoming pair owner consumes this reservation under this same task
+    /// lifetime; callers receive assertions, never a source URL or write access.
+    func reservePreparation(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe) async throws -> SharedMediaNativePreparationAttempt {
+        try await lifecycle { storage, check in
+            try storage.preparationOperations(check).reserve(original: original, recipe: recipe)
+        }
+    }
+    func activePreparation(packageID: UUID) async throws -> SharedMediaNativePreparationAttempt? {
+        try await lifecycle(recovery: true) { storage, check in try storage.preparationOperations(check).active(packageID: packageID) }
+    }
+    func abandonPreparation(_ attempt: SharedMediaNativePreparationAttempt) async throws {
+        try await lifecycle(recovery: true) { storage, check in try storage.preparationOperations(check).abandon(attempt) }
+    }
+    #if DEBUG
+    func setPreparationFault(_ fault: ((SharedMediaNativePreparationBoundary) throws -> Void)?, availableBytes: Int64? = nil, focusFactory: ImageFocusWorkFactory = .init()) throws {
+        guard phase == .ready, cancelActive == nil, let storage else { throw SharedMediaStorageFailure.closed }
+        storage.preparationFault = fault; storage.preparationAvailableBytes = availableBytes; storage.preparationFocusFactory = focusFactory
+    }
+    #endif
+
     func prepareMetadata(packageID: UUID, draftGeneration: UUID, contexts: [ObservationContext],
                          presentation: [PhotoPreparationImagePresentation]? = nil) async throws -> SharedMediaNativeMetadataRequest {
-        guard phase == .ready, pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
-        return try await perform { [self] lease in
-            guard let storage else { throw SharedMediaStorageFailure.closed }
-            let snapshot = try await storage.inspectOriginals { try self.check(lease) }
-            guard !snapshot.requiresRecovery else { throw PhotoPreparationFailure.cleanupPending }
-            return try storage.metadata(packageID: packageID, check: { try self.check(lease) })
+        try await lifecycle { storage, check in
+            try storage.metadata(packageID: packageID, check: check)
                 .request(draftGeneration: draftGeneration, contexts: contexts, presentation: presentation)
         }
     }
     func saveMetadata(_ request: SharedMediaNativeMetadataRequest) async throws -> Int64 {
-        guard phase == .ready, pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
-        return try await perform { [self] lease in
-            guard let storage else { throw SharedMediaStorageFailure.closed }
-            let snapshot = try await storage.inspectOriginals { try self.check(lease) }
-            guard !snapshot.requiresRecovery else { throw PhotoPreparationFailure.cleanupPending }
-            return try storage.saveMetadata(request) { try self.check(lease) }
+        try await lifecycle { storage, check in try storage.saveMetadata(request, check: check) }
+    }
+    #if DEBUG
+    /// Qualification only until the native pair owner consumes outputs in the
+    /// same retained operation. Never used by live Capture or queue composition.
+    func qualifyPhotoPreparation(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe) async throws -> SharedMediaNativePreparedOutputs {
+        try await lifecycle { storage, check in
+            try await storage.preparationOperations(check).prepare(original: original, recipe: recipe)
         }
     }
+    #endif
 
     func prepareOriginal(packageID: UUID, draftGeneration: UUID, ordinal: Int64,
                          kind: SharedMediaAcquisitionIntent.Kind) async throws -> SharedMediaAcquisitionIntent {
-        guard phase == .ready, pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
-        return try await perform { [self] lease in
-            guard let storage else { throw SharedMediaStorageFailure.closed }
-            let snapshot = try await storage.inspectOriginals { try self.check(lease) }
-            guard !snapshot.requiresRecovery else { throw PhotoPreparationFailure.cleanupPending }
-            return try storage.originalReadback().request(packageID: packageID, draftGeneration: draftGeneration, ordinal: ordinal, kind: kind, epoch: writerEpoch)
+        try await lifecycle { [self] storage, _ in
+            try storage.originalReadback().request(packageID: packageID, draftGeneration: draftGeneration, ordinal: ordinal, kind: kind, epoch: writerEpoch)
         }
     }
 

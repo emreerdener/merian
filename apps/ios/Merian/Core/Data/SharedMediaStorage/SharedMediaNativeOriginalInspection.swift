@@ -31,6 +31,6 @@ enum SharedMediaNativeOriginalInspection {
         // Hash reads can suspend. Finish the reverse leaf join after all reads.
         try await io.visit { @MainActor leaf in try reader.verifyLeaf(leaf, inspection: authority) }
         try authority.validate()
-        return recovery
+        return try recovery || reader.hasPreparationAttempt(inspection: authority)
     }
 }

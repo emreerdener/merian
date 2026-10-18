@@ -624,12 +624,13 @@ configuration restoration, rollback-failure invalidation, and first-activation
 cleanup.
 
 Within Capture Shared, `Services/ImageFocusRegionDetector.swift` owns the
-Capture-only bounded Vision objectness request, exact 300 ms deadline and
-cancellation bridge, deterministic candidate policy, and privacy-safe outcome,
-duration, and coarse-area diagnostics. Scan, Shell imports, and Staging crop
-confirmation reuse that service. Shared bounded ImageIO decoding remains in
-`Core/Data/Images`; the detector owns no endpoint, app-container lookup, or
-mutable singleton.
+privacy-safe outcome/duration/coarse-area telemetry façade consumed by Scan,
+Shell imports and Staging crop confirmation. `Core/Media/ImageFocusEngine.swift`
+owns the Vision worker, unchanged 300 ms optional outcome and separate positive
+worker-drain acknowledgement for native durable preparation. The pure resolver
+is adjacent in `ImageFocusRegionResolver.swift`. Core emits no telemetry and
+owns no Capture state or endpoint. Shared bounded ImageIO decoding remains in
+`Core/Data/Images`.
 
 Within Capture Submission, `Models/` owns deterministic admission, media,
 goal-preference, and latency policy plus normalized payload and sendable

@@ -199,8 +199,8 @@ enum SharedMediaNativeAcquisitionGraph {
         let id = row.id
         guard row.draftID == id, row.contractVersion == PhotoPreparationPolicy.contract, row.revision >= 0,
               ["pending", "retained"].contains(row.accountingTierRaw),
-              ["draftOwned", "acquiring", "needsAttention"].contains(row.phaseRaw) else { throw SharedMediaStorageFailure.conflict }
-        let envelope = try PhotoPreparationPolicy.decodeDraft(row.supportingContextData)
+              ["draftOwned", "acquiring", "needsAttention", "preparing"].contains(row.phaseRaw) else { throw SharedMediaStorageFailure.conflict }
+        let envelope = try SharedMediaNativeDraftEnvelope.decode(row.supportingContextData)
         try validatePresentation(envelope.presentation, package: row, context: context)
         var refsQuery = FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.packageID == id }); refsQuery.fetchLimit = 3
         var workQuery = FetchDescriptor<PhotoPreparationLease>(predicate: #Predicate { $0.packageID == id }); workQuery.fetchLimit = 3
@@ -226,8 +226,9 @@ enum SharedMediaNativeAcquisitionGraph {
             }
             guard ordinals.insert(intent.ordinal).inserted else { throw SharedMediaStorageFailure.conflict }
         }
-        guard allocated == row.allocatedByteCount,
-              row.phaseRaw == (held ? "needsAttention" : (jobs.isEmpty ? "draftOwned" : "acquiring")) else {
+        try SharedMediaNativePreparationGraph.validate(envelope, package: row, context: context)
+        let expectedPhase = envelope.attempt == nil ? (held ? "needsAttention" : (jobs.isEmpty ? "draftOwned" : "acquiring")) : "preparing"
+        guard allocated == row.allocatedByteCount, row.phaseRaw == expectedPhase else {
             throw SharedMediaStorageFailure.conflict
         }
     }

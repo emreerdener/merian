@@ -19,11 +19,11 @@ final class SharedMediaNativeRemoval {
     func prepare(_ source: PhotoOriginalReference) throws -> SharedMediaNativeRemovalRequest {
         let rows = try resolve(source, live: true)
         try requireNoRecovery()
-        let previous = try PhotoPreparationPolicy.decodeDraft(rows.package.supportingContextData)
+        let previous = try SharedMediaNativeDraftEnvelope.decode(rows.package.supportingContextData)
         return .init(source: source, inventoryID: inventory.id, inventoryGeneration: inventory.generation,
             inventoryRevision: inventory.revision, packageRevision: rows.package.revision, membershipRevision: rows.member.revision,
             membershipBytes: rows.member.membersData, previousEnvelope: rows.package.supportingContextData,
-            envelope: try PhotoPreparationPolicy.encodeDraft(contexts: previous.contexts, presentation: previous.presentation.filter { $0.referenceID != source.referenceID }),
+            envelope: try previous.editing(contexts: previous.contexts, presentation: previous.presentation.filter { $0.referenceID != source.referenceID }),
             liveCount: rows.count.liveCount, countRevision: rows.count.revision, retirementID: UUID())
     }
     func file(_ request: SharedMediaNativeRemovalRequest) throws -> PhotoPreparationFile {
@@ -137,7 +137,8 @@ final class SharedMediaNativeRemoval {
               request.source.ownerID == authority.ownerID,
               [request.inventoryRevision, request.packageRevision, request.membershipRevision, request.countRevision].allSatisfy({ $0 >= 0 && $0 < Int64.max }),
               request.source.referenceRevision < Int64.max, request.liveCount > 0 else { throw SharedMediaStorageFailure.stale }
-        let before = try PhotoPreparationPolicy.decodeDraft(request.previousEnvelope), after = try PhotoPreparationPolicy.decodeDraft(request.envelope)
+        let before = try SharedMediaNativeDraftEnvelope.decode(request.previousEnvelope), after = try SharedMediaNativeDraftEnvelope.decode(request.envelope)
+        try before.validateMetadataTransition(to: request.envelope)
         // Context equality is semantic; exact desired envelope bytes are retained in the intent.
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
         guard before.contexts == after.contexts,

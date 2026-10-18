@@ -156,8 +156,12 @@ struct SharedMediaNativeAcquisitionGraphTests {
             SharedMediaAcquisitionReceipt.metadataCharge(request: r, result: nil),
             SharedMediaAcquisitionReceipt.metadataCharge(request: second, result: nil)])
         #expect(budget.metadataByPackage[r.packageID] == expected)
-        // A one-MiB context alone leaves no room for memberships and receipts.
-        h.package.supportingContextData = Data(repeating: 0, count: Int(PhotoPreparationPolicy.metadata))
+        // Historical V1 permits JSON whitespace. Keep the envelope valid while
+        // making its exact retained bytes consume the full metadata allowance.
+        // The aggregate must still reserve membership and receipt space.
+        h.package.supportingContextData.append(Data(repeating: 0x20,
+            count: Int(PhotoPreparationPolicy.metadata) - h.package.supportingContextData.count))
+        #expect(try PhotoPreparationPolicy.decodeDraft(h.package.supportingContextData).version == 1)
         #expect(throws: SharedMediaStorageFailure.capacity) {
             try SharedMediaNativeAcquisitionBudget.evaluate(context: h.context, inventory: h.inventory)
         }

@@ -1,7 +1,8 @@
 import Foundation
 
 /// Uses the repository's already-held files. Never acquires a second namespace
-/// owner; no context, model, descriptor or file URL crosses this actor boundary.
+/// owner. Verified URLs stay scoped to the sealed native photo processor and
+/// never escape to Capture or callers; contexts/models and raw descriptors stay private.
 actor SharedMediaNativeOriginalIO {
     private let files: PhotoPreparationLockedFiles
     private let binding: SharedMediaNativeBinding
@@ -46,6 +47,21 @@ actor SharedMediaNativeOriginalIO {
     func setReleaseFault(_ fault: (@Sendable (SharedMediaPhotoReleaseBoundary) throws -> Void)?) { files.sharedReleaseFault = fault }
     #endif
     func load(_ provider: @Sendable () async throws -> Data) async throws -> Data { try await provider() }
+
+    func preparePhoto(_ attempt: SharedMediaNativePreparationAttempt, focusFactory: ImageFocusWorkFactory) async throws -> SharedMediaNativePreparedOutputs {
+        try Task.checkCancellation()
+        let file = attempt.original.file
+        let before = try files.inspectSharedRetirement(file)
+        guard before.identity == attempt.original.descriptor, before.binding == binding.bytes,
+              before.epoch == binding.epoch else { throw SharedMediaStorageFailure.conflict }
+        let result = try await SharedMediaNativePhotoProcessor.prepare(url: files.preparationURL(file), attempt: attempt, focusFactory: focusFactory)
+        try Task.checkCancellation()
+        let after = try files.inspectSharedRetirement(file)
+        guard after.identity == before.identity, after.binding == before.binding, after.epoch == before.epoch else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        return result
+    }
 
     func write(_ data: Data, request: SharedMediaAcquisitionIntent) throws -> SharedMediaPhotoRetirementInspection {
         let intent = PhotoPreparationIntent(leaseID: request.operationID, ownerID: request.ownerID, packageID: request.packageID,

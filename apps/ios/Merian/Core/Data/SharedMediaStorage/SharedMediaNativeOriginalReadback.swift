@@ -120,6 +120,19 @@ struct SharedMediaNativeOriginalReadback {
         }
     }
 
+    func hasPreparationAttempt(inspection: SharedMediaNativeInspectionAuthority) throws -> Bool {
+        try inspection.validate()
+        let context = freshContext()
+        var query = FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.accountingTierRaw == "pending" })
+        query.fetchLimit = PhotoPreparationPolicy.maximumPackages + 1
+        let rows = try context.fetch(query)
+        guard rows.count <= PhotoPreparationPolicy.maximumPackages else { throw SharedMediaStorageFailure.capacity }
+        return try rows.contains { row in
+            guard row.ownerID == inspection.ownerID else { throw SharedMediaStorageFailure.conflict }
+            return try SharedMediaNativeDraftEnvelope.decode(row.supportingContextData).attempt != nil
+        }
+    }
+
     private func pendingClosure(_ request: SharedMediaAcquisitionIntent, context: ModelContext) throws -> SharedMediaNativePendingClosure? {
         let id = request.operationID
         var query = FetchDescriptor<PhotoPreparationLease>(predicate: #Predicate { $0.id == id }); query.fetchLimit = 2

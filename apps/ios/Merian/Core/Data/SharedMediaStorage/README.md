@@ -1,3 +1,56 @@
+## October 18 — native preparation reservation locally verified
+
+The inactive native owner now reserves an explicit preparation attempt in a
+separate V2 envelope before any processor or file writer can receive authority.
+The first reservation compares exact V1 bytes, revisions and membership; reopen
+never converts a draft. The owner allocates a monotonic sequence and binds the
+original reference, physical byte/descriptor identity, recipe and writer epoch.
+Only one attempt is permitted across the inventory.
+
+The attempt reserves the unchanged maximum AI/display allowances and all
+remaining space in the existing aggregate 1 MiB metadata budget. Output bytes
+are counted once physically and once logically in the preparation pool; free
+space subtracts the outstanding reservation once. This deliberately conservative
+metadata headroom avoids promising a future pair/result encoding that cannot
+fit. Capacity denial leaves the prior envelope and sequence unchanged.
+
+Inspection reports unresolved attempts as recovery work. The reservation API
+grants no source URL, arbitrary processing callback, filesystem write or AI
+dispatch. A DEBUG-only qualification entry now exercises the concrete image
+processor under the same registered owner. It reserves before source access,
+verifies original bytes/descriptors before and after preparation, uses existing
+crop/downsampling/encoding policy and waits for actual focus-worker drain. It
+returns memory-only output assertions while leaving the attempt held; no
+pair/output files, freeze or receiving consumer is published. A saved attempt
+cannot dispatch the processor again. The later pair owner must consume outputs
+within that same retained operation before ordinary composition can be enabled.
+Explicit abandonment runs under the same serial registered owner after prior
+work drains, drops the unused reservation and preserves the sequence, originals,
+contexts and membership. Saved acknowledgement recovery compares exact bytes and
+revisions; old attempts cannot release a newer reservation. Mutable V2 metadata,
+acquisition and removal preserve sequence; sharing creates an original-only V1
+destination. Legacy V1 decoders remain unchanged.
+
+The V2 codecs also define separately hashed derivative intent and ordered frozen
+cohort values. Durable intents use a versioned compact preparation identity
+(`nativePreparedIdentityV1` inside `nativeDerivativeIntentV3`) containing
+original, recipe, operation/revision facts and hashes/lengths of prior envelope
+and membership bytes. Raw prior bytes remain only in the active attempt for
+exact CAS; retained intents never recursively embed earlier drafts. The
+unreachable draft intent format containing `attemptBytes` is rejected. The
+current native graph **rejects** those stages until their sealed mutation and
+physical-I/O owners are implemented. Codec support is not pair, freeze, queue,
+product or activation acceptance. Independent and IC-1 review cleared
+candidate14. Its focused correction passed 28 methods / 31 executions, then the
+complete `merianTests` target passed 6,246 methods / 10,047 executions, with
+zero failures, skips and runtime warnings. Full12's failed evidence remains
+retained. All 2,815 source/project hashes were unchanged during verification.
+This qualifies the inactive reservation/processor and worker-cleanup increment
+in the shared checkout; paired files/freeze/consumer/live composition remain
+pending. Evidence is under
+`.artifacts/native-preparation-integration-20261018/`. All existing deployment,
+PR116 and activation holds remain in force.
+
 ## October 18 — native explicit pending abandonment locally verified
 
 The next inactive native integration adds exact-request abandonment of reserved

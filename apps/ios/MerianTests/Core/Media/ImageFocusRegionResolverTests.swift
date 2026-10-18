@@ -5,7 +5,7 @@ import Testing
 @testable import Merian
 
 @Suite("Image focus region resolver")
-struct ImageFocusRegionDetectorTests {
+struct ImageFocusRegionResolverTests {
     @Test func convertsVisionCoordinatesAndPadsAcceptedSubject() throws {
         let resolution = ImageFocusRegionResolver.resolve(candidates: [
             ImageFocusRegionCandidate(

@@ -56,9 +56,9 @@ final class SharedMediaNativeMetadataMutation {
 
     func request(draftGeneration: UUID, contexts: [ObservationContext], presentation: [PhotoPreparationImagePresentation]?) throws -> SharedMediaNativeMetadataRequest {
         guard package.draftGeneration == draftGeneration else { throw SharedMediaStorageFailure.stale }
-        let previous = try PhotoPreparationPolicy.decodeDraft(package.supportingContextData)
+        let previous = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData)
         let photos = presentation ?? previous.presentation
-        let envelope = try PhotoPreparationPolicy.encodeDraft(contexts: contexts, presentation: photos)
+        let envelope = try previous.editing(contexts: contexts, presentation: photos)
         try SharedMediaNativeAcquisitionGraph.validatePresentation(photos, package: package, context: context)
         return .init(inventoryID: inventory.id, inventoryGeneration: inventory.generation, ownerID: package.ownerID,
             packageID: package.id, draftGeneration: draftGeneration, inventoryRevision: inventory.revision,
@@ -113,8 +113,9 @@ final class SharedMediaNativeMetadataMutation {
               request.membershipRevision == member.revision, request.membershipBytes == member.membersData else {
             throw SharedMediaStorageFailure.stale
         }
-        _ = try PhotoPreparationPolicy.decodeDraft(request.previousEnvelope)
-        let next = try PhotoPreparationPolicy.decodeDraft(request.envelope)
+        let previous = try SharedMediaNativeDraftEnvelope.decode(request.previousEnvelope)
+        let next = try SharedMediaNativeDraftEnvelope.decode(request.envelope)
+        try previous.validateMetadataTransition(to: request.envelope)
         try SharedMediaNativeAcquisitionGraph.validatePresentation(next.presentation, package: package, context: context)
     }
 

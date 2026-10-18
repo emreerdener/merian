@@ -1,6 +1,6 @@
 # Core Media
 
-The `Media` directory owns reusable, bounded audio/video processing and
+The `Media` directory owns reusable, bounded image/audio/video processing and
 player-lifecycle infrastructure. It does not own feature navigation, global UI
 feedback, or durable scan state.
 
@@ -191,3 +191,20 @@ eligibility remains unchanged. `ObservationAudioContainerTests` exercises actual
 prepared Core Audio output and unchanged sample bytes, sliced Data, header
 corruption, truncation, trailing bytes, padding and size limits. Device capture
 and durable audio restart are not established by these tests.
+
+## Image focus ownership
+
+`ImageFocusEngine` owns the Vision objectness worker and
+`ImageFocusRegionResolver` owns its unchanged selection policy. Core emits no
+telemetry. The Capture `ImageFocusRegionDetector` façade records the existing
+diagnostics and consumes an optional outcome at the unchanged 300 ms deadline.
+Native preparation uses `detectAndDrain`: timeout/cancellation fixes the outcome
+but does not prove the worker stopped. A separate nonthrowing wait completes
+only after the worker closure and its autorelease pool finish on the serial
+worker queue. Late success cannot replace a timed-out outcome. No new native
+processing can release its account/file/reservation ownership while this wait
+remains pending.
+
+`ImageFocusEngineTests` exercises blocked workers, timeout, cancellation before
+dispatch, cancelled drain waiters and multiple waiters using a DEBUG-only worker
+seam. `ImageFocusRegionResolverTests` retains the existing geometry cases.

@@ -1,3 +1,47 @@
+## October 18 — native preparation reservation and worker cleanup locally verified
+
+The inactive native owner now reserves output and metadata capacity before photo
+processing, retains an exact V2 attempt, and preserves unfinished work for
+explicit recovery. Compact prepared identities avoid recursively retaining old
+draft envelopes. The concrete processor uses the existing image pipeline under
+the original-file owner; processing results remain in memory until native paired
+file publication is implemented. Core focus detection now separately tracks its
+visible deadline and actual worker termination, so account transition waits for
+actual drain.
+
+The complete gate exposed video cleanup and preview-test readiness races. Video
+join/timeout paths now drain children and explicitly discard late owned outputs;
+audio extraction retains intermediates across the actual detached result and
+cleans them before return. Borrowed originals survive. Explicit lease discard is
+idempotent; failed unlink remains nonaccepting and retryable. The preview
+fixture now awaits initial player readiness before measuring position. Failed
+full12 evidence remains retained; the corrected candidate14 has independent and
+IC-1 concurrence.
+
+Candidate14 SHA-256:
+`87b6aaefdf1cc93b45d535df5c97a6122ee5c4293f9d6e6cba9e16dcc18d9f26`. Five focused
+suites passed 28 methods / 31 executions, then the complete `merianTests` target
+passed 6,246 methods / 10,047 executions. Finalized results
+`41c54f27b342403fb8a70f999d75cd8a` and `9a4fa521b94c4355936171e7b6a44779` have
+zero failures, skips and runtime warnings. All 2,815 source/project hashes
+stayed unchanged during verification. Compiler and test-fixture diagnostics
+remain preserved in logs; this is shared checkout validation, not
+isolated-source or live-composition acceptance.
+
+Native paired-file admission/recovery/freeze, receiving consumer ownership,
+Capture/Auth/queue/history composition and integrated acceptance remain open.
+The reviewed next transition design requires exact state witnesses,
+counter-aware retirement and identity-bound cleanup. Pending graph bounds must
+not cap the retained library: audit all retained pages and both directions of
+every join. No fresh identification or reanalysis may proceed without actual
+photo, audio or video; historical admitted recovery semantics remain unchanged.
+After required acceptance, continue individual-version deletion/source export
+and the approved redesign. Separate capture visual ownership is unchanged.
+
+Evidence: `.artifacts/native-preparation-integration-20261018/`. Activation
+disabled, PR116 frozen, deployment hold active, AWS unapproved. Local work only;
+no push or external action. Earlier entries are historical.
+
 ## October 18 — native explicit pending abandonment locally verified
 
 The next inactive native integration adds exact-request abandonment of reserved

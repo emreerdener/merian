@@ -100,8 +100,7 @@ final class PhotoOriginalPreparationOwner {
             try files.checkFreeSpace()
             try await checkAccount(lease)
             let position: Int64
-            if let ordinal { position = ordinal }
-            else { position = try await repository.nextOriginalOrdinal(packageID: packageID,
+            if let ordinal { position = ordinal } else { position = try await repository.nextOriginalOrdinal(packageID: packageID,
                 ownerID: account.ownerID, draftGeneration: draftGeneration) }
             let intent = PhotoPreparationIntent(leaseID: UUID(), ownerID: account.ownerID, packageID: packageID,
                 assetID: UUID(), assetGeneration: UUID(), referenceID: UUID(), draftGeneration: draftGeneration,

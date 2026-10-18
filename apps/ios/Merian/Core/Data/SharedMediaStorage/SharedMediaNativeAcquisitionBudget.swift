@@ -23,6 +23,9 @@ enum SharedMediaNativeAcquisitionBudget {
         }
         for package in graph.packages {
             let id = package.id
+            let envelope = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData)
+            try SharedMediaNativePreparationGraph.validate(envelope, package: package, context: context)
+            let attempt = try envelope.attempt.map { try SharedMediaNativePreparationAttempt.decode($0.bytes) }
             guard try SharedMediaConsumerLookup.one(context, packageID: id) == nil else { throw SharedMediaStorageFailure.closed }
             let jobs = graph.work.filter { $0.packageID == id }
             var pending: [SharedMediaAcquisitionIntent] = []
@@ -78,12 +81,16 @@ enum SharedMediaNativeAcquisitionBudget {
             let projected = try maximumMembershipBytes(member, pending: pending)
             let bytes = try PhotoPreparationPolicy.add([Int64(package.supportingContextData.count), projected, receiptBytes])
             guard bytes <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
-            metadata[id] = bytes
+            // Reserve the entire remaining existing metadata allowance before
+            // processing. Later pair/result/member encodings must fit it.
+            let preparationMetadata = attempt == nil ? 0 : PhotoPreparationPolicy.metadata - bytes
+            metadata[id] = bytes + preparationMetadata
             let membershipGrowth = projected - Int64(try member.encoded().count)
             guard closureBytes <= resultHeadroom else { throw SharedMediaStorageFailure.conflict }
             let outstandingMetadata = try SharedMediaStoragePolicy.add(resultHeadroom - closureBytes, membershipGrowth)
             try totals.includePhotoPhysical(materialized: bytes - outstandingMetadata, reserved: outstandingMetadata)
-            var logical = bytes
+            try totals.includePhotoPhysical(materialized: 0, reserved: preparationMetadata)
+            var logical = bytes + preparationMetadata
             for ref in graph.references where ref.packageID == id {
                 guard let asset = graph.assets.first(where: { $0.id == ref.assetID }) else { throw SharedMediaStorageFailure.conflict }
                 logical = try SharedMediaStoragePolicy.add(logical, asset.byteCount)
@@ -91,7 +98,16 @@ enum SharedMediaNativeAcquisitionBudget {
             for job in jobs {
                 logical = try SharedMediaStoragePolicy.add(logical, job.reservedByteCount)
             }
+            if let attempt {
+                logical = try SharedMediaStoragePolicy.add(logical, attempt.outputReservation)
+                // One outstanding physical reservation, also counted logically
+                // in the existing preparation pool (not counted free twice).
+                try totals.includePhotoPhysical(materialized: 0, reserved: attempt.outputReservation)
+            }
             try totals.includePhotoPackage(id: id, bytes: logical)
+            if let attempt {
+                try totals.includePhotoPreparation(package: id, bytes: try SharedMediaStoragePolicy.add(attempt.outputReservation, preparationMetadata))
+            }
             for job in jobs {
                 try totals.includeLogical(package: id, pool: .acquisition, bytes: job.reservedByteCount)
             }

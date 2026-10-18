@@ -9123,3 +9123,40 @@ checks on candidate05. This composite local evidence does not claim a clean full
 candidate05 run, installed-store qualification or live composition. Retained
 results and exact candidate manifests are in
 `.artifacts/shared-media-native-receipt-20261017/`.
+
+### Native preparation envelope V2 (inactive integration)
+
+The native owner uses the existing
+`PhotoPreparationRecord.supportingContextData` blob for a separate version-2
+envelope. This changes no SwiftData field or schema version and does not
+reinterpret historical V1 bytes. A first explicit preparation reservation, under
+exact inventory/package/membership revision and raw-envelope checks, is the only
+V1-to-V2 conversion boundary. Legacy P1 readers continue to reject V2.
+
+The envelope retains supporting content, a monotonic owner-allocated preparation
+sequence, and optional exact attempt/intent/frozen receipt bytes. Canonical
+encoding rejects unknown fields and versions; each embedded digest covers its
+own bytes only. A pre-processing attempt binds its prior envelope, original
+reference and physical identity, recipe, epoch and revisions. It reserves output
+allowances plus the remaining aggregate metadata allowance before processing.
+All envelopes, receipts, membership and prospective encoding share the existing
+1 MiB package metadata cap. Numeric package/storage limits are unchanged.
+
+The currently implemented native graph accepts only the reservation and explicit
+abandonment stages, with no derivative rows or frozen receipt. `preparing`
+requires one exact active attempt, no acquisition/retirement work, unchanged
+original membership and exact saved revisions. Abandonment preserves sequence
+and supporting content after the registered owner drains. Reopen preserves the
+reservation and reports recovery; it neither reprocesses media nor releases
+capacity. Native derivative/freeze codecs grant no execution or cleanup
+authority, and their stages remain rejected pending separate owner integration.
+See the
+[storage owner README](../../apps/ios/Merian/Core/Data/SharedMediaStorage/README.md)
+for current qualification evidence and remaining gates. Activation remains off.
+
+The native derivative-intent draft uses `nativeDerivativeIntentV3` with a
+`nativePreparedIdentityV1` projection. The active reservation retains exact raw
+before-state for CAS; durable output intents retain only its bounded identity,
+recipe, hashes and byte lengths, avoiding recursive edit history. The earlier
+unreachable `attemptBytes` intent codec is rejected, never reinterpreted. No
+runtime pair admission or schema migration is enabled by this codec correction.

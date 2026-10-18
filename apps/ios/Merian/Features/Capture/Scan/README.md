@@ -61,9 +61,15 @@ sample five deterministic frames, prepare a playback clip, and extract companion
 WAV audio. Completion waits for all required results rather than adding each
 stage's latency. Temporary audio/compressed artifacts remain leased until
 staging accepts them, so failed, cancelled, timed-out, superseded, and
-unconsumed preparation results delete their files. `DetachedWork` propagates
-parent cancellation into the bounded workers; synchronous ImageIO/AVFoundation
-work observes cancellation at the explicit stage boundaries.
+unconsumed preparation results delete their files. The join and timeout owners
+cancel and drain every child, collect late successful leases, and explicitly
+discard unaccepted artifacts before returning the original failure. Lease
+initialization/deinitialization is not the observable cleanup boundary; failed
+unlinks remain non-accepting and retryable and are reported privately. Borrowed
+original playback is never discarded. The audio owner observes its detached
+worker's actual result even after cancellation and removes intermediate exports
+before returning. Synchronous ImageIO/AVFoundation work observes cancellation at
+explicit stage boundaries; cancellation alone does not prove worker exit.
 
 The companion-audio extractor leaves appended sample buffers valid for the
 asynchronous asset writer. If that writer emits WAVE_EXTENSIBLE, the shared

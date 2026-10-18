@@ -99,11 +99,74 @@ struct CaptureScanVideoAudioExtractorTests {
         #expect(FileManager.default.fileExists(atPath: afterCancellation.videoURL.path))
     }
 
+    @Test(arguments: [false, true])
+    func lateCanonicalResultDiscardsIntermediateAndRespectsCancellation(cancel: Bool) async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let intermediate = root.appendingPathComponent("intermediate.wav")
+        let canonical = root.appendingPathComponent("canonical.wav")
+        let gate = AudioArtifactGate()
+        let task = Task {
+            await CaptureScanVideoAudioExtractor.qualifyArtifactLifecycle { register in
+                try Data([1]).write(to: intermediate)
+                let first = await register(intermediate)
+                try Data([2]).write(to: canonical)
+                let last = await register(canonical)
+                await gate.retain([first, last])
+                await gate.waitForRelease()
+                // Deliberately return a successful result even after cancellation.
+                return last
+            }
+        }
+        let ready = await gate.waitForArtifacts()
+        if cancel { task.cancel() }
+        await gate.release()
+        let result = await task.value
+        #expect(ready)
+        #expect(!FileManager.default.fileExists(atPath: intermediate.path))
+        #expect(FileManager.default.fileExists(atPath: canonical.path) == !cancel)
+        #expect((result == nil) == cancel)
+        if let result { try await result.discard() }
+    }
+
+    @Test func workerFailureDiscardsRegisteredArtifactBeforeReturning() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let gate = AudioArtifactGate()
+        let result = await CaptureScanVideoAudioExtractor.qualifyArtifactLifecycle { register in
+            try Data([1]).write(to: url)
+            let lease = await register(url)
+            await gate.retain([lease])
+            throw CocoaError(.fileWriteUnknown)
+        }
+        #expect(result == nil)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+    }
+
     private func extractAndDiscard(_ fixture: VideoAudioFixture) async throws {
         let lease = try #require(await CaptureScanVideoAudioExtractor.extract(
             videoURL: fixture.videoURL,
             outputDirectory: fixture.outputDirectory
         ))
         #expect(InferenceAudioPreparer.isCanonicalPreparedWAV(at: lease.fileURL))
+    }
+}
+
+private actor AudioArtifactGate {
+    private var leases: [CaptureScanTemporaryFileLease] = []
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var released = false
+    func retain(_ values: [CaptureScanTemporaryFileLease]) { leases = values }
+    func waitForRelease() async {
+        if released { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+    func release() { released = true; continuation?.resume(); continuation = nil }
+    func waitForArtifacts() async -> Bool {
+        for _ in 0..<500 where leases.isEmpty {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return !leases.isEmpty
     }
 }

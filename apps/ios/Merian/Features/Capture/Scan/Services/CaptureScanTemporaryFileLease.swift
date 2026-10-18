@@ -2,13 +2,13 @@ import Foundation
 
 /// Owns a temporary Scan artifact until the caller explicitly accepts it.
 ///
-/// A timeout race may finish its media worker after the structured operation
-/// has already been cancelled. Keeping cleanup in this sendable owner ensures
-/// an unconsumed result still deletes its file when the lease is released.
+/// Explicit discard follows producer drain. Deinitialization is a fallback,
+/// not an observable cleanup boundary: task results can retain this actor.
 actor CaptureScanTemporaryFileLease {
     nonisolated let fileURL: URL
 
-    private var hasRelinquishedOwnership = false
+    private enum State { case owned, cleanupPending, accepted, discarded }
+    private var state = State.owned
 
     init(fileURL: URL) {
         self.fileURL = fileURL
@@ -16,12 +16,30 @@ actor CaptureScanTemporaryFileLease {
 
     func relinquishOwnership() throws -> URL {
         try Task.checkCancellation()
-        hasRelinquishedOwnership = true
+        guard state == .owned || state == .accepted else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        state = .accepted
         return fileURL
     }
 
+    /// Idempotent and cancellation-independent after the producer has exited.
+    /// A failed unlink stays retryable, but can never be accepted afterward.
+    func discard() throws {
+        guard state == .owned || state == .cleanupPending else { return }
+        state = .cleanupPending
+        do { try FileManager.default.removeItem(at: fileURL) }
+        catch let error as CocoaError where error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile { }
+        state = .discarded
+    }
+
+    func discardReportingFailure() {
+        do { try discard() }
+        catch { MerianLog.hardware.error("Temporary capture artifact cleanup failed: \(error, privacy: .private)") }
+    }
+
     deinit {
-        guard !hasRelinquishedOwnership else { return }
+        guard state == .owned || state == .cleanupPending else { return }
         try? FileManager.default.removeItem(at: fileURL)
     }
 }
