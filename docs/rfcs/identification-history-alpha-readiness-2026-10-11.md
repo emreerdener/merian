@@ -1,3 +1,48 @@
+## October 17 — native atomic acquisition locally verified
+
+The inactive registered fixture controller now prepares atomic original
+reservation, completion and held settlement. A sealed capability minted only by
+the fenced repository validates current account dispatch and store/root identity
+immediately before the sole save. Completion consumes an unforgeable file
+inspection, with separate exact byte identity and full descriptor facts. Private
+transaction contexts retain the pristine full-graph audit, assert exact
+changed-row postconditions, and jointly save receipt, package, membership,
+allocation, lease and reference accounting. Hold preserves membership bytes and
+revision and the full reservation. Any unresolved acquisition or retirement
+intentionally blocks fresh acquisition until a separately qualified recovery
+owner resolves it; no capacity is released here.
+
+Exact completed replay returns the original saved result. Reserved/held cold
+requests cannot restart a loader. Uncertain save/readback can only reconcile the
+same operation. Account shutdown waits for actual callback/file termination.
+Verified durable held settlement preserves liability while permitting process
+fence release; unknown settlement keeps fences and admission sealed. An explicit
+failed-drain retry may reconcile the exact saved state without dispatching work.
+
+Independent and IC-1 review cleared exact candidate08. The nine focused suites
+passed 67 methods / 199 executions; the complete native target then passed 6,173
+methods / 9,922 executions, with zero failures or skips. Finalized results are
+`4349aedd71094fbe98e7ac9ae653040e` and `48036d6b2b7f41f58da8a6fcd30f714c`. Exact
+candidate and 102 unrelated baseline hashes stayed unchanged. Each run removed
+only its 17 emitted synthetic fixture directories after the test host exited.
+Full-target evidence retains Xcode's 600-second simulator-diagnostics collection
+timeout and two VideoAudioFixture QoS warnings; neither caused a test failure.
+
+Earlier compiler failures and the interrupted candidate06 run are retained. The
+user explicitly authorized stopping that failed, stuck run. Its partial result
+is unfinalized and contributes no passing coverage. The correction reuses the
+single captured draft encoding, wakes a test gate when acquisition fails before
+loading, and avoids unlinking live SwiftData databases. The failure regression
+and previously stuck account-drain case pass in both corrected runs.
+
+Evidence: `.artifacts/shared-media-native-acquisition-owner-20261017/`. This is
+shared-checkout native qualification; isolated-source acceptance and live
+Capture/Auth/queue/history composition remain pending. Continue native draft
+metadata, sharing/removal/recovery and final composition in the documented
+order. This does not close photo-storage or whole-feature acceptance. Activation
+stays disabled, PR116 frozen, deployment hold active, AWS unapproved and all
+limits unchanged. Earlier entries retain their historical scope.
+
 ## October 17 — registered native original admission locally verified
 
 The inactive Debug fixture controller now registers its mandatory account drain

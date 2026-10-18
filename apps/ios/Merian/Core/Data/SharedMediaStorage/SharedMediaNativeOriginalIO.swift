@@ -33,4 +33,14 @@ actor SharedMediaNativeOriginalIO {
             try files.requireNativeAbsence(file, retirement: retirement, binding: binding)
         }
     }
+    func load(_ provider: @Sendable () async throws -> Data) async throws -> Data { try await provider() }
+
+    func write(_ data: Data, request: SharedMediaAcquisitionIntent) throws -> SharedMediaPhotoRetirementInspection {
+        let intent = PhotoPreparationIntent(leaseID: request.operationID, ownerID: request.ownerID, packageID: request.packageID,
+            assetID: request.assetID, assetGeneration: request.assetGeneration, referenceID: request.referenceID,
+            draftGeneration: request.draftGeneration, processEpoch: request.writerEpoch, role: .original,
+            ordinal: request.ordinal, acquisitionKind: request.kind.rawValue, maximumBytes: request.maximumBytes)
+        return try files.inspectSharedRetirement(files.write(data, intent: intent))
+    }
+
 }

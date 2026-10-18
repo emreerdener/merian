@@ -35,7 +35,7 @@ final class SharedMediaNativeOriginalDrain {
         let task = Task { @MainActor in await callback?() ?? true }
         shutdownTask = task
         let result = await task.value
-        if result { self.callback = nil; registration = nil }
+        if result { self.callback = nil; registration = nil } else { shutdownTask = nil } // Explicit retry may reconcile settlement; admission stays sealed.
         return result
     }
 }
