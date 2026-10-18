@@ -1,3 +1,31 @@
+## October 17 — native original reverse-reference audit locally verified
+
+The read-only original audit checks saved reverse counts independently against
+both complete reference directions, including retained packages and missing
+physical-origin packages. It rejects orphan or substituted edges, missing
+counters, inconsistent owner/generation/lease facts and dirty contexts. Zero
+requires positive retirement revision, the exact V2 descriptor byte count and
+one final retired pair. The caller must hold an unchanged native store fence;
+this snapshot grants no mutation, media or cleanup authority. Pages bound row
+materialization, not total database work or measured memory.
+
+Independent and IC-1 review cleared accounting candidate03. Focused coverage
+passed 51 tests; the complete native target passed 6,109 tests with zero
+failures or skips. Candidate and unrelated baseline hashes stayed unchanged.
+Evidence: `.artifacts/shared-media-native-accounting-20261017/`; full result
+`.artifacts/local-ios/461182f8231345f1b58f86a6259af1fd.xcresult`. The initial
+unexecuted candidate's zero-state gaps and the later paging-offset compilation
+failure remain recorded. This is shared-checkout validation, not isolated-source
+or live acceptance.
+
+Continue the closed native owner, paired writes, exact memberships, whole-store
+and namespace validation, and atomic queue/history ownership. The next private
+fixture factory uses distinct native bindings and preserves legacy refusal;
+shared reopen must reject missing namespaces without recreating them. These
+remain implementation work, not completed native composition. Activation stays
+disabled, PR116 frozen, the deployment hold active, AWS unapproved and numeric
+limits unchanged. No push, merge, deployment or hosted action occurred.
+
 ## October 17 — pending graph and native retirement format locally verified
 
 The bounded pending graph follows logical package references, reservation work,

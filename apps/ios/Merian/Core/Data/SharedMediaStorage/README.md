@@ -1,3 +1,30 @@
+## Native original reference audit — locally verified
+
+`SharedMediaNativeOriginalAccounting` audits one persisted original under the
+caller's unchanged native store fence. It independently checks all-live totals
+and exhausts both P1 and shared-reference directions in 128-row pages, including
+retained packages. Missing counters, equal-count substitutions, orphan edges,
+unknown roles and mismatched owner/generation/lease facts fail closed. A zero
+count requires the exact native V2 retirement binding and final retired pair.
+The physical-origin package need not still exist as a logical owner.
+
+The immutable result is a read-only accounting snapshot, not a mutation, file or
+cleanup capability. The helper rejects unsaved contexts and exposes no partial
+success. Paging bounds row materialization, not total database work or measured
+memory. Fencing is a caller precondition; this helper does not acquire a lock or
+establish native store eligibility. Dedicated package/consumer, derivative,
+reservation and whole-store/namespace validation remain separate requirements.
+There is no production caller and no native composition is opened. The next
+closed transaction owner must own paired writes, memberships and reverse counts
+in one save and retain exact operation recovery.
+
+Independent and IC-1 review cleared the exact candidate. The focused run passed
+51 tests and the full native target passed 6,109 tests, with no failures, skips
+or candidate/shared-baseline drift. Evidence and earlier failures are retained
+in `.artifacts/shared-media-native-accounting-20261017/`. This proves the scoped
+read-only helper in the shared checkout, not native composition or live media
+retention. The closed owner and complete native audit remain required.
+
 # Inactive shared media storage
 
 ## Pending graph and retirement format — locally verified
