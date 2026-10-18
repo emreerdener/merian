@@ -202,7 +202,8 @@ enum SharedMediaNativeAcquisitionGraph {
         var refsQuery = FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.packageID == id }); refsQuery.fetchLimit = 3
         var workQuery = FetchDescriptor<PhotoPreparationLease>(predicate: #Predicate { $0.packageID == id }); workQuery.fetchLimit = 3
         let refs = try context.fetch(refsQuery), jobs = try context.fetch(workQuery)
-        guard !refs.isEmpty || !jobs.isEmpty, refs.count + jobs.count <= 2,
+        guard refs.count + jobs.count <= 2,
+              !refs.isEmpty || !jobs.isEmpty || row.accountingTierRaw == "pending",
               row.accountingTierRaw == "pending" || jobs.isEmpty else { throw SharedMediaStorageFailure.conflict }
         var ordinals = Set<Int64>(), allocated: Int64 = 0
         for ref in refs {

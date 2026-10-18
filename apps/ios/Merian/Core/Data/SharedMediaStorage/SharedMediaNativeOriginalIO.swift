@@ -33,6 +33,11 @@ actor SharedMediaNativeOriginalIO {
             try files.requireNativeAbsence(file, retirement: retirement, binding: binding)
         }
     }
+    func inspect(_ file: PhotoPreparationFile) throws -> SharedMediaPhotoRetirementInspection { try files.inspectSharedRetirement(file) }
+    func release(_ retirement: SharedMediaNativeRetirement) throws -> SharedMediaNativeReleaseProof { try files.releaseNative(retirement) }
+    #if DEBUG
+    func setReleaseFault(_ fault: (@Sendable (SharedMediaPhotoReleaseBoundary) throws -> Void)?) { files.sharedReleaseFault = fault }
+    #endif
     func load(_ provider: @Sendable () async throws -> Data) async throws -> Data { try await provider() }
 
     func write(_ data: Data, request: SharedMediaAcquisitionIntent) throws -> SharedMediaPhotoRetirementInspection {

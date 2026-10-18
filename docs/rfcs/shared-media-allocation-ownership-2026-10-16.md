@@ -1,3 +1,49 @@
+## October 18 — native sharing, removal and retirement recovery locally verified
+
+The inactive registered native owner now supports sharing into a new
+same-account pending draft, reference removal, and completed-original retirement
+recovery. Sharing updates paired references, pending membership and the physical
+reference counter in one save without copying bytes or changing the source
+membership. Existing destinations are rejected. Both counter value and revision
+are frozen with the inventory and source package/reference preconditions.
+
+Removal preserves supporting text and stable original ordinals. Removing the
+last photo leaves an empty pending draft; fresh identification still requires
+media. Explicit whole-draft discard remains separate. Nonfinal removal preserves
+survivor bytes. Final removal saves the existing V2 retirement and keeps its
+physical charge until exact descriptor-bound unlink, directory sync and absence
+proof permit atomic accounting release. Lost acknowledgements use exact saved
+state. Later mutation or missing rows alone cannot prove logical success or
+recreate references. Dedicated recovery accepts saved retirement while ordinary
+mutations remain blocked. Reserved/held acquisition cleanup requires its
+separate writer-closure proof and remains held; recovery never repeats a loader
+or AI call.
+
+The registered controller, raw admission and sealed capability constructors stay
+co-located. Read-only eligibility and namespace inspection move to typed
+helpers. No active schema, numeric limit, provider or live composition changes.
+Independent and IC-1 reviews cleared exact candidate02 after correcting two
+review findings: lost-acknowledgement checks now require the exact canonical
+membership successor, and recovery queries one fresh retirement at a time until
+none remain. Candidate01 is retained as unrun review-hold evidence.
+
+Twelve focused suites passed 103 methods / 254 executions; the complete native
+target passed 6,202 methods / 9,970 executions. Both finalized results report
+zero failures, skips and runtime warnings: `1da84328952a472dba6e9657963b5939`
+and `22ecb952812e49c6b14fe92696a17ae4`. Source and all 102 unrelated baseline
+hashes remained unchanged. Each run removed only its 65 emitted synthetic
+fixture directories after the compiler and test host exited.
+
+This is shared-checkout native qualification, not isolated-source or live
+Capture/Auth/queue/history acceptance. Continue the independently and IC-1
+reviewed explicit abandonment/cleanup of unfinished native acquisitions: raw
+reserved/held items stay retained and charged until an exact explicit
+abandonment saves cleanup intent; cold recovery may finish only saved intent.
+Draft text and other originals remain intact. Final composition remains pending.
+Evidence: `.artifacts/shared-media-native-lifecycle-20261018/`. Activation
+disabled, PR116 frozen, Supabase deployment hold active, AWS unapproved. Earlier
+entries retain historical evidence.
+
 ## October 18 — native draft metadata locally verified
 
 The inactive registered native owner now prepares metadata-only draft edits.

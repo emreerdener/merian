@@ -1,3 +1,20 @@
+## October 18 — native final-reference cleanup locally verified
+
+`SharedMediaNativeRetirementFiles` consumes only the fenced native repository's
+saved-retirement capability. The locked file owner verifies the original hash
+and descriptor before lending scoped descriptors. The adapter checks exact
+parent/namespace identities and absent partial files, unlinks only the saved
+final object, syncs directories and returns an unforgeable absence proof. Native
+accounting release occurs separately after fresh saved-state validation.
+Interrupted cleanup retains the retirement and its physical charge. This does
+not authorize reserved/held acquisition cleanup or change production
+composition.
+
+The existing bounded source-byte reader now lives alongside image header
+validation; its API, byte bounds and cancellation behavior are unchanged. See
+the [shared-media owner](../SharedMediaStorage/README.md) for current review and
+qualification status. Activation remains disabled.
+
 ## Isolated shared-storage integration
 
 `SharedMediaPhotoAcquisitionOwner` uses P1's original-byte validation and writer

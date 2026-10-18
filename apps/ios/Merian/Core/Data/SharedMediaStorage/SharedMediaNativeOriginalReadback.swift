@@ -68,6 +68,25 @@ struct SharedMediaNativeOriginalReadback {
         return try .init(inventory: snapshot(), context: freshContext(), request: request)
     }
 
+    func verifyLeaf(_ leaf: PhotoPreparationNativeLeaf, inspection: SharedMediaNativeInspectionAuthority) throws {
+        try inspection.validate()
+        let base = leaf.token.hasSuffix(".partial") ? String(leaf.token.dropLast(8)) : leaf.token
+        guard let last = base.split(separator: "/").last, let assetID = UUID(uuidString: String(last)) else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        let context = freshContext(), inventory = try inventory(context)
+        var query = FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == assetID }); query.fetchLimit = 2
+        let rows = try context.fetch(query)
+        guard rows.count == 1, let row = rows.first, row.ownerID == inspection.ownerID else { throw SharedMediaStorageFailure.conflict }
+        switch try SharedMediaNativeAcquisitionGraph.receipt(row, inventory: inventory, context: context) {
+        case .reserved(let request), .held(let request):
+            guard [request.finalToken, request.partialToken].contains(leaf.token), leaf.byteCount <= request.maximumBytes else { throw SharedMediaStorageFailure.conflict }
+        case .completed(let request, let result):
+            guard leaf.token == request.finalToken, leaf.byteCount == result.byteCount, leaf.descriptor == result.descriptor.file else { throw SharedMediaStorageFailure.conflict }
+        case .released: throw SharedMediaStorageFailure.conflict
+        }
+    }
+
     struct Entry: Sendable {
         let receipt: SharedMediaAcquisitionReceipt
         let retirement: SharedMediaNativeRetirementIdentity?

@@ -23,6 +23,7 @@ final class SharedMediaNativeStorageRepository {
     private let binding: Data
     private let nativeBinding: SharedMediaNativeBinding
     #if DEBUG
+    fileprivate var lifecycleFault: ((SharedMediaNativeLifecycleBoundary) throws -> Void)?
     fileprivate var metadataFault: ((SharedMediaNativeMetadataBoundary) throws -> Void)?
     fileprivate var metadataAvailableBytes: Int64?
     fileprivate var inspectionAuditCount = 0
@@ -53,7 +54,7 @@ final class SharedMediaNativeStorageRepository {
         guard photoRoot.standardizedFileURL.deletingLastPathComponent() == parent,
               inboxRoot.standardizedFileURL.deletingLastPathComponent() == parent,
               configuration.url.standardizedFileURL.deletingLastPathComponent().deletingLastPathComponent() == parent,
-              [authorityRoot, photoRoot, inboxRoot, configuration.url, configuration.url.deletingLastPathComponent()].allSatisfy(Self.fixtureLocation) else {
+              [authorityRoot, photoRoot, inboxRoot, configuration.url, configuration.url.deletingLastPathComponent()].allSatisfy(SharedMediaNativeEligibility.fixtureLocation) else {
             throw SharedMediaStorageFailure.invalid
         }
         self.originalWriterEpoch = originalWriterEpoch
@@ -72,11 +73,11 @@ final class SharedMediaNativeStorageRepository {
         binding = try JSONEncoder().encode([Self.mode, inventoryID.uuidString, storeUUID, rootBinding])
         let context = ModelContext(container); context.autosaveEnabled = false
         let existing = try originals
-            ? Self.originalState(context, inventoryID: inventoryID, storeIdentity: storeIdentity, rootBinding: rootBinding)
-            : Self.emptyState(context, inventoryID: inventoryID, storeIdentity: storeIdentity, rootBinding: rootBinding)
+            ? SharedMediaNativeEligibility.originalState(context, inventoryID: inventoryID, storeIdentity: storeIdentity, rootBinding: rootBinding)
+            : SharedMediaNativeEligibility.emptyState(context, inventoryID: inventoryID, storeIdentity: storeIdentity, rootBinding: rootBinding)
         if originals {
             guard let expectedOwnerID else { throw SharedMediaStorageFailure.invalid }
-            try Self.requireOriginalAccount(context, ownerID: expectedOwnerID)
+            try SharedMediaNativeEligibility.requireOriginalAccount(context, ownerID: expectedOwnerID)
         }
         let initializing = existing == nil
         generation = existing?.generation ?? UUID()
@@ -124,7 +125,7 @@ final class SharedMediaNativeStorageRepository {
         }
         try inbox.validateInventory([])
         let context = ModelContext(container); context.autosaveEnabled = false
-        guard let row = try Self.emptyState(context, inventoryID: inventoryID, storeIdentity: storeIdentity, rootBinding: rootBinding),
+        guard let row = try SharedMediaNativeEligibility.emptyState(context, inventoryID: inventoryID, storeIdentity: storeIdentity, rootBinding: rootBinding),
               row.generation == generation else { throw SharedMediaStorageFailure.conflict }
         return .init(generation: row.generation, revision: row.revision, phase: row.phaseRaw, cursor: row.cursor)
     }
@@ -140,52 +141,12 @@ final class SharedMediaNativeStorageRepository {
     fileprivate func inspectOriginals(check: @escaping @MainActor () throws -> Void) async throws -> SharedMediaNativeOriginalSnapshot {
         try check()
         let expected = try originalHeader(audit: true)
-        try check(); try requireOriginalHeader(expected)
-        let pageAuthority = SharedMediaNativeInspectionAuthority(ownerID: expectedOwnerID) { [self] in
-            try check(); try requireOriginalHeader(expected)
+        guard let expectedOwnerID else { throw SharedMediaStorageFailure.closed }
+        let authority = SharedMediaNativeInspectionAuthority(ownerID: expectedOwnerID) {
+            try check(); try self.requireOriginalHeader(expected)
         }
-        var offset = 0, recovery = false
-        while true {
-            let page = try originalReadback().page(offset: offset, inspection: pageAuthority)
-            for entry in page {
-                switch entry.receipt {
-                case .completed(let request, let result):
-                    try await originalIO.verify(request: request, result: result, retirement: entry.retirement)
-                    try check(); try requireOriginalHeader(expected)
-                    recovery = recovery || entry.retirement != nil
-                case .reserved, .held: recovery = true
-                case .released: break
-                }
-            }
-            if page.count < SharedMediaStoragePolicy.pageSize { break }
-            let (next, overflow) = offset.addingReportingOverflow(page.count)
-            guard !overflow else { throw SharedMediaStorageFailure.capacity }; offset = next
-        }
-        // Reverse hashes/absence checks may suspend. Finish with the complete
-        // leaf stream so additions and replacements during those awaits cannot
-        // escape the forward join. Cooperating writers remain fenced throughout.
-        try await originalIO.visit { @MainActor [self] leaf in
-            try check(); try requireOriginalHeader(expected)
-            let context = ModelContext(container); context.autosaveEnabled = false
-            let inventory = try originalInventory(context)
-            let base = leaf.token.hasSuffix(".partial") ? String(leaf.token.dropLast(8)) : leaf.token
-            guard let last = base.split(separator: "/").last, let id = UUID(uuidString: String(last)) else {
-                throw SharedMediaStorageFailure.conflict
-            }
-            let row = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == id }))
-            switch try SharedMediaNativeAcquisitionGraph.receipt(row, inventory: inventory, context: context) {
-            case .reserved(let request), .held(let request):
-                guard [request.finalToken, request.partialToken].contains(leaf.token), leaf.byteCount <= request.maximumBytes else {
-                    throw SharedMediaStorageFailure.conflict
-                }
-            case .completed(let request, let result):
-                guard leaf.token == request.finalToken, leaf.byteCount == result.byteCount, leaf.descriptor == result.descriptor.file else {
-                    throw SharedMediaStorageFailure.conflict
-                }
-            case .released: throw SharedMediaStorageFailure.conflict
-            }
-        }
-        try check()
+        let recovery = try await SharedMediaNativeOriginalInspection.run(reader: originalReadback(), io: originalIO, authority: authority)
+        try authority.validate()
         guard try originalHeader(audit: true) == expected else { throw SharedMediaStorageFailure.conflict }
         return .init(inventory: expected, requiresRecovery: recovery)
     }
@@ -246,6 +207,53 @@ final class SharedMediaNativeStorageRepository {
         }
         return try metadata(packageID: request.packageID, check: check).result(request)
     }
+    fileprivate func sharing(_ check: @escaping @MainActor () throws -> Void) throws -> SharedMediaNativeSharing {
+        try lifecycleBoundary(.beforeReadback)
+        return try .init(container: container, inventoryID: inventoryID, authority: mutationAuthority(check: check))
+    }
+    fileprivate func removal(_ check: @escaping @MainActor () throws -> Void) throws -> SharedMediaNativeRemoval {
+        try lifecycleBoundary(.beforeReadback)
+        return try .init(container: container, inventoryID: inventoryID, authority: mutationAuthority(check: check))
+    }
+    fileprivate func share(_ request: SharedMediaNativeShareRequest, check: @escaping @MainActor () throws -> Void) throws -> PhotoOriginalReference {
+        do { try sharing(check).apply(request, availableBytes: files.availableBytes(),
+            beforeSave: { try self.lifecycleBoundary(.beforeSave) }, afterSave: { try self.lifecycleBoundary(.afterSave) }) }
+        catch { let failure = error; do { return try sharing(check).result(request) } catch { throw failure } }
+        return try sharing(check).result(request)
+    }
+    fileprivate func remove(_ request: SharedMediaNativeRemovalRequest, check: @escaping @MainActor () throws -> Void) async throws {
+        // Missing logical references cannot prove an earlier removal. Only this
+        // invocation's validated save attempt may reconcile its acknowledgement.
+        let file = try removal(check).file(request)
+        let proof = request.liveCount == 1 ? try await originalIO.inspect(file) : nil
+        try check()
+        do { try removal(check).apply(request, proof: proof, beforeSave: { try self.lifecycleBoundary(.beforeSave) }, afterSave: { try self.lifecycleBoundary(.afterSave) }) }
+        catch { let failure = error; do { try removal(check).result(request) } catch { throw failure } }
+        try removal(check).result(request)
+    }
+    fileprivate func recoverRetirements(check: @escaping @MainActor () throws -> Void) async throws {
+        while let assetID = try removal(check).nextRetirementAsset() {
+            let state = try removal(check).retirement(assetID: assetID)
+            let intent = SharedMediaNativeRetirement(state: state, binding: nativeBinding.bytes, epoch: nativeBinding.epoch)
+            let proof = try await originalIO.release(intent)
+            try check()
+            func release() throws -> SharedMediaNativeRelease {
+                try lifecycleBoundary(.beforeReadback)
+                return try .init(container: container, inventoryID: inventoryID, authority: mutationAuthority(check: check))
+            }
+            do { try release().apply(proof, beforeSave: { try self.lifecycleBoundary(.beforeReleaseSave) }, afterSave: { try self.lifecycleBoundary(.afterReleaseSave) }) }
+            catch { let failure = error; do { try release().result(state) } catch { throw failure } }
+            try release().result(state)
+        }
+    }
+    #if DEBUG
+    fileprivate func setReleaseFault(_ fault: (@Sendable (SharedMediaPhotoReleaseBoundary) throws -> Void)?) async { await originalIO.setReleaseFault(fault) }
+    #endif
+    private func lifecycleBoundary(_ point: SharedMediaNativeLifecycleBoundary) throws {
+        #if DEBUG
+        try lifecycleFault?(point)
+        #endif
+    }
     private func metadataBoundary(_ point: SharedMediaNativeMetadataBoundary) throws {
         #if DEBUG
         try metadataFault?(point)
@@ -280,7 +288,7 @@ final class SharedMediaNativeStorageRepository {
             inspectionAuditCount += 1
             #endif
             guard let expectedOwnerID else { throw SharedMediaStorageFailure.closed }
-            try Self.requireOriginalAccount(context, ownerID: expectedOwnerID)
+            try SharedMediaNativeEligibility.requireOriginalAccount(context, ownerID: expectedOwnerID)
             try SharedMediaNativeAcquisitionGraph.audit(context: context, inventoryID: inventoryID)
             _ = try SharedMediaNativeAcquisitionBudget.evaluate(context: context, inventory: row)
         }
@@ -303,61 +311,7 @@ final class SharedMediaNativeStorageRepository {
         guard rows.count == 1, let row = rows.first else { throw SharedMediaStorageFailure.conflict }; return row
     }
 
-    private static func requireOriginalAccount(_ context: ModelContext, ownerID: UUID) throws {
-        // Full and stripped terminal receipts both retain their account identity.
-        // Package ownership also covers empty drafts without an acquisition row.
-        guard try context.fetchCount(FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.ownerID != ownerID })) == 0,
-              try context.fetchCount(FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.ownerID != ownerID })) == 0 else {
-            throw PhotoPreparationFailure.accountChanged
-        }
-    }
 
-    private static func originalState(_ context: ModelContext, inventoryID: UUID,
-                                      storeIdentity: String, rootBinding: String) throws -> SharedMediaInventoryRecord? {
-        if try context.fetchCount(FetchDescriptor<SharedMediaInventoryRecord>()) == 0 {
-            return try emptyState(context, inventoryID: inventoryID, storeIdentity: storeIdentity, rootBinding: rootBinding)
-        }
-        try SharedMediaNativeAcquisitionGraph.audit(context: context, inventoryID: inventoryID)
-        var query = FetchDescriptor<SharedMediaInventoryRecord>(); query.fetchLimit = 2
-        var bootstrap = FetchDescriptor<SharedMediaMembershipBootstrapRecord>(); bootstrap.fetchLimit = 2
-        let rows = try context.fetch(query), receipts = try context.fetch(bootstrap)
-        guard rows.count == 1, let row = rows.first, row.id == inventoryID,
-              row.storeIdentity == storeIdentity, row.rootIdentity == rootBinding,
-              receipts.count == 1, let receipt = receipts.first, receipt.id == inventoryID,
-              receipt.inventoryGeneration == row.generation, receipt.contractVersion == 1, receipt.revision == 0 else {
-            throw SharedMediaStorageFailure.conflict
-        }
-        return row
-    }
-
-    private static func fixtureLocation(_ url: URL) -> Bool {
-        guard url.isFileURL else { return false }
-        let path = url.resolvingSymlinksInPath().standardizedFileURL.pathComponents
-        return ![URL.documentsDirectory, URL.applicationSupportDirectory].contains {
-            path.starts(with: $0.resolvingSymlinksInPath().standardizedFileURL.pathComponents)
-        }
-    }
-
-    /// Full zero-state inventory is deliberate until native operations exist.
-    /// Never infer bootstrap metadata from a surviving graph or root marker.
-    private static func emptyState(_ context: ModelContext, inventoryID: UUID,
-                                   storeIdentity: String, rootBinding: String) throws -> SharedMediaInventoryRecord? {
-        guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
-        for type in CurrentSchema.models where ObjectIdentifier(type) != ObjectIdentifier(SharedMediaInventoryRecord.self)
-            && ObjectIdentifier(type) != ObjectIdentifier(SharedMediaMembershipBootstrapRecord.self) {
-            guard try SharedMediaStorageLookup.count(context, type) == 0 else { throw SharedMediaStorageFailure.closed }
-        }
-        var inventories = FetchDescriptor<SharedMediaInventoryRecord>(); inventories.fetchLimit = 2
-        var receipts = FetchDescriptor<SharedMediaMembershipBootstrapRecord>(); receipts.fetchLimit = 2
-        let rows = try context.fetch(inventories), bootstraps = try context.fetch(receipts)
-        if rows.isEmpty && bootstraps.isEmpty { return nil }
-        guard rows.count == 1, bootstraps.count == 1, let row = rows.first, let receipt = bootstraps.first,
-              row.id == inventoryID, row.modeRaw == mode, row.phaseRaw == phase, row.cursor.isEmpty,
-              row.storeIdentity == storeIdentity, row.rootIdentity == rootBinding, row.revision == 0,
-              receipt.id == inventoryID, receipt.inventoryGeneration == row.generation,
-              receipt.contractVersion == 1, receipt.revision == 0 else { throw SharedMediaStorageFailure.conflict }
-        return row
-    }
 }
 
 /// Registered before admission, so Auth can reach an in-flight open. This
@@ -429,6 +383,41 @@ final class SharedMediaNativeOriginalOwner {
     func setMetadataFault(_ fault: ((SharedMediaNativeMetadataBoundary) throws -> Void)?, availableBytes: Int64? = nil) throws {
         guard phase == .ready, cancelActive == nil, let storage else { throw SharedMediaStorageFailure.closed }
         storage.metadataFault = fault; storage.metadataAvailableBytes = availableBytes
+    }
+    #endif
+
+    func prepareShare(_ source: PhotoOriginalReference, packageID: UUID, draftGeneration: UUID) async throws -> SharedMediaNativeShareRequest {
+        try await lifecycle { storage, check in try storage.sharing(check).prepare(source, packageID: packageID, draftGeneration: draftGeneration) }
+    }
+    func share(_ request: SharedMediaNativeShareRequest) async throws -> PhotoOriginalReference {
+        try await lifecycle { storage, check in try storage.share(request, check: check) }
+    }
+    func prepareRemoval(_ source: PhotoOriginalReference) async throws -> SharedMediaNativeRemovalRequest {
+        try await lifecycle { storage, check in try storage.removal(check).prepare(source) }
+    }
+    func remove(_ request: SharedMediaNativeRemovalRequest) async throws {
+        try await lifecycle { storage, check in try await storage.remove(request, check: check) }
+        try await recoverRetirements()
+    }
+    func recoverRetirements() async throws {
+        try await lifecycle(recovery: true) { storage, check in try await storage.recoverRetirements(check: check) }
+    }
+    private func lifecycle<T: Sendable>(recovery: Bool = false,
+        _ body: @escaping @MainActor (SharedMediaNativeStorageRepository, @escaping @MainActor () throws -> Void) async throws -> T) async throws -> T {
+        guard phase == .ready, pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
+        return try await perform { [self] lease in
+            guard let storage else { throw SharedMediaStorageFailure.closed }
+            let snapshot = try await storage.inspectOriginals { try self.check(lease) }
+            guard recovery || !snapshot.requiresRecovery else { throw PhotoPreparationFailure.cleanupPending }
+            return try await body(storage, { try self.check(lease) })
+        }
+    }
+    #if DEBUG
+    func setLifecycleFault(_ fault: ((SharedMediaNativeLifecycleBoundary) throws -> Void)?) throws {
+        guard phase == .ready, cancelActive == nil, let storage else { throw SharedMediaStorageFailure.closed }; storage.lifecycleFault = fault
+    }
+    func setReleaseFault(_ fault: (@Sendable (SharedMediaPhotoReleaseBoundary) throws -> Void)?) async throws {
+        try await lifecycle(recovery: true) { storage, _ in await storage.setReleaseFault(fault) }
     }
     #endif
 
@@ -593,8 +582,18 @@ struct SharedMediaNativeMutationAuthority {
 /// A value-only page-read fence, minted solely by the enclosing inspection.
 @MainActor
 struct SharedMediaNativeInspectionAuthority {
-    let ownerID: UUID?
+    let ownerID: UUID
     private let check: () throws -> Void
-    fileprivate init(ownerID: UUID?, check: @escaping () throws -> Void) { self.ownerID = ownerID; self.check = check }
+    fileprivate init(ownerID: UUID, check: @escaping () throws -> Void) { self.ownerID = ownerID; self.check = check }
     func validate() throws { try check() }
+}
+
+/// Only fresh saved-retirement readback in the fenced repository mints this capability.
+struct SharedMediaNativeRetirement: Sendable {
+    let state: SharedMediaNativeRetirementState
+    let binding: Data
+    let epoch: UUID
+    fileprivate init(state: SharedMediaNativeRetirementState, binding: Data, epoch: UUID) {
+        self.state = state; self.binding = binding; self.epoch = epoch
+    }
 }

@@ -402,26 +402,6 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
         return data
     }
 
-    static func boundedRead(fd: Int32, maximumBytes: Int64) throws -> Data {
-        var info = stat()
-        guard maximumBytes > 0, maximumBytes <= PhotoPreparationPolicy.original,
-              fstat(fd, &info) == 0, info.st_mode & S_IFMT == S_IFREG,
-              info.st_size > 0, info.st_size <= maximumBytes else { throw PhotoPreparationFailure.sizeLimit }
-        var data = Data(), buffer = [UInt8](repeating: 0, count: 64 * 1024)
-        while true {
-            try Task.checkCancellation()
-            let remaining = Int(maximumBytes) - data.count
-            let count = Darwin.read(fd, &buffer, min(buffer.count, remaining + 1))
-            if count < 0 && errno == EINTR { continue }
-            guard count >= 0 else { throw PhotoPreparationFailure.unavailable }
-            if count == 0 { break }
-            guard count <= remaining else { throw PhotoPreparationFailure.sizeLimit }
-            data.append(contentsOf: buffer.prefix(count))
-        }
-        guard data.count == info.st_size else { throw PhotoPreparationFailure.inconsistentOwnership }
-        return data
-    }
-
     /// Empty directory remnants carry no media authority. Preserve every
     /// prefix still named by the ledger, including absent/pending originals.
     func pruneSharedEmptyDirectories(knownTokens: Set<String>) throws {
@@ -449,6 +429,20 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
         try checkIdentity(); try inspection.requireNamespaceRoot(rootFD: rootFD)
         try await inspection.visitNative(namespaceFD: namespaceFD, revalidate: { try self.checkIdentity() }, observe: observe)
         try checkIdentity(); try inspection.requireNamespaceRoot(rootFD: rootFD)
+    }
+
+    func releaseNative(_ retirement: SharedMediaNativeRetirement) throws -> SharedMediaNativeReleaseProof {
+        guard let sharedBinding, sharedBinding.bytes == retirement.binding, sharedBinding.epoch == retirement.epoch else { throw PhotoPreparationFailure.unsupportedComposition }
+        do {
+            guard try inspectSharedRetirement(retirement.state.file).identity == retirement.state.identity.proof else { throw PhotoPreparationFailure.inconsistentOwnership }
+        } catch PhotoPreparationFailure.missingMedia { /* Exact saved absence is checked below. */ }
+        return try withSharedDestination(retirement.state.file.token, create: false) { access in
+            var operation = SharedMediaNativeRetirementFiles(access: access, retirement: retirement)
+            #if DEBUG
+            operation.fault = sharedReleaseFault
+            #endif
+            return try operation.release()
+        }
     }
 
     func requireNativeAbsence(_ file: PhotoPreparationFile, retirement: SharedMediaNativeRetirementIdentity,
