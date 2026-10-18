@@ -1,3 +1,32 @@
+## October 17 — native acquisition graph and metadata locally verified
+
+The inactive native acquisition prerequisite now checks receipt/work/asset/lease
+and reference joins in both directions, including orphan and terminal conflicts.
+Surviving original references preserve submitted provenance; completed results
+remain immutable after distinct sharing references replace the original owner.
+Only the exact native inventory mode, ready phase and empty cursor qualify.
+
+Pending accounting pages physical-origin receipt charges and projects every
+combination of the existing two originals completing. Receipt result headroom
+and membership growth remain inside the existing 1 MiB metadata allowance and
+contribute to outstanding free-space reservations. Retained-library occupancy
+has no new count limit and does not consume pending slots.
+
+Independent and IC-1 review cleared candidate02 after source-review corrections
+before execution. All seven focused suites passed: 54 test methods, 215
+parameterized executions, zero failures/skips. Exact source and 102 unrelated
+baseline hashes stayed unchanged. Project and Markdown checks passed. Evidence:
+`.artifacts/shared-media-native-transactions-20261017/`; XCResult
+`.artifacts/local-ios/2e21d6f843a74d608d71f0e5a2ecd579.xcresult`. This is scoped
+shared-checkout qualification, not complete-owner or isolated-source acceptance.
+
+The helpers grant no admission or file authority. The constructor stays
+empty-only until complete off-main-actor namespace/hash qualification and the
+closed atomic reserve/commit controller qualify. Continue that integration, then
+the complete native target and atomic queue/history ownership. Activation
+remains disabled, PR116 frozen, the Supabase hold active, AWS unapproved and
+existing limits unchanged. Later version-actions/redesign remain required.
+
 ## Native empty-store admission — locally verified
 
 `SharedMediaNativeStorageRepository` is a private-constructor, Debug-only
