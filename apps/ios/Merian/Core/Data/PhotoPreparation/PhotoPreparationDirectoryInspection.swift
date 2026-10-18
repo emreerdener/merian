@@ -129,3 +129,95 @@ extension PhotoPreparationDirectoryInspection {
         return try walk(namespaceFD, prefix: "", depth: 0)
     }
 }
+
+/// A momentary structural observation, not a media proof or retained capability.
+struct PhotoPreparationNativeLeaf: Equatable, Sendable {
+    let token: String
+    let byteCount: Int64
+    let descriptor: String
+}
+
+extension PhotoPreparationDirectoryInspection {
+    /// Fixed-depth streaming traversal. No retained-library set or count cap.
+    /// The observer must not commit authority before the entire audit succeeds.
+    func visitNative(namespaceFD: Int32, revalidate: () throws -> Void,
+                     observe: (PhotoPreparationNativeLeaf) throws -> Void) throws {
+        func same(_ a: stat, _ b: stat) -> Bool {
+            a.st_dev == b.st_dev && a.st_ino == b.st_ino && a.st_mode == b.st_mode
+                && a.st_nlink == b.st_nlink && a.st_size == b.st_size
+                && a.st_mtimespec.tv_sec == b.st_mtimespec.tv_sec
+                && a.st_mtimespec.tv_nsec == b.st_mtimespec.tv_nsec
+                && a.st_ctimespec.tv_sec == b.st_ctimespec.tv_sec
+                && a.st_ctimespec.tv_nsec == b.st_ctimespec.tv_nsec
+        }
+        func check(_ fd: Int32, initial: stat, parent: Int32, name: String) throws {
+            var held = stat(), named = stat()
+            guard fstat(fd, &held) == 0, fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  same(initial, held), same(held, named) else { throw PhotoPreparationFailure.inconsistentOwnership }
+        }
+        func noSibling(_ parent: Int32, name: String) throws {
+            let sibling = name.hasSuffix(".partial") ? String(name.dropLast(8)) : name + ".partial"
+            var info = stat()
+            guard fstatat(parent, sibling, &info, AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+                throw PhotoPreparationFailure.inconsistentOwnership
+            }
+        }
+        func leaf(_ parent: Int32, name: String, token: String, named: stat) throws {
+            let base = name.hasSuffix(".partial") ? String(name.dropLast(8)) : name
+            guard let id = UUID(uuidString: base), id.uuidString.lowercased() == base,
+                  named.st_mode & S_IFMT == S_IFREG, named.st_nlink == 1,
+                  named.st_size >= 0, (named.st_size > 0 || name.hasSuffix(".partial")),
+                  named.st_size <= PhotoPreparationPolicy.original else {
+                throw PhotoPreparationFailure.inconsistentOwnership
+            }
+            let fd = openat(parent, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+            guard fd >= 0 else { throw PhotoPreparationFailure.unavailable }
+            defer { Darwin.close(fd) }
+            try check(fd, initial: named, parent: parent, name: name)
+            try noSibling(parent, name: name)
+            try Task.checkCancellation(); try revalidate()
+            let identity = "\(named.st_dev):\(named.st_ino):\(named.st_size):\(named.st_mtimespec.tv_sec):\(named.st_mtimespec.tv_nsec):\(named.st_ctimespec.tv_sec):\(named.st_ctimespec.tv_nsec)"
+            try observe(.init(token: token, byteCount: named.st_size, descriptor: identity))
+            try Task.checkCancellation(); try revalidate()
+            try check(fd, initial: named, parent: parent, name: name)
+            try noSibling(parent, name: name)
+        }
+        func walk(_ fd: Int32, prefix: String, depth: Int) throws {
+            try Task.checkCancellation(); try revalidate()
+            var before = stat()
+            guard fstat(fd, &before) == 0, before.st_mode & S_IFMT == S_IFDIR else {
+                throw PhotoPreparationFailure.inconsistentOwnership
+            }
+            // openat gives this traversal its own offset; dup would share it.
+            let enumeration = openat(fd, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard enumeration >= 0 else { throw PhotoPreparationFailure.unavailable }
+            guard let stream = fdopendir(enumeration) else { Darwin.close(enumeration); throw PhotoPreparationFailure.unavailable }
+            defer { closedir(stream) }
+            try check(enumeration, initial: before, parent: fd, name: ".")
+            while let entry = try next(stage: .inventory, read: { readdir(stream) }) {
+                try Task.checkCancellation()
+                let name = withUnsafePointer(to: &entry.pointee.d_name) {
+                    $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXNAMLEN) + 1) { String(cString: $0) }
+                }
+                if name == "." || name == ".." { continue }
+                var named = stat()
+                guard fstatat(fd, name, &named, AT_SYMLINK_NOFOLLOW) == 0 else { throw PhotoPreparationFailure.unavailable }
+                let token = prefix + name
+                if depth < 2 {
+                    guard let id = UUID(uuidString: name), id.uuidString.lowercased() == name,
+                          named.st_mode & S_IFMT == S_IFDIR else { throw PhotoPreparationFailure.inconsistentOwnership }
+                    let child = openat(fd, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+                    guard child >= 0 else { throw PhotoPreparationFailure.unavailable }
+                    defer { Darwin.close(child) }
+                    try check(child, initial: named, parent: fd, name: name)
+                    try walk(child, prefix: token + "/", depth: depth + 1)
+                    try check(child, initial: named, parent: fd, name: name)
+                    try revalidate()
+                } else { try leaf(fd, name: name, token: token, named: named) }
+            }
+            try check(enumeration, initial: before, parent: fd, name: ".")
+            try Task.checkCancellation(); try revalidate()
+        }
+        try walk(namespaceFD, prefix: "", depth: 0)
+    }
+}

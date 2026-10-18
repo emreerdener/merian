@@ -442,6 +442,13 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
         try inspection.checkInventory(namespaceFD: namespaceFD, knownTokens: knownTokens)
     }
 
+    /// Read-only structural observations; whole graph and exact media checks
+    /// remain the native owner's responsibility under its unchanged fence.
+    func visitNativeNamespace(_ observe: (PhotoPreparationNativeLeaf) throws -> Void) throws {
+        guard sharedBinding != nil else { throw PhotoPreparationFailure.unsupportedComposition }
+        try inspection.visitNative(namespaceFD: namespaceFD, revalidate: checkIdentity, observe: observe)
+    }
+
     /// Terminal verification preserves the locked namespace and create-only
     /// store binding. Even empty child directories prevent completion.
     func requireSharedEmptyNamespace() throws {

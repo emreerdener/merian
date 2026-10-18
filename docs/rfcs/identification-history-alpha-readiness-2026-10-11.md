@@ -1,3 +1,31 @@
+## October 17 — native photo namespace traversal locally verified
+
+The native read-only traversal now streams fixed-depth canonical directories and
+original/partial leaves without a retained-library count cap or whole-library
+token set. It holds ancestor descriptors, checks named/opened identity around
+recursion and observers, rejects partial/final collisions and unsafe entries,
+and distinguishes cancellation and enumeration errors from success. Final files
+must be positive; empty partials remain structural recovery observations only.
+Legacy inventory limits and all product limits are unchanged.
+
+Independent and IC-1 review cleared candidate02 after correcting zero-final
+rejection before execution. All six focused suites passed: 41 test methods, 84
+parameterized executions, zero failures/skips. Exact source and 102 unrelated
+baseline hashes remained unchanged. Project and Markdown checks passed.
+Evidence: `.artifacts/shared-media-native-namespace-20261017/`; result
+`.artifacts/local-ios/a72483178e4b48bd890a42ebcc799079.xcresult`. This is
+focused shared-checkout evidence, not full-target or isolated-source
+qualification.
+
+The traversal is not a globally atomic filesystem snapshot. The native owner
+must exclude cooperating writers, join exact receipt/graph ownership, reverse-
+audit missing files and revalidate bytes before use. No callback may commit
+partial authority. Native admission remains empty-only. Continue the reviewed
+closed acquisition transaction integration, then atomic queue/history ownership
+and the later approved version-actions/redesign. Activation remains disabled,
+PR116 frozen, Supabase hold active and AWS unapproved; no external action
+occurred.
+
 ## October 17 — native acquisition receipt codec locally qualified
 
 The V64 receipt now has a closed, versioned codec for immutable picker/camera
