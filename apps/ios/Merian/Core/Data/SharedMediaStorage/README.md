@@ -1,3 +1,49 @@
+## October 18 — native receiving immutable facts verified locally
+
+The composition/freeze milestone is committed locally as `06cc8c9cf`; its
+complete-target evidence remains below. The reviewed local implementation
+introduces `nativeReceivingV1`, a distinct canonical receiving assertion
+containing exact `nativeFreezeV3` bytes, historical membership bytes,
+binding/queue/observation identity and execution kind/generation. A
+domain-separated digest binds all of these facts. Existing consumer V1 and
+legacy authority retain their meanings.
+
+Pending readback requires the actual matching membership row. Retained readback
+requires its absence and exactly one package revision beyond freeze for the tier
+promotion. Later ownership transfer does not alter the frozen package. Current
+original reverse references and derivative joins are checked separately from
+historical membership; no membership row is fabricated and no physical-file
+availability is inferred. The receiving readback cap includes the context, live
+membership and receiving payload. It does not replace full admission accounting
+for acquisition receipts, cleanup projections and result headroom. Canonical
+lowercase UUID queue/observation identities apply to fresh native receiving
+only; legacy V1 identities are unchanged. Qualification remains closed to
+receiving rows.
+
+This candidate is read-only fact validation, with synthetic receiving fixtures.
+It does not implement or accept atomic queue admission, promotion, terminal
+cleanup, executor use or Capture/Auth composition. Those remain next under the
+single-session agreement, followed by integrated media acceptance and the
+approved version actions/redesign. Mutable routing still requires a typed
+queue/job/result transition witness; the immutable digest alone cannot authorize
+a transfer.
+
+The exact reviewed candidate02 passed all 40 methods in five focused suites,
+with zero failures, skips or Xcode runtime warnings. All 2,834 source/project
+hashes and candidate hashes remained unchanged. Evidence:
+`.artifacts/native-receiving-20261018/focused02-result.json`, XCResult
+`e816a251145443f587fb021b7ae83c81`; candidate02 SHA256
+`446c4646600d58d2e8f7d90ad00642a29e3b5b792254c2e25a31b21354ddd613`. The failed
+focused01 test-helper compilation is retained. The prior complete 6,286-method
+target belongs to the preceding freeze checkpoint; it was not repeated for this
+read-only increment. These are shared-checkout local checks, not
+isolated-source, device, hosted or activation acceptance.
+
+Next are the reviewed legacy/native queue and funding guards, then typed
+admission, retained transitions, cleanup and Capture/Auth integration.
+Activation stays disabled, PR116 frozen, deployment hold active, AWS unapproved
+and limits unchanged.
+
 ## October 18 — two-original composition and native freeze verified locally
 
 The combined composition/freeze candidate passed the complete `merianTests`

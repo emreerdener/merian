@@ -81,6 +81,22 @@ enum SharedMediaNativePairPlanGraph {
         try validate(blob, sequence: envelope.sequence, package: package, inventory: inventory, context: context)
     }
 
+    /// Retained packages have no pending row. This read-only join uses the
+    /// consumer-bound historical revision; it never recreates membership.
+    static func validateRetainedReady(_ envelope: SharedMediaNativeDraftEnvelope.V2, pairID: UUID,
+                                     membershipRevision: Int64, package: PhotoPreparationRecord,
+                                     inventory: SharedMediaInventoryRecord, context: ModelContext) throws {
+        guard package.accountingTierRaw == "retained", package.phaseRaw == "preparedHeld",
+              !package.retirementRequested, envelope.frozen != nil, envelope.attempt == nil,
+              membershipRevision >= 0, let blob = try select(envelope, pairID: pairID) else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        let pair = try one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == pairID }))
+        guard pair.phaseRaw == "ready" else { throw SharedMediaStorageFailure.conflict }
+        try validate(blob, sequence: envelope.sequence, package: package, inventory: inventory,
+            context: context, historicalMembershipRevision: membershipRevision)
+    }
+
     static func select(_ envelope: SharedMediaNativeDraftEnvelope.V2, pairID: UUID?) throws -> SharedMediaNativePreparationBlob? {
         if let pairID { return try envelope.intents.first { try SharedMediaNativeDerivativeIntent.decode($0.bytes).pairID == pairID } }
         guard envelope.intents.count <= 1 else { throw SharedMediaStorageFailure.invalid }
@@ -88,10 +104,12 @@ enum SharedMediaNativePairPlanGraph {
     }
 
     private static func validate(_ blob: SharedMediaNativePreparationBlob, sequence: Int64, package: PhotoPreparationRecord,
-                                 inventory: SharedMediaInventoryRecord, context: ModelContext) throws {
+                                 inventory: SharedMediaInventoryRecord, context: ModelContext, historicalMembershipRevision: Int64? = nil) throws {
         let intent = try SharedMediaNativeDerivativeIntent.decode(blob.bytes), identity = intent.preparation
         let original = identity.original.reference, id = intent.pairID, packageID = package.id
-        let member = try one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == packageID }))
+        let membershipRevision: Int64
+        if let historicalMembershipRevision { membershipRevision = historicalMembershipRevision }
+        else { membershipRevision = try one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == packageID })).revision }
         let pair = try one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == id }))
         guard intent.previousPairID == nil, sequence >= identity.sequence,
               pair.contractVersion == contract, ["planned", "writing", "ready", "retiring"].contains(pair.phaseRaw),
@@ -103,7 +121,7 @@ enum SharedMediaNativePairPlanGraph {
               inventory.revision >= identity.inventoryRevision + 2,
               pair.packageID == packageID, pair.ownerID == package.ownerID,
               pair.draftGeneration == package.draftGeneration, pair.expectedPackageRevision == identity.packageRevision + 1,
-              package.revision >= identity.packageRevision + 2, member.revision >= identity.membershipRevision + 1,
+              package.revision >= identity.packageRevision + 2, membershipRevision >= identity.membershipRevision + 1,
               original.packageID == packageID, original.ownerID == package.ownerID, original.draftGeneration == package.draftGeneration,
               pair.originalReferenceID == original.referenceID, pair.originalReferenceRevision == original.referenceRevision,
               pair.originalAssetID == original.assetID, pair.originalAssetGeneration == original.assetGeneration,
@@ -113,7 +131,7 @@ enum SharedMediaNativePairPlanGraph {
         }
         if pair.phaseRaw == "planned" {
             guard inventory.revision == identity.inventoryRevision + 2, package.revision == identity.packageRevision + 2,
-                  member.revision == identity.membershipRevision + 1 else { throw SharedMediaStorageFailure.conflict }
+                  membershipRevision == identity.membershipRevision + 1 else { throw SharedMediaStorageFailure.conflict }
         }
         let referenceID = original.referenceID, assetID = original.assetID
         let ref = try one(context, FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.id == referenceID }))
