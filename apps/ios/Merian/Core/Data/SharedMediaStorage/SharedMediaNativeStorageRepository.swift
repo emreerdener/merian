@@ -5,7 +5,7 @@ import SwiftData
 /// production composition is exposed until the closed native owners qualify.
 @MainActor
 final class SharedMediaNativeStorageRepository {
-    private enum OpenKind { case qualificationEmpty, qualificationOriginal, scopedInspection, appInitialization }
+    private enum OpenKind { case qualificationEmpty, qualificationOriginal, scopedInspection, appInitialization, appDispatch }
     private let openKind: OpenKind
     private let scopedIdentity: SharedMediaNativeScopeIdentity?
     private let scopedRoots: (authority: URL, photo: URL, inbox: URL)?
@@ -236,15 +236,74 @@ final class SharedMediaNativeStorageRepository {
         guard openKind == .appInitialization, expectedOwnerID == grant.ownerID,
               originalWriterEpoch == grant.writerEpoch, !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.closed }
         try files.check(); try files.bindStore(binding, initializing: false); try photos.checkIdentity(); try inbox.check()
+        return try SharedMediaNativeBootstrapDatabase.initialSnapshot(container, inventoryID: inventoryID,
+            rootBinding: rootBinding, storeIdentity: storeIdentity, generation: generation)
+    }
+
+    static func openApp(container: ModelContainer, parent: URL, inventoryID: UUID,
+                        grant: SharedMediaNativeAppDispatchGrant) throws -> SharedMediaNativeStorageRepository {
+        try grant.validate()
+        guard parent == grant.parent, inventoryID == grant.profile.inventoryID else { throw SharedMediaStorageFailure.closed }
+        return try .init(existingApp: container, parent: parent, inventoryID: inventoryID, grant: grant)
+    }
+    private init(existingApp container: ModelContainer, parent: URL, inventoryID: UUID, grant: SharedMediaNativeAppDispatchGrant) throws {
+        try grant.validate()
+        guard container.configurations.count == 1, let configuration = container.configurations.first,
+              !configuration.isStoredInMemoryOnly, !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.conflict }
+        self.container = container; self.inventoryID = inventoryID; openKind = .appDispatch
+        originals = false; expectedOwnerID = grant.ownerID; originalWriterEpoch = grant.writerEpoch
+        let authorityRoot = parent.appendingPathComponent("authority", isDirectory: true)
+        let photoRoot = parent.appendingPathComponent("photo", isDirectory: true), inboxRoot = parent.appendingPathComponent("inbox", isDirectory: true)
+        scopedRoots = (authorityRoot, photoRoot, inboxRoot)
+        sources = [SharedMediaPhotoLedger.namespace: photoRoot, SharedMediaInboxFiles.namespace: inboxRoot]
+        storeIdentity = try SharedMediaNativeEligibility.storeIdentity(at: configuration.url)
+        let control = SharedMediaNativeBootstrapAuthority(existingParent: parent, inventoryID: inventoryID,
+            storeIdentity: storeIdentity, container: container, grant: grant)
+        files = try SharedMediaStorageFileOwner(root: authorityRoot, storeURL: configuration.url, sources: sources,
+            requireExistingFence: true, bootstrap: control)
+        let profile = try files.bootstrapProfile()
+        generation = profile.generation; rootBinding = try profile.rootIdentity; binding = try profile.binding
+        scopedIdentity = .init(inventoryID: inventoryID, generation: generation, ownerID: grant.ownerID,
+            storeIdentity: storeIdentity, rootBinding: rootBinding)
+        nativeBinding = .init(bytes: binding, initializing: false, epoch: UUID())
+        photos = try PhotoPreparationLockedFiles(root: photoRoot, sharedBinding: .init(native: nativeBinding), nativeRoot: files.bootstrapRoot("photo"))
+        inbox = try SharedMediaInboxFiles(root: inboxRoot, binding: .init(native: nativeBinding), nativeRoot: files.bootstrapRoot("inbox"))
+        originalIO = SharedMediaNativeOriginalIO(files: photos, binding: nativeBinding, pause: nil)
+        #if DEBUG
+        debug = grant.debug
+        #endif
+        try control.validateDatabase(profile: profile); try requireApp(grant)
+    }
+    private func requireApp(_ grant: SharedMediaNativeAppDispatchGrant) throws {
+        try grant.validate()
+        guard openKind == .appDispatch, expectedOwnerID == grant.ownerID,
+              originalWriterEpoch == grant.writerEpoch, let roots = scopedRoots,
+              !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.closed }
+        try SharedMediaNativeScopedEligibility.requireRoots(authority: roots.authority, photo: roots.photo, inbox: roots.inbox)
+        try files.check(); try files.bindStore(binding, initializing: false); try photos.checkIdentity(); try inbox.check()
+        let profile = try files.bootstrapProfile()
+        guard profile == grant.profile, profile.ownerID == grant.ownerID, profile.generation == generation,
+              profile.physicalBinding == (try SharedMediaStorageLookup.binding(authority: files.identity, sources: sources)) else { throw SharedMediaStorageFailure.conflict }
+    }
+    private func appHeader() throws -> SharedMediaNativeAppEligibility.Header {
+        guard let scope = scopedIdentity else { throw SharedMediaStorageFailure.closed }
         let context = ModelContext(container); context.autosaveEnabled = false
-        let id = inventoryID
-        let row = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))
-        let bootstrap = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaMembershipBootstrapRecord>(predicate: #Predicate { $0.id == id }))
-        guard row.rootIdentity == rootBinding, row.storeIdentity == storeIdentity, row.generation == generation,
-              row.modeRaw == SharedMediaNativeAppProfile.mode, row.phaseRaw == SharedMediaNativeAppProfile.phase,
-              row.revision == 0, row.cursor.isEmpty, bootstrap.contractVersion == 2, bootstrap.revision == 0,
-              bootstrap.inventoryGeneration == generation else { throw SharedMediaStorageFailure.conflict }
-        return .init(generation: generation, revision: 0, phase: row.phaseRaw, cursor: "")
+        return try SharedMediaNativeAppEligibility.snapshot(context: context, scope: scope)
+    }
+    func inspectApp(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeScopedSnapshot {
+        try requireApp(grant)
+        let expected = try appHeader(), profile = try files.bootstrapProfile()
+        let result = try await SharedMediaNativeScopedAudit(app: container, profile: profile, expected: expected.inventory,
+            check: {
+                try self.requireApp(grant)
+                guard try self.appHeader() == expected else { throw SharedMediaStorageFailure.conflict }
+            }, betweenPages: {
+                #if DEBUG
+                await self.debug?.scopedPagePause?()
+                #endif
+                await Task.yield()
+            }).run()
+        try requireApp(grant); guard try appHeader() == expected else { throw SharedMediaStorageFailure.conflict }; return result
     }
 
     /// Only an account-bound grant from the registered owner admits this repository.
@@ -446,7 +505,6 @@ final class SharedMediaNativeStorageRepository {
         return try SharedMediaNativeEligibility.originalHeader(container: container, inventoryID: inventoryID,
             generation: generation, storeIdentity: storeIdentity, rootBinding: rootBinding, ownerID: expectedOwnerID, audit: audit)
     }
-
 }
 
 /// Only the fenced native constructor can mint this immutable binding. No
@@ -458,10 +516,6 @@ struct SharedMediaNativeBinding: Sendable {
     fileprivate init(bytes: Data, initializing: Bool, epoch: UUID) {
         self.bytes = bytes; self.initializing = initializing; self.epoch = epoch
     }
-}
-
-enum SharedMediaNativeInitializationBoundary: Sendable {
-    case afterPhotoBinding, afterInboxBinding, afterAuthorityBinding, beforeSave, afterSave
 }
 
 /// Only this file's fenced repository can mint a synchronous save capability.
@@ -494,61 +548,52 @@ struct SharedMediaNativeInspectionAuthority {
 final class SharedMediaNativeBootstrapAuthority {
     let parent: URL, ownerID: UUID, inventoryID: UUID, storeIdentity: String
     private let container: ModelContainer
-    private let grant: SharedMediaNativeAppGrant
+    private let grant: SharedMediaNativeAppGrant?
+    private let existingGrant: SharedMediaNativeAppDispatchGrant?
+    var existingOnly: Bool { existingGrant != nil }
     fileprivate init(parent: URL, inventoryID: UUID, storeIdentity: String,
                      container: ModelContainer, grant: SharedMediaNativeAppGrant) {
         self.parent = parent; self.inventoryID = inventoryID; self.storeIdentity = storeIdentity
-        ownerID = grant.ownerID; self.container = container; self.grant = grant
+        ownerID = grant.ownerID; self.container = container; self.grant = grant; existingGrant = nil
+    }
+    fileprivate init(existingParent: URL, inventoryID: UUID, storeIdentity: String,
+                     container: ModelContainer, grant: SharedMediaNativeAppDispatchGrant) {
+        parent = existingParent; self.inventoryID = inventoryID; self.storeIdentity = storeIdentity
+        ownerID = grant.ownerID; self.container = container; self.grant = nil; existingGrant = grant
     }
     var availableBytes: Int64? {
         #if DEBUG
-        grant.debug.bootstrapAvailableBytes
+        grant?.debug.bootstrapAvailableBytes
         #else
         nil
         #endif
     }
-    func validate() throws { try grant.validate(); guard !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.conflict } }
+    func validate() throws {
+        if let grant { try grant.validate() } else if let existingGrant { try existingGrant.validate() } else { throw SharedMediaStorageFailure.closed }
+        guard !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.conflict }
+    }
     func boundary(_ value: SharedMediaNativeBootstrapBoundary) throws {
         try validate()
         #if DEBUG
-        try grant.debug.bootstrapFault?(value)
+        try grant?.debug.bootstrapFault?(value)
         #endif
     }
     func isCommitted() throws -> Bool {
         try validateDatabase()
+        if existingOnly { return true }
         let context = ModelContext(container); context.autosaveEnabled = false
         return try context.fetchCount(FetchDescriptor<SharedMediaInventoryRecord>()) == 1
     }
     func requireUnassociatedDatabase() throws {
+        try validate(); guard !existingOnly else { throw SharedMediaStorageFailure.closed }
+        try SharedMediaNativeBootstrapDatabase.requireUnassociated(container)
         try validate()
-        let context = ModelContext(container); context.autosaveEnabled = false
-        for type in CurrentSchema.models where SharedMediaStorageLookup.ledgerTypes.contains(ObjectIdentifier(type))
-            || SharedMediaStorageLookup.inboxTypes.contains(ObjectIdentifier(type)) {
-            guard try SharedMediaStorageLookup.count(context, type) == 0 else { throw SharedMediaStorageFailure.conflict }
-        }
     }
     func validateDatabase(profile: SharedMediaNativeAppProfile? = nil) throws {
         try validate()
-        let context = ModelContext(container); context.autosaveEnabled = false
-        var query = FetchDescriptor<SharedMediaInventoryRecord>(); query.fetchLimit = 2
-        var bootstrapQuery = FetchDescriptor<SharedMediaMembershipBootstrapRecord>(); bootstrapQuery.fetchLimit = 2
-        let inventories = try context.fetch(query), bootstraps = try context.fetch(bootstrapQuery)
-        if inventories.isEmpty && bootstraps.isEmpty { try requireUnassociatedDatabase(); return }
-        guard inventories.count == 1, bootstraps.count == 1, let row = inventories.first, let bootstrap = bootstraps.first,
-              row.id == inventoryID, row.storeIdentity == storeIdentity, row.modeRaw == SharedMediaNativeAppProfile.mode,
-              row.phaseRaw == SharedMediaNativeAppProfile.phase, row.cursor.isEmpty, row.revision == 0,
-              bootstrap.id == inventoryID, bootstrap.inventoryGeneration == row.generation,
-              bootstrap.contractVersion == 2, bootstrap.revision == 0 else { throw SharedMediaStorageFailure.conflict }
-        if let profile {
-            guard row.generation == profile.generation, row.rootIdentity == (try profile.rootIdentity) else { throw SharedMediaStorageFailure.conflict }
-        }
-        // This initialization leaf does not yet admit or recover a nonempty app
-        // graph. Future scoped dispatch must qualify those operations separately.
-        for type in CurrentSchema.models where (SharedMediaStorageLookup.ledgerTypes.contains(ObjectIdentifier(type))
-            || SharedMediaStorageLookup.inboxTypes.contains(ObjectIdentifier(type)))
-            && ObjectIdentifier(type) != ObjectIdentifier(SharedMediaInventoryRecord.self)
-            && ObjectIdentifier(type) != ObjectIdentifier(SharedMediaMembershipBootstrapRecord.self) {
-            guard try SharedMediaStorageLookup.count(context, type) == 0 else { throw SharedMediaStorageFailure.conflict }
-        }
+        try SharedMediaNativeBootstrapDatabase.validate(container, inventoryID: inventoryID,
+            ownerID: ownerID, storeIdentity: storeIdentity, existingProfile: existingGrant?.profile,
+            expectedProfile: profile)
+        try validate()
     }
 }

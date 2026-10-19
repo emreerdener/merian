@@ -1,3 +1,37 @@
+## October 19 — populated V2 opener locally verified
+
+The same registered native owner/repository can now reopen an exact populated V2
+profile for scoped inspection. It requires complete original bootstrap receipts,
+directory identities, markers, account lease and store fences; missing or
+substituted evidence is held without repair or conversion. Paged reads pin both
+independent inventory and bootstrap revisions. Pending memberships and retained
+consumers anchor reads; unrelated ordinary drafts remain untouched, including
+unfinished preparation. This does not admit mutations or prove physical media
+availability, and cannot detect wholly unanchored corruption.
+
+The reviewed candidate04 passed 53/53 methods in seven correction suites, with
+zero failures, skips or runtime warnings. All 2,847 source/project hashes and
+candidate hashes stayed unchanged. Evidence:
+`.artifacts/native-app-dispatch-20261019/focused04-result.json`, XCResult
+`a6339e010414431d8a8ac61bc54848c1`; candidate SHA256
+`b73e7822fb807c6384246bf35354fb3f8591804942bedefac5aa3836409bef86`. The prior
+127/128 result across fifteen suites remains retained with its sole architecture
+size failure. Pure bootstrap database checks and DEBUG controls were extracted
+without moving sealed capability constructors or changing the 600-line limit.
+The eight unchanged passing suites are reused, not reported as a new full run.
+This is scoped shared-checkout validation, not isolated-source, full-target,
+hosted, device or activation acceptance.
+
+Next close legacy queue flush/soft-delete/quarantine and startup fixture reset
+against native ownership before adding same-owner V2 writes/preparation and
+atomic inert receiving. A private operation audit witness must preserve both
+header revisions, serialized writes and exact post-save readback; avoid
+synchronous uncapped retained-library scans at every save. Native
+result/cleanup, Capture/Auth composition, RUX-1–RUX-6 and integrated media
+acceptance remain open, followed by version deletion/export and redesign.
+Activation disabled, PR116 frozen, deployment hold active, AWS unapproved and
+numeric limits unchanged.
+
 ## October 19 — inactive V2 initialization locally verified
 
 The same registered native owner/repository adds a separate initialization-only

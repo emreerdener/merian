@@ -79,8 +79,8 @@ enum SharedMediaNativeAcquisitionGraph {
     }
 
     static func scopedReceipt(_ row: SharedMediaAcquisitionReceiptRecord, inventory: SharedMediaInventoryRecord,
-                              context: ModelContext, checkpoint: () throws -> Void = {}) throws -> SharedMediaAcquisitionReceipt {
-        try SharedMediaNativeScopedEligibility.requireProfile(inventory)
+                              context: ModelContext, format: SharedMediaNativeScopedFormat = .existingV1, checkpoint: () throws -> Void = {}) throws -> SharedMediaAcquisitionReceipt {
+        try format.requireProfile(inventory)
         return try receiptFacts(row, inventory: inventory, context: context, checkpoint: checkpoint)
     }
 
@@ -216,13 +216,13 @@ enum SharedMediaNativeAcquisitionGraph {
     }
 
     static func scopedPendingPackage(_ row: PhotoPreparationRecord, inventory: SharedMediaInventoryRecord,
-                                     context: ModelContext) throws {
-        try SharedMediaNativeScopedEligibility.requireProfile(inventory)
+                                     context: ModelContext, format: SharedMediaNativeScopedFormat = .existingV1) throws {
+        try format.requireProfile(inventory)
         guard row.accountingTierRaw == "pending" else { throw SharedMediaStorageFailure.conflict }
-        try package(row, context: context)
+        try package(row, context: context, scopedInventory: inventory)
     }
 
-    private static func package(_ row: PhotoPreparationRecord, context: ModelContext) throws {
+    private static func package(_ row: PhotoPreparationRecord, context: ModelContext, scopedInventory: SharedMediaInventoryRecord? = nil) throws {
         let id = row.id
         guard row.draftID == id, row.contractVersion == PhotoPreparationPolicy.contract, row.revision >= 0,
               ["pending", "retained"].contains(row.accountingTierRaw),
@@ -260,7 +260,7 @@ enum SharedMediaNativeAcquisitionGraph {
             guard ordinals.insert(intent.ordinal).inserted else { throw SharedMediaStorageFailure.conflict }
         }
         guard ordinals.count <= 2 else { throw SharedMediaStorageFailure.conflict }
-        try SharedMediaNativePreparationGraph.validate(envelope, package: row, context: context)
+        try SharedMediaNativePreparationGraph.validate(envelope, package: row, context: context, scopedInventory: scopedInventory)
         let activePairs = try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.packageID == id && $0.phaseRaw != "ready" }))
         guard activePairs <= 1 else { throw SharedMediaStorageFailure.conflict }
         let frozen: Bool

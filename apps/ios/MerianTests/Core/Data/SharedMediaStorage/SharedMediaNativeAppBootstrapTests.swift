@@ -173,6 +173,138 @@ struct SharedMediaNativeAppBootstrapTests {
         #expect(PhotoPreparationPolicy.durable == 384 * PhotoPreparationPolicy.mib)
     }
 
+    @Test func existingV2OpenerPreservesOrdinaryDraftAndPayloadWithoutEnablingLegacyWrites() async throws {
+        let h = try Store(), bootstrap = try h.owner(), initial = try await h.open(bootstrap)
+        #expect(await bootstrap.invalidateAndAwaitForAccountTransition())
+        let context = ModelContext(h.container); context.autosaveEnabled = false
+        let id = UUID(), opaque = Data("ordinary-preparing-draft".utf8)
+        context.insert(PhotoPreparationRecord(id: id, ownerID: h.ownerID, contractVersion: PhotoPreparationPolicy.contract,
+            draftID: id, draftGeneration: UUID(), revision: 0, phaseRaw: "preparing",
+            supportingContextData: opaque, allocatedByteCount: 0, retirementRequested: false))
+        try context.save()
+        // An opener never enumerates/adopts arbitrary payloads as ledger facts.
+        let payload = h.parent.appendingPathComponent("photo/PhotoPreparation/untouched.bin")
+        try opaque.write(to: payload)
+        let controls = try h.controls(), owner = try h.dispatchOwner()
+        let result = try await owner.openApp(container: h.container, parent: h.parent, inventoryID: h.inventoryID)
+        #expect(result.inventory == initial && result.pendingPackages == 0 && result.allocations == 0)
+        #expect(try await owner.inspectApp() == result)
+        #expect(try h.controls() == controls)
+        #expect(try Data(contentsOf: payload) == opaque)
+        #expect(try context.fetch(FetchDescriptor<PhotoPreparationRecord>()).first?.supportingContextData == opaque)
+        await #expect(throws: (any Error).self) { _ = try await owner.snapshot() }
+        await #expect(throws: (any Error).self) { _ = try await owner.prepareOriginal(packageID: UUID(), draftGeneration: UUID(), ordinal: 0, kind: .picker) }
+        await #expect(throws: (any Error).self) { _ = try await owner.appInitializationSnapshot() }
+        let competitor = try h.dispatchOwner()
+        await #expect(throws: (any Error).self) { _ = try await competitor.openApp(container: h.container, parent: h.parent, inventoryID: h.inventoryID) }
+        #expect(await competitor.invalidateAndAwaitForAccountTransition())
+        #expect(try await owner.inspectApp() == result)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        await #expect(throws: (any Error).self) { _ = try await owner.inspectApp() }
+        let next = try h.dispatchOwner()
+        #expect(try await next.openApp(container: h.container, parent: h.parent, inventoryID: h.inventoryID) == result)
+        #expect(await next.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test(arguments: ["intent", "progress", "final", "marker", "directory", "bootstrap", "owner", "inventory", "rootBinding"])
+    func existingV2OpenerHoldsIncompleteOrForeignEvidenceWithoutRepair(_ fault: String) async throws {
+        let h = try Store(), bootstrap = try h.owner(); _ = try await h.open(bootstrap)
+        #expect(await bootstrap.invalidateAndAwaitForAccountTransition())
+        let context = ModelContext(h.container); context.autosaveEnabled = false
+        switch fault {
+        case "intent": try FileManager.default.removeItem(at: h.parent.appendingPathComponent(SharedMediaNativeBootstrapCodec.intentName))
+        case "progress": try FileManager.default.removeItem(at: h.parent.appendingPathComponent(SharedMediaNativeBootstrapCodec.progressNames[2]))
+        case "final": try Data("{}".utf8).write(to: h.parent.appendingPathComponent(SharedMediaNativeBootstrapCodec.finalName))
+        case "marker": #expect(removexattr(h.parent.appendingPathComponent("photo").path, "com.merian.p1-shared-v1", 0) == 0)
+        case "directory": try FileManager.default.moveItem(at: h.parent.appendingPathComponent("inbox"), to: h.parent.deletingLastPathComponent().appendingPathComponent("preserved-inbox"))
+        case "bootstrap": context.delete(try #require(try context.fetch(FetchDescriptor<SharedMediaMembershipBootstrapRecord>()).first)); try context.save()
+        case "rootBinding":
+            let row = try #require(try context.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
+            row.rootIdentity = "{}"; try context.save()
+        default: break
+        }
+        let before = try h.controls(), names = try FileManager.default.contentsOfDirectory(atPath: h.parent.path).sorted()
+        let owner = try h.dispatchOwner(ownerID: fault == "owner" ? UUID() : nil)
+        await #expect(throws: (any Error).self) {
+            _ = try await owner.openApp(container: h.container, parent: h.parent, inventoryID: fault == "inventory" ? UUID() : h.inventoryID)
+        }
+        #expect(try h.controls() == before)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: h.parent.path).sorted() == names)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func existingV2OpenerNeverInitializesAbsentProfile() async throws {
+        let h = try Store(), owner = try h.dispatchOwner()
+        let before = try FileManager.default.contentsOfDirectory(atPath: h.parent.path)
+        await #expect(throws: (any Error).self) { _ = try await owner.openApp(container: h.container, parent: h.parent, inventoryID: h.inventoryID) }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: h.parent.path) == before)
+        #expect(try ModelContext(h.container).fetchCount(FetchDescriptor<SharedMediaInventoryRecord>()) == 0)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func existingV2AccountDrainRetainsFencesUntilInspectionReturns() async throws {
+        let h = try Store(), bootstrap = try h.owner(); _ = try await h.open(bootstrap)
+        #expect(await bootstrap.invalidateAndAwaitForAccountTransition())
+        let gate = Gate(), owner = try h.dispatchOwner()
+        let opening = Task { @MainActor in
+            do {
+                let result = try await owner.openApp(container: h.container, parent: h.parent, inventoryID: h.inventoryID, pause: { await gate.pause() })
+                await gate.finished(); return result
+            } catch { await gate.finished(); throw error }
+        }
+        guard await gate.entered() else { _ = try await opening.value; Issue.record("No page boundary reached"); return }
+        var drained = false
+        let shutdown = Task { @MainActor in let result = await owner.invalidateAndAwaitForAccountTransition(); drained = true; return result }
+        await Task.yield(); #expect(!drained)
+        let competitor = try h.dispatchOwner()
+        await #expect(throws: (any Error).self) { _ = try await competitor.openApp(container: h.container, parent: h.parent, inventoryID: h.inventoryID) }
+        await gate.release()
+        await #expect(throws: (any Error).self) { _ = try await opening.value }
+        #expect(await shutdown.value)
+        #expect(await competitor.invalidateAndAwaitForAccountTransition())
+        let next = try h.dispatchOwner(); _ = try await next.openApp(container: h.container, parent: h.parent, inventoryID: h.inventoryID)
+        #expect(await next.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func existingV2BootstrapRevisionDriftReturnsNoPartialSnapshot() async throws {
+        let h = try Store(), bootstrap = try h.owner(); _ = try await h.open(bootstrap)
+        #expect(await bootstrap.invalidateAndAwaitForAccountTransition())
+        let gate = Gate(), owner = try h.dispatchOwner()
+        let opening = Task { @MainActor in
+            do {
+                let result = try await owner.openApp(container: h.container, parent: h.parent, inventoryID: h.inventoryID, pause: { await gate.pause() })
+                await gate.finished(); return result
+            } catch { await gate.finished(); throw error }
+        }
+        guard await gate.entered() else { _ = try await opening.value; Issue.record("No page boundary reached"); return }
+        let context = ModelContext(h.container); context.autosaveEnabled = false
+        let row = try #require(try context.fetch(FetchDescriptor<SharedMediaMembershipBootstrapRecord>()).first)
+        row.revision += 1; try context.save()
+        await gate.release()
+        await #expect(throws: (any Error).self) { _ = try await opening.value }
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        // A stable later read may capture a fresh witness. Bootstrap revision is
+        // independent of inventory revision; metadata writes need not advance both.
+        let next = try h.dispatchOwner(); _ = try await next.openApp(container: h.container, parent: h.parent, inventoryID: h.inventoryID)
+        #expect(await next.invalidateAndAwaitForAccountTransition())
+    }
+
+    private actor Gate {
+        var didEnter = false, didFinish = false, released = false
+        var arrival: CheckedContinuation<Bool, Never>?
+        var waiting: CheckedContinuation<Void, Never>?
+        func pause() async {
+            guard !released else { return }; didEnter = true; arrival?.resume(returning: true); arrival = nil
+            await withCheckedContinuation { waiting = $0 }
+        }
+        func entered() async -> Bool {
+            if didEnter { return true }; if didFinish { return false }
+            return await withCheckedContinuation { arrival = $0 }
+        }
+        func finished() { didFinish = true; arrival?.resume(returning: didEnter); arrival = nil }
+        func release() { released = true; waiting?.resume(); waiting = nil }
+    }
+
     @MainActor private struct Store {
         let parent: URL, container: ModelContainer
         let ownerID = UUID(), inventoryID = UUID(), runtime = AuthRuntimeState()
@@ -190,6 +322,9 @@ struct SharedMediaNativeAppBootstrapTests {
         }
         func owner(ownerID: UUID? = nil) throws -> SharedMediaNativeOriginalOwner {
             try .appInitialization(account: PhotoOriginalPreparationOwner.syntheticAccount(ownerID: ownerID ?? self.ownerID, runtime: runtime), drain: .init())
+        }
+        func dispatchOwner(ownerID: UUID? = nil) throws -> SharedMediaNativeOriginalOwner {
+            try .appDispatch(account: PhotoOriginalPreparationOwner.syntheticAccount(ownerID: ownerID ?? self.ownerID, runtime: runtime), drain: .init())
         }
         func open(_ owner: SharedMediaNativeOriginalOwner, inventoryID: UUID? = nil,
                   fault: ((SharedMediaNativeBootstrapBoundary) throws -> Void)? = nil,

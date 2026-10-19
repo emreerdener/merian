@@ -16,10 +16,33 @@ struct SharedMediaNativeScopedSnapshot: Equatable, Sendable {
 @MainActor
 struct SharedMediaNativeScopedAudit {
     let container: ModelContainer
+    private let appHeader: SharedMediaNativeAppEligibility.Header?
+    private let format: SharedMediaNativeScopedFormat
     let scope: SharedMediaNativeScopeIdentity
     let expected: SharedMediaStorageSnapshot
     let check: () throws -> Void
     let betweenPages: () async throws -> Void
+
+    init(container: ModelContainer, scope: SharedMediaNativeScopeIdentity, expected: SharedMediaStorageSnapshot,
+         check: @escaping () throws -> Void, betweenPages: @escaping () async throws -> Void) {
+        self.init(container: container, scope: scope, expected: expected, format: .existingV1, check: check, betweenPages: betweenPages)
+    }
+    init(app container: ModelContainer, profile: SharedMediaNativeAppProfile, expected: SharedMediaStorageSnapshot,
+         check: @escaping () throws -> Void, betweenPages: @escaping () async throws -> Void) throws {
+        let scope = SharedMediaNativeScopeIdentity(inventoryID: profile.inventoryID, generation: profile.generation,
+            ownerID: profile.ownerID, storeIdentity: profile.storeIdentity, rootBinding: try profile.rootIdentity)
+        let context = ModelContext(container); context.autosaveEnabled = false
+        let header = try SharedMediaNativeAppEligibility.snapshot(context: context, scope: scope)
+        guard header.inventory == expected else { throw SharedMediaStorageFailure.conflict }
+        self.init(container: container, scope: scope, expected: expected, format: .appV2,
+            appHeader: header, check: check, betweenPages: betweenPages)
+    }
+
+    private init(container: ModelContainer, scope: SharedMediaNativeScopeIdentity, expected: SharedMediaStorageSnapshot,
+                 format: SharedMediaNativeScopedFormat, appHeader: SharedMediaNativeAppEligibility.Header? = nil, check: @escaping () throws -> Void, betweenPages: @escaping () async throws -> Void) {
+        self.container = container; self.scope = scope; self.expected = expected; self.format = format; self.appHeader = appHeader
+        self.check = check; self.betweenPages = betweenPages
+    }
 
     func run() async throws -> SharedMediaNativeScopedSnapshot {
         let count = try pending()
@@ -28,7 +51,7 @@ struct SharedMediaNativeScopedAudit {
         let receipts = try await page(FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(
             predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory in
             guard row.ownerID == scope.ownerID, row.inventoryGeneration == scope.generation else { throw SharedMediaStorageFailure.conflict }
-            switch try SharedMediaNativeAcquisitionGraph.scopedReceipt(row, inventory: inventory, context: context, checkpoint: check) {
+            switch try SharedMediaNativeAcquisitionGraph.scopedReceipt(row, inventory: inventory, context: context, format: format, checkpoint: check) {
             case .reserved(let request), .held(let request):
                 _ = try package(request.packageID, context: context, inventory: inventory)
                 guard futureReferences.insert(request.referenceID).inserted,
@@ -41,7 +64,7 @@ struct SharedMediaNativeScopedAudit {
             predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory in
             guard row.ownerID == scope.ownerID, row.inventoryGeneration == scope.generation else { throw SharedMediaStorageFailure.conflict }
             _ = try package(row.packageID, context: context, inventory: inventory)
-            _ = try SharedMediaNativeConsumerGraph.validateScoped(row, context: context, checkpoint: check)
+            _ = try SharedMediaNativeConsumerGraph.validateScoped(row, context: context, format: format, checkpoint: check)
         }
         _ = try await page(FetchDescriptor<SharedMediaDerivativePairRecord>(
             predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory in
@@ -70,7 +93,7 @@ struct SharedMediaNativeScopedAudit {
     private func pending() throws -> Int {
         try check()
         let context = freshContext(), inventory = try header(context)
-        let graph = try SharedMediaPendingGraph.deriveScoped(in: context, inventory: inventory, ownerID: scope.ownerID)
+        let graph = try SharedMediaPendingGraph.deriveScoped(in: context, inventory: inventory, ownerID: scope.ownerID, format: format)
         guard graph.sources.isEmpty, graph.handoffs.isEmpty else { throw SharedMediaStorageFailure.closed }
         var active = 0
         for row in graph.packages {
@@ -81,7 +104,7 @@ struct SharedMediaNativeScopedAudit {
         }
         active += graph.pairs.filter { $0.phaseRaw != "ready" }.count
         guard active <= 1 else { throw SharedMediaStorageFailure.conflict }
-        _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: context, inventory: inventory, ownerID: scope.ownerID, checkpoint: check)
+        _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: context, inventory: inventory, ownerID: scope.ownerID, format: format, checkpoint: check)
         try check(); _ = try header(context)
         return graph.packages.count
     }
@@ -94,17 +117,17 @@ struct SharedMediaNativeScopedAudit {
             let member = try one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
             guard member.inventoryID == scope.inventoryID, member.inventoryGeneration == scope.generation,
                   member.ownerID == row.ownerID, member.draftGeneration == row.draftGeneration else { throw SharedMediaStorageFailure.conflict }
-            try SharedMediaNativeAcquisitionGraph.scopedPendingPackage(row, inventory: inventory, context: context)
+            try SharedMediaNativeAcquisitionGraph.scopedPendingPackage(row, inventory: inventory, context: context, format: format)
             if case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(row.supportingContextData) {
                 try SharedMediaNativePairPlanGraph.validate(envelope, package: row, inventory: inventory, context: context)
             }
             if let consumer {
                 guard consumer.kindRaw == "queue" else { throw SharedMediaStorageFailure.conflict }
-                _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, checkpoint: check)
+                _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, checkpoint: check)
             }
         } else {
             guard row.accountingTierRaw == "retained", let consumer, consumer.kindRaw != "queue" else { throw SharedMediaStorageFailure.conflict }
-            _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, checkpoint: check)
+            _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, checkpoint: check)
         }
         if let consumer {
             guard consumer.inventoryID == inventory.id, consumer.inventoryGeneration == inventory.generation,
@@ -130,7 +153,7 @@ struct SharedMediaNativeScopedAudit {
         }
         let receipt = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == id }))
         guard receipt.inventoryID == scope.inventoryID, receipt.ownerID == scope.ownerID else { throw SharedMediaStorageFailure.conflict }
-        let value = try SharedMediaNativeAcquisitionGraph.scopedReceipt(receipt, inventory: inventory, context: context, checkpoint: check)
+        let value = try SharedMediaNativeAcquisitionGraph.scopedReceipt(receipt, inventory: inventory, context: context, format: format, checkpoint: check)
         if case .completed = value {
             // The complete bidirectional audit validates every original edge.
             _ = try SharedMediaNativeOriginalAccounting.audit(assetID: id, inventoryID: inventory.id, context: context, checkpoint: check)
@@ -161,7 +184,10 @@ struct SharedMediaNativeScopedAudit {
     }
     private func header(_ context: ModelContext) throws -> SharedMediaInventoryRecord {
         guard !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.conflict }
-        let row = try SharedMediaNativeScopedEligibility.header(context: context, scope: scope)
+        let row = try format.header(context: context, scope: scope)
+        if let appHeader {
+            guard try SharedMediaNativeAppEligibility.snapshot(context: context, scope: scope) == appHeader else { throw SharedMediaStorageFailure.conflict }
+        }
         guard SharedMediaStorageSnapshot(generation: row.generation, revision: row.revision,
             phase: row.phaseRaw, cursor: row.cursor) == expected else { throw SharedMediaStorageFailure.conflict }
         return row

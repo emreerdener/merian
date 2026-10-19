@@ -14,16 +14,16 @@ enum SharedMediaNativeAcquisitionBudget {
 
     static func evaluate(context: ModelContext, inventory: SharedMediaInventoryRecord) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.derive(in: context, inventory: inventory)
-        return try evaluate(context: context, inventory: inventory, graph: graph, scoped: false)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: nil)
     }
 
-    static func evaluateScoped(context: ModelContext, inventory: SharedMediaInventoryRecord, ownerID: UUID, checkpoint: () throws -> Void = {}) throws -> Snapshot {
-        let graph = try SharedMediaPendingGraph.deriveScoped(in: context, inventory: inventory, ownerID: ownerID)
-        return try evaluate(context: context, inventory: inventory, graph: graph, scoped: true, checkpoint: checkpoint)
+    static func evaluateScoped(context: ModelContext, inventory: SharedMediaInventoryRecord, ownerID: UUID, format: SharedMediaNativeScopedFormat = .existingV1, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+        let graph = try SharedMediaPendingGraph.deriveScoped(in: context, inventory: inventory, ownerID: ownerID, format: format)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: format, checkpoint: checkpoint)
     }
 
     private static func evaluate(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                 graph: SharedMediaPendingGraph, scoped: Bool, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, checkpoint: () throws -> Void = {}) throws -> Snapshot {
         guard graph.sources.isEmpty, graph.handoffs.isEmpty else {
             throw SharedMediaStorageFailure.closed
         }
@@ -35,7 +35,7 @@ enum SharedMediaNativeAcquisitionBudget {
             try Task.checkCancellation(); try checkpoint()
             let id = package.id
             let envelope = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData)
-            try SharedMediaNativePreparationGraph.validate(envelope, package: package, context: context)
+            try SharedMediaNativePreparationGraph.validate(envelope, package: package, context: context, scopedInventory: format == nil ? nil : inventory)
             let attempt = try envelope.attempt.map { try SharedMediaNativePreparationAttempt.decode($0.bytes) }
             var states: [SharedMediaNativePairFileState] = []
             if case .preparation(let value) = envelope, !value.intents.isEmpty {
@@ -65,8 +65,8 @@ enum SharedMediaNativeAcquisitionBudget {
             }
             var receivingBytes: Int64 = 0
             if let consumer = try SharedMediaConsumerLookup.one(context, packageID: id) {
-                guard scoped else { throw SharedMediaStorageFailure.closed }
-                _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, checkpoint: checkpoint)
+                guard let format else { throw SharedMediaStorageFailure.closed }
+                _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, checkpoint: checkpoint)
                 receivingBytes = Int64(consumer.cohortData.count)
             }
             let jobs = graph.work.filter { $0.packageID == id }

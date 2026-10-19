@@ -95,6 +95,103 @@ struct SharedMediaNativeScopedGraphTests {
         #expect(!FileManager.default.fileExists(atPath: h.file(original).path))
     }
 
+    @Test func v2PendingAndRetainedFactsExcludeOrdinaryDraftsAndPreserveV1Strictness() async throws {
+        let fixtures = SharedMediaNativeConsumerGraphTests(), (h, id) = try await fixtures.fixture(count: 2)
+        let app = try appProfile(h)
+        let context = ModelContext(h.container); context.autosaveEnabled = false
+        let ordinary = UUID()
+        context.insert(PhotoPreparationRecord(id: ordinary, ownerID: h.ownerID, contractVersion: PhotoPreparationPolicy.contract,
+            draftID: ordinary, draftGeneration: UUID(), revision: 0, phaseRaw: "preparing",
+            supportingContextData: Data("not-native-metadata".utf8), allocatedByteCount: 0, retirementRequested: false))
+        try context.save()
+        let before = try #require(try SharedMediaConsumerLookup.one(context, id: id)).cohortData
+        let pending = try await appAudit(h, app)
+        #expect(pending.pendingPackages == 1 && pending.consumers == 1 && pending.allocations == 6)
+        let row = try #require(try context.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
+        #expect(throws: (any Error).self) { try SharedMediaNativeScopedEligibility.requireProfile(row) }
+        try fixtures.promote(h, id)
+        let retained = try await appAudit(h, app)
+        #expect(retained.pendingPackages == 0 && retained.consumers == 1 && retained.allocations == 6)
+        #expect(try #require(try SharedMediaConsumerLookup.one(ModelContext(h.container), id: id)).cohortData == before)
+        #expect(try ModelContext(h.container).fetchCount(FetchDescriptor<PhotoPreparationRecord>()) == 2)
+    }
+
+    @Test(arguments: ["owner", "generation", "binding", "bootstrap", "member", "counter"])
+    func v2ScopedCorruptionFailsWithoutRepair(_ fault: String) async throws {
+        let h = try Harness(), owner = try await h.open(); _ = try await h.acquire(owner)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let app = try appProfile(h); _ = try await appAudit(h, app)
+        let context = ModelContext(h.container); context.autosaveEnabled = false
+        let row = try #require(try context.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
+        switch fault {
+        case "owner":
+            let other = SharedMediaNativeAppProfile(ownerID: UUID(), inventoryID: row.id, generation: row.generation,
+                storeIdentity: row.storeIdentity, physicalBinding: app.physicalBinding, receiptDigest: app.receiptDigest)
+            row.rootIdentity = try other.rootIdentity
+        case "generation": row.generation = UUID()
+        case "binding": row.rootIdentity += " " // Noncanonical bytes remain invalid.
+        case "bootstrap": try #require(try context.fetch(FetchDescriptor<SharedMediaMembershipBootstrapRecord>()).first).contractVersion = 1
+        case "member": try #require(try context.fetch(FetchDescriptor<SharedMediaPendingMembershipRecord>()).first).ownerID = UUID()
+        default: try #require(try context.fetch(FetchDescriptor<SharedMediaAssetReferenceCountRecord>()).first).liveCount += 1
+        }
+        try context.save()
+        await #expect(throws: (any Error).self) { _ = try await appAudit(h, app) }
+        #expect(!context.hasChanges)
+    }
+
+    @Test func v2ActivePreparationIgnoresOrdinaryWorkButRejectsItsOwnUnreadyAsset() async throws {
+        let h = try Harness(), owner = try await h.open(), original = try await h.acquire(owner)
+        let recipe = SharedMediaNativePreparationRecipe(format: .stillImage, isPro: false,
+            cropDisplaySize: nil, quarterTurns: 0, scale: 1, offsetX: 0, offsetY: 0)
+        let attempt = try await owner.reservePreparation(original: original, recipe: recipe)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let app = try appProfile(h), nativeBytes = try Data(contentsOf: h.file(original))
+        let context = ModelContext(h.container); context.autosaveEnabled = false
+        let ordinary = UUID(), assetID = UUID(), opaque = Data("ordinary-opaque-preparing-state".utf8)
+        context.insert(PhotoPreparationRecord(id: ordinary, ownerID: h.ownerID, contractVersion: PhotoPreparationPolicy.contract,
+            draftID: ordinary, draftGeneration: UUID(), revision: 0, phaseRaw: "preparing",
+            supportingContextData: opaque, allocatedByteCount: 1, retirementRequested: false))
+        context.insert(PhotoPreparationAsset(id: assetID, ownerID: h.ownerID, generation: UUID(),
+            fileToken: "ordinary", contentType: "image/jpeg", byteCount: 1, sha256: String(repeating: "f", count: 64),
+            acquisitionKindRaw: "picker", cleanupStateRaw: "retiring"))
+        context.insert(PhotoPreparationLease(id: UUID(), packageID: ordinary, assetID: assetID, ownerID: h.ownerID,
+            processEpoch: UUID(), purposeRaw: "acquire", partialFileToken: "ordinary.partial", finalFileToken: "ordinary",
+            reservedByteCount: 1, allocatedByteCount: 0, writerStateRaw: "unknown", terminalProof: nil))
+        try context.save()
+        let result = try await appAudit(h, app)
+        #expect(result.pendingPackages == 1 && result.allocations == 1)
+        let nativeID = h.packageID
+        let native = try #require(try context.fetch(FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == nativeID })).first)
+        let attemptBytes = try attempt.encoded()
+        #expect(try SharedMediaNativeDraftEnvelope.decode(native.supportingContextData).attempt?.bytes == attemptBytes)
+        let nativeAssetID = original.assetID
+        let asset = try #require(try context.fetch(FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.id == nativeAssetID })).first)
+        asset.cleanupStateRaw = "retiring"; try context.save()
+        await #expect(throws: (any Error).self) { _ = try await appAudit(h, app) }
+        #expect(try Data(contentsOf: h.file(original)) == nativeBytes)
+        #expect(try context.fetch(FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == ordinary })).first?.supportingContextData == opaque)
+        #expect(try context.fetchCount(FetchDescriptor<PhotoPreparationLease>()) == 1)
+    }
+
+    private func appProfile(_ h: Harness) throws -> SharedMediaNativeAppProfile {
+        // Synthetic persisted facts only. This cannot pass the filesystem opener.
+        let context = ModelContext(h.container); context.autosaveEnabled = false
+        let row = try #require(try context.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
+        let profile = SharedMediaNativeAppProfile(ownerID: h.ownerID, inventoryID: row.id, generation: row.generation,
+            storeIdentity: row.storeIdentity, physicalBinding: String(repeating: "a", count: 64), receiptDigest: String(repeating: "b", count: 64))
+        row.modeRaw = SharedMediaNativeAppProfile.mode; row.phaseRaw = SharedMediaNativeAppProfile.phase
+        row.rootIdentity = try profile.rootIdentity
+        try #require(try context.fetch(FetchDescriptor<SharedMediaMembershipBootstrapRecord>()).first).contractVersion = 2
+        try context.save(); return profile
+    }
+    private func appAudit(_ h: Harness, _ profile: SharedMediaNativeAppProfile) async throws -> SharedMediaNativeScopedSnapshot {
+        let context = ModelContext(h.container)
+        let row = try #require(try context.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
+        let expected = SharedMediaStorageSnapshot(generation: row.generation, revision: row.revision, phase: row.phaseRaw, cursor: row.cursor)
+        return try await SharedMediaNativeScopedAudit(app: h.container, profile: profile, expected: expected,
+            check: {}, betweenPages: { await Task.yield() }).run()
+    }
+
     private func profile(_ h: Harness) throws -> SharedMediaNativeScopeIdentity {
         let context = ModelContext(h.container); context.autosaveEnabled = false
         let row = try #require(try context.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)

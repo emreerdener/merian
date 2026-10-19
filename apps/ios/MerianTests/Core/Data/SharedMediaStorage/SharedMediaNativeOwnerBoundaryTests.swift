@@ -7,7 +7,7 @@ struct SharedMediaNativeOwnerBoundaryTests {
         let owner = try source("SharedMediaNativeOriginalOwner.swift")
         let repository = try source("SharedMediaNativeStorageRepository.swift")
         #expect(owner.contains("private init(account:"))
-        #expect(owner.components(separatedBy: "fileprivate init(owner:").count == 5)
+        #expect(owner.components(separatedBy: "fileprivate init(owner:").count == 6)
         #expect(repository.contains("private init(container:"))
         #expect(repository.contains("fileprivate init(binding:"))
         #expect(repository.contains("fileprivate init(bytes:"))
@@ -18,6 +18,7 @@ struct SharedMediaNativeOwnerBoundaryTests {
             #expect(!file.contents.contains("SharedMediaNativeDispatchGrant(owner:"), "Dispatch grant escaped its owner: \(file.relativePath)")
             #expect(!file.contents.contains("SharedMediaNativeSettlementGrant(owner:"), "Settlement grant escaped its owner: \(file.relativePath)")
             #expect(!file.contents.contains("SharedMediaNativeAppGrant(owner:"), "App grant escaped its owner: \(file.relativePath)")
+            #expect(!file.contents.contains("SharedMediaNativeAppDispatchGrant(owner:"), "App dispatch grant escaped its owner: \(file.relativePath)")
             #expect(!file.contents.contains("SharedMediaNativeScopedReadGrant(owner:"), "Scoped read grant escaped its owner: \(file.relativePath)")
         }
     }

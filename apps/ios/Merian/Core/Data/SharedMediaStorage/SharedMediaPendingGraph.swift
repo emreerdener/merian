@@ -39,8 +39,8 @@ struct SharedMediaPendingGraph {
     /// Stale generations are rejected, not omitted from discovery. No new-package
     /// overlay or repair is available through this read-only entry.
     static func deriveScoped(in context: ModelContext, inventory: SharedMediaInventoryRecord,
-                             ownerID: UUID) throws -> Self {
-        try SharedMediaNativeScopedEligibility.requireProfile(inventory)
+                             ownerID: UUID, format: SharedMediaNativeScopedFormat = .existingV1) throws -> Self {
+        try format.requireProfile(inventory)
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         let inventoryID = inventory.id
         let members = try fetch(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(

@@ -55,7 +55,7 @@ final class SharedMediaStorageFileOwner {
               storeInfo.st_nlink == 1 else { throw SharedMediaStorageFailure.conflict }
         let bootstrapFiles: SharedMediaNativeBootstrapFiles?
         if let bootstrap {
-            guard !requireExistingFence, root == bootstrap.parent.appendingPathComponent("authority", isDirectory: true),
+            guard requireExistingFence == bootstrap.existingOnly, root == bootstrap.parent.appendingPathComponent("authority", isDirectory: true),
                   sources[SharedMediaPhotoLedger.namespace] == bootstrap.parent.appendingPathComponent("photo", isDirectory: true),
                   sources[SharedMediaInboxFiles.namespace] == bootstrap.parent.appendingPathComponent("inbox", isDirectory: true),
                   sources.count == 2, bootstrap.parent != storeDirectoryURL else { throw SharedMediaStorageFailure.invalid }

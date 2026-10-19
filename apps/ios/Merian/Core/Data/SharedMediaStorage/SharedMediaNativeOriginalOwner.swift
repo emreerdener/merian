@@ -5,9 +5,11 @@ import SwiftData
 /// qualification composition owns acquisition and settlement; live wiring stays disabled.
 @MainActor
 final class SharedMediaNativeOriginalOwner {
-    private enum OpenKind { case qualification, scopedInspection, appInitialization }
+    private enum OpenKind { case qualification, scopedInspection, appInitialization, appDispatch }
     private let openKind: OpenKind
     private var scopedIdentity: SharedMediaNativeScopeIdentity?
+    private var appProfile: SharedMediaNativeAppProfile?
+    private var appParent: URL?
     private enum Phase { case unopened, opening, ready, failed, suspended }
     private let account: PhotoOriginalPreparationOwner.AccountAccess
     private let drain: SharedMediaNativeOriginalDrain
@@ -98,6 +100,33 @@ final class SharedMediaNativeOriginalOwner {
         }
     }
 
+    /// Inactive existing-profile entry. It cannot initialize or repair storage.
+    static func appDispatch(account: PhotoOriginalPreparationOwner.AccountAccess,
+                            drain: SharedMediaNativeOriginalDrain) throws -> SharedMediaNativeOriginalOwner {
+        let owner = SharedMediaNativeOriginalOwner(account: account, drain: drain, openKind: .appDispatch)
+        owner.registration = try drain.register { [weak owner] in
+            guard let owner else { return true }; return await owner.invalidateAndAwaitForAccountTransition()
+        }
+        return owner
+    }
+    func openApp(container: ModelContainer, parent: URL, inventoryID: UUID, pause: (@Sendable () async -> Void)? = nil) async throws -> SharedMediaNativeScopedSnapshot {
+        guard openKind == .appDispatch, phase == .unopened, let registration, drain.isCurrent(registration) else { throw SharedMediaStorageFailure.closed }
+        phase = .opening; debug.scopedPagePause = pause
+        do {
+            return try await performOperation { [self] lease, identity in
+                let profile = try SharedMediaNativeAppEligibility.identity(container: container, inventoryID: inventoryID, ownerID: account.ownerID)
+                appProfile = profile; appParent = parent
+                let grant = SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
+                    profile: profile, parent: parent, writerEpoch: writerEpoch)
+                let candidate = try SharedMediaNativeStorageRepository.openApp(container: container, parent: parent,
+                    inventoryID: inventoryID, grant: grant)
+                storage = candidate
+                let result = try await candidate.inspectApp(grant: grant)
+                try grant.validate(); phase = .ready; return result
+            }
+        } catch { if phase != .suspended { phase = .failed }; storage = nil; appProfile = nil; appParent = nil; throw error }
+    }
+
     /// Inactive qualification seam for the existing app-container profile. This
     /// does not bootstrap a profile or install an owner in the running app.
     static func scopedInspection(account: PhotoOriginalPreparationOwner.AccountAccess,
@@ -143,6 +172,15 @@ final class SharedMediaNativeOriginalOwner {
             let grant = SharedMediaNativeScopedReadGrant(owner: self, identity: identity, lease: lease,
                 scope: scope, writerEpoch: writerEpoch)
             return try await storage.inspectScoped(grant: grant)
+        }
+    }
+
+    func inspectApp() async throws -> SharedMediaNativeScopedSnapshot {
+        guard openKind == .appDispatch, phase == .ready else { throw SharedMediaStorageFailure.closed }
+        return try await performOperation { [self] lease, identity in
+            guard let storage, let appProfile, let appParent else { throw SharedMediaStorageFailure.closed }
+            return try await storage.inspectApp(grant: .init(owner: self, identity: identity, lease: lease,
+                profile: appProfile, parent: appParent, writerEpoch: writerEpoch))
         }
     }
 
@@ -372,6 +410,11 @@ final class SharedMediaNativeOriginalOwner {
         guard openKind == .appInitialization, activeDispatchID == identity, writerEpoch == epoch,
               pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }; try check(lease)
     }
+    fileprivate func validateAppDispatch(identity: UUID, lease: AccountBoundWorkLease, profile: SharedMediaNativeAppProfile, parent: URL, epoch: UUID) throws {
+        guard openKind == .appDispatch, activeDispatchID == identity, writerEpoch == epoch,
+              appProfile == profile, appParent == parent, profile.ownerID == account.ownerID,
+              pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }; try check(lease)
+    }
     fileprivate func validateSettlement(identity: UUID, request: SharedMediaAcquisitionIntent, loaderStarted: Bool) throws {
         guard openKind == .qualification, let pending = pendingSettlement, pending.id == identity, pending.request == request,
               pending.loaderStarted == loaderStarted, pending.writerReturned, !writerActive,
@@ -421,7 +464,7 @@ final class SharedMediaNativeOriginalOwner {
         // release after actual termination. Unknown settlement remains closed.
         do { _ = try reconcileSettlement() } catch { return false }
         guard pendingSettlement == nil else { return false }
-        storage = nil; scopedIdentity = nil
+        storage = nil; scopedIdentity = nil; appProfile = nil; appParent = nil
         return true
     }
 }
@@ -473,6 +516,32 @@ final class SharedMediaNativeAppGrant {
     }
 }
 
+/// Existing V2 authority is separate from both initialization and V1 dispatch.
+@MainActor
+final class SharedMediaNativeAppDispatchGrant {
+    private weak var owner: SharedMediaNativeOriginalOwner?
+    private let identity: UUID, lease: AccountBoundWorkLease
+    let profile: SharedMediaNativeAppProfile
+    let parent: URL
+    let writerEpoch: UUID
+    #if DEBUG
+    let debug: SharedMediaNativeDebugHooks
+    #endif
+    var ownerID: UUID { profile.ownerID }
+    fileprivate init(owner: SharedMediaNativeOriginalOwner, identity: UUID, lease: AccountBoundWorkLease,
+                     profile: SharedMediaNativeAppProfile, parent: URL, writerEpoch: UUID) {
+        self.owner = owner; self.identity = identity; self.lease = lease
+        self.profile = profile; self.parent = parent; self.writerEpoch = writerEpoch
+        #if DEBUG
+        debug = owner.debug
+        #endif
+    }
+    func validate() throws {
+        guard let owner else { throw SharedMediaStorageFailure.closed }
+        try owner.validateAppDispatch(identity: identity, lease: lease, profile: profile, parent: parent, epoch: writerEpoch)
+    }
+}
+
 /// These capabilities can only be minted by this file's registered owner.
 /// They are separate types so settlement cannot be supplied to a dispatch API.
 @MainActor
@@ -517,21 +586,3 @@ final class SharedMediaNativeSettlementGrant {
         try owner.validateSettlement(identity: identity, request: request, loaderStarted: loaderStarted)
     }
 }
-
-#if DEBUG
-@MainActor
-final class SharedMediaNativeDebugHooks {
-    fileprivate init() {}
-    var lifecycleFault: ((SharedMediaNativeLifecycleBoundary) throws -> Void)?
-    var preparationAvailableBytes: Int64?
-    var preparationFocusFactory = ImageFocusWorkFactory()
-    var preparationFault: ((SharedMediaNativePreparationBoundary) throws -> Void)?
-    var metadataFault: ((SharedMediaNativeMetadataBoundary) throws -> Void)?
-    var metadataAvailableBytes: Int64?
-    var inspectionAuditCount = 0
-    var acquisitionFault: ((SharedMediaNativeAcquisitionBoundary) throws -> Void)?
-    var bootstrapFault: ((SharedMediaNativeBootstrapBoundary) throws -> Void)?
-    var bootstrapAvailableBytes: Int64?
-    var scopedPagePause: (@Sendable () async -> Void)?
-}
-#endif

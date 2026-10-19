@@ -137,6 +137,7 @@ final class SharedMediaNativeBootstrapFiles {
         let savedIntent = try Self.read(fd, SharedMediaNativeBootstrapCodec.intentName)
         let savedFinal = try Self.read(fd, SharedMediaNativeBootstrapCodec.finalName)
         let savedProgress = try SharedMediaNativeBootstrapCodec.progressNames.map { try Self.read(fd, $0) }
+        if authority.existingOnly { guard savedIntent != nil, savedFinal != nil else { throw SharedMediaStorageFailure.conflict } }
         guard savedIntent != nil || savedFinal == nil else { throw SharedMediaStorageFailure.conflict }
         if savedIntent == nil {
             guard try Self.names(fd).isEmpty else { throw SharedMediaStorageFailure.conflict }
@@ -199,8 +200,10 @@ final class SharedMediaNativeBootstrapFiles {
             }
             if let final { guard final.identities[index] == identity else { throw SharedMediaStorageFailure.conflict } }
             let allowed: Set<String> = name == "photo" ? ["PhotoPreparation"] : name == "inbox" ? ["InboxSources"] : []
-            let existingNames = try Self.names(root)
-            guard final == nil ? existingNames.isSubset(of: allowed) : existingNames == allowed else { throw SharedMediaStorageFailure.conflict }
+            if !authority.existingOnly || components.count == 1 {
+                let existingNames = try Self.names(root)
+                guard final == nil ? existingNames.isSubset(of: allowed) : existingNames == allowed else { throw SharedMediaStorageFailure.conflict }
+            }
             if final == nil {
                 let marker = Self.marker(name)
                 if let marker { guard fgetxattr(root, marker, nil, 0, 0, 0) < 0, errno == ENOATTR else { throw SharedMediaStorageFailure.conflict } }

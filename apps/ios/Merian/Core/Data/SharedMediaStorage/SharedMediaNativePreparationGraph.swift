@@ -5,10 +5,10 @@ import SwiftData
 /// freeze requires its exact terminal graph; receiving consumers remain closed.
 @MainActor
 enum SharedMediaNativePreparationGraph {
-    static func validate(_ envelope: SharedMediaNativeDraftEnvelope, package: PhotoPreparationRecord, context: ModelContext) throws {
+    static func validate(_ envelope: SharedMediaNativeDraftEnvelope, package: PhotoPreparationRecord, context: ModelContext, scopedInventory: SharedMediaInventoryRecord? = nil) throws {
         guard case .preparation(let value) = envelope else { return }
         if !value.intents.isEmpty || value.frozen != nil {
-            let inventory = try one(context, FetchDescriptor<SharedMediaInventoryRecord>())
+            let inventory = try scopedInventory ?? one(context, FetchDescriptor<SharedMediaInventoryRecord>())
             try SharedMediaNativePairPlanGraph.validate(value, package: package, inventory: inventory, context: context)
         }
         guard let blob = value.attempt else { return }
@@ -20,6 +20,10 @@ enum SharedMediaNativePreparationGraph {
         let receipt = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == assetID }))
         let inventoryID = attempt.inventoryID
         let inventory = try one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
+        if let scopedInventory {
+            guard inventory.id == scopedInventory.id, inventory.generation == scopedInventory.generation else { throw SharedMediaStorageFailure.conflict }
+        }
+        try requireIdleFiles(context, scopedInventory: scopedInventory)
         let previous = try SharedMediaNativeDraftEnvelope.decode(attempt.previousEnvelope)
         guard previous.attempt == nil, previous.intents == value.intents,
               try SharedMediaStoragePolicy.add(previous.sequence, 1) == attempt.sequence,
@@ -35,16 +39,17 @@ enum SharedMediaNativePreparationGraph {
               asset.generation == original.assetGeneration, asset.cleanupStateRaw == "ready",
               asset.fileToken == attempt.original.token, asset.byteCount == attempt.original.byteCount,
               asset.sha256 == attempt.original.sha256, asset.contentType == attempt.original.contentType,
-              case .completed(_, let result) = try SharedMediaAcquisitionReceipt.read(receipt), result.descriptor == attempt.original.descriptor,
-              try context.fetchCount(FetchDescriptor<PhotoPreparationLease>()) == 0,
-              try context.fetchCount(FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.cleanupStateRaw != "ready" })) == 0 else {
+              case .completed(_, let result) = try SharedMediaAcquisitionReceipt.read(receipt), result.descriptor == attempt.original.descriptor else {
             throw SharedMediaStorageFailure.conflict
         }
         if case .preparation(let old) = previous {
             guard old.frozen == nil else { throw SharedMediaStorageFailure.closed }
         }
         // One attempt across the inventory, not merely one per package.
-        guard try context.fetchCount(FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.phaseRaw == "preparing" })) == 1 else {
+        let preparing: Int
+        if let scopedInventory { preparing = try pendingRows(context, inventory: scopedInventory).filter { $0.phaseRaw == "preparing" }.count }
+        else { preparing = try context.fetchCount(FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.phaseRaw == "preparing" })) }
+        guard preparing == 1 else {
             throw SharedMediaStorageFailure.conflict
         }
     }
@@ -72,6 +77,39 @@ enum SharedMediaNativePreparationGraph {
         }
         guard try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.phaseRaw != "ready" })) == 0,
               try context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>(predicate: #Predicate { $0.phaseRaw != "completed" })) == 0 else { throw SharedMediaStorageFailure.closed }
+    }
+    static func pendingRows(_ context: ModelContext, inventory: SharedMediaInventoryRecord) throws -> [PhotoPreparationRecord] {
+        let id = inventory.id
+        var query = FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.inventoryID == id })
+        query.fetchLimit = PhotoPreparationPolicy.maximumPackages + 1
+        let members = try context.fetch(query)
+        guard members.count <= PhotoPreparationPolicy.maximumPackages else { throw SharedMediaStorageFailure.capacity }
+        return try members.map { member in
+            let packageID = member.id
+            let package = try one(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == packageID }))
+            guard member.inventoryGeneration == inventory.generation, member.ownerID == package.ownerID,
+                  member.draftGeneration == package.draftGeneration, package.accountingTierRaw == "pending" else { throw SharedMediaStorageFailure.conflict }
+            return package
+        }
+    }
+    static func requireIdleFiles(_ context: ModelContext, scopedInventory: SharedMediaInventoryRecord?) throws {
+        guard let inventory = scopedInventory else {
+            guard try context.fetchCount(FetchDescriptor<PhotoPreparationLease>()) == 0,
+                  try context.fetchCount(FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.cleanupStateRaw != "ready" })) == 0 else { throw SharedMediaStorageFailure.conflict }
+            return
+        }
+        for package in try pendingRows(context, inventory: inventory) {
+            let id = package.id
+            guard try context.fetchCount(FetchDescriptor<PhotoPreparationLease>(predicate: #Predicate { $0.packageID == id })) == 0 else { throw SharedMediaStorageFailure.conflict }
+            var query = FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.packageID == id }); query.fetchLimit = 7
+            let refs = try context.fetch(query)
+            guard refs.count <= 6 else { throw SharedMediaStorageFailure.conflict }
+            for ref in refs {
+                let assetID = ref.assetID
+                let asset = try one(context, FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.id == assetID }))
+                guard asset.cleanupStateRaw == "ready", asset.ownerID == package.ownerID else { throw SharedMediaStorageFailure.conflict }
+            }
+        }
     }
     private static func one<T: PersistentModel>(_ context: ModelContext, _ query: FetchDescriptor<T>) throws -> T {
         var query = query; query.fetchLimit = 2; let rows = try context.fetch(query)

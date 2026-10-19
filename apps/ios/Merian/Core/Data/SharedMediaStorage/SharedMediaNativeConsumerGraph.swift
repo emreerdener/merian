@@ -9,15 +9,15 @@ enum SharedMediaNativeConsumerGraph {
     static let contract = "nativeReceivingV1"
 
     static func validate(_ consumer: SharedMediaConsumerRecord, context: ModelContext) throws -> SharedMediaNativeConsumerCohort {
-        try facts(consumer, context: context, scoped: false)
+        try facts(consumer, context: context, format: nil)
     }
 
-    static func validateScoped(_ consumer: SharedMediaConsumerRecord, context: ModelContext, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
-        try facts(consumer, context: context, scoped: true, checkpoint: checkpoint)
+    static func validateScoped(_ consumer: SharedMediaConsumerRecord, context: ModelContext, format: SharedMediaNativeScopedFormat = .existingV1, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
+        try facts(consumer, context: context, format: format, checkpoint: checkpoint)
     }
 
     private static func facts(_ consumer: SharedMediaConsumerRecord, context: ModelContext,
-                              scoped: Bool, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
+                              format: SharedMediaNativeScopedFormat?, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         let value = try SharedMediaNativeConsumerCohort.decode(consumer.cohortData)
         let commit = try SharedMediaNativeFreezeCommit.decode(value.freeze.bytes)
@@ -43,10 +43,10 @@ enum SharedMediaNativeConsumerGraph {
         let inventory = try one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
         let bootstrap = try one(context, FetchDescriptor<SharedMediaMembershipBootstrapRecord>(predicate: #Predicate { $0.id == inventoryID }))
         let package = try one(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == id }))
-        if scoped { try SharedMediaNativeScopedEligibility.requireProfile(inventory) }
+        if let format { try format.requireProfile(inventory) }
         guard inventory.generation == commit.inventoryGeneration,
-              inventory.phaseRaw == (scoped ? SharedMediaNativeScopedEligibility.phase : "readyNativeAccountingV1"),
-              bootstrap.inventoryGeneration == inventory.generation, bootstrap.contractVersion == 1, bootstrap.revision >= 0,
+              inventory.phaseRaw == (format?.phase ?? "readyNativeAccountingV1"),
+              bootstrap.inventoryGeneration == inventory.generation, bootstrap.contractVersion == (format?.membershipVersion ?? 1), bootstrap.revision >= 0,
               package.draftID == id, package.contractVersion == PhotoPreparationPolicy.contract,
               package.ownerID == cohort.ownerID, package.draftGeneration == cohort.draftGeneration,
               package.accountingTierRaw == (consumer.kindRaw == "queue" ? "pending" : "retained"),
