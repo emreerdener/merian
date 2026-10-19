@@ -1,3 +1,33 @@
+## October 19 — native owner capabilities locally verified
+
+The registered native owner and repository now have separate sealed dispatch and
+settlement capabilities. Ordinary work requires the current account lease and
+active operation. Recovery can only reconcile its exact saved acquisition after
+the writer returns; missing evidence preserves the file, reservation and owner
+fence without replaying the loader. No additional owner, container, activation
+path, persisted format or numeric limit was introduced.
+
+The exact reviewed candidate02 passed all 112 methods in eleven focused suites,
+with zero failures, skips or Xcode runtime warnings. All 2,838 source/project
+hashes and candidate hashes remained unchanged. Evidence:
+`.artifacts/native-owner-capabilities-20261019/focused02-result.json`, XCResult
+`49eaa7c7223f49bfa27d2fd12a7c2fbe`; candidate02 SHA256
+`72e4306e15e96026a0bf543a4a976379f7d44d671c6d5b7ecbb845e6c862a8ea`. Candidate01
+was held before execution for a throwing test expression; candidate02 corrected
+that expression without a runtime delta. The prior complete-target legacy
+partition evidence and focused correction remain historical; this run was
+focused shared-checkout validation, not a complete-target rerun,
+isolated-source, device, hosted or activation acceptance.
+
+Continue with the same repository and owner for strict scoped inspection of an
+existing app-container profile, then native receiving admission, retained
+transitions/cleanup and Capture/Auth integration. Scoped inspection must verify
+pre-existing bindings, reject profile conversion and mutations, and audit only
+inventory-anchored records with exact joins. It cannot claim detection of fully
+unanchored corruption or physical availability. The remaining integrated media
+acceptance, version actions and redesign remain required. PR116 stays frozen;
+activation disabled, deployment hold active and AWS unapproved.
+
 ## October 19 — legacy/native ownership boundary locally verified
 
 The existing queue, job reset, deletion, funding and background writers now

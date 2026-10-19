@@ -1,3 +1,43 @@
+## October 19 — native owner dispatch and settlement separation
+
+`SharedMediaNativeOriginalOwner` owns the registered account lifecycle in its
+own file. Its private constructor and file-local capability constructors remain
+closed. The repository retains its private constructor, file fences and
+file-local binding/mutation/inspection authority constructors. No second owner,
+container, drain registration or production installer is introduced.
+
+Every cross-file repository operation requires a dispatch grant tied to the
+actual account lease and unique active operation, owner, process epoch and
+existing qualification profile. It expires when the operation ends, Auth seals
+the owner or pending settlement closes dispatch. Debug fault hooks stay owned by
+the controller and grant no runtime authority.
+
+Settlement uses a different capability type, binding a unique pending identity
+and exact request only after the loader/file writer has returned. The repository
+can only read that receipt, acknowledge completed/held state, or persist the
+existing reserved-to-held transition and read it back. It cannot load media,
+write files, reserve another operation or mint preparation/cleanup operations.
+Missing evidence after a loader started remains closed and retains the fence and
+capacity. Only successful exact reconciliation clears pending settlement.
+
+This inactive structural integration preserves the existing qualification
+profile, topology, persisted formats, limits and recovery semantics. Scoped
+app-container validation, native receiving admission and live composition remain
+pending. Activation stays disabled, PR116 frozen, deployment hold active and AWS
+unapproved.
+
+The exact reviewed candidate02 passed all 112 methods in eleven focused suites,
+with zero failures, skips or Xcode runtime warnings. All 2,838 source/project
+hashes and candidate hashes remained unchanged. Evidence:
+`.artifacts/native-owner-capabilities-20261019/focused02-result.json`, XCResult
+`49eaa7c7223f49bfa27d2fd12a7c2fbe`; candidate02 SHA256
+`72e4306e15e96026a0bf543a4a976379f7d44d671c6d5b7ecbb845e6c862a8ea`. Candidate01
+was held before execution for a throwing test expression; candidate02 corrected
+that expression without a runtime delta. The prior complete-target legacy
+partition evidence and focused correction remain historical; this run was
+focused shared-checkout validation, not a complete-target rerun,
+isolated-source, device, hosted or activation acceptance.
+
 ## October 18 — native explicit pending abandonment locally verified
 
 The next inactive native integration adds exact-request abandonment of reserved

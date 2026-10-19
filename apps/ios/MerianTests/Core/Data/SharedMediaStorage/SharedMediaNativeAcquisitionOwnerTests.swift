@@ -96,6 +96,9 @@ struct SharedMediaNativeAcquisitionOwnerTests {
             if point == .beforeReadback && unavailable { throw Fault.injected }
         }
         await #expect(throws: (any Error).self) { try await owner.acquireOriginal(request) { await loader.load(bytes) } }
+        // Unresolved settlement revokes ordinary reads as well as new work.
+        await #expect(throws: SharedMediaStorageFailure.closed) { try await owner.snapshot() }
+        await #expect(throws: SharedMediaStorageFailure.closed) { try await h.request(owner) }
         #expect(!(await h.drain.shutdown()))
         #expect(await loader.calls == 1)
         let saved = try #require(try h.receipt(request))
@@ -136,6 +139,31 @@ struct SharedMediaNativeAcquisitionOwnerTests {
         } catch {
             await gate.release(); _ = await task.result; _ = await h.drain.shutdown(); throw error
         }
+    }
+
+    @Test func missingReceiptAfterWriterReturnsCannotReleaseOwnership() async throws {
+        let h = try Harness()
+        let owner = try h.owner(); _ = try await h.open(owner)
+        let request = try await h.request(owner), loader = Loader(), bytes = PhotoPreparationTestHarness.image()
+        try owner.setAcquisitionFault { point in
+            guard point == .afterOriginalWrite else { return }
+            let context = ModelContext(h.container); context.autosaveEnabled = false
+            let id = request.operationID
+            let row = try #require(try context.fetch(FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.id == id })).first)
+            context.delete(row); try context.save()
+        }
+        await #expect(throws: (any Error).self) { try await owner.acquireOriginal(request) { await loader.load(bytes) } }
+        #expect(await loader.calls == 1)
+        #expect(try Data(contentsOf: h.file(request)) == bytes)
+        #expect(try h.receipt(request) == nil)
+        #expect(!(await h.drain.shutdown()))
+        #expect(h.work.active == 0)
+        await #expect(throws: (any Error).self) { try await owner.acquireOriginal(request) { await loader.load(bytes) } }
+        let competitor = try h.owner(drain: .init())
+        await #expect(throws: (any Error).self) { try await h.open(competitor) }
+        #expect(await loader.calls == 1)
+        #expect(try ModelContext(h.container).fetchCount(FetchDescriptor<SharedMediaAllocationRecord>()) == 1)
+        #expect(try ModelContext(h.container).fetchCount(FetchDescriptor<PhotoPreparationLease>()) == 1)
     }
 
     @Test func staleRequestAndMissingMediaNeverInvokeLoader() async throws {
