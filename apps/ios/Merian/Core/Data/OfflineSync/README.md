@@ -8,6 +8,36 @@ must not duplicate queue state or infer completion from transient network state.
 The canonical behavioral contract is the
 [offline sync pipeline](../../../../../../docs/backend-and-data/01-offline-sync-pipeline.md).
 
+## Native receiving ownership and legacy helpers
+
+`SharedMediaLegacyQueueAccess` is a denial boundary for the existing queue,
+job-reset, deletion, diagnostics and funding helpers. It checks queue and local
+record authority, surviving consumer routes, and the reserved
+`native_receiving_v1` job marker with bounded row fetches. Missing queue state
+alone never downgrades a surviving native receipt. Malformed scan-job metadata
+fails closed. This is not native admission or execution authority, and does not
+qualify media availability. Existing shared V1 and native receiving authority
+remain distinct.
+
+Creating or resetting a scan-ingestion job requires its actual ordinary queue in
+the same transaction, including `ensureScanIngestionJob`, which explicitly
+returns nil for a missing queue. Missing-queue exact completion/reconciliation
+can read or finish an existing legacy job when no shared ownership survives; it
+cannot create/reset a job or authorize another provider invocation. Deletion
+checks fresh persisted ownership before task enumeration and again after its
+suspension points, before clearing process owners or cancelling tasks. Generic
+event pruning preserves native or ambiguous receipts; typed native terminal
+release remains future work.
+
+Legacy funding reconciliation compares the same job creation time, generation
+metadata and reservation across status/entitlement awaits. Deferred resolution
+requires eligibility for both the reservation and every blocker before changing
+in-memory funding. Terminal confirmation receives an explicit eligible set.
+Excluded native reservations remain untouched; unknown ownership is retained as
+a conservative capacity blocker even after stale local terminal state. These
+checks do not authorize another AI invocation, refund an uncertain operation, or
+implement native settlement. Activation remains disabled.
+
 ## Ownership
 
 - `Models/` contains `Sendable` queue and collection desired-state snapshots,

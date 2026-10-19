@@ -28,7 +28,14 @@ extension BackgroundDatabaseActor {
     /// preventing `syncPendingScans` from re-dispatching upload tasks for these
     /// scans after an app restart. Attention and future-retry rows cannot be
     /// claimed from a stale candidate snapshot.
-    func markScansAsUploading(scanIds: [String]) -> Set<String> {
+    func markScansAsUploading(scanIds: [String]) async -> Set<String> {
+        let held = await ScanInferencePersistenceCoordinator.shared.acquireAll(scanIds: scanIds)
+        let result = Task.isCancelled ? [] : markScansAsUploadingLocked(scanIds: scanIds)
+        await ScanInferencePersistenceCoordinator.shared.releaseAll(scanIds: held)
+        return result
+    }
+
+    private func markScansAsUploadingLocked(scanIds: [String]) -> Set<String> {
         guard !scanIds.isEmpty else { return [] }
         let pendingRaw = ScanQueueState.pending.rawValue
         let uploadingRaw = ScanQueueState.uploading.rawValue
@@ -55,7 +62,8 @@ extension BackgroundDatabaseActor {
                 let scans = try modelContext.fetch(descriptor)
                 let now = Date()
                 for scan in scans {
-                    guard scan.permitsOrdinaryInference else { continue }
+                    guard scan.permitsOrdinaryInference,
+                          SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: scan.id) else { continue }
                     guard scan.queueNextRetryAt.map({ $0 <= now }) ?? true else {
                         continue
                     }
@@ -144,7 +152,15 @@ extension BackgroundDatabaseActor {
     func markScanAsStaged(
         scanId: String,
         r2Keys: [String]
-    ) -> ScanStagingTransitionOutcome {
+    ) async -> ScanStagingTransitionOutcome {
+        await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanId)
+        let result = Task.isCancelled ? .discarded : markScanAsStagedLocked(scanId: scanId, r2Keys: r2Keys)
+        await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+        return result
+    }
+
+    private func markScanAsStagedLocked(scanId: String, r2Keys: [String]) -> ScanStagingTransitionOutcome {
+        guard SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: scanId) else { return .discarded }
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
@@ -286,7 +302,28 @@ extension BackgroundDatabaseActor {
         activeScanIds: Set<String>,
         candidateScanIds: Set<String>? = nil,
         observedThrough: Date = Date()
-    ) -> Bool {
+    ) async -> Bool {
+        let raw = ScanQueueState.uploading.rawValue
+        let query = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.scanStateRaw == raw })
+        let rows: [OfflineQueuedScan]
+        do {
+            rows = try modelContext.fetch(query)
+        } catch {
+            MerianLog.data.error(
+                "reconcileOrphanedUploadingScans: candidate lookup failed: \(error, privacy: .private)"
+            )
+            return false
+        }
+        let candidates = rows.map(\.id).filter { candidateScanIds?.contains($0) ?? true }
+        let held = await ScanInferencePersistenceCoordinator.shared.acquireAll(scanIds: candidates)
+        let result = !Task.isCancelled && reconcileOrphanedUploadingScansLocked(activeScanIds: activeScanIds,
+            candidateScanIds: Set(candidates), observedThrough: observedThrough)
+        await ScanInferencePersistenceCoordinator.shared.releaseAll(scanIds: held)
+        return result
+    }
+
+    private func reconcileOrphanedUploadingScansLocked(activeScanIds: Set<String>,
+        candidateScanIds: Set<String>, observedThrough: Date) -> Bool {
         let uploadingRaw = ScanQueueState.uploading.rawValue
         let pendingRaw = ScanQueueState.pending.rawValue
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
@@ -309,7 +346,8 @@ extension BackgroundDatabaseActor {
         for scan in scans
         where scan.permitsOrdinaryInference && scan.queueUpdatedAt <= observedThrough
             && !activeScanIds.contains(scan.id)
-            && (candidateScanIds?.contains(scan.id) ?? true) {
+            && candidateScanIds.contains(scan.id) {
+            guard SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: scan.id) else { continue }
             let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scan.id)
             let job: OfflineJobRecord?
             do {

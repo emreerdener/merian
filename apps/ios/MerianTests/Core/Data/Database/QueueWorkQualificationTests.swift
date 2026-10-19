@@ -65,6 +65,66 @@ struct QueueWorkQualificationTests {
         #expect(try fresh.fetchCount(FetchDescriptor<LocalScanRecord>()) == 0)
     }
 
+    @Test(arguments: [0, 1, 2, 3])
+    func persistedNativeTransferWinsWhileLegacyWriterWaits(operation: Int) async throws {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer()
+        let context = ModelContext(container)
+        let id = UUID().uuidString.lowercased()
+        let state: ScanQueueState = operation == 0 ? .pending : operation == 1 ? .staged : .uploading
+        let row = OfflineQueuedScan(id: id, capturedMediaJSON: "[]", scanState: state)
+        let job = OfflineJobRecord(id: "scan-ingestion:" + id, kind: .scanIngestion,
+            subjectId: id, metadataJSON: "{}")
+        context.insert(row)
+        context.insert(job)
+        try context.save()
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        // Register legacy objects in the worker context before another context transfers them.
+        _ = await actor.fetchPendingScans(limit: 50)
+        let ownership = BackgroundAccountWorkOwnership(ownerUserID: UUID(), generation: UUID(), phase: .upload)
+        let coordinator = ScanInferencePersistenceCoordinator.shared
+        await coordinator.acquire(scanId: id.uppercased())
+        let writer = Task { () -> Bool in
+            switch operation {
+            case 0: return await actor.markScansAsUploading(scanIds: [id]).isEmpty
+            case 1: return await actor.tryClaimForInference(scanId: id) == false
+            case 2: return await actor.activateBackgroundAccountWork(scanId: id, ownership: ownership) == false
+            default: return await actor.markScanAsStaged(scanId: id, r2Keys: ["synthetic/key"]) == .discarded
+            }
+        }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while !(await coordinator.hasWaitingWriter(scanId: id)), ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        let waiting = await coordinator.hasWaitingWriter(scanId: id)
+        if !waiting {
+            writer.cancel()
+            await coordinator.release(scanId: id)
+            _ = await writer.value
+            Issue.record("Legacy writer did not reach the ownership lock")
+            return
+        }
+        // This models the future native transaction: coordinator + synchronous MainActor save.
+        let marker = "{\"native_receiving_v1\":{\"revision\":1}}"
+        do {
+            job.metadataJSON = marker
+            try context.save()
+        } catch {
+            writer.cancel()
+            await coordinator.release(scanId: id)
+            _ = await writer.value
+            throw error
+        }
+        await coordinator.release(scanId: id)
+        #expect(await writer.value)
+        let fresh = ModelContext(container)
+        let saved = try #require(try fresh.fetch(FetchDescriptor<OfflineQueuedScan>()).first)
+        let savedJob = try #require(try fresh.fetch(FetchDescriptor<OfflineJobRecord>()).first)
+        #expect(saved.queueState == state)
+        #expect(saved.stagedR2Keys == nil)
+        #expect(savedJob.metadataJSON == marker)
+        #expect(try fresh.fetchCount(FetchDescriptor<OfflineQueueEvent>()) == 0)
+    }
+
     @Test func ordinaryCountTraversesPagesWithoutCountingHeldChildren() throws {
         let container = try DatabaseActorTestSupport.makeIsolatedContainer()
         let context = ModelContext(container)
@@ -99,7 +159,7 @@ struct QueueWorkQualificationTests {
             #expect(await actor.activateBackgroundAccountWork(scanId: row.id, ownership: ownership) == false)
             #expect(await actor.backgroundAccountWorkIsCurrent(scanId: row.id, ownership: ownership) == false)
             #expect(await actor.retireBackgroundAccountWork(scanId: row.id, expectedOwnerUserID: ownership.ownerUserID,
-                expectedGeneration: ownership.generation, phase: .inference))
+                expectedGeneration: ownership.generation, phase: .inference) == false)
             #expect(await actor.validateOrAdoptInferenceGenerationAssumingPersistenceLock(
                 scanId: row.id, expectedGeneration: UUID()) == false)
             let value = SpeciesData(scanId: row.id, commonName: "Fixture", scientificName: "Synthetic fixture",

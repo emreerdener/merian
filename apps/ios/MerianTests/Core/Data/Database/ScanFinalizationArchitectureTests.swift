@@ -147,15 +147,25 @@ struct ScanFinalizationArchitectureTests {
             of: "await acquireScanFinalizationLock("
         ))
         let cancellationFence = try #require(offlinePersistence.range(
-            of: "guard !Task.isCancelled else { return .notProcessed }",
+            of: "guard !Task.isCancelled,",
             range: finalizationAcquire.upperBound..<offlinePersistence.endIndex
+        ))
+        let ownershipFence = try #require(offlinePersistence.range(
+            of: "SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: queueScanId)",
+            range: cancellationFence.upperBound..<offlinePersistence.endIndex
+        ))
+        let denied = try #require(offlinePersistence.range(
+            of: "else { return .notProcessed }",
+            range: ownershipFence.upperBound..<offlinePersistence.endIndex
         ))
         let recordLookup = try #require(offlinePersistence.range(
             of: "try localScanRecord(id: recordId)",
-            range: cancellationFence.upperBound..<offlinePersistence.endIndex
+            range: denied.upperBound..<offlinePersistence.endIndex
         ))
         #expect(finalizationAcquire.lowerBound < cancellationFence.lowerBound)
-        #expect(cancellationFence.lowerBound < recordLookup.lowerBound)
+        #expect(cancellationFence.lowerBound < ownershipFence.lowerBound)
+        #expect(ownershipFence.lowerBound < denied.lowerBound)
+        #expect(denied.lowerBound < recordLookup.lowerBound)
 
     }
 

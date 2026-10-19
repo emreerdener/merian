@@ -24,8 +24,13 @@ extension ModelContext {
         var descriptor = FetchDescriptor<OfflineJobRecord>(
             predicate: #Predicate { $0.id == id }
         )
-        descriptor.fetchLimit = 1
-        if let existing = try fetch(descriptor).first {
+        descriptor.fetchLimit = 2
+        let matches = try fetch(descriptor)
+        guard matches.count <= 1 else { throw SharedMediaStorageFailure.conflict }
+        let existing = matches.first
+        try SharedMediaLegacyQueueAccess.requireJobMutation(self, id: id, kind: kind,
+            subjectID: subjectId, metadata: metadataJSON, existing: existing)
+        if let existing {
             existing.kind = kind
             existing.subjectId = subjectId
             existing.priority = priority

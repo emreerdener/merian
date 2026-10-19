@@ -1,3 +1,51 @@
+## October 19 — legacy/native ownership boundary locally verified
+
+The existing queue, job reset, deletion, funding and background writers now
+refuse native receiving ownership, reserved markers and ambiguous metadata.
+Fresh ownership is checked across suspension points; background mutations share
+the canonical per-scan lock. Missing queues cannot recreate scan-ingestion jobs.
+Native admission, result settlement and cleanup still require their dedicated
+owner; these guards do not activate them or authorize another AI request.
+
+The full shared-checkout target ran 6,309 methods: 6,307 passed and two failed.
+Both failures identified the same silent upload-candidate fetch. The correction
+adds private error logging and preserves the early fail-closed return. All 34
+methods in the five reviewed corrective suites then passed, with zero skips or
+runtime warnings. All 2,836 source/project hashes and candidate hashes remained
+unchanged during each run. This is retained full-target evidence plus focused
+corrective validation, not a green full-target rerun. Earlier compiler and
+assertion failures remain retained.
+
+Evidence: `.artifacts/native-legacy-partition-20261019/full06-result.json`
+(XCResult `a000c3584a3a49a5aec166ce1a8d19f8`) and `focused07-result.json`
+(XCResult `3576b46a2905490e825b286e86b1da16`). Candidate07 SHA256:
+`a856e1dd339a1a13f57d98cc387bb90ca5bf735f0e3ba60a6e4c3adaa83277d4`. Independent
+and IC-1 reviews cleared the exact correction and execution scope. This is local
+shared-checkout validation, not isolated-source, device, hosted or activation
+acceptance.
+
+Continue with the same registered native owner, scoped app-container validation,
+atomic receiving admission, retained transitions/cleanup and Capture/Auth
+composition, then integrated media acceptance and approved version actions and
+redesign. The scoped audit must validate inventory-anchored rows and exact
+joins; it must not claim detection of completely unanchored corruption or
+physical availability. Qualification behavior and limits remain unchanged.
+Activation stays disabled, PR116 frozen, the deployment hold active and AWS
+unapproved. No routine proceed prompt is required.
+
+## October 19 — receiving validation committed; legacy guards in review
+
+Native receiving fact validation is committed locally as `7d1c455d7`, after
+independent and IC-1 review and the 40-method focused pass recorded below. The
+next implementation partitions legacy queue/job/deletion/funding helpers from
+native receiving ownership. It is not yet runtime-qualified. The canonical
+helper contract is in the
+[offline pipeline](../backend-and-data/01-offline-sync-pipeline.md#native-receiving-ownership-and-legacy-helpers).
+Typed native admission, retained transitions, cleanup and Capture/Auth
+composition remain next; then integrated acceptance and the approved version
+actions/redesign. Activation stays disabled, PR116 frozen, deployment hold
+active, AWS unapproved and limits unchanged.
+
 ## October 18 — native receiving immutable facts verified locally
 
 The composition/freeze milestone is committed locally as `06cc8c9cf`; its

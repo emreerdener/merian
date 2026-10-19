@@ -11,6 +11,7 @@ extension BackgroundDatabaseActor {
         scanId: String,
         expectedGeneration: UUID
     ) -> Bool {
+        guard SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: scanId) else { return false }
         let inferencingRaw = ScanQueueState.inferencing.rawValue
         var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate {
@@ -117,7 +118,9 @@ extension BackgroundDatabaseActor {
         videoFilePaths: [String]?,
         capturedMediaJSON: String?
     ) async -> OfflineScanProcessingResult {
-        guard !Task.isCancelled else { return .notProcessed }
+        guard !Task.isCancelled,
+              SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: queueScanId)
+        else { return .notProcessed }
 
         do {
             let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == queueScanId })

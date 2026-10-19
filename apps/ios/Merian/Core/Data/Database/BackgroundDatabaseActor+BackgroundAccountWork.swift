@@ -30,6 +30,7 @@ extension BackgroundDatabaseActor {
         scanId: String,
         ownership: BackgroundAccountWorkOwnership
     ) -> Bool {
+        guard SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: scanId) else { return false }
         var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
@@ -103,6 +104,7 @@ extension BackgroundDatabaseActor {
         scanId: String,
         ownership: BackgroundAccountWorkOwnership
     ) -> Bool {
+        guard SharedMediaLegacyQueueAccess.permitsFresh(modelContext.container, scanID: scanId) else { return false }
         var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
@@ -206,6 +208,7 @@ extension BackgroundDatabaseActor {
         expectedGeneration: UUID?,
         phase: BackgroundAccountWorkPhase
     ) -> Bool {
+        guard SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: scanId) else { return false }
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )

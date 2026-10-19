@@ -1,5 +1,6 @@
 @testable import Merian
 import XCTest
+import SwiftData
 
 @MainActor
 final class EntitlementManagerTests: XCTestCase {
@@ -14,6 +15,78 @@ final class EntitlementManagerTests: XCTestCase {
         EntitlementManager.shared.resetForTesting()
         RevenueCatManager.shared.isSubscribed = false
         RevenueCatManager.shared.synchronizeFunctionalEntitlement()
+    }
+
+    func testDeferredResolutionRequiresEligibleReservationAndEveryBlocker() {
+        let manager = EntitlementManager.shared
+        let reservation = ScanFundingReservation(accountId: userID, scanId: "waiting",
+            source: .deferredFlash, blockerScanIds: ["native-blocker"])
+        manager.restoreFundingReservation(reservation)
+        RevenueCatManager.shared.isSubscribed = true
+        XCTAssertTrue(manager.resolveDeferredFunding(eligibleLegacyScanIDs: ["waiting"]).isEmpty)
+        XCTAssertTrue(manager.resolveDeferredFunding(eligibleLegacyScanIDs: ["native-blocker"]).isEmpty)
+        XCTAssertEqual(manager.fundingReservation(scanId: "waiting"), reservation)
+        XCTAssertEqual(manager.resolveDeferredFunding(eligibleLegacyScanIDs: ["waiting", "native-blocker"]).first?.source, .paidPro)
+    }
+
+    func testExcludedTerminalSettlementRetainsCapacityAndUnknownOwnershipOverridesStaleRelease() throws {
+        let manager = EntitlementManager.shared
+        XCTAssertTrue(manager.apply(try snapshot(plan: "pro_complimentary", tier: "pro",
+            remaining: 1, available: 1, version: 20), for: userID))
+        manager.restoreLegacyPotentialBlocker(scanId: "native", createdAt: Date())
+        manager.applyComplimentaryState(.consumed, scanId: "native", terminalized: true)
+        manager.confirmTerminalSettlementsAfterEntitlementRefresh(eligibleLegacyScanIDs: [])
+        XCTAssertTrue(manager.needsTerminalSettlementEntitlementRefresh)
+        XCTAssertEqual(manager.locallyAvailableComplimentaryCredits, 0)
+        manager.applyComplimentaryState(.released, scanId: "native", terminalized: true)
+        XCTAssertEqual(manager.locallyAvailableComplimentaryCredits, 1)
+        manager.restoreLegacyPotentialBlocker(scanId: "native", createdAt: Date(), unresolvedOwnership: true)
+        XCTAssertEqual(manager.locallyAvailableComplimentaryCredits, 0)
+        let waiting = try XCTUnwrap(manager.claimFunding(scanId: "waiting", flashFallbackEligible: true))
+        XCTAssertEqual(waiting.source, .deferredFlash)
+        XCTAssertTrue(waiting.blockerScanIds.contains("native"))
+    }
+
+    func testNativeFundingReceiptBlocksLegacyReconciliationWithoutNetworkOrRewrite() async throws {
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        let container = try ModelContainer(for: schema,
+            configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let manager = OfflineQueueManager.shared, old = manager.modelContext
+        defer { manager.modelContext = old }
+        manager.modelContext = context
+        let entitlement = EntitlementManager.shared
+        XCTAssertTrue(entitlement.apply(try snapshot(plan: "pro_complimentary", tier: "pro",
+            remaining: 1, available: 1, version: 20), for: userID))
+        let native = ScanFundingReservation(accountId: userID, scanId: "native", source: .deferredFlash)
+        let legacy = ScanFundingReservation(accountId: userID, scanId: "legacy", source: .deferredFlash,
+            blockerScanIds: ["native"])
+        var nativeObject = OfflineScanJobMetadataContract.object(from:
+            OfflineScanJobMetadataContract.settingFunding(native, in: nil))
+        nativeObject["native_receiving_v1"] = [:] as [String: String]
+        let metadata = try XCTUnwrap(OfflineScanJobMetadataContract.json(from: nativeObject))
+        let nativeJob = OfflineJobRecord(id: "scan-ingestion:native", kind: .scanIngestion,
+            subjectId: "native", metadataJSON: metadata)
+        let legacyJSON = OfflineScanJobMetadataContract.settingFunding(legacy, in: nil)
+        let legacyJob = OfflineJobRecord(id: "scan-ingestion:legacy", kind: .scanIngestion,
+            subjectId: "legacy", metadataJSON: legacyJSON)
+        context.insert(nativeJob); context.insert(legacyJob); try context.save()
+        entitlement.restoreFundingReservation(native)
+        manager.restoreFundingReservationsForCurrentAccount()
+        XCTAssertEqual(entitlement.locallyAvailableComplimentaryCredits, 0)
+        XCTAssertEqual(entitlement.fundingReservation(scanId: "native"), native)
+        var lookups = 0, refreshes = 0
+        await manager.reconcileLegacyFunding(isCurrent: { true }, lookup: { _ in
+            lookups += 1; return [:]
+        }, refresh: { refreshes += 1; return true })
+        XCTAssertEqual(lookups, 0)
+        XCTAssertEqual(refreshes, 0)
+        XCTAssertEqual(entitlement.fundingReservation(scanId: "native"), native)
+        XCTAssertEqual(entitlement.fundingReservation(scanId: "legacy"), legacy)
+        XCTAssertEqual(nativeJob.metadataJSON, metadata)
+        XCTAssertEqual(legacyJob.metadataJSON, legacyJSON)
+        XCTAssertFalse(manager.releaseFundingForProvenPredispatchFailure(scanId: "native"))
+        XCTAssertEqual(nativeJob.metadataJSON, metadata)
     }
 
     func testSessionVerificationAcceptsOnlyExactCurrentAccountGenerationAndRow() {
@@ -315,7 +388,7 @@ final class EntitlementManagerTests: XCTestCase {
         EntitlementManager.shared.releaseFundingAfterProvenLocalFailure(
             scanId: first
         )
-        let changes = EntitlementManager.shared.resolveDeferredFunding()
+        let changes = EntitlementManager.shared.resolveDeferredFunding(eligibleLegacyScanIDs: EntitlementManager.shared.fundingCandidateScanIDs)
 
         XCTAssertEqual(changes.first?.source, .complimentaryPro)
         XCTAssertTrue(
@@ -347,7 +420,7 @@ final class EntitlementManagerTests: XCTestCase {
             creditConsumed: false,
             scanId: first
         )
-        let changes = EntitlementManager.shared.resolveDeferredFunding()
+        let changes = EntitlementManager.shared.resolveDeferredFunding(eligibleLegacyScanIDs: EntitlementManager.shared.fundingCandidateScanIDs)
 
         XCTAssertEqual(changes.first?.source, .complimentaryPro)
     }
@@ -372,7 +445,7 @@ final class EntitlementManagerTests: XCTestCase {
         )
 
         RevenueCatManager.shared.isSubscribed = true
-        let changes = EntitlementManager.shared.resolveDeferredFunding()
+        let changes = EntitlementManager.shared.resolveDeferredFunding(eligibleLegacyScanIDs: EntitlementManager.shared.fundingCandidateScanIDs)
 
         XCTAssertEqual(changes.first?.source, .paidPro)
         XCTAssertTrue(
@@ -416,7 +489,7 @@ final class EntitlementManagerTests: XCTestCase {
             version: 21
         ), for: userID))
         EntitlementManager.shared
-            .confirmTerminalSettlementsAfterEntitlementRefresh()
+            .confirmTerminalSettlementsAfterEntitlementRefresh(eligibleLegacyScanIDs: EntitlementManager.shared.fundingCandidateScanIDs)
         XCTAssertFalse(
             EntitlementManager.shared.needsTerminalSettlementEntitlementRefresh
         )
@@ -461,7 +534,7 @@ final class EntitlementManagerTests: XCTestCase {
             scanId: first,
             terminalized: false
         )
-        let changes = EntitlementManager.shared.resolveDeferredFunding()
+        let changes = EntitlementManager.shared.resolveDeferredFunding(eligibleLegacyScanIDs: EntitlementManager.shared.fundingCandidateScanIDs)
 
         XCTAssertEqual(changes.count, 1)
         XCTAssertEqual(changes.first?.source, .immediateFlash)
@@ -527,8 +600,8 @@ final class EntitlementManagerTests: XCTestCase {
             terminalized: false
         )
 
-        XCTAssertFalse(EntitlementManager.shared.hasReleasedDeferredBlocker)
-        XCTAssertTrue(EntitlementManager.shared.resolveDeferredFunding().isEmpty)
+        XCTAssertFalse(EntitlementManager.shared.needsLegacyFundingRefresh(eligibleLegacyScanIDs: EntitlementManager.shared.fundingCandidateScanIDs))
+        XCTAssertTrue(EntitlementManager.shared.resolveDeferredFunding(eligibleLegacyScanIDs: EntitlementManager.shared.fundingCandidateScanIDs).isEmpty)
         XCTAssertFalse(
             EntitlementManager.shared.fundingAllowsDispatch(scanId: second)
         )
@@ -569,7 +642,7 @@ final class EntitlementManagerTests: XCTestCase {
             version: 24
         ), for: userID))
 
-        let changes = EntitlementManager.shared.resolveDeferredFunding()
+        let changes = EntitlementManager.shared.resolveDeferredFunding(eligibleLegacyScanIDs: EntitlementManager.shared.fundingCandidateScanIDs)
         XCTAssertEqual(changes.first?.source, .complimentaryPro)
     }
 
@@ -598,7 +671,7 @@ final class EntitlementManagerTests: XCTestCase {
             scanId: legacy,
             terminalized: true
         )
-        let changes = EntitlementManager.shared.resolveDeferredFunding()
+        let changes = EntitlementManager.shared.resolveDeferredFunding(eligibleLegacyScanIDs: EntitlementManager.shared.fundingCandidateScanIDs)
 
         XCTAssertEqual(changes.first?.source, .immediateFlash)
         XCTAssertTrue(

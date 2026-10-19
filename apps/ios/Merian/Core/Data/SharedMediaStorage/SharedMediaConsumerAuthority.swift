@@ -5,6 +5,7 @@ import Foundation
 enum SharedMediaConsumerAuthority: Equatable, Sendable {
     case legacy
     case direct(UUID)
+    case nativeDirect(UUID)
     case historyProjection
 
     enum RecordKind: Equatable, Sendable { case queue, scan, analysis }
@@ -13,6 +14,7 @@ enum SharedMediaConsumerAuthority: Equatable, Sendable {
         switch (raw, consumerID) {
         case ("legacy", nil): return .legacy
         case let ("sharedDirectV1", .some(id)): return .direct(id)
+        case let ("sharedDirectNativeReceivingV1", .some(id)): return .nativeDirect(id)
         case ("sharedHistoryProjectionV1", nil) where record == .scan: return .historyProjection
         default: throw SharedMediaStorageFailure.conflict
         }

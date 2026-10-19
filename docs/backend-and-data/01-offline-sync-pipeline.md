@@ -95,6 +95,57 @@ reads log private diagnostics and stop the related mutation, network dispatch,
 or reconciliation pass. This fail-closed rule preserves genuine missing-row
 compatibility while preventing storage outages from manufacturing absence.
 
+## Native receiving ownership and legacy helpers
+
+`SharedMediaLegacyQueueAccess` is a denial boundary for the existing queue,
+job-reset, deletion, diagnostics and funding helpers. It checks queue and local
+record authority, surviving consumer routes, and the reserved
+`native_receiving_v1` job marker with bounded row fetches. Missing queue state
+alone never downgrades a surviving native receipt. Malformed scan-job metadata
+fails closed. This is not native admission or execution authority, and does not
+qualify media availability. Existing shared V1 and native receiving authority
+remain distinct.
+
+Creating or resetting a scan-ingestion job requires its actual ordinary queue in
+the same transaction, including `ensureScanIngestionJob`. That bridge
+deliberately returns nil for missing queues; it cannot recreate a job from an
+identifier. Exact recovery reads the existing admitted operation/status/outcome
+and never creates new submission authority. Synchronous retry/attention/status
+writers also check fresh and transaction ownership before changing queue or job
+metadata. Missing-queue legacy completion remains possible only when no shared
+ownership survives. Deletion checks fresh persisted ownership before task
+enumeration and again after its suspension points, before clearing process
+owners or cancelling tasks. Generic event pruning preserves native or ambiguous
+receipts; typed native terminal release remains future work.
+
+Background upload claims/completion/recovery, empty-media quarantine, inference
+claims/retries/recovery, account-work mutation and finalization revalidate both
+a fresh context and their transaction context while holding
+`ScanInferencePersistenceCoordinator`. Batch writers use a canonical, sorted,
+deduplicated UUID lock order. Read-only selectors filter fresh ownership without
+claiming to hold that lock; the mutation boundary remains authoritative.
+Synchronous MainActor Capture, job-reset, diagnostic and funding transactions
+check ownership without suspending through their save. They cannot interleave
+with the MainActor native owner during that interval.
+
+Future native receiving admission, transfer and retirement must acquire this
+same per-scan coordinator before their synchronous MainActor fresh validation
+and save. This is a required composition precondition, not implemented native
+admission or a claim that activation is ready. Legacy Auth retirement also fails
+closed for nonordinary or ambiguous ownership; it cannot certify that the native
+drain completed. No native executor or live owner is installed by these legacy
+guards. Capture's nonvisual transaction remains synchronous; its visual refactor
+remains separately owned.
+
+Legacy funding reconciliation compares the same job creation time, generation
+metadata and reservation across status/entitlement awaits. Deferred resolution
+requires eligibility for both the reservation and every blocker before changing
+in-memory funding. Terminal confirmation receives an explicit eligible set.
+Excluded native reservations remain untouched; unknown ownership is retained as
+a conservative capacity blocker even after stale local terminal state. These
+checks do not authorize another AI invocation, refund an uncertain operation, or
+implement native settlement. Activation remains disabled.
+
 ## How the Queue Works
 
 ### 1. Realtime Inference Mapper (`saveLiveScanRecord`)

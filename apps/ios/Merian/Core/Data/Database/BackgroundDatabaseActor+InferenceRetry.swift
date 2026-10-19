@@ -224,6 +224,7 @@ extension BackgroundDatabaseActor {
         expectedGeneration: UUID?,
         operation: String
     ) -> (scan: OfflineQueuedScan, job: OfflineJobRecord)? {
+        guard SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: scanId) else { return nil }
         let inferencingRaw = ScanQueueState.inferencing.rawValue
         var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate {

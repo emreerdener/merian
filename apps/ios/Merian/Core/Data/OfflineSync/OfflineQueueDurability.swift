@@ -67,15 +67,14 @@ extension OfflineQueueManager {
         "scan-ingestion:\(scanId)"
     }
 
-    nonisolated static var collectionSyncJobId: String {
-        "collection-sync"
-    }
+    nonisolated static var collectionSyncJobId: String { "collection-sync" }
 
     func bootstrapOfflineJobBridgeIfNeeded() {
         guard UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync) else { return }
         markCollectionSyncPending()
     }
 
+    /// Requires an existing ordinary queue; missing-queue recovery never recreates a job.
     @discardableResult
     func ensureScanIngestionJob(
         scanId: String,
@@ -83,10 +82,11 @@ extension OfflineQueueManager {
         requiresUnconstrainedNetwork: Bool = false,
         allowsCellular: Bool = true
     ) -> OfflineJobRecord? {
-        guard let context = modelContext else { return nil }
+        guard let context = modelContext, SharedMediaLegacyQueueAccess.permitsFresh(context.container, scanID: scanId),
+              (try? SharedMediaLegacyQueueAccess.permits(context, scanID: scanId)) == true else { return nil }
         do {
             let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
-            if let scan = try context.fetch(descriptor).first, !scan.permitsOrdinaryInference { return nil }
+            guard let scan = try context.fetch(descriptor).first, scan.permitsOrdinaryInference else { return nil }
             let job = try context.ensureOfflineJobRecord(
                 id: Self.scanIngestionJobId(scanId: scanId),
                 kind: .scanIngestion,
@@ -117,7 +117,8 @@ extension OfflineQueueManager {
         delay: TimeInterval,
         resetTo state: ScanQueueState?
     ) -> Int? {
-        guard let context = modelContext else { return nil }
+        guard let context = modelContext, SharedMediaLegacyQueueAccess.permitsFresh(context.container, scanID: scanId),
+              (try? SharedMediaLegacyQueueAccess.permits(context, scanID: scanId)) == true else { return nil }
         let authority: OfflineQueueDurableAuthority
         do {
             authority = try durableQueueAuthority(scanId: scanId)
@@ -268,7 +269,8 @@ extension OfflineQueueManager {
     func retryQueuedScanNow(
         scanId: String, openAIPermission: AIProcessingConsentCoordinator? = nil
     ) -> Bool {
-        guard let context = modelContext else { return false }
+        guard let context = modelContext, SharedMediaLegacyQueueAccess.permitsFresh(context.container, scanID: scanId),
+              (try? SharedMediaLegacyQueueAccess.permits(context, scanID: scanId)) == true else { return false }
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
@@ -431,7 +433,8 @@ extension OfflineQueueManager {
         message: String?,
         httpStatus: Int? = nil
     ) -> Bool {
-        guard let context = modelContext else { return false }
+        guard let context = modelContext, SharedMediaLegacyQueueAccess.permitsFresh(context.container, scanID: scanId),
+              (try? SharedMediaLegacyQueueAccess.permits(context, scanID: scanId)) == true else { return false }
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
@@ -447,9 +450,7 @@ extension OfflineQueueManager {
             )
             return false
         }
-        guard let scan, scan.permitsOrdinaryInference else {
-            return false
-        }
+        guard let scan, scan.permitsOrdinaryInference else { return false }
         let now = Date()
         scan.queueLastAttemptAt = now
         scan.queueNextRetryAt = nil
@@ -489,7 +490,8 @@ extension OfflineQueueManager {
     }
 
     func persistServerStatus(scanId: String, response: ScanStatusResponse) {
-        guard let context = modelContext else { return }
+        guard let context = modelContext, SharedMediaLegacyQueueAccess.permitsFresh(context.container, scanID: scanId),
+              (try? SharedMediaLegacyQueueAccess.permits(context, scanID: scanId)) == true else { return }
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )

@@ -66,6 +66,7 @@ extension BackgroundDatabaseActor {
         scanId: String,
         generation: UUID?
     ) -> Bool {
+        guard SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: scanId) else { return false }
         let stagedRaw = ScanQueueState.staged.rawValue
         let inferencingRaw = ScanQueueState.inferencing.rawValue
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
@@ -199,6 +200,7 @@ extension BackgroundDatabaseActor {
         id scanId: String,
         expectedGeneration: UUID?
     ) -> Bool {
+        guard SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: scanId) else { return false }
         let inferencingRaw = ScanQueueState.inferencing.rawValue
         let stagedRaw = ScanQueueState.staged.rawValue
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
@@ -268,6 +270,7 @@ extension BackgroundDatabaseActor {
         scanId: String,
         expectedGeneration: UUID
     ) -> Bool {
+        guard SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: scanId) else { return false }
         let inferencingRaw = ScanQueueState.inferencing.rawValue
         var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
@@ -316,6 +319,7 @@ extension BackgroundDatabaseActor {
         scanId: String,
         expectedGeneration: UUID
     ) -> Bool {
+        guard SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: scanId) else { return false }
         var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
@@ -371,20 +375,10 @@ extension BackgroundDatabaseActor {
             observedThrough: observedThrough
         )?.sorted(), !candidateScanIds.isEmpty else { return }
 
-        var acquiredScanIds: [String] = []
-        for scanId in candidateScanIds {
-            await ScanInferencePersistenceCoordinator.shared.acquire(
-                scanId: scanId
-            )
-            acquiredScanIds.append(scanId)
-            guard !Task.isCancelled else {
-                for acquiredScanId in acquiredScanIds.reversed() {
-                    await ScanInferencePersistenceCoordinator.shared.release(
-                        scanId: acquiredScanId
-                    )
-                }
-                return
-            }
+        let acquiredScanIds = await ScanInferencePersistenceCoordinator.shared.acquireAll(scanIds: candidateScanIds)
+        guard !Task.isCancelled else {
+            await ScanInferencePersistenceCoordinator.shared.releaseAll(scanIds: acquiredScanIds)
+            return
         }
 
         reconcileOrphanedInferencingScansLocked(
@@ -392,11 +386,7 @@ extension BackgroundDatabaseActor {
             activeInferenceScanIds: activeInferenceScanIds,
             observedThrough: observedThrough
         )
-        for scanId in acquiredScanIds.reversed() {
-            await ScanInferencePersistenceCoordinator.shared.release(
-                scanId: scanId
-            )
-        }
+        await ScanInferencePersistenceCoordinator.shared.releaseAll(scanIds: acquiredScanIds)
     }
 
     private func reconcileOrphanedInferencingScansLocked(
@@ -429,7 +419,10 @@ extension BackgroundDatabaseActor {
             )
             return
         }
-        let candidates = scans.filter { $0.permitsOrdinaryInference && revalidatedScanIds.contains($0.id) }
+        let candidates = scans.filter {
+            $0.permitsOrdinaryInference && revalidatedScanIds.contains($0.id) &&
+                SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: $0.id)
+        }
         guard !candidates.isEmpty,
               let jobsByScanId = inferenceJobsForOrphanReconciliation(
                   candidates

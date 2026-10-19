@@ -28,6 +28,17 @@ struct SharedMediaConsumerAuthorityTests {
         }
     }
 
+    @Test func nativeReceivingHasDistinctAuthorityWithoutLegacyFallback() throws {
+        let id = UUID()
+        #expect(try SharedMediaConsumerAuthority.classify(raw: "sharedDirectNativeReceivingV1", consumerID: id,
+            record: .queue) == .nativeDirect(id))
+        #expect(try SharedMediaConsumerAuthority.classify(raw: "sharedDirectV1", consumerID: id,
+            record: .queue) == .direct(id))
+        #expect(throws: SharedMediaStorageFailure.conflict) {
+            try SharedMediaConsumerAuthority.classify(raw: "sharedDirectNativeReceivingV1", consumerID: nil, record: .queue)
+        }
+    }
+
     @Test func ordinaryAndReanalysisExecutionRemainDistinct() throws {
         let generation = UUID()
         #expect(try SharedMediaConsumerExecution.classify(raw: "ordinaryV1", generation: generation) == .ordinary(generation))

@@ -92,7 +92,8 @@ extension BackgroundDatabaseActor {
 
             inspectedCount += page.count
             for scan in page {
-                guard scan.permitsOrdinaryInference else { continue }
+                guard scan.permitsOrdinaryInference,
+                      SharedMediaLegacyQueueAccess.permitsFresh(modelContext.container, scanID: scan.id) else { continue }
                 guard scan.queueNextRetryAt == nil
                         || (scan.queueNextRetryAt ?? now) <= now,
                       !excludingScanIds.contains(scan.id) else {
@@ -161,7 +162,14 @@ extension BackgroundDatabaseActor {
     /// another path already advanced.
     func quarantineEmptyPendingScans(
         scanIds: [String]
-    ) -> Set<String> {
+    ) async -> Set<String> {
+        let held = await ScanInferencePersistenceCoordinator.shared.acquireAll(scanIds: scanIds)
+        let result = Task.isCancelled ? [] : quarantineEmptyPendingScansLocked(scanIds: scanIds)
+        await ScanInferencePersistenceCoordinator.shared.releaseAll(scanIds: held)
+        return result
+    }
+
+    private func quarantineEmptyPendingScansLocked(scanIds: [String]) -> Set<String> {
         guard !scanIds.isEmpty else { return [] }
         let pendingRaw = ScanQueueState.pending.rawValue
         let failedRaw = ScanQueueState.failed.rawValue
@@ -190,7 +198,8 @@ extension BackgroundDatabaseActor {
 
             let now = Date()
             for scan in scans {
-                guard scan.permitsOrdinaryInference else { continue }
+                guard scan.permitsOrdinaryInference,
+                      SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: scan.id) else { continue }
                 let snapshot = scan.capturedMediaSnapshot
                 let imagePaths = scan.inferenceImagePaths?.isEmpty == false
                     ? scan.inferenceImagePaths ?? []

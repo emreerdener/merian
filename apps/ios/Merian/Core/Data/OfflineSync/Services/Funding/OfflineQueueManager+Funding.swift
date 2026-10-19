@@ -35,6 +35,11 @@ extension OfflineQueueManager {
             guard let scanId = job.subjectId?.lowercased(), !scanId.isEmpty else {
                 continue
             }
+            guard SharedMediaLegacyQueueAccess.permitsFresh(context.container, scanID: scanId) else {
+                EntitlementManager.shared.restoreLegacyPotentialBlocker(scanId: scanId,
+                    createdAt: job.createdAt, unresolvedOwnership: true)
+                continue
+            }
             if let funding = OfflineScanJobMetadataContract.funding(
                 in: job.metadataJSON
             ), funding.scanId.caseInsensitiveCompare(scanId) == .orderedSame {
@@ -77,32 +82,48 @@ extension OfflineQueueManager {
                 )
             }
         }
-        guard fundingAccountWorkIsCurrent(accountWorkLease) else { return }
-
-        restoreFundingReservationsForCurrentAccount()
-        let blockers = Array(
-            EntitlementManager.shared.fundingBlockerScanIds.prefix(50)
+        await reconcileLegacyFunding(
+            isCurrent: { self.fundingAccountWorkIsCurrent(accountWorkLease) },
+            lookup: { try await MerianNetworkClient.shared.checkScanStatuses($0) },
+            refresh: { await EntitlementManager.shared.refreshCurrentSession() }
         )
+    }
+
+    /// Owning-layer dependency seam; the production wrapper retains and checks the Auth lease.
+    func reconcileLegacyFunding(
+        isCurrent: () -> Bool,
+        lookup: ([String: Int]) async throws -> [String: ScanStatusResponse],
+        refresh: () async -> Bool
+    ) async {
+        guard isCurrent(), let account = EntitlementManager.shared.activeAccountID else { return }
+        func current() -> Bool {
+            !Task.isCancelled && isCurrent() && EntitlementManager.shared.activeAccountID == account
+        }
+        restoreFundingReservationsForCurrentAccount()
+        let beforeLookup = legacyFundingIdentities()
+        let blockers = Array(EntitlementManager.shared.fundingBlockerScanIds.filter {
+            beforeLookup[$0] != nil
+        }.prefix(50))
         if !blockers.isEmpty {
             let requirements = Dictionary(
                 uniqueKeysWithValues: blockers.map { ($0, 0) }
             )
             let responses: [String: ScanStatusResponse]
             do {
-                responses = try await MerianNetworkClient.shared.checkScanStatuses(
-                    requirements
-                )
+                responses = try await lookup(requirements)
             } catch {
                 MerianLog.data.debug(
                     "Deferred funding-state lookup failed: \(error.localizedDescription, privacy: .private)"
                 )
                 return
             }
-            guard fundingAccountWorkIsCurrent(accountWorkLease) else {
+            guard current() else {
                 return
             }
             for blocker in blockers {
-                guard let response = responses[blocker] else { continue }
+                guard let original = beforeLookup[blocker],
+                      legacyFundingIdentities()[blocker] == original,
+                      let response = responses[blocker] else { continue }
                 EntitlementManager.shared.applyComplimentaryState(
                     response.complimentaryState,
                     scanId: blocker,
@@ -114,27 +135,34 @@ extension OfflineQueueManager {
             }
         }
 
-        if EntitlementManager.shared.hasReleasedDeferredBlocker ||
-            EntitlementManager.shared.needsTerminalSettlementEntitlementRefresh {
-            let refreshed = await EntitlementManager.shared.refreshCurrentSession()
-            guard fundingAccountWorkIsCurrent(accountWorkLease) else {
+        if EntitlementManager.shared.needsLegacyFundingRefresh(
+            eligibleLegacyScanIDs: Set(legacyFundingIdentities().keys)
+        ) {
+            let beforeRefresh = legacyFundingIdentities()
+            let refreshed = await refresh()
+            guard current() else {
                 return
             }
             if refreshed {
                 EntitlementManager.shared
-                    .confirmTerminalSettlementsAfterEntitlementRefresh()
+                    .confirmTerminalSettlementsAfterEntitlementRefresh(eligibleLegacyScanIDs: Set(
+                        legacyFundingIdentities().compactMap { id, proof in beforeRefresh[id] == proof ? id : nil }
+                    ))
             }
         }
 
         let previous = EntitlementManager.shared.deferredFundingReservations
-        let changes = EntitlementManager.shared.resolveDeferredFunding()
-        guard fundingAccountWorkIsCurrent(accountWorkLease) else { return }
+        let eligible = Set(legacyFundingIdentities().keys)
+        let changes = EntitlementManager.shared.resolveDeferredFunding(eligibleLegacyScanIDs: eligible)
+        guard current() else { return }
         guard !changes.isEmpty, let context = modelContext else { return }
         do {
             for reservation in changes {
-                guard let job = try context.fetchOfflineJob(
+                guard SharedMediaLegacyQueueAccess.permitsFresh(context.container, scanID: reservation.scanId),
+                      let original = previous.first(where: { $0.scanId == reservation.scanId }),
+                      let job = try context.fetchOfflineJob(
                     id: Self.scanIngestionJobId(scanId: reservation.scanId)
-                ) else {
+                ), OfflineScanJobMetadataContract.funding(in: job.metadataJSON) == original else {
                     throw CocoaError(.fileNoSuchFile)
                 }
                 job.metadataJSON = OfflineScanJobMetadataContract.settingFunding(
@@ -165,6 +193,20 @@ extension OfflineQueueManager {
         }
     }
 
+    /// Compare the exact logical job/funding generation across every suspension.
+    /// A missing job cannot settle a reservation; accepted result settlement has its own fence.
+    private func legacyFundingIdentities() -> [String: SharedMediaLegacyQueueAccess.FundingIdentity] {
+        guard let container = modelContext?.container else { return [:] }
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
+        var result: [String: SharedMediaLegacyQueueAccess.FundingIdentity] = [:]
+        for id in EntitlementManager.shared.fundingCandidateScanIDs {
+            result[id] = try? SharedMediaLegacyQueueAccess.fundingIdentity(context, scanID: id,
+                reservation: EntitlementManager.shared.fundingReservation(scanId: id))
+        }
+        return result
+    }
+
     private func fundingAccountWorkIsCurrent(
         _ lease: AccountBoundWorkLease
     ) -> Bool {
@@ -175,7 +217,8 @@ extension OfflineQueueManager {
     }
 
     private func localFundingBlockerIsTerminal(scanId: String) -> Bool {
-        guard let context = modelContext else { return false }
+        guard let context = modelContext,
+              SharedMediaLegacyQueueAccess.permitsFresh(context.container, scanID: scanId) else { return false }
         let jobId = Self.scanIngestionJobId(scanId: scanId)
         let job: OfflineJobRecord?
         do {
@@ -194,7 +237,8 @@ extension OfflineQueueManager {
 
     @discardableResult
     func releaseFundingForProvenPredispatchFailure(scanId: String) -> Bool {
-        guard let context = modelContext else { return false }
+        guard let context = modelContext,
+              SharedMediaLegacyQueueAccess.permitsFresh(context.container, scanID: scanId) else { return false }
         let job: OfflineJobRecord?
         do {
             job = try context.fetchOfflineJob(

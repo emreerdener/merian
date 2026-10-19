@@ -392,6 +392,7 @@ struct OfflineSyncFoundationArchitectureTests {
         "OfflineQueueDurability.swift",
         "Persistence/ModelContext+FieldTripGoalHints.swift",
         "Persistence/ModelContext+OfflineJobs.swift",
+        "Persistence/SharedMediaLegacyQueueAccess.swift",
         "Persistence/OfflineQueueDurableAuthorityReader.swift",
         "Persistence/OfflineQueueManager+QueuedScanExtraction.swift",
         "Policies/InferenceURLSessionTaskContract.swift",
@@ -481,6 +482,7 @@ struct OfflineSyncFoundationArchitectureTests {
         "Persistence/ModelContext+FieldTripGoalHints.swift": [
             "import SwiftData"
         ],
+        "Persistence/SharedMediaLegacyQueueAccess.swift": ["import Foundation", "import SwiftData"],
         "Persistence/ModelContext+OfflineJobs.swift": [
             "import Foundation",
             "import SwiftData"
