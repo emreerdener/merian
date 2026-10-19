@@ -75,6 +75,17 @@ enum SharedMediaNativeAcquisitionGraph {
     static func receipt(_ row: SharedMediaAcquisitionReceiptRecord, inventory: SharedMediaInventoryRecord,
                         context: ModelContext) throws -> SharedMediaAcquisitionReceipt {
         try requireNativeInventory(inventory)
+        return try receiptFacts(row, inventory: inventory, context: context)
+    }
+
+    static func scopedReceipt(_ row: SharedMediaAcquisitionReceiptRecord, inventory: SharedMediaInventoryRecord,
+                              context: ModelContext, checkpoint: () throws -> Void = {}) throws -> SharedMediaAcquisitionReceipt {
+        try SharedMediaNativeScopedEligibility.requireProfile(inventory)
+        return try receiptFacts(row, inventory: inventory, context: context, checkpoint: checkpoint)
+    }
+
+    private static func receiptFacts(_ row: SharedMediaAcquisitionReceiptRecord, inventory: SharedMediaInventoryRecord,
+                                     context: ModelContext, checkpoint: () throws -> Void = {}) throws -> SharedMediaAcquisitionReceipt {
         guard !context.hasChanges, row.inventoryID == inventory.id,
               row.inventoryGeneration == inventory.generation else { throw SharedMediaStorageFailure.conflict }
         let value = try SharedMediaAcquisitionReceipt.read(row)
@@ -88,7 +99,7 @@ enum SharedMediaNativeAcquisitionGraph {
         case .reserved(let request): try pending(request, held: false, inventory: inventory, context: context)
         case .held(let request): try pending(request, held: true, inventory: inventory, context: context)
         case .completed(let request, let result):
-            let snapshot = try SharedMediaNativeOriginalAccounting.audit(assetID: request.assetID, inventoryID: inventory.id, context: context)
+            let snapshot = try SharedMediaNativeOriginalAccounting.audit(assetID: request.assetID, inventoryID: inventory.id, context: context, checkpoint: checkpoint)
             let assetID = request.assetID, operationID = request.operationID
             let asset = try one(context, FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.id == assetID }))
             let allocation = try one(context, FetchDescriptor<SharedMediaAllocationRecord>(predicate: #Predicate { $0.id == assetID }))
@@ -202,6 +213,13 @@ enum SharedMediaNativeAcquisitionGraph {
                 throw SharedMediaStorageFailure.conflict
             }
         }
+    }
+
+    static func scopedPendingPackage(_ row: PhotoPreparationRecord, inventory: SharedMediaInventoryRecord,
+                                     context: ModelContext) throws {
+        try SharedMediaNativeScopedEligibility.requireProfile(inventory)
+        guard row.accountingTierRaw == "pending" else { throw SharedMediaStorageFailure.conflict }
+        try package(row, context: context)
     }
 
     private static func package(_ row: PhotoPreparationRecord, context: ModelContext) throws {

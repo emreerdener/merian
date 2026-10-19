@@ -14,7 +14,7 @@ final class SharedMediaStoreReadFence {
     private let identity: String
     private var invalidated = false
 
-    init(store: URL, access: Access = .standalone,
+    init(store: URL, access: Access = .standalone, requireExisting: Bool = false,
          synchronization: SharedMediaFenceSynchronization = .init()) throws {
         parent = store.deletingLastPathComponent()
         let directory = try SharedMediaStorageFileOwner.openDirectory(parent)
@@ -22,8 +22,10 @@ final class SharedMediaStoreReadFence {
         defer { if !retained { Darwin.close(directory) } }
         var parentInfo = stat()
         guard fstat(directory, &parentInfo) == 0 else { throw PhotoPreparationFailure.unavailable }
-        var fd = openat(directory, Self.name, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
-        if fd < 0 {
+        var fd = requireExisting
+            ? openat(directory, Self.name, O_RDWR | O_NOFOLLOW | O_CLOEXEC)
+            : openat(directory, Self.name, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        if fd < 0 && !requireExisting {
             guard errno == EEXIST else { throw PhotoPreparationFailure.unavailable }
             fd = openat(directory, Self.name, O_RDWR | O_NOFOLLOW | O_CLOEXEC)
         }

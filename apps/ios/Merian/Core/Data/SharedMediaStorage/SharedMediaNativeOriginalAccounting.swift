@@ -28,7 +28,8 @@ enum SharedMediaNativeOriginalAccounting {
 
     /// No partial success escapes: both directions must reach exhaustion under
     /// the same fence. A saved counter is never created, repaired or trusted alone.
-    static func audit(assetID: UUID, inventoryID: UUID, context: ModelContext) throws -> Snapshot {
+    static func audit(assetID: UUID, inventoryID: UUID, context: ModelContext, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+        try checkpoint()
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         let inventory = try one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
         let generation = inventory.generation, revision = inventory.revision
@@ -81,12 +82,12 @@ enum SharedMediaNativeOriginalAccounting {
         var edges = FetchDescriptor<SharedMediaReferenceRecord>(predicate: #Predicate { $0.allocationID == assetID }, sortBy: [SortDescriptor(\.id)])
         references.fetchLimit = SharedMediaStoragePolicy.pageSize
         edges.fetchLimit = SharedMediaStoragePolicy.pageSize
-        let totalP1 = try visit(context, descriptor: references) { ref in
+        let totalP1 = try visit(context, descriptor: references, checkpoint: checkpoint) { ref in
             let id = ref.id
             let edge = try one(context, FetchDescriptor<SharedMediaReferenceRecord>(predicate: #Predicate { $0.id == id }))
             try validate(ref, edge: edge, asset: asset, retiring: retirement != nil, context: context)
         }
-        let totalShared = try visit(context, descriptor: edges) { edge in
+        let totalShared = try visit(context, descriptor: edges, checkpoint: checkpoint) { edge in
             let id = edge.id
             let ref = try one(context, FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.id == id }))
             try validate(ref, edge: edge, asset: asset, retiring: retirement != nil, context: context)
@@ -97,6 +98,7 @@ enum SharedMediaNativeOriginalAccounting {
               inventory.generation == generation, inventory.revision == revision, !context.hasChanges else {
             throw SharedMediaStorageFailure.conflict
         }
+        try checkpoint()
         return .init(inventoryID: inventoryID, inventoryGeneration: generation, inventoryRevision: revision,
             assetID: assetID, assetGeneration: asset.generation, ownerID: asset.ownerID,
             liveCount: counter.liveCount, countRevision: counter.revision, retirement: retirement,
@@ -128,14 +130,16 @@ enum SharedMediaNativeOriginalAccounting {
         return row
     }
 
-    private static func visit<T: PersistentModel>(_ context: ModelContext, descriptor: FetchDescriptor<T>,
+    private static func visit<T: PersistentModel>(_ context: ModelContext, descriptor: FetchDescriptor<T>, checkpoint: () throws -> Void,
                                                   body: (T) throws -> Void) throws -> Int64 {
         var query = descriptor, total: Int64 = 0
         var offset = 0
         while true {
+            try Task.checkCancellation(); try checkpoint()
             query.fetchOffset = offset
             let page = try context.fetch(query)
-            for row in page { try body(row) }
+            for row in page { try Task.checkCancellation(); try checkpoint(); try body(row) }
+            try checkpoint()
             total = try SharedMediaStoragePolicy.add(total, Int64(page.count))
             if page.count < SharedMediaStoragePolicy.pageSize { return total }
             let (next, overflow) = offset.addingReportingOverflow(page.count)

@@ -5,6 +5,9 @@ import SwiftData
 /// qualification composition owns acquisition and settlement; live wiring stays disabled.
 @MainActor
 final class SharedMediaNativeOriginalOwner {
+    private enum OpenKind { case qualification, scopedInspection }
+    private let openKind: OpenKind
+    private var scopedIdentity: SharedMediaNativeScopeIdentity?
     private enum Phase { case unopened, opening, ready, failed, suspended }
     private let account: PhotoOriginalPreparationOwner.AccountAccess
     private let drain: SharedMediaNativeOriginalDrain
@@ -27,8 +30,9 @@ final class SharedMediaNativeOriginalOwner {
     private var cancelActive: (() -> Void)?
     private var awaitActive: (() async -> Void)?
 
-    private init(account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain) {
-        self.account = account; self.drain = drain
+    private init(account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain,
+                 openKind: OpenKind = .qualification) {
+        self.account = account; self.drain = drain; self.openKind = openKind
     }
 
     #if DEBUG
@@ -44,7 +48,7 @@ final class SharedMediaNativeOriginalOwner {
 
     func open(container: ModelContainer, authorityRoot: URL, photoRoot: URL, inboxRoot: URL,
               inventoryID: UUID, pause: (@Sendable () async -> Void)? = nil) async throws -> SharedMediaNativeOriginalSnapshot {
-        guard phase == .unopened, let registration, drain.isCurrent(registration) else { throw SharedMediaStorageFailure.closed }
+        guard openKind == .qualification, phase == .unopened, let registration, drain.isCurrent(registration) else { throw SharedMediaStorageFailure.closed }
         phase = .opening
         do {
             return try await perform { [self] grant in
@@ -62,7 +66,54 @@ final class SharedMediaNativeOriginalOwner {
             throw error
         }
     }
+
+    /// Inactive qualification seam for the existing app-container profile. This
+    /// does not bootstrap a profile or install an owner in the running app.
+    static func scopedInspection(account: PhotoOriginalPreparationOwner.AccountAccess,
+                                 drain: SharedMediaNativeOriginalDrain) throws -> SharedMediaNativeOriginalOwner {
+        let owner = SharedMediaNativeOriginalOwner(account: account, drain: drain, openKind: .scopedInspection)
+        owner.registration = try drain.register { [weak owner] in
+            guard let owner else { return true }; return await owner.invalidateAndAwaitForAccountTransition()
+        }
+        return owner
+    }
+
+    func openScoped(container: ModelContainer, authorityRoot: URL, photoRoot: URL, inboxRoot: URL,
+                    inventoryID: UUID, pagePause: (@Sendable () async -> Void)? = nil) async throws -> SharedMediaNativeScopedSnapshot {
+        guard openKind == .scopedInspection, phase == .unopened,
+              let registration, drain.isCurrent(registration) else { throw SharedMediaStorageFailure.closed }
+        phase = .opening; debug.scopedPagePause = pagePause
+        do {
+            return try await performOperation { [self] lease, identity in
+                let scope = try SharedMediaNativeScopedEligibility.identity(container: container, inventoryID: inventoryID,
+                    ownerID: account.ownerID, authority: authorityRoot, photo: photoRoot, inbox: inboxRoot)
+                scopedIdentity = scope
+                let grant = SharedMediaNativeScopedReadGrant(owner: self, identity: identity, lease: lease,
+                    scope: scope, writerEpoch: writerEpoch)
+                let candidate = try SharedMediaNativeStorageRepository.scopedInspection(container: container,
+                    authorityRoot: authorityRoot, photoRoot: photoRoot, inboxRoot: inboxRoot, grant: grant)
+                storage = candidate
+                let result = try await candidate.inspectScoped(grant: grant)
+                try grant.validate(); phase = .ready
+                return result
+            }
+        } catch {
+            if phase != .suspended { phase = .failed }
+            storage = nil; scopedIdentity = nil
+            throw error
+        }
+    }
     #endif
+
+    func inspectScoped() async throws -> SharedMediaNativeScopedSnapshot {
+        guard openKind == .scopedInspection, phase == .ready, let scope = scopedIdentity else { throw SharedMediaStorageFailure.closed }
+        return try await performOperation { [self] lease, identity in
+            guard let storage else { throw SharedMediaStorageFailure.closed }
+            let grant = SharedMediaNativeScopedReadGrant(owner: self, identity: identity, lease: lease,
+                scope: scope, writerEpoch: writerEpoch)
+            return try await storage.inspectScoped(grant: grant)
+        }
+    }
 
     func snapshot() async throws -> SharedMediaNativeOriginalSnapshot {
         guard phase == .ready else { throw SharedMediaStorageFailure.closed }
@@ -268,11 +319,17 @@ final class SharedMediaNativeOriginalOwner {
     }
 
     fileprivate func validateDispatch(identity: UUID, lease: AccountBoundWorkLease) throws {
-        guard pendingSettlement == nil, activeDispatchID == identity else { throw SharedMediaStorageFailure.closed }
+        guard openKind == .qualification, pendingSettlement == nil, activeDispatchID == identity else { throw SharedMediaStorageFailure.closed }
+        try check(lease)
+    }
+    fileprivate func validateScoped(identity: UUID, lease: AccountBoundWorkLease,
+                                    scope: SharedMediaNativeScopeIdentity, epoch: UUID) throws {
+        guard openKind == .scopedInspection, activeDispatchID == identity, pendingSettlement == nil,
+              scopedIdentity == scope, scope.ownerID == account.ownerID, writerEpoch == epoch else { throw SharedMediaStorageFailure.closed }
         try check(lease)
     }
     fileprivate func validateSettlement(identity: UUID, request: SharedMediaAcquisitionIntent, loaderStarted: Bool) throws {
-        guard let pending = pendingSettlement, pending.id == identity, pending.request == request,
+        guard openKind == .qualification, let pending = pendingSettlement, pending.id == identity, pending.request == request,
               pending.loaderStarted == loaderStarted, pending.writerReturned, !writerActive,
               phase == .ready || phase == .suspended else { throw SharedMediaStorageFailure.closed }
     }
@@ -284,15 +341,22 @@ final class SharedMediaNativeOriginalOwner {
     }
 
     private func perform<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeDispatchGrant) async throws -> T) async throws -> T {
+        guard openKind == .qualification else { throw SharedMediaStorageFailure.closed }
+        return try await performOperation { [self] lease, identity in
+            let grant = SharedMediaNativeDispatchGrant(owner: self, identity: identity, lease: lease, ownerID: account.ownerID, writerEpoch: writerEpoch)
+            return try await body(grant)
+        }
+    }
+
+    private func performOperation<T: Sendable>(_ body: @escaping @MainActor (AccountBoundWorkLease, UUID) async throws -> T) async throws -> T {
         guard cancelActive == nil, let registration, drain.isCurrent(registration) else { throw PhotoPreparationFailure.busy }
         let lease = try account.begin()
         do { try check(lease) } catch { account.finish(lease); throw error }
         let identity = UUID()
         activeDispatchID = identity
-        let grant = SharedMediaNativeDispatchGrant(owner: self, identity: identity, lease: lease, ownerID: account.ownerID, writerEpoch: writerEpoch)
         let task = Task { @MainActor in
             defer { activeDispatchID = nil; account.finish(lease); cancelActive = nil; awaitActive = nil }
-            let result = try await body(grant)
+            let result = try await body(lease, identity)
             try check(lease)
             return result
         }
@@ -313,8 +377,32 @@ final class SharedMediaNativeOriginalOwner {
         // release after actual termination. Unknown settlement remains closed.
         do { _ = try reconcileSettlement() } catch { return false }
         guard pendingSettlement == nil else { return false }
-        storage = nil
+        storage = nil; scopedIdentity = nil
         return true
+    }
+}
+
+/// Read-only identity capability, minted only by this same registered owner.
+@MainActor
+final class SharedMediaNativeScopedReadGrant {
+    private weak var owner: SharedMediaNativeOriginalOwner?
+    private let identity: UUID
+    private let lease: AccountBoundWorkLease
+    let scope: SharedMediaNativeScopeIdentity
+    let writerEpoch: UUID
+    #if DEBUG
+    let debug: SharedMediaNativeDebugHooks
+    #endif
+    fileprivate init(owner: SharedMediaNativeOriginalOwner, identity: UUID, lease: AccountBoundWorkLease,
+                     scope: SharedMediaNativeScopeIdentity, writerEpoch: UUID) {
+        self.owner = owner; self.identity = identity; self.lease = lease; self.scope = scope; self.writerEpoch = writerEpoch
+        #if DEBUG
+        debug = owner.debug
+        #endif
+    }
+    func validate() throws {
+        guard let owner else { throw SharedMediaStorageFailure.closed }
+        try owner.validateScoped(identity: identity, lease: lease, scope: scope, epoch: writerEpoch)
     }
 }
 
@@ -375,5 +463,6 @@ final class SharedMediaNativeDebugHooks {
     var metadataAvailableBytes: Int64?
     var inspectionAuditCount = 0
     var acquisitionFault: ((SharedMediaNativeAcquisitionBoundary) throws -> Void)?
+    var scopedPagePause: (@Sendable () async -> Void)?
 }
 #endif

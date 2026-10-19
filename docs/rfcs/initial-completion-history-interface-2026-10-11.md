@@ -1,3 +1,35 @@
+## October 19 — scoped native inspection locally verified
+
+The existing registered native owner and repository now support inactive,
+read-only inspection of an exact existing app-container profile. Missing roots,
+bindings, backup exclusion, namespaces or fence fail closed without repair or
+conversion. Inventory-anchored joins, shared originals, pending membership and
+retained receiving facts are validated; ordinary unanchored app data is
+untouched. Account drain retains the owner and fences until inspection actually
+returns.
+
+The independently and IC-1 reviewed candidate01 passed all 126 methods in
+fifteen focused suites, with no failures, skips or Xcode runtime warnings. All
+2,842 source/project hashes and candidate hashes remained unchanged. Evidence:
+`.artifacts/native-scoped-inspection-20261019/focused01-result.json`, XCResult
+`61a5c783bea541d492fd1de25370c299`; candidate SHA256
+`7425151624d927ebf2af35269ec8d4be94c2dccab36be7f054a5cc8e0e3e12a8`. This is
+focused shared-checkout validation, not full-target, isolated-source, device,
+hosted or activation acceptance. Paged reads do not establish bounded
+whole-library latency or memory, detection of wholly unanchored corruption, or
+physical file availability.
+
+Continue the reviewed same-owner V2 initialization design: durable intent before
+root creation, a final receipt binding exact directory identities, create-only
+markers and an atomic inventory/bootstrap pair. V1 stays read-only. Profile
+control metadata uses existing codec and free-space limits without charging a
+user's package or adding a retained-library cap. Scoped write leaves and atomic
+freeze/consumer/queue/job/event admission, retained transitions, Capture/Auth
+and RUX-1–RUX-6 remain required before integrated acceptance. Replacement
+remains a separate gated follow-up after deletion/export and redesign.
+Activation remains disabled, PR116 frozen, deployment hold active, AWS
+unapproved and limits unchanged.
+
 ## October 19 — native owner capabilities locally verified
 
 The registered native owner and repository now have separate sealed dispatch and

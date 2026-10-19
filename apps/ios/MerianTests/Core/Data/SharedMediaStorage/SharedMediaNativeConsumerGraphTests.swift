@@ -8,7 +8,7 @@ import Testing
 @Suite("Native receiving frozen facts", .serialized)
 @MainActor
 struct SharedMediaNativeConsumerGraphTests {
-    private typealias Harness = SharedMediaNativePreparationTests.Harness
+    typealias Harness = SharedMediaNativePreparationTests.Harness
     private static let recipe = SharedMediaNativePreparationRecipe(format: .stillImage, isPro: false,
         cropDisplaySize: nil, quarterTurns: 0, scale: 1, offsetX: 0, offsetY: 0)
 
@@ -143,7 +143,7 @@ struct SharedMediaNativeConsumerGraphTests {
         #expect(throws: (any Error).self) { try SharedMediaNativeConsumerCohort.decode(value.encoded() + Data([32])) }
     }
 
-    private func fixture(count: Int = 1) async throws -> (Harness, UUID) {
+    func fixture(count: Int = 1) async throws -> (Harness, UUID) {
         let h = try Harness(), owner = try await h.open()
         var pairs: [UUID] = []
         for ordinal in 0..<count {
@@ -175,7 +175,7 @@ struct SharedMediaNativeConsumerGraphTests {
         let context = ModelContext(h.container); context.autosaveEnabled = false
         return try SharedMediaNativeConsumerGraph.validate(consumer(context, id), context: context)
     }
-    private func promote(_ h: Harness, _ id: UUID) throws {
+    func promote(_ h: Harness, _ id: UUID) throws {
         let context = ModelContext(h.container); context.autosaveEnabled = false
         let row = try consumer(context, id)
         let package = try #require(context.fetch(FetchDescriptor<PhotoPreparationRecord>()).first)

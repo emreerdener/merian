@@ -14,6 +14,16 @@ enum SharedMediaNativeAcquisitionBudget {
 
     static func evaluate(context: ModelContext, inventory: SharedMediaInventoryRecord) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.derive(in: context, inventory: inventory)
+        return try evaluate(context: context, inventory: inventory, graph: graph, scoped: false)
+    }
+
+    static func evaluateScoped(context: ModelContext, inventory: SharedMediaInventoryRecord, ownerID: UUID, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+        let graph = try SharedMediaPendingGraph.deriveScoped(in: context, inventory: inventory, ownerID: ownerID)
+        return try evaluate(context: context, inventory: inventory, graph: graph, scoped: true, checkpoint: checkpoint)
+    }
+
+    private static func evaluate(context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                 graph: SharedMediaPendingGraph, scoped: Bool, checkpoint: () throws -> Void = {}) throws -> Snapshot {
         guard graph.sources.isEmpty, graph.handoffs.isEmpty else {
             throw SharedMediaStorageFailure.closed
         }
@@ -22,6 +32,7 @@ enum SharedMediaNativeAcquisitionBudget {
             try totals.includePhotoPhysical(materialized: allocation.materializedBytes, reserved: allocation.reservedBytes)
         }
         for package in graph.packages {
+            try Task.checkCancellation(); try checkpoint()
             let id = package.id
             let envelope = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData)
             try SharedMediaNativePreparationGraph.validate(envelope, package: package, context: context)
@@ -52,7 +63,12 @@ enum SharedMediaNativeAcquisitionBudget {
                 guard Int64(try SharedMediaNativeDraftEnvelope.bytes(state).count) <= maximum else { throw SharedMediaStorageFailure.capacity }
                 planBytes = try SharedMediaStoragePolicy.add(planBytes, maximum)
             }
-            guard try SharedMediaConsumerLookup.one(context, packageID: id) == nil else { throw SharedMediaStorageFailure.closed }
+            var receivingBytes: Int64 = 0
+            if let consumer = try SharedMediaConsumerLookup.one(context, packageID: id) {
+                guard scoped else { throw SharedMediaStorageFailure.closed }
+                _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, checkpoint: checkpoint)
+                receivingBytes = Int64(consumer.cohortData.count)
+            }
             let jobs = graph.work.filter { $0.packageID == id }
             var pending: [SharedMediaAcquisitionIntent] = []
             var closureBytes: Int64 = 0
@@ -79,9 +95,11 @@ enum SharedMediaNativeAcquisitionBudget {
             var receiptBytes: Int64 = 0, resultHeadroom: Int64 = 0
             var offset = 0
             while true {
+                try Task.checkCancellation(); try checkpoint()
                 origins.fetchOffset = offset
                 let allocations = try context.fetch(origins)
                 for allocation in allocations {
+                    try Task.checkCancellation(); try checkpoint()
                     let assetID = allocation.id
                     if try SharedMediaNativePairFileGraph.nativeWork(assetID: assetID, context: context) != nil { continue }
                     let row = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == assetID }))
@@ -107,7 +125,7 @@ enum SharedMediaNativeAcquisitionBudget {
             }
             let member = try graph.membership(packageID: id)
             let projected = try maximumMembershipBytes(member, pending: pending)
-            let bytes = try PhotoPreparationPolicy.add([Int64(package.supportingContextData.count), projected, receiptBytes, planBytes])
+            let bytes = try PhotoPreparationPolicy.add([Int64(package.supportingContextData.count), projected, receiptBytes, planBytes, receivingBytes])
             guard bytes <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
             // Reserve the entire remaining existing metadata allowance before
             // processing. Later pair/result/member encodings must fit it.

@@ -17,7 +17,7 @@ final class SharedMediaStorageFileOwner {
     private let storeDirectoryIdentity: String
     let identity: String
 
-    init(root: URL, storeURL: URL, sources: [String: URL]) throws {
+    init(root: URL, storeURL: URL, sources: [String: URL], requireExistingFence: Bool = false) throws {
         self.root = root
         self.sources = sources
         func contains(_ directory: URL, _ item: URL) -> Bool {
@@ -35,7 +35,7 @@ final class SharedMediaStorageFileOwner {
             }
         }
         self.storeURL = storeURL
-        admissionFence = try SharedMediaStoreReadFence(store: storeURL, access: .sharedWriter)
+        admissionFence = try SharedMediaStoreReadFence(store: storeURL, access: .sharedWriter, requireExisting: requireExistingFence)
         storeDirectoryURL = storeURL.deletingLastPathComponent()
         let parent = try Self.openDirectory(storeDirectoryURL)
         var retainedParent = false

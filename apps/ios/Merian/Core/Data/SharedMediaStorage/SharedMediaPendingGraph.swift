@@ -35,6 +35,40 @@ struct SharedMediaPendingGraph {
         return try builder.finish(packages: packages, sources: sources)
     }
 
+    /// Existing membership rows are the only pending roots in a shared app store.
+    /// Stale generations are rejected, not omitted from discovery. No new-package
+    /// overlay or repair is available through this read-only entry.
+    static func deriveScoped(in context: ModelContext, inventory: SharedMediaInventoryRecord,
+                             ownerID: UUID) throws -> Self {
+        try SharedMediaNativeScopedEligibility.requireProfile(inventory)
+        guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
+        let inventoryID = inventory.id
+        let members = try fetch(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(
+            predicate: #Predicate { $0.inventoryID == inventoryID }), maximum: PhotoPreparationPolicy.maximumPackages)
+        var builder = Builder(context: context, inventory: inventory)
+        var packages: [PhotoPreparationRecord] = []
+        for member in members {
+            try Task.checkCancellation()
+            let id = member.id
+            let rows = try fetch(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == id }), maximum: 1)
+            guard let package = rows.first, member.inventoryGeneration == inventory.generation,
+                  member.ownerID == ownerID, package.ownerID == ownerID,
+                  member.draftGeneration == package.draftGeneration, member.revision >= 0,
+                  package.accountingTierRaw == "pending" else { throw SharedMediaStorageFailure.conflict }
+            try builder.include(package)
+            packages.append(package)
+        }
+        let result = try builder.finish(packages: packages, sources: [])
+        for member in members {
+            guard try SharedMediaMembership.decode(member.membersData) == result.membership(packageID: member.id),
+                  let package = packages.first(where: { $0.id == member.id }) else { throw SharedMediaStorageFailure.conflict }
+            let consumer = try SharedMediaConsumerLookup.one(context, packageID: package.id)
+            try SharedMediaMembership.requireMetadataBudget(context: package.supportingContextData,
+                membership: member.membersData, cohort: consumer?.cohortData ?? Data())
+        }
+        return result
+    }
+
     func membership(packageID: UUID) throws -> SharedMediaMembership {
         guard let value = assertions[packageID] else { throw SharedMediaStorageFailure.conflict }
         return value

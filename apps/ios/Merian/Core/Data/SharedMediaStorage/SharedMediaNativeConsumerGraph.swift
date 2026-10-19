@@ -9,6 +9,15 @@ enum SharedMediaNativeConsumerGraph {
     static let contract = "nativeReceivingV1"
 
     static func validate(_ consumer: SharedMediaConsumerRecord, context: ModelContext) throws -> SharedMediaNativeConsumerCohort {
+        try facts(consumer, context: context, scoped: false)
+    }
+
+    static func validateScoped(_ consumer: SharedMediaConsumerRecord, context: ModelContext, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
+        try facts(consumer, context: context, scoped: true, checkpoint: checkpoint)
+    }
+
+    private static func facts(_ consumer: SharedMediaConsumerRecord, context: ModelContext,
+                              scoped: Bool, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         let value = try SharedMediaNativeConsumerCohort.decode(consumer.cohortData)
         let commit = try SharedMediaNativeFreezeCommit.decode(value.freeze.bytes)
@@ -34,7 +43,9 @@ enum SharedMediaNativeConsumerGraph {
         let inventory = try one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
         let bootstrap = try one(context, FetchDescriptor<SharedMediaMembershipBootstrapRecord>(predicate: #Predicate { $0.id == inventoryID }))
         let package = try one(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == id }))
-        guard inventory.generation == commit.inventoryGeneration, inventory.phaseRaw == "readyNativeAccountingV1",
+        if scoped { try SharedMediaNativeScopedEligibility.requireProfile(inventory) }
+        guard inventory.generation == commit.inventoryGeneration,
+              inventory.phaseRaw == (scoped ? SharedMediaNativeScopedEligibility.phase : "readyNativeAccountingV1"),
               bootstrap.inventoryGeneration == inventory.generation, bootstrap.contractVersion == 1, bootstrap.revision >= 0,
               package.draftID == id, package.contractVersion == PhotoPreparationPolicy.contract,
               package.ownerID == cohort.ownerID, package.draftGeneration == cohort.draftGeneration,
@@ -54,7 +65,7 @@ enum SharedMediaNativeConsumerGraph {
                 membershipRevision: commit.membershipRevision, package: package, inventory: inventory, context: context)
             liveMembership = Data()
         }
-        try validateMembership(value.membership, cohort: cohort, package: package, inventory: inventory, context: context)
+        try validateMembership(value.membership, cohort: cohort, package: package, inventory: inventory, context: context, checkpoint: checkpoint)
         try SharedMediaMembership.requireMetadataBudget(context: package.supportingContextData,
             membership: liveMembership, cohort: consumer.cohortData)
         guard try PhotoPreparationPolicy.add([package.allocatedByteCount, Int64(package.supportingContextData.count),
@@ -65,7 +76,7 @@ enum SharedMediaNativeConsumerGraph {
 
     private static func validateMembership(_ bytes: Data, cohort: SharedMediaNativeFrozenCohort,
                                            package: PhotoPreparationRecord, inventory: SharedMediaInventoryRecord,
-                                           context: ModelContext) throws {
+                                           context: ModelContext, checkpoint: () throws -> Void) throws {
         let member = try SharedMediaMembership.decode(bytes), id = package.id
         let intents = try cohort.entries.map { try SharedMediaNativeDerivativeIntent.decode($0.intent.bytes) }
         let originals = intents.map { $0.preparation.original }
@@ -88,7 +99,7 @@ enum SharedMediaNativeConsumerGraph {
         // Historical IDs never replace the current complete reverse-reference audit.
         for original in originals {
             let current = try SharedMediaNativeOriginalAccounting.audit(assetID: original.reference.assetID,
-                inventoryID: inventory.id, context: context)
+                inventoryID: inventory.id, context: context, checkpoint: checkpoint)
             guard current.assetGeneration == original.reference.assetGeneration, current.ownerID == package.ownerID,
                   current.liveCount > 0, current.retirement == nil, current.physicalIdentity == original.descriptor.file,
                   current.byteCount == original.byteCount, current.sha256 == original.sha256,

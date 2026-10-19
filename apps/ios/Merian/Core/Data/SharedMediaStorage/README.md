@@ -1,3 +1,47 @@
+## October 19 — inactive scoped native inspection locally verified
+
+The same registered native owner and repository now have a separate read-only
+entry for an existing `nativeAppContainerV1` profile. It requires pre-existing
+private Application Support roots, backup exclusion, store and namespace
+bindings, and the existing store fence. Missing prerequisites fail closed;
+inspection never bootstraps, converts a qualification store, repairs rows,
+processes media, or enables dispatch or settlement. App installation remains
+nil.
+
+The scoped grant binds the actual account lease and active operation, process
+epoch, inventory generation, store identity and root binding. Inspection retains
+the owner and fences until it returns, including cancellation and account drain.
+Every outer page uses a fresh context and releases model objects before
+yielding; headers and authority are rechecked across boundaries.
+Reverse-reference audits are paged with cancellation/authority checks. This
+bounds page materialization, not total library work or latency; retained-library
+size is not capped.
+
+Pending roots are existing inventory membership rows, queried without filtering
+out stale generations. Exact joined records, owners, generations and canonical
+membership must match. Inventory-anchored receipts, consumers, derivative pairs,
+allocations and reference counters are audited, including retained consumers and
+all reverse original references. Ordinary unanchored app records are untouched.
+This deliberately cannot detect completely unanchored corruption, assert
+physical file availability, authorize cleanup, or prove admission/result
+recovery. Existing package and storage limits apply unchanged; receiving
+metadata is counted once.
+
+Focused tests cover absent prerequisites, mutation rejection, account drain and
+fence lifetime, header changes across pages, pending capacity, corrupt joins,
+shared originals and retained immutable facts. The exact independently and IC-1
+reviewed candidate01 passed all 126 methods in fifteen focused suites with zero
+failures, skips or Xcode runtime warnings. All 2,842 source/project hashes
+stayed unchanged. Evidence:
+`.artifacts/native-scoped-inspection-20261019/focused01-result.json`, XCResult
+`61a5c783bea541d492fd1de25370c299`, candidate SHA256
+`7425151624d927ebf2af35269ec8d4be94c2dccab36be7f054a5cc8e0e3e12a8`. This is
+scoped shared-checkout verification, not full-target, isolated-source, device,
+hosted or activation acceptance. Native admission, retained transitions,
+Capture/Auth integration, recovery presentation and integrated acceptance remain
+next. Activation is disabled, PR116 frozen, deployment hold active and AWS
+unapproved.
+
 ## October 19 — native owner dispatch and settlement separation
 
 `SharedMediaNativeOriginalOwner` owns the registered account lifecycle in its
