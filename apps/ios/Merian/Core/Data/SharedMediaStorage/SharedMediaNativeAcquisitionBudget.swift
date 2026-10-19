@@ -22,8 +22,14 @@ enum SharedMediaNativeAcquisitionBudget {
         return try evaluate(context: context, inventory: inventory, graph: graph, format: format, checkpoint: checkpoint)
     }
 
+    static func evaluateMetadataPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                          proof: SharedMediaNativeAppMetadataPoststate) throws -> Snapshot {
+        let graph = try SharedMediaPendingGraph.deriveMetadataPoststate(in: context, inventory: inventory, proof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, metadataProof: proof)
+    }
+
     private static func evaluate(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
         guard graph.sources.isEmpty, graph.handoffs.isEmpty else {
             throw SharedMediaStorageFailure.closed
         }
@@ -66,8 +72,10 @@ enum SharedMediaNativeAcquisitionBudget {
             var receivingBytes: Int64 = 0
             if let consumer = try SharedMediaConsumerLookup.one(context, packageID: id) {
                 guard let format else { throw SharedMediaStorageFailure.closed }
-                _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, checkpoint: checkpoint)
-                receivingBytes = Int64(consumer.cohortData.count)
+                if let metadataProof { receivingBytes = try metadataProof.receivingBytes(consumer) } else {
+                    _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, checkpoint: checkpoint)
+                    receivingBytes = Int64(consumer.cohortData.count)
+                }
             }
             let jobs = graph.work.filter { $0.packageID == id }
             var pending: [SharedMediaAcquisitionIntent] = []
@@ -91,7 +99,7 @@ enum SharedMediaNativeAcquisitionBudget {
             // Origin charges come from authoritative physical allocations, not
             // the receipt's package lookup aid or this package's logical shares.
             var origins = FetchDescriptor<SharedMediaAllocationRecord>(predicate: #Predicate { $0.packageID == id }, sortBy: [SortDescriptor(\.id)])
-            origins.fetchLimit = SharedMediaStoragePolicy.pageSize
+            origins.fetchLimit = SharedMediaStoragePolicy.pageSize; origins.includePendingChanges = true
             var receiptBytes: Int64 = 0, resultHeadroom: Int64 = 0
             var offset = 0
             while true {
@@ -211,7 +219,7 @@ enum SharedMediaNativeAcquisitionBudget {
     }
 
     private static func one<T: PersistentModel>(_ context: ModelContext, _ descriptor: FetchDescriptor<T>) throws -> T {
-        var query = descriptor; query.fetchLimit = 2
+        var query = descriptor; query.fetchLimit = 2; query.includePendingChanges = true
         let rows = try context.fetch(query)
         guard rows.count == 1, let row = rows.first else { throw SharedMediaStorageFailure.conflict }
         return row

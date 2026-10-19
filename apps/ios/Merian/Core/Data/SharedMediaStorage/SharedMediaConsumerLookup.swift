@@ -8,13 +8,13 @@ import SwiftData
 enum SharedMediaConsumerLookup {
     static func one(_ context: ModelContext, id: UUID) throws -> SharedMediaConsumerRecord? {
         var query = FetchDescriptor<SharedMediaConsumerRecord>(predicate: #Predicate { $0.id == id })
-        query.fetchLimit = 2
+        query.fetchLimit = 2; query.includePendingChanges = true
         return try unique(context.fetch(query))
     }
 
     static func one(_ context: ModelContext, packageID: UUID) throws -> SharedMediaConsumerRecord? {
         var query = FetchDescriptor<SharedMediaConsumerRecord>(predicate: #Predicate { $0.packageID == packageID })
-        query.fetchLimit = 2
+        query.fetchLimit = 2; query.includePendingChanges = true
         return try unique(context.fetch(query))
     }
 

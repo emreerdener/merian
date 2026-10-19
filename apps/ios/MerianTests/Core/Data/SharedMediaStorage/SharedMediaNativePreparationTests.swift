@@ -201,9 +201,10 @@ struct SharedMediaNativePreparationTests {
     @MainActor
     final class Harness {
         let base: URL, container: ModelContainer
-        let inventoryID = UUID(), ownerID = UUID(), packageID = UUID(), draft = UUID()
+        let inventoryID: UUID, ownerID: UUID, packageID: UUID, draft: UUID
         let runtime = AuthRuntimeState(), bytes = PhotoPreparationTestHarness.image()
         init() throws {
+            inventoryID = UUID(); ownerID = UUID(); packageID = UUID(); draft = UUID()
             base = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("native-preparation-" + UUID().uuidString)
             print("NATIVE_PREPARATION_FIXTURE " + base.path)
             for name in ["authority", "photo", "inbox", "database"] {
@@ -211,6 +212,15 @@ struct SharedMediaNativePreparationTests {
             }
             let schema = Schema(versionedSchema: CurrentSchema.self)
             container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: base.appendingPathComponent("database/ledger.store"), cloudKitDatabase: .none)])
+        }
+        /// Test-only reuse of the qualified V1 producer to seed exact persisted
+        /// receiving facts. Does not install or convert a runtime profile.
+        init(base: URL, container: ModelContainer, inventoryID: UUID, ownerID: UUID, packageID: UUID, draft: UUID) throws {
+            self.base = base; self.container = container; self.inventoryID = inventoryID
+            self.ownerID = ownerID; self.packageID = packageID; self.draft = draft
+            for name in ["authority", "photo", "inbox"] {
+                try FileManager.default.createDirectory(at: base.appendingPathComponent(name), withIntermediateDirectories: true)
+            }
         }
         func open() async throws -> SharedMediaNativeOriginalOwner {
             let owner = try SharedMediaNativeOriginalOwner.qualification(account: PhotoOriginalPreparationOwner.syntheticAccount(ownerID: ownerID, runtime: runtime), drain: .init())

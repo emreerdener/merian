@@ -306,6 +306,14 @@ final class SharedMediaNativeStorageRepository {
         try requireApp(grant); guard try appHeader() == expected else { throw SharedMediaStorageFailure.conflict }; return result
     }
 
+    func appMetadata(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeAppMetadataOperations {
+        try requireApp(grant)
+        let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile) {
+            try self.requireApp(grant); return try self.appHeader()
+        }
+        return try await .audited(container: container, authority: authority,
+            availableBytes: { try self.files.availableBytes() }, boundary: metadataBoundary)
+    }
     /// Only an account-bound grant from the registered owner admits this repository.
     static func originalAdmission(container: ModelContainer, authorityRoot: URL, photoRoot: URL,
                                   inboxRoot: URL, inventoryID: UUID, grant: SharedMediaNativeDispatchGrant,
@@ -379,32 +387,13 @@ final class SharedMediaNativeStorageRepository {
             authority: dispatchAuthority(grant), proof: proof)
         try acquisitionBoundary(.beforeCompletionSave); try transaction.save(); try acquisitionBoundary(.afterCompletionSave)
     }
-
     /// A terminated writer may settle its exact saved receipt after Auth seals
     /// dispatch. This entry has no file operation or fresh reservation path.
     func settleOriginal(_ grant: SharedMediaNativeSettlementGrant) throws -> SharedMediaAcquisitionResult? {
         try requireSettlement(grant)
         let authority = try mutationAuthority { try self.requireSettlement(grant) }
-        let reader = SharedMediaNativeOriginalReadback(container: container, inventoryID: inventoryID, authority: authority)
-        try acquisitionBoundary(.beforeReadback)
-        guard let saved = try reader.receipt(grant.request) else {
-            guard !grant.loaderStarted else { throw SharedMediaStorageFailure.conflict }
-            return nil
-        }
-        switch saved {
-        case .completed(_, let result): return result
-        case .held: return nil
-        case .reserved:
-            do {
-                let transaction = try SharedMediaNativeAcquisitionMutation.hold(container: container,
-                    request: grant.request, authority: authority)
-                try acquisitionBoundary(.beforeHeldSave); try transaction.save(); try acquisitionBoundary(.afterHeldSave)
-            } catch { /* Exact saved acknowledgement below; no writer replay. */ }
-            try acquisitionBoundary(.beforeReadback)
-            guard case .held = try reader.receipt(grant.request) else { throw SharedMediaStorageFailure.conflict }
-            return nil
-        case .released: throw SharedMediaStorageFailure.conflict
-        }
+        return try SharedMediaNativeQualificationPersistence.settle(container: container, inventoryID: inventoryID,
+            grant: grant, authority: authority, boundary: acquisitionBoundary)
     }
 
     func metadata(packageID: UUID, grant: SharedMediaNativeDispatchGrant) throws -> SharedMediaNativeMetadataMutation {
@@ -418,14 +407,8 @@ final class SharedMediaNativeStorageRepository {
         #if DEBUG
         if let limit = debug?.metadataAvailableBytes { available = min(available, limit) }
         #endif
-        do {
-            _ = try metadata(packageID: request.packageID, grant: grant).apply(request, availableBytes: available,
-                beforeSave: { try self.metadataBoundary(.beforeSave) }, afterSave: { try self.metadataBoundary(.afterSave) })
-        } catch {
-            let failure = error
-            do { return try metadata(packageID: request.packageID, grant: grant).result(request) } catch { throw failure }
-        }
-        return try metadata(packageID: request.packageID, grant: grant).result(request)
+        return try SharedMediaNativeQualificationPersistence.metadata(container: container, request: request,
+            authority: dispatchAuthority(grant), available: available, boundary: metadataBoundary)
     }
     func preparationOperations(_ grant: SharedMediaNativeDispatchGrant) throws -> SharedMediaNativePreparationOperations {
         try requireDispatch(grant)
@@ -595,5 +578,22 @@ final class SharedMediaNativeBootstrapAuthority {
             ownerID: ownerID, storeIdentity: storeIdentity, existingProfile: existingGrant?.profile,
             expectedProfile: profile)
         try validate()
+    }
+}
+
+/// Repository-minted operation fence. It exposes only read validation, never a
+/// save callback. A typed operation must audit before constructing its witness.
+@MainActor
+struct SharedMediaNativeAppOperationAuthority {
+    let profile: SharedMediaNativeAppProfile
+    private let containerID: ObjectIdentifier
+    private let check: () throws -> SharedMediaNativeAppEligibility.Header
+    fileprivate init(container: ModelContainer, profile: SharedMediaNativeAppProfile,
+                     check: @escaping () throws -> SharedMediaNativeAppEligibility.Header) {
+        containerID = ObjectIdentifier(container); self.profile = profile; self.check = check
+    }
+    func header(_ container: ModelContainer) throws -> SharedMediaNativeAppEligibility.Header {
+        guard ObjectIdentifier(container) == containerID else { throw SharedMediaStorageFailure.closed }
+        try Task.checkCancellation(); return try check()
     }
 }

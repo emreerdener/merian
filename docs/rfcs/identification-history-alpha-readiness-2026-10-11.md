@@ -1,3 +1,37 @@
+## October 19 — same-owner V2 metadata saves locally verified
+
+Existing native pending drafts now support metadata-only edits through the same
+registered app owner. Each operation audits the native graph under the account
+lease and retained file/store fences. A sealed witness pins the inventory and
+independent bootstrap headers. The transaction changes exactly the package
+envelope/revision and inventory revision; membership, media, other pending
+packages and exact receiving-consumer bytes remain unchanged. Frozen, retiring,
+consumer-bound and unfinished targets are refused. Ordinary unanchored drafts
+remain untouched. Uncertain saves allow exact read-only recovery, never another
+write within the consumed operation.
+
+Candidate03 passed all 11 methods in the two correction suites, with no
+failures, skips or Xcode runtime warnings; all 2,852 source/project hashes and
+candidate hashes remained unchanged. Evidence:
+`.artifacts/native-app-metadata-20261019/focused03-result.json`; XCResult
+`ffba1db786634971b04d76878d982e44`; candidate SHA256
+`aaf201c0b12a78009356ee750cede34e960dafa28e4e58d613b2e56ffa23239e`. The earlier
+121/123 result across fifteen suites remains retained. Its failures were a test
+fixture topology mismatch and a source-boundary assertion that needed to follow
+the extracted V1 settlement helper. The correction changed only those two tests;
+thirteen unchanged passing suites are reused. This is scoped shared-checkout
+validation, not a new full-target, isolated-source, device, hosted or integrated
+acceptance result.
+
+V1 metadata and settlement orchestration remain behind their original sealed
+authorities. No schema, limit, file mutation, funding or provider change is
+introduced. Next port acquisition through a shared profiled transaction core,
+with exact reservation acknowledgement before loading and separate post-writer
+settlement. Native preparation/receiving, lifecycle and Capture/Auth
+integration, RUX recovery, integrated acceptance, deletion/export and redesign
+remain open. Activation disabled, PR116 frozen, Supabase deployment hold active
+and AWS unapproved.
+
 ## October 19 — populated V2 opener locally verified
 
 The same registered native owner/repository can now reopen an exact populated V2

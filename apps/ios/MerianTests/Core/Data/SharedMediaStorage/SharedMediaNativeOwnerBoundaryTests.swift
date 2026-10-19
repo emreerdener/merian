@@ -38,9 +38,17 @@ struct SharedMediaNativeOwnerBoundaryTests {
         let end = try #require(repository.range(of: "    func metadata(", range: start.upperBound..<repository.endIndex))
         let settlement = String(repository[start.lowerBound..<end.lowerBound])
         #expect(settlement.contains("SharedMediaNativeSettlementGrant"))
-        #expect(settlement.contains("SharedMediaNativeAcquisitionMutation.hold("))
+        #expect(settlement.contains("try requireSettlement(grant)"))
+        #expect(settlement.contains("SharedMediaNativeQualificationPersistence.settle("))
+        let persistence = try source("SharedMediaNativeQualificationPersistence.swift")
+        let helperStart = try #require(persistence.range(of: "static func settle("))
+        let helperEnd = try #require(persistence.range(of: "    static func metadata(", range: helperStart.upperBound..<persistence.endIndex))
+        let helper = String(persistence[helperStart.lowerBound..<helperEnd.lowerBound])
+        #expect(helper.contains("SharedMediaNativeSettlementGrant"))
+        #expect(helper.contains("SharedMediaNativeMutationAuthority"))
+        #expect(helper.contains("SharedMediaNativeAcquisitionMutation.hold("))
         for forbidden in ["originalIO", "reserveOriginal(", "dispatchAuthority(", "preparationOperations(", "lifecycleOperations(", "Task {"] {
-            #expect(!settlement.contains(forbidden), "Settlement gained dispatch authority: \(forbidden)")
+            #expect(!settlement.contains(forbidden) && !helper.contains(forbidden), "Settlement gained dispatch authority: \(forbidden)")
         }
     }
 

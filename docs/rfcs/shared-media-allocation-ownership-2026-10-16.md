@@ -1,3 +1,68 @@
+## October 19 — same-owner V2 metadata saves locally verified
+
+Existing native pending drafts now support metadata-only edits through the same
+registered app owner. Each operation audits the native graph under the account
+lease and retained file/store fences. A sealed witness pins the inventory and
+independent bootstrap headers. The transaction changes exactly the package
+envelope/revision and inventory revision; membership, media, other pending
+packages and exact receiving-consumer bytes remain unchanged. Frozen, retiring,
+consumer-bound and unfinished targets are refused. Ordinary unanchored drafts
+remain untouched. Uncertain saves allow exact read-only recovery, never another
+write within the consumed operation.
+
+Candidate03 passed all 11 methods in the two correction suites, with no
+failures, skips or Xcode runtime warnings; all 2,852 source/project hashes and
+candidate hashes remained unchanged. Evidence:
+`.artifacts/native-app-metadata-20261019/focused03-result.json`; XCResult
+`ffba1db786634971b04d76878d982e44`; candidate SHA256
+`aaf201c0b12a78009356ee750cede34e960dafa28e4e58d613b2e56ffa23239e`. The earlier
+121/123 result across fifteen suites remains retained. Its failures were a test
+fixture topology mismatch and a source-boundary assertion that needed to follow
+the extracted V1 settlement helper. The correction changed only those two tests;
+thirteen unchanged passing suites are reused. This is scoped shared-checkout
+validation, not a new full-target, isolated-source, device, hosted or integrated
+acceptance result.
+
+V1 metadata and settlement orchestration remain behind their original sealed
+authorities. No schema, limit, file mutation, funding or provider change is
+introduced. Next port acquisition through a shared profiled transaction core,
+with exact reservation acknowledgement before loading and separate post-writer
+settlement. Native preparation/receiving, lifecycle and Capture/Auth
+integration, RUX recovery, integrated acceptance, deletion/export and redesign
+remain open. Activation disabled, PR116 frozen, Supabase deployment hold active
+and AWS unapproved.
+
+## October 19 — V2 metadata write integration under qualification
+
+Legacy cleanup protection is committed as `ffbae1c15`. The next inactive V2 leaf
+edits metadata on an existing native pending package through the same registered
+owner. Each operation performs the complete asynchronous scoped audit under its
+account lease and retained file/store fences. A repository-minted read fence
+pins both inventory and independent bootstrap headers; a private, single-use
+operation witness admits one typed metadata save only.
+
+The transaction changes exactly the package envelope/revision and inventory
+revision. Its private dirty projection explicitly includes pending changes and
+rebuilds only bounded membership-rooted pending packages. Membership and
+bootstrap metadata remain unchanged; every other pending package/member and
+consumer scalar plus exact cohort bytes must remain equal. Public clean scoped
+projection and consumer audit remain strict. The existing aggregate metadata,
+package, durable and free-space limits still apply. Ordinary unanchored drafts
+are excluded. A consumer-bound, frozen, retiring or unfinished target is
+refused. Known-save acknowledgement requires exact fresh readback; lost
+acknowledgements allow only exact read-only recovery, never a second write in
+that operation.
+
+V1 metadata/settlement orchestration is extracted without changing its authority
+or recovery behavior. Capability constructors remain fileprivate in their
+original owner/repository files. Existing app construction stays DEBUG-only;
+there is no Capture installer, provider call, funding change, schema change,
+acquisition/member creation or release authority. Tests and exact review are
+pending. Native acquisition/preparation/receiving, result/cleanup, Capture/Auth,
+RUX recovery, integrated acceptance, deletion/export and redesign remain open.
+Activation disabled, PR116 frozen, Supabase deployment hold active, AWS
+unapproved and numeric limits unchanged.
+
 ## October 19 — populated V2 opener locally verified
 
 The same registered native owner/repository can now reopen an exact populated V2

@@ -144,7 +144,11 @@ struct SharedMediaNativeConsumerGraphTests {
     }
 
     func fixture(count: Int = 1) async throws -> (Harness, UUID) {
-        let h = try Harness(), owner = try await h.open()
+        try await fixture(Harness(), count: count)
+    }
+
+    func fixture(_ h: Harness, count: Int = 1) async throws -> (Harness, UUID) {
+        let owner = try await h.open()
         var pairs: [UUID] = []
         for ordinal in 0..<count {
             let original = try await h.acquire(owner, ordinal: Int64(ordinal))

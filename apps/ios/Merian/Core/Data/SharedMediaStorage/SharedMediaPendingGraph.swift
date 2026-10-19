@@ -40,8 +40,21 @@ struct SharedMediaPendingGraph {
     /// overlay or repair is available through this read-only entry.
     static func deriveScoped(in context: ModelContext, inventory: SharedMediaInventoryRecord,
                              ownerID: UUID, format: SharedMediaNativeScopedFormat = .existingV1) throws -> Self {
-        try format.requireProfile(inventory)
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
+        return try scopedProjection(in: context, inventory: inventory, ownerID: ownerID, format: format)
+    }
+
+    /// The sole dirty entry requires the typed two-row metadata proof. It cannot
+    /// add a new root, repair membership, or bypass the clean inspection entry.
+    static func deriveMetadataPoststate(in context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                        proof: SharedMediaNativeAppMetadataPoststate) throws -> Self {
+        try proof.validate(context: context, inventory: inventory)
+        return try scopedProjection(in: context, inventory: inventory, ownerID: proof.profile.ownerID, format: .appV2)
+    }
+
+    private static func scopedProjection(in context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                         ownerID: UUID, format: SharedMediaNativeScopedFormat) throws -> Self {
+        try format.requireProfile(inventory)
         let inventoryID = inventory.id
         let members = try fetch(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(
             predicate: #Predicate { $0.inventoryID == inventoryID }), maximum: PhotoPreparationPolicy.maximumPackages)
@@ -106,7 +119,7 @@ struct SharedMediaPendingGraph {
 
     private static func fetch<T: PersistentModel>(_ context: ModelContext, _ descriptor: FetchDescriptor<T>,
                                                    maximum: Int) throws -> [T] {
-        var query = descriptor; query.fetchLimit = maximum + 1
+        var query = descriptor; query.fetchLimit = maximum + 1; query.includePendingChanges = true
         let rows = try context.fetch(query)
         guard rows.count <= maximum else { throw SharedMediaStorageFailure.capacity }
         return rows

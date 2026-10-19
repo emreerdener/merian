@@ -33,19 +33,17 @@ final class SharedMediaNativeOriginalOwner {
     private var awaitActive: (() async -> Void)?
 
     private init(account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain,
-                 openKind: OpenKind = .qualification) {
+                 openKind: OpenKind = .qualification) throws {
         self.account = account; self.drain = drain; self.openKind = openKind
+        registration = try drain.register { [weak self] in
+            guard let self else { return true }; return await self.invalidateAndAwaitForAccountTransition()
+        }
     }
 
     #if DEBUG
     static func qualification(account: PhotoOriginalPreparationOwner.AccountAccess,
                               drain: SharedMediaNativeOriginalDrain) throws -> SharedMediaNativeOriginalOwner {
-        let owner = SharedMediaNativeOriginalOwner(account: account, drain: drain)
-        owner.registration = try drain.register { [weak owner] in
-            guard let owner else { return true }
-            return await owner.invalidateAndAwaitForAccountTransition()
-        }
-        return owner
+        try .init(account: account, drain: drain)
     }
 
     func open(container: ModelContainer, authorityRoot: URL, photoRoot: URL, inboxRoot: URL,
@@ -73,11 +71,7 @@ final class SharedMediaNativeOriginalOwner {
     /// exposed; this uses the same registered owner and retained repository.
     static func appInitialization(account: PhotoOriginalPreparationOwner.AccountAccess,
                                   drain: SharedMediaNativeOriginalDrain) throws -> SharedMediaNativeOriginalOwner {
-        let owner = SharedMediaNativeOriginalOwner(account: account, drain: drain, openKind: .appInitialization)
-        owner.registration = try drain.register { [weak owner] in
-            guard let owner else { return true }; return await owner.invalidateAndAwaitForAccountTransition()
-        }
-        return owner
+        try .init(account: account, drain: drain, openKind: .appInitialization)
     }
     func initializeApp(container: ModelContainer, parent: URL, inventoryID: UUID,
                        fault: ((SharedMediaNativeBootstrapBoundary) throws -> Void)? = nil,
@@ -103,11 +97,7 @@ final class SharedMediaNativeOriginalOwner {
     /// Inactive existing-profile entry. It cannot initialize or repair storage.
     static func appDispatch(account: PhotoOriginalPreparationOwner.AccountAccess,
                             drain: SharedMediaNativeOriginalDrain) throws -> SharedMediaNativeOriginalOwner {
-        let owner = SharedMediaNativeOriginalOwner(account: account, drain: drain, openKind: .appDispatch)
-        owner.registration = try drain.register { [weak owner] in
-            guard let owner else { return true }; return await owner.invalidateAndAwaitForAccountTransition()
-        }
-        return owner
+        try .init(account: account, drain: drain, openKind: .appDispatch)
     }
     func openApp(container: ModelContainer, parent: URL, inventoryID: UUID, pause: (@Sendable () async -> Void)? = nil) async throws -> SharedMediaNativeScopedSnapshot {
         guard openKind == .appDispatch, phase == .unopened, let registration, drain.isCurrent(registration) else { throw SharedMediaStorageFailure.closed }
@@ -131,11 +121,7 @@ final class SharedMediaNativeOriginalOwner {
     /// does not bootstrap a profile or install an owner in the running app.
     static func scopedInspection(account: PhotoOriginalPreparationOwner.AccountAccess,
                                  drain: SharedMediaNativeOriginalDrain) throws -> SharedMediaNativeOriginalOwner {
-        let owner = SharedMediaNativeOriginalOwner(account: account, drain: drain, openKind: .scopedInspection)
-        owner.registration = try drain.register { [weak owner] in
-            guard let owner else { return true }; return await owner.invalidateAndAwaitForAccountTransition()
-        }
-        return owner
+        try .init(account: account, drain: drain, openKind: .scopedInspection)
     }
 
     func openScoped(container: ModelContainer, authorityRoot: URL, photoRoot: URL, inboxRoot: URL,
@@ -181,6 +167,24 @@ final class SharedMediaNativeOriginalOwner {
             guard let storage, let appProfile, let appParent else { throw SharedMediaStorageFailure.closed }
             return try await storage.inspectApp(grant: .init(owner: self, identity: identity, lease: lease,
                 profile: appProfile, parent: appParent, writerEpoch: writerEpoch))
+        }
+    }
+
+    func prepareAppMetadata(packageID: UUID, draftGeneration: UUID, contexts: [ObservationContext],
+                            presentation: [PhotoPreparationImagePresentation]? = nil) async throws -> SharedMediaNativeAppMetadataRequest {
+        try await appMetadata { try $0.request(packageID: packageID, draftGeneration: draftGeneration, contexts: contexts, presentation: presentation) }
+    }
+    func saveAppMetadata(_ request: SharedMediaNativeAppMetadataRequest) async throws -> Int64 {
+        try await appMetadata { try $0.apply(request) }
+    }
+    private func appMetadata<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppMetadataOperations) throws -> T) async throws -> T {
+        guard openKind == .appDispatch, phase == .ready else { throw SharedMediaStorageFailure.closed }
+        return try await performOperation { [self] lease, identity in
+            guard let storage, let appProfile, let appParent else { throw SharedMediaStorageFailure.closed }
+            let grant = SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
+                profile: appProfile, parent: appParent, writerEpoch: writerEpoch)
+            let operation = try await storage.appMetadata(grant: grant)
+            try grant.validate(); return try body(operation)
         }
     }
 
