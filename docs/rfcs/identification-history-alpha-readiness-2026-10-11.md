@@ -1,3 +1,33 @@
+## October 19 — native V2 initialization locally verified
+
+The existing registered owner/repository now initializes and exactly reopens an
+empty V2 app-container profile. A create-only intent, five directory/parent
+progress receipts and final identity receipt precede ownership markers and one
+atomic inventory/bootstrap save. Interrupted or substituted evidence is held
+without adoption or repair; ordinary drafts are preserved. Directory URL
+semantics are explicit before and after creation, and locked descriptors
+transfer without releasing their locks.
+
+The independently and IC-1 reviewed candidate05 passed all 64 methods in eight
+focused suites, with zero failures, skips or Xcode runtime warnings. All 2,844
+source/project hashes and candidate hashes stayed unchanged. Evidence:
+`.artifacts/native-app-bootstrap-20261019/focused05-result.json`, XCResult
+`e5608cd4eea047e8a54ff8355d79bc96`; candidate SHA256
+`c72cf5d0e2f6745ca564a7e259f4ec8d61e84dec795d44ef75a19b5e37d9e9cb`. The
+compile-before-tests failure in focused03 and the 60/64 focused04 result remain
+retained. Corrections added explicit actor isolation to the test fixture and
+explicit directory URL semantics at locked descriptor handoff; identity checks
+were preserved. This is focused shared-checkout verification, not full-target,
+isolated-source, device, hosted or activation acceptance.
+
+Continue the same-owner populated V2 opener and scoped write/preparation leaves,
+then atomic freeze/consumer/queue/job/event local receiving admission. Local
+receiving stays non-executable and does not mutate funding or invoke AI. Native
+result/cleanup transitions, Capture/Auth composition, RUX-1–RUX-6 and integrated
+media acceptance remain open before version deletion/export and redesign.
+Activation disabled, PR116 frozen, deployment hold active, AWS unapproved and
+numeric limits unchanged.
+
 ## October 19 — scoped native inspection locally verified
 
 The existing registered native owner and repository now support inactive,

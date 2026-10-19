@@ -1,3 +1,60 @@
+## October 19 — inactive V2 initialization locally verified
+
+The same registered native owner/repository adds a separate initialization-only
+qualification entry. It creates a `nativeAppContainerV2` profile in a dedicated,
+existing, backup-excluded Application Support control parent. The fixed child
+layout is `authority`, `photo/PhotoPreparation`, and `inbox/InboxSources`; the
+SQLite store remains outside these media roots. Existing V1 inspection and
+qualification formats are never converted.
+
+Under the existing store fence and store-parent lock, a locked control parent
+receives a create-only canonical intent before any media root is created. The
+intent binds account, inventory, generation, operation, nonce, store UUID,
+parent identities and fixed names. Five fixed create-only progress receipts bind
+each directory to its exact descriptor and parent identity. A progress-absent
+path must be absent and is created exclusively; a progress-present path must
+match the recorded child and parent identities. A crash after mkdir but before
+durable progress is held, never adopted or silently repaired. This supersedes
+the earlier proposal to accept existing empty named directories from intent
+alone. The separate create-only final receipt binds all five progress digests
+and every root/namespace identity before ownership markers. Once final evidence
+exists, missing or replaced directories are held, never recreated. All existing
+markers must agree before any absent marker is completed; a committed database
+pair requires every marker already present.
+
+Locked root and namespace descriptors transfer directly into the existing file
+owners. The store, control parent and root locks remain held through an atomic
+inventory/membership save and for the repository lifetime. A lost
+acknowledgement reopens only the exact saved association. Malformed, partial,
+foreign or V1 associations fail closed. Ordinary unanchored drafts are
+preserved. This leaf supports empty V2 initialization/reopen only; it does not
+enable media admission, cleanup, funding, provider execution or app
+installation.
+
+Intent, progress and final records are bounded profile control metadata. Their
+fixed encoding fits the existing metadata allowance and marker limit; free-space
+preflight includes remaining record/marker bytes and encoding workspace without
+charging a user's package, duplicating already materialized record bytes or
+adding a library cap. All package/storage limits remain unchanged. Directory
+URLs are explicitly directory-valued before creation and during locked-root
+handoff; no identity check is relaxed.
+
+The independently and IC-1 reviewed candidate05 passed all 64 methods in eight
+focused suites, with zero failures, skips or Xcode runtime warnings. All 2,844
+source/project hashes and candidate hashes stayed unchanged. Evidence:
+`.artifacts/native-app-bootstrap-20261019/focused05-result.json`, XCResult
+`e5608cd4eea047e8a54ff8355d79bc96`; candidate SHA256
+`c72cf5d0e2f6745ca564a7e259f4ec8d61e84dec795d44ef75a19b5e37d9e9cb`. The
+compile-before-tests failure in focused03 and the 60/64 focused04 result remain
+retained. Corrections added explicit actor isolation to the test fixture and
+explicit directory URL semantics at locked descriptor handoff; identity checks
+were preserved. This is focused shared-checkout verification, not full-target,
+isolated-source, device, hosted or activation acceptance.
+
+Continue populated V2 scoped writes and atomic local receiving admission with
+the same owner. Activation is disabled, PR116 frozen, deployment hold active and
+AWS unapproved.
+
 ## October 19 — inactive scoped native inspection locally verified
 
 The same registered native owner and repository now have a separate read-only

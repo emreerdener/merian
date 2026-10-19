@@ -16,8 +16,9 @@ final class SharedMediaStorageFileOwner {
     private let storeDirectoryDescriptor: Int32
     private let storeDirectoryIdentity: String
     let identity: String
+    private let nativeBootstrap: SharedMediaNativeBootstrapFiles?
 
-    init(root: URL, storeURL: URL, sources: [String: URL], requireExistingFence: Bool = false) throws {
+    init(root: URL, storeURL: URL, sources: [String: URL], requireExistingFence: Bool = false, bootstrap: SharedMediaNativeBootstrapAuthority? = nil) throws {
         self.root = root
         self.sources = sources
         func contains(_ directory: URL, _ item: URL) -> Bool {
@@ -52,7 +53,18 @@ final class SharedMediaStorageFileOwner {
         var storeInfo = stat()
         guard fstat(storeFD, &storeInfo) == 0, storeInfo.st_mode & S_IFMT == S_IFREG,
               storeInfo.st_nlink == 1 else { throw SharedMediaStorageFailure.conflict }
-        let fd = try Self.openDirectory(root)
+        let bootstrapFiles: SharedMediaNativeBootstrapFiles?
+        if let bootstrap {
+            guard !requireExistingFence, root == bootstrap.parent.appendingPathComponent("authority", isDirectory: true),
+                  sources[SharedMediaPhotoLedger.namespace] == bootstrap.parent.appendingPathComponent("photo", isDirectory: true),
+                  sources[SharedMediaInboxFiles.namespace] == bootstrap.parent.appendingPathComponent("inbox", isDirectory: true),
+                  sources.count == 2, bootstrap.parent != storeDirectoryURL else { throw SharedMediaStorageFailure.invalid }
+            bootstrapFiles = try SharedMediaNativeBootstrapFiles(authority: bootstrap, storeParentIdentity: Self.identity(parentInfo))
+        } else { bootstrapFiles = nil }
+        nativeBootstrap = bootstrapFiles
+        let fd: Int32
+        if let bootstrapFiles { fd = try bootstrapFiles.take("authority").consume(at: root).root }
+        else { fd = try Self.openDirectory(root) }
         guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
             Darwin.close(fd); throw SharedMediaStorageFailure.busy
         }
@@ -77,6 +89,7 @@ final class SharedMediaStorageFileOwner {
     }
 
     func check() throws {
+        try nativeBootstrap?.check()
         do { try admissionFence.check() }
         catch { throw SharedMediaStorageFailure.conflict }
         let namedParentFD = try Self.openDirectory(storeDirectoryURL)
@@ -97,6 +110,13 @@ final class SharedMediaStorageFileOwner {
               Self.identity(held) == identity, held.st_dev == named.st_dev, held.st_ino == named.st_ino else {
             throw SharedMediaStorageFailure.conflict
         }
+    }
+
+    func bootstrapProfile() throws -> SharedMediaNativeAppProfile {
+        guard let value = nativeBootstrap?.profile else { throw SharedMediaStorageFailure.closed }; return value
+    }
+    func bootstrapRoot(_ name: String) throws -> SharedMediaNativeLockedRoot {
+        guard let nativeBootstrap else { throw SharedMediaStorageFailure.closed }; return try nativeBootstrap.take(name)
     }
 
     func requireEmpty() throws {

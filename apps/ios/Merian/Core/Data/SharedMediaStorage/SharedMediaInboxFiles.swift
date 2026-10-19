@@ -16,9 +16,18 @@ final class SharedMediaInboxFiles: @unchecked Sendable {
     var fault: (@Sendable (SharedMediaInboxBoundary) throws -> Void)?
     #endif
 
-    init(root: URL, binding: SharedMediaPhotoBinding) throws {
+    init(root: URL, binding: SharedMediaPhotoBinding, nativeRoot: SharedMediaNativeLockedRoot? = nil) throws {
         self.root = root; self.binding = binding
         do {
+            if let nativeRoot {
+                guard !binding.initializing else { throw SharedMediaStorageFailure.conflict }
+                let descriptors = try nativeRoot.consume(at: root)
+                rootFD = descriptors.root; namespaceFD = descriptors.child
+                var r = stat(), n = stat()
+                guard fstat(rootFD, &r) == 0, fstat(namespaceFD, &n) == 0 else { throw SharedMediaStorageFailure.unavailable }
+                identity = Self.directoryIdentity(r) + "/" + Self.directoryIdentity(n)
+                try check(); return
+            }
             rootFD = try Self.openDirectory(root)
             guard flock(rootFD, LOCK_EX | LOCK_NB) == 0 else { throw SharedMediaStorageFailure.busy }
             if binding.initializing { try names(rootFD, maximum: 0) }

@@ -16,11 +16,19 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
     #endif
 
     init(root: URL, sharedBinding: SharedMediaPhotoBinding? = nil,
-         inspection: PhotoPreparationDirectoryInspection = .init()) throws {
+         inspection: PhotoPreparationDirectoryInspection = .init(),
+         nativeRoot: SharedMediaNativeLockedRoot? = nil) throws {
         rootURL = root
         self.sharedBinding = sharedBinding
         self.inspection = inspection
         guard root.isFileURL, root.path.hasPrefix("/") else { throw PhotoPreparationFailure.unavailable }
+        if let nativeRoot {
+            guard sharedBinding != nil, sharedBinding?.initializing == false else { throw PhotoPreparationFailure.inconsistentOwnership }
+            let descriptors = try nativeRoot.consume(at: root)
+            rootFD = descriptors.root; namespaceFD = descriptors.child
+            do { try checkIdentity() } catch { close(); throw error }
+            return
+        }
         var fd = Darwin.open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
         guard fd >= 0 else { throw PhotoPreparationFailure.unavailable }
         do {
