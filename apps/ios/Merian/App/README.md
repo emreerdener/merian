@@ -34,6 +34,17 @@ reusable infrastructure remains in `Core`.
   `Configuration/TestExecutionCoordinator.swift`; reusable Core services do not
   depend on an App-root declaration.
 
+## UI-test reset ownership
+
+The DEBUG fixture reset runs before `ScanRepository.configure` injects the
+container or starts durable bridge/funding/favorites work. The sole startup call
+is synchronous and precedes root/scene tasks. Its preflight refuses an unsaved
+main context and fresh shared-media or protected native authority, including
+orphan job markers with altered kinds. Refusal leaves drafts and fixture state
+untouched. This helper is not runtime reset authority or a background lock;
+native whole-library purge remains unavailable until its typed cleanup owner
+qualifies. Ordinary fixture setup still uses the same existing container.
+
 ## Startup persistence boundary
 
 Before dependency and Auth bootstrap, ordinary launches inspect the deletion

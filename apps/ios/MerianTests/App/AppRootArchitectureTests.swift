@@ -72,6 +72,18 @@ struct AppRootArchitectureTests {
         #expect(oversized.isEmpty)
     }
 
+    @Test func fixtureResetPrecedesContainerWriterInstallation() throws {
+        let source = try readSource(at: "MerianApp.swift")
+        let seed = try #require(source.range(of: "UITestSeedCoordinator.prepareIfNeeded(container: container)"))
+        for call in ["dependencies.scanRepository.configure(with: mainContext)",
+                     "dependencies.supabaseManager.refreshLibraryAccountIsolation()",
+                     "SpeciesPreferredNameRepository.discardLegacyUnscopedPreferences(",
+                     "dependencies.privateScanMapStore.configure("] {
+            let configure = try #require(source.range(of: call))
+            #expect(seed.lowerBound < configure.lowerBound)
+        }
+    }
+
     @Test func uiTestSeedsRemainDebugOnlyWithReleaseNoOps() throws {
         let source = try readSource(
             at: "UITesting/UITestSeedCoordinator.swift"

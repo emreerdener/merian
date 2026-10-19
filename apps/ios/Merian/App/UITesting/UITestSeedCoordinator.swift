@@ -226,6 +226,11 @@ enum UITestSeedCoordinator {
                 arguments.contains(privateScanMapArgument) ||
                 arguments.contains(nonBiologicalCollectionRouteArgument) else { return }
 
+        guard canResetFixtureState(container: container) else {
+            MerianLog.general.debug("UITest fixture reset refused by local ownership preflight.")
+            return
+        }
+
         let context = container.mainContext
 
         do {

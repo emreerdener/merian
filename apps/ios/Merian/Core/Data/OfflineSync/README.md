@@ -1,5 +1,29 @@
 # Offline Sync
 
+## Native receiving cleanup protection under qualification
+
+Legacy queue flushing, soft deletion and invalid-media quarantine check fresh
+persisted ownership and the transaction context before any hint, row, event,
+funding or scheduler side effect. Missing queues still check surviving consumer,
+local/analysis and job-marker evidence. Cached downgrades and ambiguous reads
+fail closed. Funding keeps its separate exact-identity checks across later
+asynchronous work. These synchronous MainActor checks do not claim a background
+scan lock; existing background writer locking remains required.
+
+The DEBUG startup fixture reset now runs before the container is injected into
+ScanRepository and queue/background setup. Its read-only preflight refuses dirty
+main contexts, shared-media liabilities, nonlegacy queue/local/analysis rows and
+orphan receiving-marker jobs even if their kind changed. Refusal does not save,
+rollback or clear drafts. This is a startup-only denial check, not runtime reset
+authority. Native purge/receiving remain closed pending their typed owner paths.
+The independently and IC-1 reviewed candidate passed 36/36 methods in five
+focused suites, with no failures, skips or runtime warnings. All 2,848
+source/project hashes stayed unchanged; evidence is retained in
+`.artifacts/native-legacy-closure-20261019/focused01-result.json`. This is
+scoped shared-checkout validation, not a new full-target or integrated
+acceptance claim. Activation remains disabled, PR116 frozen, deployment hold
+active, AWS unapproved and limits unchanged.
+
 `Core/Data/OfflineSync` owns durable scan admission, upload staging, inference
 replay, retry scheduling, and background URLSession recovery. It is a Core Data
 boundary: feature views may request work through the existing queue APIs, but

@@ -56,7 +56,9 @@ extension OfflineQueueManager {
     /// actor) in a single pass.
     @discardableResult
     func flushOfflineQueuedScan(scanId: String) -> Bool {
-        guard let context = modelContext else { return false }
+        guard let context = modelContext,
+              SharedMediaLegacyQueueAccess.permitsFresh(context.container, scanID: scanId),
+              (try? SharedMediaLegacyQueueAccess.permits(context, scanID: scanId)) == true else { return false }
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
@@ -159,7 +161,9 @@ extension OfflineQueueManager {
         httpStatus: Int? = nil,
         needsAttention: Bool = true
     ) -> Bool {
-        guard let context = modelContext else { return false }
+        guard let context = modelContext,
+              SharedMediaLegacyQueueAccess.permitsFresh(context.container, scanID: scanId),
+              (try? SharedMediaLegacyQueueAccess.permits(context, scanID: scanId)) == true else { return false }
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate<OfflineQueuedScan> { $0.id == scanId }
         )
@@ -243,6 +247,9 @@ extension OfflineQueueManager {
     /// the durable capture.
     @discardableResult
     func quarantineInvalidQueuedMedia(scanId: String) -> Bool {
+        guard let context = modelContext,
+              SharedMediaLegacyQueueAccess.permitsFresh(context.container, scanID: scanId),
+              (try? SharedMediaLegacyQueueAccess.permits(context, scanID: scanId)) == true else { return false }
         let hasCompletedServerResult: Bool
         do {
             hasCompletedServerResult = try hasDurableCompletedServerResult(

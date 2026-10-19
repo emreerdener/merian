@@ -150,6 +150,8 @@ struct MerianApp: App {
                 || ManualAppleRevocationNoticeStore.isPending()
         ) || UITestSeedCoordinator.isWhatsNewLaunchSeedEnabled)
         if let container {
+            // Fixture reset precedes context injection and every app-owned writer.
+            UITestSeedCoordinator.prepareIfNeeded(container: container)
             let mainContext = container.mainContext
             dependencies.scanRepository.configure(with: mainContext)
             dependencies.supabaseManager.refreshLibraryAccountIsolation()
@@ -157,7 +159,6 @@ struct MerianApp: App {
                 modelContext: mainContext
             )
 
-            UITestSeedCoordinator.prepareIfNeeded(container: container)
             dependencies.privateScanMapStore.configure(
                 modelContainer: container,
                 eventStream: dependencies.appEventPublisher
