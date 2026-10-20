@@ -34,7 +34,9 @@ struct SharedMediaNativePairFiles {
               work.finalIdentity == nil, work.retirementID == nil, work.closure == nil else {
             throw SharedMediaStorageFailure.conflict
         }
-        return try .init(state: state, workID: workID, identity: bytes().begin(), binding: binding.bytes, epoch: binding.epoch)
+        let identity = try bytes().begin(), location = try bytes().inspectReservedEmpty()
+        guard location.partial == identity.exact, location.final == "absent" else { throw SharedMediaStorageFailure.conflict }
+        return .init(state: state, workID: workID, identity: identity, location: location, binding: binding.bytes, epoch: binding.epoch)
     }
 
     func write(_ data: Data) throws -> SharedMediaNativePairCompletion {
@@ -47,6 +49,25 @@ struct SharedMediaNativePairFiles {
         try SharedMediaDerivativeWorkFiles.validate(data, input: input)
         let (file, identity) = try bytes().write(data)
         return .init(state: state, workID: workID, file: file, identity: identity, binding: binding.bytes, epoch: binding.epoch)
+    }
+
+    func inspectCompleted() throws -> SharedMediaNativePairCompletion {
+        let (work, _) = try state.selected(workID)
+        guard ["writing", "ready"].contains(state.phase), work.phase == "completed",
+              work.writerState == "closed", work.finalIdentity != nil, work.retirementID == nil,
+              work.closure == nil else { throw SharedMediaStorageFailure.conflict }
+        let (file, identity) = try bytes().inspectCompleted()
+        return .init(state: state, workID: workID, file: file, identity: identity, binding: binding.bytes, epoch: binding.epoch)
+    }
+    func requireCurrentCompletion(_ proof: SharedMediaNativePairCompletion) throws {
+        guard proof.state == state, proof.workID == workID, proof.binding == binding.bytes, proof.epoch == binding.epoch,
+              proof.file == (try state.file(workID)) else { throw SharedMediaStorageFailure.stale }
+        try bytes().requireCompletedIdentity(proof.identity)
+    }
+    func requireCurrentPartial(_ proof: SharedMediaNativePairPartial) throws {
+        guard proof.state == state, proof.workID == workID, proof.binding == binding.bytes, proof.epoch == binding.epoch,
+              proof.identity.bytes == 0, proof.location.partial == proof.identity.exact,
+              try bytes().inspectReservedEmpty() == proof.location else { throw SharedMediaStorageFailure.stale }
     }
 
     /// Explicit recovery can finish the same saved bytes in a new process epoch.
@@ -104,9 +125,10 @@ struct SharedMediaNativePairFiles {
 struct SharedMediaNativePairPartial: Sendable {
     let state: SharedMediaNativePairFileState, workID: UUID
     let identity: SharedMediaInboxFileIdentity
+    let location: SharedMediaInboxDestinationRetirementIdentity
     let binding: Data, epoch: UUID
-    fileprivate init(state: SharedMediaNativePairFileState, workID: UUID, identity: SharedMediaInboxFileIdentity, binding: Data, epoch: UUID) {
-        self.state = state; self.workID = workID; self.identity = identity; self.binding = binding; self.epoch = epoch
+    fileprivate init(state: SharedMediaNativePairFileState, workID: UUID, identity: SharedMediaInboxFileIdentity, location: SharedMediaInboxDestinationRetirementIdentity, binding: Data, epoch: UUID) {
+        self.state = state; self.workID = workID; self.identity = identity; self.location = location; self.binding = binding; self.epoch = epoch
     }
 }
 struct SharedMediaNativePairCompletion: Sendable {
@@ -145,6 +167,14 @@ struct SharedMediaNativePlannedAbsence: Sendable {
 }
 
 extension PhotoPreparationLockedFiles {
+    func requireCurrentPairCompletion(_ proof: SharedMediaNativePairCompletion, binding: SharedMediaNativeBinding) throws {
+        try withNativePairDestination(proof.state, workID: proof.workID, binding: binding, create: false) { try $0.requireCurrentCompletion(proof) }
+    }
+
+    func requireCurrentPairPartial(_ proof: SharedMediaNativePairPartial, binding: SharedMediaNativeBinding) throws {
+        try withNativePairDestination(proof.state, workID: proof.workID, binding: binding, create: false) { try $0.requireCurrentPartial(proof) }
+    }
+
     func requireCurrentPlannedAbsence(_ proof: SharedMediaNativePlannedAbsence, binding: SharedMediaNativeBinding) throws {
         guard proof.binding == binding.bytes, proof.epoch == binding.epoch else { throw SharedMediaStorageFailure.stale }
         try withNativePairDestination(proof.state, workID: proof.workID, binding: binding, create: false) {

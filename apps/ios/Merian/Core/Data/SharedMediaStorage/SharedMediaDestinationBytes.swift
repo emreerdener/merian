@@ -67,6 +67,23 @@ struct SharedMediaDestinationBytes {
         }
     }
 
+    func requireCompletedIdentity(_ observed: SharedMediaInboxFileIdentity) throws {
+        try access.perform { parent, _ in
+            guard try inspect(parent, access.name + ".partial") == nil,
+                  try inspect(parent, access.name) == observed, observed.bytes == expected.byteCount else { throw SharedMediaStorageFailure.stale }
+            try matches(observed)
+        }
+    }
+
+    /// Read-only final inspection: never rename a partial or complete a write.
+    func inspectCompleted() throws -> (PhotoPreparationFile, SharedMediaInboxFileIdentity) {
+        try access.perform { parent, _ in
+            guard try inspect(parent, access.name + ".partial") == nil,
+                  let final = try inspect(parent, access.name), final.exact == finalIdentity else { throw SharedMediaStorageFailure.conflict }
+            return (try verified(parent, access.name), final)
+        }
+    }
+
     func verifyFinal() throws {
         try access.perform { parent, _ in
             guard try inspect(parent, access.name + ".partial") == nil,

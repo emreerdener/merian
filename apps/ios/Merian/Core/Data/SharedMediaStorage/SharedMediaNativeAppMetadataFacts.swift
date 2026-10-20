@@ -16,13 +16,13 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
             revision = row.revision; allocated = row.allocatedByteCount; retiring = row.retirementRequested
             envelope = row.supportingContextData
         }
-        private init(_ old: Self, envelope: Data, revision: Int64, phase: String) {
+        private init(_ old: Self, envelope: Data, revision: Int64, phase: String, allocated: Int64) {
             id = old.id; ownerID = old.ownerID; draftID = old.draftID; generation = old.generation
-            contract = old.contract; tier = old.tier; self.phase = phase; allocated = old.allocated
+            contract = old.contract; tier = old.tier; self.phase = phase; self.allocated = allocated
             retiring = old.retiring; self.envelope = envelope; self.revision = revision
         }
-        func successor(_ bytes: Data, phase: String? = nil) throws -> Self {
-            .init(self, envelope: bytes, revision: try SharedMediaStoragePolicy.add(revision, 1), phase: phase ?? self.phase)
+        func successor(_ bytes: Data, phase: String? = nil, allocated: Int64? = nil) throws -> Self {
+            .init(self, envelope: bytes, revision: try SharedMediaStoragePolicy.add(revision, 1), phase: phase ?? self.phase, allocated: allocated ?? self.allocated)
         }
     }
     struct Member: Equatable, Sendable {

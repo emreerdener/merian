@@ -1,3 +1,41 @@
+## October 20 — V2 fresh paired-file delivery locally verified
+
+The inactive app owner now retains fresh processed outputs through file
+reservation, partial identity persistence, both output completions and paired
+publication in one held operation. A saved plan cannot supply replacement bytes
+or authorize another processor call. The shared transaction core uses sealed app
+actions, exact per-action poststates and full pending/receiving accounting.
+Available space is rechecked at reservation save; original, output and directory
+identities are synchronously rechecked immediately before publication.
+
+Independent and IC-1 reviewed candidate02 passed **100/100 methods across 14
+suites**, with no failures, skips or Xcode runtime warnings. All **2,864**
+source/project hashes and candidate hashes stayed unchanged. Evidence:
+`.artifacts/native-app-pair-delivery-20261020/focused02-result.json`; XCResult
+`b042c93ff75842a99090fc310c49a4b2`. This is focused shared-checkout validation,
+not full-target, isolated-source, device, hosted or integrated acceptance.
+Compiler/lint warnings, synthetic-image diagnostics and a simulator Photos
+service connection diagnostic remain in the log.
+
+Candidate01 was held without execution: review found cancellation could reach
+file creation during an actor hop. Candidate02 checks cancellation at actual
+actor entry and before namespace creation; its deterministic regression proves
+both final and partial paths stay absent while reserved liabilities remain.
+Tests also cover interrupted writes, exact save acknowledgement, readback loss,
+receiving preservation, low space, physical replacement and owner drainage.
+
+Cold output completion and retirement remain closed pending their next reviewed
+integration. Exact recovery may finish only already-bound bytes; retirement must
+persist and acknowledge its closure before unlink, prove both absences before
+final accounting release, and treat an already-released old request as stale
+without further I/O. No permanent proof rows or capacity charges are required.
+
+Next are cold recovery/retirement, atomic inert receiving,
+lifecycle/Capture/Auth integration, RUX recovery and integrated acceptance, then
+version deletion/export and redesign. Activation stays disabled, PR116 frozen,
+the Supabase deployment hold active and AWS unapproved. Schema and storage
+limits remain unchanged.
+
 ## October 20 — V2 no-file plan closure locally verified
 
 The inactive app owner can close one exact never-started photo plan, including

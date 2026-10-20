@@ -106,11 +106,19 @@ actor SharedMediaNativeOriginalIO {
     func releasePair(_ disposal: SharedMediaNativePairDisposal, workID: UUID) throws -> SharedMediaNativePairAbsence {
         try withPair(disposal.state, workID: workID, create: false) { try $0.release(disposal) }
     }
-    func beginPair(_ state: SharedMediaNativePairFileState, workID: UUID) throws -> SharedMediaNativePairPartial {
-        try withPair(state, workID: workID, create: true) { try $0.begin() }
+    func beginPair(_ state: SharedMediaNativePairFileState, workID: UUID) async throws -> SharedMediaNativePairPartial {
+        try Task.checkCancellation()
+        #if DEBUG
+        await acquisitionEntryPause?(.beginPair)
+        #endif
+        try Task.checkCancellation()
+        return try withPair(state, workID: workID, create: true) { try $0.begin() }
     }
     func writePair(_ data: Data, state: SharedMediaNativePairFileState, workID: UUID) throws -> SharedMediaNativePairCompletion {
         try withPair(state, workID: workID, create: false) { try $0.write(data) }
+    }
+    func inspectCompletedPair(_ state: SharedMediaNativePairFileState, workID: UUID) throws -> SharedMediaNativePairCompletion {
+        try withPair(state, workID: workID, create: false) { try $0.inspectCompleted() }
     }
     func recoverPair(_ state: SharedMediaNativePairFileState, workID: UUID) throws -> SharedMediaNativePairCompletion? {
         try withPair(state, workID: workID, create: false) { try $0.recover() }
@@ -141,5 +149,5 @@ actor SharedMediaNativeOriginalIO {
 }
 
 #if DEBUG
-enum SharedMediaNativeOriginalIOEntry: Sendable { case load, write }
+enum SharedMediaNativeOriginalIOEntry: Sendable { case load, write, beginPair }
 #endif

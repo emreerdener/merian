@@ -5,6 +5,14 @@ extension SharedMediaNativeOriginalOwner {
     func prepareAndPlanAppPhoto(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe) async throws -> SharedMediaNativePairPlan {
         try await appPreparationWorkflow { try await $0.prepareAndPlan(original: original, recipe: recipe) }
     }
+    func prepareAndDeliverAppPhoto(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe) async throws -> SharedMediaNativePairFileState {
+        try await appPreparationWorkflow { try await $0.prepareAndDeliver(original: original, recipe: recipe) }
+    }
+    #if DEBUG
+    func setAppPairFileFault(_ fault: (@Sendable (SharedMediaInboxHandoffBoundary) throws -> Void)?) async throws {
+        try await appPreparationWorkflow { await $0.setFileFault(fault) }
+    }
+    #endif
     func savedAppPlan(packageID: UUID, pairID: UUID) async throws -> SharedMediaNativePairPlan {
         try await appPreparationWorkflow { try $0.savedPlan(packageID: packageID, pairID: pairID) }
     }
