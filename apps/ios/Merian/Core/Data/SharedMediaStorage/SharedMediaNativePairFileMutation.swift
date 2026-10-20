@@ -7,7 +7,7 @@ import SwiftData
 final class SharedMediaNativePairFileMutation {
     private let container: ModelContainer
     @MainActor private enum Authority {
-        case qualification(SharedMediaNativeMutationAuthority), app(SharedMediaNativeAppPairFileWitness)
+        case qualification(SharedMediaNativeMutationAuthority), app(SharedMediaNativeAppPairAuthority)
         var binding: SharedMediaNativeBinding {
             switch self { case .qualification(let value): return value.binding; case .app(let value): return value.binding }
         }
@@ -30,7 +30,11 @@ final class SharedMediaNativePairFileMutation {
     }
     convenience init(container: ModelContainer, witness: SharedMediaNativeAppPairFileWitness) throws {
         try self.init(container: container, inventoryID: witness.state.plan.inventoryID, packageID: witness.state.plan.packageID,
-            authority: .app(witness), pairID: witness.state.intent().pairID)
+            authority: .app(.fresh(witness)), pairID: witness.state.intent().pairID)
+    }
+    convenience init(container: ModelContainer, recovery: SharedMediaNativeAppPairRecoveryWitness) throws {
+        try self.init(container: container, inventoryID: recovery.state.plan.inventoryID, packageID: recovery.state.plan.packageID,
+            authority: .app(.recovery(recovery)), pairID: recovery.state.intent().pairID)
     }
     private init(container: ModelContainer, inventoryID: UUID, packageID: UUID, authority: Authority, pairID: UUID?) throws {
         try authority.validate(container)
@@ -326,7 +330,7 @@ final class SharedMediaNativePairFileMutation {
         }
         guard try fresh().before == expected else { throw SharedMediaStorageFailure.stale }; return expected
     }
-    private func saveApp(_ witness: SharedMediaNativeAppPairFileWitness, _ beforeSave: () throws -> Void,
+    private func saveApp(_ witness: SharedMediaNativeAppPairAuthority, _ beforeSave: () throws -> Void,
                          _ afterSave: () throws -> Void) throws -> SharedMediaNativePairFileState {
         let proof = try SharedMediaNativeAppPairPoststate(context: context, inventory: inventory, package: package, member: member, witness: witness)
         func budget() throws {
@@ -374,7 +378,7 @@ struct SharedMediaNativePairDisposal: Sendable {
 struct SharedMediaNativeAppPairPoststate {
     let profile: SharedMediaNativeAppProfile
     let expected: SharedMediaNativePairFileState
-    private let witness: SharedMediaNativeAppPairFileWitness
+    private let witness: SharedMediaNativeAppPairAuthority
     private let contextID: ObjectIdentifier
     private let inventoryID: PersistentIdentifier
     private let updates: Set<PersistentIdentifier>, inserts: Set<PersistentIdentifier>, deletes: Set<PersistentIdentifier>
@@ -382,7 +386,7 @@ struct SharedMediaNativeAppPairPoststate {
     private let member: SharedMediaNativeAppMetadataFacts.Member
 
     fileprivate init(context: ModelContext, inventory: SharedMediaInventoryRecord, package row: PhotoPreparationRecord,
-                     member: SharedMediaPendingMembershipRecord, witness: SharedMediaNativeAppPairFileWitness) throws {
+                     member: SharedMediaPendingMembershipRecord, witness: SharedMediaNativeAppPairAuthority) throws {
         self.witness = witness; profile = witness.preparation.authority.profile
         contextID = ObjectIdentifier(context); inventoryID = inventory.persistentModelID
         let before = witness.state, intent = try before.intent(), facts = witness.preparation.facts
@@ -446,7 +450,7 @@ struct SharedMediaNativeAppPairPoststate {
         updates = changed; inserts = added; deletes = removed
         try validate(context: context, inventory: inventory)
     }
-    fileprivate static func membership(_ witness: SharedMediaNativeAppPairFileWitness) throws -> Data {
+    fileprivate static func membership(_ witness: SharedMediaNativeAppPairAuthority) throws -> Data {
         let old = try SharedMediaMembership.decode(witness.state.plan.membership), intent = try witness.state.intent()
         var groups = Dictionary(uniqueKeysWithValues: old.groups.map { ($0.kind, Set($0.ids)) })
         func add(_ kind: SharedMediaMembership.Kind, _ id: UUID) throws {

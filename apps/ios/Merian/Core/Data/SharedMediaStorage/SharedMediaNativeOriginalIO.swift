@@ -120,8 +120,13 @@ actor SharedMediaNativeOriginalIO {
     func inspectCompletedPair(_ state: SharedMediaNativePairFileState, workID: UUID) throws -> SharedMediaNativePairCompletion {
         try withPair(state, workID: workID, create: false) { try $0.inspectCompleted() }
     }
-    func recoverPair(_ state: SharedMediaNativePairFileState, workID: UUID) throws -> SharedMediaNativePairCompletion? {
-        try withPair(state, workID: workID, create: false) { try $0.recover() }
+    func recoverPair(_ state: SharedMediaNativePairFileState, workID: UUID) async throws -> SharedMediaNativePairCompletion? {
+        try Task.checkCancellation()
+        #if DEBUG
+        await acquisitionEntryPause?(.recoverPair)
+        #endif
+        try Task.checkCancellation()
+        return try withPair(state, workID: workID, create: false) { try $0.recover() }
     }
     func inspectPlannedPairAbsent(_ state: SharedMediaNativePairFileState) throws -> [SharedMediaNativePlannedAbsence] {
         try Task.checkCancellation()
@@ -149,5 +154,5 @@ actor SharedMediaNativeOriginalIO {
 }
 
 #if DEBUG
-enum SharedMediaNativeOriginalIOEntry: Sendable { case load, write, beginPair }
+enum SharedMediaNativeOriginalIOEntry: Sendable { case load, write, beginPair, recoverPair }
 #endif

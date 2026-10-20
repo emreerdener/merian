@@ -1,3 +1,35 @@
+## October 20 — V2 exact cold output recovery locally verified
+
+The inactive app owner can recover an already-bound complete partial or exact
+existing final after restart, then publish only the exact pair. Its sealed cold
+capability cannot reserve outputs, create partials, accept replacement bytes or
+run preparation. Saved work epochs stay unchanged; physical proofs use the
+current held namespace binding. Incomplete, missing and unbound work stays held;
+conflicting files fail closed. Already-ready recovery is read-only.
+
+Independent and IC-1 reviewed candidate01 passed **45/45 methods across six
+suites**, with no failures, skips or Xcode runtime warnings. All **2,866**
+source/project hashes and candidate hashes stayed unchanged. Evidence:
+`.artifacts/native-app-pair-recovery-20261020/focused01-result.json`; XCResult
+`c1aee0b14f664a8bac04abef6b0e7c6f`. Nine unchanged suites from the prior
+delivery 100/100-method, 14-suite result remain reused. This is focused
+shared-checkout validation, not full-target, isolated-source, device, hosted or
+integrated acceptance. Compiler and lint warnings remain in the log.
+
+Tests cover cold epochs, exact retained bytes, missing/short/conflicting files,
+save acknowledgement and readback loss, final-boundary replacements, receiving
+preservation and cancellation at actual actor entry before rename. Uncertainty
+never authorizes another processor call or substitute media.
+
+Next is exact cold retirement: persist and acknowledge the closure before
+unlink, prove both absences before final atomic accounting release, and reject
+an already-released old request without I/O. No permanent proof rows or capacity
+charges are required. Atomic inert receiving, lifecycle/Capture/Auth
+integration, RUX recovery and integrated acceptance still precede version
+deletion/export and redesign. Activation stays disabled, PR116 frozen, the
+Supabase deployment hold active and AWS unapproved. Schema and limits remain
+unchanged.
+
 ## October 20 — V2 fresh paired-file delivery locally verified
 
 The inactive app owner now retains fresh processed outputs through file

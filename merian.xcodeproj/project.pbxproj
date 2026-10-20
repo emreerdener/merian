@@ -717,6 +717,7 @@
 		419D3D61E52502BFDA76A08E /* ScanLifecycleAPIModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC63A3CFC5DEF2441924F5B3 /* ScanLifecycleAPIModelsTests.swift */; };
 		41A12416BC29CD8611689497 /* SharedMediaNativeAppPairPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 689ADC8C150913A576C8FDE1 /* SharedMediaNativeAppPairPlanTests.swift */; };
 		41AC1F605C01C36685C842A3 /* AppleOAuthAuthorizationLiveProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82D2AB072BE8BE3E4748D724 /* AppleOAuthAuthorizationLiveProvider.swift */; };
+		41B0A1B41863D96002ED421D /* SharedMediaNativeAppPairRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C431C00E1B0F88C256F8C4C /* SharedMediaNativeAppPairRecoveryTests.swift */; };
 		41D90A4AFCB280D4FC9C8286 /* PurchaseIdentitySourceHandoffCoordinationDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1529B7346141BA9E37069ACF /* PurchaseIdentitySourceHandoffCoordinationDependencies.swift */; };
 		41FDE006B53B1675C0EA7234 /* ShareNaturebookCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0412334EE55452F6FBE5268 /* ShareNaturebookCard.swift */; };
 		421C0A1777E6837491846C03 /* OfflineQueueManager+ProtectedChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1C85B57482E0E37AD87665 /* OfflineQueueManager+ProtectedChat.swift */; };
@@ -1237,6 +1238,7 @@
 		6E5B282256F4DAFF7880532B /* FieldTripPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE22A2A51913531D3171CA9 /* FieldTripPresentationTests.swift */; };
 		6E5CD6EBBE414E7DC7D22A20 /* SharedMediaPendingMembershipRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70B6B792A5DB43F8C9E2EC1 /* SharedMediaPendingMembershipRecord.swift */; };
 		6E5F89476B8715AEDACD7186 /* ExploreDetailZoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35ACE9540AA5B69F34C63E84 /* ExploreDetailZoomView.swift */; };
+		6E8CE3A8708A87736F1B8CAA /* SharedMediaNativeAppPairAuthority.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACC396F4CA12B320E07FD6C9 /* SharedMediaNativeAppPairAuthority.swift */; };
 		6E9F9BEF95630C2C6B98A575 /* FirstFieldTripProgressStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69BE5E082FB9EC1CA7007028 /* FirstFieldTripProgressStoreTests.swift */; };
 		6EA3D99091A1A8B87D801839 /* SharedMediaInboxHandoffValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD4CDD72A7EA530B9714B466 /* SharedMediaInboxHandoffValues.swift */; };
 		6EA8932BA29D06570EF0DB39 /* AccountDeletionBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82437625885E78FCBAF22C46 /* AccountDeletionBoundaryTests.swift */; };
@@ -4544,6 +4546,7 @@
 		8C1528701434F084D7944AAA /* ObservationHistoryEnrollmentIntentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationHistoryEnrollmentIntentTests.swift; sourceTree = "<group>"; };
 		8C3EC79044BCD90BA0800A07 /* SharedMediaInboxHandoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaInboxHandoffTests.swift; sourceTree = "<group>"; };
 		8C417B7D32B673DA270E0573 /* InsightBottomToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightBottomToolbar.swift; sourceTree = "<group>"; };
+		8C431C00E1B0F88C256F8C4C /* SharedMediaNativeAppPairRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeAppPairRecoveryTests.swift; sourceTree = "<group>"; };
 		8C4D85961A02B10D258434E4 /* IdentificationComparisonCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentificationComparisonCapture.swift; sourceTree = "<group>"; };
 		8C51817C70C4C81979F28EB9 /* SchemaV52ScanSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV52ScanSnapshots.swift; sourceTree = "<group>"; };
 		8C5F72B850D9ACC12F318932 /* EnvironmentGeocodingServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentGeocodingServiceTests.swift; sourceTree = "<group>"; };
@@ -4909,6 +4912,7 @@
 		AC9D8FDB5FEA0CEEA4F012E1 /* AppRouteModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouteModels.swift; sourceTree = "<group>"; };
 		ACB4FCDFABB3CBE16130886B /* SharedMediaStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaStorageTests.swift; sourceTree = "<group>"; };
 		ACB5C345BC2045E0E70B954C /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
+		ACC396F4CA12B320E07FD6C9 /* SharedMediaNativeAppPairAuthority.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeAppPairAuthority.swift; sourceTree = "<group>"; };
 		ACC72CC8BAE1929E634F4389 /* PrivateScanMapClusteringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivateScanMapClusteringTests.swift; sourceTree = "<group>"; };
 		ACCA69805FDD2644C8E21D43 /* merianUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = merianUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		ACD03B9833B8A6EA14C80F21 /* HistoricalSyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalSyncModels.swift; sourceTree = "<group>"; };
@@ -7021,6 +7025,7 @@
 				22727C0E873C7533CF163673 /* SharedMediaNativeAppMetadataTests.swift */,
 				EE0984E73A99037C4F39AD9A /* SharedMediaNativeAppPairDeliveryTests.swift */,
 				689ADC8C150913A576C8FDE1 /* SharedMediaNativeAppPairPlanTests.swift */,
+				8C431C00E1B0F88C256F8C4C /* SharedMediaNativeAppPairRecoveryTests.swift */,
 				0D1D5509C8D575BEA369EF22 /* SharedMediaNativeAppPlanClosureTests.swift */,
 				746925B7D00D7C1521A1E0EB /* SharedMediaNativeAppPreparationTests.swift */,
 				9764C17C61EE3EECB6700B05 /* SharedMediaNativeConsumerGraphTests.swift */,
@@ -9251,6 +9256,7 @@
 				A3370FBBC4ACF8B7FAB0CB89 /* SharedMediaNativeAppEligibility.swift */,
 				25B674FE0AF1E785ED2C60E7 /* SharedMediaNativeAppMetadataFacts.swift */,
 				252CDF23CF5AF59857688CCC /* SharedMediaNativeAppMetadataOperations.swift */,
+				ACC396F4CA12B320E07FD6C9 /* SharedMediaNativeAppPairAuthority.swift */,
 				48B44A1E92B8F2819628CC44 /* SharedMediaNativeAppPairPlanClosure.swift */,
 				08CB91B38BBC93A5A6170C01 /* SharedMediaNativeAppPreparationOperations.swift */,
 				8F85D2CD98FBBB4B1E766920 /* SharedMediaNativeBootstrapDatabase.swift */,
@@ -15458,6 +15464,7 @@
 				8B47DD7FC425CCCC398D7CD8 /* SharedMediaNativeAppMetadataTests.swift in Sources */,
 				0DDA26623B13B415BE6B1086 /* SharedMediaNativeAppPairDeliveryTests.swift in Sources */,
 				41A12416BC29CD8611689497 /* SharedMediaNativeAppPairPlanTests.swift in Sources */,
+				41B0A1B41863D96002ED421D /* SharedMediaNativeAppPairRecoveryTests.swift in Sources */,
 				C54D3EF98F0FA133552C6528 /* SharedMediaNativeAppPlanClosureTests.swift in Sources */,
 				A49886B98BB57871723D747F /* SharedMediaNativeAppPreparationTests.swift in Sources */,
 				718C9295A47FC0BA34D379E6 /* SharedMediaNativeConsumerGraphTests.swift in Sources */,
@@ -17269,6 +17276,7 @@
 				63233CB13F6E052B2DFD9679 /* SharedMediaNativeAppEligibility.swift in Sources */,
 				DE7294B2AD9819CF8EF7CB85 /* SharedMediaNativeAppMetadataFacts.swift in Sources */,
 				A1F05E016444F4BB239EE8DB /* SharedMediaNativeAppMetadataOperations.swift in Sources */,
+				6E8CE3A8708A87736F1B8CAA /* SharedMediaNativeAppPairAuthority.swift in Sources */,
 				1DE4F802C08BCBB03C75C887 /* SharedMediaNativeAppPairPlanClosure.swift in Sources */,
 				6254641541047B851C7FC6F6 /* SharedMediaNativeAppPreparationOperations.swift in Sources */,
 				1E194BF27FB63B151C2CD34A /* SharedMediaNativeBootstrapDatabase.swift in Sources */,

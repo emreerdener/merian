@@ -118,22 +118,82 @@ final class SharedMediaNativeAppPreparationOperations {
             guard observed.identity.file == complete.identity.exact else { throw SharedMediaStorageFailure.conflict }
             current = try await transition(current, action: .complete(complete), seal: { try self.verifyProof(observed); try self.verifyCompletion(complete) })
         }
-        let originalProof = try await io.inspect(output.intent.preparation.original.file)
-        guard originalProof.identity == output.intent.preparation.original.descriptor else { throw SharedMediaStorageFailure.conflict }
+        let (completed, observed) = try await publicationObservations(current)
+        return try await transition(current, action: .publish(completed), seal: {
+            for proof in observed { try self.verifyProof(proof) }
+            for proof in completed { try self.verifyCompletion(proof) }
+        })
+    }
+    private func publicationObservations(_ state: SharedMediaNativePairFileState) async throws
+        -> ([SharedMediaNativePairCompletion], [SharedMediaPhotoRetirementInspection]) {
+        let original = try state.intent().preparation.original
+        let originalProof = try await io.inspect(original.file)
+        guard originalProof.identity == original.descriptor else { throw SharedMediaStorageFailure.conflict }
         var completed: [SharedMediaNativePairCompletion] = []
         var observed: [SharedMediaPhotoRetirementInspection] = [originalProof]
-        for work in current.work {
+        for work in state.work {
+            _ = try authority.header(container); try Task.checkCancellation()
             // Fresh read-only verification, never recovery/rename of saved bytes.
-            let proof = try await io.inspectCompletedPair(current, workID: work.id)
+            let proof = try await io.inspectCompletedPair(state, workID: work.id)
             completed.append(proof)
             let file = try await io.inspect(proof.file)
             guard file.identity.file == proof.identity.exact else { throw SharedMediaStorageFailure.conflict }
             observed.append(file)
         }
-        return try await transition(current, action: .publish(completed), seal: {
+        return (completed, observed)
+    }
+    /// Cold recovery has no data/provider input and never enters freshPlan,
+    /// beginPair or writePair. An incomplete or unbound output remains held.
+    func recoverFiles(packageID: UUID, pairID: UUID) async throws -> SharedMediaNativePairFileState {
+        guard !consumed else { throw SharedMediaStorageFailure.closed }; consumed = true
+        var state = try recoveryState(packageID: packageID, pairID: pairID)
+        guard ["writing", "ready"].contains(state.phase) else { throw SharedMediaStorageFailure.closed }
+        let original = try state.intent().preparation.original
+        let originalProof = try await io.inspect(original.file)
+        guard originalProof.identity == original.descriptor else { throw SharedMediaStorageFailure.conflict }
+        for id in state.work.map(\.id) {
+            let current = try await refresh()
+            guard try current.recoveryState(packageID: packageID, pairID: pairID) == state else { throw SharedMediaStorageFailure.stale }
+            try verifyProof(originalProof)
+            let (work, _) = try state.selected(id)
+            guard ["writing", "completed"].contains(work.phase) else { return state }
+            if work.phase == "completed" { continue }
+            guard let completion = try await io.recoverPair(state, workID: id) else {
+                let current = try await refresh()
+                guard try current.recoveryState(packageID: packageID, pairID: pairID) == state else { throw SharedMediaStorageFailure.stale }
+                return state
+            }
+            _ = try authority.header(container); try Task.checkCancellation()
+            let observed = try await io.inspect(completion.file)
+            guard observed.identity.file == completion.identity.exact else { throw SharedMediaStorageFailure.conflict }
+            state = try await recoverTransition(state, action: .completeSaved(completion), seal: {
+                try self.verifyProof(originalProof); try self.verifyProof(observed); try self.verifyCompletion(completion)
+            })
+        }
+        let (completed, observed) = try await publicationObservations(state)
+        let seal = {
             for proof in observed { try self.verifyProof(proof) }
             for proof in completed { try self.verifyCompletion(proof) }
-        })
+        }
+        if state.phase == "ready" {
+            let current = try await refresh()
+            guard try current.recoveryState(packageID: packageID, pairID: pairID) == state else { throw SharedMediaStorageFailure.stale }
+            try seal(); return state
+        }
+        return try await recoverTransition(state, action: .publishSaved(completed), seal: seal)
+    }
+    private func recoveryState(packageID: UUID, pairID: UUID) throws -> SharedMediaNativePairFileState {
+        let preparation = SharedMediaNativeAppPreparationWitness(authority: authority, expected: expected, facts: facts, action: .inspect)
+        return try SharedMediaNativeAppPairRecoveryWitness.currentState(container, preparation: preparation, packageID: packageID, pairID: pairID)
+    }
+    private func recoverTransition(_ state: SharedMediaNativePairFileState, action: SharedMediaNativeAppPairRecoveryWitness.Action,
+                                   seal: @escaping () throws -> Void) async throws -> SharedMediaNativePairFileState {
+        let current = try await refresh()
+        let preparation = SharedMediaNativeAppPreparationWitness(authority: authority, expected: current.expected, facts: current.facts, action: .inspect)
+        let witness = SharedMediaNativeAppPairRecoveryWitness(preparation: preparation, state: state,
+            binding: fileBinding, action: action, seal: seal, beforeReadback: { try self.boundary(.beforeReadback) })
+        return try SharedMediaNativePairFileMutation(container: container, recovery: witness).applyApp(availableBytes: availableBytes,
+            beforeSave: { try self.boundary(action.transition.boundaries.0) }, afterSave: { try self.boundary(action.transition.boundaries.1) })
     }
     #if DEBUG
     func setFileFault(_ fault: (@Sendable (SharedMediaInboxHandoffBoundary) throws -> Void)?) async { await io.setPairFault(fault) }
@@ -305,5 +365,56 @@ enum SharedMediaNativeAppPairAction {
         case .complete: return (.beforeFileCompletion, .afterFileCompletion)
         case .publish: return (.beforeFilePublish, .afterFilePublish)
         }
+    }
+}
+
+/// A saved epoch permits only exact completion/publication of already-bound
+/// bytes. It cannot mint fresh reserve/partial authority or accept output data.
+@MainActor
+struct SharedMediaNativeAppPairRecoveryWitness {
+    enum Action {
+        case completeSaved(SharedMediaNativePairCompletion), publishSaved([SharedMediaNativePairCompletion])
+        var transition: SharedMediaNativeAppPairAction {
+            switch self { case .completeSaved(let proof): return .complete(proof); case .publishSaved(let proofs): return .publish(proofs) }
+        }
+    }
+    let preparation: SharedMediaNativeAppPreparationWitness
+    let state: SharedMediaNativePairFileState
+    let binding: SharedMediaNativeBinding
+    let action: Action
+    let seal: () throws -> Void
+    let beforeReadback: () throws -> Void
+    fileprivate init(preparation: SharedMediaNativeAppPreparationWitness, state: SharedMediaNativePairFileState,
+                     binding: SharedMediaNativeBinding, action: Action, seal: @escaping () throws -> Void,
+                     beforeReadback: @escaping () throws -> Void) {
+        self.preparation = preparation; self.state = state; self.binding = binding
+        self.action = action; self.seal = seal; self.beforeReadback = beforeReadback
+    }
+    func validate(_ container: ModelContainer) throws {
+        try Task.checkCancellation()
+        guard !binding.initializing, state.phase == "writing",
+              try Self.currentState(container, preparation: preparation, packageID: state.plan.packageID,
+                  pairID: state.intent().pairID) == state else { throw SharedMediaStorageFailure.stale }
+        switch action {
+        case .completeSaved(let proof):
+            guard proof.state == state, try state.selected(proof.workID).0.phase == "writing" else { throw SharedMediaStorageFailure.conflict }
+        case .publishSaved(let proofs):
+            guard proofs.count == 2, Set(proofs.map(\.workID)) == Set(state.work.map(\.id)),
+                  proofs.allSatisfy({ $0.state == state }), state.work.allSatisfy({ $0.phase == "completed" }) else { throw SharedMediaStorageFailure.conflict }
+        }
+    }
+    static func currentState(_ container: ModelContainer, preparation: SharedMediaNativeAppPreparationWitness,
+                             packageID: UUID, pairID: UUID) throws -> SharedMediaNativePairFileState {
+        try preparation.validate(container)
+        guard preparation.action == .inspect, preparation.facts.packages[packageID] != nil,
+              preparation.facts.consumers[packageID] == nil else { throw SharedMediaStorageFailure.closed }
+        let c = ModelContext(container); c.autosaveEnabled = false
+        let inventoryID = preparation.authority.profile.inventoryID
+        let inventory = try SharedMediaNativePairPlanGraph.one(c, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
+        let package = try SharedMediaNativePairPlanGraph.one(c, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == packageID }))
+        let member = try SharedMediaNativePairPlanGraph.one(c, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == packageID }))
+        _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: c, inventory: inventory,
+            ownerID: preparation.authority.profile.ownerID, format: .appV2)
+        return try SharedMediaNativePairFileGraph.state(context: c, inventory: inventory, package: package, member: member, pairID: pairID)
     }
 }
