@@ -122,7 +122,7 @@ enum SharedMediaNativePreparationGraph {
             return package
         }
     }
-    static func requireIdleFiles(_ context: ModelContext, scopedInventory: SharedMediaInventoryRecord?) throws {
+    static func requireIdleFiles(_ context: ModelContext, scopedInventory: SharedMediaInventoryRecord?, allowSavedOriginalRetirements: Bool = false) throws {
         guard let inventory = scopedInventory else {
             guard try context.fetchCount(FetchDescriptor<PhotoPreparationLease>()) == 0,
                   try context.fetchCount(FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.cleanupStateRaw != "ready" })) == 0 else { throw SharedMediaStorageFailure.conflict }
@@ -137,7 +137,23 @@ enum SharedMediaNativePreparationGraph {
             for ref in refs {
                 let assetID = ref.assetID
                 let asset = try one(context, FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.id == assetID }))
-                guard asset.cleanupStateRaw == "ready", asset.ownerID == package.ownerID else { throw SharedMediaStorageFailure.conflict }
+                guard asset.ownerID == package.ownerID else { throw SharedMediaStorageFailure.conflict }
+                if asset.cleanupStateRaw == "ready" { continue }
+                // Only fresh app acquisition may coexist with a saved original
+                // retirement. Preparation/poststate callers remain strict.
+                guard allowSavedOriginalRetirements, !context.hasChanges,
+                      !ref.isLive, ref.roleRaw == "original", asset.cleanupStateRaw == "retiring" else {
+                    throw SharedMediaStorageFailure.conflict
+                }
+                let original = try SharedMediaNativeOriginalAccounting.audit(assetID: assetID, inventoryID: inventory.id, context: context)
+                let referenceID = ref.id
+                guard original.liveCount == 0, original.retirement != nil,
+                      try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate {
+                          $0.originalReferenceID == referenceID || $0.originalAssetID == assetID
+                      })) == 0,
+                      try context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>(predicate: #Predicate { $0.assetID == assetID })) == 0 else {
+                    throw SharedMediaStorageFailure.conflict
+                }
             }
         }
     }

@@ -6,22 +6,15 @@ import SwiftData
 @MainActor
 final class SharedMediaNativeStorageRepository {
     private enum OpenKind { case qualificationEmpty, qualificationOriginal, scopedInspection, appInitialization, appDispatch }
-    private let openKind: OpenKind
-    private let scopedIdentity: SharedMediaNativeScopeIdentity?
+    private let openKind: OpenKind, scopedIdentity: SharedMediaNativeScopeIdentity?
     private let scopedRoots: (authority: URL, photo: URL, inbox: URL)?
     private static let mode = "nativeQualificationV1"
     private static let phase = "readyNativeAccountingV1"
-    private let container: ModelContainer
-    private let files: SharedMediaStorageFileOwner
-    private let photos: PhotoPreparationLockedFiles
-    private let originals: Bool
-    private let expectedOwnerID: UUID?, originalWriterEpoch: UUID?
-    private let originalIO: SharedMediaNativeOriginalIO
-    private let inbox: SharedMediaInboxFiles
-    private let inventoryID: UUID, generation: UUID
-    private let storeIdentity: String, rootBinding: String
-    private let binding: Data
-    private let nativeBinding: SharedMediaNativeBinding
+    private let container: ModelContainer, files: SharedMediaStorageFileOwner, photos: PhotoPreparationLockedFiles
+    private let originals: Bool, expectedOwnerID: UUID?, originalWriterEpoch: UUID?
+    private let originalIO: SharedMediaNativeOriginalIO, inbox: SharedMediaInboxFiles
+    private let inventoryID: UUID, generation: UUID, storeIdentity: String, rootBinding: String
+    private let binding: Data, nativeBinding: SharedMediaNativeBinding
     #if DEBUG
     private var debug: SharedMediaNativeDebugHooks?
     #endif
@@ -334,6 +327,16 @@ final class SharedMediaNativeStorageRepository {
             #endif
         })
     }
+    func appOriginal(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeAppOriginalOperations {
+        try requireApp(grant)
+        let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try self.requireApp(grant); return try self.appHeader() }
+        return try await .audited(container: container, authority: authority, io: originalIO, binding: nativeBinding, files: photos,
+            availableBytes: { try self.files.availableBytes() }, boundary: { point in
+                #if DEBUG
+                try self.debug?.lifecycleFault?(point)
+                #endif
+            })
+    }
     func appPending(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeAppPendingOperations {
         try requireApp(grant)
         let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try self.requireApp(grant); return try self.appHeader() }
@@ -564,8 +567,7 @@ final class SharedMediaNativeBootstrapAuthority {
 /// save callback. A typed operation must audit before constructing its witness.
 @MainActor
 struct SharedMediaNativeAppOperationAuthority {
-    let profile: SharedMediaNativeAppProfile
-    let writerEpoch: UUID
+    let profile: SharedMediaNativeAppProfile, writerEpoch: UUID
     private let containerID: ObjectIdentifier
     private let check: () throws -> SharedMediaNativeAppEligibility.Header
     fileprivate init(container: ModelContainer, profile: SharedMediaNativeAppProfile, writerEpoch: UUID,
@@ -581,9 +583,7 @@ struct SharedMediaNativeAppOperationAuthority {
 /// Repository-minted V2 acquisition fence, separate from the V1 mutation grant.
 @MainActor
 struct SharedMediaNativeAppAcquisitionAuthority {
-    let profile: SharedMediaNativeAppProfile
-    let binding: SharedMediaNativeBinding
-    let writerEpoch: UUID
+    let profile: SharedMediaNativeAppProfile, binding: SharedMediaNativeBinding, writerEpoch: UUID
     let settlementRequest: SharedMediaAcquisitionIntent?
     private let containerID: ObjectIdentifier
     private let check: () throws -> SharedMediaNativeAppEligibility.Header

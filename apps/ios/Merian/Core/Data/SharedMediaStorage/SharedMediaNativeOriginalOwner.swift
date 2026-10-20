@@ -8,11 +8,9 @@ final class SharedMediaNativeOriginalOwner {
     private enum OpenKind { case qualification, scopedInspection, appInitialization, appDispatch }
     private let openKind: OpenKind
     private var scopedIdentity: SharedMediaNativeScopeIdentity?
-    private var appProfile: SharedMediaNativeAppProfile?
-    private var appParent: URL?
+    private var appProfile: SharedMediaNativeAppProfile?, appParent: URL?
     private enum Phase { case unopened, opening, ready, failed, suspended }
-    private let account: PhotoOriginalPreparationOwner.AccountAccess
-    private let drain: SharedMediaNativeOriginalDrain
+    private let account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain
     private var registration: SharedMediaNativeOriginalDrain.Registration?
     private var phase = Phase.unopened
     private let writerEpoch = UUID()
@@ -30,8 +28,7 @@ final class SharedMediaNativeOriginalOwner {
     fileprivate let debug = SharedMediaNativeDebugHooks()
     #endif
     private var storage: SharedMediaNativeStorageRepository?
-    private var cancelActive: (() -> Void)?
-    private var awaitActive: (() async -> Void)?
+    private var cancelActive: (() -> Void)?, awaitActive: (() async -> Void)?
 
     private init(account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain,
                  openKind: OpenKind = .qualification) throws {
@@ -165,7 +162,6 @@ final class SharedMediaNativeOriginalOwner {
     func inspectApp() async throws -> SharedMediaNativeScopedSnapshot {
         try await withAppDispatch(settled: false) { storage, grant in try await storage.inspectApp(grant: grant) }
     }
-
     func prepareAppMetadata(packageID: UUID, draftGeneration: UUID, contexts: [ObservationContext],
                             presentation: [PhotoPreparationImagePresentation]? = nil) async throws -> SharedMediaNativeAppMetadataRequest {
         try await appMetadata { try $0.request(packageID: packageID, draftGeneration: draftGeneration, contexts: contexts, presentation: presentation) }
@@ -182,6 +178,12 @@ final class SharedMediaNativeOriginalOwner {
     func appPreparationWorkflow<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppPreparationOperations) async throws -> T) async throws -> T {
         try await withAppDispatch { storage, grant in
             let operation = try await storage.appPreparation(grant: grant)
+            try grant.validate(); return try await body(operation)
+        }
+    }
+    func appOriginalLifecycle<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppOriginalOperations) async throws -> T) async throws -> T {
+        try await withAppDispatch { storage, grant in
+            let operation = try await storage.appOriginal(grant: grant)
             try grant.validate(); return try await body(operation)
         }
     }

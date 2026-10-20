@@ -94,6 +94,21 @@ struct SharedMediaNativeOwnerBoundaryTests {
         }
     }
 
+    @Test func appOriginalLifecycleKeepsDisposalAndPoststatesSealed() throws {
+        let operation = try source("SharedMediaNativeAppOriginalOperations.swift")
+        #expect(operation.contains("fileprivate init(state: SharedMediaNativeRetirementState, binding: SharedMediaNativeBinding)"))
+        #expect(operation.contains("private init(container:"))
+        #expect(operation.contains("SharedMediaNativeScopedAudit(app:"))
+        #expect(operation.contains("try files.requireNativeAbsence(state.file"))
+        #expect(!operation.contains("SharedMediaNativeMutationAuthority"))
+        let repository = try source("SharedMediaNativeStorageRepository.swift")
+        #expect(repository.contains("func appOriginal(grant: SharedMediaNativeAppDispatchGrant)"))
+        let files = try DatabaseActorTestSupport.swiftSources(below: "apps/ios/Merian")
+        for file in files where !file.relativePath.hasSuffix("SharedMediaNativeAppOriginalOperations.swift") {
+            #expect(!file.contents.contains("SharedMediaNativeAppOriginalDisposalWitness(state:"), "Original disposal escaped its owner: \(file.relativePath)")
+        }
+    }
+
     private func source(_ name: String) throws -> String {
         try DatabaseActorTestSupport.loadRepositorySource(at: "apps/ios/Merian/Core/Data/SharedMediaStorage/" + name)
     }

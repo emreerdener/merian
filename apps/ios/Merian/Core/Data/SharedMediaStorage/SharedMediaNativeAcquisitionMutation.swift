@@ -119,7 +119,7 @@ final class SharedMediaNativeAcquisitionMutation {
         reservation = true; transition = "reserve"
         guard inventory.revision == request.expectedInventoryRevision else { throw SharedMediaStorageFailure.stale }
         try requireFreshIDs()
-        if isApp { try SharedMediaNativePreparationGraph.requireIdleFiles(context, scopedInventory: inventory) }
+        if isApp { try SharedMediaNativePreparationGraph.requireIdleFiles(context, scopedInventory: inventory, allowSavedOriginalRetirements: true) }
         else {
             guard try context.fetchCount(FetchDescriptor<PhotoPreparationLease>()) == 0,
                   try context.fetchCount(FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.cleanupStateRaw != "ready" })) == 0 else { throw PhotoPreparationFailure.cleanupPending }

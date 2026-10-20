@@ -1,3 +1,47 @@
+## October 20 — app original sharing and retirement locally verified
+
+Consumer-less app drafts can now share a ready original without copying its
+physical bytes. Logical removal preserves surviving references and their media.
+The final removal saves the exact retirement before disposal; cold recovery
+requires complete reverse accounting, synced absence and a final synchronous
+absence check before releasing storage. Submitted supporting content and other
+photos’ presentation remain exact. Prepared pairs must be explicitly retired
+before removing their original. Old removal requests become stale after release.
+
+Fresh app acquisition may coexist with a fully saved original retirement only on
+a clean context with exact zero-live accounting and no derivative pair/work.
+Preparation and dirty poststate guards remain strict. Unrelated inventory
+progress cannot change the target’s local identity or authorize another
+deletion. This increment does not upload media, change receiving consumers, fund
+or enqueue work, or invoke a remote AI provider. Existing local Vision
+preparation remains unchanged.
+
+Candidate04 has **88/88 focused methods across 10 suites**: focused03 passed
+37/37 lifecycle, acquisition and preparation methods; seven unchanged suites
+contribute 51 passing methods from focused01. Both retained all **2,882** source
+and project hashes. The final run has no failures, skips or XCResult runtime
+warnings. Compiler/lint and simulator diagnostics remain in the logs.
+
+Failed evidence is retained: focused01 passed 54/65 and exposed a V1 JSON
+re-encoding comparison; focused02 passed 13/15 after that correction, exposing
+the overly broad idle-file guard and a test’s historical global-revision
+comparison. The corrections preserve V1 submitted bytes, strictly audit the
+saved retirement, and compare all local plan fields while separately checking
+global progress. Earlier candidate01’s unrun test-compilation review hold also
+remains recorded. This is focused shared-checkout validation, not full-target,
+isolated, device, hosted or integrated acceptance.
+
+Evidence: `.artifacts/native-app-original-lifecycle-20261020/`, with final
+XCResult `e03048fef8784e898ec1b5ae0b1f0ae6` and reused seven-suite XCResult
+`e3d472ec437b447c984150db39a9466a`. Next is the reviewed durable
+receiving-intent codec and complete metadata-reservation proof before V65
+migration and Capture handoff; design03 concurrence is retained in
+`.artifacts/native-app-capture-handoff-20261020/design-review03.json`. Consumer
+lifecycle, full affected gates, native journeys and integrated acceptance remain
+open before version deletion/export and redesign. Activation is disabled, PR116
+frozen, the Supabase deployment hold active and AWS unapproved. Schema, numeric
+limits and external-operation restrictions remain.
+
 ## October 20 — app pending-original cleanup locally verified
 
 The inactive app owner now supports explicit abandonment and cold recovery of

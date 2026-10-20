@@ -76,8 +76,20 @@ enum SharedMediaNativeAcquisitionBudget {
         return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, pendingCleanupProof: proof)
     }
 
+    static func evaluateOriginalPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                         proof: SharedMediaNativeAppOriginalPoststate) throws -> Snapshot {
+        let graph = try SharedMediaPendingGraph.deriveOriginalPoststate(in: context, inventory: inventory, proof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, originalProof: proof)
+    }
+
+    static func evaluateOriginalReleasePoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                         proof: SharedMediaNativeAppOriginalReleasePoststate) throws -> Snapshot {
+        let graph = try SharedMediaPendingGraph.deriveOriginalReleasePoststate(in: context, inventory: inventory, proof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, originalReleaseProof: proof)
+    }
+
     private static func evaluate(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, acquisitionProof: SharedMediaNativeAppAcquisitionPoststate? = nil, preparationProof: SharedMediaNativeAppPreparationPoststate? = nil, pairPlanProof: SharedMediaNativeAppPairPlanPoststate? = nil, pairClosureProof: SharedMediaNativeAppPairPlanClosurePoststate? = nil, pairFileProof: SharedMediaNativeAppPairPoststate? = nil, pairRetirementProof: SharedMediaNativeAppPairRetirementPoststate? = nil, receivingProof: SharedMediaNativeAppReceivingPoststate? = nil, pendingCleanupProof: SharedMediaNativeAppPendingPoststate? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, acquisitionProof: SharedMediaNativeAppAcquisitionPoststate? = nil, preparationProof: SharedMediaNativeAppPreparationPoststate? = nil, pairPlanProof: SharedMediaNativeAppPairPlanPoststate? = nil, pairClosureProof: SharedMediaNativeAppPairPlanClosurePoststate? = nil, pairFileProof: SharedMediaNativeAppPairPoststate? = nil, pairRetirementProof: SharedMediaNativeAppPairRetirementPoststate? = nil, receivingProof: SharedMediaNativeAppReceivingPoststate? = nil, pendingCleanupProof: SharedMediaNativeAppPendingPoststate? = nil, originalProof: SharedMediaNativeAppOriginalPoststate? = nil, originalReleaseProof: SharedMediaNativeAppOriginalReleasePoststate? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
         guard graph.sources.isEmpty, graph.handoffs.isEmpty else {
             throw SharedMediaStorageFailure.closed
         }
@@ -122,6 +134,8 @@ enum SharedMediaNativeAcquisitionBudget {
                 guard let format else { throw SharedMediaStorageFailure.closed }
                 if let receivingProof { receivingBytes = try receivingProof.receivingBytes(consumer, context: context, inventory: inventory) }
                 else if let pendingCleanupProof { receivingBytes = try pendingCleanupProof.receivingBytes(consumer) }
+                else if let originalProof { receivingBytes = try originalProof.receivingBytes(consumer) }
+                else if let originalReleaseProof { receivingBytes = try originalReleaseProof.receivingBytes(consumer) }
                 else if let pairRetirementProof { receivingBytes = try pairRetirementProof.receivingBytes(consumer) }
                 else if let pairFileProof { receivingBytes = try pairFileProof.receivingBytes(consumer) }
                 else if let pairClosureProof { receivingBytes = try pairClosureProof.receivingBytes(consumer) }

@@ -94,6 +94,9 @@ final class SharedMediaNativeLifecycleOperations {
 }
 
 struct SharedMediaNativeRetirement: Sendable {
+    static func app(_ witness: SharedMediaNativeAppOriginalDisposalWitness) -> Self {
+        .init(state: witness.state, binding: witness.binding.bytes, epoch: witness.binding.epoch)
+    }
     let state: SharedMediaNativeRetirementState
     let binding: Data
     let epoch: UUID
