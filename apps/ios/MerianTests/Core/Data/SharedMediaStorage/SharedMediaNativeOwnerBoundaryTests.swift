@@ -61,6 +61,24 @@ struct SharedMediaNativeOwnerBoundaryTests {
         #expect(mutation.contains("throw PhotoPreparationFailure.cleanupPending"))
     }
 
+    @Test func receivingRequiresTheSealedCoordinatorGrant() throws {
+        let wrapper = try source("SharedMediaNativeOriginalOwner+AppReceiving.swift")
+        let owner = try source("SharedMediaNativeOriginalOwner.swift")
+        let repository = try source("SharedMediaNativeStorageRepository.swift")
+        #expect(wrapper.contains("fileprivate init() {}"))
+        #expect(wrapper.contains("private func withReceivingLocks"))
+        #expect(owner.contains("func appReceivingWorkflow<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant,"))
+        #expect(repository.contains("func appReceiving(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant)"))
+        let start = try #require(repository.range(of: "    func appReceiving("))
+        let end = try #require(repository.range(of: "    func appAcquisition", range: start.upperBound..<repository.endIndex))
+        let receiving = String(repository[start.lowerBound..<end.lowerBound])
+        #expect(receiving.contains("{ try lock.validate(); try self.requireApp(grant); return try self.appHeader() }"))
+        let files = try DatabaseActorTestSupport.swiftSources(below: "apps/ios/Merian")
+        for file in files where !file.relativePath.hasSuffix("SharedMediaNativeOriginalOwner+AppReceiving.swift") {
+            #expect(!file.contents.contains("SharedMediaNativeReceivingLockGrant()"), "Receiving lock grant escaped: \(file.relativePath)")
+        }
+    }
+
     private func source(_ name: String) throws -> String {
         try DatabaseActorTestSupport.loadRepositorySource(at: "apps/ios/Merian/Core/Data/SharedMediaStorage/" + name)
     }

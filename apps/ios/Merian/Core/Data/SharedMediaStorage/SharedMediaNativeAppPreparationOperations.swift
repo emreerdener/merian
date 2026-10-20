@@ -57,6 +57,20 @@ final class SharedMediaNativeAppPreparationOperations {
             facts: try SharedMediaNativeAppMetadataFacts.capture(context, profile: authority.profile), availableBytes: availableBytes, boundary: boundary,
             io: io, focusFactory: focusFactory, verifyProof: verifyProof, verifyPlannedAbsence: verifyPlannedAbsence, fileBinding: fileBinding, verifyPartial: verifyPartial, verifyCompletion: verifyCompletion, verifyInspection: verifyInspection, verifyAbsence: verifyAbsence)
     }
+    static func audited(container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority,
+                        availableBytes: @escaping () throws -> Int64,
+                        boundary: @escaping (SharedMediaNativePreparationBoundary) throws -> Void,
+                        io: SharedMediaNativeOriginalIO, focusFactory: ImageFocusWorkFactory,
+                        files: PhotoPreparationLockedFiles, binding: SharedMediaNativeBinding,
+                        observed: @escaping (SharedMediaPhotoRetirementInspection) -> Void) async throws -> SharedMediaNativeAppPreparationOperations {
+        try await audited(container: container, authority: authority, availableBytes: availableBytes, boundary: boundary,
+            io: io, focusFactory: focusFactory, verifyProof: { try files.requireCurrentSharedInspection($0); observed($0) },
+            verifyPlannedAbsence: { try files.requireCurrentPlannedAbsence($0, binding: binding) }, fileBinding: binding,
+            verifyPartial: { try files.requireCurrentPairPartial($0, binding: binding) },
+            verifyCompletion: { try files.requireCurrentPairCompletion($0, binding: binding) },
+            verifyInspection: { try files.requireCurrentPairInspection($0, binding: binding) },
+            verifyAbsence: { try files.requireCurrentPairAbsence($0, binding: binding) })
+    }
     private func mutation(_ packageID: UUID, action: SharedMediaNativeAppPreparationWitness.Action) throws -> SharedMediaNativePreparationMutation {
         guard !consumed, facts.packages[packageID] != nil, facts.members[packageID] != nil,
               facts.consumers[packageID] == nil else { throw SharedMediaStorageFailure.closed }

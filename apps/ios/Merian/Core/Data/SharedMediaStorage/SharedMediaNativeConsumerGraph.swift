@@ -16,9 +16,15 @@ enum SharedMediaNativeConsumerGraph {
         try facts(consumer, context: context, format: format, checkpoint: checkpoint)
     }
 
+    static func validateReceivingPoststate(_ consumer: SharedMediaConsumerRecord, context: ModelContext,
+                                           inventory: SharedMediaInventoryRecord, proof: SharedMediaNativeAppReceivingPoststate) throws -> SharedMediaNativeConsumerCohort {
+        try proof.validate(context: context, inventory: inventory)
+        return try facts(consumer, context: context, format: .appV2, receiving: proof)
+    }
+
     private static func facts(_ consumer: SharedMediaConsumerRecord, context: ModelContext,
-                              format: SharedMediaNativeScopedFormat?, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
-        guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
+                              format: SharedMediaNativeScopedFormat?, receiving: SharedMediaNativeAppReceivingPoststate? = nil, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
+        guard !context.hasChanges || receiving != nil else { throw SharedMediaStorageFailure.conflict }
         let value = try SharedMediaNativeConsumerCohort.decode(consumer.cohortData)
         let commit = try SharedMediaNativeFreezeCommit.decode(value.freeze.bytes)
         let cohort = try SharedMediaNativeFrozenCohort.decode(commit.cohort.bytes)
@@ -65,18 +71,25 @@ enum SharedMediaNativeConsumerGraph {
                 membershipRevision: commit.membershipRevision, package: package, inventory: inventory, context: context)
             liveMembership = Data()
         }
-        try validateMembership(value.membership, cohort: cohort, package: package, inventory: inventory, context: context, checkpoint: checkpoint)
+        // The sealed receiving write set cannot touch original assets or references.
+        // Their complete reverse audit stays on a clean fresh view under the same
+        // fence; never relax the original-accounting clean-context contract.
+        let originalContext: ModelContext
+        if receiving != nil { originalContext = ModelContext(context.container); originalContext.autosaveEnabled = false }
+        else { originalContext = context }
+        try validateMembership(value.membership, cohort: cohort, package: package, inventory: inventory,
+            context: context, originalContext: originalContext, checkpoint: checkpoint)
         try SharedMediaMembership.requireMetadataBudget(context: package.supportingContextData,
             membership: liveMembership, cohort: consumer.cohortData)
         guard try PhotoPreparationPolicy.add([package.allocatedByteCount, Int64(package.supportingContextData.count),
             Int64(liveMembership.count), Int64(consumer.cohortData.count)]) <= PhotoPreparationPolicy.package,
-              !context.hasChanges else { throw SharedMediaStorageFailure.capacity }
+              (!context.hasChanges || receiving != nil) else { throw SharedMediaStorageFailure.capacity }
         return value
     }
 
     private static func validateMembership(_ bytes: Data, cohort: SharedMediaNativeFrozenCohort,
                                            package: PhotoPreparationRecord, inventory: SharedMediaInventoryRecord,
-                                           context: ModelContext, checkpoint: () throws -> Void) throws {
+                                           context: ModelContext, originalContext: ModelContext, checkpoint: () throws -> Void) throws {
         let member = try SharedMediaMembership.decode(bytes), id = package.id
         let intents = try cohort.entries.map { try SharedMediaNativeDerivativeIntent.decode($0.intent.bytes) }
         let originals = intents.map { $0.preparation.original }
@@ -99,7 +112,7 @@ enum SharedMediaNativeConsumerGraph {
         // Historical IDs never replace the current complete reverse-reference audit.
         for original in originals {
             let current = try SharedMediaNativeOriginalAccounting.audit(assetID: original.reference.assetID,
-                inventoryID: inventory.id, context: context, checkpoint: checkpoint)
+                inventoryID: inventory.id, context: originalContext, checkpoint: checkpoint)
             guard current.assetGeneration == original.reference.assetGeneration, current.ownerID == package.ownerID,
                   current.liveCount > 0, current.retirement == nil, current.physicalIdentity == original.descriptor.file,
                   current.byteCount == original.byteCount, current.sha256 == original.sha256,

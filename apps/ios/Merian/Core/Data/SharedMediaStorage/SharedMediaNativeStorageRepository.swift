@@ -334,17 +334,20 @@ final class SharedMediaNativeStorageRepository {
             #if DEBUG
             try self.debug?.preparationFault?(point)
             #endif
-        }, io: originalIO, focusFactory: focus, verifyProof: { proof in
-            try self.photos.requireCurrentSharedInspection(proof)
+        }, io: originalIO, focusFactory: focus, files: photos, binding: nativeBinding, observed: { proof in
             #if DEBUG
             self.debug?.preparationFileEpochObserved?(proof.epoch)
             #endif
-        }, verifyPlannedAbsence: { try self.photos.requireCurrentPlannedAbsence($0, binding: self.nativeBinding) },
-            fileBinding: nativeBinding, verifyPartial: { try self.photos.requireCurrentPairPartial($0, binding: self.nativeBinding) },
-            verifyCompletion: { try self.photos.requireCurrentPairCompletion($0, binding: self.nativeBinding) },
-            verifyInspection: { try self.photos.requireCurrentPairInspection($0, binding: self.nativeBinding) },
-            verifyAbsence: { try self.photos.requireCurrentPairAbsence($0, binding: self.nativeBinding) })
+        })
     }
+    func appReceiving(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant) async throws -> SharedMediaNativeAppReceivingOperations {
+        try lock.validate(); try requireApp(grant)
+        let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try lock.validate(); try self.requireApp(grant); return try self.appHeader() }
+        return try await .audited(container: container, authority: authority, io: originalIO, binding: nativeBinding,
+            availableBytes: { try self.files.availableBytes() }, boundary: metadataBoundary,
+            verify: { try self.photos.requireCurrentSharedInspection($0) })
+    }
+
     func appAcquisition(grant: SharedMediaNativeAppDispatchGrant, request: SharedMediaAcquisitionIntent?) async throws -> SharedMediaNativeAppAcquisitionOperations {
         try requireApp(grant)
         let authority = SharedMediaNativeAppAcquisitionAuthority(container: container, profile: grant.profile,

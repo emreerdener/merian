@@ -1,3 +1,45 @@
+## October 20 — ordinary native photo receiving locally verified
+
+The inactive app owner now atomically freezes an ordinary photo cohort and
+creates its consumer, queue, held job and event. Fixed identities, generation,
+timestamp and metadata are retained across exact recovery. Queue and observation
+locks precede the account-bound owner; the sealed lock remains checked
+throughout the operation. A typed poststate permits only two updates and four
+inserts. Fresh ownership/reference checks and physical seals precede the single
+save. Partial or changed saved sets stay blocked, never repaired or reminted.
+
+The queue requires attention and its job has no retry time. Neither grants
+legacy execution, uploads, funding or provider calls. Submitted supporting text
+and exact originals remain immutable. Later exact recovery tolerates unrelated
+package progress without requiring a historical global revision. V1 behavior and
+clean-context public audits remain unchanged.
+
+Independent and IC-1 reviewed candidate05 has combined focused evidence for
+**98/98 methods across 12 suites**. The initial run passed 97/98; its sole
+failure was a test helper selecting an arbitrary membership row in a
+multi-package fixture. The corrected receiving verifier selects the exact
+request package. Its focused rerun passed **10/10**; the other 11 unchanged
+suites are reused. Both runs preserved all **2,873** source/project hashes. The
+rerun has no failures, skips or XCResult runtime warnings; compiler/lint and
+simulator diagnostics stay in the logs. Retained evidence:
+`.artifacts/native-app-receiving-20261020/focused01-result.json` and
+`focused02-result.json`; XCResults `23f2f8bf0ba5485f90b6ea2a24d9a0e6` and
+`d9754d29ef3940f88cba7e3591754daf`. This is combined focused shared-checkout
+validation, not a new full-target, isolated, device, hosted or integrated pass.
+
+This increment is ordinary initial photos only. Reanalysis retains its distinct
+job and bound intent codec. The caller must retain the exact receiving request;
+Capture's durable UI handoff, lifecycle/result transfer and removal are still
+unfinished. Next is app-scoped abandonment/recovery of consumer-less pending
+original acquisitions, with its independently and IC-1 reviewed design in
+`.artifacts/native-app-pending-cleanup-20261020/design.md`. Existing physical
+closure encoding and limits remain unchanged; terminal receipts are retained,
+and final synced absence must precede reservation release.
+
+Activation stays disabled, PR116 frozen, the Supabase deployment hold active and
+AWS unapproved. No schema or limit change. Full affected gates and remaining
+integrated acceptance still precede version deletion/export and redesign.
+
 ## October 20 — V2 exact output retirement locally verified
 
 The inactive app owner now retires writing/interrupted and ready output pairs.

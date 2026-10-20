@@ -96,6 +96,19 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
         guard current.bootstrapRevision == bootstrapRevision, current.consumers == consumers,
               current.packages == nextPackages, current.members == nextMembers else { throw SharedMediaStorageFailure.conflict }
     }
+    @MainActor func validateReceiving(_ context: ModelContext, request: SharedMediaNativeAppReceivingRequest) throws {
+        let current = try Self.read(context, profile: profile)
+        var expectedPackages = packages, expectedConsumers = consumers
+        guard request.profile == profile, packages[request.package.id] == request.package,
+              members[request.package.id] == request.member, consumers[request.package.id] == nil,
+              let row = try SharedMediaConsumerLookup.one(context, packageID: request.package.id),
+              let rows = try SharedMediaNativeReceivingRows.read(request, in: context, absent: false),
+              rows.consumer.persistentModelID == row.persistentModelID else { throw SharedMediaStorageFailure.conflict }
+        expectedPackages[request.package.id] = try request.frozenPackage()
+        expectedConsumers[request.package.id] = Consumer(row)
+        guard current.bootstrapRevision == bootstrapRevision, current.members == members,
+              current.packages == expectedPackages, current.consumers == expectedConsumers else { throw SharedMediaStorageFailure.conflict }
+    }
     @MainActor private static func read(_ context: ModelContext, profile: SharedMediaNativeAppProfile) throws -> Self {
         let inventoryID = profile.inventoryID
         var query = FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.inventoryID == inventoryID })

@@ -163,12 +163,7 @@ final class SharedMediaNativeOriginalOwner {
     }
 
     func inspectApp() async throws -> SharedMediaNativeScopedSnapshot {
-        guard openKind == .appDispatch, phase == .ready else { throw SharedMediaStorageFailure.closed }
-        return try await performOperation { [self] lease, identity in
-            guard let storage, let appProfile, let appParent else { throw SharedMediaStorageFailure.closed }
-            return try await storage.inspectApp(grant: .init(owner: self, identity: identity, lease: lease,
-                profile: appProfile, parent: appParent, writerEpoch: writerEpoch))
-        }
+        try await withAppDispatch(settled: false) { storage, grant in try await storage.inspectApp(grant: grant) }
     }
 
     func prepareAppMetadata(packageID: UUID, draftGeneration: UUID, contexts: [ObservationContext],
@@ -179,24 +174,33 @@ final class SharedMediaNativeOriginalOwner {
         try await appMetadata { try $0.apply(request) }
     }
     private func appMetadata<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppMetadataOperations) throws -> T) async throws -> T {
-        guard openKind == .appDispatch, phase == .ready else { throw SharedMediaStorageFailure.closed }
-        return try await performOperation { [self] lease, identity in
-            guard let storage, let appProfile, let appParent else { throw SharedMediaStorageFailure.closed }
-            let grant = SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
-                profile: appProfile, parent: appParent, writerEpoch: writerEpoch)
+        try await withAppDispatch(settled: false) { storage, grant in
             let operation = try await storage.appMetadata(grant: grant)
             try grant.validate(); return try body(operation)
         }
     }
-
     func appPreparationWorkflow<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppPreparationOperations) async throws -> T) async throws -> T {
-        guard openKind == .appDispatch, phase == .ready, pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
+        try await withAppDispatch { storage, grant in
+            let operation = try await storage.appPreparation(grant: grant)
+            try grant.validate(); return try await body(operation)
+        }
+    }
+    func appReceivingWorkflow<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant, _ body: @escaping @MainActor (SharedMediaNativeAppReceivingOperations) async throws -> T) async throws -> T {
+        try lock.validate()
+        return try await withAppDispatch { storage, grant in
+            try lock.validate()
+            let operation = try await storage.appReceiving(grant: grant, lock: lock)
+            try lock.validate(); try grant.validate(); return try await body(operation)
+        }
+    }
+    private func withAppDispatch<T: Sendable>(settled: Bool = true,
+        _ body: @escaping @MainActor (SharedMediaNativeStorageRepository, SharedMediaNativeAppDispatchGrant) async throws -> T) async throws -> T {
+        guard openKind == .appDispatch, phase == .ready, !settled || pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
         return try await performOperation { [self] lease, identity in
             guard let storage, let appProfile, let appParent else { throw SharedMediaStorageFailure.closed }
             let grant = SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
                 profile: appProfile, parent: appParent, writerEpoch: writerEpoch)
-            let operation = try await storage.appPreparation(grant: grant)
-            try grant.validate(); return try await body(operation)
+            return try await body(storage, grant)
         }
     }
     func prepareAppOriginal(packageID: UUID, draftGeneration: UUID, ordinal: Int64,
@@ -224,13 +228,7 @@ final class SharedMediaNativeOriginalOwner {
     }
     private func appAcquisition<T: Sendable>(request: SharedMediaAcquisitionIntent?,
         _ body: @escaping @MainActor (SharedMediaNativeAppAcquisitionOperations) async throws -> T) async throws -> T {
-        guard openKind == .appDispatch, phase == .ready, pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
-        return try await performOperation { [self] lease, identity in
-            guard let storage, let appProfile, let appParent else { throw SharedMediaStorageFailure.closed }
-            let grant = SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
-                profile: appProfile, parent: appParent, writerEpoch: writerEpoch)
-            return try await body(storage.appAcquisition(grant: grant, request: request))
-        }
+        try await withAppDispatch { storage, grant in try await body(storage.appAcquisition(grant: grant, request: request)) }
     }
     private func reconcileAppSettlement() async throws -> SharedMediaAcquisitionResult? {
         guard let pending = pendingSettlement, let ticket = pending.appTicket, let storage else { return nil }
