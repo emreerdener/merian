@@ -28,8 +28,14 @@ enum SharedMediaNativeAcquisitionBudget {
         return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, metadataProof: proof)
     }
 
+    static func evaluateAcquisitionPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                             proof: SharedMediaNativeAppAcquisitionPoststate) throws -> Snapshot {
+        let graph = try SharedMediaPendingGraph.deriveAcquisitionPoststate(in: context, inventory: inventory, proof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, acquisitionProof: proof)
+    }
+
     private static func evaluate(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, acquisitionProof: SharedMediaNativeAppAcquisitionPoststate? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
         guard graph.sources.isEmpty, graph.handoffs.isEmpty else {
             throw SharedMediaStorageFailure.closed
         }
@@ -72,7 +78,8 @@ enum SharedMediaNativeAcquisitionBudget {
             var receivingBytes: Int64 = 0
             if let consumer = try SharedMediaConsumerLookup.one(context, packageID: id) {
                 guard let format else { throw SharedMediaStorageFailure.closed }
-                if let metadataProof { receivingBytes = try metadataProof.receivingBytes(consumer) } else {
+                if let metadataProof { receivingBytes = try metadataProof.receivingBytes(consumer) }
+                else if let acquisitionProof { receivingBytes = try acquisitionProof.receivingBytes(consumer) } else {
                     _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, checkpoint: checkpoint)
                     receivingBytes = Int64(consumer.cohortData.count)
                 }

@@ -46,7 +46,18 @@ actor SharedMediaNativeOriginalIO {
     #if DEBUG
     func setReleaseFault(_ fault: (@Sendable (SharedMediaPhotoReleaseBoundary) throws -> Void)?) { files.sharedReleaseFault = fault }
     #endif
-    func load(_ provider: @Sendable () async throws -> Data) async throws -> Data { try await provider() }
+    #if DEBUG
+    private var acquisitionEntryPause: (@Sendable (SharedMediaNativeOriginalIOEntry) async -> Void)?
+    func setAcquisitionEntryPause(_ pause: (@Sendable (SharedMediaNativeOriginalIOEntry) async -> Void)?) { acquisitionEntryPause = pause }
+    #endif
+    func load(_ provider: @Sendable () async throws -> Data) async throws -> Data {
+        try Task.checkCancellation()
+        #if DEBUG
+        await acquisitionEntryPause?(.load)
+        #endif
+        try Task.checkCancellation()
+        return try await provider()
+    }
 
     func preparePhoto(_ attempt: SharedMediaNativePreparationAttempt, focusFactory: ImageFocusWorkFactory) async throws -> SharedMediaNativePreparedOutputs {
         try Task.checkCancellation()
@@ -108,7 +119,12 @@ actor SharedMediaNativeOriginalIO {
         try withPair(state, workID: workID, create: false) { try $0.inspect() }
     }
 
-    func write(_ data: Data, request: SharedMediaAcquisitionIntent) throws -> SharedMediaPhotoRetirementInspection {
+    func write(_ data: Data, request: SharedMediaAcquisitionIntent) async throws -> SharedMediaPhotoRetirementInspection {
+        try Task.checkCancellation()
+        #if DEBUG
+        await acquisitionEntryPause?(.write)
+        #endif
+        try Task.checkCancellation()
         let intent = PhotoPreparationIntent(leaseID: request.operationID, ownerID: request.ownerID, packageID: request.packageID,
             assetID: request.assetID, assetGeneration: request.assetGeneration, referenceID: request.referenceID,
             draftGeneration: request.draftGeneration, processEpoch: request.writerEpoch, role: .original,
@@ -117,3 +133,7 @@ actor SharedMediaNativeOriginalIO {
     }
 
 }
+
+#if DEBUG
+enum SharedMediaNativeOriginalIOEntry: Sendable { case load, write }
+#endif

@@ -192,7 +192,7 @@ struct SharedMediaNativeAppMetadataTests {
         #expect(await owner.invalidateAndAwaitForAccountTransition())
     }
 
-    @MainActor private struct Store {
+    @MainActor struct Store {
         let container: ModelContainer, parent: URL
         let ownerID = UUID(), inventoryID = UUID(), packageID = UUID(), ordinaryID = UUID(), draft = UUID()
         let runtime = AuthRuntimeState()

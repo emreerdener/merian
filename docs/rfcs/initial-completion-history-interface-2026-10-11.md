@@ -1,3 +1,39 @@
+## October 20 — V2 original acquisition locally verified
+
+The inactive app owner now retains exact selected original bytes through the
+shared typed reservation/completion core. Fixed identities and exact saved
+reservation acknowledgement precede the single fresh loader/copy. Completed
+replay is read-only; cold reserved/held requests never repeat acquisition. A
+private dirty-state proof covers only the exact typed row changes and target
+membership successor, preserving other pending packages and receiving-consumer
+facts. Both inventory and independent bootstrap revisions remain pinned.
+
+A separate owner-minted settlement grant is usable only after the actual writer
+returns. It can acknowledge an exact saved result or hold an existing
+reservation after cancellation; it cannot load, copy, reserve, complete, release
+storage or invoke AI. Exact target package/member facts and the returned copy
+proof bind settlement. Unknown outcomes retain the fences. Cancellation is
+checked at actual I/O entry; fresh reservation checks include inventory-bound
+unfinished pairs and bounded pending work. V1 behavior stays behind its original
+sealed authority and separate settlement entry.
+
+Independently and IC-1 reviewed candidate03 passed **138/138 methods in sixteen
+suites**, with zero failures, skips or Xcode runtime warnings. All **2,857**
+source/project hashes and candidate hashes stayed unchanged. Evidence:
+`.artifacts/native-app-acquisition-20261019/focused03-result.json`; XCResult
+`3a6cf78162f44a6dbfbeea8befee2cb5`; candidate SHA256
+`9d362f8a3c785ccf0182aa7ea54ceba0e51126fea4d53f90156dda9c99292ab7`. Candidate01
+remains HOLD/unrun. Candidate02's compile-before-tests failure is retained;
+candidate03 adds the required private method actor isolation and removes an
+unnecessary `try`. This is scoped shared-checkout validation, not full-target,
+isolated-source, device, hosted or integrated acceptance.
+
+Next port native preparation and atomic inert freeze/consumer/queue/job/event
+receiving through the same owner, then lifecycle and Capture/Auth integration,
+RUX recovery and integrated media acceptance. Version deletion/export and
+redesign remain open. Activation disabled, PR116 frozen, Supabase deployment
+hold active, AWS unapproved; schema and numeric limits unchanged.
+
 ## October 19 — same-owner V2 metadata saves locally verified
 
 Existing native pending drafts now support metadata-only edits through the same

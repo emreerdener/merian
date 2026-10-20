@@ -52,8 +52,17 @@ struct SharedMediaPendingGraph {
         return try scopedProjection(in: context, inventory: inventory, ownerID: proof.profile.ownerID, format: .appV2)
     }
 
+    /// Acquisition alone may join its exact freshly inserted target before
+    /// creating its member. Every other root remains membership-authoritative.
+    static func deriveAcquisitionPoststate(in context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                           proof: SharedMediaNativeAppAcquisitionPoststate) throws -> Self {
+        try proof.validate(context: context, inventory: inventory)
+        return try scopedProjection(in: context, inventory: inventory, ownerID: proof.profile.ownerID,
+            format: .appV2, acquisition: proof)
+    }
+
     private static func scopedProjection(in context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                         ownerID: UUID, format: SharedMediaNativeScopedFormat) throws -> Self {
+                                         ownerID: UUID, format: SharedMediaNativeScopedFormat, acquisition: SharedMediaNativeAppAcquisitionPoststate? = nil) throws -> Self {
         try format.requireProfile(inventory)
         let inventoryID = inventory.id
         let members = try fetch(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(
@@ -71,8 +80,17 @@ struct SharedMediaPendingGraph {
             try builder.include(package)
             packages.append(package)
         }
+        if let proof = acquisition, proof.overlay, !proof.final {
+            let id = proof.packageID
+            guard !members.contains(where: { $0.id == id }), packages.count < PhotoPreparationPolicy.maximumPackages else { throw SharedMediaStorageFailure.conflict }
+            let rows = try fetch(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == id }), maximum: 1)
+            guard let package = rows.first, package.ownerID == ownerID, package.accountingTierRaw == "pending",
+                  context.insertedModelsArray.contains(where: { $0.persistentModelID == package.persistentModelID }) else { throw SharedMediaStorageFailure.conflict }
+            try builder.include(package); packages.append(package)
+        }
         let result = try builder.finish(packages: packages, sources: [])
         for member in members {
+            if let proof = acquisition, !proof.final, member.id == proof.packageID { continue }
             guard try SharedMediaMembership.decode(member.membersData) == result.membership(packageID: member.id),
                   let package = packages.first(where: { $0.id == member.id }) else { throw SharedMediaStorageFailure.conflict }
             let consumer = try SharedMediaConsumerLookup.one(context, packageID: package.id)

@@ -57,6 +57,11 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         return try read(context, profile: profile)
     }
+    @MainActor static func acquisitionPoststate(_ context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                                proof: SharedMediaNativeAppAcquisitionPoststate) throws -> Self {
+        try proof.validate(context: context, inventory: inventory)
+        return try read(context, profile: proof.profile)
+    }
     @MainActor private static func read(_ context: ModelContext, profile: SharedMediaNativeAppProfile) throws -> Self {
         let inventoryID = profile.inventoryID
         var query = FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.inventoryID == inventoryID })
@@ -92,6 +97,20 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
         expectedPackages[request.package.id] = try request.package.successor(request.envelope)
         guard current.bootstrapRevision == bootstrapRevision, current.members == members,
               current.packages == expectedPackages, current.consumers == consumers else { throw SharedMediaStorageFailure.conflict }
+    }
+    /// Acquisition may change one package and its member. Every other pending
+    /// row and every receiving consumer remains byte-for-byte equal.
+    @MainActor func validateAcquisition(_ context: ModelContext, packageID: UUID, hasMember: Bool) throws {
+        let current = try Self.read(context, profile: profile)
+        guard current.bootstrapRevision == bootstrapRevision, current.consumers == consumers,
+              consumers[packageID] == nil,
+              current.packages.filter({ $0.key != packageID }) == packages.filter({ $0.key != packageID }),
+              current.members.filter({ $0.key != packageID }) == members.filter({ $0.key != packageID }),
+              (current.members[packageID] != nil) == hasMember else { throw SharedMediaStorageFailure.conflict }
+    }
+    @MainActor func receivingBytes(_ consumer: SharedMediaConsumerRecord) throws -> Int64 {
+        guard consumers[consumer.packageID] == Consumer(consumer) else { throw SharedMediaStorageFailure.conflict }
+        return Int64(consumer.cohortData.count)
     }
     @MainActor static func requireWriteSet(_ context: ModelContext, inventory: PersistentIdentifier, package: PersistentIdentifier) throws {
         let changed = context.changedModelsArray.map(\.persistentModelID)

@@ -21,6 +21,7 @@ final class SharedMediaNativeOriginalOwner {
         let request: SharedMediaAcquisitionIntent
         let loaderStarted: Bool
         let writerReturned: Bool
+        var appTicket: SharedMediaNativeAppAcquisitionSettlement? = nil
     }
     private var pendingSettlement: PendingSettlement?
     private var writerActive = false
@@ -188,6 +189,56 @@ final class SharedMediaNativeOriginalOwner {
         }
     }
 
+    func prepareAppOriginal(packageID: UUID, draftGeneration: UUID, ordinal: Int64,
+                            kind: SharedMediaAcquisitionIntent.Kind) async throws -> SharedMediaAcquisitionIntent {
+        try await appAcquisition(request: nil) { try $0.request(packageID: packageID, draftGeneration: draftGeneration, ordinal: ordinal, kind: kind) }
+    }
+    func acquireAppOriginal(_ request: SharedMediaAcquisitionIntent,
+                            load: @escaping @Sendable () async throws -> Data) async throws -> SharedMediaAcquisitionResult {
+        try await appAcquisition(request: request) { [self] operation in
+            if let saved = try operation.receipt(request) {
+                if case .completed(_, let result) = saved { return result }
+                throw PhotoPreparationFailure.cleanupPending
+            }
+            _ = try operation.settlement(request)
+            var loaderStarted = false
+            do {
+                return try await operation.acquire(request, load: load,
+                    writerState: { self.writerActive = $0 }, didStartLoader: { loaderStarted = true })
+            } catch {
+                pendingSettlement = .init(request: request, loaderStarted: loaderStarted, writerReturned: !writerActive, appTicket: try operation.settlement(request))
+                if let result = try? await reconcileAppSettlement() { return result }
+                throw error
+            }
+        }
+    }
+    private func appAcquisition<T: Sendable>(request: SharedMediaAcquisitionIntent?,
+        _ body: @escaping @MainActor (SharedMediaNativeAppAcquisitionOperations) async throws -> T) async throws -> T {
+        guard openKind == .appDispatch, phase == .ready, pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
+        return try await performOperation { [self] lease, identity in
+            guard let storage, let appProfile, let appParent else { throw SharedMediaStorageFailure.closed }
+            let grant = SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
+                profile: appProfile, parent: appParent, writerEpoch: writerEpoch)
+            return try await body(storage.appAcquisition(grant: grant, request: request))
+        }
+    }
+    private func reconcileAppSettlement() async throws -> SharedMediaAcquisitionResult? {
+        guard let pending = pendingSettlement, let ticket = pending.appTicket, let storage else { return nil }
+        let grant = SharedMediaNativeAppSettlementGrant(owner: self, identity: pending.id, ticket: ticket,
+            loaderStarted: pending.loaderStarted, writerEpoch: writerEpoch)
+        // A separate task permits bounded settlement after dispatch cancellation.
+        // It stays awaited, retains all fences and can never invoke a writer.
+        let result = try await Task { @MainActor in try storage.settleAppOriginal(grant) }.value
+        pendingSettlement = nil; return result
+    }
+    fileprivate func validateAppSettlement(identity: UUID, ticket: SharedMediaNativeAppAcquisitionSettlement, loaderStarted: Bool, epoch: UUID) throws {
+        guard openKind == .appDispatch, let pending = pendingSettlement, pending.id == identity,
+              pending.appTicket?.request == ticket.request, pending.request == ticket.request,
+              pending.loaderStarted == loaderStarted, pending.writerReturned, !writerActive,
+              ticket.profile == appProfile, ticket.profile.ownerID == account.ownerID, epoch == writerEpoch,
+              phase == .ready || phase == .suspended else { throw SharedMediaStorageFailure.closed }
+    }
+
     func appInitializationSnapshot() async throws -> SharedMediaStorageSnapshot {
         guard openKind == .appInitialization, phase == .ready else { throw SharedMediaStorageFailure.closed }
         return try await performOperation { [self] lease, identity in
@@ -210,6 +261,10 @@ final class SharedMediaNativeOriginalOwner {
         guard (phase == .ready || phase == .suspended), cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }
         debug.acquisitionFault = fault
     }
+    func setAcquisitionEntryPause(_ pause: (@Sendable (SharedMediaNativeOriginalIOEntry) async -> Void)?) async throws {
+        guard phase == .ready, cancelActive == nil, let storage else { throw SharedMediaStorageFailure.closed }
+        await storage.setAcquisitionEntryPause(pause)
+    }
     var inspectionAuditCount: Int { debug.inspectionAuditCount }
     func setMetadataFault(_ fault: ((SharedMediaNativeMetadataBoundary) throws -> Void)?, availableBytes: Int64? = nil) throws {
         guard phase == .ready, cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }
@@ -217,61 +272,23 @@ final class SharedMediaNativeOriginalOwner {
     }
     #endif
 
-    func prepareShare(_ source: PhotoOriginalReference, packageID: UUID, draftGeneration: UUID) async throws -> SharedMediaNativeShareRequest {
-        try await lifecycle { storage, grant in try storage.lifecycleOperations(grant).prepareShare(source, packageID: packageID, draftGeneration: draftGeneration) }
-    }
-    func share(_ request: SharedMediaNativeShareRequest) async throws -> PhotoOriginalReference {
-        try await lifecycle { storage, grant in try storage.lifecycleOperations(grant).share(request) }
-    }
-    func prepareRemoval(_ source: PhotoOriginalReference) async throws -> SharedMediaNativeRemovalRequest {
-        try await lifecycle { storage, grant in try storage.lifecycleOperations(grant).prepareRemoval(source) }
-    }
-    func remove(_ request: SharedMediaNativeRemovalRequest) async throws {
-        try await lifecycle { storage, grant in try await storage.lifecycleOperations(grant).remove(request) }
-        try await recoverRetirements()
-    }
-    func recoverRetirements() async throws {
-        try await lifecycle(recovery: true) { storage, grant in try await storage.lifecycleOperations(grant).recoverRetirements() }
-    }
-    func abandonPendingAcquisition(_ request: SharedMediaAcquisitionIntent) async throws {
-        try await lifecycle(recovery: true) { storage, grant in try await storage.lifecycleOperations(grant).abandon(request) }
-        try await recoverPendingAbandonments()
-    }
-    func recoverPendingAbandonments() async throws {
-        try await lifecycle(recovery: true) { storage, grant in try await storage.lifecycleOperations(grant).recoverPendingAbandonments() }
-    }
-    private func lifecycle<T: Sendable>(recovery: Bool = false,
-        _ body: @escaping @MainActor (SharedMediaNativeStorageRepository, SharedMediaNativeDispatchGrant) async throws -> T) async throws -> T {
+    func qualificationWorkflow<T: Sendable>(recovery: Bool = false,
+        _ body: @escaping @MainActor (SharedMediaNativeQualificationOperations) async throws -> T) async throws -> T {
         guard phase == .ready, pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
         return try await perform { [self] grant in
             guard let storage else { throw SharedMediaStorageFailure.closed }
             let snapshot = try await storage.inspectOriginals(grant: grant)
             guard recovery || !snapshot.requiresRecovery else { throw PhotoPreparationFailure.cleanupPending }
-            return try await body(storage, grant)
+            return try await body(storage.qualificationOperations(grant: grant))
         }
     }
     #if DEBUG
     func setLifecycleFault(_ fault: ((SharedMediaNativeLifecycleBoundary) throws -> Void)?) throws {
         guard phase == .ready, cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }; debug.lifecycleFault = fault
     }
-    func setReleaseFault(_ fault: (@Sendable (SharedMediaPhotoReleaseBoundary) throws -> Void)?) async throws {
-        try await lifecycle(recovery: true) { storage, grant in try await storage.lifecycleOperations(grant).setReleaseFault(fault) }
-    }
+
     #endif
 
-    /// Reserves an explicit native attempt without dispatching a processor.
-    /// Callers receive assertions, never a source URL or write access.
-    func reservePreparation(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe) async throws -> SharedMediaNativePreparationAttempt {
-        try await lifecycle { storage, grant in
-            try storage.preparationOperations(grant).reserve(original: original, recipe: recipe)
-        }
-    }
-    func activePreparation(packageID: UUID) async throws -> SharedMediaNativePreparationAttempt? {
-        try await lifecycle(recovery: true) { storage, grant in try storage.preparationOperations(grant).active(packageID: packageID) }
-    }
-    func abandonPreparation(_ attempt: SharedMediaNativePreparationAttempt) async throws {
-        try await lifecycle(recovery: true) { storage, grant in try storage.preparationOperations(grant).abandon(attempt) }
-    }
     #if DEBUG
     func setPreparationFault(_ fault: ((SharedMediaNativePreparationBoundary) throws -> Void)?, availableBytes: Int64? = nil, focusFactory: ImageFocusWorkFactory = .init()) throws {
         guard phase == .ready, cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }
@@ -279,68 +296,19 @@ final class SharedMediaNativeOriginalOwner {
     }
     #endif
 
-    func prepareFreeze(packageID: UUID, pairIDs: [UUID], operationID: UUID) async throws -> SharedMediaNativeFreezeRequest {
-        try await lifecycle { storage, grant in
-            try await storage.preparationOperations(grant).prepareFreeze(packageID: packageID, pairIDs: pairIDs, operationID: operationID)
-        }
-    }
     /// Exact saved acknowledgement precedes current physical availability checks.
     func freeze(_ request: SharedMediaNativeFreezeRequest) async throws -> SharedMediaNativeFreezeCommit {
         guard phase == .ready, pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
         return try await perform { [self] grant in
             guard let storage else { throw SharedMediaStorageFailure.closed }
-            return try await storage.preparationOperations(grant).freeze(request)
+            return try await storage.qualificationOperations(grant: grant).preparationOperations().freeze(request)
         }
     }
-
-    func preparedFileState(packageID: UUID, pairID: UUID? = nil) async throws -> SharedMediaNativePairFileState {
-        try await lifecycle(recovery: true) { storage, grant in try storage.preparationOperations(grant).fileState(packageID: packageID, pairID: pairID) }
-    }
-    func recoverPreparedFiles(packageID: UUID, pairID: UUID? = nil) async throws -> SharedMediaNativePairFileState {
-        try await lifecycle(recovery: true) { storage, grant in try await storage.preparationOperations(grant).recoverFiles(packageID: packageID, pairID: pairID) }
-    }
-    func retirePreparedFiles(_ state: SharedMediaNativePairFileState) async throws {
-        try await lifecycle(recovery: true) { storage, grant in try await storage.preparationOperations(grant).retireFiles(state) }
-    }
-    #if DEBUG
-    func qualifyPreparedFiles(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe) async throws -> SharedMediaNativePairFileState {
-        try await lifecycle { storage, grant in try await storage.preparationOperations(grant).prepareFiles(original: original, recipe: recipe) }
-    }
-    func setPairFileFault(_ fault: (@Sendable (SharedMediaInboxHandoffBoundary) throws -> Void)?) async throws {
-        try await lifecycle(recovery: true) { storage, grant in try await storage.preparationOperations(grant).setPairFileFault(fault) }
-    }
-    #endif
-
-    func plannedPreparation(packageID: UUID, pairID: UUID? = nil) async throws -> SharedMediaNativePairPlan? {
-        try await lifecycle(recovery: true) { storage, grant in try storage.preparationOperations(grant).plan(packageID: packageID, pairID: pairID) }
-    }
-    func abandonPlannedPreparation(_ plan: SharedMediaNativePairPlan) async throws {
-        try await lifecycle(recovery: true) { storage, grant in try storage.preparationOperations(grant).abandonPlan(plan) }
-    }
-    func prepareMetadata(packageID: UUID, draftGeneration: UUID, contexts: [ObservationContext],
-                         presentation: [PhotoPreparationImagePresentation]? = nil) async throws -> SharedMediaNativeMetadataRequest {
-        try await lifecycle { storage, grant in
-            try storage.metadata(packageID: packageID, grant: grant)
-                .request(draftGeneration: draftGeneration, contexts: contexts, presentation: presentation)
-        }
-    }
-    func saveMetadata(_ request: SharedMediaNativeMetadataRequest) async throws -> Int64 {
-        try await lifecycle { storage, grant in try storage.saveMetadata(request, grant: grant) }
-    }
-    #if DEBUG
-    /// Qualification only until the native pair owner consumes outputs in the
-    /// same retained operation. Never used by live Capture or queue composition.
-    func qualifyPhotoPreparation(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe, savePlan: Bool = false) async throws -> SharedMediaNativePreparedOutputs {
-        try await lifecycle { storage, grant in
-            try await storage.preparationOperations(grant).prepare(original: original, recipe: recipe, savePlan: savePlan)
-        }
-    }
-    #endif
 
     func prepareOriginal(packageID: UUID, draftGeneration: UUID, ordinal: Int64,
                          kind: SharedMediaAcquisitionIntent.Kind) async throws -> SharedMediaAcquisitionIntent {
-        try await lifecycle { [self] storage, grant in
-            try storage.originalReadback(grant: grant).request(packageID: packageID, draftGeneration: draftGeneration, ordinal: ordinal, kind: kind, epoch: writerEpoch)
+        try await qualificationWorkflow { [self] operations in
+            try operations.originalReadback().request(packageID: packageID, draftGeneration: draftGeneration, ordinal: ordinal, kind: kind, epoch: writerEpoch)
         }
     }
 
@@ -350,7 +318,8 @@ final class SharedMediaNativeOriginalOwner {
         return try await perform { [self] grant in
             guard let storage else { throw SharedMediaStorageFailure.closed }
             let snapshot = try await storage.inspectOriginals(grant: grant)
-            if let existing = try storage.originalReceipt(request, grant: grant) {
+            let operations = try storage.qualificationOperations(grant: grant)
+            if let existing = try operations.originalReceipt(request) {
                 if case .completed(_, let result) = existing { return result }
                 throw PhotoPreparationFailure.cleanupPending
             }
@@ -358,28 +327,28 @@ final class SharedMediaNativeOriginalOwner {
             try grant.validate()
             var loaderStarted = false
             do {
-                do { try storage.reserveOriginal(request, grant: grant) } catch { /* Exact saved-state recovery below. */ }
-                guard case .reserved = try storage.originalReceipt(request, grant: grant) else { throw SharedMediaStorageFailure.conflict }
-                let reserved = try storage.reservedState(request, grant: grant)
+                do { try operations.reserveOriginal(request) } catch { /* Exact saved-state recovery below. */ }
+                guard case .reserved = try operations.originalReceipt(request) else { throw SharedMediaStorageFailure.conflict }
+                let reserved = try operations.reservedState(request)
                 try grant.validate()
                 // This is the sole loader invocation. Cold reservations never reach it.
                 loaderStarted = true
                 let data: Data
                 do {
                     writerActive = true; defer { writerActive = false }
-                    data = try await storage.loadOriginal(load, grant: grant)
+                    data = try await operations.loadOriginal(load)
                 }
                 try grant.validate()
-                guard try storage.reservedState(request, grant: grant) == reserved else { throw SharedMediaStorageFailure.stale }
+                guard try operations.reservedState(request) == reserved else { throw SharedMediaStorageFailure.stale }
                 let proof: SharedMediaPhotoRetirementInspection
                 do {
                     writerActive = true; defer { writerActive = false }
-                    proof = try await storage.writeOriginal(data, request: request, grant: grant)
+                    proof = try await operations.writeOriginal(data, request: request)
                 }
                 try grant.validate()
-                guard try storage.reservedState(request, grant: grant) == reserved else { throw SharedMediaStorageFailure.stale }
-                do { try storage.completeOriginal(request, proof: proof, grant: grant) } catch { /* Exact saved-state recovery below. */ }
-                guard case .completed(_, let result) = try storage.originalReceipt(request, grant: grant) else { throw SharedMediaStorageFailure.conflict }
+                guard try operations.reservedState(request) == reserved else { throw SharedMediaStorageFailure.stale }
+                do { try operations.completeOriginal(request, proof: proof) } catch { /* Exact saved-state recovery below. */ }
+                guard case .completed(_, let result) = try operations.originalReceipt(request) else { throw SharedMediaStorageFailure.conflict }
                 return result
             } catch {
                 pendingSettlement = .init(request: request, loaderStarted: loaderStarted, writerReturned: !writerActive)
@@ -466,7 +435,10 @@ final class SharedMediaNativeOriginalOwner {
         await awaitActive?()
         // Durable held settlement retains liability but permits process-fence
         // release after actual termination. Unknown settlement remains closed.
-        do { _ = try reconcileSettlement() } catch { return false }
+        do {
+            if pendingSettlement?.appTicket != nil { _ = try await reconcileAppSettlement() }
+            else { _ = try reconcileSettlement() }
+        } catch { return false }
         guard pendingSettlement == nil else { return false }
         storage = nil; scopedIdentity = nil; appProfile = nil; appParent = nil
         return true
@@ -588,5 +560,24 @@ final class SharedMediaNativeSettlementGrant {
     func validate() throws {
         guard let owner else { throw SharedMediaStorageFailure.closed }
         try owner.validateSettlement(identity: identity, request: request, loaderStarted: loaderStarted)
+    }
+}
+
+/// Terminated-writer settlement only; V1 grants and app dispatch cannot mint it.
+@MainActor
+final class SharedMediaNativeAppSettlementGrant {
+    private weak var owner: SharedMediaNativeOriginalOwner?
+    private let identity: UUID
+    let ticket: SharedMediaNativeAppAcquisitionSettlement
+    let loaderStarted: Bool
+    let writerEpoch: UUID
+    fileprivate init(owner: SharedMediaNativeOriginalOwner, identity: UUID, ticket: SharedMediaNativeAppAcquisitionSettlement,
+                     loaderStarted: Bool, writerEpoch: UUID) {
+        self.owner = owner; self.identity = identity; self.ticket = ticket
+        self.loaderStarted = loaderStarted; self.writerEpoch = writerEpoch
+    }
+    func validate() throws {
+        guard let owner else { throw SharedMediaStorageFailure.closed }
+        try owner.validateAppSettlement(identity: identity, ticket: ticket, loaderStarted: loaderStarted, epoch: writerEpoch)
     }
 }
