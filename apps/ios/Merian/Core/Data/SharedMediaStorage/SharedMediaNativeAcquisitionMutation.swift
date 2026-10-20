@@ -243,28 +243,7 @@ final class SharedMediaNativeAcquisitionMutation {
     }
     private func requireNoUnfinished(_ context: ModelContext) throws {
         guard isApp else { try SharedMediaNativePreparationGraph.requireNoUnfinished(context); return }
-        let inventoryID = inventory.id
-        var unfinished = FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.inventoryID == inventoryID && $0.phaseRaw != "ready" })
-        unfinished.fetchLimit = 1
-        guard try context.fetch(unfinished).isEmpty else { throw SharedMediaStorageFailure.closed }
-        for package in try SharedMediaNativePreparationGraph.pendingRows(context, inventory: inventory) {
-            let envelope = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData)
-            guard envelope.attempt == nil, !package.retirementRequested else { throw SharedMediaStorageFailure.closed }
-            let id = package.id
-            var pairs = FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.packageID == id })
-            pairs.fetchLimit = 10
-            let rows = try context.fetch(pairs)
-            guard rows.count <= 9 else { throw SharedMediaStorageFailure.capacity }
-            for pair in rows {
-                let pairID = pair.id
-                guard pair.phaseRaw == "ready", pair.inventoryID == inventory.id, pair.inventoryGeneration == inventory.generation,
-                      try context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>(predicate: #Predicate { $0.pairID == pairID && $0.phaseRaw != "completed" })) == 0 else { throw SharedMediaStorageFailure.closed }
-            }
-            if id == request.packageID {
-                guard try SharedMediaConsumerLookup.one(context, packageID: id) == nil else { throw SharedMediaStorageFailure.closed }
-                if case .preparation(let value) = envelope, value.frozen != nil { throw SharedMediaStorageFailure.closed }
-            }
-        }
+        try SharedMediaNativePreparationGraph.requireNoUnfinished(context, inventory: inventory, targetPackageID: request.packageID)
     }
     private func projection(final: Bool) throws -> SharedMediaPendingGraph {
         if isApp { return try SharedMediaPendingGraph.deriveAcquisitionPoststate(in: context, inventory: inventory, proof: poststate(final: final)) }

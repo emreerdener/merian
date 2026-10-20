@@ -16,13 +16,13 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
             revision = row.revision; allocated = row.allocatedByteCount; retiring = row.retirementRequested
             envelope = row.supportingContextData
         }
-        private init(_ old: Self, envelope: Data, revision: Int64) {
+        private init(_ old: Self, envelope: Data, revision: Int64, phase: String) {
             id = old.id; ownerID = old.ownerID; draftID = old.draftID; generation = old.generation
-            contract = old.contract; tier = old.tier; phase = old.phase; allocated = old.allocated
+            contract = old.contract; tier = old.tier; self.phase = phase; allocated = old.allocated
             retiring = old.retiring; self.envelope = envelope; self.revision = revision
         }
-        func successor(_ bytes: Data) throws -> Self {
-            .init(self, envelope: bytes, revision: try SharedMediaStoragePolicy.add(revision, 1))
+        func successor(_ bytes: Data, phase: String? = nil) throws -> Self {
+            .init(self, envelope: bytes, revision: try SharedMediaStoragePolicy.add(revision, 1), phase: phase ?? self.phase)
         }
     }
     struct Member: Equatable, Sendable {
@@ -61,6 +61,19 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
                                                 proof: SharedMediaNativeAppAcquisitionPoststate) throws -> Self {
         try proof.validate(context: context, inventory: inventory)
         return try read(context, profile: proof.profile)
+    }
+    @MainActor static func preparationPoststate(_ context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                                proof: SharedMediaNativeAppPreparationPoststate) throws -> Self {
+        try proof.validate(context: context, inventory: inventory)
+        return try read(context, profile: proof.profile)
+    }
+    @MainActor func validatePreparation(_ context: ModelContext, package: Package) throws {
+        let current = try Self.read(context, profile: profile)
+        var expected = packages
+        guard expected[package.id] != nil, consumers[package.id] == nil else { throw SharedMediaStorageFailure.closed }
+        expected[package.id] = package
+        guard current.bootstrapRevision == bootstrapRevision, current.members == members,
+              current.packages == expected, current.consumers == consumers else { throw SharedMediaStorageFailure.conflict }
     }
     @MainActor private static func read(_ context: ModelContext, profile: SharedMediaNativeAppProfile) throws -> Self {
         let inventoryID = profile.inventoryID

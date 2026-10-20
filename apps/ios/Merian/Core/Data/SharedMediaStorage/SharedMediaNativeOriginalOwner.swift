@@ -189,6 +189,16 @@ final class SharedMediaNativeOriginalOwner {
         }
     }
 
+    func appPreparationWorkflow<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppPreparationOperations) throws -> T) async throws -> T {
+        guard openKind == .appDispatch, phase == .ready, pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
+        return try await performOperation { [self] lease, identity in
+            guard let storage, let appProfile, let appParent else { throw SharedMediaStorageFailure.closed }
+            let grant = SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
+                profile: appProfile, parent: appParent, writerEpoch: writerEpoch)
+            let operation = try await storage.appPreparation(grant: grant)
+            try grant.validate(); return try body(operation)
+        }
+    }
     func prepareAppOriginal(packageID: UUID, draftGeneration: UUID, ordinal: Int64,
                             kind: SharedMediaAcquisitionIntent.Kind) async throws -> SharedMediaAcquisitionIntent {
         try await appAcquisition(request: nil) { try $0.request(packageID: packageID, draftGeneration: draftGeneration, ordinal: ordinal, kind: kind) }

@@ -311,11 +311,26 @@ final class SharedMediaNativeStorageRepository {
 
     func appMetadata(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeAppMetadataOperations {
         try requireApp(grant)
-        let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile) {
+        let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) {
             try self.requireApp(grant); return try self.appHeader()
         }
         return try await .audited(container: container, authority: authority,
             availableBytes: { try self.files.availableBytes() }, boundary: metadataBoundary)
+    }
+    func appPreparation(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeAppPreparationOperations {
+        try requireApp(grant)
+        let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try self.requireApp(grant); return try self.appHeader() }
+        return try await .audited(container: container, authority: authority, availableBytes: {
+            var bytes = try self.files.availableBytes()
+            #if DEBUG
+            if let limit = self.debug?.preparationAvailableBytes { bytes = min(bytes, limit) }
+            #endif
+            return bytes
+        }, boundary: { point in
+            #if DEBUG
+            try self.debug?.preparationFault?(point)
+            #endif
+        })
     }
     func appAcquisition(grant: SharedMediaNativeAppDispatchGrant, request: SharedMediaAcquisitionIntent?) async throws -> SharedMediaNativeAppAcquisitionOperations {
         try requireApp(grant)
@@ -532,11 +547,12 @@ final class SharedMediaNativeBootstrapAuthority {
 @MainActor
 struct SharedMediaNativeAppOperationAuthority {
     let profile: SharedMediaNativeAppProfile
+    let writerEpoch: UUID
     private let containerID: ObjectIdentifier
     private let check: () throws -> SharedMediaNativeAppEligibility.Header
-    fileprivate init(container: ModelContainer, profile: SharedMediaNativeAppProfile,
+    fileprivate init(container: ModelContainer, profile: SharedMediaNativeAppProfile, writerEpoch: UUID,
                      check: @escaping () throws -> SharedMediaNativeAppEligibility.Header) {
-        containerID = ObjectIdentifier(container); self.profile = profile; self.check = check
+        containerID = ObjectIdentifier(container); self.profile = profile; self.writerEpoch = writerEpoch; self.check = check
     }
     func header(_ container: ModelContainer) throws -> SharedMediaNativeAppEligibility.Header {
         guard ObjectIdentifier(container) == containerID else { throw SharedMediaStorageFailure.closed }

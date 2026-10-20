@@ -78,6 +78,36 @@ enum SharedMediaNativePreparationGraph {
         guard try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.phaseRaw != "ready" })) == 0,
               try context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>(predicate: #Predicate { $0.phaseRaw != "completed" })) == 0 else { throw SharedMediaStorageFailure.closed }
     }
+    /// Fresh V2 admission checks only inventory-anchored native work.
+    static func requireNoUnfinished(_ context: ModelContext, inventory: SharedMediaInventoryRecord, targetPackageID: UUID,
+                                    allowing attempt: SharedMediaNativePreparationAttempt? = nil) throws {
+        let inventoryID = inventory.id
+        var unfinished = FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.inventoryID == inventoryID && $0.phaseRaw != "ready" })
+        unfinished.fetchLimit = 1
+        guard try context.fetch(unfinished).isEmpty else { throw SharedMediaStorageFailure.closed }
+        for package in try pendingRows(context, inventory: inventory) {
+            let envelope = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData)
+            guard !package.retirementRequested else { throw SharedMediaStorageFailure.closed }
+            if let blob = envelope.attempt {
+                guard package.id == targetPackageID, let attempt,
+                      try SharedMediaNativePreparationAttempt.decode(blob.bytes) == attempt else { throw SharedMediaStorageFailure.closed }
+            }
+            let id = package.id
+            var pairs = FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.packageID == id })
+            pairs.fetchLimit = 10
+            let rows = try context.fetch(pairs)
+            guard rows.count <= 9 else { throw SharedMediaStorageFailure.capacity }
+            for pair in rows {
+                let pairID = pair.id
+                guard pair.phaseRaw == "ready", pair.inventoryID == inventory.id, pair.inventoryGeneration == inventory.generation,
+                      try context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>(predicate: #Predicate { $0.pairID == pairID && $0.phaseRaw != "completed" })) == 0 else { throw SharedMediaStorageFailure.closed }
+            }
+            if id == targetPackageID {
+                guard try SharedMediaConsumerLookup.one(context, packageID: id) == nil else { throw SharedMediaStorageFailure.closed }
+                if case .preparation(let value) = envelope, value.frozen != nil { throw SharedMediaStorageFailure.closed }
+            }
+        }
+    }
     static func pendingRows(_ context: ModelContext, inventory: SharedMediaInventoryRecord) throws -> [PhotoPreparationRecord] {
         let id = inventory.id
         var query = FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.inventoryID == id })

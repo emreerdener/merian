@@ -1,3 +1,42 @@
+## October 20 — V2 preparation reservations locally verified
+
+The inactive app owner now has an envelope-only preparation path through the
+shared typed mutation core. An audited, sealed action permits inspection,
+reservation or explicit closure of one exact saved attempt. Reservation pins the
+current writer epoch; cold closure accepts the saved epoch only for that exact
+attempt after the serial owner has drained. Neither action processes media,
+creates derivative files, freezes a submission or invokes AI.
+
+The dirty-state proof permits exactly the inventory revision and target package
+envelope/phase/revision to change. Membership, independent bootstrap revision,
+other pending packages and receiving-consumer bytes stay pinned. Original
+reference, asset and completed acquisition receipt facts are rechecked before
+save and acknowledgement. Fresh scoped idle-file, pair/work and budget checks
+run after the pre-save boundary; the exact dirty-state budget is then rechecked.
+Uncertain saves permit exact read-only acknowledgement; the operation cannot
+repeat its write. Full scoped pending and receiving charges remain included,
+with unchanged storage limits. Ordinary unanchored drafts stay outside the
+native graph; the existing V1 qualification path remains separate.
+
+Independently and IC-1 reviewed candidate04 passed **97/97 methods in thirteen
+suites**, with zero failures, skips or Xcode runtime warnings. All **2,860**
+source/project hashes and candidate hashes remained unchanged. Evidence:
+`.artifacts/native-app-preparation-20261020/focused04-result.json`; XCResult
+`f62dd0a664ed471aa116f1ea7ad39f20`; candidate SHA256
+`54c446a85e64d239f173b636d8358dd83c844b45f5b1a88aa53f473589e0b5d5`. Candidate01
+remains HOLD/unrun; candidate02 was superseded without execution. Candidate03's
+compile-before-tests failure is retained. Candidate04 only splits two throwing
+test assertions; runtime code is unchanged from candidate03. Simulator
+diagnostics from tiny synthetic images remain in the log. This is scoped
+shared-checkout validation, not full-target, isolated-source, device, hosted or
+integrated acceptance.
+
+Next are derivative preparation and atomic inert freeze/consumer/queue/job/event
+receiving, lifecycle and Capture/Auth integration, RUX recovery, integrated
+acceptance, version deletion/export and redesign. Activation disabled, PR116
+frozen, Supabase deployment hold active, AWS unapproved; schema and numeric
+limits unchanged.
+
 ## October 20 — V2 original acquisition locally verified
 
 The inactive app owner now retains exact selected original bytes through the
