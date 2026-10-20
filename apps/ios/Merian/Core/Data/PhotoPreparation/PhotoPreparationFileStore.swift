@@ -449,9 +449,9 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
         guard sharedBinding?.bytes == binding.bytes, sharedBinding?.epoch == binding.epoch else { throw PhotoPreparationFailure.unsupportedComposition }
         return try withSharedDestination(request.finalToken, create: false) { try SharedMediaNativePendingFiles(access: $0, request: request).inspect(binding: binding) }
     }
-    func verifyNativePending(_ request: SharedMediaAcquisitionIntent, closure: SharedMediaNativePendingClosure, binding: SharedMediaNativeBinding) throws {
+    func verifyNativePending(_ request: SharedMediaAcquisitionIntent, closure: SharedMediaNativePendingClosure, binding: SharedMediaNativeBinding, requireAbsence: Bool = false) throws {
         guard sharedBinding?.bytes == binding.bytes, sharedBinding?.epoch == binding.epoch else { throw PhotoPreparationFailure.unsupportedComposition }
-        try withSharedDestination(request.finalToken, create: false) { try SharedMediaNativePendingFiles(access: $0, request: request).verify(closure) }
+        try withSharedDestination(request.finalToken, create: false) { try requireAbsence ? SharedMediaNativePendingFiles(access: $0, request: request).verifyAbsent(closure) : SharedMediaNativePendingFiles(access: $0, request: request).verify(closure) }
     }
     func releaseNativePending(_ disposal: SharedMediaNativePendingDisposal) throws -> SharedMediaNativePendingAbsence {
         guard sharedBinding?.bytes == disposal.binding, sharedBinding?.epoch == disposal.epoch else { throw PhotoPreparationFailure.unsupportedComposition }

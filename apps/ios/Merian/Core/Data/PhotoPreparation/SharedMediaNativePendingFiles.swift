@@ -17,6 +17,13 @@ struct SharedMediaNativePendingFiles {
         try Task.checkCancellation()
         try access.perform { parent, namespace in try require(saved, parent: parent, namespace: namespace) }
     }
+    func verifyAbsent(_ saved: SharedMediaNativePendingClosure) throws {
+        try Task.checkCancellation()
+        try access.perform { parent, namespace in
+            try require(saved, parent: parent, namespace: namespace)
+            guard try capture(parent: parent, namespace: namespace).kind == .absent else { throw PhotoPreparationFailure.inconsistentOwnership }
+        }
+    }
     func release(_ disposal: SharedMediaNativePendingDisposal) throws -> SharedMediaNativePendingAbsence {
         guard disposal.state.request == request, let saved = disposal.state.closure else { throw SharedMediaStorageFailure.conflict }
         try Task.checkCancellation()

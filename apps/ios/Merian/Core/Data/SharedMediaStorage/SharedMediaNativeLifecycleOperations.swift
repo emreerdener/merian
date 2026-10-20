@@ -104,6 +104,9 @@ struct SharedMediaNativeRetirement: Sendable {
 
 /// Fresh in-memory IO capability, minted only after exact saved-intent readback.
 struct SharedMediaNativePendingDisposal: Sendable {
+    static func app(_ witness: SharedMediaNativeAppPendingDisposalWitness) -> Self {
+        .init(state: witness.state, binding: witness.binding.bytes, epoch: witness.binding.epoch)
+    }
     let state: SharedMediaNativePendingState
     let binding: Data
     let epoch: UUID

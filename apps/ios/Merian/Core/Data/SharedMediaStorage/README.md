@@ -1,3 +1,39 @@
+## October 20 — app pending-original cleanup locally verified
+
+The inactive app owner now supports explicit abandonment and cold recovery of
+reserved or held originals in consumer-less drafts. Saved physical closure
+precedes disposal; synced absence and a final synchronous absence check precede
+reservation release. The stripped terminal receipt permits read-only recovery
+without another loader, reservation or AI execution. Active or unsettled writers
+block entry, and raw unknown reservations are never automatically deleted.
+
+Each transition retains the app account/namespace fences, full scoped audit,
+complete pending-original reverse accounting and an exact typed write set. Other
+originals, ready output pairs, receiving consumers and ordinary drafts remain
+protected. V1 qualification behavior is unchanged.
+
+Independent and IC-1 reviewed candidate04 has combined focused evidence for
+**88/88 methods across 10 suites**. The initial completed run passed 87/88; its
+sole failing method used an inconsistent reserved fixture package phase. The
+fixture now uses the graph’s derived `acquiring` phase. The corrected cleanup
+suite passed **13/13**; the nine unchanged passing suites are reused. Runtime
+code did not change between these runs. Both preserved all **2,877** source and
+project hashes; the rerun has no failures, skips or XCResult runtime warnings.
+Compiler/lint and simulator diagnostics remain in the logs. Earlier focused02
+failed during test compilation before running any methods; its evidence remains
+retained. This is focused shared-checkout validation, not a new full-target,
+isolated, device, hosted or integrated pass.
+
+Evidence: `.artifacts/native-app-pending-cleanup-20261020/focused03-result.json`
+and `focused04-result.json`; XCResults `6184199fac954f528f48220fd968d7c6` and
+`eebc4545d392462fbffee3aec89e758d`. Next is ready-original sharing, removal and
+exact final retirement/release, with its design reviewed independently and by
+IC-1 in `.artifacts/native-app-original-lifecycle-20261020/design-review.json`.
+Capture durable receiving handoff, consumer lifecycle, native journeys and
+integrated acceptance remain open before version deletion/export and redesign.
+Activation stays disabled, PR116 frozen, the Supabase deployment hold active and
+AWS unapproved. Schema, numeric limits and external restrictions are unchanged.
+
 ## October 20 — ordinary native photo receiving locally verified
 
 The inactive app owner now atomically freezes an ordinary photo cohort and

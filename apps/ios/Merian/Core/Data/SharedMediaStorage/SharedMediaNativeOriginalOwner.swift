@@ -185,6 +185,12 @@ final class SharedMediaNativeOriginalOwner {
             try grant.validate(); return try await body(operation)
         }
     }
+    func appPendingWorkflow<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppPendingOperations) async throws -> T) async throws -> T {
+        try await withAppDispatch { storage, grant in
+            let operation = try await storage.appPending(grant: grant)
+            try grant.validate(); return try await body(operation)
+        }
+    }
     func appReceivingWorkflow<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant, _ body: @escaping @MainActor (SharedMediaNativeAppReceivingOperations) async throws -> T) async throws -> T {
         try lock.validate()
         return try await withAppDispatch { storage, grant in

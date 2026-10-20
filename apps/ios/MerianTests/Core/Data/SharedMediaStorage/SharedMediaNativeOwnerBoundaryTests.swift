@@ -79,6 +79,21 @@ struct SharedMediaNativeOwnerBoundaryTests {
         }
     }
 
+    @Test func appPendingCleanupRequiresSealedScopeAndFinalAbsence() throws {
+        let operation = try source("SharedMediaNativeAppPendingOperations.swift")
+        #expect(operation.contains("fileprivate init(state: SharedMediaNativePendingState, binding: SharedMediaNativeBinding)"))
+        #expect(operation.contains("private init(container:"))
+        #expect(operation.contains("requireAbsence: releasing"))
+        #expect(operation.contains("SharedMediaNativeScopedAudit(app:"))
+        #expect(!operation.contains("SharedMediaNativeMutationAuthority"))
+        let wrapper = try source("SharedMediaNativeOriginalOwner+AppPendingCleanup.swift")
+        #expect(wrapper.contains("appPendingWorkflow"))
+        let files = try DatabaseActorTestSupport.swiftSources(below: "apps/ios/Merian")
+        for file in files where !file.relativePath.hasSuffix("SharedMediaNativeAppPendingOperations.swift") {
+            #expect(!file.contents.contains("SharedMediaNativeAppPendingDisposalWitness(state:"), "Pending capability escaped: \(file.relativePath)")
+        }
+    }
+
     private func source(_ name: String) throws -> String {
         try DatabaseActorTestSupport.loadRepositorySource(at: "apps/ios/Merian/Core/Data/SharedMediaStorage/" + name)
     }
