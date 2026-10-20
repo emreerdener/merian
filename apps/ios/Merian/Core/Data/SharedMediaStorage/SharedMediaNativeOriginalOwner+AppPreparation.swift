@@ -8,6 +8,9 @@ extension SharedMediaNativeOriginalOwner {
     func savedAppPlan(packageID: UUID, pairID: UUID) async throws -> SharedMediaNativePairPlan {
         try await appPreparationWorkflow { try $0.savedPlan(packageID: packageID, pairID: pairID) }
     }
+    func abandonAppPlan(_ plan: SharedMediaNativePairPlan) async throws {
+        try await appPreparationWorkflow { try await $0.abandonPlan(plan) }
+    }
     func reserveAppPreparation(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe) async throws -> SharedMediaNativePreparationAttempt {
         try await appPreparationWorkflow { try $0.reserve(original: original, recipe: recipe) }
     }

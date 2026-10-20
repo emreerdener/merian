@@ -15,6 +15,18 @@ struct SharedMediaNativePairFiles {
             inode: work.inode, finalIdentity: work.finalIdentity, fault: fault)
     }
 
+    func inspectPlannedAbsent() throws -> SharedMediaNativePlannedAbsence {
+        let (work, _) = try state.selected(workID)
+        guard state.phase == "planned", state.publishedRevision == nil,
+              work.phase == "planned", work.writerState == "absent",
+              work.device == nil, work.inode == nil, work.finalIdentity == nil,
+              work.retirementID == nil, work.retirementPartial == nil, work.retirementFinal == nil,
+              work.retirementParent == nil, work.retirementNamespace == nil, work.closure == nil else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        return try .init(state: state, workID: workID, identity: bytes().inspectPlannedAbsent(), binding: binding.bytes, epoch: binding.epoch)
+    }
+
     func begin() throws -> SharedMediaNativePairPartial {
         let (work, _) = try state.selected(workID)
         guard state.phase == "writing", work.phase == "reserved", work.writerState == "open",
@@ -119,5 +131,24 @@ struct SharedMediaNativePairAbsence: Sendable {
     let binding: Data, epoch: UUID
     fileprivate init(state: SharedMediaNativePairFileState, workID: UUID, binding: Data, epoch: UUID) {
         self.state = state; self.workID = workID; self.binding = binding; self.epoch = epoch
+    }
+}
+
+/// Read-only absence, bound to the held namespace. It grants no unlink authority.
+struct SharedMediaNativePlannedAbsence: Sendable {
+    let state: SharedMediaNativePairFileState, workID: UUID
+    let identity: SharedMediaInboxDestinationRetirementIdentity
+    let binding: Data, epoch: UUID
+    fileprivate init(state: SharedMediaNativePairFileState, workID: UUID, identity: SharedMediaInboxDestinationRetirementIdentity, binding: Data, epoch: UUID) {
+        self.state = state; self.workID = workID; self.identity = identity; self.binding = binding; self.epoch = epoch
+    }
+}
+
+extension PhotoPreparationLockedFiles {
+    func requireCurrentPlannedAbsence(_ proof: SharedMediaNativePlannedAbsence, binding: SharedMediaNativeBinding) throws {
+        guard proof.binding == binding.bytes, proof.epoch == binding.epoch else { throw SharedMediaStorageFailure.stale }
+        try withNativePairDestination(proof.state, workID: proof.workID, binding: binding, create: false) {
+            guard try $0.inspectPlannedAbsent().identity == proof.identity else { throw SharedMediaStorageFailure.stale }
+        }
     }
 }

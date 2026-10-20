@@ -1,3 +1,35 @@
+## October 20 — V2 no-file plan closure locally verified
+
+The inactive app owner can close one exact never-started photo plan, including
+after restart. A sealed cold-closure witness is separate from fresh processing:
+a saved file epoch permits only closure, never renewed processing or output
+creation. Both destinations must lack final and partial files, including empty
+partials. Exact directory and leaf observations are rechecked synchronously
+immediately before the single save. No file is unlinked.
+
+The typed post-state permits exactly inventory/package/membership updates and
+deletion of the pair and its two work rows. It preserves original media, other
+intents, ordinary drafts and receiving-consumer facts, with complete scoped
+budget validation before release. Save uncertainty allows exact read-only
+acknowledgement and never another delete. The tests cover warm/cold closure,
+receiving preservation, unowned files, late partial creation, parent
+replacement, membership drift and before/after-save/readback faults.
+
+Independently and IC-1 reviewed candidate01 passed **61/61 methods in ten
+suites**, with no failures, skips or Xcode runtime warnings. All **2,863**
+source/project hashes and candidate hashes remained unchanged. Evidence:
+`.artifacts/native-app-plan-closure-20261020/focused01-result.json`; XCResult
+`3954e04975164e328ff4466204157ea0`. Compiler/lint warnings and the existing tiny
+synthetic-image Vision diagnostics remain in the retained log; this is focused
+shared-checkout evidence, not full-target, isolated-source, device, hosted or
+integrated acceptance.
+
+Next are paired-file persistence, exact output recovery/retirement, atomic inert
+receiving, lifecycle/Capture/Auth integration and RUX recovery, followed by
+integrated acceptance, version deletion/export and redesign. Activation remains
+disabled, PR116 frozen, the Supabase deployment hold active and AWS unapproved.
+Schema and storage limits remain unchanged.
+
 ## October 20 — V2 photo processing and durable planning locally verified
 
 The inactive app owner now retains one operation across fresh preparation

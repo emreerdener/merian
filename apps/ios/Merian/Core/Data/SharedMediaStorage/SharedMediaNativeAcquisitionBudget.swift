@@ -46,8 +46,14 @@ enum SharedMediaNativeAcquisitionBudget {
         return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, pairPlanProof: proof)
     }
 
+    static func evaluatePairClosurePoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                             proof: SharedMediaNativeAppPairPlanClosurePoststate) throws -> Snapshot {
+        let graph = try SharedMediaPendingGraph.derivePairClosurePoststate(in: context, inventory: inventory, proof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, pairClosureProof: proof)
+    }
+
     private static func evaluate(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, acquisitionProof: SharedMediaNativeAppAcquisitionPoststate? = nil, preparationProof: SharedMediaNativeAppPreparationPoststate? = nil, pairPlanProof: SharedMediaNativeAppPairPlanPoststate? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, acquisitionProof: SharedMediaNativeAppAcquisitionPoststate? = nil, preparationProof: SharedMediaNativeAppPreparationPoststate? = nil, pairPlanProof: SharedMediaNativeAppPairPlanPoststate? = nil, pairClosureProof: SharedMediaNativeAppPairPlanClosurePoststate? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
         guard graph.sources.isEmpty, graph.handoffs.isEmpty else {
             throw SharedMediaStorageFailure.closed
         }
@@ -90,7 +96,8 @@ enum SharedMediaNativeAcquisitionBudget {
             var receivingBytes: Int64 = 0
             if let consumer = try SharedMediaConsumerLookup.one(context, packageID: id) {
                 guard let format else { throw SharedMediaStorageFailure.closed }
-                if let pairPlanProof { receivingBytes = try pairPlanProof.receivingBytes(consumer) }
+                if let pairClosureProof { receivingBytes = try pairClosureProof.receivingBytes(consumer) }
+                else if let pairPlanProof { receivingBytes = try pairPlanProof.receivingBytes(consumer) }
                 else if let preparationProof { receivingBytes = try preparationProof.receivingBytes(consumer) }
                 else if let metadataProof { receivingBytes = try metadataProof.receivingBytes(consumer) }
                 else if let acquisitionProof { receivingBytes = try acquisitionProof.receivingBytes(consumer) } else {

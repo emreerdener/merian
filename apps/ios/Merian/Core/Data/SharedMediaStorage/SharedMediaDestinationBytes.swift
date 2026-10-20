@@ -120,6 +120,17 @@ struct SharedMediaDestinationBytes {
         }
     }
 
+    /// A never-started plan has no ownership of even an empty partial file.
+    func inspectPlannedAbsent() throws -> SharedMediaInboxDestinationRetirementIdentity {
+        guard device == nil, inode == nil, finalIdentity == nil else { throw SharedMediaStorageFailure.conflict }
+        return try access.perform { parent, namespace in
+            guard try inspect(parent, access.name) == nil,
+                  try inspect(parent, access.name + ".partial") == nil else { throw SharedMediaStorageFailure.conflict }
+            return try .init(partial: "absent", final: "absent",
+                parent: directoryIdentity(parent), namespace: directoryIdentity(namespace))
+        }
+    }
+
     func release(_ saved: SharedMediaInboxDestinationRetirementIdentity) throws {
         try access.perform { parent, namespace in
             guard try directoryIdentity(parent) == saved.parent,

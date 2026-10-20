@@ -115,6 +115,12 @@ actor SharedMediaNativeOriginalIO {
     func recoverPair(_ state: SharedMediaNativePairFileState, workID: UUID) throws -> SharedMediaNativePairCompletion? {
         try withPair(state, workID: workID, create: false) { try $0.recover() }
     }
+    func inspectPlannedPairAbsent(_ state: SharedMediaNativePairFileState) throws -> [SharedMediaNativePlannedAbsence] {
+        try Task.checkCancellation()
+        return try state.work.map { work in
+            try withPair(state, workID: work.id, create: false) { try $0.inspectPlannedAbsent() }
+        }
+    }
     func inspectPair(_ state: SharedMediaNativePairFileState, workID: UUID) throws -> SharedMediaNativePairInspection {
         try withPair(state, workID: workID, create: false) { try $0.inspect() }
     }
