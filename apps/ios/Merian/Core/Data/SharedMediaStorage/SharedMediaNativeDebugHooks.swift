@@ -8,6 +8,7 @@ final class SharedMediaNativeDebugHooks {
     init() {}
     var lifecycleFault: ((SharedMediaNativeLifecycleBoundary) throws -> Void)?
     var preparationAvailableBytes: Int64?
+    var preparationFileEpochObserved: ((UUID) -> Void)?
     var preparationFocusFactory = ImageFocusWorkFactory()
     var preparationFault: ((SharedMediaNativePreparationBoundary) throws -> Void)?
     var metadataFault: ((SharedMediaNativeMetadataBoundary) throws -> Void)?

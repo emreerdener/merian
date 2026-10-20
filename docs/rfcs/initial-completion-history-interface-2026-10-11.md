@@ -1,3 +1,41 @@
+## October 20 — V2 photo processing and durable planning locally verified
+
+The inactive app owner now retains one operation across fresh preparation
+reservation, exact acknowledgement, one concrete photo-processing call and a
+single durable plan save. Saved attempts never authorize processor replay.
+Account transition and cancellation drain the processor before ownership exits.
+Original bytes are verified across processing and immediately before save.
+
+The shared typed plan core preserves V1 qualification and pins the exact V2
+three-update/three-insert post-state, all pending-package and receiving-consumer
+charges, and separate original/AI-input/display identities. Preparation attempts
+retain the app-operation epoch; pair/work rows retain the independently verified
+file-namespace epoch. Uncertain saves permit only exact read-only
+acknowledgement. Cold plan inspection grants no file-writing or dispatch
+authority.
+
+Candidate04 passed **4/4 methods** in the corrected app-plan suite, with no
+failures, skips or Xcode runtime warnings; all **2,861** source/project hashes
+and candidate hashes stayed unchanged. XCResult
+`d7a53e29bcd9422cb56d50723f011e12`; evidence
+`.artifacts/native-app-plan-20261020/focused04-result.json`. Composite coverage
+reuses five unchanged passing suites from candidate03 and eight from
+candidate02. This is focused shared-checkout evidence, not full-target,
+isolated-source, device, hosted or integrated acceptance.
+
+Failed evidence remains retained: candidate01 failed test compilation before
+execution; candidate02 passed 91/93 methods and exposed conflated epochs;
+candidate03 passed 29/30 methods after the runtime correction and exposed an
+unscoped test-fixture membership lookup. Candidate04 changes only that lookup to
+the exact target package. Runtime is unchanged from candidate03.
+
+Next are physically proven no-file plan closure, paired-file persistence, atomic
+inert receiving, lifecycle/Capture/Auth integration and RUX recovery, followed
+by integrated acceptance, version deletion/export and redesign. This checkpoint
+creates no output files and does not freeze, enqueue, fund or invoke a remote AI
+provider. Activation stays disabled, PR116 frozen, the Supabase deployment hold
+active and AWS unapproved. Schema and numeric limits remain unchanged.
+
 ## October 20 — V2 preparation reservations locally verified
 
 The inactive app owner now has an envelope-only preparation path through the

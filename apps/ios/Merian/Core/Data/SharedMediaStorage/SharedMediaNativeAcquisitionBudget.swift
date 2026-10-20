@@ -40,8 +40,14 @@ enum SharedMediaNativeAcquisitionBudget {
         return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, preparationProof: proof)
     }
 
+    static func evaluatePairPlanPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                          proof: SharedMediaNativeAppPairPlanPoststate) throws -> Snapshot {
+        let graph = try SharedMediaPendingGraph.derivePairPlanPoststate(in: context, inventory: inventory, proof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, pairPlanProof: proof)
+    }
+
     private static func evaluate(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, acquisitionProof: SharedMediaNativeAppAcquisitionPoststate? = nil, preparationProof: SharedMediaNativeAppPreparationPoststate? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, acquisitionProof: SharedMediaNativeAppAcquisitionPoststate? = nil, preparationProof: SharedMediaNativeAppPreparationPoststate? = nil, pairPlanProof: SharedMediaNativeAppPairPlanPoststate? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
         guard graph.sources.isEmpty, graph.handoffs.isEmpty else {
             throw SharedMediaStorageFailure.closed
         }
@@ -84,7 +90,8 @@ enum SharedMediaNativeAcquisitionBudget {
             var receivingBytes: Int64 = 0
             if let consumer = try SharedMediaConsumerLookup.one(context, packageID: id) {
                 guard let format else { throw SharedMediaStorageFailure.closed }
-                if let preparationProof { receivingBytes = try preparationProof.receivingBytes(consumer) }
+                if let pairPlanProof { receivingBytes = try pairPlanProof.receivingBytes(consumer) }
+                else if let preparationProof { receivingBytes = try preparationProof.receivingBytes(consumer) }
                 else if let metadataProof { receivingBytes = try metadataProof.receivingBytes(consumer) }
                 else if let acquisitionProof { receivingBytes = try acquisitionProof.receivingBytes(consumer) } else {
                     _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, checkpoint: checkpoint)

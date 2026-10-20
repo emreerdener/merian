@@ -189,14 +189,14 @@ final class SharedMediaNativeOriginalOwner {
         }
     }
 
-    func appPreparationWorkflow<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppPreparationOperations) throws -> T) async throws -> T {
+    func appPreparationWorkflow<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppPreparationOperations) async throws -> T) async throws -> T {
         guard openKind == .appDispatch, phase == .ready, pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
         return try await performOperation { [self] lease, identity in
             guard let storage, let appProfile, let appParent else { throw SharedMediaStorageFailure.closed }
             let grant = SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
                 profile: appProfile, parent: appParent, writerEpoch: writerEpoch)
             let operation = try await storage.appPreparation(grant: grant)
-            try grant.validate(); return try body(operation)
+            try grant.validate(); return try await body(operation)
         }
     }
     func prepareAppOriginal(packageID: UUID, draftGeneration: UUID, ordinal: Int64,
@@ -300,9 +300,10 @@ final class SharedMediaNativeOriginalOwner {
     #endif
 
     #if DEBUG
-    func setPreparationFault(_ fault: ((SharedMediaNativePreparationBoundary) throws -> Void)?, availableBytes: Int64? = nil, focusFactory: ImageFocusWorkFactory = .init()) throws {
+    func setPreparationFault(_ fault: ((SharedMediaNativePreparationBoundary) throws -> Void)?, availableBytes: Int64? = nil, focusFactory: ImageFocusWorkFactory = .init(), fileEpochObserved: ((UUID) -> Void)? = nil) throws {
         guard phase == .ready, cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }
         debug.preparationFault = fault; debug.preparationAvailableBytes = availableBytes; debug.preparationFocusFactory = focusFactory
+        debug.preparationFileEpochObserved = fileEpochObserved
     }
     #endif
 

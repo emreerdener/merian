@@ -33,6 +33,13 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
             id = row.id; inventoryID = row.inventoryID; inventoryGeneration = row.inventoryGeneration
             ownerID = row.ownerID; draftGeneration = row.draftGeneration; revision = row.revision; bytes = row.membersData
         }
+        private init(_ old: Self, bytes: Data, revision: Int64) {
+            id = old.id; inventoryID = old.inventoryID; inventoryGeneration = old.inventoryGeneration
+            ownerID = old.ownerID; draftGeneration = old.draftGeneration; self.bytes = bytes; self.revision = revision
+        }
+        func successor(_ bytes: Data) throws -> Self {
+            .init(self, bytes: bytes, revision: try SharedMediaStoragePolicy.add(revision, 1))
+        }
     }
     struct Consumer: Equatable, Sendable {
         // Include every scalar field and the exact cohort bytes, not just a hash.
@@ -74,6 +81,20 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
         expected[package.id] = package
         guard current.bootstrapRevision == bootstrapRevision, current.members == members,
               current.packages == expected, current.consumers == consumers else { throw SharedMediaStorageFailure.conflict }
+    }
+    @MainActor static func pairPlanPoststate(_ context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                            proof: SharedMediaNativeAppPairPlanPoststate) throws -> Self {
+        try proof.validate(context: context, inventory: inventory)
+        return try read(context, profile: proof.profile)
+    }
+    @MainActor func validatePairPlan(_ context: ModelContext, package: Package, member: Member) throws {
+        let current = try Self.read(context, profile: profile)
+        var nextPackages = packages, nextMembers = members
+        guard packages[package.id] != nil, members[package.id] != nil, member.id == package.id,
+              consumers[package.id] == nil else { throw SharedMediaStorageFailure.closed }
+        nextPackages[package.id] = package; nextMembers[package.id] = member
+        guard current.bootstrapRevision == bootstrapRevision, current.consumers == consumers,
+              current.packages == nextPackages, current.members == nextMembers else { throw SharedMediaStorageFailure.conflict }
     }
     @MainActor private static func read(_ context: ModelContext, profile: SharedMediaNativeAppProfile) throws -> Self {
         let inventoryID = profile.inventoryID

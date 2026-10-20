@@ -320,6 +320,10 @@ final class SharedMediaNativeStorageRepository {
     func appPreparation(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeAppPreparationOperations {
         try requireApp(grant)
         let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try self.requireApp(grant); return try self.appHeader() }
+        var focus = ImageFocusWorkFactory()
+        #if DEBUG
+        focus = debug?.preparationFocusFactory ?? focus
+        #endif
         return try await .audited(container: container, authority: authority, availableBytes: {
             var bytes = try self.files.availableBytes()
             #if DEBUG
@@ -329,6 +333,11 @@ final class SharedMediaNativeStorageRepository {
         }, boundary: { point in
             #if DEBUG
             try self.debug?.preparationFault?(point)
+            #endif
+        }, io: originalIO, focusFactory: focus, verifyProof: { proof in
+            try self.photos.requireCurrentSharedInspection(proof)
+            #if DEBUG
+            self.debug?.preparationFileEpochObserved?(proof.epoch)
             #endif
         })
     }
