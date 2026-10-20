@@ -107,25 +107,29 @@ final class SharedMediaNativePreparationOperations {
         }
         return try await publishFiles(state)
     }
+    private func retirementMutation(_ packageID: UUID, pairID: UUID) throws -> SharedMediaNativePairRetirementOwner {
+        try boundary(.beforeReadback)
+        return try .init(container: container, inventoryID: inventoryID, packageID: packageID, authority: authority, pairID: pairID)
+    }
     func retireFiles(_ expected: SharedMediaNativePairFileState) async throws {
         let packageID = expected.plan.packageID, pairID = try expected.intent().pairID
-        guard try filesMutation(packageID, pairID: pairID).state() == expected else { throw SharedMediaStorageFailure.stale }
+        guard try retirementMutation(packageID, pairID: pairID).state() == expected else { throw SharedMediaStorageFailure.stale }
         var state = expected
         if state.phase != "retiring" {
-            try filesMutation(packageID, pairID: pairID).requireRetirementAdmission()
+            try retirementMutation(packageID, pairID: pairID).requireRetirementAdmission()
             var proofs: [SharedMediaNativePairInspection] = []
             for work in state.work {
                 proofs.append(try await io.inspectPair(state, workID: work.id)); try authority.validate()
             }
-            state = try filesMutation(packageID, pairID: pairID).retire(state, proofs: proofs,
+            state = try retirementMutation(packageID, pairID: pairID).retire(state, proofs: proofs,
                 beforeSave: { try self.boundary(.beforeFileRetire) }, afterSave: { try self.boundary(.afterFileRetire) })
         }
-        let disposal = try filesMutation(packageID, pairID: pairID).disposal(state)
+        let disposal = try retirementMutation(packageID, pairID: pairID).disposal(state)
         var absence: [SharedMediaNativePairAbsence] = []
         for work in state.work {
             absence.append(try await io.releasePair(disposal, workID: work.id)); try authority.validate()
         }
-        try filesMutation(packageID, pairID: pairID).release(absence,
+        try retirementMutation(packageID, pairID: pairID).release(absence,
             beforeSave: { try self.boundary(.beforeFileRelease) }, afterSave: { try self.boundary(.afterFileRelease) })
     }
     #if DEBUG

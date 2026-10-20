@@ -11,6 +11,9 @@ extension SharedMediaNativeOriginalOwner {
     func recoverAppPhotoPair(packageID: UUID, pairID: UUID) async throws -> SharedMediaNativePairFileState {
         try await appPreparationWorkflow { try await $0.recoverFiles(packageID: packageID, pairID: pairID) }
     }
+    func retireAppPhotoPair(packageID: UUID, pairID: UUID) async throws {
+        try await appPreparationWorkflow { try await $0.retireFiles(packageID: packageID, pairID: pairID) }
+    }
     #if DEBUG
     func setAppPairFileFault(_ fault: (@Sendable (SharedMediaInboxHandoffBoundary) throws -> Void)?) async throws {
         try await appPreparationWorkflow { await $0.setFileFault(fault) }

@@ -1,3 +1,39 @@
+## October 20 — V2 exact output retirement locally verified
+
+The inactive app owner now retires writing/interrupted and ready output pairs.
+It persists and exactly acknowledges the deletion record before unlinking, then
+requires two absence proofs and final namespace checks before releasing rows and
+accounting. Shared-reference liabilities block disposal. Originals, other output
+pairs, receiving consumers and unrelated drafts remain protected. Qualification
+and app paths share the focused retirement mechanics while their sealed
+authorities remain separate.
+
+Independent and IC-1 reviewed candidate02 passed **116/116 methods across 16
+suites**, with no failures, skips or Xcode runtime warnings. All **2,868**
+source/project hashes and candidate hashes stayed unchanged. Evidence:
+`.artifacts/native-app-pair-retirement-20261020/focused03-result.json`; XCResult
+`86d1ab9c3d42471d9e73f1800f849dee`. The earlier focused02 attempt was refused
+before compilation because another build was active; its evidence is retained.
+This is focused shared-checkout validation, not full-target, isolated-source,
+device, hosted or integrated acceptance. Compiler/lint warnings and simulator
+diagnostics remain in the log.
+
+Tests cover ready, absent, empty, short, missing and mixed output states;
+interruption after either unlink; cold reconciliation; save/readback
+uncertainty; late files and physical/metadata drift; additional references;
+preservation of other originals, pairs and receiving consumers; and cancellation
+at release entry. Uncertain release never authorizes a repeated deletion. A
+fully released old request is stale and grants no I/O; no permanent proof rows
+or capacity charges are added.
+
+Next is atomic inactive receiving: freeze the exact cohort and create its
+consumer, queue, held job and event in one save. Its design has independent and
+IC-1 concurrence, with exact implementation review still required. Lifecycle,
+Capture/Auth, RUX recovery and integrated acceptance remain before version
+deletion/export and redesign. Activation stays disabled, PR116 frozen, the
+Supabase deployment hold active and AWS unapproved. Schema and limits remain
+unchanged.
+
 ## October 20 — V2 exact cold output recovery locally verified
 
 The inactive app owner can recover an already-bound complete partial or exact

@@ -18,6 +18,8 @@ final class SharedMediaNativeAppPreparationOperations {
     private let fileBinding: SharedMediaNativeBinding
     private let verifyCompletion: (SharedMediaNativePairCompletion) throws -> Void
     private let verifyPartial: (SharedMediaNativePairPartial) throws -> Void
+    private let verifyInspection: (SharedMediaNativePairInspection) throws -> Void
+    private let verifyAbsence: (SharedMediaNativePairAbsence) throws -> Void
     private var consumed = false
     private init(container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority,
                  expected: SharedMediaNativeAppEligibility.Header, facts: SharedMediaNativeAppMetadataFacts,
@@ -26,10 +28,13 @@ final class SharedMediaNativeAppPreparationOperations {
                  verifyProof: @escaping (SharedMediaPhotoRetirementInspection) throws -> Void,
                  verifyPlannedAbsence: @escaping (SharedMediaNativePlannedAbsence) throws -> Void,
                  fileBinding: SharedMediaNativeBinding, verifyPartial: @escaping (SharedMediaNativePairPartial) throws -> Void,
-                 verifyCompletion: @escaping (SharedMediaNativePairCompletion) throws -> Void) {
+                 verifyCompletion: @escaping (SharedMediaNativePairCompletion) throws -> Void,
+                 verifyInspection: @escaping (SharedMediaNativePairInspection) throws -> Void,
+                 verifyAbsence: @escaping (SharedMediaNativePairAbsence) throws -> Void) {
         self.container = container; self.authority = authority; self.expected = expected; self.facts = facts
         self.availableBytes = availableBytes; self.boundary = boundary
         self.io = io; self.focusFactory = focusFactory; self.verifyProof = verifyProof; self.verifyPlannedAbsence = verifyPlannedAbsence
+        self.verifyInspection = verifyInspection; self.verifyAbsence = verifyAbsence
         self.fileBinding = fileBinding; self.verifyPartial = verifyPartial; self.verifyCompletion = verifyCompletion
     }
     static func audited(container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority,
@@ -39,7 +44,9 @@ final class SharedMediaNativeAppPreparationOperations {
                         verifyProof: @escaping (SharedMediaPhotoRetirementInspection) throws -> Void,
                  verifyPlannedAbsence: @escaping (SharedMediaNativePlannedAbsence) throws -> Void,
                  fileBinding: SharedMediaNativeBinding, verifyPartial: @escaping (SharedMediaNativePairPartial) throws -> Void,
-                 verifyCompletion: @escaping (SharedMediaNativePairCompletion) throws -> Void) async throws -> SharedMediaNativeAppPreparationOperations {
+                 verifyCompletion: @escaping (SharedMediaNativePairCompletion) throws -> Void,
+                 verifyInspection: @escaping (SharedMediaNativePairInspection) throws -> Void,
+                 verifyAbsence: @escaping (SharedMediaNativePairAbsence) throws -> Void) async throws -> SharedMediaNativeAppPreparationOperations {
         let expected = try authority.header(container)
         _ = try await SharedMediaNativeScopedAudit(app: container, profile: authority.profile, expected: expected.inventory,
             check: { guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale } },
@@ -48,7 +55,7 @@ final class SharedMediaNativeAppPreparationOperations {
         let context = ModelContext(container); context.autosaveEnabled = false
         return .init(container: container, authority: authority, expected: expected,
             facts: try SharedMediaNativeAppMetadataFacts.capture(context, profile: authority.profile), availableBytes: availableBytes, boundary: boundary,
-            io: io, focusFactory: focusFactory, verifyProof: verifyProof, verifyPlannedAbsence: verifyPlannedAbsence, fileBinding: fileBinding, verifyPartial: verifyPartial, verifyCompletion: verifyCompletion)
+            io: io, focusFactory: focusFactory, verifyProof: verifyProof, verifyPlannedAbsence: verifyPlannedAbsence, fileBinding: fileBinding, verifyPartial: verifyPartial, verifyCompletion: verifyCompletion, verifyInspection: verifyInspection, verifyAbsence: verifyAbsence)
     }
     private func mutation(_ packageID: UUID, action: SharedMediaNativeAppPreparationWitness.Action) throws -> SharedMediaNativePreparationMutation {
         guard !consumed, facts.packages[packageID] != nil, facts.members[packageID] != nil,
@@ -79,7 +86,7 @@ final class SharedMediaNativeAppPreparationOperations {
         -> (SharedMediaNativePairPlan, SharedMediaNativePreparedOutputs) {
         let attempt = try reserve(original: original, recipe: recipe)
         let current = try await Self.audited(container: container, authority: authority, availableBytes: availableBytes,
-            boundary: boundary, io: io, focusFactory: focusFactory, verifyProof: verifyProof, verifyPlannedAbsence: verifyPlannedAbsence, fileBinding: fileBinding, verifyPartial: verifyPartial, verifyCompletion: verifyCompletion)
+            boundary: boundary, io: io, focusFactory: focusFactory, verifyProof: verifyProof, verifyPlannedAbsence: verifyPlannedAbsence, fileBinding: fileBinding, verifyPartial: verifyPartial, verifyCompletion: verifyCompletion, verifyInspection: verifyInspection, verifyAbsence: verifyAbsence)
         let witness = SharedMediaNativeAppPreparationWitness(authority: authority, expected: current.expected, facts: current.facts, action: .inspect)
         try SharedMediaNativePreparationMutation(container: container, packageID: original.packageID, witness: witness).result(attempt)
         try Task.checkCancellation()
@@ -182,6 +189,48 @@ final class SharedMediaNativeAppPreparationOperations {
         }
         return try await recoverTransition(state, action: .publishSaved(completed), seal: seal)
     }
+    /// Closure is durably acknowledged before disposal. The same saved closure
+    /// may reconcile absent files; a released old ID cannot mint new work.
+    func retireFiles(packageID: UUID, pairID: UUID) async throws {
+        guard !consumed else { throw SharedMediaStorageFailure.closed }; consumed = true
+        var state = try recoveryState(packageID: packageID, pairID: pairID)
+        guard ["writing", "ready", "retiring"].contains(state.phase) else { throw SharedMediaStorageFailure.closed }
+        if state.phase != "retiring" {
+            var inspections: [SharedMediaNativePairInspection] = []
+            for work in state.work {
+                _ = try authority.header(container); try Task.checkCancellation()
+                inspections.append(try await io.inspectPair(state, workID: work.id))
+            }
+            let seals = inspections
+            let owner = try await retirementOwner(state, action: .retire(inspections), seal: {
+                for proof in seals { try self.verifyInspection(proof) }
+            })
+            guard let saved = try owner.applyApp(beforeSave: { try self.boundary(.beforeFileRetire) },
+                afterSave: { try self.boundary(.afterFileRetire) }) else { throw SharedMediaStorageFailure.conflict }
+            state = saved
+        }
+        let owner = try await retirementOwner(state, action: .inspect, seal: {})
+        let disposal = try owner.disposal(state)
+        var absent: [SharedMediaNativePairAbsence] = []
+        for work in state.work {
+            _ = try authority.header(container); try Task.checkCancellation()
+            absent.append(try await io.releasePair(disposal, workID: work.id))
+            _ = try authority.header(container); try Task.checkCancellation()
+        }
+        let seals = absent
+        let release = try await retirementOwner(state, action: .release(absent), seal: {
+            for proof in seals { try self.verifyAbsence(proof) }
+        })
+        _ = try release.applyApp(beforeSave: { try self.boundary(.beforeFileRelease) },
+            afterSave: { try self.boundary(.afterFileRelease) })
+    }
+    private func retirementOwner(_ state: SharedMediaNativePairFileState, action: SharedMediaNativeAppPairRetirementWitness.Action,
+                                 seal: @escaping () throws -> Void) async throws -> SharedMediaNativePairRetirementOwner {
+        let current = try await refresh()
+        let preparation = SharedMediaNativeAppPreparationWitness(authority: authority, expected: current.expected, facts: current.facts, action: .inspect)
+        return try .init(container: container, witness: .init(preparation: preparation, state: state,
+            binding: fileBinding, action: action, seal: seal, beforeReadback: { try self.boundary(.beforeReadback) }))
+    }
     private func recoveryState(packageID: UUID, pairID: UUID) throws -> SharedMediaNativePairFileState {
         let preparation = SharedMediaNativeAppPreparationWitness(authority: authority, expected: expected, facts: facts, action: .inspect)
         return try SharedMediaNativeAppPairRecoveryWitness.currentState(container, preparation: preparation, packageID: packageID, pairID: pairID)
@@ -206,7 +255,7 @@ final class SharedMediaNativeAppPreparationOperations {
     private func refresh() async throws -> SharedMediaNativeAppPreparationOperations {
         try await Self.audited(container: container, authority: authority, availableBytes: availableBytes,
             boundary: boundary, io: io, focusFactory: focusFactory, verifyProof: verifyProof,
-            verifyPlannedAbsence: verifyPlannedAbsence, fileBinding: fileBinding, verifyPartial: verifyPartial, verifyCompletion: verifyCompletion)
+            verifyPlannedAbsence: verifyPlannedAbsence, fileBinding: fileBinding, verifyPartial: verifyPartial, verifyCompletion: verifyCompletion, verifyInspection: verifyInspection, verifyAbsence: verifyAbsence)
     }
     private func transition(_ state: SharedMediaNativePairFileState, action: SharedMediaNativeAppPairAction,
                             seal: @escaping () throws -> Void) async throws -> SharedMediaNativePairFileState {
@@ -416,5 +465,43 @@ struct SharedMediaNativeAppPairRecoveryWitness {
         _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: c, inventory: inventory,
             ownerID: preparation.authority.profile.ownerID, format: .appV2)
         return try SharedMediaNativePairFileGraph.state(context: c, inventory: inventory, package: package, member: member, pairID: pairID)
+    }
+}
+
+/// App-only sealed retirement authority. No saved state alone grants unlink or
+/// release permission, and no retirement action accepts new media bytes.
+@MainActor
+struct SharedMediaNativeAppPairRetirementWitness {
+    enum Action { case retire([SharedMediaNativePairInspection]), inspect, release([SharedMediaNativePairAbsence]) }
+    let preparation: SharedMediaNativeAppPreparationWitness
+    let state: SharedMediaNativePairFileState
+    let binding: SharedMediaNativeBinding
+    let action: Action
+    let seal: () throws -> Void
+    let beforeReadback: () throws -> Void
+    fileprivate init(preparation: SharedMediaNativeAppPreparationWitness, state: SharedMediaNativePairFileState,
+                     binding: SharedMediaNativeBinding, action: Action, seal: @escaping () throws -> Void,
+                     beforeReadback: @escaping () throws -> Void) {
+        self.preparation = preparation; self.state = state; self.binding = binding
+        self.action = action; self.seal = seal; self.beforeReadback = beforeReadback
+    }
+    func validate(_ container: ModelContainer) throws {
+        try Task.checkCancellation()
+        guard !binding.initializing,
+              try SharedMediaNativeAppPairRecoveryWitness.currentState(container, preparation: preparation,
+                  packageID: state.plan.packageID, pairID: state.intent().pairID) == state,
+              case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(state.plan.envelope),
+              envelope.attempt == nil, envelope.frozen == nil else { throw SharedMediaStorageFailure.stale }
+        switch action {
+        case .retire(let proofs):
+            guard ["writing", "ready"].contains(state.phase), proofs.count == 2,
+                  Set(proofs.map(\.workID)) == Set(state.work.map(\.id)),
+                  proofs.allSatisfy({ $0.state == state && $0.binding == binding.bytes && $0.epoch == binding.epoch }) else { throw SharedMediaStorageFailure.conflict }
+        case .release(let proofs):
+            guard state.phase == "retiring", proofs.count == 2,
+                  Set(proofs.map(\.workID)) == Set(state.work.map(\.id)),
+                  proofs.allSatisfy({ $0.state == state && $0.binding == binding.bytes && $0.epoch == binding.epoch }) else { throw SharedMediaStorageFailure.conflict }
+        case .inspect: guard state.phase == "retiring" else { throw SharedMediaStorageFailure.closed }
+        }
     }
 }

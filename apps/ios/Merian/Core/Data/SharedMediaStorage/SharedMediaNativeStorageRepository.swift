@@ -341,7 +341,9 @@ final class SharedMediaNativeStorageRepository {
             #endif
         }, verifyPlannedAbsence: { try self.photos.requireCurrentPlannedAbsence($0, binding: self.nativeBinding) },
             fileBinding: nativeBinding, verifyPartial: { try self.photos.requireCurrentPairPartial($0, binding: self.nativeBinding) },
-            verifyCompletion: { try self.photos.requireCurrentPairCompletion($0, binding: self.nativeBinding) })
+            verifyCompletion: { try self.photos.requireCurrentPairCompletion($0, binding: self.nativeBinding) },
+            verifyInspection: { try self.photos.requireCurrentPairInspection($0, binding: self.nativeBinding) },
+            verifyAbsence: { try self.photos.requireCurrentPairAbsence($0, binding: self.nativeBinding) })
     }
     func appAcquisition(grant: SharedMediaNativeAppDispatchGrant, request: SharedMediaAcquisitionIntent?) async throws -> SharedMediaNativeAppAcquisitionOperations {
         try requireApp(grant)

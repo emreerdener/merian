@@ -85,6 +85,12 @@ struct SharedMediaPendingGraph {
         return try scopedProjection(in: context, inventory: inventory, ownerID: proof.profile.ownerID, format: .appV2)
     }
 
+    static func derivePairRetirementPoststate(in context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                              proof: SharedMediaNativeAppPairRetirementPoststate) throws -> Self {
+        try proof.validate(context: context, inventory: inventory)
+        return try scopedProjection(in: context, inventory: inventory, ownerID: proof.profile.ownerID, format: .appV2)
+    }
+
     private static func scopedProjection(in context: ModelContext, inventory: SharedMediaInventoryRecord,
                                          ownerID: UUID, format: SharedMediaNativeScopedFormat, acquisition: SharedMediaNativeAppAcquisitionPoststate? = nil) throws -> Self {
         try format.requireProfile(inventory)

@@ -98,6 +98,18 @@ struct SharedMediaNativePairFiles {
         }
         return .init(state: state, workID: workID, identity: identity, binding: binding.bytes, epoch: binding.epoch)
     }
+    func requireCurrentInspection(_ proof: SharedMediaNativePairInspection) throws {
+        guard proof.state == state, proof.workID == workID, proof.binding == binding.bytes,
+              proof.epoch == binding.epoch, try inspect().identity == proof.identity else { throw SharedMediaStorageFailure.stale }
+    }
+    func requireCurrentAbsence(_ proof: SharedMediaNativePairAbsence) throws {
+        guard proof.state == state, proof.workID == workID, proof.binding == binding.bytes,
+              proof.epoch == binding.epoch, state.phase == "retiring" else { throw SharedMediaStorageFailure.stale }
+        let (work, _) = try state.selected(workID)
+        let found = try work.device == nil ? bytes().inspectReservedEmpty() : bytes().inspectRetirement()
+        guard found.partial == "absent", found.final == "absent",
+              found.parent == work.retirementParent, found.namespace == work.retirementNamespace else { throw SharedMediaStorageFailure.conflict }
+    }
     func verify() throws {
         let (work, _) = try state.selected(workID)
         if state.phase == "planned" { return }
@@ -167,6 +179,13 @@ struct SharedMediaNativePlannedAbsence: Sendable {
 }
 
 extension PhotoPreparationLockedFiles {
+    func requireCurrentPairInspection(_ proof: SharedMediaNativePairInspection, binding: SharedMediaNativeBinding) throws {
+        try withNativePairDestination(proof.state, workID: proof.workID, binding: binding, create: false) { try $0.requireCurrentInspection(proof) }
+    }
+    func requireCurrentPairAbsence(_ proof: SharedMediaNativePairAbsence, binding: SharedMediaNativeBinding) throws {
+        try withNativePairDestination(proof.state, workID: proof.workID, binding: binding, create: false) { try $0.requireCurrentAbsence(proof) }
+    }
+
     func requireCurrentPairCompletion(_ proof: SharedMediaNativePairCompletion, binding: SharedMediaNativeBinding) throws {
         try withNativePairDestination(proof.state, workID: proof.workID, binding: binding, create: false) { try $0.requireCurrentCompletion(proof) }
     }
