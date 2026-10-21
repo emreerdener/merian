@@ -24,7 +24,7 @@ struct SharedMediaNativeReceivingReleaseValuesTests {
         #expect(bound.charged <= bound.replacedBytes)
         #expect(bound.planBytes <= PhotoPreparationPolicy.metadata)
         #expect(bound.maximumReleasedBytes <= PhotoPreparationPolicy.metadata)
-        #expect(bound.reserved == bound.maximumReleasedBytes - bound.planBytes)
+        #expect(bound.reserved == bound.charged - bound.planBytes)
         #expect(plan.jobID == fixture.request.jobID)
         #expect(plan.targets.map(\.acquisitionID) == acquisitionIDs)
         #expect(plan.targets.map(\.original) == (try SharedMediaNativeFrozenCohort.decode(p.cohort.bytes)
@@ -107,6 +107,152 @@ struct SharedMediaNativeReceivingReleaseValuesTests {
         // This intentionally proves only a serialized slot bound. The header
         // has insufficient room for full cleanup; no owner accepts this value.
         print("Release wide slot: replaced=\(bound.replacedBytes), maximum=\(bound.charged)")
+    }
+
+    @Test(arguments: [1, 2])
+    func progressRetainsProofsAcrossEveryStageAndSharingDisposition(_ count: Int) async throws {
+        let fixture = try await Fixture.load(count: count).freshP2().context([])
+        let p = try Intent.Prepared(fixture.request), received = try Intent.Received(prepared: p, request: fixture.request)
+        let ids = try originals(fixture, p)
+        let plan = try Values.Plan(prepared: p, received: received,
+            header: SharedMediaNativeAppMetadataFacts.successor(fixture.request.header),
+            releaseID: UUID(), acquisitionIDs: ids)
+        let bound = try Values.slotBound(plan: plan, prepared: p, received: received, acquisitionIDs: ids)
+        let initial = try Values.Progress(plan: plan)
+        #expect(try initial.remainingAdvances == Int64(4 * count + 2))
+        let pairs = plan.targets.map { _ in Values.PairAssertion(retirementID: UUID(), closureSHA256: String(repeating: "a", count: 64)) }
+        let originals = plan.targets.map { _ in Values.OriginalAssertion(disposition: .removed,
+            retirementID: UUID(), closureSHA256: String(repeating: "b", count: 64)) }
+        let combinations = count == 1 ? 6 : 36
+        var largest = 0
+        // 0 ready; 1 retiring pair; 2 pair gone; 3 original retiring;
+        // 4 removed last; 5 removed shared. Include both processing orders.
+        for code in 0..<combinations {
+            let stages = count == 1 ? [code] : [code % 6, code / 6]
+            var forward = initial, reverse = initial
+            for index in 0..<count {
+                forward = try advance(forward, index: index, destination: stages[index], pair: pairs[index], original: originals[index])
+            }
+            for index in (0..<count).reversed() {
+                reverse = try advance(reverse, index: index, destination: stages[index], pair: pairs[index], original: originals[index])
+            }
+            #expect(forward == reverse)
+            let bytes = try forward.encoded()
+            largest = max(largest, bytes.count)
+            #expect(Int64(bytes.count) <= bound.maximumProgressBytes)
+            #expect(try Values.Progress.decode(bytes) == forward)
+            #expect(throws: (any Error).self) { _ = try Values.Progress.decode(Data(" ".utf8) + bytes) }
+            let remaining = try forward.remainingAdvances
+            try forward.requireRevisionCapacity(inventoryRevision: Int64.max - remaining)
+            #expect(throws: (any Error).self) {
+                try forward.requireRevisionCapacity(inventoryRevision: Int64.max - remaining + 1)
+            }
+            if stages.allSatisfy({ $0 >= 4 }) {
+                let terminal = try Values.Released(progress: forward, inventoryRevision: .max)
+                try terminal.requireMatch(forward)
+                #expect(Int64(try terminal.encoded().count) <= bound.maximumReleasedBytes)
+                #expect(terminal.releasingSHA256 == initial.releasingSHA256)
+                #expect(try forward.remainingAdvances == 2)
+                #expect(throws: (any Error).self) { try terminal.requireMatch(initial) }
+            } else {
+                #expect(throws: (any Error).self) { _ = try Values.Released(progress: forward, inventoryRevision: .max) }
+            }
+        }
+        print("Release progress size: originals=\(count), states=\(combinations), observed=\(largest), maximum=\(bound.maximumProgressBytes), replaced=\(bound.replacedBytes)")
+        let first = try initial.advancing(.init(pairID: plan.targets[0].pairID, stage: .retiringPair, pair: pairs[0], original: nil))
+        #expect(throws: (any Error).self) { _ = try first.advancing(first.targets[0]) }
+        #expect(throws: (any Error).self) {
+            _ = try first.advancing(.init(pairID: plan.targets[0].pairID, stage: .pairGoneOriginalLive,
+                pair: .init(retirementID: UUID(), closureSHA256: pairs[0].closureSHA256), original: nil))
+        }
+        #expect(throws: (any Error).self) {
+            _ = try initial.advancing(.init(pairID: plan.targets[0].pairID, stage: .removed, pair: pairs[0], original: originals[0]))
+        }
+        for replacement: [String: Any] in [
+            ["format": "nativeReceivingReleasingProgressV2"], ["releasingSHA256": String(repeating: "b", count: 64)],
+            ["targets": []]
+        ] {
+            #expect(throws: (any Error).self) {
+                let invalid: Values.Progress = try Fixture.copy(first, changes: replacement)
+                _ = try invalid.encoded()
+            }
+        }
+        #expect(throws: (any Error).self) {
+            _ = try initial.advancing(.init(pairID: plan.targets[0].pairID, stage: .retiringPair,
+                pair: .init(retirementID: plan.releaseID, closureSHA256: pairs[0].closureSHA256), original: nil))
+        }
+        if count == 2 {
+            #expect(throws: (any Error).self) {
+                _ = try first.advancing(.init(pairID: plan.targets[1].pairID, stage: .retiringPair, pair: pairs[0], original: nil))
+            }
+            let reordered: Values.Progress = try Fixture.copy(first, changes: ["targets": first.targets.reversed().map(Fixture.object)])
+            #expect(throws: (any Error).self) { _ = try reordered.encoded() }
+        }
+        #expect(throws: (any Error).self) {
+            try Values.TargetProgress(pairID: plan.targets[0].pairID, stage: .retiringPair, pair: nil, original: nil).validate()
+        }
+        #expect(throws: (any Error).self) {
+            try Values.TargetProgress(pairID: plan.targets[0].pairID, stage: .originalRetiring, pair: pairs[0],
+                original: .init(disposition: .shared, retirementID: nil, closureSHA256: String(repeating: "b", count: 64))).validate()
+        }
+    }
+
+    @Test(arguments: [1, 2])
+    func composedProjectionRecalculatesEverySurvivorAndFitsExistingMetadata(_ count: Int) async throws {
+        for support in ["", String(repeating: "\"\\\n🦋", count: 200)] {
+            let fixture = try await Fixture.load(count: count).freshP2().context(support)
+            let p = try Intent.Prepared(fixture.request), received = try Intent.Received(prepared: p, request: fixture.request)
+            let ids = try originals(fixture, p), frozen = try fixture.request.frozenPackage()
+            let header = try SharedMediaNativeAppMetadataFacts.successor(fixture.request.header)
+            let plan = try Values.Plan(prepared: p, received: received, header: header, releaseID: UUID(), acquisitionIDs: ids)
+            let states = fixture.states.map { state in
+                let old = state.plan
+                let next = SharedMediaNativePairPlan(intent: old.intent, writerEpoch: old.writerEpoch,
+                    inventoryID: old.inventoryID, inventoryGeneration: old.inventoryGeneration,
+                    inventoryRevision: header.inventory.revision, packageID: old.packageID,
+                    draftGeneration: old.draftGeneration, packageRevision: frozen.revision, envelope: frozen.envelope,
+                    membershipRevision: old.membershipRevision, membership: old.membership)
+                return SharedMediaNativePairFileState(plan: next, phase: state.phase,
+                    publishedRevision: state.publishedRevision, allocatedBytes: state.allocatedBytes, work: state.work)
+            }
+            let current = try SharedMediaNativeReceivingReservation.successor(p, header: fixture.request.header,
+                currentMetadata: fixture.metadata(), pairStates: fixture.states)
+            let projection = try SharedMediaNativeReceivingReleaseProjection.maximum(plan: plan, prepared: p,
+                received: received, acquisitionIDs: ids, currentMetadata: current, pairStates: states)
+            try projection.requireExistingReservation()
+            #expect(projection.additionalReservation == 0)
+            #expect(projection.statesExamined == (count == 1 ? 6 : 36))
+            // A larger unchanged residual is retained exactly. This arithmetic
+            // cap check is not persisted exact-cap/end-to-end qualification.
+            let boundary = try SharedMediaNativeReceivingReleaseProjection.maximum(plan: plan, prepared: p,
+                received: received, acquisitionIDs: ids, currentMetadata: PhotoPreparationPolicy.metadata, pairStates: states)
+            try boundary.requireExistingReservation()
+            #expect(boundary.maximumIntermediateBytes - projection.maximumIntermediateBytes == PhotoPreparationPolicy.metadata - current)
+            #expect(throws: (any Error).self) {
+                _ = try SharedMediaNativeReceivingReleaseProjection.maximum(plan: plan, prepared: p,
+                    received: received, acquisitionIDs: ids, currentMetadata: PhotoPreparationPolicy.metadata + 1, pairStates: states)
+            }
+            #expect(throws: (any Error).self) {
+                _ = try SharedMediaNativeReceivingReleaseProjection.maximum(plan: plan, prepared: p,
+                    received: received, acquisitionIDs: ids, currentMetadata: current, pairStates: fixture.states)
+            }
+            print("Release composed size: originals=\(count), support=\(support.utf8.count), received=\(current), maximum=\(projection.maximumIntermediateBytes), states=\(projection.statesExamined)")
+        }
+    }
+
+    private func advance(_ progress: Values.Progress, index: Int, destination: Int,
+                         pair: Values.PairAssertion, original: Values.OriginalAssertion) throws -> Values.Progress {
+        var next = progress
+        let pairID = progress.plan.targets[index].pairID
+        if destination >= 1 { next = try next.advancing(.init(pairID: pairID, stage: .retiringPair, pair: pair, original: nil)) }
+        if destination >= 2 { next = try next.advancing(.init(pairID: pairID, stage: .pairGoneOriginalLive, pair: pair, original: nil)) }
+        if destination == 5 {
+            return try next.advancing(.init(pairID: pairID, stage: .removed, pair: pair,
+                original: .init(disposition: .shared, retirementID: nil, closureSHA256: original.closureSHA256)))
+        }
+        if destination >= 3 { next = try next.advancing(.init(pairID: pairID, stage: .originalRetiring, pair: pair, original: original)) }
+        if destination >= 4 { next = try next.advancing(.init(pairID: pairID, stage: .removed, pair: pair, original: original)) }
+        return next
     }
 
     private func originals(_ fixture: Fixture, _ p: Intent.Prepared) throws -> [UUID] {

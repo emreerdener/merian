@@ -1,3 +1,48 @@
+## October 21 — held-release progress and projection qualified locally
+
+A new unconsumed `nativeReceivingReleasingProgressV1` payload retains ordered
+per-target pair and original assertions across cleanup stages. Strict forward
+transitions preserve existing assertions, and Released can be constructed only
+from completed Progress when using the new progress-bound initializer. Existing
+Plan/Released encoding meanings remain unchanged; these values still grant no
+mutation or physical absence authority. Runtime slot readers reject release
+phases until the sealed integration is reviewed.
+
+The descriptive projection now includes every intermediate payload, existing
+pair closure liabilities, canonical membership changes and original retirement
+proofs. Each surviving pair is bounded against the union of initial membership
+and possible retirement additions, covering closures that retain earlier larger
+membership after other targets disappear. The unchanged envelope, receipt and
+execution charges remain conservatively retained until final deletion. Progress
+embeds Plan and is charged once. Terminal Released remains separately charged
+outside pending membership in the intended integration; that runtime audit is
+not implemented here.
+
+The proposed atomic transition graph derives 4/3/2/1/0 remaining target saves,
+plus final Released and consumption. The per-value arithmetic helper is not a
+global reservation: runtime integration must still validate all affected slot,
+package, membership, reference/count and aggregate inventory revision capacity
+at every writer. Shared removal is an authoritative historical transition, not a
+promise that surviving references never change. Original assertion preimages
+must be minted by the sealed live-row owner before rows disappear.
+
+Exact independent and IC-1 review cleared candidate01 before execution. The
+managed suite passed all four methods / seven invocations, including arguments 1
+and 2 for every parameterized method. All 2,903 source/project hashes remained
+unchanged. No skips or Xcode runtime warnings were reported; compiler/lint and
+raw simulator diagnostics remain retained. XCResult
+`7eb195072f8e4558b3bd9406e52b7f09` and complete evidence are under
+`.artifacts/native-app-capture-handoff-20261020/release-progress-focused01-*`.
+
+All 6/36 progress shapes fit the slot bound. With empty support, the composed
+intermediate upper bound is 71,279 bytes versus 80,046 already charged for one
+original, and 168,845 versus 184,749 for two. Escaped support and scalar-width
+checks also pass. The arithmetic metadata boundary remains distinct from
+persisted cap and end-to-end acceptance. Persisted cap boundaries, physical
+cleanup, restart recovery, terminal paging and complete affected gates remain
+open. Activation disabled; PR116 frozen; deployment held; AWS unapproved; all
+numeric limits unchanged.
+
 ## October 21 — held-release codec qualification
 
 The descriptive ReleasingV1 and ReleasedV1 codecs passed two methods / three

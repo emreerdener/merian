@@ -168,6 +168,19 @@ enum SharedMediaNativeReceivingReleaseValues {
             releasingSHA256 = SharedMediaAcquisitionEncoding.digest(try plan.encoded())
             try validate()
         }
+        init(progress: Progress, inventoryRevision: Int64) throws {
+            try progress.validate()
+            try self.init(plan: progress.plan, inventoryRevision: inventoryRevision,
+                outcomes: progress.targets.map { try $0.outcome() })
+            try requireMatch(progress)
+        }
+        func requireMatch(_ progress: Progress) throws {
+            try validate(); try progress.validate()
+            guard plan == progress.plan, releasingSHA256 == progress.releasingSHA256,
+                  outcomes == (try progress.targets.map { try $0.outcome() }) else {
+                throw SharedMediaStorageFailure.conflict
+            }
+        }
         func validate() throws {
             try plan.validate()
             guard releasingSHA256 == SharedMediaAcquisitionEncoding.digest(try plan.encoded()),
@@ -189,11 +202,132 @@ enum SharedMediaNativeReceivingReleaseValues {
         }
     }
 
+    /// Compact restart assertions in the receiving row. These values do not
+    /// establish physical absence: the future typed owner must validate live
+    /// closure rows and atomically retain assertions before deleting those rows.
+    struct PairAssertion: Codable, Equatable, Sendable {
+        let retirementID: UUID
+        let closureSHA256: String
+    }
+    struct OriginalAssertion: Codable, Equatable, Sendable {
+        let disposition: Outcome.Original
+        let retirementID: UUID?
+        let closureSHA256: String
+    }
+    struct TargetProgress: Codable, Equatable, Sendable {
+        enum Stage: String, Codable, CaseIterable, Sendable {
+            case readyPair, retiringPair, pairGoneOriginalLive, originalRetiring, removed
+            var remaining: Int64 {
+                switch self {
+                case .readyPair: 4
+                case .retiringPair: 3
+                case .pairGoneOriginalLive: 2
+                case .originalRetiring: 1
+                case .removed: 0
+                }
+            }
+        }
+        let pairID: UUID
+        let stage: Stage
+        let pair: PairAssertion?
+        let original: OriginalAssertion?
+
+        func validate() throws {
+            guard (stage == .readyPair) == (pair == nil),
+                  ([Stage.originalRetiring, .removed].contains(stage)) == (original != nil) else {
+                throw SharedMediaStorageFailure.conflict
+            }
+            if let pair { guard hashes([pair.closureSHA256]) else { throw SharedMediaStorageFailure.conflict } }
+            if let original {
+                guard hashes([original.closureSHA256]),
+                      (original.disposition == .shared) == (original.retirementID == nil),
+                      stage != .originalRetiring || original.disposition == .removed else {
+                    throw SharedMediaStorageFailure.conflict
+                }
+            }
+        }
+        func outcome() throws -> Outcome {
+            try validate()
+            guard stage == .removed, let pair, let original else { throw SharedMediaStorageFailure.closed }
+            return Outcome(pairID: pairID, pairRetirementID: pair.retirementID, pairClosureSHA256: pair.closureSHA256,
+                original: original.disposition, originalRetirementID: original.retirementID,
+                originalClosureSHA256: original.closureSHA256)
+        }
+    }
+
+    struct Progress: Codable, Equatable, Sendable {
+        enum Format: String, Codable, Sendable { case progress = "nativeReceivingReleasingProgressV1" }
+        let format: Format
+        let plan: Plan
+        let releasingSHA256: String
+        let targets: [TargetProgress]
+
+        init(plan: Plan) throws {
+            format = .progress; self.plan = plan
+            releasingSHA256 = SharedMediaAcquisitionEncoding.digest(try plan.encoded())
+            targets = plan.targets.map { .init(pairID: $0.pairID, stage: .readyPair, pair: nil, original: nil) }
+            try validate()
+        }
+        private init(plan: Plan, targets: [TargetProgress]) throws {
+            format = .progress; self.plan = plan; self.targets = targets
+            releasingSHA256 = SharedMediaAcquisitionEncoding.digest(try plan.encoded())
+            try validate()
+        }
+        func validate() throws {
+            try plan.validate()
+            guard releasingSHA256 == SharedMediaAcquisitionEncoding.digest(try plan.encoded()),
+                  targets.map(\.pairID) == plan.targets.map(\.pairID) else { throw SharedMediaStorageFailure.conflict }
+            for target in targets { try target.validate() }
+            let retirements = targets.flatMap { [$0.pair?.retirementID, $0.original?.retirementID].compactMap { $0 } }
+            let identities = Set([plan.releaseID, plan.operationID, plan.queueID, plan.observationID,
+                plan.bindingID, plan.generation, plan.eventID] + plan.targets.flatMap(\.identities))
+            guard Set(retirements).count == retirements.count, identities.isDisjoint(with: retirements) else {
+                throw SharedMediaStorageFailure.conflict
+            }
+        }
+        /// Structural transition only, never a live-row or file capability.
+        /// No retry advances a saved stage or replaces an already saved proof.
+        func advancing(_ next: TargetProgress) throws -> Self {
+            try validate(); try next.validate()
+            guard let index = targets.firstIndex(where: { $0.pairID == next.pairID }) else {
+                throw SharedMediaStorageFailure.conflict
+            }
+            let old = targets[index]
+            guard old.pair == nil || old.pair == next.pair,
+                  old.original == nil || old.original == next.original else { throw SharedMediaStorageFailure.conflict }
+            switch (old.stage, next.stage) {
+            case (.readyPair, .retiringPair), (.retiringPair, .pairGoneOriginalLive),
+                 (.pairGoneOriginalLive, .originalRetiring), (.originalRetiring, .removed): break
+            case (.pairGoneOriginalLive, .removed):
+                guard next.original?.disposition == .shared else { throw SharedMediaStorageFailure.conflict }
+            default: throw SharedMediaStorageFailure.conflict
+            }
+            var values = targets; values[index] = next
+            return try Self(plan: plan, targets: values)
+        }
+        /// Includes final Released and its later consumption. The initial Plan
+        /// save has already occurred. Aggregate capacity must later be checked
+        /// on every native dirty poststate, including terminal rows.
+        var remainingAdvances: Int64 {
+            get throws { try validate(); return try PhotoPreparationPolicy.add([2] + targets.map { $0.stage.remaining }) }
+        }
+        func requireRevisionCapacity(inventoryRevision: Int64) throws {
+            guard inventoryRevision > plan.preHeader.inventory.revision else { throw SharedMediaStorageFailure.stale }
+            _ = try SharedMediaStoragePolicy.add(inventoryRevision, remainingAdvances)
+        }
+        func encoded() throws -> Data { try validate(); return try SharedMediaNativeDraftEnvelope.bytes(self) }
+        static func decode(_ bytes: Data) throws -> Self {
+            let value: Self = try SharedMediaAcquisitionEncoding.decode(bytes, maximum: Int(PhotoPreparationPolicy.metadata))
+            guard try value.encoded() == bytes else { throw SharedMediaStorageFailure.conflict }; return value
+        }
+    }
+
     struct SlotBound: Equatable, Sendable {
         let replacedBytes: Int64
         let planBytes: Int64
         let maximumReleasedBytes: Int64
-        var charged: Int64 { max(planBytes, maximumReleasedBytes) }
+        let maximumProgressBytes: Int64
+        var charged: Int64 { max(planBytes, max(maximumReleasedBytes, maximumProgressBytes)) }
         var reserved: Int64 { charged - planBytes }
     }
 
@@ -225,9 +359,25 @@ enum SharedMediaNativeReceivingReleaseValues {
         let old = try PhotoPreparationPolicy.add([
             Int64(prepared.encoded().count), Int64(received.encoded(prepared: prepared).count)
         ])
-        let result = SlotBound(replacedBytes: old, planBytes: planBytes, maximumReleasedBytes: maximum)
+        // OriginalRetiring is the longest stage name with both assertions and
+        // every optional field. UUID/hash alphabets do not require escaping.
+        // This sizing-only value deliberately bypasses identity validation.
+        struct ProgressSizing: Encodable {
+            let format = Progress.Format.progress
+            let plan: Plan
+            let releasingSHA256: String
+            let targets: [TargetProgress]
+        }
+        let maximumProgress = Int64(try SharedMediaNativeDraftEnvelope.bytes(ProgressSizing(plan: plan,
+            releasingSHA256: SharedMediaAcquisitionEncoding.digest(plan.encoded()), targets: plan.targets.map {
+                .init(pairID: $0.pairID, stage: .originalRetiring,
+                    pair: .init(retirementID: plan.releaseID, closureSHA256: wide),
+                    original: .init(disposition: .removed, retirementID: plan.releaseID, closureSHA256: wide))
+            })).count)
+        let result = SlotBound(replacedBytes: old, planBytes: planBytes, maximumReleasedBytes: maximum,
+            maximumProgressBytes: maximumProgress)
         guard planBytes <= PhotoPreparationPolicy.metadata,
-              maximum <= PhotoPreparationPolicy.metadata,
+              maximum <= PhotoPreparationPolicy.metadata, maximumProgress <= PhotoPreparationPolicy.metadata,
               result.charged <= old else { throw SharedMediaStorageFailure.capacity }
         return result
     }
