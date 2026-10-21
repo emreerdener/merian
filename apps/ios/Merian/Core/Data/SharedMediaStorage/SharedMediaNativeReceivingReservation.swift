@@ -17,7 +17,11 @@ enum SharedMediaNativeReceivingReservation {
             bootstrapID: prepared.profile.inventoryID, bootstrapGeneration: prepared.profile.generation,
             bootstrapContract: 2, bootstrapRevision: Int64.max)
         let current = try PhotoPreparationPolicy.add([currentMetadata, Int64(prepared.encoded().count)])
-        let next = try successor(prepared, header: header, currentMetadata: currentMetadata, pairStates: pairStates)
+        var next = try successor(prepared, header: header, currentMetadata: currentMetadata, pairStates: pairStates)
+        if prepared.version == 2 {
+            next = max(next, try abandonedSuccessor(prepared, header: header,
+                currentMetadata: currentMetadata, pairStates: pairStates))
+        }
         let result = Projection(current: current, maximumSuccessor: next)
         guard result.charged <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
         return result
@@ -32,18 +36,8 @@ enum SharedMediaNativeReceivingReservation {
         guard currentMetadata >= (try PhotoPreparationPolicy.add([removed, Int64(prepared.member.bytes.count)])) else {
             throw SharedMediaStorageFailure.conflict
         }
-        var newPairs: Int64 = 0
-        for state in pairStates {
-            let p = state.plan
-            let plan = SharedMediaNativePairPlan(intent: p.intent, writerEpoch: p.writerEpoch,
-                inventoryID: p.inventoryID, inventoryGeneration: p.inventoryGeneration,
-                inventoryRevision: try request.freeze.commit.inventoryRevision, packageID: p.packageID,
-                draftGeneration: p.draftGeneration, packageRevision: frozen.revision, envelope: frozen.envelope,
-                membershipRevision: p.membershipRevision, membership: p.membership)
-            let next = SharedMediaNativePairFileState(plan: plan, phase: state.phase,
-                publishedRevision: state.publishedRevision, allocatedBytes: state.allocatedBytes, work: state.work)
-            newPairs = try PhotoPreparationPolicy.add([newPairs, SharedMediaNativePairClosure.maximumStateBytes(next)])
-        }
+        let newPairs = try successorPairBytes(pairStates, package: frozen,
+            inventoryRevision: request.freeze.commit.inventoryRevision)
         // Replace all envelope-dependent liabilities, including every ready
         // pair's future cleanup projection. Keep receipt/membership liability.
         // Queue has no context blob; job and event each retain metadata once.
@@ -52,6 +46,35 @@ enum SharedMediaNativeReceivingReservation {
             Int64(prepared.encoded().count), Int64(result.encoded(prepared: prepared).count),
             Int64(request.cohort.encoded().count), Int64(request.metadata.utf8.count), Int64(request.metadata.utf8.count)
         ])
+    }
+    /// The caller supplies the pre-intent charge, so no prepared bytes are
+    /// subtracted twice. Abandonment retains the draft and its pair liabilities.
+    static func abandonedSuccessor(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                   header: SharedMediaNativeAppEligibility.Header, currentMetadata: Int64,
+                                   pairStates: [SharedMediaNativePairFileState]) throws -> Int64 {
+        let result = try SharedMediaNativeReceivingIntent.Abandoned(prepared: prepared, header: header)
+        let oldPairs = try pairBytes(prepared, states: pairStates)
+        guard currentMetadata >= (try PhotoPreparationPolicy.add([
+            oldPairs, Int64(prepared.package.envelope.count), Int64(prepared.member.bytes.count)
+        ])) else { throw SharedMediaStorageFailure.conflict }
+        let package = try prepared.package.successor(prepared.package.envelope)
+        let newPairs = try successorPairBytes(pairStates, package: package,
+            inventoryRevision: SharedMediaStoragePolicy.add(header.inventory.revision, 1))
+        return try PhotoPreparationPolicy.add([currentMetadata - oldPairs, newPairs, Int64(result.encoded().count)])
+    }
+
+    static func materializedAbandoned(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                     header: SharedMediaNativeAppEligibility.Header, currentMetadata: Int64,
+                                     pairStates: [SharedMediaNativePairFileState], reservation: Projection) throws -> Int64 {
+        guard try maximum(prepared, currentMetadata: currentMetadata, pairStates: pairStates) == reservation else {
+            throw SharedMediaStorageFailure.stale
+        }
+        let result = try abandonedSuccessor(prepared, header: header, currentMetadata: currentMetadata, pairStates: pairStates)
+        // V1's original reservation meaning remains unchanged. Its explicit
+        // abandonment still checks the actual successor against existing caps.
+        guard result <= PhotoPreparationPolicy.metadata,
+              prepared.version == 1 || result <= reservation.maximumSuccessor else { throw SharedMediaStorageFailure.capacity }
+        return result
     }
     static func materialized(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                              header: SharedMediaNativeAppEligibility.Header, currentMetadata: Int64,
@@ -89,6 +112,23 @@ enum SharedMediaNativeReceivingReservation {
                 }
             }
             total = try PhotoPreparationPolicy.add([total, SharedMediaNativePairClosure.maximumStateBytes(state)])
+        }
+        return total
+    }
+    private static func successorPairBytes(_ states: [SharedMediaNativePairFileState],
+                                          package: SharedMediaNativeAppMetadataFacts.Package,
+                                          inventoryRevision: Int64) throws -> Int64 {
+        var total: Int64 = 0
+        for state in states {
+            let p = state.plan
+            let plan = SharedMediaNativePairPlan(intent: p.intent, writerEpoch: p.writerEpoch,
+                inventoryID: p.inventoryID, inventoryGeneration: p.inventoryGeneration,
+                inventoryRevision: inventoryRevision, packageID: p.packageID,
+                draftGeneration: p.draftGeneration, packageRevision: package.revision, envelope: package.envelope,
+                membershipRevision: p.membershipRevision, membership: p.membership)
+            let next = SharedMediaNativePairFileState(plan: plan, phase: state.phase,
+                publishedRevision: state.publishedRevision, allocatedBytes: state.allocatedBytes, work: state.work)
+            total = try PhotoPreparationPolicy.add([total, SharedMediaNativePairClosure.maximumStateBytes(next)])
         }
         return total
     }

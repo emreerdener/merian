@@ -1,3 +1,28 @@
+## October 21 — terminal values and reservation qualified locally
+
+Compact AbandonedV1/V2 values now retain source-version meaning, the saved
+operation/header and exact successor package/member identities without copying
+media or supporting descriptions. A descriptive leaf decoder rejects
+inconsistent phase, version, revision and blob combinations. P2 reserves the
+larger received or abandoned successor; V1 reservation semantics and numeric
+limits are unchanged. Runtime abandonment, restaging and P2 receiving are not
+connected by this change.
+
+Exact terminal candidate01 / execution01 passed **12 tests in three suites**,
+with zero failures, skips or XCResult runtime warnings. All **2,898
+source/project hashes** remained unchanged. Evidence lives in
+`.artifacts/native-app-capture-handoff-20261020/`, XCResult
+`b4bf297504264184a180aa337bfa4867`. Independent and IC-1 review preceded
+execution. Simulator image-processing diagnostics are retained. This is focused
+shared-checkout evidence, not full-target, isolated, device, hosted or
+integrated acceptance.
+
+The next coherent owner integration has independent and IC-1 design concurrence:
+phase-aware facts/accounting, P2 staging/receiving, explicit abandonment and
+fresh-only restaging with exact mutation proofs and acknowledgement recovery.
+Typed consumer lifecycle, Capture handoff and integrated acceptance remain open.
+Activation stays disabled, PR116 frozen, deployment held and AWS unapproved.
+
 ## October 21 — versioned receiving values and legacy exclusion verified
 
 Prepared V2 and Received V2 now preserve a digest-bound package/operation/slot
