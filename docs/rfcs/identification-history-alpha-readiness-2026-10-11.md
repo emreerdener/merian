@@ -1,3 +1,37 @@
+## October 21 — exact held-release state qualified locally
+
+The descriptive release-state leaf derives exact package membership, allocated
+logical bytes and revision offsets from reconstructed Prepared/Received values
+and immutable Progress. It verifies complete initial membership and byte totals.
+Shared removal removes this package's original membership; physical ownership
+may remain elsewhere. Original retirement retains its IDs until settlement.
+
+The sealed-release contract preserves the frozen envelope and `preparedHeld`
+phase. Every target step advances package, membership and slot revisions once,
+including original retirement with unchanged membership bytes. Initial release
+advances inventory and slot only. Inventory is a lower bound because unrelated
+work may advance it; generic cleanup owners cannot be reused unchanged.
+
+Independent and IC-1 review cleared the exact candidate and managed execution.
+The complete release-value suite passed: 7 methods / 16 invocations, including
+all 6/36 state combinations, three initial-input corruptions and four overflow
+boundaries. All 2,906 source/project hashes remained unchanged. No failures,
+skips or Xcode runtime warnings were reported. Raw simulator image-processing
+and Xcode OS-build parsing diagnostics remain retained in the log. XCResult
+`6f762bf1f69d49c1bdd7de467a984ee4` and evidence are under
+`.artifacts/native-app-capture-handoff-20261020/release-state-focused01-*`.
+Project validation, source membership and changed-Markdown checks passed.
+
+This is scoped shared-checkout qualification of pure values, not a complete
+native feature, physical cleanup or isolated-source acceptance result. Live
+row/proof auditing, sealed atomic transitions, aggregate revision capacity,
+terminal paging and end-to-end recovery remain open. The next live proof audit
+must match a complete legal historical predecessor, then validate current state
+separately; generic immediate-successor checks stay strict. Activation disabled,
+PR116 frozen, deployment held, AWS unapproved and all numeric limits unchanged.
+Prior receipt-accounting evidence is committed at
+`f9ec2d385bdbf3f3e9e10e70aa36353084903c4a`.
+
 ## October 21 — shared original receipt accounting qualified locally
 
 The pending-storage budget charges a completed original receipt once when its

@@ -240,6 +240,128 @@ struct SharedMediaNativeReceivingReleaseValuesTests {
         }
     }
 
+    @Test(arguments: [1, 2])
+    func exactReleaseStatePreservesFrozenContentAndSettlesLogicalMembership(_ count: Int) async throws {
+        let fixture = try await Fixture.load(count: count).freshP2().context("Submitted support stays immutable")
+        let p = try Intent.Prepared(fixture.request), received = try Intent.Received(prepared: p, request: fixture.request)
+        let plan = try Values.Plan(prepared: p, received: received,
+            header: SharedMediaNativeAppMetadataFacts.successor(fixture.request.header),
+            releaseID: UUID(), acquisitionIDs: originals(fixture, p))
+        let frozen = try fixture.request.frozenPackage()
+        let intents = try SharedMediaNativeFrozenCohort.decode(p.cohort.bytes).entries.map {
+            try SharedMediaNativeDerivativeIntent.decode($0.intent.bytes)
+        }
+        let pairs = plan.targets.map { _ in Values.PairAssertion(retirementID: UUID(), closureSHA256: String(repeating: "a", count: 64)) }
+        let originals = plan.targets.map { _ in Values.OriginalAssertion(disposition: .removed,
+            retirementID: UUID(), closureSHA256: String(repeating: "b", count: 64)) }
+        for code in 0..<(count == 1 ? 6 : 36) {
+            let stages = count == 1 ? [code] : [code % 6, code / 6]
+            var forward = try Values.Progress(plan: plan), reverse = forward
+            for index in 0..<count {
+                forward = try advance(forward, index: index, destination: stages[index], pair: pairs[index], original: originals[index])
+            }
+            for index in (0..<count).reversed() {
+                reverse = try advance(reverse, index: index, destination: stages[index], pair: pairs[index], original: originals[index])
+            }
+            let expected = try SharedMediaNativeReceivingReleaseState.expected(forward, prepared: p, received: received)
+            #expect(expected == (try SharedMediaNativeReceivingReleaseState.expected(reverse, prepared: p, received: received)))
+            let steps = Int64(stages.map { [0, 1, 2, 3, 4, 3][$0] }.reduce(0, +))
+            #expect(expected.completedSteps == steps)
+            #expect(expected.package.revision == frozen.revision + steps)
+            #expect(expected.member.revision == p.member.revision + steps)
+            #expect(expected.slotRevision == plan.preparedRevision + 2 + steps)
+            #expect(expected.minimumInventoryRevision == plan.preHeader.inventory.revision + 1 + steps)
+            #expect(expected.package.envelope == frozen.envelope && expected.package.phase == "preparedHeld")
+            let membership = try SharedMediaMembership.decode(expected.member.bytes)
+            var settledBytes: Int64 = 0
+            for (index, target) in plan.targets.enumerated() {
+                let stage = stages[index], intent = intents[index]
+                #expect(membership.ids(.pair).contains(target.pairID) == (stage <= 1))
+                for output in [target.ai, target.display] {
+                    #expect(membership.ids(.derivative).contains(output.workID) == (stage <= 1))
+                    #expect(membership.ids(.asset).contains(output.assetID) == (stage <= 1))
+                    #expect(membership.ids(.work).contains(output.leaseID) == (stage == 1))
+                    #expect(membership.ids(.lease).contains(output.leaseID) == (stage == 1))
+                }
+                for kind in [SharedMediaMembership.Kind.asset, .allocation] {
+                    #expect(membership.ids(kind).contains(target.original.assetID) == (stage < 4))
+                }
+                for kind in [SharedMediaMembership.Kind.reference, .edge] {
+                    #expect(membership.ids(kind).contains(target.original.referenceID) == (stage < 4))
+                }
+                #expect(membership.ids(.lease).contains(target.acquisitionID) == (stage < 4))
+                if stage >= 2 { settledBytes += intent.ai.byteCount + intent.display.byteCount }
+                if stage >= 4 { settledBytes += intent.preparation.original.byteCount }
+            }
+            #expect(expected.package.allocated == frozen.allocated - settledBytes)
+            if stages.allSatisfy({ $0 >= 4 }) { #expect(membership.groups.isEmpty && expected.package.allocated == 0) }
+            try expected.require(package: expected.package, member: expected.member,
+                slotRevision: expected.slotRevision, inventoryRevision: expected.minimumInventoryRevision + 7)
+            #expect(throws: (any Error).self) {
+                try expected.require(package: expected.package, member: expected.member,
+                    slotRevision: expected.slotRevision, inventoryRevision: expected.minimumInventoryRevision - 1)
+            }
+        }
+    }
+
+    @Test(arguments: ["acquisition", "membership", "allocated"])
+    func exactReleaseStateRejectsUnaccountedInitialInputs(_ fault: String) async throws {
+        let fixture = try await Fixture.load(count: 1).freshP2()
+        var p = try Intent.Prepared(fixture.request)
+        if fault == "membership" {
+            let initial = try SharedMediaMembership.decode(p.member.bytes)
+            let groups = initial.groups.map { group in
+                SharedMediaMembership.Group(kind: group.kind,
+                    ids: (group.ids + (group.kind == .asset ? [UUID()] : [])).sorted { $0.uuidString < $1.uuidString })
+            }
+            let member = try Fixture.copy(p.member, changes: ["bytes": SharedMediaMembership(groups: groups).encoded().base64EncodedString()])
+            p = try Fixture.copy(p, changes: ["member": Fixture.object(member)])
+        } else if fault == "allocated" {
+            let package = try Fixture.copy(p.package, changes: ["allocated": p.package.allocated + 1])
+            p = try Fixture.copy(p, changes: ["package": Fixture.object(package)])
+        }
+        let request = try p.descriptorForTransaction(header: fixture.request.header)
+        let received = try Intent.Received(prepared: p, request: request)
+        let ids = fault == "acquisition" ? [UUID()] : try originals(fixture, p)
+        let plan = try Values.Plan(prepared: p, received: received,
+            header: SharedMediaNativeAppMetadataFacts.successor(request.header), releaseID: UUID(), acquisitionIDs: ids)
+        #expect(throws: (any Error).self) {
+            _ = try SharedMediaNativeReceivingReleaseState.expected(Values.Progress(plan: plan), prepared: p, received: received)
+        }
+    }
+
+    @Test(arguments: ["slot", "inventory", "package", "member"])
+    func exactReleaseStateRejectsRevisionOverflow(_ counter: String) async throws {
+        let fixture = try await Fixture.load(count: 1).freshP2()
+        var p = try Intent.Prepared(fixture.request)
+        if counter == "slot" {
+            p = try Fixture.copy(p, changes: ["intentRevision": Int64.max - 3, "restagedFromSHA256": String(repeating: "a", count: 64)])
+        } else if counter == "package" {
+            let package = try Fixture.copy(p.package, changes: ["revision": Int64.max - 2])
+            p = try Fixture.copy(p, changes: ["package": Fixture.object(package)])
+        } else if counter == "member" {
+            let member = try Fixture.copy(p.member, changes: ["revision": Int64.max - 1])
+            p = try Fixture.copy(p, changes: ["member": Fixture.object(member)])
+        }
+        let request = try p.descriptorForTransaction(header: fixture.request.header)
+        let received = try Intent.Received(prepared: p, request: request)
+        var header = try SharedMediaNativeAppMetadataFacts.successor(request.header)
+        if counter == "inventory" {
+            let inventory = try Fixture.copy(header.inventory, changes: ["revision": Int64.max - 2])
+            header = try Fixture.copy(header, changes: ["inventory": Fixture.object(inventory)])
+        }
+        let plan = try Values.Plan(prepared: p, received: received, header: header,
+            releaseID: UUID(), acquisitionIDs: originals(fixture, p))
+        let first = try Values.Progress(plan: plan).advancing(.init(pairID: plan.targets[0].pairID,
+            stage: .retiringPair, pair: .init(retirementID: UUID(), closureSHA256: String(repeating: "a", count: 64)), original: nil))
+        _ = try SharedMediaNativeReceivingReleaseState.expected(first, prepared: p, received: received)
+        let next = try first.advancing(.init(pairID: plan.targets[0].pairID,
+            stage: .pairGoneOriginalLive, pair: first.targets[0].pair, original: nil))
+        #expect(throws: (any Error).self) {
+            _ = try SharedMediaNativeReceivingReleaseState.expected(next, prepared: p, received: received)
+        }
+    }
+
     private func advance(_ progress: Values.Progress, index: Int, destination: Int,
                          pair: Values.PairAssertion, original: Values.OriginalAssertion) throws -> Values.Progress {
         var next = progress
