@@ -1,3 +1,45 @@
+## October 21 — clean held-release live audit qualified locally
+
+The clean-context reader binds the persisted V2 `releasing` slot to its frozen
+origin, held execution quartet, exact package/member state, current membership
+and media rows. Progress replaces the old slot payload copies under the existing
+size contract. No schema or numeric limits changed.
+
+Ready pairs retain their existing strict joins. Retiring pairs require a typed
+slot/origin context, exact current rows and the validated historical pair proof.
+Removed outputs require exact row absence. Shared removal preserves the
+remaining physical owner's accounting, including its later terminal removal; it
+does not require that owner to survive forever. The nested pair context is
+explicitly main-actor isolated.
+
+Candidate02 and execution02 received exact independent and IC-1 clearance. The
+managed three-suite run passed 18 methods / 42 invocations: the new live audit
+suite and complete paired-file retirement and recovery regression suites. This
+includes one/two originals, persisted corruption, historical proof after
+independent progress, orphan-lease rejection, shared removal/later terminal
+absence and unchanged generic rejection. All 2,911 source/project hashes stayed
+unchanged. No failures, skips or structured runtime warnings were reported.
+XCResult `bff4813fc46743bca800b8fca92372ac` and exact coverage are retained
+under `.artifacts/native-app-capture-handoff-20261020/release-live-focused02-*`.
+
+The first run failed compilation before tests because the nested context lacked
+main-actor isolation. Its failure and unchanged hashes remain in
+`release-live-focused01-*`; no passing test result is inferred from that run.
+Raw simulator image/espresso, launch-service and Xcode diagnostics remain in the
+logs. Project validation, source membership, changed-Markdown checks and diff
+checks passed.
+
+This is scoped shared-checkout qualification of a descriptive per-package
+reader. Synthetic persisted release fixtures do not qualify a production release
+writer or physical deletion. Deleted proof bodies depend on a future sealed
+writer's atomic Progress attestation; terminal receipts and database absence do
+not prove fresh filesystem absence. Generic slot, budget, cleanup and execution
+routing remain closed. Next: bind current serialized metadata to the clean audit
+and qualify the future release projection before whole-store routing. Sealed
+transitions, aggregate revision capacity, terminal paging and end-to-end
+recovery remain open. Activation disabled, PR116 frozen, deployment held, AWS
+unapproved and all numeric limits unchanged.
+
 ## October 21 — historical held-release pair proof qualified locally
 
 The read-only historical proof leaf checks a saved pair-retirement closure

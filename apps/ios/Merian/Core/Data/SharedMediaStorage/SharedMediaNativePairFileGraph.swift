@@ -47,6 +47,42 @@ enum SharedMediaNativePairFileGraph {
     static func validate(_ work: SharedMediaDerivativeWorkRecord, input: SharedMediaDerivativeInput,
                          pair: SharedMediaDerivativePairRecord, package: PhotoPreparationRecord,
                          inventory: SharedMediaInventoryRecord, context: ModelContext) throws {
+        if let closure = try rows(work, input: input, pair: pair, package: package, inventory: inventory, context: context) {
+            try closure.require(work: work, pair: pair, package: package, inventory: inventory, context: context)
+        }
+    }
+
+    /// Held-release evidence only. This cannot grant cleanup or save authority.
+    /// Both the historical transition and today's exact aggregate state must pass;
+    /// callers cannot select a weaker mode on the generic validator.
+    static func validateHeld(_ work: SharedMediaDerivativeWorkRecord, input: SharedMediaDerivativeInput,
+                             pair: SharedMediaDerivativePairRecord, package: PhotoPreparationRecord,
+                             member: SharedMediaPendingMembershipRecord, inventory: SharedMediaInventoryRecord,
+                             release: SharedMediaNativeReceivingReleaseLiveAudit.PairContext, context: ModelContext) throws {
+        try release.require(context, inventory: inventory, package: package, member: member)
+        guard pair.phaseRaw == "retiring",
+              let closure = try rows(work, input: input, pair: pair, package: package, inventory: inventory, context: context) else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        _ = try SharedMediaNativeReleasePairHistory.validate(closure, progress: release.progress,
+            prepared: release.origin.prepared, received: release.origin.received, inventoryRevision: inventory.revision)
+        guard let entry = closure.entries.first(where: { $0.work.id == work.id }),
+              closure.pairID == pair.id, closure.inventoryID == inventory.id,
+              closure.inventoryGeneration == inventory.generation, closure.packageID == package.id,
+              closure.draftGeneration == package.draftGeneration, closure.writerEpoch == work.writerEpoch,
+              work.retirementID == closure.retirementID, work.partialDevice == entry.work.device,
+              work.partialInode == entry.work.inode, work.finalIdentity == entry.work.finalIdentity,
+              work.retirementPartialIdentity == entry.identity.partial,
+              work.retirementFinalIdentity == entry.identity.final,
+              work.retirementParentIdentity == entry.identity.parent,
+              work.retirementNamespaceIdentity == entry.identity.namespace else { throw SharedMediaStorageFailure.conflict }
+    }
+
+    /// Private shared row checks return evidence only to the two strict wrappers.
+    private static func rows(_ work: SharedMediaDerivativeWorkRecord, input: SharedMediaDerivativeInput,
+                             pair: SharedMediaDerivativePairRecord, package: PhotoPreparationRecord,
+                             inventory: SharedMediaInventoryRecord, context: ModelContext) throws -> SharedMediaNativePairClosure? {
+        var evidence: SharedMediaNativePairClosure?
         let assetID = input.assetID, referenceID = input.referenceID, leaseID = input.leaseID
         let allocation = try one(context, FetchDescriptor<SharedMediaAllocationRecord>(predicate: #Predicate { $0.id == assetID }))
         let retiring = pair.phaseRaw == "retiring", completed = work.finalIdentity != nil
@@ -98,7 +134,7 @@ enum SharedMediaNativePairFileGraph {
                 guard let canonicalRaw = canonical.terminalProof else { throw SharedMediaStorageFailure.conflict }
                 let closure = try SharedMediaNativePairClosure.decode(canonicalRaw)
                 guard raw == (work.id == aiID ? canonicalRaw : try closure.siblingMarker()) else { throw SharedMediaStorageFailure.conflict }
-                try closure.require(work: work, pair: pair, package: package, inventory: inventory, context: context)
+                evidence = closure
             } else { guard lease.terminalProof == nil else { throw SharedMediaStorageFailure.conflict } }
         }
         if completed {
@@ -124,6 +160,7 @@ enum SharedMediaNativePairFileGraph {
                   try context.fetchCount(FetchDescriptor<SharedMediaReferenceRecord>(predicate: #Predicate { $0.id == referenceID || $0.allocationID == assetID })) == 0,
                   try context.fetchCount(FetchDescriptor<SharedMediaAssetReferenceCountRecord>(predicate: #Predicate { $0.id == assetID })) == 0 else { throw SharedMediaStorageFailure.conflict }
         }
+        return evidence
     }
 
     private static func one<T: PersistentModel>(_ context: ModelContext, _ query: FetchDescriptor<T>) throws -> T {
