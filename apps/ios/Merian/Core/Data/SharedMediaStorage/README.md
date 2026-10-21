@@ -1,3 +1,47 @@
+## October 21 — asset-owned original identity accounting qualified locally
+
+`SharedMediaNativeOriginalLiability` derives clean accounting inputs from the
+union of pending graph allocations and held-release physical origins,
+deduplicated by asset ID. Every selected completed original requires the
+authoritative receipt and complete original reference/count/lease audit.
+Derivatives and unmaterialized acquisition reservations keep their existing
+owners. Current identity bytes and remaining headroom to the existing 512-byte
+bound are separate global values; neither is charged to a package metadata cap
+by this reader.
+
+Every held target must remain in the pending union, have canonical terminal
+receipt evidence, or prove a fully retained-only survivor through all surviving
+references and their non-queue frozen consumers. Missing or ambiguous owners
+fail closed. Retained-library occupancy remains uncapped. The reader grants no
+admission, reservation, deletion, mutation or provider authority and does not
+yet change Budget behavior. Proof-bound over-cap recovery and exact poststate
+integration are prerequisites to enforcing this corrected global accounting.
+
+The exact independently and IC-1 reviewed candidate01 passed four methods / six
+invocations in `identity-liability-focused01`, XCResult
+`5e40b14b3c6a4f7289fcac964b0bb996`. All 2,919 frozen source/project hashes
+remained unchanged; there were no failures, skips or structured runtime
+warnings. Raw simulator/Xcode warnings remain retained. Generated project
+validation, seven-target source membership, changed-Markdown formatting and diff
+checks passed. This is scoped shared-checkout validation, not full-suite or
+isolated acceptance. Tests cover local/foreign origins, graph/snapshot overlap,
+identity growth during retirement, physical removal, generic pending media,
+missing receipt/identity, cancellation, dirty contexts and a shared original
+surviving local reference removal. Valid retained-only terminal consumption and
+runtime recovery remain separate gates; this candidate does not close them.
+Activation disabled, PR116 frozen, deployment held, AWS unapproved; numeric and
+cap-category limits unchanged.
+
+Next integration follows `original-recovery-measurement-design04.md` and the
+proof-entry inventory in `original-identity-entry-inventory01.md`, under
+`.artifacts/native-app-capture-handoff-20261020/`. Independent and IC-1 design
+review preserved every legacy cap: only the corrected identity contribution may
+remain over aggregate capacity during a saved settlement. Ordinary admission
+must add identity headroom before its existing free-space check. No unchecked
+accumulator is authorized. The exact final-original mutation seal and surviving
+asset values must be preserved across absence, save and readback. Runtime source
+review and qualification remain required; these design records enable no route.
+
 ## October 21 — clean receiving classifier qualified locally
 
 The separate clean-only classifier validates bounded pending membership roots

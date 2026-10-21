@@ -138,6 +138,9 @@ struct SharedMediaNativeReceivingReleaseLiveAuditTests {
         #expect(sharedMetadata.ownedOriginals.map(\.assetID) == [assetID])
         #expect(try sharedMetadata.originReceiptBytes > 0)
         #expect(sharedMetadata.targetOrigins.first?.location == .present(packageID: f.store.packageID))
+        let liability = try SharedMediaNativeOriginalLiability.read(context: f.store.context(), inventoryID: f.store.inventoryID)
+        #expect(Set(liability.entries.keys) == [assetID])
+        #expect(try liability.currentBytes + liability.reservedBytes == 512)
         let sharedBound = try SharedMediaNativeReleaseSurvivorProjection.maximum(sharedMetadata)
         #expect(sharedBound.charges.count == 2)
         #expect(sharedBound.charges.allSatisfy { $0.stages == [5] })
@@ -157,6 +160,9 @@ struct SharedMediaNativeReceivingReleaseLiveAuditTests {
         let terminalMetadata = try SharedMediaNativeReleaseMetadataSnapshot.read(packageID: f.store.packageID,
             inventoryID: f.store.inventoryID, context: f.store.context())
         #expect(terminalMetadata.ownedOriginals.isEmpty)
+        let terminalLiability = try SharedMediaNativeOriginalLiability.read(context: f.store.context(), inventoryID: f.store.inventoryID)
+        #expect(terminalLiability.entries.isEmpty)
+        #expect(try terminalLiability.currentBytes == 0 && terminalLiability.reservedBytes == 0)
         #expect(try terminalMetadata.originReceiptBytes == 0)
         guard case .released = try #require(terminalMetadata.targetOrigins.first).location else {
             Issue.record("Shared original terminal disposition missing"); return
