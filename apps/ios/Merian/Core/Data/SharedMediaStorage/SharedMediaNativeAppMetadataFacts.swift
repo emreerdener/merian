@@ -59,6 +59,11 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
     let packages: [UUID: Package]
     let members: [UUID: Member]
     let consumers: [UUID: Consumer]
+    let intents: [UUID: SharedMediaNativeReceivingIntentGraph.Row]
+
+    func requireMutable(_ packageID: UUID) throws {
+        guard intents[packageID] == nil else { throw SharedMediaStorageFailure.closed }
+    }
 
     @MainActor static func capture(_ context: ModelContext, profile: SharedMediaNativeAppProfile) throws -> Self {
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
@@ -75,7 +80,9 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
         return try read(context, profile: proof.profile)
     }
     @MainActor func validatePreparation(_ context: ModelContext, package: Package) throws {
+        try requireMutable(package.id)
         let current = try Self.read(context, profile: profile)
+        guard current.intents == intents else { throw SharedMediaStorageFailure.conflict }
         var expected = packages
         guard expected[package.id] != nil, consumers[package.id] == nil else { throw SharedMediaStorageFailure.closed }
         expected[package.id] = package
@@ -88,7 +95,9 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
         return try read(context, profile: proof.profile)
     }
     @MainActor func validatePairPlan(_ context: ModelContext, package: Package, member: Member) throws {
+        try requireMutable(package.id)
         let current = try Self.read(context, profile: profile)
+        guard current.intents == intents else { throw SharedMediaStorageFailure.conflict }
         var nextPackages = packages, nextMembers = members
         guard packages[package.id] != nil, members[package.id] != nil, member.id == package.id,
               consumers[package.id] == nil else { throw SharedMediaStorageFailure.closed }
@@ -97,7 +106,9 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
               current.packages == nextPackages, current.members == nextMembers else { throw SharedMediaStorageFailure.conflict }
     }
     @MainActor func validateReceiving(_ context: ModelContext, request: SharedMediaNativeAppReceivingRequest) throws {
+        try requireMutable(request.package.id)
         let current = try Self.read(context, profile: profile)
+        guard current.intents == intents else { throw SharedMediaStorageFailure.conflict }
         var expectedPackages = packages, expectedConsumers = consumers
         guard request.profile == profile, packages[request.package.id] == request.package,
               members[request.package.id] == request.member, consumers[request.package.id] == nil,
@@ -134,10 +145,13 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
                 consumers[id] = Consumer(consumer)
             }
         }
-        return .init(profile: profile, bootstrapRevision: bootstrap.revision, packages: packages, members: members, consumers: consumers)
+        return .init(profile: profile, bootstrapRevision: bootstrap.revision, packages: packages, members: members, consumers: consumers,
+            intents: try SharedMediaNativeReceivingIntentGraph.snapshots(context))
     }
     @MainActor func validate(_ context: ModelContext, replacing request: SharedMediaNativeAppMetadataRequest) throws {
+        try requireMutable(request.package.id)
         let current = try Self.read(context, profile: profile)
+        guard current.intents == intents else { throw SharedMediaStorageFailure.conflict }
         var expectedPackages = packages
         guard request.profile == profile, packages[request.package.id] == request.package,
               members[request.package.id] == request.member, consumers[request.package.id] == nil else { throw SharedMediaStorageFailure.conflict }
@@ -148,12 +162,23 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
     /// Acquisition may change one package and its member. Every other pending
     /// row and every receiving consumer remains byte-for-byte equal.
     @MainActor func validateAcquisition(_ context: ModelContext, packageID: UUID, hasMember: Bool) throws {
+        try requireMutable(packageID)
         let current = try Self.read(context, profile: profile)
+        guard current.intents == intents else { throw SharedMediaStorageFailure.conflict }
         guard current.bootstrapRevision == bootstrapRevision, current.consumers == consumers,
               consumers[packageID] == nil,
               current.packages.filter({ $0.key != packageID }) == packages.filter({ $0.key != packageID }),
               current.members.filter({ $0.key != packageID }) == members.filter({ $0.key != packageID }),
               (current.members[packageID] != nil) == hasMember else { throw SharedMediaStorageFailure.conflict }
+    }
+    @MainActor func validateStaging(_ context: ModelContext, adding row: SharedMediaNativeReceivingIntentGraph.Row) throws {
+        try requireMutable(row.id)
+        let current = try Self.read(context, profile: profile)
+        var expected = intents
+        expected[row.id] = row
+        guard current.profile == profile, current.bootstrapRevision == bootstrapRevision,
+              current.packages == packages, current.members == members, current.consumers == consumers,
+              current.intents == expected else { throw SharedMediaStorageFailure.conflict }
     }
     @MainActor func receivingBytes(_ consumer: SharedMediaConsumerRecord) throws -> Int64 {
         guard consumers[consumer.packageID] == Consumer(consumer) else { throw SharedMediaStorageFailure.conflict }

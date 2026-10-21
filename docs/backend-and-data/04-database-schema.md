@@ -5544,10 +5544,18 @@ The additive V64→V65 stage creates no intents and reconstructs no operation. V
 freezes its complete relationship graph and acquisition receipt shape; unchanged
 scalar records alias their frozen predecessors. Its outgoing snapshot compiled
 before the active entity was introduced. Storage alone grants no receiving,
-execution or cleanup authority. Until the typed intent owner and its audits are
-qualified, every intent phase is a storage liability, blocks legacy
-qualification/purge and blocks native scoped mutation audits at every page
-boundary. Malformed or unanchored rows receive no implicit exemption.
+execution or cleanup authority. Every intent phase remains a storage liability
+and blocks legacy qualification/purge. The inactive staging owner validates
+bounded prepared-only slots at every scoped audit page boundary and preserves
+their exact facts across unrelated draft mutations. Malformed, unanchored,
+received and abandoned rows remain closed. A prepared target rejects competing
+edits and cleanup; its saved operation is recovered without a new ID or save.
+Prepared bytes are materialized metadata and future receiving headroom is
+reserved once. Staging inserts one slot and increments the inventory once; it
+creates no queue, job, event or consumer. Focused shared-checkout validation
+passed 76 methods across seven suites (166 invocations) without
+failures/skips/runtime warnings or source-hash drift. Exact persisted
+metadata-cap boundaries, receiving, abandonment and Capture handoff remain open.
 Disk-backed V64 migration/cold reopen and all migration/startup selectors passed
 focused verification. The complete unit run's sole omitted account-purge fixture
 was corrected and its affected suites passed without runtime changes. Exact

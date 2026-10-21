@@ -1,3 +1,36 @@
+## October 20 — durable prepared-intent staging locally verified
+
+The inactive owner discovers saved identities before generating new ones, then
+stages under retained account/native ownership and queue/observation locks.
+Fresh staging seals the complete ready media cohort and saves one prepared slot
+plus one inventory increment. Package/member bytes stay unchanged. Exact
+saved-slot recovery never saves again, including cold reopen and missing
+original media.
+
+Prepared-only graph validation, exact intent facts and reservation accounting
+protect competing target edits and cleanup while unrelated drafts remain usable.
+Prepared bytes are materialized; future receiving headroom is reserved once.
+Malformed/foreign/partial slots and identity collisions stay closed. No queue,
+job, event, consumer, provider call or execution authority is created. Existing
+numeric limits and submitted-content semantics are unchanged.
+
+Exact candidate02 passed **76/76 methods across seven suites**, **166
+invocations**, with **zero failures, skips or XCResult runtime warnings**. All
+**2,895 source and project hashes** stayed unchanged. Evidence is retained in
+`.artifacts/native-app-capture-handoff-20261020/`, including XCResult
+`cecf08b059f04bf284015dfc420f5976`. Parser, generated-project, Markdown-format
+and diff checks passed. Exact independent and IC-1 concurrence preceded
+execution. This is scoped shared-checkout validation, not a new full-target,
+isolated, device, hosted or integrated acceptance result. Compiler and simulator
+diagnostics remain retained.
+
+The run proves actual free-space threshold accounting and real persisted
+over-cap draft preservation. **Exact persisted aggregate metadata-cap and
+cap-plus-one fixtures remain open**, distinct from that free-space test.
+Receiving/abandonment, typed consumer lifecycle, Capture handoff and integrated
+acceptance remain next. Activation is disabled, PR116 frozen, deployment held
+and AWS unapproved; external-operation restrictions remain.
+
 ## October 20 — V65 receiving-intent foundation locally verified
 
 V65 adds an empty package-keyed receiving-intent table through a lightweight

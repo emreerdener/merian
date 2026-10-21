@@ -19,6 +19,17 @@ extension SharedMediaNativeOriginalOwner {
             try await self.appReceivingWorkflow(lock: lock) { try await $0.apply(request) }
         }
     }
+    /// Discovery precedes fresh ID generation. A saved slot is immutable even
+    /// when its source files are currently unavailable.
+    func stageAppReceiving(packageID: UUID, draftGeneration: UUID, pairIDs: [UUID]) async throws -> SharedMediaNativeReceivingIntent.Prepared {
+        let saved = try await discoverAppReceivingIntent(packageID: packageID)
+        let identity = try SharedMediaNativeReceivingStageIdentity(saved: saved)
+        return try await withReceivingLocks(queueID: identity.queueID.uuidString, observationID: identity.observationID.uuidString) { lock in
+            try await self.appReceivingWorkflow(lock: lock) {
+                try await $0.stage(packageID: packageID, draftGeneration: draftGeneration, pairIDs: pairIDs, identity: identity)
+            }
+        }
+    }
     private func withReceivingLocks<T: Sendable>(queueID: String, observationID: String,
                                                  body: @MainActor (SharedMediaNativeReceivingLockGrant) async throws -> T) async throws -> T {
         let coordinator = ScanInferencePersistenceCoordinator.shared
@@ -50,5 +61,24 @@ final class SharedMediaNativeReceivingLockGrant {
     func validate() throws {
         try Task.checkCancellation()
         guard active else { throw SharedMediaStorageFailure.closed }
+    }
+}
+
+/// Only the lock-owning native owner generates fresh submission identities.
+/// Existing discovery supplies the exact immutable IDs instead of new ones.
+struct SharedMediaNativeReceivingStageIdentity: Sendable {
+    let operationID: UUID, queueID: UUID, observationID: UUID, bindingID: UUID, generation: UUID, eventID: UUID
+    let timestamp: Date
+    let savedBytes: Data?
+    fileprivate init(saved: SharedMediaNativeReceivingIntent.Prepared?) throws {
+        if let saved {
+            operationID = saved.operationID; queueID = saved.queueID; observationID = saved.observationID
+            bindingID = saved.bindingID; generation = saved.generation; eventID = saved.eventID
+            timestamp = Date(timeIntervalSinceReferenceDate: Double(bitPattern: saved.timestampBits))
+            savedBytes = try saved.encoded()
+        } else {
+            operationID = UUID(); queueID = UUID(); observationID = UUID(); bindingID = UUID()
+            generation = UUID(); eventID = UUID(); timestamp = Date(); savedBytes = nil
+        }
     }
 }

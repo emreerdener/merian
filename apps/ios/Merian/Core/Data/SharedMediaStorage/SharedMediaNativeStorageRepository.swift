@@ -346,6 +346,21 @@ final class SharedMediaNativeStorageRepository {
             #endif
         })
     }
+    func appReceivingIntent(grant: SharedMediaNativeAppDispatchGrant, packageID: UUID) async throws -> SharedMediaNativeReceivingIntent.Prepared? {
+        try requireApp(grant)
+        let expected = try appHeader()
+        _ = try await inspectApp(grant: grant)
+        try requireApp(grant)
+        guard try appHeader() == expected else { throw SharedMediaStorageFailure.stale }
+        let context = ModelContext(container); context.autosaveEnabled = false
+        let id = grant.profile.inventoryID
+        let inventory = try SharedMediaNativePairPlanGraph.one(context,
+            FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))
+        let result = try SharedMediaNativeReceivingIntentGraph.read(context, inventory: inventory)[packageID]?.prepared
+        try requireApp(grant)
+        guard try appHeader() == expected else { throw SharedMediaStorageFailure.stale }
+        return result
+    }
     func appReceiving(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant) async throws -> SharedMediaNativeAppReceivingOperations {
         try lock.validate(); try requireApp(grant)
         let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try lock.validate(); try self.requireApp(grant); return try self.appHeader() }

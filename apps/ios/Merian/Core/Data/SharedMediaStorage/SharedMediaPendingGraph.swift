@@ -97,6 +97,12 @@ struct SharedMediaPendingGraph {
         return try scopedProjection(in: context, inventory: inventory, ownerID: proof.profile.ownerID, format: .appV2)
     }
 
+    static func deriveStagingPoststate(in context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                       proof: SharedMediaNativeAppStagingPoststate) throws -> Self {
+        try proof.validate(context: context, inventory: inventory)
+        return try scopedProjection(in: context, inventory: inventory, ownerID: proof.profile.ownerID, format: .appV2)
+    }
+
     static func derivePendingCleanupPoststate(in context: ModelContext, inventory: SharedMediaInventoryRecord,
                                               proof: SharedMediaNativeAppPendingPoststate) throws -> Self {
         try proof.validate(context: context, inventory: inventory)

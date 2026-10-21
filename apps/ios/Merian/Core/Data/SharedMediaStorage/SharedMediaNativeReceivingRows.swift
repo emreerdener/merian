@@ -36,12 +36,35 @@ enum SharedMediaNativeReceivingRows {
         return Set(consumer: consumer, queue: queue, job: job, event: event)
     }
 
-    /// Collision checks include the canonical aliases and reverse identity joins.
-    /// Exact recovery happens first; no partial set can enter fresh insertion.
-    static func read(_ r: SharedMediaNativeAppReceivingRequest, in c: ModelContext, absent: Bool) throws -> Set? {
-        let identities = Array(Swift.Set([r.cohort.originQueueID, r.cohort.observationID].flatMap { [$0, $0.uppercased()] }))
-        let bindingID = r.cohort.bindingID, packageID = r.package.id
-        let jobIDs = identities.map { "scan-ingestion:" + $0 }, eventIDs = [r.eventID, r.eventID.uppercased()]
+    /// Descriptive collision keys cannot construct an executable receiving request.
+    struct CollisionKey {
+        let packageID: UUID, bindingID: UUID
+        let queueID: String, observationID: String, eventID: String
+        init(_ prepared: SharedMediaNativeReceivingIntent.Prepared) {
+            packageID = prepared.package.id; bindingID = prepared.bindingID
+            queueID = prepared.queueID.uuidString.lowercased()
+            observationID = prepared.observationID.uuidString.lowercased()
+            eventID = prepared.eventID.uuidString.lowercased()
+        }
+        fileprivate init(_ request: SharedMediaNativeAppReceivingRequest) {
+            packageID = request.package.id; bindingID = request.cohort.bindingID
+            queueID = request.cohort.originQueueID; observationID = request.cohort.observationID
+            eventID = request.eventID
+        }
+    }
+    private struct Matches {
+        let consumers: [SharedMediaConsumerRecord], queues: [OfflineQueuedScan]
+        let jobs: [OfflineJobRecord], events: [OfflineQueueEvent]
+        var isEmpty: Bool { consumers.isEmpty && queues.isEmpty && jobs.isEmpty && events.isEmpty }
+    }
+    static func requireAbsent(_ key: CollisionKey, in context: ModelContext) throws {
+        guard try matches(key, in: context).isEmpty else { throw SharedMediaStorageFailure.conflict }
+    }
+    /// Collision checks include canonical aliases and every reverse identity join.
+    private static func matches(_ key: CollisionKey, in c: ModelContext) throws -> Matches {
+        let identities = Array(Swift.Set([key.queueID, key.observationID].flatMap { [$0, $0.uppercased()] }))
+        let bindingID = key.bindingID, packageID = key.packageID
+        let jobIDs = identities.map { "scan-ingestion:" + $0 }, eventIDs = [key.eventID, key.eventID.uppercased()]
         let consumers = try fetch(c, FetchDescriptor<SharedMediaConsumerRecord>(predicate: #Predicate {
             $0.id == bindingID || $0.packageID == packageID || identities.contains($0.consumerID) ||
                 identities.contains($0.originQueueID) || identities.contains($0.observationID)
@@ -62,14 +85,17 @@ enum SharedMediaNativeReceivingRows {
               try fetch(c, FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate {
             identities.contains($0.id) || identities.contains($0.observationID) || $0.sharedMediaConsumerID == bindingID
         })).isEmpty else { throw SharedMediaStorageFailure.conflict }
+        return .init(consumers: consumers, queues: queues, jobs: jobs, events: events)
+    }
+    static func read(_ r: SharedMediaNativeAppReceivingRequest, in c: ModelContext, absent: Bool) throws -> Set? {
+        let found = try matches(.init(r), in: c)
         if absent {
-            guard consumers.isEmpty, queues.isEmpty, jobs.isEmpty, events.isEmpty else { throw SharedMediaStorageFailure.conflict }
+            guard found.isEmpty else { throw SharedMediaStorageFailure.conflict }
             return nil
         }
-        guard consumers.count == 1, queues.count == 1, jobs.count == 1, events.count == 1,
-              let consumer = consumers.first, let queue = queues.first, let job = jobs.first, let event = events.first else {
-            throw SharedMediaStorageFailure.conflict
-        }
+        guard found.consumers.count == 1, found.queues.count == 1, found.jobs.count == 1, found.events.count == 1,
+              let consumer = found.consumers.first, let queue = found.queues.first,
+              let job = found.jobs.first, let event = found.events.first else { throw SharedMediaStorageFailure.conflict }
         let rows = Set(consumer: consumer, queue: queue, job: job, event: event)
         try validate(rows, request: r)
         return rows

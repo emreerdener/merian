@@ -79,6 +79,7 @@ final class SharedMediaNativeAppPreparationOperations {
         return try .init(container: container, packageID: packageID, witness: witness)
     }
     func reserve(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe) throws -> SharedMediaNativePreparationAttempt {
+        try facts.requireMutable(original.packageID)
         let mutation = try mutation(original.packageID, action: .reserve)
         let request = try mutation.request(original: original, recipe: recipe)
         consumed = true
@@ -166,6 +167,7 @@ final class SharedMediaNativeAppPreparationOperations {
     /// Cold recovery has no data/provider input and never enters freshPlan,
     /// beginPair or writePair. An incomplete or unbound output remains held.
     func recoverFiles(packageID: UUID, pairID: UUID) async throws -> SharedMediaNativePairFileState {
+        try facts.requireMutable(packageID)
         guard !consumed else { throw SharedMediaStorageFailure.closed }; consumed = true
         var state = try recoveryState(packageID: packageID, pairID: pairID)
         guard ["writing", "ready"].contains(state.phase) else { throw SharedMediaStorageFailure.closed }
@@ -206,6 +208,7 @@ final class SharedMediaNativeAppPreparationOperations {
     /// Closure is durably acknowledged before disposal. The same saved closure
     /// may reconcile absent files; a released old ID cannot mint new work.
     func retireFiles(packageID: UUID, pairID: UUID) async throws {
+        try facts.requireMutable(packageID)
         guard !consumed else { throw SharedMediaStorageFailure.closed }; consumed = true
         var state = try recoveryState(packageID: packageID, pairID: pairID)
         guard ["writing", "ready", "retiring"].contains(state.phase) else { throw SharedMediaStorageFailure.closed }
@@ -228,6 +231,7 @@ final class SharedMediaNativeAppPreparationOperations {
         var absent: [SharedMediaNativePairAbsence] = []
         for work in state.work {
             _ = try authority.header(container); try Task.checkCancellation()
+            try facts.requireMutable(packageID)
             absent.append(try await io.releasePair(disposal, workID: work.id))
             _ = try authority.header(container); try Task.checkCancellation()
         }
@@ -241,6 +245,7 @@ final class SharedMediaNativeAppPreparationOperations {
     private func retirementOwner(_ state: SharedMediaNativePairFileState, action: SharedMediaNativeAppPairRetirementWitness.Action,
                                  seal: @escaping () throws -> Void) async throws -> SharedMediaNativePairRetirementOwner {
         let current = try await refresh()
+        try current.facts.requireMutable(state.plan.packageID)
         let preparation = SharedMediaNativeAppPreparationWitness(authority: authority, expected: current.expected, facts: current.facts, action: .inspect)
         return try .init(container: container, witness: .init(preparation: preparation, state: state,
             binding: fileBinding, action: action, seal: seal, beforeReadback: { try self.boundary(.beforeReadback) }))
@@ -252,6 +257,7 @@ final class SharedMediaNativeAppPreparationOperations {
     private func recoverTransition(_ state: SharedMediaNativePairFileState, action: SharedMediaNativeAppPairRecoveryWitness.Action,
                                    seal: @escaping () throws -> Void) async throws -> SharedMediaNativePairFileState {
         let current = try await refresh()
+        try current.facts.requireMutable(state.plan.packageID)
         let preparation = SharedMediaNativeAppPreparationWitness(authority: authority, expected: current.expected, facts: current.facts, action: .inspect)
         let witness = SharedMediaNativeAppPairRecoveryWitness(preparation: preparation, state: state,
             binding: fileBinding, action: action, seal: seal, beforeReadback: { try self.boundary(.beforeReadback) })
@@ -274,6 +280,7 @@ final class SharedMediaNativeAppPreparationOperations {
     private func transition(_ state: SharedMediaNativePairFileState, action: SharedMediaNativeAppPairAction,
                             seal: @escaping () throws -> Void) async throws -> SharedMediaNativePairFileState {
         let current = try await refresh()
+        try current.facts.requireMutable(state.plan.packageID)
         let preparation = SharedMediaNativeAppPreparationWitness(authority: authority, expected: current.expected, facts: current.facts, action: .inspect)
         let witness = SharedMediaNativeAppPairFileWitness(preparation: preparation, state: state,
             binding: fileBinding, action: action, seal: seal, beforeReadback: { try self.boundary(.beforeReadback) })
@@ -293,6 +300,7 @@ final class SharedMediaNativeAppPreparationOperations {
         return try SharedMediaNativePairPlanGraph.state(context: context, inventory: inventory, package: package, member: member, pairID: pairID)
     }
     func abandonPlan(_ plan: SharedMediaNativePairPlan) async throws {
+        try facts.requireMutable(plan.packageID)
         let pairID = try SharedMediaNativeDerivativeIntent.decode(plan.intent.bytes).pairID
         guard try savedPlan(packageID: plan.packageID, pairID: pairID) == plan else { throw SharedMediaStorageFailure.stale }
         let preparation = SharedMediaNativeAppPreparationWitness(authority: authority, expected: expected, facts: facts, action: .inspect)

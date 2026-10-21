@@ -62,6 +62,7 @@ final class SharedMediaNativeAppPendingOperations {
         try validate()
         let c = fresh()
         for packageID in facts.members.keys.sorted(by: { $0.uuidString < $1.uuidString }) {
+            if facts.intents[packageID] != nil { continue }
             guard let member = facts.members[packageID] else { throw SharedMediaStorageFailure.conflict }
             for id in try SharedMediaMembership.decode(member.bytes).ids(.work) {
                 let work = try SharedMediaNativeAppPendingRows.one(c, FetchDescriptor<PhotoPreparationLease>(predicate: #Predicate { $0.id == id }))
@@ -133,6 +134,7 @@ final class SharedMediaNativeAppPendingOperations {
         return false
     }
     private func target(_ c: ModelContext, _ request: SharedMediaAcquisitionIntent) throws -> SharedMediaNativeAppPendingRows {
+        try facts.requireMutable(request.packageID)
         try requireRequest(request)
         let rows = try SharedMediaNativeAppPendingRows(c, request: request)
         _ = try SharedMediaNativeAcquisitionGraph.scopedReceipt(rows.receipt, inventory: rows.inventory, context: c, format: .appV2)

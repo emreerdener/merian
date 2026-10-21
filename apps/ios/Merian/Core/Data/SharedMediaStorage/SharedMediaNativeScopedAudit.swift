@@ -184,12 +184,16 @@ struct SharedMediaNativeScopedAudit {
     }
     private func header(_ context: ModelContext) throws -> SharedMediaInventoryRecord {
         guard !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.conflict }
-        // V65 storage alone grants no intent-aware mutation. Recheck at every
-        // fresh page boundary, including after suspension and final validation.
-        guard try context.fetchCount(FetchDescriptor<SharedMediaReceivingIntentRecord>()) == 0 else {
-            throw SharedMediaStorageFailure.closed
-        }
         let row = try format.header(context: context, scope: scope)
+        // Recheck complete bounded prepared joins at every initial/page/final
+        // boundary. Legacy V1 and unsupported phases remain closed.
+        if format == .appV2 {
+            _ = try SharedMediaNativeReceivingIntentGraph.read(context, inventory: row)
+        } else {
+            guard try context.fetchCount(FetchDescriptor<SharedMediaReceivingIntentRecord>()) == 0 else {
+                throw SharedMediaStorageFailure.closed
+            }
+        }
         if let appHeader {
             guard try SharedMediaNativeAppEligibility.snapshot(context: context, scope: scope) == appHeader else { throw SharedMediaStorageFailure.conflict }
         }

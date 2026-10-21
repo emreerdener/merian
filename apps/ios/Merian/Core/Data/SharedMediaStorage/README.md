@@ -1,3 +1,28 @@
+## October 20 — prepared-intent staging locally verified
+
+The inactive staging owner discovers a saved package slot before generating
+fresh identities, then revalidates under retained native/account ownership and
+queue/observation locks. Fresh staging seals the complete original/AI/display
+cohort, saves one canonical prepared row and increments inventory once. Package
+and membership bytes remain unchanged. Recovery returns the exact saved bytes
+without another save, including when original files are now unavailable.
+
+Prepared-only graph validation is bounded and runs at every scoped audit
+boundary. Competing target edits, acquisition, preparation and cleanup are
+blocked before file mutation; unrelated drafts and read-only inspection remain
+available. Unknown/malformed phases and legacy qualification remain closed.
+Prepared bytes count as materialized metadata; receiving headroom is reserved
+once within unchanged limits. No queue, consumer, job, event or execution
+authority is created.
+
+Focused shared-checkout validation passed 76 methods across seven suites, with
+166 invocations, zero failures/skips/runtime warnings and all 2,895
+source/project hashes unchanged. Exact persisted metadata-cap boundaries,
+receiving, abandonment, consumer lifecycle, Capture handoff and integrated
+acceptance remain open. Activation is disabled, PR116 frozen, deployment held
+and AWS unapproved. The foundation full-target results below remain historical;
+this changed runtime has scoped validation only.
+
 ## October 20 — V65 receiving-intent storage foundation
 
 The active schema is V65. Its additive V64→V65 stage introduces one empty

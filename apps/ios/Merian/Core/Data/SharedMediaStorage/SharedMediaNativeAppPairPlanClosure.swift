@@ -42,6 +42,7 @@ final class SharedMediaNativeAppPairPlanClosure {
     }
 
     func close(beforeSave: () throws -> Void, afterSave: () throws -> Void, beforeReadback: () throws -> Void) throws {
+        try witness.preparation.facts.requireMutable(witness.state.plan.packageID)
         guard !consumed else { throw SharedMediaStorageFailure.closed }; consumed = true
         try witness.validate(container)
         let intent = try witness.state.intent(), pairID = intent.pairID

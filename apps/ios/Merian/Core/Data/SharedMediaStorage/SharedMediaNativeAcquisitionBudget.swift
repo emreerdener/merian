@@ -70,6 +70,12 @@ enum SharedMediaNativeAcquisitionBudget {
         return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, receivingProof: proof)
     }
 
+    static func evaluateStagingPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                         proof: SharedMediaNativeAppStagingPoststate) throws -> Snapshot {
+        let graph = try SharedMediaPendingGraph.deriveStagingPoststate(in: context, inventory: inventory, proof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2)
+    }
+
     static func evaluatePendingCleanupPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
                                                 proof: SharedMediaNativeAppPendingPoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.derivePendingCleanupPoststate(in: context, inventory: inventory, proof: proof)
@@ -92,6 +98,13 @@ enum SharedMediaNativeAcquisitionBudget {
                                  graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, acquisitionProof: SharedMediaNativeAppAcquisitionPoststate? = nil, preparationProof: SharedMediaNativeAppPreparationPoststate? = nil, pairPlanProof: SharedMediaNativeAppPairPlanPoststate? = nil, pairClosureProof: SharedMediaNativeAppPairPlanClosurePoststate? = nil, pairFileProof: SharedMediaNativeAppPairPoststate? = nil, pairRetirementProof: SharedMediaNativeAppPairRetirementPoststate? = nil, receivingProof: SharedMediaNativeAppReceivingPoststate? = nil, pendingCleanupProof: SharedMediaNativeAppPendingPoststate? = nil, originalProof: SharedMediaNativeAppOriginalPoststate? = nil, originalReleaseProof: SharedMediaNativeAppOriginalReleasePoststate? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
         guard graph.sources.isEmpty, graph.handoffs.isEmpty else {
             throw SharedMediaStorageFailure.closed
+        }
+        let intents: [UUID: SharedMediaNativeReceivingIntentGraph.Witness]
+        if format == .appV2 {
+            intents = try SharedMediaNativeReceivingIntentGraph.read(context, inventory: inventory)
+        } else {
+            guard try SharedMediaNativeReceivingIntentGraph.snapshots(context).isEmpty else { throw SharedMediaStorageFailure.closed }
+            intents = [:]
         }
         var totals = SharedMediaStoragePolicy.Totals(), metadata: [UUID: Int64] = [:]
         for allocation in graph.allocations {
@@ -203,7 +216,16 @@ enum SharedMediaNativeAcquisitionBudget {
             }
             let member = try graph.membership(packageID: id)
             let projected = try maximumMembershipBytes(member, pending: pending)
-            let bytes = try PhotoPreparationPolicy.add([Int64(package.supportingContextData.count), projected, receiptBytes, planBytes, receivingBytes])
+            let baseBytes = try PhotoPreparationPolicy.add([Int64(package.supportingContextData.count), projected, receiptBytes, planBytes, receivingBytes])
+            var preparedBytes: Int64 = 0, receivingHeadroom: Int64 = 0
+            if let intent = intents[id] {
+                guard attempt == nil, active.isEmpty, receivingBytes == 0 else { throw SharedMediaStorageFailure.closed }
+                preparedBytes = Int64(try intent.prepared.encoded().count)
+                let projection = try SharedMediaNativeReceivingReservation.maximum(intent.prepared,
+                    currentMetadata: baseBytes, pairStates: intent.states)
+                receivingHeadroom = projection.reserved
+            }
+            let bytes = try PhotoPreparationPolicy.add([baseBytes, preparedBytes, receivingHeadroom])
             guard bytes <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
             // Reserve the entire remaining existing metadata allowance before
             // processing. Later pair/result/member encodings must fit it.
@@ -213,8 +235,8 @@ enum SharedMediaNativeAcquisitionBudget {
             let membershipGrowth = projected - Int64(try member.encoded().count)
             guard closureBytes <= resultHeadroom else { throw SharedMediaStorageFailure.conflict }
             // The bounded closure projection is future liability, not bytes already on disk.
-            let outstandingMetadata = try SharedMediaStoragePolicy.add(
-                SharedMediaStoragePolicy.add(resultHeadroom - closureBytes, membershipGrowth), planBytes)
+            let outstandingMetadata = try PhotoPreparationPolicy.add([
+                resultHeadroom - closureBytes, membershipGrowth, planBytes, receivingHeadroom])
             guard outstandingMetadata <= bytes else { throw SharedMediaStorageFailure.conflict }
             try totals.includePhotoPhysical(materialized: bytes - outstandingMetadata, reserved: outstandingMetadata)
             try totals.includePhotoPhysical(materialized: 0, reserved: preparationMetadata)

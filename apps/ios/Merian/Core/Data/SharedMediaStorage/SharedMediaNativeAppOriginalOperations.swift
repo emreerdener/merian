@@ -42,6 +42,7 @@ final class SharedMediaNativeAppOriginalOperations {
             binding: binding, files: files, availableBytes: availableBytes, boundary: boundary)
     }
     func prepareShare(_ source: PhotoOriginalReference, packageID: UUID, generation: UUID) throws -> SharedMediaNativeAppOriginalRequest {
+        try facts.requireMutable(source.packageID); try facts.requireMutable(packageID)
         try validate()
         let c = fresh(), rows = try ready(c, source), original = try audit(c, source.assetID)
         let ref = try Rows.reference(c, source: source, live: true).0
@@ -55,6 +56,7 @@ final class SharedMediaNativeAppOriginalOperations {
             original: original, ordinal: ref.ordinal, action: .share(request))
     }
     func prepareRemoval(_ source: PhotoOriginalReference) throws -> SharedMediaNativeAppOriginalRequest {
+        try facts.requireMutable(source.packageID)
         try validate()
         let c = fresh(), rows = try ready(c, source), original = try audit(c, source.assetID)
         let ref = try Rows.reference(c, source: source, live: true).0
@@ -70,6 +72,7 @@ final class SharedMediaNativeAppOriginalOperations {
             original: original, ordinal: ref.ordinal, action: .remove(request))
     }
     func share(_ request: SharedMediaNativeAppOriginalRequest) async throws -> PhotoOriginalReference {
+        try facts.requireMutable(request.source.packageID)
         try validate(); try requestProfile(request)
         guard case .share(let share) = request.action else { throw SharedMediaStorageFailure.conflict }
         let destination = try share.destination()
@@ -104,6 +107,7 @@ final class SharedMediaNativeAppOriginalOperations {
         return destination
     }
     func remove(_ request: SharedMediaNativeAppOriginalRequest) async throws {
+        try facts.requireMutable(request.source.packageID)
         try validate(); try requestProfile(request)
         guard case .remove(let removal) = request.action else { throw SharedMediaStorageFailure.conflict }
         if try savedRemoval(request) { return }
@@ -148,6 +152,7 @@ final class SharedMediaNativeAppOriginalOperations {
             let count = try Rows.one(c, FetchDescriptor<SharedMediaAssetReferenceCountRecord>(predicate: #Predicate { $0.id == id }))
             guard count.liveCount == 0 else { continue }
             let state = try retirementState(c, id: id)
+            if facts.intents[state.reference.packageID] != nil { continue }
             let rows = try Rows(c, profile: facts.profile, source: state.reference)
             let disposal = SharedMediaNativeRetirement.app(SharedMediaNativeAppOriginalDisposalWitness(state: state, binding: binding))
             let absence = try await io.release(disposal)

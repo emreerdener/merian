@@ -47,6 +47,7 @@ final class SharedMediaNativeAppMetadataOperations {
                  presentation: [PhotoPreparationImagePresentation]?) throws -> SharedMediaNativeAppMetadataRequest {
         try validate()
         let context = fresh(), facts = try SharedMediaNativeAppMetadataFacts.capture(context, profile: authority.profile)
+        try facts.requireMutable(packageID)
         let package = try target(packageID, context: context)
         guard package.draftGeneration == draftGeneration, let member = facts.members[packageID] else { throw SharedMediaStorageFailure.stale }
         let previous = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData)
@@ -65,6 +66,7 @@ final class SharedMediaNativeAppMetadataOperations {
         guard request.header == expected else { throw SharedMediaStorageFailure.stale }
         let context = fresh(), inventoryID = authority.profile.inventoryID
         let facts = try SharedMediaNativeAppMetadataFacts.capture(context, profile: authority.profile)
+        try facts.requireMutable(request.package.id)
         let package = try target(request.package.id, context: context)
         let inventory = try SharedMediaNativePairPlanGraph.one(context,
             FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))

@@ -50,7 +50,7 @@ final class SharedMediaNativeAppAcquisitionOperations {
         try check(); return result
     }
     func request(packageID: UUID, draftGeneration: UUID, ordinal: Int64, kind: SharedMediaAcquisitionIntent.Kind) throws -> SharedMediaAcquisitionIntent {
-        try validate()
+        try validate(); try facts.requireMutable(packageID)
         let context = fresh(), id = packageID
         var query = FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == id }); query.fetchLimit = 2
         let rows = try context.fetch(query)
@@ -112,7 +112,7 @@ final class SharedMediaNativeAppAcquisitionOperations {
         consumed = true; return result
     }
     private func transition(_ request: SharedMediaAcquisitionIntent, completing proof: SharedMediaPhotoRetirementInspection?) throws {
-        try validate()
+        try validate(); try facts.requireMutable(request.packageID)
         let old = expected, before = facts
         let witness = SharedMediaNativeAppAcquisitionWitness(authority: authority, expected: old, facts: before, request: request)
         let mutation: SharedMediaNativeAcquisitionMutation
