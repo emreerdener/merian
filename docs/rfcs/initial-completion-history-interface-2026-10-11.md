@@ -1,3 +1,29 @@
+## October 21 — held-release codec qualification
+
+The descriptive ReleasingV1 and ReleasedV1 codecs passed two methods / three
+invocations, including one/two originals and wide scalar/escaped-support inputs.
+Both successor payloads are individually bounded by the existing metadata cap.
+The one-original maximum terminal payload is 4,127 bytes versus 13,030 replaced
+bytes; two originals use 5,851 versus 23,315. All 2,902 source/project hashes
+remained unchanged. XCResult `2cf26c4f3f204cbab16485028a27b351` and complete
+case evidence are retained under
+`.artifacts/native-app-capture-handoff-20261020/release-values-focused01-*`. No
+skips or Xcode runtime warnings were reported; raw simulator diagnostics are
+retained. This is scoped shared-checkout codec evidence only.
+
+The proposed slot mapping clears preparedData, preserves preparedSHA256 and
+stores one explicitly versioned phase payload in resultData. Released binds the
+original plan digest. No production slot reader, phase graph, budget or mutation
+owner accepts these phases yet. Existing P2/historical meanings are unchanged.
+
+Full release integration still requires the composed intermediate accounting,
+original/pair closure retention, cold-recovery revision runway, terminal-row
+paging/physical charging and end-to-end qualification. Pair membership growth
+must be evaluated for every surviving pair; existing closure reservations are
+not charged twice. The slot-size result alone grants no deletion, save,
+admission or execution authority. Activation disabled; PR116 frozen; deployment
+held; AWS unapproved; limits unchanged.
+
 ## October 21 — native receiving increment qualified locally
 
 The reviewed P2 receiving integration now has passing scoped evidence for its
