@@ -108,6 +108,7 @@ enum SharedMediaNativeAcquisitionBudget {
             intents = [:]
         }
         var totals = SharedMediaStoragePolicy.Totals(), metadata: [UUID: Int64] = [:], baseMetadata: [UUID: Int64] = [:]
+        var chargedOriginAllocations = Set<UUID>()
         for allocation in graph.allocations {
             try totals.includePhotoPhysical(materialized: allocation.materializedBytes, reserved: allocation.reservedBytes)
         }
@@ -208,6 +209,7 @@ enum SharedMediaNativeAcquisitionBudget {
                     }
                     receiptBytes = try SharedMediaStoragePolicy.add(receiptBytes,
                         SharedMediaAcquisitionReceipt.metadataCharge(request: request, result: result))
+                    guard chargedOriginAllocations.insert(assetID).inserted else { throw SharedMediaStorageFailure.conflict }
                     if result == nil { resultHeadroom = try SharedMediaStoragePolicy.add(resultHeadroom, Int64(SharedMediaAcquisitionResult.reservedEncodingBytes)) }
                     guard receiptBytes <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
                 }
@@ -293,6 +295,29 @@ enum SharedMediaNativeAcquisitionBudget {
                 if try SharedMediaNativePairFileGraph.nativeWork(assetID: job.assetID, context: context) != nil { continue }
                 try totals.includeLogical(package: id, pool: .acquisition, bytes: job.reservedByteCount)
             }
+        }
+        // A pending share may outlive its physical origin package. Its original
+        // receipt still occupies pending-owned physical storage exactly once,
+        // without becoming metadata owned by each logical destination. The
+        // bounded pending graph excludes entirely retained-library assets.
+        let pendingIDs = Set(graph.packages.map(\.id))
+        for allocation in graph.allocations.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
+            try Task.checkCancellation(); try checkpoint()
+            let assetID = allocation.id
+            if chargedOriginAllocations.contains(assetID) { continue }
+            if try SharedMediaNativePairFileGraph.nativeWork(assetID: assetID, context: context) != nil { continue }
+            guard let origin = allocation.packageID, !pendingIDs.contains(origin),
+                  let owner = allocation.accountID, allocation.inventoryID == inventory.id else {
+                throw SharedMediaStorageFailure.conflict
+            }
+            let row = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == assetID }))
+            guard case .completed(let request, let result) = try SharedMediaAcquisitionReceipt.read(row),
+                  request.assetID == assetID, request.packageID == origin, request.ownerID == owner,
+                  request.inventoryID == inventory.id, request.inventoryGeneration == inventory.generation else {
+                throw SharedMediaStorageFailure.conflict
+            }
+            try totals.includePhotoPhysical(materialized: SharedMediaAcquisitionReceipt.metadataCharge(request: request, result: result), reserved: 0)
+            guard chargedOriginAllocations.insert(assetID).inserted else { throw SharedMediaStorageFailure.conflict }
         }
         return .init(totals: totals, metadataByPackage: metadata, baseMetadataByPackage: baseMetadata)
     }

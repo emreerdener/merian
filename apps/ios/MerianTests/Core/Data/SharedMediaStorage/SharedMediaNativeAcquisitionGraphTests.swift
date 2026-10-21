@@ -228,6 +228,96 @@ struct SharedMediaNativeAcquisitionGraphTests {
         try h.save(); try h.audit()
     }
 
+    @Test(arguments: ["deleted-1", "deleted-2", "retained-1", "retained-2", "pending-1", "pending-2", "retainedOnly"])
+    func sharedReceiptChargesPhysicalPendingStorageExactlyOnce(_ scenario: String) throws {
+        let retainedOnly = scenario == "retainedOnly"
+        let origin = retainedOnly ? "deleted" : String(scenario.split(separator: "-")[0])
+        let destinations = scenario.hasSuffix("2") ? 2 : 1
+        let h = try sharedFixture(origin: origin, destinations: destinations, retainedOnly: retainedOnly)
+        try h.audit()
+        let receipt = try #require(h.context.fetch(FetchDescriptor<SharedMediaAcquisitionReceiptRecord>()).first)
+        guard case .completed(let request, let result) = try SharedMediaAcquisitionReceipt.read(receipt) else {
+            Issue.record("Expected retained completed acquisition"); return
+        }
+        let bytes = try SharedMediaAcquisitionReceipt.metadataCharge(request: request, result: result)
+        let before = receipt.resultData
+        let budget = try SharedMediaNativeAcquisitionBudget.evaluate(context: h.context, inventory: h.inventory)
+        let packages = try h.context.fetch(FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.accountingTierRaw == "pending" }))
+        #expect(packages.count == (retainedOnly ? 0 : destinations + (origin == "pending" ? 1 : 0)))
+        for package in packages {
+            let id = package.id
+            let member = try #require(h.context.fetch(FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id })).first)
+            let ownBytes = Int64(package.supportingContextData.count + member.membersData.count)
+            #expect(budget.metadataByPackage[id] == ownBytes + (id == request.packageID ? bytes : 0))
+        }
+        let metadata = try PhotoPreparationPolicy.add(Array(budget.metadataByPackage.values))
+        let occupied = retainedOnly ? 0 : try PhotoPreparationPolicy.add([17, metadata, origin == "pending" ? 0 : bytes])
+        // Probe the existing durable cap directly; checkAvailable alone sees
+        // reservations, not this materialized-byte accounting correction.
+        var exact = budget.totals
+        try exact.includePhotoPhysical(materialized: PhotoPreparationPolicy.durable - occupied, reserved: 0)
+        #expect(throws: SharedMediaStorageFailure.capacity) {
+            try exact.includePhotoPhysical(materialized: 1, reserved: 0)
+        }
+        #expect(receipt.resultData == before && !h.context.hasChanges)
+    }
+
+    @Test(arguments: ["duplicate", "missing", "phase", "asset", "origin", "inventory", "generation", "owner"])
+    func externalReceiptCorruptionDoesNotBecomeFreeCapacity(_ fault: String) throws {
+        let h = try sharedFixture(origin: "deleted", destinations: 1)
+        try h.audit()
+        let row = try #require(h.context.fetch(FetchDescriptor<SharedMediaAcquisitionReceiptRecord>()).first)
+        switch fault {
+        case "duplicate":
+            let other = try h.row(); other.id = UUID(); other.phaseRaw = row.phaseRaw
+            other.revision = row.revision; other.resultData = row.resultData; h.context.insert(other)
+        case "missing": h.context.delete(row)
+        case "phase": row.phaseRaw = "held"; row.resultData = nil
+        case "asset": row.assetID = UUID()
+        case "origin": row.packageID = UUID()
+        case "inventory": row.inventoryID = UUID()
+        case "generation": row.inventoryGeneration = UUID()
+        default: row.ownerID = UUID()
+        }
+        try h.context.save()
+        #expect(throws: (any Error).self) { try h.audit() }
+        #expect(throws: (any Error).self) {
+            _ = try SharedMediaNativeAcquisitionBudget.evaluate(context: h.context, inventory: h.inventory)
+        }
+        #expect(!h.context.hasChanges)
+    }
+
+    private func sharedFixture(origin: String, destinations: Int, retainedOnly: Bool = false) throws -> Harness {
+        let h = try Harness(); try h.complete(); try h.save()
+        let r = h.request
+        for _ in 0..<destinations {
+            let package = try h.newPackage(id: UUID()), referenceID = UUID()
+            package.accountingTierRaw = retainedOnly ? "retained" : "pending"
+            package.allocatedByteCount = 17; h.context.insert(package)
+            h.context.insert(PhotoPreparationReference(id: referenceID, packageID: package.id, assetID: r.assetID,
+                ownerID: r.ownerID, roleRaw: "original", ordinal: 0, revision: 0, isLive: true))
+            h.context.insert(SharedMediaReferenceRecord(id: referenceID, allocationID: r.assetID, accountID: r.ownerID,
+                ownerID: referenceID.uuidString.lowercased(), roleRaw: SharedMediaPhotoLedger.namespace, stateRaw: "live", revision: 0))
+        }
+        if origin != "pending" {
+            let id = r.packageID
+            for member in try h.context.fetch(FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id })) {
+                h.context.delete(member)
+            }
+            if origin == "retained" { h.package.accountingTierRaw = "retained" }
+            else {
+                let id = r.referenceID
+                h.context.delete(try #require(h.context.fetch(FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.id == id })).first))
+                h.context.delete(try #require(h.context.fetch(FetchDescriptor<SharedMediaReferenceRecord>(predicate: #Predicate { $0.id == id })).first))
+                h.context.delete(h.package)
+            }
+        }
+        let count = try #require(h.context.fetch(FetchDescriptor<SharedMediaAssetReferenceCountRecord>()).first)
+        count.liveCount = Int64(destinations + (origin == "deleted" ? 0 : 1)); count.revision += 1
+        h.inventory.revision += 5; try h.save()
+        return h
+    }
+
     @MainActor private struct Harness {
         let container: ModelContainer, context: ModelContext
         let inventory: SharedMediaInventoryRecord

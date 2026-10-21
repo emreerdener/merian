@@ -1,3 +1,31 @@
+## October 21 — shared original receipt accounting qualified locally
+
+The pending-storage budget charges a completed original receipt once when its
+physical origin package is absent or retained but a pending destination still
+references the asset. The bounded pending graph supplies the assets; exact
+receipt, owner, origin and inventory joins are required. Native derivative
+outputs keep their existing accounting. No destination acquires the receipt as
+logical metadata, and entirely retained-library assets remain excluded.
+
+Independent and IC-1 review cleared the exact candidate and managed execution.
+All three suites passed: acquisition graph, app original lifecycle and native
+pair files, totaling 41 methods / 126 invocations. All seven new accounting
+scenarios and eight corruption cases executed. All 2,905 source/project hashes
+remained unchanged. No failures, skips or Xcode runtime warnings were reported;
+raw simulator image-processing diagnostics and compiler/lint output remain in
+the retained log. XCResult `da966c05776142c5a03c5aea397cdbe1` and evidence are
+under
+`.artifacts/native-app-capture-handoff-20261020/external-receipt-focused01-*`.
+Project validation, the changed-Markdown gate and diff checks passed.
+
+This is scoped qualification in the shared checkout, not a complete native
+feature or isolated-source acceptance result. The arithmetic cap probe is not
+end-to-end storage qualification. Held-release transitions, receiving-terminal
+paging and complete recovery acceptance remain open. No schema, provider or
+cleanup authority changed. Activation disabled, PR116 frozen, deployment held,
+AWS unapproved and every numeric limit unchanged. Previous origin-reconstruction
+evidence is committed at `cd311a4b243bcb0bc92e322f799ef65ce8ed58c9`.
+
 ## October 21 — release origin reconstruction qualified locally
 
 The read-only `SharedMediaNativeReleaseOrigin` leaf reconstructs the exact
