@@ -1205,6 +1205,7 @@
 		696E86DD1B3239775A9C166F /* ConsentManagerRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814CDE3391F95138EC5B2537 /* ConsentManagerRuntime.swift */; };
 		6973F187DA3B8576EA6614D4 /* ScanDeletionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA6F918EC0CF644F7ACE3EC /* ScanDeletionService.swift */; };
 		69883559027E69FA46AB1810 /* AuthSessionBootstrapCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C50C134A0516030FB8899A /* AuthSessionBootstrapCoordinator.swift */; };
+		69999BADF15ABF836CC8651A /* SharedMediaNativeOriginalLiabilityPoststate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6D69B418AA2D79FAEA666C7 /* SharedMediaNativeOriginalLiabilityPoststate.swift */; };
 		69B868845E495D2302A678C1 /* ObservationHistoryListingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 249E8DC5233B5423F4ADA19B /* ObservationHistoryListingService.swift */; };
 		69E0F41E9298504BCC1DFACB /* InsightQueuedRetryPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E0F962B1A0027D12ECBAB8C /* InsightQueuedRetryPresentationTests.swift */; };
 		69E5BDEAEA834328515935CF /* SharedMediaNativeRemoval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A9F585F444AE4D32DA9E14E /* SharedMediaNativeRemoval.swift */; };
@@ -4928,6 +4929,7 @@
 		A690E0431282BF17962CA789 /* ObservationAnalysisReviewDeletionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationAnalysisReviewDeletionTests.swift; sourceTree = "<group>"; };
 		A6A133D4AEF746838B4882C9 /* ScanRepositoryDeletionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanRepositoryDeletionTests.swift; sourceTree = "<group>"; };
 		A6A928080829BD5C81819A7A /* OfflineQueueMaintenanceArchitectureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueMaintenanceArchitectureTests.swift; sourceTree = "<group>"; };
+		A6D69B418AA2D79FAEA666C7 /* SharedMediaNativeOriginalLiabilityPoststate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeOriginalLiabilityPoststate.swift; sourceTree = "<group>"; };
 		A706FDE022C42C1EEF82FED9 /* SharedMediaNativeReleaseOrigin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeReleaseOrigin.swift; sourceTree = "<group>"; };
 		A70B6B792A5DB43F8C9E2EC1 /* SharedMediaPendingMembershipRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaPendingMembershipRecord.swift; sourceTree = "<group>"; };
 		A71296CA52FB448BE57AAAC0 /* BackgroundInferenceDispatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundInferenceDispatchTests.swift; sourceTree = "<group>"; };
@@ -9410,6 +9412,7 @@
 				C724A7CB113084BDCAD56943 /* SharedMediaNativeOriginalInspection.swift */,
 				708E9607443DA439E36CC220 /* SharedMediaNativeOriginalIO.swift */,
 				49938A3D6AF4E9A5743F9F98 /* SharedMediaNativeOriginalLiability.swift */,
+				A6D69B418AA2D79FAEA666C7 /* SharedMediaNativeOriginalLiabilityPoststate.swift */,
 				50B324110D78B428FC1891BC /* SharedMediaNativeOriginalOwner.swift */,
 				082185CD7EC26ACE90AAD571 /* SharedMediaNativeOriginalOwner+AppOriginalLifecycle.swift */,
 				44531A439D5599523AE4B4DC /* SharedMediaNativeOriginalOwner+AppPendingCleanup.swift */,
@@ -17487,6 +17490,7 @@
 				03A0C019510F068474A17364 /* SharedMediaNativeOriginalIO.swift in Sources */,
 				10BCC8CD0DBC32E32EE01D3B /* SharedMediaNativeOriginalInspection.swift in Sources */,
 				5B479FA8D0B8F6E872D65D69 /* SharedMediaNativeOriginalLiability.swift in Sources */,
+				69999BADF15ABF836CC8651A /* SharedMediaNativeOriginalLiabilityPoststate.swift in Sources */,
 				A70DBD934CFDB619732E74A6 /* SharedMediaNativeOriginalOwner+AppOriginalLifecycle.swift in Sources */,
 				A70F1FD2FF7776D43459C725 /* SharedMediaNativeOriginalOwner+AppPendingCleanup.swift in Sources */,
 				9A6FC5B4E97C6F0CC743ED02 /* SharedMediaNativeOriginalOwner+AppPreparation.swift in Sources */,

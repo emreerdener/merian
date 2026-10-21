@@ -235,6 +235,7 @@ final class SharedMediaNativePairFileMutation {
 /// set and deterministic successor; it never opens a generic dirty projection.
 @MainActor
 struct SharedMediaNativeAppPairPoststate {
+    var predecessorRevision: Int64 { witness.state.plan.inventoryRevision }
     let profile: SharedMediaNativeAppProfile
     let expected: SharedMediaNativePairFileState
     private let witness: SharedMediaNativeAppPairAuthority

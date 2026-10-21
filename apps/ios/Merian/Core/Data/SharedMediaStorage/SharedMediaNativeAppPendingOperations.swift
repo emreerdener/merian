@@ -198,6 +198,7 @@ struct SharedMediaNativeAppPendingDisposalWitness: Sendable {
 /// audits stay clean-only; no generic dirty-context permission escapes.
 @MainActor
 struct SharedMediaNativeAppPendingPoststate {
+    var predecessorRevision: Int64 { header.inventory.revision - 1 }
     let profile: SharedMediaNativeAppProfile
     let header: SharedMediaNativeAppEligibility.Header
     let package: SharedMediaNativeAppMetadataFacts.Package

@@ -213,6 +213,7 @@ final class SharedMediaNativePairPlanMutation {
 /// inserted rows. The app projection never accepts a generic dirty context.
 @MainActor
 struct SharedMediaNativeAppPairPlanPoststate {
+    var predecessorRevision: Int64 { expected.inventory.revision - 1 }
     let profile: SharedMediaNativeAppProfile
     private let contextID: ObjectIdentifier
     private let inventoryID: PersistentIdentifier, packageID: PersistentIdentifier, memberID: PersistentIdentifier

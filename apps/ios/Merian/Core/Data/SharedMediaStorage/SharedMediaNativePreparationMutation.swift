@@ -237,6 +237,7 @@ enum SharedMediaNativePreparationBoundary: Equatable, Sendable { case beforeSave
 /// Membership, originals, consumers and sibling packages must remain unchanged.
 @MainActor
 struct SharedMediaNativeAppPreparationPoststate {
+    var predecessorRevision: Int64 { expected.inventory.revision - 1 }
     let profile: SharedMediaNativeAppProfile
     private let contextID: ObjectIdentifier
     private let inventoryID: PersistentIdentifier, packageID: PersistentIdentifier

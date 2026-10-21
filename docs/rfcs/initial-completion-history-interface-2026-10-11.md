@@ -1,3 +1,40 @@
+## October 21 — typed original identity measurements qualified locally
+
+The candidate extends `SharedMediaNativeAcquisitionBudget.Snapshot` with
+separate original identity measurements across all twelve concrete native
+mutation proof families. Each proof validates its exact mutation and predecessor
+revision. A fresh persisted context supplies the clean baseline under the same
+store fence; only the sealed identity delta is applied. Surviving allocations
+and receipts must match, and the observed pending asset cohort must equal the
+expected set. Acquisition completion derives its contribution from the immutable
+request and result and revalidates completion fields when consumed. Ordinary
+numeric and cap-category limits remain unchanged.
+
+Exact candidate04 passed all 107 selected methods / 272 invocations across
+twelve suites in `identity-poststate-focused02`, XCResult
+`a4b45d7221184cad9df52a1f8f85c7a0`. All 2,920 frozen source/project hashes
+remained unchanged; no methods were missing or unexpected, and no failures,
+skips or structured runtime warnings were reported. Raw simulator service,
+CoreData and image-processing diagnostics remain retained. The earlier
+candidate03 compilation failure executed zero tests and remains separate failed
+evidence; candidate04's sole source correction added explicit actor isolation to
+the nested proof enum. Both independent and IC-1 review cleared that exact
+retry. Generated-project validation and changed-Markdown/diff checks passed.
+This is scoped shared-checkout evidence, not isolated or complete-feature
+acceptance, and is not a performance qualification.
+
+The new lifecycle test compares mutation measurements to clean readback after
+acquisition, metadata editing, sharing, nonfinal removal, final retirement and
+physical release. Existing fault suites exercise all concrete proof families.
+The measurement is not yet included in `Totals` or free-space admission and
+provides no over-cap recovery authority. A removal leaving only retained owners
+remains closed pending its own survivor proof. Held-release mutation
+integration, retained terminal qualification, hostile poststate-specific cases
+and proof-bound over-cap settlement remain open. The next enforcement increment
+must bind saved-retirement recovery before adding this contribution to ordinary
+admission. Activation disabled, PR116 frozen, deployment held, AWS unapproved;
+all limits unchanged. No hosted actions or device work occurred.
+
 ## October 21 — asset-owned original identity accounting qualified locally
 
 `SharedMediaNativeOriginalLiability` derives clean accounting inputs from the

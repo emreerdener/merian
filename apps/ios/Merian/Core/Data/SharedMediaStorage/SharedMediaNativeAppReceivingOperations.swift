@@ -222,6 +222,7 @@ final class SharedMediaNativeAppReceivingOperations {
 /// Only the receiving file can prove this one-insert/one-update transition.
 @MainActor
 struct SharedMediaNativeAppStagingPoststate {
+    var predecessorRevision: Int64 { header.inventory.revision }
     let profile: SharedMediaNativeAppProfile
     private let facts: SharedMediaNativeAppMetadataFacts
     private let header: SharedMediaNativeAppEligibility.Header
@@ -252,6 +253,7 @@ struct SharedMediaNativeAppStagingPoststate {
 /// there is no caller-selected generic dirty-context exemption.
 @MainActor
 struct SharedMediaNativeAppIntentPoststate {
+    var predecessorRevision: Int64 { header.inventory.revision }
     fileprivate enum Transition {
         case receive(SharedMediaNativeAppReceivingRequest)
         case abandon(SharedMediaNativeReceivingIntent.Prepared, SharedMediaNativeReceivingIntent.Abandoned)

@@ -278,6 +278,7 @@ struct SharedMediaNativePairDisposal: Sendable {
 /// unscoped accounting bypass is exposed to retirement callers.
 @MainActor
 struct SharedMediaNativeAppPairRetirementPoststate {
+    var predecessorRevision: Int64 { witness.state.plan.inventoryRevision }
     let profile: SharedMediaNativeAppProfile
     let expected: SharedMediaNativePairFileState?
     private let witness: SharedMediaNativeAppPairRetirementWitness

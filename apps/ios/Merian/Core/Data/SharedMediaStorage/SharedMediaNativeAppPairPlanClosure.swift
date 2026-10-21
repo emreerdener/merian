@@ -90,6 +90,7 @@ final class SharedMediaNativeAppPairPlanClosure {
 /// deletions. The unchanged original and receiving liabilities stay auditable.
 @MainActor
 struct SharedMediaNativeAppPairPlanClosurePoststate {
+    var predecessorRevision: Int64 { witness.preparation.expected.inventory.revision }
     let profile: SharedMediaNativeAppProfile
     private let contextID: ObjectIdentifier
     private let inventoryID: PersistentIdentifier, packageID: PersistentIdentifier, memberID: PersistentIdentifier

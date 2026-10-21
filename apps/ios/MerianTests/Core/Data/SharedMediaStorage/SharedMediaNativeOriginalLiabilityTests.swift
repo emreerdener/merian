@@ -67,6 +67,39 @@ struct SharedMediaNativeOriginalLiabilityTests {
         #expect(throws: (any Error).self) { _ = try read(f) }
     }
 
+    @Test func nativeMutationProjectionsMatchCleanReadback() async throws {
+        let store = try SharedMediaNativeAppMetadataTests.Store(), owner = try await store.open()
+        let request = try await owner.prepareAppOriginal(packageID: store.packageID,
+            draftGeneration: store.draft, ordinal: 0, kind: .picker)
+        let bytes = PhotoPreparationTestHarness.image()
+        let acquired = try await owner.acquireAppOriginal(request) { bytes }
+        let source = PhotoOriginalReference(ownerID: request.ownerID, packageID: request.packageID,
+            referenceID: request.referenceID, assetID: request.assetID, assetGeneration: request.assetGeneration,
+            draftGeneration: request.draftGeneration, referenceRevision: acquired.referenceRevision)
+        func measure(_ count: Int) throws {
+            let context = store.context(), inventory = try Fixture.one(context,
+                FetchDescriptor<SharedMediaInventoryRecord>())
+            let budget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: context,
+                inventory: inventory, ownerID: store.ownerID, format: .appV2)
+            let snapshot = try #require(budget.originalIdentity)
+            #expect(try snapshot == Reader.read(context: context, inventoryID: store.inventoryID))
+            #expect(snapshot.entries.count == count)
+            #expect(try snapshot.currentBytes + snapshot.reservedBytes == Int64(count * 512))
+        }
+        try measure(1)
+        let edit = try await owner.prepareAppMetadata(packageID: store.packageID, draftGeneration: store.draft,
+            contexts: [.init(freeText: "Keep original bytes")], presentation: [])
+        _ = try await owner.saveAppMetadata(edit); try measure(1)
+        let share = try await owner.prepareAppOriginalShare(source, packageID: UUID(), draftGeneration: UUID())
+        let destination = try await owner.shareAppOriginal(share); try measure(1)
+        let removeFirst = try await owner.prepareAppOriginalRemoval(source)
+        try await owner.removeAppOriginal(removeFirst); try measure(1)
+        let removeLast = try await owner.prepareAppOriginalRemoval(destination)
+        try await owner.removeAppOriginal(removeLast); try measure(1)
+        try await owner.recoverAppOriginalRetirements(); try measure(0)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
     private func read(_ f: Fixture) throws -> Reader.Snapshot {
         let c = f.store.context(), result = try Reader.read(context: c, inventoryID: f.store.inventoryID)
         #expect(!c.hasChanges)

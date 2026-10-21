@@ -22,6 +22,7 @@ final class SharedMediaNativeAcquisitionMutation {
     }
     private let authority: Authority
     private var transition = ""
+    private var completedResult: SharedMediaAcquisitionResult?
     private let before: Before
     private var appAfter: SharedMediaNativeAppMetadataFacts?
     private var prepared = false
@@ -173,6 +174,7 @@ final class SharedMediaNativeAcquisitionMutation {
             throw SharedMediaStorageFailure.conflict
         }
         try result.validate(request: request)
+        completedResult = result
         let package = try package(), allocation = try allocation(), lease = try lease(), work = try work()
         let member = try member()
         guard result.inventoryRevision == (try increment(inventory.revision)),
@@ -377,10 +379,18 @@ final class SharedMediaNativeAcquisitionMutation {
     private func poststate(final: Bool) throws -> SharedMediaNativeAppAcquisitionPoststate {
         guard case .app(let witness) = authority else { throw SharedMediaStorageFailure.closed }
         return .init(profile: witness.authority.profile, packageID: request.packageID,
-            overlay: before.membershipRevision == nil, final: final, context: context, facts: witness.facts) { [self] in
+            overlay: before.membershipRevision == nil, final: final, context: context, facts: witness.facts,
+            predecessorRevision: before.inventoryRevision, originalIdentity: try completedResult.map { result in
+                try result.validate(request: request)
+                let bytes = Int64(result.descriptor.file.utf8.count)
+                guard bytes > 0, bytes <= 512 else { throw SharedMediaStorageFailure.capacity }
+                return .init(assetID: request.assetID, acquisitionID: request.operationID, physicalOriginID: request.packageID,
+                    currentBytes: bytes, reservedBytes: 512 - bytes, retiring: false)
+            }) { [self] in
                 guard try SharedMediaNativeAppEligibility.profile(inventory) == witness.authority.profile,
                       inventory.revision == (try increment(before.inventoryRevision)) else { throw SharedMediaStorageFailure.conflict }
                 try validateWriteSet(final: final)
+                if let completedResult { try validateCompleted(completedResult) }
             }
     }
     /// Typed exact insert/update/delete sets. Insertions are not counted as
@@ -504,15 +514,25 @@ struct SharedMediaNativeAppAcquisitionPoststate {
     private let contextID: ObjectIdentifier
     private let facts: SharedMediaNativeAppMetadataFacts
     private let check: () throws -> Void
+    let predecessorRevision: Int64
+    private let originalIdentity: SharedMediaNativeOriginalLiability.Entry?
     fileprivate init(profile: SharedMediaNativeAppProfile, packageID: UUID, overlay: Bool, final: Bool,
-                     context: ModelContext, facts: SharedMediaNativeAppMetadataFacts, check: @escaping () throws -> Void) {
+                     context: ModelContext, facts: SharedMediaNativeAppMetadataFacts,
+                     predecessorRevision: Int64, originalIdentity: SharedMediaNativeOriginalLiability.Entry?, check: @escaping () throws -> Void) {
         self.profile = profile; self.packageID = packageID; self.overlay = overlay; self.final = final
-        contextID = ObjectIdentifier(context); self.facts = facts; self.check = check
+        contextID = ObjectIdentifier(context); self.facts = facts; self.check = check; self.originalIdentity = originalIdentity; self.predecessorRevision = predecessorRevision
     }
     func validate(context: ModelContext, inventory: SharedMediaInventoryRecord) throws {
         guard ObjectIdentifier(context) == contextID, try SharedMediaNativeAppEligibility.profile(inventory) == profile else { throw SharedMediaStorageFailure.conflict }
         try check()
         try facts.validateAcquisition(context, packageID: packageID, hasMember: !overlay || final)
+    }
+    /// Values are minted from the mutation's immutable request/result, and the
+    /// exact completion rows are revalidated before the contribution escapes.
+    func completedIdentity(context: ModelContext, inventory: SharedMediaInventoryRecord) throws -> SharedMediaNativeOriginalLiability.Entry? {
+        guard final else { throw SharedMediaStorageFailure.closed }
+        try validate(context: context, inventory: inventory)
+        return originalIdentity
     }
     func receivingBytes(_ consumer: SharedMediaConsumerRecord) throws -> Int64 { try facts.receivingBytes(consumer) }
 }

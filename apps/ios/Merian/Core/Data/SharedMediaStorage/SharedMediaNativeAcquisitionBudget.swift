@@ -9,6 +9,8 @@ import SwiftData
 enum SharedMediaNativeAcquisitionBudget {
     struct Snapshot {
         let totals: SharedMediaStoragePolicy.Totals
+        /// Measured separately until saved-retirement recovery is qualified.
+        let originalIdentity: SharedMediaNativeOriginalLiability.Snapshot?
         let metadataByPackage: [UUID: Int64]
         let baseMetadataByPackage: [UUID: Int64]
     }
@@ -319,7 +321,29 @@ enum SharedMediaNativeAcquisitionBudget {
             try totals.includePhotoPhysical(materialized: SharedMediaAcquisitionReceipt.metadataCharge(request: request, result: result), reserved: 0)
             guard chargedOriginAllocations.insert(assetID).inserted else { throw SharedMediaStorageFailure.conflict }
         }
-        return .init(totals: totals, metadataByPackage: metadata, baseMetadataByPackage: baseMetadata)
+        let originalIdentity: SharedMediaNativeOriginalLiability.Snapshot?
+        if format == .appV2 {
+            let proof: SharedMediaNativeOriginalLiabilityPoststate.Proof?
+            if let metadataProof { proof = .metadata(metadataProof) }
+            else if let acquisitionProof { proof = .acquisition(acquisitionProof) }
+            else if let preparationProof { proof = .preparation(preparationProof) }
+            else if let pairPlanProof { proof = .pairPlan(pairPlanProof) }
+            else if let pairClosureProof { proof = .pairClosure(pairClosureProof) }
+            else if let pairFileProof { proof = .pairFile(pairFileProof) }
+            else if let pairRetirementProof { proof = .pairRetirement(pairRetirementProof) }
+            else if let intentProof { proof = .intent(intentProof) }
+            else if let stagingProof { proof = .staging(stagingProof) }
+            else if let pendingCleanupProof { proof = .pendingCleanup(pendingCleanupProof) }
+            else if let originalProof { proof = .original(originalProof) }
+            else if let originalReleaseProof { proof = .originalRelease(originalReleaseProof) }
+            else { proof = nil }
+            if let proof {
+                originalIdentity = try SharedMediaNativeOriginalLiabilityPoststate.read(context: context, inventory: inventory, proof: proof)
+            } else {
+                originalIdentity = try SharedMediaNativeOriginalLiability.read(context: context, inventoryID: inventory.id, checkpoint: checkpoint)
+            }
+        } else { originalIdentity = nil }
+        return .init(totals: totals, originalIdentity: originalIdentity, metadataByPackage: metadata, baseMetadataByPackage: baseMetadata)
     }
 
     /// Existing two-original limit bounds the power set to four states. A

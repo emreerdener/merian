@@ -145,6 +145,7 @@ final class SharedMediaNativeAppMetadataOperations {
 /// context. This is a bounded projection proof, not a save or file capability.
 @MainActor
 struct SharedMediaNativeAppMetadataPoststate {
+    var predecessorRevision: Int64 { request.header.inventory.revision }
     let profile: SharedMediaNativeAppProfile
     private let request: SharedMediaNativeAppMetadataRequest
     private let facts: SharedMediaNativeAppMetadataFacts
