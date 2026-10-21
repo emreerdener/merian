@@ -1,3 +1,56 @@
+## October 21 — release survivor accounting qualified locally
+
+The descriptive calculation sizes only forward states from the fully audited
+current release snapshot. Current serialized components are replaced by future
+component bounds, never added twice: one slot bound, exact membership, surviving
+pair bounds including historical membership, and retained physical original
+receipts/identities. Complete state totals are compared rather than summing
+unrelated temporal peaks. Current measured usage remains distinct from possible
+future growth. No policy consumes this calculation yet.
+
+The snapshot now classifies each target by exact asset/acquisition identity:
+local physical origin, foreign physical origin, or canonical stripped terminal.
+Local matches are required exactly once; foreign origins contribute no local
+charge but remain globally owned. Extra local origins remain charged. A shared
+logical removal retains its physical charge until terminal absence. The existing
+512-byte identity bound replaces, rather than supplements, the current identity.
+
+Terminal sizing assumes one future atomic save replaces Progress with Released
+and deletes package/member/consumer/execution together. It does not qualify that
+writer or SQLite/WAL occupancy. The existing 1 MiB live metadata cap includes
+package payload and owned original receipt payloads. Allocation identities count
+only toward global storage. The terminal Released slot has its own existing
+metadata cap after atomic package removal; retained shared origins remain in
+global accounting. These are the existing cap categories, not a claim of
+byte-for-byte equivalence to earlier phase calculations. No limit changes.
+
+Candidate02 passed six methods / nine invocations across the projection,
+metadata snapshot and live-audit suites. All 2,915 frozen source/project hashes
+remained unchanged; no failures, skips or structured runtime warnings. Evidence:
+`release-survivor-focused01-*` in
+`.artifacts/native-app-capture-handoff-20261020/`, XCResult
+`9d7c6b8c557740b08b0f0dc63a514093`. Raw simulator/Xcode warnings remain
+retained.
+
+Candidate03's receipt-only cap refinement received exact independent/IC-1
+concurrence and passed three methods / four invocations in the projection suite,
+including exact-limit acceptance, one-byte-over rejection and identity/terminal
+cap separation. All 2,915 frozen hashes remained unchanged. Evidence:
+`release-survivor-cap-focused01-*`, XCResult `96b5b79a34f942439b6c05b31e647b56`.
+Unchanged snapshot/live-audit results above are reused; this is scoped
+shared-checkout validation, not whole-feature acceptance. Project
+generation/validation and source membership passed before the first run;
+Markdown formatting and diff checks passed after synchronization.
+
+Identity accounting here is descriptive release liability. The generic Budget
+currently charges receipt encodings, not allocation identity strings. Before
+Budget integration or sealed writes, the global asset-lifetime owner must cover
+foreign origins and survive package/terminal-slot removal without duplicate
+charges. The clean-only adapter may proceed separately; generic mutation stays
+closed. Runtime budget/audit routing, sealed release writes, physical cleanup
+and integrated acceptance remain open. Activation disabled, PR116 frozen,
+deployment held, AWS unapproved.
+
 ## October 21 — clean release metadata measurement qualified locally
 
 The read-only metadata snapshot measures current serialized accounting inputs

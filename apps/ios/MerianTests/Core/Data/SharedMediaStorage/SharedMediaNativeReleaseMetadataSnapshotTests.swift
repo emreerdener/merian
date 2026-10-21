@@ -15,6 +15,8 @@ struct SharedMediaNativeReleaseMetadataSnapshotTests {
         let initial = try read(f)
         #expect(initial.pairs.count == count)
         #expect(initial.ownedOriginals.count == count)
+        #expect(initial.targetOrigins.count == count)
+        #expect(initial.targetOrigins.allSatisfy { $0.location == .present(packageID: f.store.packageID) })
         #expect(initial.ownedOriginals.allSatisfy { $0.physicalOriginID == f.store.packageID && !$0.retiring })
         #expect(initial.pairs.allSatisfy { $0.work.allSatisfy { $0.closure == nil } })
         #expect(try initial.currentSerializedBytes > initial.packagePayloadBytes)
@@ -53,6 +55,7 @@ struct SharedMediaNativeReleaseMetadataSnapshotTests {
         try f.removeOriginal(0)
         let removed = try read(f)
         #expect(removed.pairs.isEmpty && removed.ownedOriginals.isEmpty)
+        #expect(removed.targetOrigins.allSatisfy { if case .released = $0.location { true } else { false } })
         #expect(try removed.originReceiptBytes == 0 && removed.originIdentityBytes == 0)
         #expect(removed.release.state.package.allocated == 0)
         #expect(try removed.currentSerializedBytes > 0) // Held execution and slot still exist.

@@ -20,8 +20,8 @@ final class SharedMediaNativeReleaseLiveFixture {
         entries = try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes).entries
         progress = try .init(plan: plan)
     }
-    static func make(count: Int) async throws -> SharedMediaNativeReleaseLiveFixture {
-        let (store, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(count: count, staged: true)
+    static func make(count: Int, foreignOriginal: Bool = false) async throws -> SharedMediaNativeReleaseLiveFixture {
+        let (store, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(count: count, staged: true, foreignOriginal: foreignOriginal)
         let prepared = try Intent.Prepared(request)
         _ = try await owner.receiveAppPrepared(prepared)
         #expect(await owner.invalidateAndAwaitForAccountTransition())

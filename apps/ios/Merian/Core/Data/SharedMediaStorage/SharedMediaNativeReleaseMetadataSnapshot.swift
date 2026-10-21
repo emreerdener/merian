@@ -15,6 +15,16 @@ enum SharedMediaNativeReleaseMetadataSnapshot {
         let retiring: Bool
     }
 
+    struct TargetOrigin: Equatable, Sendable {
+        enum Location: Equatable, Sendable {
+            case present(packageID: UUID)
+            case released(SharedMediaAcquisitionReceipt.TerminalIdentity)
+        }
+        let assetID: UUID
+        let acquisitionID: UUID
+        let location: Location
+    }
+
     struct Snapshot {
         let release: SharedMediaNativeReceivingReleaseLiveAudit.Witness
         let inventoryRevision: Int64
@@ -27,6 +37,7 @@ enum SharedMediaNativeReleaseMetadataSnapshot {
         /// Includes physical origins still owned by this package even after its
         /// logical reference vanished. Foreign origins are not charged here.
         let ownedOriginals: [Original]
+        let targetOrigins: [TargetOrigin]
 
         var pairBytes: Int64 {
             get throws {
@@ -85,7 +96,8 @@ enum SharedMediaNativeReleaseMetadataSnapshot {
             envelopeBytes: Int64(package.supportingContextData.count), membershipBytes: Int64(member.membersData.count),
             consumerBytes: Int64(origin.rows.consumer.cohortData.count),
             executionBytes: try PhotoPreparationPolicy.add([Int64(job.utf8.count), Int64(event.utf8.count)]),
-            slotBytes: Int64(slot.count), pairs: pairs, ownedOriginals: originals)
+            slotBytes: Int64(slot.count), pairs: pairs, ownedOriginals: originals,
+            targetOrigins: try targetOrigins(release, inventory: inventory, context: context))
         // No metadata-cap policy is adopted by this reader. Its checked sum is
         // measured evidence for the next projection, not an enforcement route.
         _ = try result.currentSerializedBytes
@@ -96,6 +108,32 @@ enum SharedMediaNativeReleaseMetadataSnapshot {
             throw SharedMediaStorageFailure.stale
         }
         return result
+    }
+
+    /// Classification comes from the authoritative receipt after the full live
+    /// audit. A terminal receipt deliberately has no recoverable origin package;
+    /// never infer it from the logical target or invent a previous byte charge.
+    private static func targetOrigins(_ release: SharedMediaNativeReceivingReleaseLiveAudit.Witness,
+                                      inventory: SharedMediaInventoryRecord, context: ModelContext) throws -> [TargetOrigin] {
+        try release.progress.plan.targets.enumerated().map { index, target in
+            let id = target.acquisitionID
+            let row = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.id == id }))
+            let location: TargetOrigin.Location
+            switch try SharedMediaNativeAcquisitionGraph.scopedReceipt(row, inventory: inventory, context: context, format: .appV2) {
+            case .completed(let request, _):
+                guard request.assetID == target.original.assetID, request.assetGeneration == target.original.assetGeneration,
+                      request.ownerID == target.original.ownerID else { throw SharedMediaStorageFailure.conflict }
+                location = .present(packageID: request.packageID)
+            case .released(let terminal):
+                guard release.progress.targets[index].stage == .removed,
+                      terminal.operationID == id, terminal.inventoryID == inventory.id,
+                      terminal.inventoryGeneration == inventory.generation,
+                      terminal.ownerID == target.original.ownerID else { throw SharedMediaStorageFailure.conflict }
+                location = .released(terminal)
+            default: throw SharedMediaStorageFailure.conflict
+            }
+            return .init(assetID: target.original.assetID, acquisitionID: id, location: location)
+        }
     }
 
     private static func pairState(_ id: UUID, intent: SharedMediaNativePreparationBlob,

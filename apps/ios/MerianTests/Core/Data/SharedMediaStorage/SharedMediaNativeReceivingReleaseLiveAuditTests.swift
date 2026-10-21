@@ -137,6 +137,12 @@ struct SharedMediaNativeReceivingReleaseLiveAuditTests {
         #expect(sharedMetadata.release.state.package.allocated == 0)
         #expect(sharedMetadata.ownedOriginals.map(\.assetID) == [assetID])
         #expect(try sharedMetadata.originReceiptBytes > 0)
+        #expect(sharedMetadata.targetOrigins.first?.location == .present(packageID: f.store.packageID))
+        let sharedBound = try SharedMediaNativeReleaseSurvivorProjection.maximum(sharedMetadata)
+        #expect(sharedBound.charges.count == 2)
+        #expect(sharedBound.charges.allSatisfy { $0.stages == [5] })
+        let sharedOriginBound = try sharedMetadata.originReceiptBytes + 512
+        #expect(sharedBound.charges.allSatisfy { $0.originBytes == sharedOriginBound })
         try reject(f) { c in
             let row = try Fixture.one(c, FetchDescriptor<SharedMediaAssetReferenceCountRecord>(predicate: #Predicate { $0.id == assetID }))
             row.liveCount += 1; return { row.liveCount -= 1 }
@@ -152,6 +158,11 @@ struct SharedMediaNativeReceivingReleaseLiveAuditTests {
             inventoryID: f.store.inventoryID, context: f.store.context())
         #expect(terminalMetadata.ownedOriginals.isEmpty)
         #expect(try terminalMetadata.originReceiptBytes == 0)
+        guard case .released = try #require(terminalMetadata.targetOrigins.first).location else {
+            Issue.record("Shared original terminal disposition missing"); return
+        }
+        let terminalBound = try SharedMediaNativeReleaseSurvivorProjection.maximum(terminalMetadata)
+        #expect(terminalBound.charges.allSatisfy { $0.stages == [5] && $0.originBytes == 0 })
     }
 
     private func reject(_ f: Fixture, mutate: (ModelContext) throws -> () throws -> Void) throws {

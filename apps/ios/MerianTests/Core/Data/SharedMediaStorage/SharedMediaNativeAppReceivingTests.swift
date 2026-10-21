@@ -193,17 +193,36 @@ struct SharedMediaNativeAppReceivingTests {
         try unchanged(h, r)
     }
 
-    func fixture(count: Int = 1, receiving: Bool = false, staged: Bool = false) async throws -> (Store, SharedMediaNativeOriginalOwner, SharedMediaNativeAppReceivingRequest) {
+    func fixture(count: Int = 1, receiving: Bool = false, staged: Bool = false, foreignOriginal: Bool = false) async throws -> (Store, SharedMediaNativeOriginalOwner, SharedMediaNativeAppReceivingRequest) {
         let h = try Store(receiving: receiving)
         let owner = try await (receiving ? h.openWithReceivingConsumer().0 : h.open())
-        let metadata = try await owner.prepareAppMetadata(packageID: h.packageID, draftGeneration: h.draft, contexts: [.init(freeText: "Exact submitted supporting description")])
-        _ = try await owner.saveAppMetadata(metadata)
+        if foreignOriginal {
+            guard count == 1, !receiving else { throw SharedMediaStorageFailure.conflict }
+            // Remove only the synthetic empty seed, before any original exists.
+            // The real sharing operation requires a previously absent destination.
+            let c = h.context(), packageID = h.packageID
+            c.delete(try h.package(in: c))
+            c.delete(try SharedMediaNativePairPlanGraph.one(c,
+                FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == packageID })))
+            try c.save()
+        } else {
+            let metadata = try await owner.prepareAppMetadata(packageID: h.packageID, draftGeneration: h.draft, contexts: [.init(freeText: "Exact submitted supporting description")])
+            _ = try await owner.saveAppMetadata(metadata)
+        }
         var pairs: [UUID] = []
         for ordinal in 0..<count {
-            let request = try await owner.prepareAppOriginal(packageID: h.packageID, draftGeneration: h.draft, ordinal: Int64(ordinal), kind: .picker)
+            let sourcePackage = foreignOriginal ? UUID() : h.packageID
+            let request = try await owner.prepareAppOriginal(packageID: sourcePackage, draftGeneration: h.draft, ordinal: Int64(ordinal), kind: .picker)
             let data = PhotoPreparationTestHarness.image(), acquired = try await owner.acquireAppOriginal(request) { data }
-            let original = PhotoOriginalReference(ownerID: h.ownerID, packageID: h.packageID, referenceID: request.referenceID,
+            var original = PhotoOriginalReference(ownerID: h.ownerID, packageID: sourcePackage, referenceID: request.referenceID,
                 assetID: request.assetID, assetGeneration: request.assetGeneration, draftGeneration: h.draft, referenceRevision: acquired.referenceRevision)
+            if foreignOriginal {
+                let share = try await owner.prepareAppOriginalShare(original, packageID: h.packageID, draftGeneration: h.draft)
+                original = try await owner.shareAppOriginal(share)
+                let metadata = try await owner.prepareAppMetadata(packageID: h.packageID, draftGeneration: h.draft,
+                    contexts: [.init(freeText: "Exact submitted supporting description")])
+                _ = try await owner.saveAppMetadata(metadata)
+            }
             let ready = try await owner.prepareAndDeliverAppPhoto(original: original, recipe: Self.recipe)
             pairs.append(try ready.intent().pairID)
         }
