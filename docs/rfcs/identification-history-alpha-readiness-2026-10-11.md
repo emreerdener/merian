@@ -1,3 +1,38 @@
+## October 21 — clean release metadata measurement qualified locally
+
+The read-only metadata snapshot measures current serialized accounting inputs
+after the complete clean release audit: envelope, current membership, consumer
+cohort, both execution metadata strings, Progress slot and surviving pair-state
+representations. Historical closure bodies remain in surviving pair values;
+deleted pairs are not reconstructed. These serializations measure the existing
+accounting representation, not SQLite file occupancy.
+
+Original receipt and allocation identity charges remain separate per asset ID,
+with physical origin package ownership preserved. Logical shared-reference
+removal retains the origin charge while the physical original survives. The
+reader mirrors the existing paged origin traversal and receipt payload cap,
+returns values only, and rejects dirty contexts or corrupted live evidence.
+
+Exact candidate01/execution01 received independent and IC-1 concurrence. The
+managed focused run passed three methods / five invocations, including one/two
+originals, historical partial release, dirty/cancelled reads and shared-origin
+retention followed by terminal removal. All 2,913 frozen source/project hashes
+remained unchanged. No failures, skips or structured runtime warnings were
+reported. Evidence: `.artifacts/native-app-capture-handoff-20261020/`
+`release-metadata-focused01-*`, XCResult `74221986cdc54112b8b195e757f8eac6`. Raw
+simulator image/espresso and Xcode diagnostics remain retained. Project
+generation/validation, source membership, Markdown formatting and diff checks
+passed.
+
+This is scoped qualification in the shared checkout. No Totals, reservation,
+admission or cleanup policy consumes this measurement. Next is a separately
+reviewed survivor projection: replace current components with future bounds, key
+originals by asset ID, preserve surviving shared origins, and include the atomic
+terminal save shape. Global origin deduplication and persisted-state comparisons
+remain required before whole-store routing. Sealed release writes, physical
+cleanup and integrated acceptance remain open. Schema and limits are unchanged;
+activation disabled, PR116 frozen, deployment held, AWS unapproved.
+
 ## October 21 — clean held-release live audit qualified locally
 
 The clean-context reader binds the persisted V2 `releasing` slot to its frozen

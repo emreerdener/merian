@@ -132,6 +132,11 @@ struct SharedMediaNativeReceivingReleaseLiveAuditTests {
         f.progress = try f.progress.advancing(.init(pairID: target.pairID, stage: .removed, pair: f.progress.targets[0].pair,
             original: .init(disposition: .shared, retirementID: nil, closureSHA256: String(repeating: "c", count: 64))))
         try f.save(remove); _ = try f.read()
+        let sharedMetadata = try SharedMediaNativeReleaseMetadataSnapshot.read(packageID: f.store.packageID,
+            inventoryID: f.store.inventoryID, context: f.store.context())
+        #expect(sharedMetadata.release.state.package.allocated == 0)
+        #expect(sharedMetadata.ownedOriginals.map(\.assetID) == [assetID])
+        #expect(try sharedMetadata.originReceiptBytes > 0)
         try reject(f) { c in
             let row = try Fixture.one(c, FetchDescriptor<SharedMediaAssetReferenceCountRecord>(predicate: #Predicate { $0.id == assetID }))
             row.liveCount += 1; return { row.liveCount -= 1 }
@@ -143,6 +148,10 @@ struct SharedMediaNativeReceivingReleaseLiveAuditTests {
         later.delete(try Fixture.one(later, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == packageID })))
         later.delete(try Fixture.one(later, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == packageID })))
         try f.save(later); _ = try f.read()
+        let terminalMetadata = try SharedMediaNativeReleaseMetadataSnapshot.read(packageID: f.store.packageID,
+            inventoryID: f.store.inventoryID, context: f.store.context())
+        #expect(terminalMetadata.ownedOriginals.isEmpty)
+        #expect(try terminalMetadata.originReceiptBytes == 0)
     }
 
     private func reject(_ f: Fixture, mutate: (ModelContext) throws -> () throws -> Void) throws {
