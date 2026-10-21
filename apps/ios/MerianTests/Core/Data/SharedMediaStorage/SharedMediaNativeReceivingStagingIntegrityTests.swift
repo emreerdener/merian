@@ -3,6 +3,119 @@ import SwiftData
 import Testing
 @testable import Merian
 
+@Suite("Persisted native receiving metadata boundaries", .serialized)
+@MainActor
+struct SharedMediaNativeReceivingBoundaryTests {
+    private let checks = SharedMediaNativeReceivingStagingTests()
+    // Canonical fixtures found cap and cap+2, not cap+1. The separate
+    // Reservation.maximum arithmetic test exercises the exact one-byte guard.
+    // Do not infer global unreachability from this bounded fixture search.
+    @Test(arguments: [Int64(0), Int64(2)])
+    func persistedMetadataBoundaryUsesActualDraftAndOwnerAdmission(_ excess: Int64) async throws {
+        let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(count: 2)
+        let fixture = try SharedMediaNativeReceivingTestFixture.capture(h, request: request)
+        #expect(try fixture.metadata() == fixture.auditedMetadata)
+        let target = PhotoPreparationPolicy.metadata + excess
+        let contexts = try boundaryContexts(fixture, target: target)
+        let edit = try await owner.prepareAppMetadata(packageID: h.packageID, draftGeneration: h.draft, contexts: contexts)
+        _ = try await owner.saveAppMetadata(edit)
+        let current = try await owner.appReceivingRequest(packageID: h.packageID, pairIDs: checks.pairIDs(request),
+            operationID: request.freeze.commit.operationID, queueID: UUID(uuidString: request.cohort.originQueueID)!,
+            observationID: UUID(uuidString: request.cohort.observationID)!, bindingID: request.cohort.bindingID,
+            generation: #require(request.cohort.inferenceGeneration), eventID: UUID(uuidString: request.eventID)!, timestamp: request.timestamp)
+        // Recapture only actual persisted facts after the real metadata save.
+        let persisted = try SharedMediaNativeReceivingTestFixture.capture(h, request: current)
+        #expect(try persisted.metadata() == persisted.auditedMetadata)
+        #expect(try projectedCharge(persisted) == target)
+        let before = try checks.facts(h), revision = try checks.inventory(h).revision
+        if excess == 0 {
+            let saved = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: checks.pairIDs(request))
+            let c = h.context(), inventory = try #require(try c.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
+            let budget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: c, inventory: inventory,
+                ownerID: h.ownerID, format: .appV2)
+            #expect(budget.metadataByPackage[h.packageID] == PhotoPreparationPolicy.metadata)
+            #expect(inventory.revision == revision + 1)
+            #expect(try checks.facts(h).packages == before.packages)
+            #expect(try SharedMediaNativeFrozenCohort.decode(saved.cohort.bytes).supportingBytes ==
+                SharedMediaNativeFrozenSupporting(contexts: contexts, presentation: []).encoded())
+            try owner.setMetadataFault { if $0 == .beforeSave { throw SharedMediaStorageFailure.closed } }
+            #expect(try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft,
+                pairIDs: checks.pairIDs(request)).encoded() == saved.encoded())
+        } else {
+            await #expect(throws: SharedMediaStorageFailure.capacity) {
+                _ = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: checks.pairIDs(request))
+            }
+            #expect(try checks.facts(h) == before)
+            #expect(try checks.inventory(h).revision == revision)
+            #expect(try h.context().fetchCount(FetchDescriptor<SharedMediaReceivingIntentRecord>()) == 0)
+        }
+        try checks.noReceivingRows(h)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    private func projectedCharge(_ fixture: SharedMediaNativeReceivingTestFixture) throws -> Int64 {
+        let prepared = try SharedMediaNativeReceivingIntent.Prepared(fixture.request)
+        let current = try fixture.metadata() + Int64(prepared.encoded().count)
+        // successor intentionally exposes the uncapped value; maximum enforces
+        // the cap in production. No invented currentMetadata increment is used.
+        return try max(current, SharedMediaNativeReceivingReservation.successor(prepared,
+            header: SharedMediaNativeReceivingTestFixture.maximumHeader(prepared),
+            currentMetadata: fixture.metadata(), pairStates: fixture.states))
+    }
+
+    private func boundaryContexts(_ fixture: SharedMediaNativeReceivingTestFixture,
+                                  target: Int64) throws -> [ObservationContext] {
+        let sizer = try SharedMediaNativeReceivingTestFixture.BoundarySizer(fixture)
+        var below: (Int64, [ObservationContext])?
+        var above: (Int64, [ObservationContext])?
+        func contexts(_ fill: Int, scalar: String, tail: Int, padding: String, fields: Int) -> [ObservationContext] {
+            let units = Array(String(repeating: scalar, count: fill) + String(repeating: padding, count: tail))
+            return (0..<fields).map { index in
+                let start = min(index * 8_192, units.count), end = min((index + 1) * 8_192, units.count)
+                return .init(freeText: String(units[start..<end]))
+            }
+        }
+        // A bounded, non-exhaustive legal shape matrix changes JSON width, field scaffold and
+        // base64 residue. Even U+0001 is preserved by the existing text policy.
+        // The sizing aid never grants admission or substitutes for validation.
+        for scalar in ["\"", "\\", "\u{0001}"] {
+            for fields in [1, 2, 3, 4, 8, 16, 32, 64] {
+                for padding in ["?", "a"] {
+                    for tail in 0..<32 {
+                        let maximum = min(32_000, fields * 8_192) - tail
+                        func values(_ fill: Int) -> [ObservationContext] {
+                            contexts(fill, scalar: scalar, tail: tail, padding: padding, fields: fields)
+                        }
+                        if try sizer.charge(values(maximum)) < target { continue }
+                        var lower = 0, upper = maximum
+                        while lower < upper {
+                            let mid = lower + (upper - lower) / 2
+                            if try sizer.charge(values(mid)) < target { lower = mid + 1 } else { upper = mid }
+                        }
+                        // Escaping can create small local discontinuities; the
+                        // finite neighborhood is checked without monotonicity.
+                        for fill in max(0, lower - 16)...min(maximum, lower + 16) {
+                            let selected = values(fill), predicted = try sizer.charge(selected)
+                            if predicted < target && predicted > (below?.0 ?? 0) { below = (predicted, selected) }
+                            if predicted > target && predicted < (above?.0 ?? .max) { above = (predicted, selected) }
+                            guard predicted == target else { continue }
+                            _ = try PhotoPreparationPolicy.contexts(selected)
+                            guard try projectedCharge(fixture.context(selected, advancingPackage: true)) == target else { continue }
+                            let adjacent = values(fill == maximum ? fill - 1 : fill + 1)
+                            guard try projectedCharge(fixture.context(adjacent, advancingPackage: true)) == sizer.charge(adjacent) else { continue }
+                            return selected
+                        }
+                    }
+                }
+            }
+        }
+        let actualBelow = try below.map { try projectedCharge(fixture.context($0.1, advancingPackage: true)) }
+        let actualAbove = try above.map { try projectedCharge(fixture.context($0.1, advancingPackage: true)) }
+        Issue.record("Bounded search exhausted; full projections near target \(target): \(String(describing: actualBelow)), \(String(describing: actualAbove)). Exact boundary remains open.")
+        throw SharedMediaStorageFailure.capacity
+    }
+}
+
 extension SharedMediaNativeReceivingStagingTests {
     @Test func oversizedReceivingSuccessorPreservesTheRealPersistedDraft() async throws {
         let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(count: 2)

@@ -14,6 +14,13 @@ struct SharedMediaNativeReceivingTestFixture {
 
     static func load(count: Int) async throws -> Self {
         let (store, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(count: count)
+        let result = try capture(store, request: request)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        return result
+    }
+
+    static func capture(_ store: SharedMediaNativeAppMetadataTests.Store,
+                        request: SharedMediaNativeAppReceivingRequest) throws -> Self {
         let c = store.context(), packageID = request.package.id
         let inventory = try #require(try c.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
         let member = try SharedMediaNativePairPlanGraph.one(c, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == packageID }))
@@ -28,7 +35,6 @@ struct SharedMediaNativeReceivingTestFixture {
         }
         let descriptor = try SharedMediaNativeReceivingIntent.Prepared(request).descriptorForTransaction(header: request.header)
         #expect(try SharedMediaNativeReceivingIntent.canonicalRequest(descriptor) == SharedMediaNativeReceivingIntent.canonicalRequest(request))
-        #expect(await owner.invalidateAndAwaitForAccountTransition())
         return Self(request: .init(request), states: states, receipts: receipts, auditedMetadata: try #require(budget.metadataByPackage[packageID]))
     }
 
@@ -89,15 +95,15 @@ struct SharedMediaNativeReceivingTestFixture {
 
     func context(_ text: String) throws -> Self { try context([.init(freeText: text)]) }
 
-    func context(_ contexts: [ObservationContext]) throws -> Self {
+    func context(_ contexts: [ObservationContext], advancingPackage: Bool = false) throws -> Self {
         let cohort = try SharedMediaNativeFrozenCohort.decode(request.freeze.commit.cohort.bytes)
         let support = try SharedMediaNativeFrozenSupporting(contexts: contexts, presentation: []).encoded()
         return try replacing(cohort: Self.copy(cohort, changes: ["supportingBytes": support.base64EncodedString()]),
-            allocated: request.package.allocated, receipts: receipts)
+            allocated: request.package.allocated, receipts: receipts, advancingPackage: advancingPackage)
     }
 
     private func replacing(cohort: SharedMediaNativeFrozenCohort, allocated: Int64,
-                           receipts: [(SharedMediaAcquisitionIntent, SharedMediaAcquisitionResult)]) throws -> Self {
+                           receipts: [(SharedMediaAcquisitionIntent, SharedMediaAcquisitionResult)], advancingPackage: Bool = false) throws -> Self {
         guard case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(request.package.envelope) else {
             throw SharedMediaStorageFailure.conflict
         }
@@ -105,18 +111,86 @@ struct SharedMediaNativeReceivingTestFixture {
         let nextEnvelope = SharedMediaNativeDraftEnvelope.V2(version: 2, contexts: support.contexts, presentation: support.presentation,
             sequence: envelope.sequence, attempt: nil, intents: cohort.entries.map(\.intent), frozen: nil)
         let bytes = try nextEnvelope.encoded()
-        let package = try Self.copy(request.package, changes: ["envelope": bytes.base64EncodedString(), "allocated": allocated])
+        let package = try Self.copy(request.package, changes: ["envelope": bytes.base64EncodedString(), "allocated": allocated,
+            "revision": request.package.revision + (advancingPackage ? 1 : 0)])
         let p = try Self.copy(SharedMediaNativeReceivingIntent.Prepared(request), changes: [
             "package": Self.object(package), "cohort": Self.object(SharedMediaNativePreparationBlob(bytes: cohort.encoded()))])
         let states = try self.states.map { state in
             let intent = try state.intent()
             let entry = try #require(try cohort.entries.first { try SharedMediaNativeDerivativeIntent.decode($0.intent.bytes).pairID == intent.pairID })
-            let plan = try Self.copy(state.plan, changes: ["intent": Self.object(entry.intent), "envelope": bytes.base64EncodedString()])
+            let plan = try Self.copy(state.plan, changes: ["intent": Self.object(entry.intent), "envelope": bytes.base64EncodedString(),
+                "packageRevision": package.revision])
             let work = try state.work.map { item in
                 try Self.copy(item, changes: ["finalIdentity": item.id == intent.ai.id ? entry.aiDescriptor.file : entry.displayDescriptor.file])
             }
             return try Self.copy(state, changes: ["plan": Self.object(plan), "allocatedBytes": allocated, "work": work.map(Self.object)])
         }
         return try Self(request: p.descriptorForTransaction(header: request.header), states: states, receipts: receipts, auditedMetadata: 0)
+    }
+
+    /// Search aid only: compare actual canonical encoded components, with the
+    /// context-independent residual measured from the production projection.
+    /// No candidate is admitted using this estimate. The selected and adjacent
+    /// values must match the full production projection before the owner saves.
+    @MainActor
+    struct BoundarySizer {
+        let fixture: SharedMediaNativeReceivingTestFixture
+        let envelope: SharedMediaNativeDraftEnvelope.V2
+        let cohort: SharedMediaNativeFrozenCohort
+        let currentResidual: Int64
+        let successorResidual: Int64
+
+        init(_ fixture: SharedMediaNativeReceivingTestFixture) throws {
+            guard case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(fixture.request.package.envelope) else {
+                throw SharedMediaStorageFailure.conflict
+            }
+            let cohort = try SharedMediaNativeFrozenCohort.decode(fixture.request.freeze.commit.cohort.bytes)
+            let contexts = [ObservationContext(freeText: "")]
+            let actual = try fixture.context(contexts, advancingPackage: true)
+            let prepared = try SharedMediaNativeReceivingIntent.Prepared(actual.request)
+            let variable = try Self.variable(fixture, envelope: envelope, cohort: cohort, contexts: contexts)
+            self.fixture = fixture; self.envelope = envelope; self.cohort = cohort
+            currentResidual = try actual.metadata() + Int64(prepared.encoded().count) - variable.current
+            successorResidual = try SharedMediaNativeReceivingReservation.successor(prepared,
+                header: SharedMediaNativeReceivingTestFixture.maximumHeader(prepared), currentMetadata: actual.metadata(),
+                pairStates: actual.states) - variable.successor
+        }
+
+        func charge(_ contexts: [ObservationContext]) throws -> Int64 {
+            let value = try Self.variable(fixture, envelope: envelope, cohort: cohort, contexts: contexts)
+            return max(currentResidual + value.current, successorResidual + value.successor)
+        }
+
+        private static func variable(_ fixture: SharedMediaNativeReceivingTestFixture,
+                                     envelope: SharedMediaNativeDraftEnvelope.V2,
+                                     cohort: SharedMediaNativeFrozenCohort,
+                                     contexts: [ObservationContext]) throws -> (current: Int64, successor: Int64) {
+            let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+            let support = try encoder.encode(SharedMediaNativeFrozenSupporting(contexts: contexts, presentation: []))
+            let nextCohort = SharedMediaNativeFrozenCohort(format: cohort.format, packageID: cohort.packageID,
+                ownerID: cohort.ownerID, draftGeneration: cohort.draftGeneration, supportingBytes: support, entries: cohort.entries)
+            let cohortBytes = try encoder.encode(nextCohort)
+            let ready = try encoder.encode(SharedMediaNativeDraftEnvelope.V2(version: 2, contexts: contexts,
+                presentation: [], sequence: envelope.sequence, attempt: nil, intents: cohort.entries.map(\.intent), frozen: nil))
+            let old = fixture.request.freeze.commit
+            let commit = SharedMediaNativeFreezeCommit(format: .receipt, operationID: old.operationID,
+                inventoryID: old.inventoryID, inventoryGeneration: old.inventoryGeneration,
+                beforeInventoryRevision: .max - 1, beforePackageRevision: fixture.request.package.revision + 1,
+                membershipRevision: old.membershipRevision, previousEnvelopeSHA256: SharedMediaAcquisitionEncoding.digest(ready),
+                membershipSHA256: old.membershipSHA256, cohort: .init(bytes: cohortBytes))
+            let commitBytes = try encoder.encode(commit)
+            let frozen = try encoder.encode(SharedMediaNativeDraftEnvelope.V2(version: 2, contexts: contexts,
+                presentation: [], sequence: envelope.sequence, attempt: nil, intents: cohort.entries.map(\.intent),
+                frozen: .init(bytes: commitBytes)))
+            // Encode Data with the same encoder; do not approximate base64 or
+            // slash escaping. Static JSON field/scalar bytes are in residuals.
+            let readyField = Int64(try encoder.encode(ready).count)
+            let cohortField = Int64(try encoder.encode(cohortBytes).count)
+            let frozenField = Int64(try encoder.encode(frozen).count)
+            let commitField = Int64(try encoder.encode(commitBytes).count)
+            let pairs = Int64(fixture.states.count)
+            return (Int64(ready.count) + (pairs + 1) * readyField + cohortField,
+                Int64(frozen.count) + pairs * frozenField + readyField + cohortField + commitField)
+        }
     }
 }

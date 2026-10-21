@@ -1,3 +1,40 @@
+## October 20 — persisted receiving admission boundary verified
+
+The real owner now has persisted-fixture coverage at the unchanged
+1,048,576-byte metadata cap and at the nearest discovered over-limit fixture,
+1,048,578 bytes. Exact-cap staging and saved-slot recovery pass. The over-limit
+draft is saved through the metadata owner, then staging rejects it without
+changing its facts, inventory revision or intent rows. Neither case creates a
+receiving queue, consumer, job or event. Originals and submitted supporting
+content stay intact.
+
+Candidate04 / execution05 passed **one parameterized method with both cases**,
+with zero failures, skips or XCResult runtime warnings. All **2,895 source and
+project hashes** remained unchanged. Evidence is retained under
+`.artifacts/native-app-capture-handoff-20261020/`; XCResult
+`fc5373174b834e14b12a0098722a41a2`. Exact independent and IC-1 concurrence
+preceded execution. This is focused shared-checkout evidence; unchanged broader
+staging and codec results are reused, not represented as a new full-target,
+isolated, device, hosted or integrated acceptance run.
+
+The acceptance method separately retains the production numeric guard's exact
+one-byte-over unit proof in
+`fullTwoPhotoReservationCountsEveryEnvelopeCopyAndRetainsOrder`, from
+codec-focused02 / XCResult `7bb0f938407b465b9099f05dbb66a933`. The bounded
+canonical search did not represent a persisted cap-plus-one draft; no global
+unreachability or persisted-plus-one success is claimed. Independent and IC-1
+review approved this method refinement. Failed searches, the corrected compile
+failure and simulator/compiler diagnostics remain retained. This closes the
+staging resource-admission behavior gate under that method without changing
+runtime code or numeric limits.
+
+Receiving/abandonment, typed consumer lifecycle, Capture handoff and integrated
+acceptance remain open. The next reviewed design uses fresh-only P2/R2 receipts
+with digest-bound intent provenance and matching consumer/queue/job/event
+markers; V1 bytes retain their original meaning. This design is not implemented
+or qualified yet. Activation stays disabled, PR116 frozen, deployment held and
+AWS unapproved; external-operation restrictions remain.
+
 ## October 20 — prepared-intent staging locally verified
 
 The inactive staging owner discovers a saved package slot before generating
