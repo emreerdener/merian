@@ -1,3 +1,52 @@
+## October 20 — durable receiving codec and reservation locally verified
+
+The inactive receiving values preserve exact timestamp bits, ordered media,
+submitted supporting content and the complete saved transaction header. Exact
+reconstruction retains nativeFreezeV3 semantics and returns only a descriptive
+transaction value. No receiving writer accepts that type; its request
+constructor remains file-local. The codec grants no save or execution
+capability.
+
+Reservation replaces both the draft envelope and every ready pair's future
+cleanup projection with their complete frozen successor sizes. Prepared,
+received, consumer and both job/event metadata copies count within the existing
+aggregate metadata allowance. The input is audited pre-intent metadata; the
+charge is the larger of current and maximum successor totals, reserving only the
+difference. Existing numeric limits remain unchanged.
+
+Candidate04 has **27/27 focused methods across four suites**, combining the
+corrected two-suite rerun's 10/10 with 17 unchanged passing methods from the
+initial run. Both retained all **2,886** source/project hashes. The final rerun
+has no failures, skips or XCResult runtime warnings; compiler/lint and simulator
+diagnostics remain retained. Exact reconstruction, tampering, complete reversed
+cohorts, audited graph accounting, maximum two-photo wire sizes and escaped
+context are covered. This is focused shared-checkout validation, not
+full-target, isolated, device, hosted or integrated acceptance.
+
+The synthetic maximum-photo metadata successor is **477,864 bytes** with one
+8,192-quote context field. Four 8,000-quote fields reach **1,328,184 bytes**,
+exceeding the unchanged **1,048,576-byte** aggregate cap: reservation rejects
+this valid draft without trimming its context or altering media. These are
+serialized-size fixtures, not physical maximum-file qualification. The exact-cap
+and one-byte-over tests are arithmetic-only; a persisted graph at the cap and
+actual staging/recovery accounting remain V65 integration gates.
+
+Failed evidence is retained. Initial focused01 passed 26/27; its sole failure
+was a stale source assertion predating the reviewed saved-original-retirement
+exception. Candidate04 corrects the assertion while retaining qualification,
+nonready, lease, cleanup and default-false checks. Runtime code is unchanged
+between runs. The prior lifecycle checkpoint's reused boundary-suite evidence is
+superseded by this fresh rerun. An earlier unrun review hold also closed by
+restoring the sealed request constructor and returning a descriptive codec
+value.
+
+Evidence: `.artifacts/native-app-capture-handoff-20261020/`; final XCResult
+`7bb0f938407b465b9099f05dbb66a933`, reused initial XCResult
+`0dc60b84a5ea43b788f310b0f4667431`. V65 persistence, typed staging/receiving and
+Capture handoff remain next under reviewed design03. Consumer lifecycle, full
+affected gates, native journeys and integrated acceptance remain open before
+version deletion/export and redesign. Activation is disabled, PR116 frozen,
+deployment held and AWS unapproved; external-operation restrictions remain.
 ## October 20 — app original sharing and retirement locally verified
 
 Consumer-less app drafts can now share a ready original without copying its

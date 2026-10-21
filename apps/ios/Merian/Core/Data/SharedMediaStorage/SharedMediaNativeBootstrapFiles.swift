@@ -20,7 +20,7 @@ final class SharedMediaNativeLockedRoot: @unchecked Sendable {
     }
 }
 
-struct SharedMediaNativeAppProfile: Equatable, Sendable {
+struct SharedMediaNativeAppProfile: Codable, Equatable, Sendable {
     static let mode = "nativeAppContainerV2"
     static let phase = "readyNativeAppContainerV2"
     let ownerID: UUID, inventoryID: UUID, generation: UUID

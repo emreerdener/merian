@@ -27,7 +27,7 @@ enum SharedMediaNativeScopedFormat: Sendable {
 /// verification remain mandatory in the sealed repository opener.
 @MainActor
 enum SharedMediaNativeAppEligibility {
-    struct Header: Equatable, Sendable {
+    struct Header: Codable, Equatable, Sendable {
         let inventory: SharedMediaStorageSnapshot
         let bootstrapID: UUID
         let bootstrapGeneration: UUID

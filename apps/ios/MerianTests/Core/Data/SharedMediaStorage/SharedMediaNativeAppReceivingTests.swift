@@ -193,7 +193,7 @@ struct SharedMediaNativeAppReceivingTests {
         try unchanged(h, r)
     }
 
-    private func fixture(count: Int = 1, receiving: Bool = false) async throws -> (Store, SharedMediaNativeOriginalOwner, SharedMediaNativeAppReceivingRequest) {
+    func fixture(count: Int = 1, receiving: Bool = false) async throws -> (Store, SharedMediaNativeOriginalOwner, SharedMediaNativeAppReceivingRequest) {
         let h = try Store(receiving: receiving)
         let owner = try await (receiving ? h.openWithReceivingConsumer().0 : h.open())
         let metadata = try await owner.prepareAppMetadata(packageID: h.packageID, draftGeneration: h.draft, contexts: [.init(freeText: "Exact submitted supporting description")])

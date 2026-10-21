@@ -41,7 +41,7 @@ struct SharedMediaStorageObservation: Sendable {
     let physicalIdentity: String
 }
 
-struct SharedMediaStorageSnapshot: Equatable, Sendable {
+struct SharedMediaStorageSnapshot: Codable, Equatable, Sendable {
     let generation: UUID
     let revision: Int64
     let phase: String

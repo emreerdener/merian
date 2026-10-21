@@ -57,8 +57,12 @@ struct SharedMediaNativeOwnerBoundaryTests {
 
     @Test func qualificationIdleRejectionKeepsItsExistingErrorContract() throws {
         let mutation = try source("SharedMediaNativeAcquisitionMutation.swift")
-        #expect(mutation.contains("if isApp { try SharedMediaNativePreparationGraph.requireIdleFiles(context, scopedInventory: inventory) }"))
+        #expect(mutation.contains("if isApp { try SharedMediaNativePreparationGraph.requireIdleFiles(context, scopedInventory: inventory, allowSavedOriginalRetirements: true) }"))
+        #expect(mutation.contains("guard try context.fetchCount(FetchDescriptor<PhotoPreparationLease>()) == 0,"))
+        #expect(mutation.contains("$0.cleanupStateRaw != \"ready\""))
         #expect(mutation.contains("throw PhotoPreparationFailure.cleanupPending"))
+        let preparation = try source("SharedMediaNativePreparationGraph.swift")
+        #expect(preparation.contains("allowSavedOriginalRetirements: Bool = false"))
     }
 
     @Test func receivingRequiresTheSealedCoordinatorGrant() throws {
@@ -77,6 +81,18 @@ struct SharedMediaNativeOwnerBoundaryTests {
         for file in files where !file.relativePath.hasSuffix("SharedMediaNativeOriginalOwner+AppReceiving.swift") {
             #expect(!file.contents.contains("SharedMediaNativeReceivingLockGrant()"), "Receiving lock grant escaped: \(file.relativePath)")
         }
+    }
+
+    @Test func durableReceivingCodecCannotConstructWriterRequests() throws {
+        let operation = try source("SharedMediaNativeAppReceivingOperations.swift")
+        let codec = try source("SharedMediaNativeReceivingIntent.swift")
+        #expect(operation.contains("fileprivate init(profile: SharedMediaNativeAppProfile"))
+        #expect(codec.contains("func descriptorForTransaction(header: SharedMediaNativeAppEligibility.Header) throws -> Transaction"))
+        #expect(codec.contains("func reconstruct(_ prepared: Prepared) throws -> Transaction"))
+        #expect(!codec.contains("SharedMediaNativeAppReceivingRequest(profile:"))
+        #expect(!codec.contains("receiveAppPhotos("))
+        let wrapper = try source("SharedMediaNativeOriginalOwner+AppReceiving.swift")
+        #expect(!wrapper.contains("SharedMediaNativeReceivingIntent.Transaction"))
     }
 
     @Test func appPendingCleanupRequiresSealedScopeAndFinalAbsence() throws {

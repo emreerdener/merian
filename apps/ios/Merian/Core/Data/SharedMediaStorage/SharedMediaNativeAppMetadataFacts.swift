@@ -4,7 +4,7 @@ import SwiftData
 /// Bounded pending facts captured only after the operation's complete audit.
 /// Values never authorize mutation. Retained consumers are not enumerated here.
 struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
-    struct Package: Equatable, Sendable {
+    struct Package: Codable, Equatable, Sendable {
         let id: UUID, ownerID: UUID, draftID: UUID, generation: UUID
         let contract: String, tier: String, phase: String
         let revision: Int64, allocated: Int64
@@ -25,7 +25,7 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
             .init(self, envelope: bytes, revision: try SharedMediaStoragePolicy.add(revision, 1), phase: phase ?? self.phase, allocated: allocated ?? self.allocated)
         }
     }
-    struct Member: Equatable, Sendable {
+    struct Member: Codable, Equatable, Sendable {
         let id: UUID, inventoryID: UUID, inventoryGeneration: UUID, ownerID: UUID, draftGeneration: UUID
         let revision: Int64
         let bytes: Data
