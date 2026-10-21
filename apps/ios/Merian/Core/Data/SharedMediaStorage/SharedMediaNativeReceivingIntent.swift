@@ -6,6 +6,8 @@ enum SharedMediaNativeReceivingIntent {
     enum Format: String, Codable, Sendable {
         case prepared = "nativeReceivingIntentV1"
         case received = "nativeReceivingResultV1"
+        case preparedV2 = "nativeReceivingIntentV2"
+        case receivedV2 = "nativeReceivingResultV2"
     }
     struct Prepared: Codable, Sendable {
         let format: Format
@@ -17,6 +19,7 @@ enum SharedMediaNativeReceivingIntent {
         let operationID: UUID, queueID: UUID, observationID: UUID
         let bindingID: UUID, generation: UUID, eventID: UUID
         let timestampBits: UInt64
+        let intentRevision: Int64?
 
         init(_ request: SharedMediaNativeAppReceivingRequest) throws { try self.init(Transaction(request)) }
         init(_ request: Transaction) throws {
@@ -27,15 +30,19 @@ enum SharedMediaNativeReceivingIntent {
             try self.init(profile: request.profile, package: request.package, member: request.member,
                 cohort: request.freeze.commit.cohort, operationID: request.freeze.commit.operationID,
                 queueID: queue, observationID: observation, bindingID: request.cohort.bindingID,
-                generation: generation, eventID: event, timestamp: request.timestamp)
+                generation: generation, eventID: event, timestamp: request.timestamp,
+                intentRevision: request.cohort.intentBinding?.preparedRevision)
             let rebuilt = try descriptorForTransaction(header: request.header)
             guard try canonicalRequest(rebuilt) == canonicalRequest(request) else { throw SharedMediaStorageFailure.conflict }
         }
         init(profile: SharedMediaNativeAppProfile, package: SharedMediaNativeAppMetadataFacts.Package,
              member: SharedMediaNativeAppMetadataFacts.Member, cohort: SharedMediaNativePreparationBlob,
              operationID: UUID, queueID: UUID, observationID: UUID, bindingID: UUID, generation: UUID,
-             eventID: UUID, timestamp: Date) throws {
-            format = .prepared; version = 1; self.profile = profile; self.package = package; self.member = member
+             eventID: UUID, timestamp: Date, intentRevision: Int64? = nil) throws {
+            format = intentRevision == nil ? .prepared : .preparedV2
+            version = intentRevision == nil ? 1 : 2
+            self.intentRevision = intentRevision
+            self.profile = profile; self.package = package; self.member = member
             self.cohort = cohort; self.operationID = operationID; self.queueID = queueID
             self.observationID = observationID; self.bindingID = bindingID; self.generation = generation
             self.eventID = eventID; timestampBits = timestamp.timeIntervalSinceReferenceDate.bitPattern
@@ -63,13 +70,23 @@ enum SharedMediaNativeReceivingIntent {
                 membershipSHA256: SharedMediaAcquisitionEncoding.digest(member.bytes), cohort: cohort)
             let freeze = SharedMediaNativeFreezeRequest(commit: commit, previousEnvelope: package.envelope, membership: member.bytes)
             try freeze.validate()
+            let binding = try intentRevision.map {
+                SharedMediaNativeConsumerCohort.IntentBinding(packageID: package.id, operationID: operationID,
+                    preparedRevision: $0, preparedSHA256: SharedMediaAcquisitionEncoding.digest(try encoded()))
+            }
             return try .init(profile: profile, header: header, package: package, member: member, freeze: freeze,
                 queueID: queueID, observationID: observationID, bindingID: bindingID, generation: generation,
-                eventID: eventID, timestamp: Date(timeIntervalSinceReferenceDate: Double(bitPattern: timestampBits)))
+                eventID: eventID, timestamp: Date(timeIntervalSinceReferenceDate: Double(bitPattern: timestampBits)),
+                intentBinding: binding)
         }
         private func validate() throws {
             let interval = Double(bitPattern: timestampBits)
-            guard format == .prepared, version == 1, interval.isFinite,
+            switch (format, version, intentRevision) {
+            case (.prepared, 1, nil): break
+            case (.preparedV2, 2, .some(let revision)) where revision >= 0 && revision < Int64.max: break
+            default: throw SharedMediaStorageFailure.conflict
+            }
+            guard interval.isFinite,
                   Date(timeIntervalSinceReferenceDate: interval).timeIntervalSinceReferenceDate.bitPattern == timestampBits,
                   package.draftID == package.id, package.id == member.id, package.ownerID == profile.ownerID, member.ownerID == profile.ownerID,
                   package.generation == member.draftGeneration, member.inventoryID == profile.inventoryID,
@@ -107,7 +124,8 @@ enum SharedMediaNativeReceivingIntent {
             try self.init(prepared: prepared, request: Transaction(request))
         }
         init(prepared: Prepared, request: Transaction) throws {
-            format = .received; version = 1; preHeader = request.header
+            format = prepared.version == 1 ? .received : .receivedV2
+            version = prepared.version; preHeader = request.header
             preparedSHA256 = try SharedMediaAcquisitionEncoding.digest(prepared.encoded())
             let reconstructed = try prepared.descriptorForTransaction(header: preHeader)
             let bytes = try canonicalRequest(reconstructed)
@@ -115,7 +133,8 @@ enum SharedMediaNativeReceivingIntent {
             requestSHA256 = SharedMediaAcquisitionEncoding.digest(bytes)
         }
         func reconstruct(_ prepared: Prepared) throws -> Transaction {
-            guard format == .received, version == 1, SharedMediaAcquisitionEncoding.isHash(preparedSHA256),
+            guard format == (prepared.version == 1 ? .received : .receivedV2),
+                  version == prepared.version, SharedMediaAcquisitionEncoding.isHash(preparedSHA256),
                   SharedMediaAcquisitionEncoding.isHash(requestSHA256),
                   preparedSHA256 == (try SharedMediaAcquisitionEncoding.digest(prepared.encoded())) else {
                 throw SharedMediaStorageFailure.conflict
@@ -154,14 +173,16 @@ enum SharedMediaNativeReceivingIntent {
         fileprivate init(profile: SharedMediaNativeAppProfile, header: SharedMediaNativeAppEligibility.Header,
                          package: SharedMediaNativeAppMetadataFacts.Package, member: SharedMediaNativeAppMetadataFacts.Member,
                          freeze: SharedMediaNativeFreezeRequest, queueID: UUID, observationID: UUID, bindingID: UUID,
-                         generation: UUID, eventID: UUID, timestamp: Date) throws {
+                         generation: UUID, eventID: UUID, timestamp: Date,
+                         intentBinding: SharedMediaNativeConsumerCohort.IntentBinding?) throws {
             self.profile = profile; self.header = header; self.package = package; self.member = member; self.freeze = freeze
-            cohort = .init(format: .receiving, bindingID: bindingID, originQueueID: queueID.uuidString.lowercased(),
+            cohort = .init(format: intentBinding == nil ? .receiving : .intentReceiving,
+                bindingID: bindingID, originQueueID: queueID.uuidString.lowercased(),
                 observationID: observationID.uuidString.lowercased(), executionKind: "ordinaryV1", inferenceGeneration: generation,
-                freeze: .init(bytes: try freeze.commit.encoded()), membership: member.bytes)
+                freeze: .init(bytes: try freeze.commit.encoded()), membership: member.bytes, intentBinding: intentBinding)
             self.timestamp = timestamp; self.eventID = eventID.uuidString.lowercased()
             let bytes = try SharedMediaNativeDraftEnvelope.bytes([
-                "native_receiving_v1": try cohort.digest(), "inference_generation": generation.uuidString.lowercased(),
+                cohort.metadataKey: try cohort.digest(), "inference_generation": generation.uuidString.lowercased(),
                 "operation_id": freeze.commit.operationID.uuidString.lowercased(), "event_id": self.eventID])
             guard timestamp.timeIntervalSince1970.isFinite, let json = String(data: bytes, encoding: .utf8) else {
                 throw SharedMediaStorageFailure.conflict

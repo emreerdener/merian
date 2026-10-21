@@ -30,7 +30,8 @@ struct SharedMediaLegacyQueueAccessTests {
         #expect(SharedMediaLegacyQueueAccess.permitsFresh(c.container, scanID: id))
     }
 
-    @Test func durabilityBridgeRequiresQueueAndRefusesNativeRetryMutations() throws {
+    @Test(arguments: ["native_receiving_v1", "native_receiving_v2"])
+    func durabilityBridgeRequiresQueueAndRefusesNativeRetryMutations(_ key: String) throws {
         let c = try context(), id = UUID().uuidString.lowercased()
         let manager = OfflineQueueManager.shared, previous = manager.modelContext
         manager.modelContext = c
@@ -40,7 +41,7 @@ struct SharedMediaLegacyQueueAccessTests {
         let row = OfflineQueuedScan(id: id)
         c.insert(row); try c.save()
         let job = try #require(manager.ensureScanIngestionJob(scanId: id))
-        let marker = "{\"native_receiving_v1\":null}"
+        let marker = "{\"\(key)\":null}"
         job.metadataJSON = marker; try c.save()
         #expect(manager.ensureScanIngestionJob(scanId: id) == nil)
         #expect(manager.updateQueuedScanForRetry(scanId: id, code: "fixture", message: nil,
@@ -58,7 +59,9 @@ struct SharedMediaLegacyQueueAccessTests {
         #expect(try c.fetchCount(FetchDescriptor<OfflineQueueEvent>()) == 0)
     }
 
-    @Test(arguments: ["{\"native_receiving_v1\":null}", "{\"native_receiving_v1\":{}}", "broken", "[]"])
+    @Test(arguments: ["{\"native_receiving_v1\":null}", "{\"native_receiving_v1\":{}}",
+                     "{\"native_receiving_v2\":null}", "{\"native_receiving_v2\":{}}",
+                     "{\"native_receiving_v1\":null,\"native_receiving_v2\":null}", "broken", "[]"])
     func damagedOrReservedJobCannotResetOrDowngrade(_ metadata: String) throws {
         let c = try context(), id = UUID().uuidString.lowercased()
         c.insert(OfflineQueuedScan(id: id))
@@ -76,7 +79,7 @@ struct SharedMediaLegacyQueueAccessTests {
         #expect(!c.hasChanges)
     }
 
-    @Test(arguments: ["sharedDirectV1", "sharedDirectNativeReceivingV1", "unknown"])
+    @Test(arguments: ["sharedDirectV1", "sharedDirectNativeReceivingV1", "sharedDirectNativeReceivingV2", "unknown"])
     func queueAuthorityBlocksLegacyHelpers(_ authority: String) throws {
         let c = try context(), id = UUID().uuidString.lowercased()
         let queue = OfflineQueuedScan(id: id)

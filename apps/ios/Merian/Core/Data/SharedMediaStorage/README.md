@@ -1,3 +1,31 @@
+## October 21 — versioned receiving values and legacy exclusion verified
+
+Prepared V2 and Received V2 now preserve a digest-bound package/operation/slot
+revision, distinct consumer/queue/job/event markers and exact saved-header
+reconstruction. V1 bytes and meaning remain unchanged. These are descriptive
+values only: current staging still writes V1, and P2 cannot enter legacy
+consumer or prepared-intent graphs, ordinary queue mutation or execution. Review
+caught and corrected a prepared-row decode gap before execution; a persisted P2
+payload in a V1 row now fails audit, discovery and staging recovery without
+changing draft, inventory or intent facts.
+
+Exact candidate02 / execution02 passed **56 methods across seven suites, 115
+invocations**, with zero failures, skips or XCResult runtime warnings. All
+**2,895 source/project hashes** stayed unchanged. Evidence is retained under
+`.artifacts/native-app-capture-handoff-20261020/`, XCResult
+`5fb54cfcae964dde94371d4eed6f49e4`. Independent and IC-1 concurrence preceded
+the managed run. This is scoped shared-checkout evidence, not new full-target,
+isolated, device, hosted or integrated acceptance. Simulator diagnostics remain
+retained. Numeric storage limits are unchanged; the codebase map now correctly
+names the already active V65 schema.
+
+P2 staging/receiving, explicit abandonment/restaging, typed consumer lifecycle,
+Capture handoff and integrated acceptance remain open. The next abandonment
+design has independent and IC-1 concurrence: exact terminal proofs, full-slot
+and target CAS, and every fresh restage using P2 even after V1 abandonment. It
+is not implemented or qualified yet. Activation stays disabled, PR116 frozen,
+deployment held and AWS unapproved. No external-operation authority changes.
+
 ## October 20 — persisted receiving admission boundary verified
 
 The real owner now has persisted-fixture coverage at the unchanged

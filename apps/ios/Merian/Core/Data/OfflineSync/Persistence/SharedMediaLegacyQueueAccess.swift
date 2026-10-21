@@ -5,13 +5,17 @@ import SwiftData
 /// Call in the transaction context for admission, and in a fresh context after awaits.
 enum SharedMediaLegacyQueueAccess {
     static let receivingKey = "native_receiving_v1"
+    static let intentReceivingKey = "native_receiving_v2"
+    private static func hasReceivingMarker(_ object: [String: Any]) -> Bool {
+        object.keys.contains(receivingKey) || object.keys.contains(intentReceivingKey)
+    }
 
     static func permitsMetadata(_ json: String?) -> Bool {
         guard let json else { return true }
         guard let data = json.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return false }
-        return !object.keys.contains(receivingKey)
+        return !hasReceivingMarker(object)
     }
 
     static func permits(_ context: ModelContext, scanID: String,
@@ -99,7 +103,7 @@ enum SharedMediaLegacyQueueAccess {
         for json in [metadata, existing?.metadataJSON].compactMap({ $0 }) {
             if let data = json.data(using: .utf8),
                let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               object.keys.contains(receivingKey) { throw SharedMediaStorageFailure.conflict }
+               hasReceivingMarker(object) { throw SharedMediaStorageFailure.conflict }
         }
         let prefix = "scan-ingestion:"
         guard kind == .scanIngestion || existing?.kind == .scanIngestion || id.hasPrefix(prefix)

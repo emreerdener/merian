@@ -172,20 +172,23 @@ single-purpose micro-files without changing their declarations or call sites.
 The active schema is:
 
 ```swift
-typealias CurrentSchema = MerianSchemaV57
+typealias CurrentSchema = MerianSchemaV65
 ```
 
-`MerianSchemaV57` is declared in
-`apps/ios/Merian/Models/Schema/SchemaV57.swift`. `SchemaVersions.swift` retains
+`MerianSchemaV65` is declared in
+`apps/ios/Merian/Models/Schema/SchemaV65.swift`. `SchemaVersions.swift` retains
 the frozen V51 owner and every migration plan. The two checksum-distinct V50
 graphs are frozen in `Models/Schema/SchemaV50Snapshots.swift` and
 `Models/Schema/SchemaV50ReleasedActiveSnapshots.swift`; checksum selection
 routes each to its own immutable V50→V51 source bridge. V51 is independently
 frozen in `SchemaV51Snapshots.swift`; V52 is frozen in
 `SchemaV52ScanSnapshots.swift` and `SchemaV52QueueSnapshots.swift`. V53, V54,
-V55 and V56 each retain separate frozen scan/queue graphs. All older lanes
-append their forward stages through V57; the immediate V56 source uses only
-V56→V57. `PrimaryIdentification` owns the immutable original label and rank.
+V55 and V56 each retain separate frozen scan/queue graphs. Later source graphs
+through V64 are frozen too; V64 additionally owns its acquisition snapshot. All
+applicable older lanes append their forward stages through V65; the immediate
+V64 source uses only V64→V65. V65 adds the dormant package-keyed
+receiving-intent slot without fabricating operations or activating Capture.
+`PrimaryIdentification` owns the immutable original label and rank.
 `PrimaryIdentificationPersistence` validates snapshot/provenance pairing and
 conflicts before live, queued or history writes. V47 through V50 remain
 available for fixtures and source-specific startup recovery.
@@ -2441,7 +2444,7 @@ separate this owner from the unfinished end-to-end feature.
 Native `Models/ActiveSchema/LocalAnalysisRecord.swift` owns the dormant private
 result entity. `LocalScanRecord` owns its one-way cascade relationship and the
 initialized-selection marker that preserves legacy corrections. V54 snapshots
-through V56 snapshots are frozen; `SchemaV57.swift`, the ordered migration
+through V64 snapshots are frozen; `SchemaV65.swift`, the ordered migration
 registry and Store Recovery own the current upgrade. V56 allows nil completion
 only for explicit V3 saved imports. The server enrollment RPC copies the
 surviving identification and review state. `ObservationHistoryEnrollmentService`

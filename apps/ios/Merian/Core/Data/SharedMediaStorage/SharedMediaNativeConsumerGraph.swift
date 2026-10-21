@@ -28,7 +28,10 @@ enum SharedMediaNativeConsumerGraph {
         let value = try SharedMediaNativeConsumerCohort.decode(consumer.cohortData)
         let commit = try SharedMediaNativeFreezeCommit.decode(value.freeze.bytes)
         let cohort = try SharedMediaNativeFrozenCohort.decode(commit.cohort.bytes)
-        guard consumer.id == value.bindingID, consumer.cursorKey == value.bindingID.uuidString.lowercased(),
+        // P2 decoding is not P2 admission. Its intent-aware graph owner is
+        // separately qualified; never accept it through this legacy branch.
+        guard value.format == .receiving,
+              consumer.id == value.bindingID, consumer.cursorKey == value.bindingID.uuidString.lowercased(),
               consumer.originQueueID == value.originQueueID, consumer.observationID == value.observationID,
               consumer.executionKindRaw == value.executionKind, consumer.inferenceGeneration == value.inferenceGeneration,
               consumer.contractVersion == contract, consumer.digestVersion == 1,

@@ -55,6 +55,7 @@ enum SharedMediaNativeReceivingIntentGraph {
                   row.ownerID == profile.ownerID, let bytes = row.preparedData,
                   row.preparedSHA256 == SharedMediaAcquisitionEncoding.digest(bytes) else { throw SharedMediaStorageFailure.closed }
             let prepared = try SharedMediaNativeReceivingIntent.Prepared.decode(bytes)
+            try requireLegacyPrepared(prepared)
             guard prepared.profile == profile, prepared.package.id == row.id,
                   prepared.package.generation == row.draftGeneration, prepared.operationID == row.operationID else {
                 throw SharedMediaStorageFailure.conflict
@@ -72,6 +73,7 @@ enum SharedMediaNativeReceivingIntentGraph {
 
     static func cohort(_ prepared: SharedMediaNativeReceivingIntent.Prepared, context: ModelContext,
                        inventory: SharedMediaInventoryRecord) throws -> [SharedMediaNativePairFileState] {
+        try requireLegacyPrepared(prepared)
         _ = try prepared.encoded()
         let id = prepared.package.id
         let package = try SharedMediaNativePairPlanGraph.one(context,
@@ -115,5 +117,12 @@ enum SharedMediaNativeReceivingIntentGraph {
             throw SharedMediaStorageFailure.conflict
         }
         return states
+    }
+
+    /// Codec support does not admit a new format into the existing owner graph.
+    private static func requireLegacyPrepared(_ prepared: SharedMediaNativeReceivingIntent.Prepared) throws {
+        guard prepared.format == .prepared, prepared.version == 1, prepared.intentRevision == nil else {
+            throw SharedMediaStorageFailure.closed
+        }
     }
 }

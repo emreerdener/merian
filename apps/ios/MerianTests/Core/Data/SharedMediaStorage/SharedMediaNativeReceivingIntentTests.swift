@@ -149,3 +149,180 @@ struct SharedMediaNativeReceivingIntentTests {
         #expect(throws: (any Error).self) { _ = try Budget.maximum(p, currentMetadata: atCap + 1, pairStates: states) }
     }
 }
+
+@Suite("Versioned native receiving values without execution authority", .serialized)
+@MainActor
+struct SharedMediaNativeReceivingVersionTests {
+    typealias Intent = SharedMediaNativeReceivingIntent
+    typealias Fixture = SharedMediaNativeReceivingTestFixture
+
+    @Test func newBindingRoundTripsWithoutReinterpretingV1() async throws {
+        let f = try await Fixture.load(count: 1), old = try Intent.Prepared(f.request)
+        let oldBytes = try old.encoded(), oldRequest = try old.descriptorForTransaction(header: f.request.header)
+        let oldResult = try Intent.Received(prepared: old, request: oldRequest)
+        #expect(try Fixture.object(old)["intentRevision"] == nil)
+        #expect(try Fixture.object(oldRequest.cohort)["intentBinding"] == nil)
+        #expect(try Set(Fixture.object(old).keys) == Set([
+            "format", "version", "profile", "package", "member", "cohort", "operationID",
+            "queueID", "observationID", "bindingID", "generation", "eventID", "timestampBits"
+        ]))
+        #expect(try Set(Fixture.object(oldRequest.cohort).keys) == Set([
+            "format", "bindingID", "originQueueID", "observationID", "executionKind",
+            "inferenceGeneration", "freeze", "membership"
+        ]))
+        #expect(old.format == .prepared && oldResult.format == .received)
+        #expect(try Intent.canonicalRequest(oldRequest) == Intent.canonicalRequest(f.request))
+
+        let fresh = try prepared(old, revision: 2), bytes = try fresh.encoded()
+        let decoded = try Intent.Prepared.decode(bytes)
+        let request = try decoded.descriptorForTransaction(header: f.request.header)
+        let binding = try #require(request.cohort.intentBinding)
+        #expect(fresh.format == .preparedV2 && fresh.version == 2)
+        #expect(request.cohort.format == .intentReceiving)
+        #expect(request.cohort.queueAuthority == "sharedDirectNativeReceivingV2")
+        #expect(request.cohort.metadataKey == "native_receiving_v2")
+        #expect(binding.packageID == fresh.package.id && binding.operationID == fresh.operationID)
+        #expect(binding.preparedRevision == 2)
+        #expect(binding.preparedSHA256 == SharedMediaAcquisitionEncoding.digest(bytes))
+        #expect(try Intent.Prepared(request).encoded() == bytes)
+        #expect(try request.cohort.digest() != oldRequest.cohort.digest())
+        #expect(!request.metadata.contains("native_receiving_v1"))
+        #expect(!SharedMediaLegacyQueueAccess.permitsMetadata(request.metadata))
+        #expect(throws: SharedMediaStorageFailure.conflict) {
+            _ = try SharedMediaConsumerAuthority.classify(raw: request.cohort.queueAuthority,
+                consumerID: request.cohort.bindingID, record: .queue)
+        }
+        let result = try Intent.Received(prepared: decoded, request: request)
+        #expect(result.format == .receivedV2 && result.version == 2)
+        let saved = try result.encoded(prepared: decoded)
+        let cold = try Intent.Received.decode(saved, prepared: Intent.Prepared.decode(bytes))
+        #expect(try Intent.canonicalRequest(cold.reconstruct(decoded)) == Intent.canonicalRequest(request))
+        let later = try decoded.descriptorForTransaction(header: SharedMediaNativeAppMetadataFacts.successor(f.request.header))
+        #expect(try Intent.canonicalRequest(later) != Intent.canonicalRequest(cold.reconstruct(decoded)))
+        #expect(try old.encoded() == oldBytes)
+        #expect(try Intent.Received.decode(oldResult.encoded(prepared: old), prepared: old).reconstruct(old).cohort == oldRequest.cohort)
+        #expect(throws: (any Error).self) { _ = try Intent.Received.decode(saved, prepared: old) }
+        #expect(throws: (any Error).self) { _ = try Intent.Received(prepared: fresh, request: oldRequest) }
+    }
+
+    @Test func versionRevisionAndBindingSubstitutionsFailClosed() async throws {
+        let f = try await Fixture.load(count: 1), old = try Intent.Prepared(f.request)
+        let fresh = try prepared(old, revision: 0), request = try fresh.descriptorForTransaction(header: f.request.header)
+        let result = try Intent.Received(prepared: fresh, request: request)
+        for changes: [String: Any] in [
+            ["format": "nativeReceivingIntentV1"], ["version": 1], ["intentRevision": NSNull()],
+            ["intentRevision": -1], ["intentRevision": Int64.max]
+        ] {
+            let bad = try Fixture.copy(fresh, changes: changes)
+            #expect(throws: (any Error).self) { _ = try bad.encoded() }
+        }
+        let changed = try prepared(old, revision: 1)
+        #expect(throws: (any Error).self) { _ = try result.reconstruct(changed) }
+        for changes: [String: Any] in [["format": "nativeReceivingResultV1"], ["version": 1]] {
+            let bad = try Fixture.copy(result, changes: changes)
+            #expect(throws: (any Error).self) { _ = try bad.reconstruct(fresh) }
+        }
+        for changes: [String: Any] in [
+            ["format": "nativeReceivingV1"], ["intentBinding": NSNull()]
+        ] {
+            let bad = try Fixture.copy(request.cohort, changes: changes)
+            #expect(throws: (any Error).self) { _ = try bad.encoded() }
+        }
+        let binding = try #require(request.cohort.intentBinding)
+        for changes: [String: Any] in [
+            ["packageID": UUID().uuidString], ["operationID": UUID().uuidString],
+            ["preparedRevision": -1], ["preparedRevision": Int64.max], ["preparedSHA256": "broken"]
+        ] {
+            let badBinding = try Fixture.copy(binding, changes: changes)
+            let bad = try Fixture.copy(request.cohort, changes: ["intentBinding": Fixture.object(badBinding)])
+            #expect(throws: (any Error).self) { _ = try bad.encoded() }
+        }
+        let relabeledOld = try Fixture.copy(f.request.cohort, changes: ["format": "nativeIntentReceivingV2"])
+        #expect(throws: (any Error).self) { _ = try relabeledOld.encoded() }
+    }
+
+    @Test func newCanonicalBytesAreIncludedInTheUnchangedReservation() async throws {
+        let f = try await Fixture.load(count: 2), old = try Intent.Prepared(f.request)
+        let fresh = try prepared(old, revision: 0)
+        let before = try SharedMediaNativeReceivingReservation.maximum(old, currentMetadata: f.metadata(), pairStates: f.states)
+        let after = try SharedMediaNativeReceivingReservation.maximum(fresh, currentMetadata: f.metadata(), pairStates: f.states)
+        #expect(after.current - before.current == Int64(try fresh.encoded().count - old.encoded().count))
+        let header = Fixture.maximumHeader(fresh)
+        let oldRequest = try old.descriptorForTransaction(header: header)
+        let newRequest = try fresh.descriptorForTransaction(header: header)
+        let oldResult = try Intent.Received(prepared: old, request: oldRequest)
+        let newResult = try Intent.Received(prepared: fresh, request: newRequest)
+        let delta = try Int64(fresh.encoded().count - old.encoded().count)
+            + Int64(newResult.encoded(prepared: fresh).count - oldResult.encoded(prepared: old).count)
+            + Int64(newRequest.cohort.encoded().count - oldRequest.cohort.encoded().count)
+            + 2 * Int64(newRequest.metadata.utf8.count - oldRequest.metadata.utf8.count)
+        #expect(after.maximumSuccessor - before.maximumSuccessor == delta)
+        #expect(after.charged <= PhotoPreparationPolicy.metadata && after.charged > before.charged)
+        #expect(try SharedMediaNativeReceivingReservation.materialized(fresh, header: f.request.header,
+            currentMetadata: f.metadata(), pairStates: f.states, reservation: after) <= after.maximumSuccessor)
+    }
+
+    @Test func newCohortCannotEnterTheLegacyConsumerGraph() async throws {
+        let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture()
+        let old = try Intent.Prepared(request), fresh = try prepared(old, revision: 0)
+        let descriptor = try fresh.descriptorForTransaction(header: request.header)
+        _ = try await owner.receiveAppPhotos(request)
+        let c = h.context()
+        let rows = try #require(try SharedMediaNativeReceivingRows.read(request, in: c, absent: false))
+        #expect(try SharedMediaNativeConsumerGraph.validateScoped(rows.consumer, context: c, format: .appV2) == request.cohort)
+        rows.consumer.cohortData = try descriptor.cohort.encoded()
+        rows.consumer.cohortSHA256 = try descriptor.cohort.digest()
+        try c.save()
+        #expect(throws: (any Error).self) {
+            _ = try SharedMediaNativeConsumerGraph.validateScoped(rows.consumer, context: c, format: .appV2)
+        }
+        rows.consumer.contractVersion = descriptor.cohort.format.rawValue
+        try c.save()
+        #expect(throws: (any Error).self) {
+            _ = try SharedMediaNativeConsumerGraph.validateScoped(rows.consumer, context: c, format: .appV2)
+        }
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func newPreparedCannotEnterLegacyStagingRecovery() async throws {
+        let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture()
+        let helper = SharedMediaNativeReceivingStagingTests()
+        let ids = try helper.pairIDs(request)
+        let old = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: ids)
+        let fresh = try prepared(old, revision: 0)
+        let c = h.context()
+        let inventory = try #require(try c.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
+        let row = try #require(try c.fetch(FetchDescriptor<SharedMediaReceivingIntentRecord>()).first)
+        row.preparedData = try fresh.encoded()
+        row.preparedSHA256 = SharedMediaAcquisitionEncoding.digest(try fresh.encoded())
+        try c.save()
+        let before = SharedMediaNativeReceivingIntentGraph.Row(row)
+        let revision = inventory.revision, envelope = try h.package().supportingContextData
+        #expect(throws: (any Error).self) {
+            _ = try SharedMediaNativeReceivingIntentGraph.read(c, inventory: inventory)
+        }
+        #expect(throws: (any Error).self) {
+            _ = try SharedMediaNativeReceivingIntentGraph.cohort(fresh, context: c, inventory: inventory)
+        }
+        await #expect(throws: (any Error).self) { _ = try await owner.inspectApp() }
+        await #expect(throws: (any Error).self) {
+            _ = try await owner.discoverAppReceivingIntent(packageID: h.packageID)
+        }
+        await #expect(throws: (any Error).self) {
+            _ = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: ids)
+        }
+        let after = try #require(try h.context().fetch(FetchDescriptor<SharedMediaReceivingIntentRecord>()).first)
+        #expect(SharedMediaNativeReceivingIntentGraph.Row(after) == before)
+        #expect(try helper.inventory(h).revision == revision)
+        #expect(try h.package().supportingContextData == envelope)
+        try helper.noReceivingRows(h)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    private func prepared(_ old: Intent.Prepared, revision: Int64) throws -> Intent.Prepared {
+        try .init(profile: old.profile, package: old.package, member: old.member, cohort: old.cohort,
+            operationID: old.operationID, queueID: old.queueID, observationID: old.observationID,
+            bindingID: old.bindingID, generation: old.generation, eventID: old.eventID,
+            timestamp: Date(timeIntervalSinceReferenceDate: Double(bitPattern: old.timestampBits)), intentRevision: revision)
+    }
+}

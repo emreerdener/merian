@@ -4,7 +4,16 @@ import Foundation
 /// Receiving identity is distinct from the frozen nativeConsumerV2 media codec.
 /// Exact bytes survive promotion; this assertion grants no admission or file access.
 struct SharedMediaNativeConsumerCohort: Codable, Equatable, Sendable {
-    enum Format: String, Codable, Sendable { case receiving = "nativeReceivingV1" }
+    enum Format: String, Codable, Sendable {
+        case receiving = "nativeReceivingV1"
+        case intentReceiving = "nativeIntentReceivingV2"
+    }
+    struct IntentBinding: Codable, Equatable, Sendable {
+        let packageID: UUID
+        let operationID: UUID
+        let preparedRevision: Int64
+        let preparedSHA256: String
+    }
     let format: Format
     let bindingID: UUID
     let originQueueID: String
@@ -13,10 +22,39 @@ struct SharedMediaNativeConsumerCohort: Codable, Equatable, Sendable {
     let inferenceGeneration: UUID?
     let freeze: SharedMediaNativePreparationBlob
     let membership: Data
+    let intentBinding: IntentBinding?
+
+    init(format: Format, bindingID: UUID, originQueueID: String, observationID: String,
+         executionKind: String, inferenceGeneration: UUID?, freeze: SharedMediaNativePreparationBlob,
+         membership: Data, intentBinding: IntentBinding? = nil) {
+        self.format = format; self.bindingID = bindingID; self.originQueueID = originQueueID
+        self.observationID = observationID; self.executionKind = executionKind
+        self.inferenceGeneration = inferenceGeneration; self.freeze = freeze
+        self.membership = membership; self.intentBinding = intentBinding
+    }
+
+    var metadataKey: String {
+        switch format { case .receiving: "native_receiving_v1"; case .intentReceiving: "native_receiving_v2" }
+    }
+    var queueAuthority: String {
+        switch format { case .receiving: "sharedDirectNativeReceivingV1"; case .intentReceiving: "sharedDirectNativeReceivingV2" }
+    }
 
     func validate() throws {
         try freeze.validate()
         let commit = try SharedMediaNativeFreezeCommit.decode(freeze.bytes)
+        switch (format, intentBinding) {
+        case (.receiving, nil): break
+        case (.intentReceiving, .some(let binding)):
+            let media = try SharedMediaNativeFrozenCohort.decode(commit.cohort.bytes)
+            guard binding.packageID == media.packageID, binding.operationID == commit.operationID,
+                  binding.preparedRevision >= 0, binding.preparedRevision < Int64.max,
+                  SharedMediaAcquisitionEncoding.isHash(binding.preparedSHA256),
+                  executionKind == "ordinaryV1", inferenceGeneration != nil else {
+                throw SharedMediaStorageFailure.conflict
+            }
+        default: throw SharedMediaStorageFailure.conflict
+        }
         _ = try SharedMediaMembership.decode(membership)
         _ = try SharedMediaConsumerExecution.classify(raw: executionKind, generation: inferenceGeneration)
         guard [originQueueID, observationID].allSatisfy({ value in
@@ -40,7 +78,8 @@ struct SharedMediaNativeConsumerCohort: Codable, Equatable, Sendable {
     func digest() throws -> String {
         let bytes = try encoded()
         var hash = SHA256()
-        for field in [Data("merian.shared-photo.native-receiving.v1".utf8), bytes] {
+        let domain = format == .receiving ? "merian.shared-photo.native-receiving.v1" : "merian.shared-photo.native-intent-receiving.v2"
+        for field in [Data(domain.utf8), bytes] {
             var length = UInt64(field.count).bigEndian
             withUnsafeBytes(of: &length) { hash.update(data: Data($0)) }
             hash.update(data: field)
