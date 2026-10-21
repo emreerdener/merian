@@ -1,3 +1,39 @@
+## October 21 — historical held-release pair proof qualified locally
+
+The read-only historical proof leaf checks a saved pair-retirement closure
+against one complete legal predecessor of the current release Progress.
+Package/member revisions, membership and allocated bytes come from the frozen
+submission. The other target may be at its current or an earlier stage on its
+recorded branch; shared removal has no physical-retirement predecessor.
+Unrelated inventory advances are permitted without rebasing or rewriting the
+saved proof.
+
+Frozen receiving requires ready, completed pairs. The proof binds exact target,
+intent, envelope, file descriptors, retirement ID and canonical digest, and
+checks before-state and successor membership hashes together. Writing/unbound
+predecessors and tuples assembled from incompatible historical states fail.
+Generic immediate-successor retirement validation remains unchanged.
+
+Exact independent and IC-1 review cleared candidate03 and execution03 after the
+negative tests were corrected to recompute coherent inner hashes. The focused
+suite passed: 2 methods / 3 invocations, including one/two originals, 19 legal
+sibling predecessor/current combinations, unrelated inventory advances and
+canonical rehashed faults. All 2,908 source/project hashes remained unchanged.
+No failures, skips or Xcode runtime warnings were reported. Raw simulator image,
+audio-service and Xcode OS-build parsing diagnostics remain in the retained log.
+XCResult `ae27d329894646c5bb503024494d2c6e` and evidence are under
+`.artifacts/native-app-capture-handoff-20261020/release-history-focused01-*`.
+Project validation, source membership and changed-Markdown checks passed.
+
+This is scoped shared-checkout qualification of a pure proof-value leaf, not
+complete native or isolated-source acceptance. Persisted slot/current-row joins,
+sealed atomic transitions, aggregate revision capacity, terminal paging and
+end-to-end recovery remain open. Once proof rows are deleted, a future sealed
+writer's atomic Progress attestation plus exact absence checks must carry
+recovery; the reader cannot recreate deleted physical evidence. Original
+accounting remains clean-context-only. Activation disabled, PR116 frozen,
+deployment held, AWS unapproved and all numeric limits unchanged.
+
 ## October 21 — exact held-release state qualified locally
 
 The descriptive release-state leaf derives exact package membership, allocated
