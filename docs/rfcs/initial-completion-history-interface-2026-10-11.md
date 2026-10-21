@@ -1,3 +1,36 @@
+## October 21 — clean receiving classifier qualified locally
+
+The separate clean-only classifier validates bounded pending membership roots
+against either existing prepared/received/abandoned facts or the complete
+held-release metadata snapshot. Both branches require the exact persisted row.
+Dirty contexts, stale rows, corrupt ownership and duplicate execution identities
+fail closed. It returns values only; generic mutation validators remain closed
+to releasing states. Raw orphan/foreign slots still require the separate paged
+reverse audit. This is not a complete store audit or a cleanup capability.
+
+Exact independently and IC-1 reviewed candidate03 passed the corrected generic
+phase method in `release-clean-corrected02`: one method / one invocation,
+XCResult `3045d61aa62f43e1989d153a413d5844`. All 2,917 frozen source/project
+hashes remained unchanged, with no failures, skips or structured runtime
+warnings. The earlier `release-clean-focused01` retains the unchanged passing
+one/two-original cleanup cases, including independent pair/original cleanup,
+simultaneous pair retirement and stale-row rejection. Its generic case failed
+because the test called ordinary staging instead of explicit restaging; that
+test setup was corrected. `release-clean-corrected01` selected zero tests and is
+rejected evidence. Both runs and raw simulator/Xcode warnings remain retained.
+Combined scoped coverage is two methods / three invocations; no full-suite or
+isolated-checkout acceptance is claimed. Evidence is under
+`.artifacts/native-app-capture-handoff-20261020/`.
+
+This classifier has no production Budget or ScopedAudit consumer yet. The next
+integration must preserve global asset-lifetime identity accounting and a
+proof-bound recovery path that cannot admit new work or deadlock behind fresh
+capacity checks. The reviewed `release-identity-ownership-agreement02.md` keeps
+retained-only occupancy uncapped and last-retained-reference deletion closed
+until its separately sequenced cleanup owner is qualified. Activation disabled,
+PR116 frozen, deployment held, AWS unapproved; numeric and cap-category limits
+unchanged.
+
 ## October 21 — release survivor accounting qualified locally
 
 The descriptive calculation sizes only forward states from the fully audited
