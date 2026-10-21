@@ -8,6 +8,33 @@ import Testing
 @Suite("Registered native original admission", .serialized)
 @MainActor
 struct SharedMediaNativeOriginalAdmissionTests {
+    @Test(arguments: ["prepared", "received", "abandoned", "malformed"], [false, true])
+    func intentClosesExistingV1OwnerAndReopen(_ phase: String, foreign: Bool) async throws {
+        let h = try Harness(); defer { h.cleanup() }
+        let saved = try h.complete(), owner = try h.owner()
+        _ = try await h.open(owner)
+        let context = ModelContext(h.container); context.autosaveEnabled = false
+        let inventory = try #require(context.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
+        let row = SharedMediaReceivingIntentRecord(packageID: UUID(), inventoryID: h.inventoryID,
+            inventoryGeneration: inventory.generation, ownerID: foreign ? UUID() : h.ownerID, draftGeneration: UUID(),
+            operationID: UUID(), preparedData: Data("malformed".utf8), preparedSHA256: "malformed")
+        row.phaseRaw = phase; context.insert(row); try context.save()
+        await #expect(throws: SharedMediaStorageFailure.closed) { _ = try await owner.snapshot() }
+        #expect(await h.drain.shutdown())
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        let reopened = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema,
+            url: h.base.appendingPathComponent("database/ledger.store"), cloudKitDatabase: .none)])
+        let next = try h.owner(drain: .init())
+        await #expect(throws: SharedMediaStorageFailure.closed) {
+            _ = try await next.open(container: reopened, authorityRoot: h.authority, photoRoot: h.photo,
+                inboxRoot: h.inbox, inventoryID: h.inventoryID)
+        }
+        #expect(try ModelContext(h.container).fetchCount(FetchDescriptor<SharedMediaReceivingIntentRecord>()) == 1)
+        #expect(try Data(contentsOf: saved.url) == saved.bytes)
+        #expect(try ModelContext(h.container).fetch(FetchDescriptor<SharedMediaAcquisitionReceiptRecord>()).first?.resultData == saved.resultData)
+        #expect(await next.invalidateAndAwaitForAccountTransition())
+    }
+
     @Test func completedOriginalReopensWithoutChangingBytesOrReceipt() async throws {
         let h = try Harness(); defer { h.cleanup() }
         let saved = try h.complete()

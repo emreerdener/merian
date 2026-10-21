@@ -1,3 +1,27 @@
+## October 20 — V65 receiving-intent storage foundation
+
+The active schema is V65. Its additive V64→V65 stage introduces one empty
+package-keyed receiving-intent slot table; it does not create operations, adopt
+media or activate Capture. V64 was frozen and compiled first. Existing
+source-isolated plans append the new stage, and V64 has its own recent startup
+plan. Destructive rescue and quarantine eligibility remain unchanged.
+
+Raw intent rows are conservative storage liabilities, including malformed or
+unanchored rows. Until the intent-aware owner is qualified, they block legacy
+qualification/purge and native scoped mutation audits, including after page
+suspension. The canonical codec remains a descriptive value, not a writer
+capability. Typed staging, receiving, exact recovery, abandonment and Capture
+handoff remain subsequent acceptance gates. Numeric limits are unchanged.
+
+Local validation passed 185 focused methods. The complete unit target recorded
+6,456 passes and one omitted purge-inventory fixture; the corrected three-suite
+rerun passed 23/23 methods with runtime sources unchanged. Full-run evidence,
+including a synthetic video-fixture QoS warning, remains retained. This is
+shared-checkout validation, not isolated, device or integrated acceptance. See
+`docs/rfcs/identification-history-alpha-readiness-2026-10-11.md` for exact
+results. Activation is disabled, PR116 frozen, deployment held and AWS
+unapproved.
+
 ## October 20 — durable receiving codec and reservation locally verified
 
 The inactive receiving values preserve exact timestamp bits, ordered media,

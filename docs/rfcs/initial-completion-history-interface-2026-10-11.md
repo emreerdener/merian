@@ -1,3 +1,49 @@
+## October 20 — V65 receiving-intent foundation locally verified
+
+V65 adds an empty package-keyed receiving-intent table through a lightweight
+V64-to-V65 migration. The outgoing V64 relationship graph and acquisition
+receipt were frozen and compiled before active-model changes. All applicable
+full/recent migration plans append the new stage; startup has a dedicated V64
+plan. Disk migration and cold reopen preserve prior ownership, receipt bytes,
+relationships and optional fields without fabricating an intent. Destructive
+rescue and quarantine eligibility remain unchanged.
+
+Every raw intent phase remains a storage liability and blocks legacy admission,
+purge and native scoped mutations, including after page suspension. Storage is
+not receiving or execution authority. Typed staging, receiving, exact recovery,
+abandonment and Capture handoff remain next under reviewed design03. Existing
+numeric limits and immutable submitted-content contracts are unchanged.
+
+Candidate01 passed all **185 focused methods across 15 suites**. Its complete
+`merianTests` run recorded **6,456 passed, one failed and zero skipped**. The
+sole failure was a missed test inventory entry for the new record in
+`ScanRepositoryPurgeTests`; runtime purge already blocked it. Candidate02 adds
+that record to the saved/unsaved blocker fixture and corrects four stale
+migration-guardrail diagnostic strings. Its **23/23 methods across three
+suites** passed, covering the corrected inventory and saved/unsaved purge
+denial. Runtime Swift and the generated project are unchanged between these
+runs; unchanged passing full-target evidence is reused. This is corrected
+shared-checkout validation, not a fresh all-green full run or
+isolated/device/hosted acceptance.
+
+All three runs retained all **2,892 source/project hashes**. The focused and
+correction runs have no XCResult runtime warnings. Full01 retains one
+priority-inversion warning in the unchanged synthetic `VideoAudioFixture`;
+compiler/lint, simulator and fixture diagnostics remain retained. No performance
+or device-quality claim follows from these functional checks. Migration source
+guardrails, negative fixtures, startup selectors, generated-project validation
+and complete iOS CI-tooling tests passed; the corrected diagnostic strings
+passed the migration guardrail and negative fixtures again.
+
+Evidence: `.artifacts/native-app-capture-handoff-20261020/`; focused XCResult
+`4e0d7145c97b47ec87021fc8bbd1c175`, failed full XCResult
+`974896fc26314e34b75990276c8910a9`, corrected XCResult
+`0b5d69c9d4834963b07a62526e34b847`. Exact independent and IC-1 review preceded
+each execution. Persisted metadata-cap boundaries, consumer lifecycle, native
+journeys and integrated acceptance remain open before version deletion/export
+and redesign. Activation is disabled, PR116 frozen, deployment held and AWS
+unapproved; external-operation restrictions remain.
+
 ## October 20 — durable receiving codec and reservation locally verified
 
 The inactive receiving values preserve exact timestamp bits, ordered media,

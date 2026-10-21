@@ -1,0 +1,42 @@
+import Foundation
+import SwiftData
+
+/// One bounded receiving slot per package. Scalars are lookup aids, never
+/// admission, file, execution or cleanup authority. Typed owners must validate
+/// canonical bytes and all reverse identities before interpreting any phase.
+@Model
+final class SharedMediaReceivingIntentRecord {
+    @Attribute(.unique) var id: UUID
+    @Attribute(.unique) private(set) var cursorKey: String
+    var schemaVersion: Int
+    var inventoryID: UUID
+    var inventoryGeneration: UUID
+    var ownerID: UUID
+    var draftGeneration: UUID
+    var operationID: UUID
+    var phaseRaw: String
+    var revision: Int64
+    var preparedData: Data?
+    var preparedSHA256: String
+    var resultData: Data?
+    var resultSHA256: String?
+
+    init(packageID: UUID, inventoryID: UUID, inventoryGeneration: UUID,
+         ownerID: UUID, draftGeneration: UUID, operationID: UUID,
+         preparedData: Data, preparedSHA256: String) {
+        id = packageID
+        cursorKey = packageID.uuidString.lowercased()
+        schemaVersion = 1
+        self.inventoryID = inventoryID
+        self.inventoryGeneration = inventoryGeneration
+        self.ownerID = ownerID
+        self.draftGeneration = draftGeneration
+        self.operationID = operationID
+        phaseRaw = "prepared"
+        revision = 0
+        self.preparedData = preparedData
+        self.preparedSHA256 = preparedSHA256
+        resultData = nil
+        resultSHA256 = nil
+    }
+}
