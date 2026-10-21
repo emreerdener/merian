@@ -24,6 +24,20 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
         func successor(_ bytes: Data, phase: String? = nil, allocated: Int64? = nil) throws -> Self {
             .init(self, envelope: bytes, revision: try SharedMediaStoragePolicy.add(revision, 1), phase: phase ?? self.phase, allocated: allocated ?? self.allocated)
         }
+        /// Historical value reconstruction only. The caller must bind the
+        /// complete reconstructed request to its saved receiving digests.
+        init(releaseOrigin fence: SharedMediaNativeReceivingIntent.PackageFence,
+             previousEnvelope: Data, commit: SharedMediaNativeFreezeCommit) throws {
+            guard fence.phase == "preparedHeld", fence.tier == "pending", !fence.retiring,
+                  fence.revision == (try commit.packageRevision),
+                  SharedMediaAcquisitionEncoding.digest(previousEnvelope) == commit.previousEnvelopeSHA256 else {
+                throw SharedMediaStorageFailure.conflict
+            }
+            id = fence.id; ownerID = fence.ownerID; draftID = fence.draftID; generation = fence.generation
+            contract = fence.contract; tier = fence.tier; phase = "draftOwned"
+            revision = commit.beforePackageRevision; allocated = fence.allocated; retiring = false
+            envelope = previousEnvelope
+        }
     }
     struct Member: Codable, Equatable, Sendable {
         let id: UUID, inventoryID: UUID, inventoryGeneration: UUID, ownerID: UUID, draftGeneration: UUID
@@ -39,6 +53,15 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
         }
         func successor(_ bytes: Data) throws -> Self {
             .init(self, bytes: bytes, revision: try SharedMediaStoragePolicy.add(revision, 1))
+        }
+        /// Restores the immutable submitted membership, never current ownership.
+        init(releaseOrigin fence: SharedMediaNativeReceivingIntent.MemberFence, bytes: Data) throws {
+            _ = try SharedMediaMembership.decode(bytes)
+            guard SharedMediaAcquisitionEncoding.digest(bytes) == fence.bytesSHA256 else {
+                throw SharedMediaStorageFailure.conflict
+            }
+            id = fence.id; inventoryID = fence.inventoryID; inventoryGeneration = fence.inventoryGeneration
+            ownerID = fence.ownerID; draftGeneration = fence.draftGeneration; revision = fence.revision; self.bytes = bytes
         }
     }
     struct Consumer: Equatable, Sendable {

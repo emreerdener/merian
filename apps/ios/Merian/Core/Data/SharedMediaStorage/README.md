@@ -1,3 +1,35 @@
+## October 21 — release origin reconstruction qualified locally
+
+The read-only `SharedMediaNativeReleaseOrigin` leaf reconstructs the exact
+Prepared/Received/Transaction from the saved Plan, unchanged frozen envelope,
+consumer cohort and persisted queue timestamp. It checks all original request
+hashes and the complete held consumer/queue/job/event set without requiring
+current package/member scalars to equal their historical snapshot. No clock, new
+request, provider invocation, file operation or save is involved.
+
+This leaf is not wired into release dispatch. Current ownership, acquisition
+identity, cleanup assertions, membership transitions, revision runway and
+terminal accounting remain the sealed release owner's responsibility. Generic
+received-state validation remains strict. Synthetic partial-row test cases
+exercise the separation of origin and current-state validation only; they do not
+qualify a cleanup transition or restart recovery.
+
+Exact independent and IC-1 review cleared candidate01. The managed focused suite
+passed two methods / four invocations, with both one- and two-original
+arguments. All 2,905 source/project hashes stayed unchanged; no failures, skips
+or Xcode runtime warnings were reported. Compiler/lint and raw simulator
+diagnostics are retained. XCResult `c6d1b31edee44900a291ed23bd5a90cb` and
+evidence are under
+`.artifacts/native-app-capture-handoff-20261020/release-origin-focused01-*`. The
+initial sandbox report-extraction failure is retained; only report extraction
+was repeated with the required cache access, not the test run.
+
+Existing progress/projection evidence remains valid at local commit
+`56c12bc9298f204966fe731367cba6a4e16a33e6`. Persisted release transitions,
+current-state audit, shared receipt accounting, terminal paging, revision runway
+and end-to-end recovery remain open. Activation disabled, PR116 frozen,
+deployment held, AWS unapproved and numeric limits unchanged.
+
 ## October 21 — held-release progress and projection qualified locally
 
 A new unconsumed `nativeReceivingReleasingProgressV1` payload retains ordered
