@@ -91,8 +91,9 @@ Use the narrowest owner that fits:
 [`Core/README.md`](Merian/Core/README.md) defines the root and cross-domain
 guardrails. The Core root contains only dependency composition and logging;
 domain READMEs and architecture suites own the detailed boundaries. The
-Core-wide audit tracks the one residual production file above 600 lines instead
-of treating its current size as a permanent exemption.
+Core-wide audit tracks an explicit oversized inventory, including generated wire
+DTOs and the two individually capped native storage owners. These entries do not
+permit unreviewed growth or weaken the general 600-line review ceiling.
 
 Examples:
 
@@ -1552,6 +1553,14 @@ to be part of one explicit inventory:
 - `Core/Network/SupabaseManager.swift` is the measured residual facade. Further
   extraction is paused unless it fixes a correctness boundary or produces a
   net-negative affected production delta.
+- `Core/AI/InferenceEdgeDTOs.swift` is the generator-owned versioned wire
+  contract.
+- `Core/Data/SharedMediaStorage/SharedMediaNativeOriginalOwner.swift` and
+  `SharedMediaNativeStorageRepository.swift` keep private capability
+  construction and validation fences together, capped at 610 and 622 physical
+  lines. Both app-wide and Core inventory suites enforce these non-growth
+  budgets.
+- `Models/Schema/SchemaV51Snapshots.swift` is the immutable V51 model snapshot.
 - `Models/SchemaVersions.swift` is the ordered migration registry kept cohesive
   so version and stage sequencing remain compiler-reviewed in one place.
 

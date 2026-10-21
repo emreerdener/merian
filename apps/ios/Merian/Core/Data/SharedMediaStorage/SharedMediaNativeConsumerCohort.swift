@@ -13,6 +13,13 @@ struct SharedMediaNativeConsumerCohort: Codable, Equatable, Sendable {
         let operationID: UUID
         let preparedRevision: Int64
         let preparedSHA256: String
+        let restagedFromSHA256: String?
+        init(packageID: UUID, operationID: UUID, preparedRevision: Int64, preparedSHA256: String,
+             restagedFromSHA256: String? = nil) {
+            self.packageID = packageID; self.operationID = operationID
+            self.preparedRevision = preparedRevision; self.preparedSHA256 = preparedSHA256
+            self.restagedFromSHA256 = restagedFromSHA256
+        }
     }
     let format: Format
     let bindingID: UUID
@@ -47,6 +54,11 @@ struct SharedMediaNativeConsumerCohort: Codable, Equatable, Sendable {
         case (.receiving, nil): break
         case (.intentReceiving, .some(let binding)):
             let media = try SharedMediaNativeFrozenCohort.decode(commit.cohort.bytes)
+            if let predecessor = binding.restagedFromSHA256 {
+                guard binding.preparedRevision > 0, SharedMediaAcquisitionEncoding.isHash(predecessor) else {
+                    throw SharedMediaStorageFailure.conflict
+                }
+            }
             guard binding.packageID == media.packageID, binding.operationID == commit.operationID,
                   binding.preparedRevision >= 0, binding.preparedRevision < Int64.max,
                   SharedMediaAcquisitionEncoding.isHash(binding.preparedSHA256),

@@ -20,6 +20,7 @@ enum SharedMediaNativeReceivingIntent {
         let bindingID: UUID, generation: UUID, eventID: UUID
         let timestampBits: UInt64
         let intentRevision: Int64?
+        let restagedFromSHA256: String?
 
         init(_ request: SharedMediaNativeAppReceivingRequest) throws { try self.init(Transaction(request)) }
         init(_ request: Transaction) throws {
@@ -31,17 +32,18 @@ enum SharedMediaNativeReceivingIntent {
                 cohort: request.freeze.commit.cohort, operationID: request.freeze.commit.operationID,
                 queueID: queue, observationID: observation, bindingID: request.cohort.bindingID,
                 generation: generation, eventID: event, timestamp: request.timestamp,
-                intentRevision: request.cohort.intentBinding?.preparedRevision)
+                intentRevision: request.cohort.intentBinding?.preparedRevision,
+                restagedFromSHA256: request.cohort.intentBinding?.restagedFromSHA256)
             let rebuilt = try descriptorForTransaction(header: request.header)
             guard try canonicalRequest(rebuilt) == canonicalRequest(request) else { throw SharedMediaStorageFailure.conflict }
         }
         init(profile: SharedMediaNativeAppProfile, package: SharedMediaNativeAppMetadataFacts.Package,
              member: SharedMediaNativeAppMetadataFacts.Member, cohort: SharedMediaNativePreparationBlob,
              operationID: UUID, queueID: UUID, observationID: UUID, bindingID: UUID, generation: UUID,
-             eventID: UUID, timestamp: Date, intentRevision: Int64? = nil) throws {
+             eventID: UUID, timestamp: Date, intentRevision: Int64? = nil, restagedFromSHA256: String? = nil) throws {
             format = intentRevision == nil ? .prepared : .preparedV2
             version = intentRevision == nil ? 1 : 2
-            self.intentRevision = intentRevision
+            self.intentRevision = intentRevision; self.restagedFromSHA256 = restagedFromSHA256
             self.profile = profile; self.package = package; self.member = member
             self.cohort = cohort; self.operationID = operationID; self.queueID = queueID
             self.observationID = observationID; self.bindingID = bindingID; self.generation = generation
@@ -72,7 +74,8 @@ enum SharedMediaNativeReceivingIntent {
             try freeze.validate()
             let binding = try intentRevision.map {
                 SharedMediaNativeConsumerCohort.IntentBinding(packageID: package.id, operationID: operationID,
-                    preparedRevision: $0, preparedSHA256: SharedMediaAcquisitionEncoding.digest(try encoded()))
+                    preparedRevision: $0, preparedSHA256: SharedMediaAcquisitionEncoding.digest(try encoded()),
+                    restagedFromSHA256: restagedFromSHA256)
             }
             return try .init(profile: profile, header: header, package: package, member: member, freeze: freeze,
                 queueID: queueID, observationID: observationID, bindingID: bindingID, generation: generation,
@@ -85,6 +88,10 @@ enum SharedMediaNativeReceivingIntent {
             case (.prepared, 1, nil): break
             case (.preparedV2, 2, .some(let revision)) where revision >= 0 && revision < Int64.max: break
             default: throw SharedMediaStorageFailure.conflict
+            }
+            if let predecessor = restagedFromSHA256 {
+                guard version == 2, let intentRevision, intentRevision > 0,
+                      SharedMediaAcquisitionEncoding.isHash(predecessor) else { throw SharedMediaStorageFailure.conflict }
             }
             guard interval.isFinite,
                   Date(timeIntervalSinceReferenceDate: interval).timeIntervalSinceReferenceDate.bitPattern == timestampBits,
@@ -154,8 +161,8 @@ enum SharedMediaNativeReceivingIntent {
         }
     }
     /// A descriptive value, deliberately not SharedMediaNativeAppReceivingRequest.
-    /// No owner/repository mutation accepts this type. The future intent owner
-    /// must convert it inside the sealed receiving file after authority checks.
+    /// Conversion to a request grants no authority. The receiving owner must
+    /// validate the exact persisted slot and cohort before any fresh mutation.
     struct Transaction: Sendable {
         let profile: SharedMediaNativeAppProfile
         let header: SharedMediaNativeAppEligibility.Header
@@ -165,6 +172,7 @@ enum SharedMediaNativeReceivingIntent {
         let cohort: SharedMediaNativeConsumerCohort
         let timestamp: Date
         let eventID: String, metadata: String
+        var jobID: String { "scan-ingestion:" + cohort.originQueueID }
         init(_ request: SharedMediaNativeAppReceivingRequest) {
             profile = request.profile; header = request.header; package = request.package; member = request.member
             freeze = request.freeze; cohort = request.cohort; timestamp = request.timestamp
@@ -216,5 +224,28 @@ enum SharedMediaNativeReceivingIntent {
             package: request.package, member: request.member, freeze: request.freeze, cohort: request.cohort,
             timestampBits: request.timestamp.timeIntervalSinceReferenceDate.bitPattern, eventID: request.eventID,
             metadata: request.metadata))
+    }
+}
+
+/// A descriptive request reconstructed from versioned immutable values.
+/// Only the receiving owner can admit a saved P2 slot; this grants no authority.
+struct SharedMediaNativeAppReceivingRequest: Sendable {
+    let profile: SharedMediaNativeAppProfile
+    let header: SharedMediaNativeAppEligibility.Header
+    let package: SharedMediaNativeAppMetadataFacts.Package
+    let member: SharedMediaNativeAppMetadataFacts.Member
+    let freeze: SharedMediaNativeFreezeRequest
+    let cohort: SharedMediaNativeConsumerCohort
+    let timestamp: Date
+    let eventID: String
+    let metadata: String
+    var jobID: String { "scan-ingestion:" + cohort.originQueueID }
+    init(_ transaction: SharedMediaNativeReceivingIntent.Transaction) {
+        profile = transaction.profile; header = transaction.header; package = transaction.package
+        member = transaction.member; freeze = transaction.freeze; cohort = transaction.cohort
+        timestamp = transaction.timestamp; eventID = transaction.eventID; metadata = transaction.metadata
+    }
+    func frozenPackage() throws -> SharedMediaNativeAppMetadataFacts.Package {
+        try SharedMediaNativeReceivingIntent.Transaction(self).frozenPackage()
     }
 }

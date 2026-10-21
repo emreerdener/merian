@@ -42,7 +42,7 @@ final class SharedMediaNativeAppOriginalOperations {
             binding: binding, files: files, availableBytes: availableBytes, boundary: boundary)
     }
     func prepareShare(_ source: PhotoOriginalReference, packageID: UUID, generation: UUID) throws -> SharedMediaNativeAppOriginalRequest {
-        try facts.requireMutable(source.packageID); try facts.requireMutable(packageID)
+        try facts.requireMutable(source.packageID); try facts.requireNoIntent(packageID)
         try validate()
         let c = fresh(), rows = try ready(c, source), original = try audit(c, source.assetID)
         let ref = try Rows.reference(c, source: source, live: true).0
@@ -56,7 +56,7 @@ final class SharedMediaNativeAppOriginalOperations {
             original: original, ordinal: ref.ordinal, action: .share(request))
     }
     func prepareRemoval(_ source: PhotoOriginalReference) throws -> SharedMediaNativeAppOriginalRequest {
-        try facts.requireMutable(source.packageID)
+        try facts.requireNoIntent(source.packageID)
         try validate()
         let c = fresh(), rows = try ready(c, source), original = try audit(c, source.assetID)
         let ref = try Rows.reference(c, source: source, live: true).0
@@ -107,7 +107,7 @@ final class SharedMediaNativeAppOriginalOperations {
         return destination
     }
     func remove(_ request: SharedMediaNativeAppOriginalRequest) async throws {
-        try facts.requireMutable(request.source.packageID)
+        try facts.requireNoIntent(request.source.packageID)
         try validate(); try requestProfile(request)
         guard case .remove(let removal) = request.action else { throw SharedMediaStorageFailure.conflict }
         if try savedRemoval(request) { return }

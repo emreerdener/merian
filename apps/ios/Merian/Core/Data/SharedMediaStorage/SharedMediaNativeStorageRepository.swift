@@ -347,6 +347,13 @@ final class SharedMediaNativeStorageRepository {
         })
     }
     func appReceivingIntent(grant: SharedMediaNativeAppDispatchGrant, packageID: UUID) async throws -> SharedMediaNativeReceivingIntent.Prepared? {
+        guard let row = try await appReceivingSlot(grant: grant, packageID: packageID) else { return nil }
+        guard case .prepared(let prepared) = try SharedMediaNativeReceivingSlot.decode(row, profile: grant.profile) else {
+            throw SharedMediaStorageFailure.closed
+        }
+        return prepared
+    }
+    func appReceivingSlot(grant: SharedMediaNativeAppDispatchGrant, packageID: UUID) async throws -> SharedMediaNativeReceivingIntentGraph.Row? {
         try requireApp(grant)
         let expected = try appHeader()
         _ = try await inspectApp(grant: grant)
@@ -356,7 +363,7 @@ final class SharedMediaNativeStorageRepository {
         let id = grant.profile.inventoryID
         let inventory = try SharedMediaNativePairPlanGraph.one(context,
             FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))
-        let result = try SharedMediaNativeReceivingIntentGraph.read(context, inventory: inventory)[packageID]?.prepared
+        let result = try SharedMediaNativeReceivingPhaseGraph.pending(context, inventory: inventory)[packageID]?.row
         try requireApp(grant)
         guard try appHeader() == expected else { throw SharedMediaStorageFailure.stale }
         return result

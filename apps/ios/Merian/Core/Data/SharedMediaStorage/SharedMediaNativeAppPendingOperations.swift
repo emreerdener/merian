@@ -134,7 +134,7 @@ final class SharedMediaNativeAppPendingOperations {
         return false
     }
     private func target(_ c: ModelContext, _ request: SharedMediaAcquisitionIntent) throws -> SharedMediaNativeAppPendingRows {
-        try facts.requireMutable(request.packageID)
+        try facts.requireNoIntent(request.packageID)
         try requireRequest(request)
         let rows = try SharedMediaNativeAppPendingRows(c, request: request)
         _ = try SharedMediaNativeAcquisitionGraph.scopedReceipt(rows.receipt, inventory: rows.inventory, context: c, format: .appV2)

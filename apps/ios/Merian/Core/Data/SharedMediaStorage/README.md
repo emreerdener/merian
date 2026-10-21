@@ -1,3 +1,103 @@
+## October 21 — native receiving increment qualified locally
+
+The reviewed P2 receiving integration now has passing scoped evidence for its
+behavior and architecture. Candidate03 ran all 84 methods in twelve suites; 83
+passed and only the stale architecture inventory failed. Both required metadata
+boundary arguments and all recovery methods executed. Candidate04 changed only
+architecture tests and documentation; the narrow rerun passed all nine methods
+in both architecture suites. Each run preserved all 2,900 source/project hashes.
+No skips or Xcode runtime warnings were reported; raw simulator diagnostics and
+prior failures remain retained.
+
+Evidence is under `.artifacts/native-app-capture-handoff-20261020/`:
+`phase-focused03-result.json`, `phase-focused03-coverage.json`, and
+`phase-focused04-result.json`. Final XCResult:
+`ecf98e83628a4d99b7b466716db6c84e`. This proves the scoped shared-checkout
+increment, not full-target, isolated-source, device, hosted or integrated
+acceptance. Final selective local-commit review remains required.
+
+Fresh P2 staging/receiving, saved-operation recovery, explicit abandonment and
+restaging are connected under native ownership. Queue/job rows remain held.
+Typed consumer release/completion, Capture handoff, broader affected gates and
+integrated acceptance remain next. Two explicit architecture exceptions preserve
+private capability construction, capped at the current 610/622 physical lines;
+no runtime/storage limit changed. Activation disabled; PR116 frozen; deployment
+held; AWS unapproved. No external operation is authorized by this result.
+
+## October 21 — receiving behavior verified; bounded architecture correction
+
+The exact reviewed receiving candidate03 completed all 84 methods in twelve
+suites: **83 passed, one architecture inventory failure**, with no skips or
+Xcode runtime warnings. All 2,900 source/project hashes stayed unchanged.
+XCResult `2441e43812bb49b185c1681480ae11e8` and raw diagnostics are retained in
+`.artifacts/native-app-capture-handoff-20261020/phase-focused03-result.json`.
+The complete suite selection executed both metadata boundary arguments (cap and
+cap-plus-one) and every required recovery method. The previous mixed-consumer
+and metadata fixture failures now pass. Raw simulator diagnostics remain in the
+log; this is scoped shared-checkout evidence, not integrated acceptance.
+
+The sole failure was the stale oversized-owner inventory. Independent review
+supports keeping private capability minting and validation fences together, with
+explicit non-growth caps of 610 lines for the native original owner and 622 for
+its repository. Both architecture inventories and canonical guides now record
+these narrow exceptions; the general 600-line review ceiling and all
+runtime/storage limits remain unchanged. The correction awaits exact review and
+a narrow architecture rerun. No runtime source changed after candidate03.
+
+Typed consumer lifecycle, Capture handoff, broader affected gates and integrated
+acceptance remain open. Activation disabled; PR116 frozen; deployment held; AWS
+unapproved. Historical failures and successful checks remain retained.
+
+## October 21 — mixed-consumer correction and persisted recovery validation
+
+The first complete receiving-owner run finished with **74 of 76 methods
+passing** across eight suites. The two failures were an unchanged existing
+consumer entering a clean-context validator during staging, and the old exact
+cap-plus-two fixture target. All **2,900 source/project hashes** remained
+unchanged. XCResult `6e79f31df5574c3d8f149d511cdf8bb5` and diagnostics remain
+retained under `.artifacts/native-app-capture-handoff-20261020/`. This is failed
+scoped shared-checkout evidence, not acceptance closure.
+
+The corrected candidate carries the sealed staging proof through budget
+accounting and validates unchanged consumers against captured facts.
+Clean-context validation remains strict. Obsolete fresh-V1 mutation poststates
+are removed; descriptive request values now live beside the versioned receiving
+codec and use its canonical reconstruction. Historical V1 recovery remains
+separate from fresh P2 admission. The exact metadata cap is unchanged; the
+current fixture targets cap and cap-plus-one, subject to full persisted
+projection verification. Receiving recovery tests reopen a new ModelContainer
+against the same SQLite store.
+
+These corrections await exact independent/IC-1 review and a focused rerun. No
+passing result is claimed for them yet. Current valid slots remain bounded by
+four pending packages, below the 128-row audit page size; retained-terminal
+multi-page qualification belongs to the later typed lifecycle. Typed consumer
+lifecycle, Capture handoff, broader affected gates and integrated acceptance
+remain open. Activation disabled; PR116 frozen; deployment held; AWS unapproved;
+all numeric limits unchanged.
+
+## October 21 — receiving owner integration candidate under review
+
+The local candidate connects P2 staging, atomic held receiving, explicit
+abandonment and explicit restaging. Exact saved outcomes recover from database
+facts without another media read or save. Old unstaged V1 requests are now
+recovery-only; saved V1 prepared slots remain readable and explicitly
+abandonable. Optional restaging provenance preserves historical codec bytes but
+is mandatory for owner-created positive-revision P2 receiving. Pending facts and
+accounting are phase-aware, and the raw intent audit checks reverse links.
+Generic deletion cannot orphan a terminal slot. Shared originals remain under
+the existing reference owner.
+
+This candidate is **not yet compiled or qualified**. Independent review found
+and prompted closure of the alternate fresh-V1 path and positive-revision P2
+received provenance checks. Focused persisted tests cover acknowledgement loss,
+corruption, cancellation, final file/CAS seals, sharing and restaging. Exact
+candidate review must precede managed execution. Prior terminal-value evidence
+below remains historical. Typed consumer lifecycle, Capture handoff, retained
+multi-page integration, broader affected gates and integrated acceptance remain
+open. Activation disabled; PR116 frozen; deployment held; AWS unapproved; limits
+unchanged.
+
 ## October 21 — terminal values and reservation qualified locally
 
 Compact AbandonedV1/V2 values now retain source-version meaning, the saved

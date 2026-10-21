@@ -12,7 +12,7 @@ struct SharedMediaNativeAppReceivingTests {
 
     @Test(arguments: [1, 2])
     func completeSetAndColdExactRecoveryNeverSaveTwice(_ count: Int) async throws {
-        let (h, owner, r) = try await fixture(count: count)
+        let (h, owner, r) = try await fixture(count: count, staged: true)
         var saves = 0
         try owner.setMetadataFault { if $0 == .beforeSave { saves += 1 } }
         #expect(try await owner.receiveAppPhotos(r) == r.cohort)
@@ -27,7 +27,7 @@ struct SharedMediaNativeAppReceivingTests {
     }
 
     @Test func laterUnrelatedAcquisitionDoesNotInvalidateExactRecovery() async throws {
-        let (h, owner, r) = try await fixture()
+        let (h, owner, r) = try await fixture(staged: true)
         _ = try await owner.receiveAppPhotos(r)
         let other = UUID(), draft = UUID()
         let acquisition = try await owner.prepareAppOriginal(packageID: other, draftGeneration: draft, ordinal: 0, kind: .picker)
@@ -45,7 +45,7 @@ struct SharedMediaNativeAppReceivingTests {
 
     @Test(arguments: ["before", "after", "readback"])
     func acknowledgementFaultNeverCreatesHalfASetOrRepeatsSave(_ fault: String) async throws {
-        let (h, owner, r) = try await fixture()
+        let (h, owner, r) = try await fixture(staged: true)
         var saves = 0, saved = false
         try owner.setMetadataFault {
             if $0 == .beforeSave { saves += 1; if fault == "before" { throw SharedMediaStorageFailure.unavailable } }
@@ -67,7 +67,7 @@ struct SharedMediaNativeAppReceivingTests {
 
     @Test(arguments: ["consumer", "queue", "job", "event", "queueMetadata", "jobMetadata", "eventMetadata", "consumerIdentity"])
     func partialOrChangedSavedSetCannotRecoverOrRemint(_ fault: String) async throws {
-        let (h, owner, r) = try await fixture()
+        let (h, owner, r) = try await fixture(staged: true)
         _ = try await owner.receiveAppPhotos(r)
         let c = h.context(), rows = try #require(try SharedMediaNativeReceivingRows.read(r, in: c, absent: false))
         switch fault {
@@ -90,7 +90,7 @@ struct SharedMediaNativeAppReceivingTests {
 
     @Test(arguments: ["queue", "observation", "job", "event"])
     func freshAliasesAndReverseJoinsBlockInsertion(_ fault: String) async throws {
-        let (h, owner, r) = try await fixture()
+        let (h, owner, r) = try await fixture(staged: true)
         let c = h.context()
         switch fault {
         case "queue": c.insert(OfflineQueuedScan(id: r.cohort.originQueueID.uppercased()))
@@ -107,7 +107,7 @@ struct SharedMediaNativeAppReceivingTests {
 
     @Test(arguments: ["original", "output", "member", "package", "inventory", "reference", "edge", "counter"])
     func finalSealsRejectChangedFilesAndDurableFacts(_ fault: String) async throws {
-        let (h, owner, r) = try await fixture()
+        let (h, owner, r) = try await fixture(staged: true)
         var reached = false
         try owner.setMetadataFault { point in
             guard point == .beforeSave else { return }; reached = true
@@ -141,7 +141,7 @@ struct SharedMediaNativeAppReceivingTests {
     }
 
     @Test func existingReceivingAndOrdinaryRowsArePreserved() async throws {
-        let (h, owner, r) = try await fixture(receiving: true)
+        let (h, owner, r) = try await fixture(receiving: true, staged: true)
         let before = try h.context().fetch(FetchDescriptor<SharedMediaConsumerRecord>()).map { SharedMediaNativeAppMetadataFacts.Consumer($0) }
         let ordinaryID = UUID().uuidString, c = h.context()
         c.insert(OfflineQueuedScan(id: ordinaryID, fieldNotes: "keep ordinary draft")); try c.save()
@@ -154,7 +154,7 @@ struct SharedMediaNativeAppReceivingTests {
     }
 
     @Test func queueAndMetadataIndependentlyDenyLegacyExecution() async throws {
-        let (h, owner, r) = try await fixture(); _ = try await owner.receiveAppPhotos(r)
+        let (h, owner, r) = try await fixture(staged: true); _ = try await owner.receiveAppPhotos(r)
         let c = h.context(), rows = try #require(try SharedMediaNativeReceivingRows.read(r, in: c, absent: false))
         #expect(!rows.queue.permitsOrdinaryInference)
         #expect(!SharedMediaLegacyQueueAccess.permitsMetadata(rows.job.metadataJSON))
@@ -170,7 +170,7 @@ struct SharedMediaNativeAppReceivingTests {
     }
 
     @Test func cancelledCoordinatorWaitReleasesLocksWithoutAdmission() async throws {
-        let (h, owner, r) = try await fixture(), coordinator = ScanInferencePersistenceCoordinator.shared
+        let (h, owner, r) = try await fixture(staged: true), coordinator = ScanInferencePersistenceCoordinator.shared
         let held = await coordinator.acquireAll(scanIds: [r.cohort.originQueueID, r.cohort.observationID])
         let task = Task { try await owner.receiveAppPhotos(r) }
         let first = held[0]
@@ -187,13 +187,13 @@ struct SharedMediaNativeAppReceivingTests {
     }
 
     @Test func invalidatedOwnerCannotAdmitSavedIntent() async throws {
-        let (h, owner, r) = try await fixture()
+        let (h, owner, r) = try await fixture(staged: true)
         #expect(await owner.invalidateAndAwaitForAccountTransition())
         await #expect(throws: (any Error).self) { _ = try await owner.receiveAppPhotos(r) }
         try unchanged(h, r)
     }
 
-    func fixture(count: Int = 1, receiving: Bool = false) async throws -> (Store, SharedMediaNativeOriginalOwner, SharedMediaNativeAppReceivingRequest) {
+    func fixture(count: Int = 1, receiving: Bool = false, staged: Bool = false) async throws -> (Store, SharedMediaNativeOriginalOwner, SharedMediaNativeAppReceivingRequest) {
         let h = try Store(receiving: receiving)
         let owner = try await (receiving ? h.openWithReceivingConsumer().0 : h.open())
         let metadata = try await owner.prepareAppMetadata(packageID: h.packageID, draftGeneration: h.draft, contexts: [.init(freeText: "Exact submitted supporting description")])
@@ -209,6 +209,11 @@ struct SharedMediaNativeAppReceivingTests {
         }
         let request = try await owner.appReceivingRequest(packageID: h.packageID, pairIDs: pairs, operationID: UUID(),
             queueID: UUID(), observationID: UUID(), bindingID: UUID(), generation: UUID(), eventID: UUID(), timestamp: Date(timeIntervalSince1970: 1_700_000_000))
+        if staged {
+            let prepared = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: pairs)
+            let inventory = try SharedMediaNativeAppMetadataFacts.successor(request.header)
+            return (h, owner, .init(try prepared.descriptorForTransaction(header: inventory)))
+        }
         return (h, owner, request)
     }
     private func verify(_ h: Store, _ r: SharedMediaNativeAppReceivingRequest) throws {
@@ -231,7 +236,35 @@ struct SharedMediaNativeAppReceivingTests {
         #expect(try h.context().fetchCount(FetchDescriptor<SharedMediaConsumerRecord>()) == 0)
     }
     private func reopen(_ h: Store) async throws -> SharedMediaNativeOriginalOwner {
-        let owner = try SharedMediaNativeOriginalOwner.appDispatch(account: PhotoOriginalPreparationOwner.syntheticAccount(ownerID: h.ownerID, runtime: h.runtime), drain: .init())
-        _ = try await owner.openApp(container: h.container, parent: h.parent, inventoryID: h.inventoryID); return owner
+        try await SharedMediaNativeReceivingStagingTests().reopen(h)
+    }
+}
+
+extension SharedMediaNativeAppReceivingTests {
+    /// Historical fixture only. This does not exercise or authorize fresh V1
+    /// admission; the production old entry point is now exact-recovery-only.
+    func seedLegacyReceived(_ h: Store, _ request: SharedMediaNativeAppReceivingRequest) throws {
+        let c = h.context(), package = try h.package(in: c), frozen = try request.frozenPackage()
+        package.supportingContextData = frozen.envelope; package.phaseRaw = frozen.phase; package.revision = frozen.revision
+        let inventory = try #require(try c.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
+        inventory.revision = try request.freeze.commit.inventoryRevision
+        _ = try SharedMediaNativeReceivingRows.insert(request, in: c)
+        try c.save()
+    }
+
+    @Test func legacyUnstagedRequestCannotAdmitButHistoricalCompleteSetCanRecover() async throws {
+        let (h, owner, request) = try await fixture()
+        let before = try SharedMediaNativeReceivingStagingTests().facts(h)
+        await #expect(throws: (any Error).self) { _ = try await owner.receiveAppPhotos(request) }
+        #expect(try SharedMediaNativeReceivingStagingTests().facts(h) == before)
+        try SharedMediaNativeReceivingStagingTests().noReceivingRows(h)
+        try seedLegacyReceived(h, request)
+        try owner.setMetadataFault { if $0 == .beforeSave { throw SharedMediaStorageFailure.closed } }
+        #expect(try await owner.receiveAppPhotos(request) == request.cohort)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let cold = try await SharedMediaNativeReceivingStagingTests().reopen(h)
+        try cold.setMetadataFault { if $0 == .beforeSave { throw SharedMediaStorageFailure.closed } }
+        #expect(try await cold.receiveAppPhotos(request) == request.cohort)
+        #expect(await cold.invalidateAndAwaitForAccountTransition())
     }
 }

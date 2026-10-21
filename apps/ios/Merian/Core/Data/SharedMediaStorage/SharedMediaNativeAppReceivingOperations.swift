@@ -1,42 +1,6 @@
 import Foundation
 import SwiftData
 
-/// An immutable, ordinary-photo intent. It is not a save or execution capability.
-/// Capture integration must durably retain it before exposing submission.
-struct SharedMediaNativeAppReceivingRequest: Sendable {
-    let profile: SharedMediaNativeAppProfile
-    let header: SharedMediaNativeAppEligibility.Header
-    let package: SharedMediaNativeAppMetadataFacts.Package
-    let member: SharedMediaNativeAppMetadataFacts.Member
-    let freeze: SharedMediaNativeFreezeRequest
-    let cohort: SharedMediaNativeConsumerCohort
-    let timestamp: Date
-    let eventID: String
-    let metadata: String
-    var jobID: String { "scan-ingestion:" + cohort.originQueueID }
-    fileprivate init(profile: SharedMediaNativeAppProfile, header: SharedMediaNativeAppEligibility.Header,
-                     package: SharedMediaNativeAppMetadataFacts.Package, member: SharedMediaNativeAppMetadataFacts.Member,
-                     freeze: SharedMediaNativeFreezeRequest, queueID: UUID, observationID: UUID, bindingID: UUID,
-                     generation: UUID, eventID: UUID, timestamp: Date) throws {
-        self.profile = profile; self.header = header; self.package = package; self.member = member; self.freeze = freeze
-        cohort = .init(format: .receiving, bindingID: bindingID, originQueueID: queueID.uuidString.lowercased(),
-            observationID: observationID.uuidString.lowercased(), executionKind: "ordinaryV1", inferenceGeneration: generation,
-            freeze: .init(bytes: try freeze.commit.encoded()), membership: member.bytes)
-        self.timestamp = timestamp; self.eventID = eventID.uuidString.lowercased()
-        let bytes = try SharedMediaNativeDraftEnvelope.bytes([
-            "native_receiving_v1": try cohort.digest(), "inference_generation": generation.uuidString.lowercased(),
-            "operation_id": freeze.commit.operationID.uuidString.lowercased(), "event_id": self.eventID])
-        guard timestamp.timeIntervalSince1970.isFinite, let json = String(data: bytes, encoding: .utf8) else { throw SharedMediaStorageFailure.conflict }
-        metadata = json
-    }
-    func frozenPackage() throws -> SharedMediaNativeAppMetadataFacts.Package {
-        guard case .preparation(let value) = try SharedMediaNativeDraftEnvelope.decode(freeze.previousEnvelope) else { throw SharedMediaStorageFailure.conflict }
-        let bytes = try SharedMediaNativeDraftEnvelope.V2(version: 2, contexts: value.contexts, presentation: value.presentation,
-            sequence: value.sequence, attempt: nil, intents: value.intents, frozen: cohort.freeze).encoded()
-        return try package.successor(bytes, phase: "preparedHeld")
-    }
-}
-
 /// One held owner operation, one save attempt. Request construction is read-only;
 /// exact recovery of an acknowledged set cannot mint dispatch or funding rights.
 @MainActor
@@ -79,7 +43,8 @@ final class SharedMediaNativeAppReceivingOperations {
             observationID: observationID, bindingID: bindingID, generation: generation, eventID: eventID, timestamp: timestamp).0
     }
     private func prepareRequest(packageID: UUID, pairIDs: [UUID], operationID: UUID, queueID: UUID, observationID: UUID,
-                                bindingID: UUID, generation: UUID, eventID: UUID, timestamp: Date) async throws
+                                bindingID: UUID, generation: UUID, eventID: UUID, timestamp: Date,
+                                intentRevision: Int64? = nil, restagedFromSHA256: String? = nil) async throws
         -> (SharedMediaNativeAppReceivingRequest, [SharedMediaPhotoRetirementInspection]) {
         try validate(); try facts.requireMutable(packageID)
         let c = fresh(), (inventory, package, member) = try target(c, packageID)
@@ -87,86 +52,50 @@ final class SharedMediaNativeAppReceivingOperations {
         let proofs = try await inspect(states)
         let freeze = try SharedMediaNativeFreezeFacts.request(context: c, inventory: inventory, package: package, member: member,
             binding: binding, operationID: operationID, pairIDs: pairIDs, proofs: proofs)
-        let request = try SharedMediaNativeAppReceivingRequest(profile: authority.profile, header: expected,
-            package: .init(package), member: .init(member), freeze: freeze, queueID: queueID, observationID: observationID,
-            bindingID: bindingID, generation: generation, eventID: eventID, timestamp: timestamp)
+        let prepared = try SharedMediaNativeReceivingIntent.Prepared(profile: authority.profile,
+            package: .init(package), member: .init(member), cohort: freeze.commit.cohort,
+            operationID: operationID, queueID: queueID, observationID: observationID, bindingID: bindingID,
+            generation: generation, eventID: eventID, timestamp: timestamp,
+            intentRevision: intentRevision, restagedFromSHA256: restagedFromSHA256)
+        let request = SharedMediaNativeAppReceivingRequest(try prepared.descriptorForTransaction(header: expected))
         _ = try SharedMediaNativeReceivingRows.read(request, in: fresh(), absent: true)
         try validate(); return (request, proofs)
     }
+    /// The old unstaged entry point is recovery-only. Fresh receiving requires
+    /// a persisted P2 slot; constructing an old descriptor grants no admission.
     func apply(_ request: SharedMediaNativeAppReceivingRequest) async throws -> SharedMediaNativeConsumerCohort {
-        try validate(); try facts.requireMutable(request.package.id)
-        guard request.profile == authority.profile else { throw SharedMediaStorageFailure.conflict }
-        // Only the complete exact set resolves uncertain acknowledgement. A failed
-        // readback still cannot pass fresh absence/prestate checks below.
-        if let saved = try? readResult(request) { consumed = true; return saved }
-        guard expected == request.header else { throw SharedMediaStorageFailure.stale }
-        let c = fresh(), (inventory, package, member) = try target(c, request.package.id)
-        try requirePrestate(request, context: c, package: package, member: member)
-        let cohort = try SharedMediaNativeFrozenCohort.decode(request.freeze.commit.cohort.bytes)
-        let pairIDs = try cohort.entries.map { try SharedMediaNativeDerivativeIntent.decode($0.intent.bytes).pairID }
-        let states = try SharedMediaNativeFreezeFacts.states(context: c, inventory: inventory, package: package, member: member, pairIDs: pairIDs)
-        let proofs = try await inspect(states)
-        guard try SharedMediaNativeFreezeFacts.request(context: c, inventory: inventory, package: package, member: member,
-            binding: binding, operationID: request.freeze.commit.operationID, pairIDs: pairIDs, proofs: proofs) == request.freeze else { throw SharedMediaStorageFailure.stale }
-        let originals = try originalFacts(cohort, context: c)
-        let frozen = try request.frozenPackage()
-        package.supportingContextData = frozen.envelope; package.phaseRaw = frozen.phase; package.revision = frozen.revision
-        inventory.revision = try request.freeze.commit.inventoryRevision
-        let rows = try SharedMediaNativeReceivingRows.insert(request, in: c)
-        let proof = SharedMediaNativeAppReceivingPoststate(request: request, facts: facts,
-            inventory: inventory.persistentModelID, package: package.persistentModelID, inserted: rows.identities)
-        let budget = try SharedMediaNativeAcquisitionBudget.evaluateReceivingPoststate(context: c, inventory: inventory, proof: proof)
-        let added = try SharedMediaStoragePolicy.add(Int64(frozen.envelope.count - request.package.envelope.count), Int64(rows.consumer.cohortData.count))
-        try budget.totals.checkAvailable(availableBytes(), additionalReservation: max(0, added))
-        try boundary(.beforeSave); try validate(); try proof.validate(context: c, inventory: inventory)
-        let current = fresh(), (oldInventory, oldPackage, oldMember) = try target(current, request.package.id)
-        try requirePrestate(request, context: current, package: oldPackage, member: oldMember)
-        guard try SharedMediaNativeFreezeFacts.request(context: current, inventory: oldInventory, package: oldPackage,
-            member: oldMember, binding: binding, operationID: request.freeze.commit.operationID,
-            pairIDs: pairIDs, proofs: proofs) == request.freeze else { throw SharedMediaStorageFailure.stale }
-        _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: current, inventory: oldInventory,
-            ownerID: authority.profile.ownerID, format: .appV2)
-        try budget.totals.checkAvailable(availableBytes(), additionalReservation: max(0, added))
-        try validate()
-        guard try originalFacts(cohort, context: current) == originals else { throw SharedMediaStorageFailure.stale }
-        for observation in proofs { try verify(observation) }
-        // No await, callback or file operation separates the final seals and save.
-        consumed = true
-        do {
-            try c.save(); try boundary(.afterSave); try boundary(.beforeReadback)
-            let result = try readResult(request, immediate: true)
-            try facts.validateReceiving(fresh(), request: request)
-            return result
-        } catch {
-            let failure = error; c.rollback()
-            do {
-                try boundary(.beforeReadback)
-                let result = try readResult(request, immediate: true)
-                try facts.validateReceiving(fresh(), request: request)
-                return result
-            } catch { throw failure }
+        if request.cohort.format == .intentReceiving {
+            return try await receivePrepared(.init(request))
         }
+        try validate()
+        guard request.profile == authority.profile else { throw SharedMediaStorageFailure.conflict }
+        let saved = try readResult(request)
+        try validate(); consumed = true
+        return saved
     }
     func stage(packageID: UUID, draftGeneration: UUID, pairIDs: [UUID],
                identity: SharedMediaNativeReceivingStageIdentity) async throws -> SharedMediaNativeReceivingIntent.Prepared {
         try validate()
         let initial = fresh(), (initialInventory, _, _) = try target(initial, packageID)
-        let saved = try SharedMediaNativeReceivingIntentGraph.read(initial, inventory: initialInventory)[packageID]
+        let saved = try SharedMediaNativeReceivingPhaseGraph.pending(initial, inventory: initialInventory)[packageID]
         if let bytes = identity.savedBytes {
-            guard let saved, saved.row.preparedData == bytes else { throw SharedMediaStorageFailure.stale }
-            try requireSelection(saved.prepared, draftGeneration: draftGeneration, pairIDs: pairIDs)
-            consumed = true; return saved.prepared
+            guard let saved, saved.row.preparedData == bytes, case .prepared(let prepared) = saved.slot else {
+                throw SharedMediaStorageFailure.stale
+            }
+            try requireSelection(prepared, draftGeneration: draftGeneration, pairIDs: pairIDs)
+            consumed = true; return prepared
         }
         // A concurrent saved slot must be rediscovered with its own locks and IDs.
         guard saved == nil else { throw SharedMediaStorageFailure.stale }
         let (request, proofs) = try await prepareRequest(packageID: packageID, pairIDs: pairIDs,
             operationID: identity.operationID, queueID: identity.queueID, observationID: identity.observationID,
-            bindingID: identity.bindingID, generation: identity.generation, eventID: identity.eventID, timestamp: identity.timestamp)
+            bindingID: identity.bindingID, generation: identity.generation, eventID: identity.eventID, timestamp: identity.timestamp,
+            intentRevision: 0)
         let prepared = try SharedMediaNativeReceivingIntent.Prepared(request)
         try requireSelection(prepared, draftGeneration: draftGeneration, pairIDs: pairIDs)
         let c = fresh(), (inventory, package, member) = try target(c, packageID)
         try requirePrestate(request, context: c, package: package, member: member)
-        let states = try SharedMediaNativeReceivingIntentGraph.cohort(prepared, context: c, inventory: inventory)
+        let states = try SharedMediaNativeReceivingIntentGraph.currentCohort(prepared, context: c, inventory: inventory)
         let frozen = try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes)
         let originals = try originalFacts(frozen, context: c)
         let budget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: c, inventory: inventory,
@@ -181,6 +110,7 @@ final class SharedMediaNativeAppReceivingOperations {
             inventoryGeneration: authority.profile.generation, ownerID: authority.profile.ownerID,
             draftGeneration: draftGeneration, operationID: prepared.operationID, preparedData: bytes,
             preparedSHA256: SharedMediaAcquisitionEncoding.digest(bytes))
+        row.schemaVersion = prepared.version; row.revision = prepared.intentRevision ?? 0
         c.insert(row); inventory.revision = try SharedMediaStoragePolicy.add(expected.inventory.revision, 1)
         let proof = SharedMediaNativeAppStagingPoststate(facts: facts, header: expected,
             row: .init(row), inventory: inventory.persistentModelID, inserted: row.persistentModelID)
@@ -215,10 +145,12 @@ final class SharedMediaNativeAppReceivingOperations {
             throw SharedMediaStorageFailure.stale
         }
         let c = fresh(), (inventory, _, _) = try target(c, prepared.package.id)
-        guard let found = try SharedMediaNativeReceivingIntentGraph.read(c, inventory: inventory)[prepared.package.id],
-              found.row.preparedData == (try prepared.encoded()) else { throw SharedMediaStorageFailure.conflict }
+        guard let found = try SharedMediaNativeReceivingPhaseGraph.pending(c, inventory: inventory)[prepared.package.id],
+              found.row.preparedData == (try prepared.encoded()), case .prepared(let saved) = found.slot else {
+            throw SharedMediaStorageFailure.conflict
+        }
         try facts.validateStaging(c, adding: found.row)
-        return found.prepared
+        return saved
     }
     private func requireSelection(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                   draftGeneration: UUID, pairIDs: [UUID]) throws {
@@ -247,22 +179,17 @@ final class SharedMediaNativeAppReceivingOperations {
         }
         return proofs
     }
-    private func readResult(_ r: SharedMediaNativeAppReceivingRequest, immediate: Bool = false) throws -> SharedMediaNativeConsumerCohort {
+    private func readResult(_ r: SharedMediaNativeAppReceivingRequest) throws -> SharedMediaNativeConsumerCohort {
         try boundary(.beforeReadback)
         let current = try authority.header(container), successor = try SharedMediaNativeAppMetadataFacts.successor(r.header)
-        if immediate {
-            guard current == successor else { throw SharedMediaStorageFailure.stale }
-        } else {
-            // Unrelated packages may legitimately advance the shared inventory.
-            // The complete exact saved set is recovered under this operation's
-            // freshly audited stable scope, never a historical global revision.
-            guard current == expected, current.inventory.generation == successor.inventory.generation,
-                  current.inventory.revision >= successor.inventory.revision,
-                  current.inventory.phase == successor.inventory.phase, current.inventory.cursor == successor.inventory.cursor,
-                  current.bootstrapID == successor.bootstrapID, current.bootstrapGeneration == successor.bootstrapGeneration,
-                  current.bootstrapContract == successor.bootstrapContract, current.bootstrapRevision == successor.bootstrapRevision else {
-                throw SharedMediaStorageFailure.stale
-            }
+        // Unrelated packages may advance the inventory. Recover the complete
+        // saved set within the freshly audited scope, never an old global revision.
+        guard current == expected, current.inventory.generation == successor.inventory.generation,
+              current.inventory.revision >= successor.inventory.revision,
+              current.inventory.phase == successor.inventory.phase, current.inventory.cursor == successor.inventory.cursor,
+              current.bootstrapID == successor.bootstrapID, current.bootstrapGeneration == successor.bootstrapGeneration,
+              current.bootstrapContract == successor.bootstrapContract, current.bootstrapRevision == successor.bootstrapRevision else {
+            throw SharedMediaStorageFailure.stale
         }
         let c = fresh(), (_, package, member) = try target(c, r.package.id)
         guard SharedMediaNativeAppMetadataFacts.Package(package) == (try r.frozenPackage()),
@@ -292,35 +219,6 @@ final class SharedMediaNativeAppReceivingOperations {
     }
 }
 
-/// Only the receiving owner can mint this exact two-update/four-insert proof.
-@MainActor
-struct SharedMediaNativeAppReceivingPoststate {
-    let request: SharedMediaNativeAppReceivingRequest
-    private let facts: SharedMediaNativeAppMetadataFacts
-    private let inventoryIdentity: PersistentIdentifier, packageIdentity: PersistentIdentifier
-    private let inserted: Set<PersistentIdentifier>
-    var profile: SharedMediaNativeAppProfile { request.profile }
-    fileprivate init(request: SharedMediaNativeAppReceivingRequest, facts: SharedMediaNativeAppMetadataFacts,
-                     inventory: PersistentIdentifier, package: PersistentIdentifier, inserted: Set<PersistentIdentifier>) {
-        self.request = request; self.facts = facts; inventoryIdentity = inventory; packageIdentity = package; self.inserted = inserted
-    }
-    func validate(context c: ModelContext, inventory: SharedMediaInventoryRecord) throws {
-        let updates = Set(c.changedModelsArray.map(\.persistentModelID))
-        guard c.deletedModelsArray.isEmpty, c.insertedModelsArray.count == 4,
-              Set(c.insertedModelsArray.map(\.persistentModelID)) == inserted,
-              updates.subtracting(inserted) == Set([inventoryIdentity, packageIdentity]),
-              inventory.persistentModelID == inventoryIdentity,
-              try SharedMediaNativeAppEligibility.profile(inventory) == profile,
-              inventory.revision == (try request.freeze.commit.inventoryRevision),
-              let rows = try SharedMediaNativeReceivingRows.read(request, in: c, absent: false), rows.identities == inserted else { throw SharedMediaStorageFailure.conflict }
-        try facts.validateReceiving(c, request: request)
-    }
-    func receivingBytes(_ consumer: SharedMediaConsumerRecord, context: ModelContext, inventory: SharedMediaInventoryRecord) throws -> Int64 {
-        _ = try SharedMediaNativeConsumerGraph.validateReceivingPoststate(consumer, context: context, inventory: inventory, proof: self)
-        return Int64(consumer.cohortData.count)
-    }
-}
-
 /// Only the receiving file can prove this one-insert/one-update transition.
 @MainActor
 struct SharedMediaNativeAppStagingPoststate {
@@ -344,5 +242,339 @@ struct SharedMediaNativeAppStagingPoststate {
             throw SharedMediaStorageFailure.conflict
         }
         try facts.validateStaging(context, adding: row)
+    }
+    func receivingBytes(_ consumer: SharedMediaConsumerRecord) throws -> Int64 {
+        try facts.receivingBytes(consumer)
+    }
+}
+
+/// Three distinct exact transitions. Only this owner file can construct one;
+/// there is no caller-selected generic dirty-context exemption.
+@MainActor
+struct SharedMediaNativeAppIntentPoststate {
+    fileprivate enum Transition {
+        case receive(SharedMediaNativeAppReceivingRequest)
+        case abandon(SharedMediaNativeReceivingIntent.Prepared, SharedMediaNativeReceivingIntent.Abandoned)
+        case restage(SharedMediaNativeReceivingIntent.Prepared)
+    }
+    private let transition: Transition
+    private let facts: SharedMediaNativeAppMetadataFacts
+    private let header: SharedMediaNativeAppEligibility.Header
+    private let row: SharedMediaNativeReceivingIntentGraph.Row
+    private let inventoryID: PersistentIdentifier, packageID: PersistentIdentifier, slotID: PersistentIdentifier
+    private let inserts: Set<PersistentIdentifier>
+    var profile: SharedMediaNativeAppProfile { facts.profile }
+    fileprivate init(transition: Transition, facts: SharedMediaNativeAppMetadataFacts,
+                     header: SharedMediaNativeAppEligibility.Header, row: SharedMediaReceivingIntentRecord,
+                     inventory: SharedMediaInventoryRecord, package: PhotoPreparationRecord,
+                     inserts: Set<PersistentIdentifier> = []) {
+        self.transition = transition; self.facts = facts; self.header = header; self.row = .init(row)
+        inventoryID = inventory.persistentModelID; packageID = package.persistentModelID
+        slotID = row.persistentModelID; self.inserts = inserts
+    }
+    func validate(context c: ModelContext, inventory: SharedMediaInventoryRecord) throws {
+        try validateValues(context: c, inventory: inventory, checkWriteSet: true)
+    }
+    fileprivate func validatePersisted(context c: ModelContext, inventory: SharedMediaInventoryRecord) throws {
+        guard !c.hasChanges else { throw SharedMediaStorageFailure.conflict }
+        try validateValues(context: c, inventory: inventory, checkWriteSet: false)
+    }
+    private func validateValues(context c: ModelContext, inventory: SharedMediaInventoryRecord, checkWriteSet: Bool) throws {
+        guard let before = facts.intents[row.id], let oldPackage = facts.packages[row.id],
+              let current = try SharedMediaNativeReceivingPhaseGraph.row(row.id, in: c),
+              SharedMediaNativeReceivingIntentGraph.Row(current) == row,
+              current.persistentModelID == slotID, inventory.persistentModelID == inventoryID,
+              try SharedMediaNativeAppEligibility.profile(inventory) == profile,
+              inventory.revision == (try SharedMediaStoragePolicy.add(header.inventory.revision, 1)),
+              c.deletedModelsArray.isEmpty else { throw SharedMediaStorageFailure.conflict }
+        if checkWriteSet {
+            guard Set(c.insertedModelsArray.map(\.persistentModelID)) == inserts,
+                  c.insertedModelsArray.count == inserts.count else { throw SharedMediaStorageFailure.conflict }
+        }
+        let prior = try SharedMediaNativeReceivingSlot.decode(before, profile: profile)
+        let next = try SharedMediaNativeReceivingSlot.decode(row, profile: profile)
+        let expectedPackage: SharedMediaNativeAppMetadataFacts.Package
+        let consumer: SharedMediaConsumerRecord?
+        let updates: Set<PersistentIdentifier>
+        switch transition {
+        case .receive(let request):
+            guard case .prepared(let prepared) = prior, prepared.version == 2,
+                  case .received(_, _, let transaction) = next,
+                  before.preparedData == row.preparedData,
+                  try SharedMediaNativeReceivingIntent.canonicalRequest(transaction) == SharedMediaNativeReceivingIntent.canonicalRequest(.init(request)),
+                  request.header == header, request.package == oldPackage,
+                  let rows = try SharedMediaNativeReceivingRows.read(request, in: c, absent: false),
+                  (!checkWriteSet || rows.identities == inserts), inserts.count == 4 else { throw SharedMediaStorageFailure.conflict }
+            // Inserted SwiftData identifiers may be promoted by save. The
+            // persisted read above proves logical IDs and every row field;
+            // identifier equality belongs only to the pre-save write set.
+            expectedPackage = try request.frozenPackage(); consumer = rows.consumer
+            updates = [inventoryID, packageID, slotID]
+        case .abandon(let prepared, let result):
+            guard case .prepared = prior, case .abandoned(let saved) = next,
+                  before.preparedData == (try prepared.encoded()),
+                  saved == result, result == (try .init(prepared: prepared, header: header)),
+                  oldPackage == prepared.package, inserts.isEmpty else { throw SharedMediaStorageFailure.conflict }
+            try SharedMediaNativeReceivingRows.requireAbsent(.init(prepared), in: c)
+            expectedPackage = try oldPackage.successor(oldPackage.envelope); consumer = nil
+            updates = [inventoryID, packageID, slotID]
+        case .restage(let prepared):
+            guard case .abandoned(let abandoned) = prior, case .prepared = next,
+                  prepared.version == 2, prepared.package == oldPackage,
+                  prepared.restagedFromSHA256 == (try SharedMediaAcquisitionEncoding.digest(abandoned.encoded())),
+                  row.preparedData == (try prepared.encoded()),
+                  row.revision == (try SharedMediaStoragePolicy.add(abandoned.revision, 1)), inserts.isEmpty,
+                  Set([prepared.operationID, prepared.queueID, prepared.observationID, prepared.bindingID, prepared.generation, prepared.eventID])
+                    .isDisjoint(with: [abandoned.operationID, abandoned.queueID, abandoned.observationID, abandoned.bindingID, abandoned.generation, abandoned.eventID]) else {
+                throw SharedMediaStorageFailure.conflict
+            }
+            try SharedMediaNativeReceivingRows.requireAbsent(.init(prepared), in: c)
+            expectedPackage = oldPackage; consumer = nil
+            updates = [inventoryID, slotID]
+        }
+        guard !checkWriteSet || Set(c.changedModelsArray.map(\.persistentModelID)).subtracting(inserts) == updates else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        try facts.validateIntentTransition(c, row: row, package: expectedPackage, consumer: consumer)
+    }
+    func receivingBytes(_ consumer: SharedMediaConsumerRecord, context: ModelContext,
+                        inventory: SharedMediaInventoryRecord) throws -> Int64 {
+        if case .receive = transition, consumer.packageID == row.id {
+            _ = try SharedMediaNativeConsumerGraph.validateIntentPoststate(consumer, context: context, inventory: inventory, proof: self)
+            return Int64(consumer.cohortData.count)
+        }
+        return try facts.receivingBytes(consumer)
+    }
+}
+
+@MainActor
+private extension SharedMediaNativeAppReceivingOperations {
+    typealias Intent = SharedMediaNativeReceivingIntent
+    func requirePrepared(_ prepared: Intent.Prepared, context c: ModelContext,
+                         inventory: SharedMediaInventoryRecord) throws -> SharedMediaReceivingIntentRecord {
+        let id = prepared.package.id
+        guard prepared.profile == authority.profile,
+              let row = try SharedMediaNativeReceivingPhaseGraph.row(id, in: c),
+              facts.intents[id] == .init(row),
+              case .prepared = try SharedMediaNativeReceivingSlot.decode(.init(row), profile: authority.profile),
+              row.preparedData == (try prepared.encoded()),
+              try SharedMediaNativeAppMetadataFacts.capture(c, profile: authority.profile) == facts else {
+            throw SharedMediaStorageFailure.stale
+        }
+        _ = try SharedMediaNativeReceivingIntentGraph.currentCohort(prepared, context: c, inventory: inventory)
+        try SharedMediaNativeReceivingRows.requireAbsent(.init(prepared), in: c)
+        return row
+    }
+    func exactReceived(_ prepared: Intent.Prepared) throws -> SharedMediaNativeConsumerCohort? {
+        let c = fresh(), (inventory, _, _) = try target(c, prepared.package.id)
+        guard let row = try SharedMediaNativeReceivingPhaseGraph.row(prepared.package.id, in: c) else {
+            throw SharedMediaStorageFailure.stale
+        }
+        let slot = try SharedMediaNativeReceivingSlot.decode(.init(row), profile: authority.profile)
+        guard case .received(_, _, let transaction) = slot else { return nil }
+        guard row.preparedData == (try prepared.encoded()) else { throw SharedMediaStorageFailure.stale }
+        let rows = try SharedMediaNativeReceivingPhaseGraph.receivedRows(transaction, context: c)
+        _ = try SharedMediaNativeConsumerGraph.validateScoped(rows.consumer, context: c, format: .appV2)
+        guard inventory.revision >= (try transaction.freeze.commit.inventoryRevision) else { throw SharedMediaStorageFailure.stale }
+        return transaction.cohort
+    }
+    func exactAbandoned(_ prepared: Intent.Prepared) throws -> Intent.Abandoned? {
+        let c = fresh(), (inventory, package, member) = try target(c, prepared.package.id)
+        guard let row = try SharedMediaNativeReceivingPhaseGraph.row(prepared.package.id, in: c) else {
+            throw SharedMediaStorageFailure.stale
+        }
+        guard case .abandoned(let result) = try SharedMediaNativeReceivingSlot.decode(.init(row), profile: authority.profile) else { return nil }
+        guard result.preparedSHA256 == (try SharedMediaAcquisitionEncoding.digest(prepared.encoded())),
+              result == (try Intent.Abandoned(prepared: prepared, header: result.preHeader)),
+              inventory.revision >= (try SharedMediaStoragePolicy.add(result.preHeader.inventory.revision, 1)) else {
+            throw SharedMediaStorageFailure.stale
+        }
+        try result.requireSuccessor(package: .init(package), member: .init(member))
+        try SharedMediaNativeReceivingRows.requireAbsent(.init(result), in: c)
+        return result
+    }
+    func afterIntentSave<T>(_ context: ModelContext, proof: SharedMediaNativeAppIntentPoststate,
+                            recover: () throws -> T) throws -> T {
+        consumed = true
+        func readback() throws -> T {
+            try boundary(.beforeReadback)
+            guard try authority.header(container) == SharedMediaNativeAppMetadataFacts.successor(expected) else {
+                throw SharedMediaStorageFailure.stale
+            }
+            let c = fresh(), id = authority.profile.inventoryID
+            let inventory = try SharedMediaNativePairPlanGraph.one(c,
+                FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))
+            // The original dirty write-set proof is checked before save; fresh
+            // readback verifies exact persisted values through recover().
+            guard inventory.revision == (try SharedMediaStoragePolicy.add(expected.inventory.revision, 1)) else {
+                throw SharedMediaStorageFailure.stale
+            }
+            try proof.validatePersisted(context: c, inventory: inventory)
+            return try recover()
+        }
+        do { try context.save(); try boundary(.afterSave); return try readback() }
+        catch {
+            let failure = error; context.rollback()
+            do { return try readback() } catch { throw failure }
+        }
+    }
+}
+
+@MainActor
+extension SharedMediaNativeAppReceivingOperations {
+    func receivePrepared(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeConsumerCohort {
+        try validate()
+        guard prepared.version == 2, prepared.profile == authority.profile,
+              prepared.intentRevision == 0 || prepared.restagedFromSHA256 != nil else { throw SharedMediaStorageFailure.closed }
+        if let saved = try exactReceived(prepared) { try validate(); consumed = true; return saved }
+        let c = fresh(), (inventory, package, member) = try target(c, prepared.package.id)
+        let slot = try requirePrepared(prepared, context: c, inventory: inventory)
+        let transaction = try prepared.descriptorForTransaction(header: expected)
+        let request = SharedMediaNativeAppReceivingRequest(transaction)
+        let states = try SharedMediaNativeReceivingIntentGraph.currentCohort(prepared, context: c, inventory: inventory)
+        let proofs = try await inspect(states)
+        let frozen = try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes)
+        let ids = try frozen.entries.map { try SharedMediaNativeDerivativeIntent.decode($0.intent.bytes).pairID }
+        guard try SharedMediaNativeFreezeFacts.request(context: c, inventory: inventory, package: package, member: member,
+            binding: binding, operationID: prepared.operationID, pairIDs: ids, proofs: proofs) == request.freeze else {
+            throw SharedMediaStorageFailure.stale
+        }
+        let originals = try originalFacts(frozen, context: c)
+        let before = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: c, inventory: inventory,
+            ownerID: authority.profile.ownerID, format: .appV2)
+        guard let base = before.baseMetadataByPackage[prepared.package.id] else { throw SharedMediaStorageFailure.conflict }
+        let reservation = try SharedMediaNativeReceivingReservation.maximum(prepared, currentMetadata: base, pairStates: states)
+        let materialized = try SharedMediaNativeReceivingReservation.materialized(prepared, header: expected,
+            currentMetadata: base, pairStates: states, reservation: reservation)
+        let result = try SharedMediaNativeReceivingIntent.Received(prepared: prepared, request: request)
+        let resultBytes = try result.encoded(prepared: prepared), nextPackage = try request.frozenPackage()
+        package.supportingContextData = nextPackage.envelope; package.phaseRaw = nextPackage.phase; package.revision = nextPackage.revision
+        slot.phaseRaw = "received"; slot.revision = try SharedMediaStoragePolicy.add(slot.revision, 1)
+        slot.resultData = resultBytes; slot.resultSHA256 = SharedMediaAcquisitionEncoding.digest(resultBytes)
+        inventory.revision = try SharedMediaStoragePolicy.add(expected.inventory.revision, 1)
+        let rows = try SharedMediaNativeReceivingRows.insert(request, in: c)
+        let proof = SharedMediaNativeAppIntentPoststate(transition: .receive(request), facts: facts, header: expected,
+            row: slot, inventory: inventory, package: package, inserts: rows.identities)
+        let after = try SharedMediaNativeAcquisitionBudget.evaluateIntentPoststate(context: c, inventory: inventory, proof: proof)
+        guard after.metadataByPackage[prepared.package.id] == materialized else { throw SharedMediaStorageFailure.conflict }
+        let added = try PhotoPreparationPolicy.add([Int64(resultBytes.count), Int64(rows.consumer.cohortData.count),
+            Int64(request.metadata.utf8.count), Int64(request.metadata.utf8.count), Int64(nextPackage.envelope.count - prepared.package.envelope.count)])
+        try after.totals.checkAvailable(availableBytes(), additionalReservation: added)
+        try boundary(.beforeSave); try validate(); try proof.validate(context: c, inventory: inventory)
+        let current = fresh(), (oldInventory, oldPackage, oldMember) = try target(current, prepared.package.id)
+        _ = try requirePrepared(prepared, context: current, inventory: oldInventory)
+        guard try SharedMediaNativeFreezeFacts.request(context: current, inventory: oldInventory, package: oldPackage, member: oldMember,
+            binding: binding, operationID: prepared.operationID, pairIDs: ids, proofs: proofs) == request.freeze,
+              try originalFacts(frozen, context: current) == originals else { throw SharedMediaStorageFailure.stale }
+        try after.totals.checkAvailable(availableBytes(), additionalReservation: added)
+        for observation in proofs { try verify(observation) }
+        return try afterIntentSave(c, proof: proof) {
+            guard let saved = try self.exactReceived(prepared) else { throw SharedMediaStorageFailure.conflict }
+            return saved
+        }
+    }
+
+    func abandonPrepared(_ prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> SharedMediaNativeReceivingIntent.Abandoned {
+        try validate()
+        guard prepared.profile == authority.profile else { throw SharedMediaStorageFailure.conflict }
+        if let saved = try exactAbandoned(prepared) { try validate(); consumed = true; return saved }
+        let c = fresh(), (inventory, package, _) = try target(c, prepared.package.id)
+        let slot = try requirePrepared(prepared, context: c, inventory: inventory)
+        let states = try SharedMediaNativeReceivingIntentGraph.currentCohort(prepared, context: c, inventory: inventory)
+        let before = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: c, inventory: inventory,
+            ownerID: authority.profile.ownerID, format: .appV2)
+        guard let base = before.baseMetadataByPackage[prepared.package.id] else { throw SharedMediaStorageFailure.conflict }
+        let reservation = try SharedMediaNativeReceivingReservation.maximum(prepared, currentMetadata: base, pairStates: states)
+        let materialized = try SharedMediaNativeReceivingReservation.materializedAbandoned(prepared, header: expected,
+            currentMetadata: base, pairStates: states, reservation: reservation)
+        let result = try SharedMediaNativeReceivingIntent.Abandoned(prepared: prepared, header: expected)
+        let bytes = try result.encoded()
+        package.revision = result.package.revision
+        slot.phaseRaw = "abandoned"; slot.revision = result.revision; slot.preparedData = nil
+        slot.resultData = bytes; slot.resultSHA256 = SharedMediaAcquisitionEncoding.digest(bytes)
+        inventory.revision = try SharedMediaStoragePolicy.add(expected.inventory.revision, 1)
+        let proof = SharedMediaNativeAppIntentPoststate(transition: .abandon(prepared, result), facts: facts,
+            header: expected, row: slot, inventory: inventory, package: package)
+        let after = try SharedMediaNativeAcquisitionBudget.evaluateIntentPoststate(context: c, inventory: inventory, proof: proof)
+        guard after.metadataByPackage[prepared.package.id] == materialized else { throw SharedMediaStorageFailure.conflict }
+        let added = max(0, Int64(bytes.count) - Int64(try prepared.encoded().count))
+        try after.totals.checkAvailable(availableBytes(), additionalReservation: added)
+        try boundary(.beforeSave); try validate(); try proof.validate(context: c, inventory: inventory)
+        let current = fresh(), (oldInventory, _, _) = try target(current, prepared.package.id)
+        _ = try requirePrepared(prepared, context: current, inventory: oldInventory)
+        try after.totals.checkAvailable(availableBytes(), additionalReservation: added)
+        return try afterIntentSave(c, proof: proof) {
+            guard let saved = try self.exactAbandoned(prepared) else { throw SharedMediaStorageFailure.conflict }
+            return saved
+        }
+    }
+}
+
+@MainActor
+extension SharedMediaNativeAppReceivingOperations {
+    func restage(_ identity: SharedMediaNativeReceivingRestageIdentity, draftGeneration: UUID,
+                 pairIDs: [UUID]) async throws -> SharedMediaNativeReceivingIntent.Prepared {
+        try validate()
+        let packageID = identity.predecessor.package.id
+        guard identity.predecessor.profile == authority.profile, facts.intents[packageID] == identity.observed else {
+            throw SharedMediaStorageFailure.stale
+        }
+        if let saved = identity.savedSuccessor {
+            let c = fresh(), (inventory, _, _) = try target(c, packageID)
+            guard let witness = try SharedMediaNativeReceivingPhaseGraph.pending(c, inventory: inventory)[packageID],
+                  witness.row == identity.observed, case .prepared(let prepared) = witness.slot,
+                  try prepared.encoded() == saved.encoded() else { throw SharedMediaStorageFailure.stale }
+            try requireSelection(prepared, draftGeneration: draftGeneration, pairIDs: pairIDs)
+            try validate(); consumed = true; return prepared
+        }
+        guard case .abandoned(let predecessor) = try SharedMediaNativeReceivingSlot.decode(identity.observed, profile: authority.profile),
+              predecessor == identity.predecessor else { throw SharedMediaStorageFailure.stale }
+        let ids = identity.identity
+        let (request, proofs) = try await prepareRequest(packageID: packageID, pairIDs: pairIDs,
+            operationID: ids.operationID, queueID: ids.queueID, observationID: ids.observationID, bindingID: ids.bindingID,
+            generation: ids.generation, eventID: ids.eventID, timestamp: ids.timestamp,
+            intentRevision: SharedMediaStoragePolicy.add(predecessor.revision, 1),
+            restagedFromSHA256: SharedMediaAcquisitionEncoding.digest(predecessor.encoded()))
+        let prepared = try SharedMediaNativeReceivingIntent.Prepared(request)
+        try requireSelection(prepared, draftGeneration: draftGeneration, pairIDs: pairIDs)
+        let c = fresh(), (inventory, package, member) = try target(c, packageID)
+        try requirePrestate(request, context: c, package: package, member: member)
+        guard let slot = try SharedMediaNativeReceivingPhaseGraph.row(packageID, in: c),
+              SharedMediaNativeReceivingIntentGraph.Row(slot) == identity.observed else { throw SharedMediaStorageFailure.stale }
+        let states = try SharedMediaNativeReceivingIntentGraph.currentCohort(prepared, context: c, inventory: inventory)
+        let frozen = try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes)
+        let originals = try originalFacts(frozen, context: c)
+        let before = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: c, inventory: inventory,
+            ownerID: authority.profile.ownerID, format: .appV2)
+        guard let base = before.baseMetadataByPackage[packageID] else { throw SharedMediaStorageFailure.conflict }
+        let reservation = try SharedMediaNativeReceivingReservation.maximum(prepared, currentMetadata: base, pairStates: states)
+        let bytes = try prepared.encoded()
+        slot.phaseRaw = "prepared"; slot.schemaVersion = 2; slot.revision = try SharedMediaStoragePolicy.add(predecessor.revision, 1)
+        slot.operationID = prepared.operationID; slot.draftGeneration = draftGeneration
+        slot.preparedData = bytes; slot.preparedSHA256 = SharedMediaAcquisitionEncoding.digest(bytes)
+        slot.resultData = nil; slot.resultSHA256 = nil
+        inventory.revision = try SharedMediaStoragePolicy.add(expected.inventory.revision, 1)
+        let proof = SharedMediaNativeAppIntentPoststate(transition: .restage(prepared), facts: facts, header: expected,
+            row: slot, inventory: inventory, package: package)
+        let after = try SharedMediaNativeAcquisitionBudget.evaluateIntentPoststate(context: c, inventory: inventory, proof: proof)
+        guard after.metadataByPackage[packageID] == reservation.charged else { throw SharedMediaStorageFailure.conflict }
+        let added = max(0, Int64(bytes.count) - Int64(try predecessor.encoded().count))
+        try after.totals.checkAvailable(availableBytes(), additionalReservation: added)
+        try boundary(.beforeSave); try validate(); try proof.validate(context: c, inventory: inventory)
+        let current = fresh(), (oldInventory, oldPackage, oldMember) = try target(current, packageID)
+        try requirePrestate(request, context: current, package: oldPackage, member: oldMember)
+        guard try SharedMediaNativeFreezeFacts.request(context: current, inventory: oldInventory, package: oldPackage, member: oldMember,
+            binding: binding, operationID: prepared.operationID, pairIDs: pairIDs, proofs: proofs) == request.freeze,
+              try originalFacts(frozen, context: current) == originals else { throw SharedMediaStorageFailure.stale }
+        try after.totals.checkAvailable(availableBytes(), additionalReservation: added)
+        for observation in proofs { try verify(observation) }
+        return try afterIntentSave(c, proof: proof) {
+            let fresh = self.fresh(), (inventory, _, _) = try self.target(fresh, packageID)
+            guard let witness = try SharedMediaNativeReceivingPhaseGraph.pending(fresh, inventory: inventory)[packageID],
+                  witness.row.preparedData == bytes, case .prepared(let saved) = witness.slot else {
+                throw SharedMediaStorageFailure.conflict
+            }
+            return saved
+        }
     }
 }

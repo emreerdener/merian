@@ -60,6 +60,13 @@ struct SharedMediaNativeScopedAudit {
             case .released: break // Stripped terminal rows do not prove any physical release.
             }
         }
+        if format == .appV2 {
+            // Intentionally no inventory predicate: every raw intent, including
+            // foreign/orphan rows, must either validate or close this scope.
+            _ = try await page(FetchDescriptor<SharedMediaReceivingIntentRecord>(sortBy: [SortDescriptor(\.cursorKey)])) { row, context, inventory in
+                _ = try SharedMediaNativeReceivingPhaseGraph.validate(.init(row), context: context, inventory: inventory)
+            }
+        }
         let consumers = try await page(FetchDescriptor<SharedMediaConsumerRecord>(
             predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory in
             guard row.ownerID == scope.ownerID, row.inventoryGeneration == scope.generation else { throw SharedMediaStorageFailure.conflict }
@@ -185,10 +192,10 @@ struct SharedMediaNativeScopedAudit {
     private func header(_ context: ModelContext) throws -> SharedMediaInventoryRecord {
         guard !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.conflict }
         let row = try format.header(context: context, scope: scope)
-        // Recheck complete bounded prepared joins at every initial/page/final
-        // boundary. Legacy V1 and unsupported phases remain closed.
+        // Bounded pending slots at every boundary; all raw slots receive a
+        // separate paged reverse audit in run(). No retained-library count cap.
         if format == .appV2 {
-            _ = try SharedMediaNativeReceivingIntentGraph.read(context, inventory: row)
+            _ = try SharedMediaNativeReceivingPhaseGraph.pending(context, inventory: row)
         } else {
             guard try context.fetchCount(FetchDescriptor<SharedMediaReceivingIntentRecord>()) == 0 else {
                 throw SharedMediaStorageFailure.closed

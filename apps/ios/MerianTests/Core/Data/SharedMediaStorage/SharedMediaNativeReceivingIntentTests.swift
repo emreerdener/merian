@@ -266,7 +266,7 @@ struct SharedMediaNativeReceivingVersionTests {
         let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture()
         let old = try Intent.Prepared(request), fresh = try prepared(old, revision: 0)
         let descriptor = try fresh.descriptorForTransaction(header: request.header)
-        _ = try await owner.receiveAppPhotos(request)
+        try SharedMediaNativeAppReceivingTests().seedLegacyReceived(h, request)
         let c = h.context()
         let rows = try #require(try SharedMediaNativeReceivingRows.read(request, in: c, absent: false))
         #expect(try SharedMediaNativeConsumerGraph.validateScoped(rows.consumer, context: c, format: .appV2) == request.cohort)
@@ -293,6 +293,7 @@ struct SharedMediaNativeReceivingVersionTests {
         let c = h.context()
         let inventory = try #require(try c.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
         let row = try #require(try c.fetch(FetchDescriptor<SharedMediaReceivingIntentRecord>()).first)
+        row.schemaVersion = 1
         row.preparedData = try fresh.encoded()
         row.preparedSHA256 = SharedMediaAcquisitionEncoding.digest(try fresh.encoded())
         try c.save()
@@ -324,5 +325,29 @@ struct SharedMediaNativeReceivingVersionTests {
             operationID: old.operationID, queueID: old.queueID, observationID: old.observationID,
             bindingID: old.bindingID, generation: old.generation, eventID: old.eventID,
             timestamp: Date(timeIntervalSinceReferenceDate: Double(bitPattern: old.timestampBits)), intentRevision: revision)
+    }
+}
+
+extension SharedMediaNativeReceivingVersionTests {
+    @Test func optionalRestageProvenancePreservesOldBytesAndBindsNewReconstruction() async throws {
+        let fixture = try await Fixture.load(count: 1), old = try Intent.Prepared(fixture.request)
+        let existing = try prepared(old, revision: 3), existingBytes = try existing.encoded()
+        #expect(try Fixture.object(existing)["restagedFromSHA256"] == nil)
+        #expect(try Intent.Prepared.decode(existingBytes).encoded() == existingBytes)
+        let digest = String(repeating: "a", count: 64)
+        let linked = try Fixture.copy(existing, changes: ["restagedFromSHA256": digest])
+        let transaction = try linked.descriptorForTransaction(header: fixture.request.header)
+        #expect(transaction.cohort.intentBinding?.restagedFromSHA256 == digest)
+        #expect(try Intent.Prepared(transaction).encoded() == linked.encoded())
+        #expect(try transaction.cohort.digest() != existing.descriptorForTransaction(header: fixture.request.header).cohort.digest())
+        for value in [old, try prepared(old, revision: 0)] {
+            let bad = try Fixture.copy(value, changes: ["restagedFromSHA256": digest])
+            #expect(throws: (any Error).self) { _ = try bad.encoded() }
+        }
+        for hash in ["", "abc", String(repeating: "A", count: 64)] {
+            let bad = try Fixture.copy(existing, changes: ["restagedFromSHA256": hash])
+            #expect(throws: (any Error).self) { _ = try bad.encoded() }
+        }
+        #expect(try existing.encoded() == existingBytes)
     }
 }

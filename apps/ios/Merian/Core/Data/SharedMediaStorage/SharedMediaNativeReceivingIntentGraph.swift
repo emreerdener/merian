@@ -74,6 +74,12 @@ enum SharedMediaNativeReceivingIntentGraph {
     static func cohort(_ prepared: SharedMediaNativeReceivingIntent.Prepared, context: ModelContext,
                        inventory: SharedMediaInventoryRecord) throws -> [SharedMediaNativePairFileState] {
         try requireLegacyPrepared(prepared)
+        return try currentCohort(prepared, context: context, inventory: inventory)
+    }
+
+    /// Intent-aware owner leaf. Legacy callers retain their strict wrapper.
+    static func currentCohort(_ prepared: SharedMediaNativeReceivingIntent.Prepared, context: ModelContext,
+                              inventory: SharedMediaInventoryRecord) throws -> [SharedMediaNativePairFileState] {
         _ = try prepared.encoded()
         let id = prepared.package.id
         let package = try SharedMediaNativePairPlanGraph.one(context,

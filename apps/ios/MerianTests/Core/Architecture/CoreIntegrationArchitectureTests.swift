@@ -45,6 +45,13 @@ struct CoreIntegrationArchitectureTests {
         })
 
         #expect(oversized == Self.trackedOversizedOwners)
+        for (path, ceiling) in Self.sealedOwnerCeilings {
+            let source = try #require(sources.first { $0.relativePath == path })
+            #expect(
+                DatabaseActorTestSupport.lineCount(of: source.contents) <= ceiling,
+                "\(path) exceeds its reviewed sealed-owner ceiling"
+            )
+        }
     }
 
     @Test func policiesRemainBoundedAndRespectExplicitEffectBoundaries() throws {
@@ -227,7 +234,15 @@ struct CoreIntegrationArchitectureTests {
         "MerianLog.swift"
     ]
 
+    // Keep capability minting and private fences together; no growth allowance.
+    private static let sealedOwnerCeilings: [String: Int] = [
+        "Data/SharedMediaStorage/SharedMediaNativeOriginalOwner.swift": 610,
+        "Data/SharedMediaStorage/SharedMediaNativeStorageRepository.swift": 622
+    ]
+
     private static let trackedOversizedOwners: Set<String> = [
+        "Data/SharedMediaStorage/SharedMediaNativeOriginalOwner.swift",
+        "Data/SharedMediaStorage/SharedMediaNativeStorageRepository.swift",
         // Versioned wire decoders are generator-owned and validated as one contract.
         "AI/InferenceEdgeDTOs.swift",
         "Network/SupabaseManager.swift"

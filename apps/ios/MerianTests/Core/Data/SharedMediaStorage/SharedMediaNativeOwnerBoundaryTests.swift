@@ -83,14 +83,21 @@ struct SharedMediaNativeOwnerBoundaryTests {
         }
     }
 
-    @Test func durableReceivingCodecCannotConstructWriterRequests() throws {
+    @Test func durableReceivingValuesCannotConstructWriterAuthority() throws {
         let operation = try source("SharedMediaNativeAppReceivingOperations.swift")
         let codec = try source("SharedMediaNativeReceivingIntent.swift")
-        #expect(operation.contains("fileprivate init(profile: SharedMediaNativeAppProfile"))
+        #expect(operation.contains("private init(container:"))
+        #expect(operation.contains("fileprivate init(transition:"))
+        #expect(operation.contains("fileprivate init(facts:"))
+        #expect(operation.contains("let request = SharedMediaNativeAppReceivingRequest(try prepared.descriptorForTransaction(header: expected))"))
         #expect(codec.contains("func descriptorForTransaction(header: SharedMediaNativeAppEligibility.Header) throws -> Transaction"))
         #expect(codec.contains("func reconstruct(_ prepared: Prepared) throws -> Transaction"))
-        #expect(!codec.contains("SharedMediaNativeAppReceivingRequest(profile:"))
-        #expect(!codec.contains("receiveAppPhotos("))
+        for text in [operation, codec] { #expect(!text.contains("SharedMediaNativeAppReceivingRequest(profile:")) }
+        for forbidden in ["receiveAppPhotos(", "context.save(", "SharedMediaNativeReceivingLockGrant()",
+                          "SharedMediaNativeAppIntentPoststate(", "SharedMediaNativeReceivingRows.insert("] {
+            #expect(!codec.contains(forbidden))
+        }
+        #expect(!operation.contains("SharedMediaNativeAppReceivingPoststate"))
         let wrapper = try source("SharedMediaNativeOriginalOwner+AppReceiving.swift")
         #expect(!wrapper.contains("SharedMediaNativeReceivingIntent.Transaction"))
     }

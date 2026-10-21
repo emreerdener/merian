@@ -16,25 +16,25 @@ enum SharedMediaNativeConsumerGraph {
         try facts(consumer, context: context, format: format, checkpoint: checkpoint)
     }
 
-    static func validateReceivingPoststate(_ consumer: SharedMediaConsumerRecord, context: ModelContext,
-                                           inventory: SharedMediaInventoryRecord, proof: SharedMediaNativeAppReceivingPoststate) throws -> SharedMediaNativeConsumerCohort {
+    static func validateIntentPoststate(_ consumer: SharedMediaConsumerRecord, context: ModelContext,
+                                       inventory: SharedMediaInventoryRecord, proof: SharedMediaNativeAppIntentPoststate) throws -> SharedMediaNativeConsumerCohort {
         try proof.validate(context: context, inventory: inventory)
-        return try facts(consumer, context: context, format: .appV2, receiving: proof)
+        return try facts(consumer, context: context, format: .appV2, intentProof: proof)
     }
 
     private static func facts(_ consumer: SharedMediaConsumerRecord, context: ModelContext,
-                              format: SharedMediaNativeScopedFormat?, receiving: SharedMediaNativeAppReceivingPoststate? = nil, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
-        guard !context.hasChanges || receiving != nil else { throw SharedMediaStorageFailure.conflict }
+                              format: SharedMediaNativeScopedFormat?, intentProof: SharedMediaNativeAppIntentPoststate? = nil, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
+        guard !context.hasChanges || intentProof != nil else { throw SharedMediaStorageFailure.conflict }
         let value = try SharedMediaNativeConsumerCohort.decode(consumer.cohortData)
         let commit = try SharedMediaNativeFreezeCommit.decode(value.freeze.bytes)
         let cohort = try SharedMediaNativeFrozenCohort.decode(commit.cohort.bytes)
-        // P2 decoding is not P2 admission. Its intent-aware graph owner is
-        // separately qualified; never accept it through this legacy branch.
-        guard value.format == .receiving,
+        // P2 remains a held queue with an exact durable result link. Typed
+        // promotion/release is separately qualified; no other lifecycle here.
+        guard value.format == .receiving || consumer.kindRaw == "queue",
               consumer.id == value.bindingID, consumer.cursorKey == value.bindingID.uuidString.lowercased(),
               consumer.originQueueID == value.originQueueID, consumer.observationID == value.observationID,
               consumer.executionKindRaw == value.executionKind, consumer.inferenceGeneration == value.inferenceGeneration,
-              consumer.contractVersion == contract, consumer.digestVersion == 1,
+              consumer.contractVersion == value.format.rawValue, consumer.digestVersion == 1,
               consumer.cohortSHA256 == (try value.digest()), consumer.lifecycleRaw == "active",
               consumer.retirementID == nil, consumer.revision >= 0,
               consumer.inventoryID == commit.inventoryID, consumer.inventoryGeneration == commit.inventoryGeneration,
@@ -61,6 +61,7 @@ enum SharedMediaNativeConsumerGraph {
               package.accountingTierRaw == (consumer.kindRaw == "queue" ? "pending" : "retained"),
               case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData),
               envelope.frozen == value.freeze else { throw SharedMediaStorageFailure.conflict }
+        try SharedMediaNativeReceivingPhaseGraph.requireConsumerLink(consumer, value: value, context: context, inventory: inventory)
         let liveMembership: Data
         if consumer.kindRaw == "queue" {
             let member = try one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
@@ -78,7 +79,7 @@ enum SharedMediaNativeConsumerGraph {
         // Their complete reverse audit stays on a clean fresh view under the same
         // fence; never relax the original-accounting clean-context contract.
         let originalContext: ModelContext
-        if receiving != nil { originalContext = ModelContext(context.container); originalContext.autosaveEnabled = false }
+        if intentProof != nil { originalContext = ModelContext(context.container); originalContext.autosaveEnabled = false }
         else { originalContext = context }
         try validateMembership(value.membership, cohort: cohort, package: package, inventory: inventory,
             context: context, originalContext: originalContext, checkpoint: checkpoint)
@@ -86,7 +87,7 @@ enum SharedMediaNativeConsumerGraph {
             membership: liveMembership, cohort: consumer.cohortData)
         guard try PhotoPreparationPolicy.add([package.allocatedByteCount, Int64(package.supportingContextData.count),
             Int64(liveMembership.count), Int64(consumer.cohortData.count)]) <= PhotoPreparationPolicy.package,
-              (!context.hasChanges || receiving != nil) else { throw SharedMediaStorageFailure.capacity }
+              (!context.hasChanges || intentProof != nil) else { throw SharedMediaStorageFailure.capacity }
         return value
     }
 

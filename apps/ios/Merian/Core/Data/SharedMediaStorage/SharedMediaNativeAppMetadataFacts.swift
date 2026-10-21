@@ -62,6 +62,13 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
     let intents: [UUID: SharedMediaNativeReceivingIntentGraph.Row]
 
     func requireMutable(_ packageID: UUID) throws {
+        guard let row = intents[packageID] else { return }
+        guard case .abandoned = try SharedMediaNativeReceivingSlot.decode(row, profile: profile) else {
+            throw SharedMediaStorageFailure.closed
+        }
+    }
+    /// Generic deletion cannot orphan a retained terminal proof.
+    func requireNoIntent(_ packageID: UUID) throws {
         guard intents[packageID] == nil else { throw SharedMediaStorageFailure.closed }
     }
 
@@ -105,21 +112,6 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
         guard current.bootstrapRevision == bootstrapRevision, current.consumers == consumers,
               current.packages == nextPackages, current.members == nextMembers else { throw SharedMediaStorageFailure.conflict }
     }
-    @MainActor func validateReceiving(_ context: ModelContext, request: SharedMediaNativeAppReceivingRequest) throws {
-        try requireMutable(request.package.id)
-        let current = try Self.read(context, profile: profile)
-        guard current.intents == intents else { throw SharedMediaStorageFailure.conflict }
-        var expectedPackages = packages, expectedConsumers = consumers
-        guard request.profile == profile, packages[request.package.id] == request.package,
-              members[request.package.id] == request.member, consumers[request.package.id] == nil,
-              let row = try SharedMediaConsumerLookup.one(context, packageID: request.package.id),
-              let rows = try SharedMediaNativeReceivingRows.read(request, in: context, absent: false),
-              rows.consumer.persistentModelID == row.persistentModelID else { throw SharedMediaStorageFailure.conflict }
-        expectedPackages[request.package.id] = try request.frozenPackage()
-        expectedConsumers[request.package.id] = Consumer(row)
-        guard current.bootstrapRevision == bootstrapRevision, current.members == members,
-              current.packages == expectedPackages, current.consumers == expectedConsumers else { throw SharedMediaStorageFailure.conflict }
-    }
     @MainActor private static func read(_ context: ModelContext, profile: SharedMediaNativeAppProfile) throws -> Self {
         let inventoryID = profile.inventoryID
         var query = FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.inventoryID == inventoryID })
@@ -146,7 +138,7 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
             }
         }
         return .init(profile: profile, bootstrapRevision: bootstrap.revision, packages: packages, members: members, consumers: consumers,
-            intents: try SharedMediaNativeReceivingIntentGraph.snapshots(context))
+            intents: try SharedMediaNativeReceivingPhaseGraph.snapshots(context, profile: profile))
     }
     @MainActor func validate(_ context: ModelContext, replacing request: SharedMediaNativeAppMetadataRequest) throws {
         try requireMutable(request.package.id)
@@ -172,13 +164,30 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
               (current.members[packageID] != nil) == hasMember else { throw SharedMediaStorageFailure.conflict }
     }
     @MainActor func validateStaging(_ context: ModelContext, adding row: SharedMediaNativeReceivingIntentGraph.Row) throws {
-        try requireMutable(row.id)
+        try requireNoIntent(row.id)
         let current = try Self.read(context, profile: profile)
         var expected = intents
         expected[row.id] = row
         guard current.profile == profile, current.bootstrapRevision == bootstrapRevision,
               current.packages == packages, current.members == members, current.consumers == consumers,
               current.intents == expected else { throw SharedMediaStorageFailure.conflict }
+    }
+    /// Descriptive comparison only; the sealed phase proof separately checks
+    /// the exact write set and permitted transition against the captured row.
+    @MainActor func validateIntentTransition(_ context: ModelContext,
+        row: SharedMediaNativeReceivingIntentGraph.Row, package: Package,
+        consumer: SharedMediaConsumerRecord?) throws {
+        let current = try Self.read(context, profile: profile)
+        var expectedIntents = intents, expectedPackages = packages, expectedConsumers = consumers
+        guard intents[row.id] != nil, packages[row.id] != nil, members[row.id] != nil,
+              package.id == row.id else { throw SharedMediaStorageFailure.conflict }
+        expectedIntents[row.id] = row; expectedPackages[row.id] = package
+        if let consumer { expectedConsumers[row.id] = Consumer(consumer) }
+        guard current.profile == profile, current.bootstrapRevision == bootstrapRevision,
+              current.packages == expectedPackages, current.members == members,
+              current.consumers == expectedConsumers, current.intents == expectedIntents else {
+            throw SharedMediaStorageFailure.conflict
+        }
     }
     @MainActor func receivingBytes(_ consumer: SharedMediaConsumerRecord) throws -> Int64 {
         guard consumers[consumer.packageID] == Consumer(consumer) else { throw SharedMediaStorageFailure.conflict }

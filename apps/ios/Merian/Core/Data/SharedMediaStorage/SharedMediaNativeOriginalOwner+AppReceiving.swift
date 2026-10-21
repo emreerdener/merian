@@ -30,6 +30,16 @@ extension SharedMediaNativeOriginalOwner {
             }
         }
     }
+    func receiveAppPrepared(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeConsumerCohort {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appReceivingWorkflow(lock: lock) { try await $0.receivePrepared(prepared) }
+        }
+    }
+    func abandonAppReceiving(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeReceivingIntent.Abandoned {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appReceivingWorkflow(lock: lock) { try $0.abandonPrepared(prepared) }
+        }
+    }
     private func withReceivingLocks<T: Sendable>(queueID: String, observationID: String,
                                                  body: @MainActor (SharedMediaNativeReceivingLockGrant) async throws -> T) async throws -> T {
         let coordinator = ScanInferencePersistenceCoordinator.shared
@@ -79,6 +89,53 @@ struct SharedMediaNativeReceivingStageIdentity: Sendable {
         } else {
             operationID = UUID(); queueID = UUID(); observationID = UUID(); bindingID = UUID()
             generation = UUID(); eventID = UUID(); timestamp = Date(); savedBytes = nil
+        }
+    }
+}
+
+/// Descriptive identity selection occurs before its coordinator locks; the
+/// complete observed slot must still match under those locks before any save.
+struct SharedMediaNativeReceivingRestageIdentity: Sendable {
+    let observed: SharedMediaNativeReceivingIntentGraph.Row
+    let predecessor: SharedMediaNativeReceivingIntent.Abandoned
+    let identity: SharedMediaNativeReceivingStageIdentity
+    let savedSuccessor: SharedMediaNativeReceivingIntent.Prepared?
+    fileprivate init(observed: SharedMediaNativeReceivingIntentGraph.Row,
+                     predecessor: SharedMediaNativeReceivingIntent.Abandoned) throws {
+        self.observed = observed; self.predecessor = predecessor
+        let slot = try SharedMediaNativeReceivingSlot.decode(observed, profile: predecessor.profile)
+        switch slot {
+        case .abandoned(let saved):
+            guard try saved.encoded() == predecessor.encoded() else { throw SharedMediaStorageFailure.stale }
+            identity = try .init(saved: nil); savedSuccessor = nil
+        case .prepared(let prepared):
+            guard prepared.version == 2, prepared.package.id == predecessor.package.id,
+                  prepared.intentRevision == (try SharedMediaStoragePolicy.add(predecessor.revision, 1)),
+                  prepared.restagedFromSHA256 == (try SharedMediaAcquisitionEncoding.digest(predecessor.encoded())) else {
+                throw SharedMediaStorageFailure.stale
+            }
+            identity = try .init(saved: prepared); savedSuccessor = prepared
+        case .received: throw SharedMediaStorageFailure.closed
+        }
+        guard Set([identity.operationID, identity.queueID, identity.observationID, identity.bindingID, identity.generation, identity.eventID])
+            .isDisjoint(with: [predecessor.operationID, predecessor.queueID, predecessor.observationID, predecessor.bindingID,
+                              predecessor.generation, predecessor.eventID]) else { throw SharedMediaStorageFailure.conflict }
+    }
+}
+
+@MainActor
+extension SharedMediaNativeOriginalOwner {
+    func restageAppReceiving(_ predecessor: SharedMediaNativeReceivingIntent.Abandoned,
+                             draftGeneration: UUID, pairIDs: [UUID]) async throws -> SharedMediaNativeReceivingIntent.Prepared {
+        guard let row = try await discoverAppReceivingSlot(packageID: predecessor.package.id) else {
+            throw SharedMediaStorageFailure.stale
+        }
+        let identity = try SharedMediaNativeReceivingRestageIdentity(observed: row, predecessor: predecessor)
+        return try await withReceivingLocks(queueID: identity.identity.queueID.uuidString,
+                                            observationID: identity.identity.observationID.uuidString) { lock in
+            try await self.appReceivingWorkflow(lock: lock) {
+                try await $0.restage(identity, draftGeneration: draftGeneration, pairIDs: pairIDs)
+            }
         }
     }
 }

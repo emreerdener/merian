@@ -7,13 +7,12 @@ import Testing
 @MainActor
 struct SharedMediaNativeReceivingBoundaryTests {
     private let checks = SharedMediaNativeReceivingStagingTests()
-    // Canonical fixtures found cap and cap+2, not cap+1. The separate
-    // Reservation.maximum arithmetic test exercises the exact one-byte guard.
-    // Do not infer global unreachability from this bounded fixture search.
-    @Test(arguments: [Int64(0), Int64(2)])
+    // P2's current encoding represents cap and cap+1. Require the full
+    // persisted projection to prove both; older cap+2 evidence is historical.
+    @Test(arguments: [Int64(0), Int64(1)])
     func persistedMetadataBoundaryUsesActualDraftAndOwnerAdmission(_ excess: Int64) async throws {
         let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(count: 2)
-        let fixture = try SharedMediaNativeReceivingTestFixture.capture(h, request: request)
+        let fixture = try SharedMediaNativeReceivingTestFixture.capture(h, request: request).freshP2()
         #expect(try fixture.metadata() == fixture.auditedMetadata)
         let target = PhotoPreparationPolicy.metadata + excess
         let contexts = try boundaryContexts(fixture, target: target)
@@ -24,7 +23,7 @@ struct SharedMediaNativeReceivingBoundaryTests {
             observationID: UUID(uuidString: request.cohort.observationID)!, bindingID: request.cohort.bindingID,
             generation: #require(request.cohort.inferenceGeneration), eventID: UUID(uuidString: request.eventID)!, timestamp: request.timestamp)
         // Recapture only actual persisted facts after the real metadata save.
-        let persisted = try SharedMediaNativeReceivingTestFixture.capture(h, request: current)
+        let persisted = try SharedMediaNativeReceivingTestFixture.capture(h, request: current).freshP2()
         #expect(try persisted.metadata() == persisted.auditedMetadata)
         #expect(try projectedCharge(persisted) == target)
         let before = try checks.facts(h), revision = try checks.inventory(h).revision
@@ -158,8 +157,9 @@ extension SharedMediaNativeReceivingStagingTests {
         let ids = try pairIDs(request), c = h.context()
         let inventory = try #require(try c.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
         let before = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: c, inventory: inventory, ownerID: h.ownerID, format: .appV2)
-        let prepared = try SharedMediaNativeReceivingIntent.Prepared(request)
-        let states = try SharedMediaNativeReceivingIntentGraph.cohort(prepared, context: c, inventory: inventory)
+        let prepared = try SharedMediaNativeReceivingTestFixture.copy(SharedMediaNativeReceivingIntent.Prepared(request),
+            changes: ["format": "nativeReceivingIntentV2", "version": 2, "intentRevision": 0])
+        let states = try SharedMediaNativeReceivingIntentGraph.currentCohort(prepared, context: c, inventory: inventory)
         let projection = try SharedMediaNativeReceivingReservation.maximum(prepared,
             currentMetadata: #require(before.metadataByPackage[h.packageID]), pairStates: states)
         // IDs have fixed encoded widths. Allow 1 KiB for timestamp-digit changes
@@ -204,7 +204,7 @@ extension SharedMediaNativeReceivingStagingTests {
             case "cursor": row.id = UUID() // A changed key leaves its private cursor inconsistent.
             case "phase": row.phaseRaw = "received"
             case "revision": row.revision = 1
-            case "version": row.schemaVersion = 2
+            case "version": row.schemaVersion = 1
             case "digest": row.preparedSHA256 = String(repeating: "0", count: 64)
             case "bytes": row.preparedData = nil
             case "result": row.resultData = Data()
@@ -216,7 +216,7 @@ extension SharedMediaNativeReceivingStagingTests {
             row.ownerID = saved.profile.ownerID; row.inventoryID = saved.profile.inventoryID
             row.inventoryGeneration = saved.profile.generation; row.draftGeneration = saved.package.generation
             row.operationID = saved.operationID; row.id = saved.package.id
-            row.phaseRaw = "prepared"; row.revision = 0; row.schemaVersion = 1
+            row.phaseRaw = "prepared"; row.revision = 0; row.schemaVersion = 2
             row.preparedData = bytes; row.preparedSHA256 = SharedMediaAcquisitionEncoding.digest(bytes)
             row.resultData = nil; row.resultSHA256 = nil
             try c.save()

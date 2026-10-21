@@ -20,12 +20,12 @@ enum SharedMediaNativeReceivingRows {
             originQueueID: value.originQueueID, observationID: value.observationID, inventoryID: commit.inventoryID,
             inventoryGeneration: commit.inventoryGeneration, ownerID: r.profile.ownerID, packageID: r.package.id,
             draftGeneration: r.package.generation, frozenPackageRevision: try commit.packageRevision,
-            contractVersion: SharedMediaNativeConsumerGraph.contract, digestVersion: 1, cohortSHA256: try value.digest(),
+            contractVersion: value.format.rawValue, digestVersion: 1, cohortSHA256: try value.digest(),
             executionKindRaw: value.executionKind, inferenceGeneration: value.inferenceGeneration)
         consumer.cohortData = try value.encoded()
         let queue = OfflineQueuedScan(id: value.originQueueID, timestamp: r.timestamp,
             scanState: .pending, queueUpdatedAt: r.timestamp, queueNeedsAttention: true)
-        queue.mediaAuthorityRaw = "sharedDirectNativeReceivingV1"; queue.sharedMediaConsumerID = value.bindingID
+        queue.mediaAuthorityRaw = value.queueAuthority; queue.sharedMediaConsumerID = value.bindingID
         let job = OfflineJobRecord(id: r.jobID, kind: .scanIngestion, subjectId: value.originQueueID,
             priority: 0, status: .needsAttention, createdAt: r.timestamp, updatedAt: r.timestamp,
             requiresUnconstrainedNetwork: false, allowsCellular: false, approximateBytes: r.package.allocated,
@@ -46,7 +46,13 @@ enum SharedMediaNativeReceivingRows {
             observationID = prepared.observationID.uuidString.lowercased()
             eventID = prepared.eventID.uuidString.lowercased()
         }
-        fileprivate init(_ request: SharedMediaNativeAppReceivingRequest) {
+        init(_ abandoned: SharedMediaNativeReceivingIntent.Abandoned) {
+            packageID = abandoned.package.id; bindingID = abandoned.bindingID
+            queueID = abandoned.queueID.uuidString.lowercased()
+            observationID = abandoned.observationID.uuidString.lowercased()
+            eventID = abandoned.eventID.uuidString.lowercased()
+        }
+        fileprivate init(_ request: SharedMediaNativeReceivingIntent.Transaction) {
             packageID = request.package.id; bindingID = request.cohort.bindingID
             queueID = request.cohort.originQueueID; observationID = request.cohort.observationID
             eventID = request.eventID
@@ -88,6 +94,9 @@ enum SharedMediaNativeReceivingRows {
         return .init(consumers: consumers, queues: queues, jobs: jobs, events: events)
     }
     static func read(_ r: SharedMediaNativeAppReceivingRequest, in c: ModelContext, absent: Bool) throws -> Set? {
+        try read(.init(r), in: c, absent: absent)
+    }
+    static func read(_ r: SharedMediaNativeReceivingIntent.Transaction, in c: ModelContext, absent: Bool) throws -> Set? {
         let found = try matches(.init(r), in: c)
         if absent {
             guard found.isEmpty else { throw SharedMediaStorageFailure.conflict }
@@ -102,6 +111,9 @@ enum SharedMediaNativeReceivingRows {
     }
 
     static func validate(_ rows: Set, request r: SharedMediaNativeAppReceivingRequest) throws {
+        try validate(rows, request: SharedMediaNativeReceivingIntent.Transaction(r))
+    }
+    static func validate(_ rows: Set, request r: SharedMediaNativeReceivingIntent.Transaction) throws {
         let consumer = rows.consumer, queue = rows.queue, job = rows.job, event = rows.event, value = r.cohort
         guard consumer.id == value.bindingID, consumer.cursorKey == value.bindingID.uuidString.lowercased(),
               consumer.kindRaw == "queue", consumer.consumerID == value.originQueueID,
@@ -109,12 +121,12 @@ enum SharedMediaNativeReceivingRows {
               consumer.inventoryID == r.profile.inventoryID, consumer.inventoryGeneration == r.profile.generation,
               consumer.ownerID == r.profile.ownerID, consumer.packageID == r.package.id,
               consumer.draftGeneration == r.package.generation, consumer.frozenPackageRevision == (try r.freeze.commit.packageRevision),
-              consumer.contractVersion == SharedMediaNativeConsumerGraph.contract, consumer.digestVersion == 1,
+              consumer.contractVersion == value.format.rawValue, consumer.digestVersion == 1,
               consumer.cohortData == (try value.encoded()), consumer.cohortSHA256 == (try value.digest()),
               consumer.executionKindRaw == "ordinaryV1", consumer.inferenceGeneration == value.inferenceGeneration,
               consumer.retirementID == nil, consumer.lifecycleRaw == "active", consumer.revision == 0 else { throw SharedMediaStorageFailure.conflict }
         guard queue.id == value.originQueueID, queue.timestamp == r.timestamp, queue.queueUpdatedAt == r.timestamp,
-              queue.mediaAuthorityRaw == "sharedDirectNativeReceivingV1", queue.sharedMediaConsumerID == value.bindingID,
+              queue.mediaAuthorityRaw == value.queueAuthority, queue.sharedMediaConsumerID == value.bindingID,
               queue.workKindRaw == "ordinary", queue.parentObservationID == nil, queue.sourceAnalysisID == nil,
               queue.reanalysisOwnerAccountID == nil, queue.scanStateRaw == ScanQueueState.pending.rawValue,
               queue.queueNeedsAttention, queue.queueAttemptCount == 0, queue.queueSchemaRepairGeneration == 1,

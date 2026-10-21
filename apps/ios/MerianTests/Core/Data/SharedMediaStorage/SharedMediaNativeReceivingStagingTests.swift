@@ -164,7 +164,7 @@ struct SharedMediaNativeReceivingStagingTests {
     private func verify(_ h: Store, prepared: SharedMediaNativeReceivingIntent.Prepared,
                         before: SharedMediaNativeAppMetadataFacts, inventoryRevision: Int64) throws {
         let c = h.context(), inventory = try #require(try c.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
-        let witness = try #require(SharedMediaNativeReceivingIntentGraph.read(c, inventory: inventory)[h.packageID])
+        let witness = try #require(SharedMediaNativeReceivingPhaseGraph.pending(c, inventory: inventory)[h.packageID])
         #expect(witness.row.preparedData == (try prepared.encoded()))
         #expect(inventory.revision == inventoryRevision)
         try before.validateStaging(c, adding: witness.row)
@@ -179,10 +179,21 @@ struct SharedMediaNativeReceivingStagingTests {
         #expect(try c.fetchCount(FetchDescriptor<OfflineQueueEvent>()) == 0)
         #expect(try c.fetchCount(FetchDescriptor<SharedMediaConsumerRecord>()) == 0)
     }
-    private func reopen(_ h: Store, container: ModelContainer? = nil) async throws -> SharedMediaNativeOriginalOwner {
+    func reopen(_ h: Store, container: ModelContainer? = nil) async throws -> SharedMediaNativeOriginalOwner {
+        let reopened: ModelContainer
+        if let container {
+            reopened = container
+        } else {
+            let schema = Schema(versionedSchema: CurrentSchema.self)
+            let url = try #require(h.container.configurations.first).url
+            reopened = try ModelContainer(for: schema, configurations: [
+                ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
+            ])
+            #expect(reopened !== h.container)
+        }
         let owner = try await SharedMediaNativeOriginalOwner.appDispatch(
             account: PhotoOriginalPreparationOwner.syntheticAccount(ownerID: h.ownerID, runtime: h.runtime), drain: .init())
-        _ = try await owner.openApp(container: container ?? h.container, parent: h.parent, inventoryID: h.inventoryID)
+        _ = try await owner.openApp(container: reopened, parent: h.parent, inventoryID: h.inventoryID)
         return owner
     }
 }

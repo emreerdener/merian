@@ -40,10 +40,14 @@ owns UI lifetime and uncertain-save recovery.
 
 ## Residual large owners
 
-The post-refactor integration guard intentionally tracks the remaining Core
-production file above the 600-line review ceiling:
+The post-refactor integration guard intentionally tracks the reviewed Core
+production files above the 600-line review ceiling:
 
 - `Network/SupabaseManager.swift`
+- `AI/InferenceEdgeDTOs.swift` (generated versioned wire contract)
+- `Data/SharedMediaStorage/SharedMediaNativeOriginalOwner.swift` (610-line cap)
+- `Data/SharedMediaStorage/SharedMediaNativeStorageRepository.swift` (622-line
+  cap)
 
 This is a residual inventory, not an exemption for new growth or an automatic
 instruction to create another owner. The macro extraction audit pauses further
@@ -52,10 +56,13 @@ correctness boundary or demonstrate a net-negative affected production delta.
 Prefer consolidation and deletion, update the inventory in the same change, and
 keep wire DTOs separate from UI policy.
 
-`IOSHygieneClosureArchitectureTests` also records `SupabaseManager.swift` as the
-only oversized Core owner. The Core Network architecture suite retains the
-stricter facade and aggregate non-growth budgets below; the global inventory
-does not replace them.
+`IOSHygieneClosureArchitectureTests` records the same Core inventory. Both
+inventory suites enforce the native owners' individual non-growth caps. Their
+private constructors, file-local capability minting and fences remain together;
+line-count-only extraction must not widen those access boundaries. The generated
+DTO remains validated by its generator contract. The Core Network architecture
+suite retains the stricter facade and aggregate non-growth budgets below; the
+global inventory does not replace them.
 
 The current Auth/Purchase Identity extraction leaves `SupabaseManager.swift` at
 3,461 lines. The Core Network architecture guard caps Auth at 7,734 production

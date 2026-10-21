@@ -38,6 +38,13 @@ struct SharedMediaNativeReceivingTestFixture {
         return Self(request: .init(request), states: states, receipts: receipts, auditedMetadata: try #require(budget.metadataByPackage[packageID]))
     }
 
+    func freshP2() throws -> Self {
+        let prepared = try Self.copy(SharedMediaNativeReceivingIntent.Prepared(request),
+            changes: ["format": "nativeReceivingIntentV2", "version": 2, "intentRevision": 0])
+        return .init(request: try prepared.descriptorForTransaction(header: request.header), states: states,
+            receipts: receipts, auditedMetadata: auditedMetadata)
+    }
+
     func metadata() throws -> Int64 {
         let membership = try SharedMediaMembership.decode(request.member.bytes)
         var bytes = Int64(request.package.envelope.count)
