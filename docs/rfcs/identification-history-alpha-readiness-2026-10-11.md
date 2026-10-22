@@ -1,3 +1,33 @@
+## October 22 — clean held-release routing qualified
+
+The scoped native audit and budget now consume the existing clean release
+classifier. Exact saved release evidence supplies current and future metadata
+liability; identity bytes and headroom remain charged once per asset. Live
+package metadata and terminal slot caps remain distinct. Physical origins that
+outlive a local reference remain counted. Every audit page rebuilds its proof in
+its fresh context, and only exact validated release pair IDs are excluded from
+ordinary active-preparation counting.
+
+This change connects clean read routing only. Generic mutation facts and all
+typed dirty poststate entries remain closed to releasing state. No cleanup
+writer, new admission, recovery bypass, schema or storage-limit change is
+introduced. Held-release writes, retained-only transitions, complete affected
+gates and integrated acceptance remain open.
+
+`release-routing-focused01` passed all 30 selected methods / 69 invocations,
+with no missing, unexpected, skipped or failed tests. XCResult
+`8baae9f0189847e4a52e27067ed00158.xcresult` and structured coverage are retained
+under `.artifacts/native-app-capture-handoff-20261020`. All 2,920 frozen
+source/project hashes and all six candidate hashes remained unchanged during
+execution. The three Swift/test files remain identical in the final commit
+candidate; the three documentation files were updated after the run to record
+its results. Exact independent and IC-1 review preceded execution; project
+validation, Markdown format validation and diff checks passed. This is focused
+shared-checkout validation, not full-target, isolated-source, performance or
+feature acceptance. The cleanup states are constructed fixtures, not
+qualification of a cleanup writer. Activation disabled; PR116 frozen; deployment
+hold active; AWS unapproved.
+
 ## October 22 — exact-cap receiving fixture qualified
 
 The native receiving boundary now uses two fixed, legal one-original payloads:

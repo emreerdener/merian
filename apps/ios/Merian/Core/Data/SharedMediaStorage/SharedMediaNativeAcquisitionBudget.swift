@@ -22,7 +22,8 @@ enum SharedMediaNativeAcquisitionBudget {
 
     static func evaluateScoped(context: ModelContext, inventory: SharedMediaInventoryRecord, ownerID: UUID, format: SharedMediaNativeScopedFormat = .existingV1, checkpoint: () throws -> Void = {}) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.deriveScoped(in: context, inventory: inventory, ownerID: ownerID, format: format)
-        return try evaluate(context: context, inventory: inventory, graph: graph, format: format, checkpoint: checkpoint)
+        let clean = format == .appV2 ? try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory, checkpoint: checkpoint) : nil
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: format, clean: clean, checkpoint: checkpoint)
     }
 
     static func evaluateMetadataPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
@@ -98,25 +99,38 @@ enum SharedMediaNativeAcquisitionBudget {
     }
 
     private static func evaluate(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, intentProof: SharedMediaNativeAppIntentPoststate? = nil, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, acquisitionProof: SharedMediaNativeAppAcquisitionPoststate? = nil, preparationProof: SharedMediaNativeAppPreparationPoststate? = nil, pairPlanProof: SharedMediaNativeAppPairPlanPoststate? = nil, pairClosureProof: SharedMediaNativeAppPairPlanClosurePoststate? = nil, pairFileProof: SharedMediaNativeAppPairPoststate? = nil, pairRetirementProof: SharedMediaNativeAppPairRetirementPoststate? = nil, stagingProof: SharedMediaNativeAppStagingPoststate? = nil, pendingCleanupProof: SharedMediaNativeAppPendingPoststate? = nil, originalProof: SharedMediaNativeAppOriginalPoststate? = nil, originalReleaseProof: SharedMediaNativeAppOriginalReleasePoststate? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, clean: [UUID: SharedMediaNativeReceivingCleanGraph.Witness]? = nil, intentProof: SharedMediaNativeAppIntentPoststate? = nil, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, acquisitionProof: SharedMediaNativeAppAcquisitionPoststate? = nil, preparationProof: SharedMediaNativeAppPreparationPoststate? = nil, pairPlanProof: SharedMediaNativeAppPairPlanPoststate? = nil, pairClosureProof: SharedMediaNativeAppPairPlanClosurePoststate? = nil, pairFileProof: SharedMediaNativeAppPairPoststate? = nil, pairRetirementProof: SharedMediaNativeAppPairRetirementPoststate? = nil, stagingProof: SharedMediaNativeAppStagingPoststate? = nil, pendingCleanupProof: SharedMediaNativeAppPendingPoststate? = nil, originalProof: SharedMediaNativeAppOriginalPoststate? = nil, originalReleaseProof: SharedMediaNativeAppOriginalReleasePoststate? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
         guard graph.sources.isEmpty, graph.handoffs.isEmpty else {
             throw SharedMediaStorageFailure.closed
         }
         let intents: [UUID: SharedMediaNativeReceivingPhaseGraph.Witness]
         if format == .appV2 {
-            intents = try SharedMediaNativeReceivingPhaseGraph.pending(context, inventory: inventory)
+            if let clean {
+                guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
+                intents = clean.compactMapValues { if case .generic(let value) = $0 { return value }; return nil }
+            } else {
+                intents = try SharedMediaNativeReceivingPhaseGraph.pending(context, inventory: inventory)
+            }
         } else {
             guard try SharedMediaNativeReceivingIntentGraph.snapshots(context).isEmpty else { throw SharedMediaStorageFailure.closed }
             intents = [:]
         }
         var totals = SharedMediaStoragePolicy.Totals(), metadata: [UUID: Int64] = [:], baseMetadata: [UUID: Int64] = [:]
-        var chargedOriginAllocations = Set<UUID>()
+        var chargedOriginAllocations = Set<UUID>(), chargedPhysical = Set<UUID>()
         for allocation in graph.allocations {
+            guard chargedPhysical.insert(allocation.id).inserted else { throw SharedMediaStorageFailure.conflict }
             try totals.includePhotoPhysical(materialized: allocation.materializedBytes, reserved: allocation.reservedBytes)
         }
         for package in graph.packages {
             try Task.checkCancellation(); try checkpoint()
             let id = package.id
+            if let witness = clean?[id], case .releasing(let release) = witness {
+                let contribution = try releaseContribution(release, graph: graph, context: context,
+                    inventory: inventory, totals: &totals, chargedPhysical: &chargedPhysical,
+                    chargedReceipts: &chargedOriginAllocations)
+                metadata[id] = contribution // No generic receiving base or mutation projection for a release.
+                continue
+            }
             let envelope = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData)
             try SharedMediaNativePreparationGraph.validate(envelope, package: package, context: context, scopedInventory: format == nil ? nil : inventory)
             let attempt = try envelope.attempt.map { try SharedMediaNativePreparationAttempt.decode($0.bytes) }
@@ -348,6 +362,60 @@ enum SharedMediaNativeAcquisitionBudget {
                 reserved: originalIdentity.reservedBytes)
         }
         return .init(totals: totals, originalIdentity: originalIdentity, metadataByPackage: metadata, baseMetadataByPackage: baseMetadata)
+    }
+
+    /// Clean held-release values only. Identity is deliberately absent here:
+    /// the single asset-owned pass below supplies current bytes and headroom.
+    private static func releaseContribution(_ snapshot: SharedMediaNativeReleaseMetadataSnapshot.Snapshot,
+                                            graph: SharedMediaPendingGraph, context: ModelContext,
+                                            inventory: SharedMediaInventoryRecord,
+                                            totals: inout SharedMediaStoragePolicy.Totals,
+                                            chargedPhysical: inout Set<UUID>, chargedReceipts: inout Set<UUID>) throws -> Int64 {
+        guard !context.hasChanges, snapshot.inventoryRevision == inventory.revision else {
+            throw SharedMediaStorageFailure.stale
+        }
+        let projection = try SharedMediaNativeReleaseSurvivorProjection.maximum(snapshot)
+        try projection.requireMetadataCapacity()
+        let current = try PhotoPreparationPolicy.add([snapshot.packagePayloadBytes, snapshot.originReceiptBytes])
+        var maximum = current
+        for charge in projection.charges {
+            maximum = max(maximum, try PhotoPreparationPolicy.add([charge.packageBytes, charge.originReceiptBytes]))
+        }
+        try totals.includePhotoPhysical(materialized: current, reserved: maximum - current)
+        let id = snapshot.release.state.package.id
+        for original in snapshot.ownedOriginals {
+            let assetID = original.assetID
+            let allocation = try one(context, FetchDescriptor<SharedMediaAllocationRecord>(predicate: #Predicate { $0.id == assetID }))
+            guard allocation.inventoryID == inventory.id, allocation.packageID == id,
+                  allocation.accountID == snapshot.release.progress.plan.profile.ownerID,
+                  allocation.reservedBytes == 0,
+                  allocation.physicalIdentity.map({ Int64($0.utf8.count) }) == original.identityBytes,
+                  chargedReceipts.insert(assetID).inserted else { throw SharedMediaStorageFailure.conflict }
+            let receipt = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == assetID }))
+            guard case .completed(let request, let result) = try SharedMediaAcquisitionReceipt.read(receipt),
+                  request.assetID == assetID, request.packageID == id,
+                  request.inventoryID == inventory.id, request.inventoryGeneration == inventory.generation,
+                  request.ownerID == allocation.accountID, allocation.materializedBytes == result.byteCount,
+                  try SharedMediaAcquisitionReceipt.metadataCharge(request: request, result: result) == original.receiptBytes else {
+                throw SharedMediaStorageFailure.conflict
+            }
+            // The complete metadata/live audit binds receipt, acquisition and
+            // physical origin. The same allocation may also be in a recipient's
+            // pending graph; only an origin absent there adds physical bytes.
+            if chargedPhysical.insert(assetID).inserted {
+                try totals.includePhotoPhysical(materialized: allocation.materializedBytes, reserved: 0)
+            }
+        }
+        let metadata = projection.maximumLivePackageMetadataBytes
+        var logical = metadata
+        for reference in graph.references where reference.packageID == id {
+            guard let asset = graph.assets.first(where: { $0.id == reference.assetID }) else {
+                throw SharedMediaStorageFailure.conflict
+            }
+            logical = try SharedMediaStoragePolicy.add(logical, asset.byteCount)
+        }
+        try totals.includePhotoPackage(id: id, bytes: logical)
+        return metadata
     }
 
     /// Existing two-original limit bounds the power set to four states. A
