@@ -331,7 +331,13 @@ final class SharedMediaNativeStorageRepository {
         try requireApp(grant)
         let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try self.requireApp(grant); return try self.appHeader() }
         return try await .audited(container: container, authority: authority, io: originalIO, binding: nativeBinding, files: photos,
-            availableBytes: { try self.files.availableBytes() }, boundary: { point in
+            availableBytes: {
+                let bytes = try self.files.availableBytes()
+                #if DEBUG
+                if let limit = self.debug?.lifecycleAvailableBytes { return min(bytes, limit) }
+                #endif
+                return bytes
+            }, boundary: { point in
                 #if DEBUG
                 try self.debug?.lifecycleFault?(point)
                 #endif

@@ -302,6 +302,51 @@ struct SharedMediaNativeAppOriginalLifecycleTests {
         #expect(try count(h, source.assetID).liveCount == 0)
         _ = await owner.invalidateAndAwaitForAccountTransition()
     }
+    @Test func twoSavedRetirementsRecoverAtZeroAvailableAcrossRestartAndSaveFault() async throws {
+        let h = try Store(), owner = try await h.open(), first = try await acquire(h, owner)
+        let second = try await acquire(h, owner, packageID: UUID())
+        func identities() throws -> SharedMediaNativeOriginalLiability.Snapshot {
+            let c = h.context(), inventory = try SharedMediaNativeAppOriginalRows.one(c,
+                FetchDescriptor<SharedMediaInventoryRecord>())
+            let budget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: c,
+                inventory: inventory, ownerID: h.ownerID, format: .appV2)
+            let value = try #require(budget.originalIdentity)
+            #expect(try value == SharedMediaNativeOriginalLiability.read(context: c, inventoryID: h.inventoryID))
+            #expect(try value.currentBytes + value.reservedBytes == Int64(value.entries.count * 512))
+            return value
+        }
+        try owner.setLifecycleFault(nil, availableBytes: 0)
+        let blockedShare = try await owner.prepareAppOriginalShare(first, packageID: UUID(), draftGeneration: UUID())
+        await #expect(throws: SharedMediaStorageFailure.capacity) { _ = try await owner.shareAppOriginal(blockedShare) }
+        for source in [first, second] {
+            let request = try await owner.prepareAppOriginalRemoval(source)
+            try await owner.removeAppOriginal(request)
+        }
+        let before = try identities()
+        #expect(before.entries.count == 2 && before.entries.values.allSatisfy(\.retiring))
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let cold = try await reopen(h)
+        try cold.setLifecycleFault(nil, availableBytes: 0)
+        #expect(try await cold.appOriginalLifecycle { try await $0.recoverOne() })
+        let afterFirst = try identities()
+        #expect(afterFirst.entries.count == 1)
+        for (id, entry) in afterFirst.entries { #expect(before.entries[id] == entry) }
+        let survivor = try #require(afterFirst.entries.keys.first)
+        let saved = try accounting(h, survivor)
+        #expect(FileManager.default.fileExists(atPath: path(h, saved.fileToken).path))
+        try cold.setLifecycleFault({ if $0 == .beforeReleaseSave { throw SharedMediaStorageFailure.unavailable } }, availableBytes: 0)
+        await #expect(throws: (any Error).self) { try await cold.recoverAppOriginalRetirements() }
+        #expect(!FileManager.default.fileExists(atPath: path(h, saved.fileToken).path))
+        #expect(try identities().entries == afterFirst.entries)
+        #expect(await cold.invalidateAndAwaitForAccountTransition())
+        let final = try await reopen(h)
+        try final.setLifecycleFault(nil, availableBytes: 0)
+        try await final.recoverAppOriginalRetirements()
+        #expect(try identities().entries.isEmpty)
+        #expect(try h.context().fetchCount(FetchDescriptor<PhotoPreparationAsset>()) == 0)
+        try await final.recoverAppOriginalRetirements()
+        #expect(await final.invalidateAndAwaitForAccountTransition())
+    }
     private func acquire(_ h: Store, _ owner: SharedMediaNativeOriginalOwner, packageID: UUID? = nil) async throws -> PhotoOriginalReference {
         let request = try await owner.prepareAppOriginal(packageID: packageID ?? h.packageID,
             draftGeneration: packageID == nil ? h.draft : UUID(), ordinal: 0, kind: .picker)

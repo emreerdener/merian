@@ -6,6 +6,7 @@ import Foundation
 @MainActor
 final class SharedMediaNativeDebugHooks {
     init() {}
+    var lifecycleAvailableBytes: Int64?
     var lifecycleFault: ((SharedMediaNativeLifecycleBoundary) throws -> Void)?
     var preparationAvailableBytes: Int64?
     var preparationFileEpochObserved: ((UUID) -> Void)?

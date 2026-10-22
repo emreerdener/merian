@@ -3,7 +3,7 @@ import SwiftData
 
 /// Clean, asset-owned accounting inputs under the native store fence. This is
 /// not a whole-store audit, capacity admission, reservation or cleanup right.
-/// Runtime Budget integration also requires proof-bound over-cap recovery.
+/// Ordinary app Budget owns enforcement; held-release integration is separate.
 @MainActor
 enum SharedMediaNativeOriginalLiability {
     struct Entry: Equatable, Sendable {

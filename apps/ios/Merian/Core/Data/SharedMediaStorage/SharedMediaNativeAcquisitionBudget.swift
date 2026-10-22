@@ -9,7 +9,7 @@ import SwiftData
 enum SharedMediaNativeAcquisitionBudget {
     struct Snapshot {
         let totals: SharedMediaStoragePolicy.Totals
-        /// Measured separately until saved-retirement recovery is qualified.
+        /// Asset-owned identity bytes and headroom included once in global totals.
         let originalIdentity: SharedMediaNativeOriginalLiability.Snapshot?
         let metadataByPackage: [UUID: Int64]
         let baseMetadataByPackage: [UUID: Int64]
@@ -343,6 +343,10 @@ enum SharedMediaNativeAcquisitionBudget {
                 originalIdentity = try SharedMediaNativeOriginalLiability.read(context: context, inventoryID: inventory.id, checkpoint: checkpoint)
             }
         } else { originalIdentity = nil }
+        if let originalIdentity {
+            try totals.includePhotoPhysical(materialized: originalIdentity.currentBytes,
+                reserved: originalIdentity.reservedBytes)
+        }
         return .init(totals: totals, originalIdentity: originalIdentity, metadataByPackage: metadata, baseMetadataByPackage: baseMetadata)
     }
 

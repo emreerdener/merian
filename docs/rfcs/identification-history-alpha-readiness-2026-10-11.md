@@ -1,3 +1,51 @@
+## October 22 — original identity enforcement checked; receiving boundary open
+
+Original identity current bytes and reserved headroom now contribute once to
+existing global Totals for appV2 admission. The twelve typed poststate seals
+remain unchanged. Ordinary fully audited pending appV2 state has the reviewed
+conservative bound of 357 MiB plus 4 KiB, below the existing 384 MiB durable
+limit. This is not a bound for held-release unions or retained-library
+occupancy. There is no new recovery bypass or free-space check on pure
+settlement. The Debug-only availability clamp can only lower actual availability
+and is absent from Release.
+
+Scoped shared-checkout evidence for the enforcement source:
+`identity-enforcement-focused01` passed 142 methods / 363 invocations; corrected
+selector run `identity-enforcement-focused02` passed eleven additional
+staging/recovery methods / seventeen invocations. These 153 fully passing
+methods / 380 invocations include exact integer durable/free-space boundaries
+and two saved retirements recovering at zero available space across restart and
+a physical-release/save interruption. Their runtime and test sources are
+unchanged in this checkpoint. This is not an isolated-source, complete
+affected-target, performance, merge-readiness or feature-acceptance claim.
+
+The receiving exact-metadata boundary remains open. The first run used a
+filename as a suite selector and missed seven intended methods; the supplemental
+run exposed an inherited fixture search failure before owner admission
+assertions. Two test-only diagnostic edits remain outside this enforcement
+checkpoint. Their narrowed retry `identity-enforcement-focused04` proved actual
+persisted cap+1 rejection with unchanged state, but the exact-cap search
+exhausted 9,408 evaluations, with nearest full projections 1,048,571 and
+1,048,585 bytes around 1,048,576. The boundary method and overall supplemental
+gates are failed, not qualified. The intervening `focused03` compile failure ran
+zero tests. All failures and XCResults remain retained under
+`.artifacts/native-app-capture-handoff-20261020`; all 2,920 frozen
+source/project hashes were unchanged during each run. Raw simulator diagnostics
+remain available. No assertion or runtime limit was weakened.
+
+User-authorized cleanup recovered 6,425,440,256 bytes (about 5.98 GiB) from
+inspected inactive global Xcode Build, Index and ModuleCache directories.
+Dependencies, managed checkout caches and test evidence were preserved, and
+builds resumed above the reviewed disk threshold. Cleanup evidence is
+`cleanup-result01.json` in the same artifact directory.
+
+Next: characterize legal encoding sizes before constructing a small fixed
+exact-cap fixture; do not repeat the exhausted search matrices. Held/releasing
+integration, retained-only survivor transitions and remaining acceptance stay
+open. Activation disabled, PR116 frozen, Supabase deployment hold active, AWS
+unapproved; all numeric and category limits unchanged. No push, merge,
+deployment or hosted test occurred. Auto-prompts remain paused.
+
 ## October 21 — typed original identity measurements qualified locally
 
 The candidate extends `SharedMediaNativeAcquisitionBudget.Snapshot` with

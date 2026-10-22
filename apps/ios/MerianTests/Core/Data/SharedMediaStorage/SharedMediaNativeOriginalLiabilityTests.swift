@@ -9,6 +9,36 @@ struct SharedMediaNativeOriginalLiabilityTests {
     typealias Fixture = SharedMediaNativeReleaseLiveFixture
     typealias Reader = SharedMediaNativeOriginalLiability
 
+    @Test func ordinaryAuditedPendingBoundIncludesTransientReservation() throws {
+        // Source-derived conservative bound; this does not construct or exhaust
+        // all valid stores. The audited ordinal and intent limits are two each.
+        let packages = Int64(PhotoPreparationPolicy.maximumPackages), originals = packages * 2
+        let pairs = originals * (PhotoPreparationPolicy.aiCohort + PhotoPreparationPolicy.display)
+        let attempt = PhotoPreparationPolicy.aiCohort + PhotoPreparationPolicy.display
+        let bound = try PhotoPreparationPolicy.add([originals * PhotoPreparationPolicy.original,
+            pairs, attempt, packages * PhotoPreparationPolicy.metadata,
+            originals * 2 * PhotoPreparationPolicy.metadata, originals * 512])
+        #expect(bound == 357 * PhotoPreparationPolicy.mib + 4_096)
+        #expect(bound < PhotoPreparationPolicy.durable)
+    }
+
+    @Test func identityChargeRespectsExactDurableAndAvailabilityBoundaries() throws {
+        // Integer-only boundary evidence, not a purported near-cap native store.
+        let current: Int64 = 200, headroom: Int64 = 312
+        var exact = SharedMediaStoragePolicy.Totals()
+        try exact.includePhotoPhysical(materialized: PhotoPreparationPolicy.durable - 512, reserved: 0)
+        try exact.includePhotoPhysical(materialized: current, reserved: headroom)
+        try exact.checkAvailable(SharedMediaStoragePolicy.reserve + headroom)
+        #expect(throws: SharedMediaStorageFailure.capacity) {
+            try exact.checkAvailable(SharedMediaStoragePolicy.reserve + headroom - 1)
+        }
+        var over = SharedMediaStoragePolicy.Totals()
+        try over.includePhotoPhysical(materialized: PhotoPreparationPolicy.durable - 511, reserved: 0)
+        #expect(throws: SharedMediaStorageFailure.capacity) {
+            try over.includePhotoPhysical(materialized: current, reserved: headroom)
+        }
+    }
+
     @Test(arguments: ["one", "two", "foreign"])
     func measuresOriginalsOnceAcrossPendingAndHeldRelease(_ scenario: String) async throws {
         let count = scenario == "two" ? 2 : 1
@@ -85,6 +115,10 @@ struct SharedMediaNativeOriginalLiabilityTests {
             #expect(try snapshot == Reader.read(context: context, inventoryID: store.inventoryID))
             #expect(snapshot.entries.count == count)
             #expect(try snapshot.currentBytes + snapshot.reservedBytes == Int64(count * 512))
+            // This lifecycle has no pending work or derivative reservations.
+            let threshold = try SharedMediaStoragePolicy.reserve + snapshot.reservedBytes
+            try budget.totals.checkAvailable(threshold)
+            #expect(throws: SharedMediaStorageFailure.capacity) { try budget.totals.checkAvailable(threshold - 1) }
         }
         try measure(1)
         let edit = try await owner.prepareAppMetadata(packageID: store.packageID, draftGeneration: store.draft,

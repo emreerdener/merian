@@ -309,8 +309,9 @@ final class SharedMediaNativeOriginalOwner {
         }
     }
     #if DEBUG
-    func setLifecycleFault(_ fault: ((SharedMediaNativeLifecycleBoundary) throws -> Void)?) throws {
+    func setLifecycleFault(_ fault: ((SharedMediaNativeLifecycleBoundary) throws -> Void)?, availableBytes: Int64? = nil) throws {
         guard phase == .ready, cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }; debug.lifecycleFault = fault
+        debug.lifecycleAvailableBytes = availableBytes
     }
 
     #endif
