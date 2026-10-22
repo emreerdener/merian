@@ -1,3 +1,32 @@
+## October 22 — exact-cap receiving fixture qualified
+
+The native receiving boundary now uses two fixed, legal one-original payloads:
+four supporting-context fields containing 3,021 preserved U+0001 scalars each,
+with 11 or 12 ASCII characters appended to the last field. Production encoding
+measures 1,048,576 and 1,048,577 bytes respectively. The test requires the
+maximum of current, received and abandoned projections to equal the expected
+boundary before saving, then recaptures the actual persisted graph. It proves
+owner staging and save-free replay at the cap, and capacity rejection with
+unchanged draft/inventory at cap+1. The exhausted search and unused sizing
+helper are removed. Runtime behavior, storage limits and historical operation
+meaning are unchanged.
+
+`boundary-owner-focused01` passed one method / two arguments on candidate02
+`6c45b079ea18d5e5bb5110848427b392aa9ddd046c71b5c2a2d7908e1a945ba1`; XCResult
+`204264cd02bc41afa29067ffd47d257c.xcresult`. All 2,920 frozen source/project
+hashes were unchanged. The two preceding bounded characterization runs passed
+and remain diagnostic evidence only. Exact results, failed searches, the earlier
+compile failure, candidate patches and review records remain under
+`.artifacts/native-app-capture-handoff-20261020`.
+
+This supersedes the earlier **open exact-cap fixture** status below; earlier
+failures remain historical evidence. Combined with unchanged prior checks, the
+scoped regression evidence covers 154 methods / 382 invocations. This is shared
+checkout validation, not complete affected-target, isolated-source, feature or
+merge qualification. Held/releasing and retained-only survivor integration
+remain open. Activation is disabled, PR116 remains frozen, the Supabase
+deployment hold remains active, and AWS remains unapproved.
+
 ## October 22 — original identity enforcement checked; receiving boundary open
 
 Original identity current bytes and reserved headroom now contribute once to
@@ -809,6 +838,7 @@ Capture handoff remain next under reviewed design03. Consumer lifecycle, full
 affected gates, native journeys and integrated acceptance remain open before
 version deletion/export and redesign. Activation is disabled, PR116 frozen,
 deployment held and AWS unapproved; external-operation restrictions remain.
+
 ## October 20 — app original sharing and retirement locally verified
 
 Consumer-less app drafts can now share a ready original without copying its

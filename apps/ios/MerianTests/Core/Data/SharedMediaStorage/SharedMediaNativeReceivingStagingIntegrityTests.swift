@@ -7,15 +7,18 @@ import Testing
 @MainActor
 struct SharedMediaNativeReceivingBoundaryTests {
     private let checks = SharedMediaNativeReceivingStagingTests()
-    // P2's current encoding represents cap and cap+1. Require the full
-    // persisted projection to prove both; older cap+2 evidence is historical.
+    // Fixed legal one-original shapes measured with the production codec.
+    // Both values must still be proved through the real persisted owner.
     @Test(arguments: [Int64(0), Int64(1)])
     func persistedMetadataBoundaryUsesActualDraftAndOwnerAdmission(_ excess: Int64) async throws {
-        let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(count: 2)
+        let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(count: 1)
         let fixture = try SharedMediaNativeReceivingTestFixture.capture(h, request: request).freshP2()
         #expect(try fixture.metadata() == fixture.auditedMetadata)
         let target = PhotoPreparationPolicy.metadata + excess
-        let contexts = try boundaryContexts(fixture, target: target)
+        let contexts = boundaryContexts(excess: excess)
+        _ = try PhotoPreparationPolicy.contexts(contexts)
+        let projected = try projectedCharge(fixture.context(contexts, advancingPackage: true))
+        try #require(projected == target, "Fixed boundary encoding drifted; do not search or substitute a nearby value")
         let edit = try await owner.prepareAppMetadata(packageID: h.packageID, draftGeneration: h.draft, contexts: contexts)
         _ = try await owner.saveAppMetadata(edit)
         let current = try await owner.appReceivingRequest(packageID: h.packageID, pairIDs: checks.pairIDs(request),
@@ -25,7 +28,8 @@ struct SharedMediaNativeReceivingBoundaryTests {
         // Recapture only actual persisted facts after the real metadata save.
         let persisted = try SharedMediaNativeReceivingTestFixture.capture(h, request: current).freshP2()
         #expect(try persisted.metadata() == persisted.auditedMetadata)
-        #expect(try projectedCharge(persisted) == target)
+        let persistedCharge = try projectedCharge(persisted)
+        try #require(persistedCharge == target)
         let before = try checks.facts(h), revision = try checks.inventory(h).revision
         if excess == 0 {
             let saved = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: checks.pairIDs(request))
@@ -54,64 +58,25 @@ struct SharedMediaNativeReceivingBoundaryTests {
 
     private func projectedCharge(_ fixture: SharedMediaNativeReceivingTestFixture) throws -> Int64 {
         let prepared = try SharedMediaNativeReceivingIntent.Prepared(fixture.request)
-        let current = try fixture.metadata() + Int64(prepared.encoded().count)
-        // successor intentionally exposes the uncapped value; maximum enforces
-        // the cap in production. No invented currentMetadata increment is used.
-        return try max(current, SharedMediaNativeReceivingReservation.successor(prepared,
-            header: SharedMediaNativeReceivingTestFixture.maximumHeader(prepared),
-            currentMetadata: fixture.metadata(), pairStates: fixture.states))
+        let metadata = try fixture.metadata(), header = SharedMediaNativeReceivingTestFixture.maximumHeader(prepared)
+        // Uncapped measurements only; the persisted owner still enforces the
+        // production maximum across current, received and abandoned branches.
+        return try max(metadata + Int64(prepared.encoded().count),
+            SharedMediaNativeReceivingReservation.successor(prepared,
+                header: header, currentMetadata: metadata, pairStates: fixture.states),
+            SharedMediaNativeReceivingReservation.abandonedSuccessor(prepared,
+                header: header, currentMetadata: metadata, pairStates: fixture.states))
     }
 
-    private func boundaryContexts(_ fixture: SharedMediaNativeReceivingTestFixture,
-                                  target: Int64) throws -> [ObservationContext] {
-        let sizer = try SharedMediaNativeReceivingTestFixture.BoundarySizer(fixture)
-        var below: (Int64, [ObservationContext])?
-        var above: (Int64, [ObservationContext])?
-        func contexts(_ fill: Int, scalar: String, tail: Int, padding: String, fields: Int) -> [ObservationContext] {
-            let units = Array(String(repeating: scalar, count: fill) + String(repeating: padding, count: tail))
-            return (0..<fields).map { index in
-                let start = min(index * 8_192, units.count), end = min((index + 1) * 8_192, units.count)
-                return .init(freeText: String(units[start..<end]))
-            }
+    private func boundaryContexts(excess: Int64) -> [ObservationContext] {
+        // Four fields of 3,021 preserved control scalars plus 11/12 ASCII
+        // characters measure 1,048,576 / 1,048,577 bytes respectively. These
+        // fixed shapes replace the exhausted multi-thousand-probe search.
+        // No synthetic liability, changed limit or extra metadata save is used.
+        (0..<4).map { field in
+            .init(freeText: String(repeating: "\u{0001}", count: 3_021) +
+                (field == 3 ? String(repeating: "a", count: 11 + Int(excess)) : ""))
         }
-        // A bounded, non-exhaustive legal shape matrix changes JSON width, field scaffold and
-        // base64 residue. Even U+0001 is preserved by the existing text policy.
-        // The sizing aid never grants admission or substitutes for validation.
-        for scalar in ["\"", "\\", "\u{0001}"] {
-            for fields in [1, 2, 3, 4, 8, 16, 32, 64] {
-                for padding in ["?", "a"] {
-                    for tail in 0..<32 {
-                        let maximum = min(32_000, fields * 8_192) - tail
-                        func values(_ fill: Int) -> [ObservationContext] {
-                            contexts(fill, scalar: scalar, tail: tail, padding: padding, fields: fields)
-                        }
-                        if try sizer.charge(values(maximum)) < target { continue }
-                        var lower = 0, upper = maximum
-                        while lower < upper {
-                            let mid = lower + (upper - lower) / 2
-                            if try sizer.charge(values(mid)) < target { lower = mid + 1 } else { upper = mid }
-                        }
-                        // Escaping can create small local discontinuities; the
-                        // finite neighborhood is checked without monotonicity.
-                        for fill in max(0, lower - 16)...min(maximum, lower + 16) {
-                            let selected = values(fill), predicted = try sizer.charge(selected)
-                            if predicted < target && predicted > (below?.0 ?? 0) { below = (predicted, selected) }
-                            if predicted > target && predicted < (above?.0 ?? .max) { above = (predicted, selected) }
-                            guard predicted == target else { continue }
-                            _ = try PhotoPreparationPolicy.contexts(selected)
-                            guard try projectedCharge(fixture.context(selected, advancingPackage: true)) == target else { continue }
-                            let adjacent = values(fill == maximum ? fill - 1 : fill + 1)
-                            guard try projectedCharge(fixture.context(adjacent, advancingPackage: true)) == sizer.charge(adjacent) else { continue }
-                            return selected
-                        }
-                    }
-                }
-            }
-        }
-        let actualBelow = try below.map { try projectedCharge(fixture.context($0.1, advancingPackage: true)) }
-        let actualAbove = try above.map { try projectedCharge(fixture.context($0.1, advancingPackage: true)) }
-        Issue.record("Bounded search exhausted; full projections near target \(target): \(String(describing: actualBelow)), \(String(describing: actualAbove)). Exact boundary remains open.")
-        throw SharedMediaStorageFailure.capacity
     }
 }
 
