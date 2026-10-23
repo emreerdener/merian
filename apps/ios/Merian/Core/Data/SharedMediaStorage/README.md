@@ -1,3 +1,37 @@
+## October 23 — process-exit probe transport focused qualification
+
+`SharedMediaStageExitProbeSupport` and `SharedMediaStageProbeTransportTests` are
+test-bundle-only preparation for the bounded release-stage process-exit control.
+An ordinary test invocation cannot read a ticket or run the handshake. The
+opt-in handshake binds a fresh nonce, exact selector/phase, candidate and
+compiled app/test binary hashes to per-invocation environment values. Ticket and
+consumed-marker files are canonical, bounded, exclusive and synchronized.
+Missing arming skips before file access; malformed arming or a consumed marker
+fails. No store construction, abrupt exit, provider work or production writer is
+implemented by this transport.
+
+Focused shared-checkout verification passed six safe transport tests and one
+separate simulator handshake (7 methods / 7 invocations). The handshake proves
+actual `TEST_RUNNER_` propagation, the installed test-host ticket location,
+Python/Swift canonical ticket agreement and compiled app/test digest binding.
+Its runner requires a fresh XCResult with exactly one passing invocation plus
+the exact acknowledgement. All 2,935 source/project files and 706 compiled
+product files stayed unchanged. Evidence: `stage-transport-focused03` and
+`stage-transport-handshake01` under
+`.artifacts/native-app-capture-handoff-20261020`; XCResults
+`53c5fd5cadec42389d4f6754a313478e` and `84b24a306b764c2586797ce5e88b8412`. The
+two earlier Xcode command-line rejections remain retained and ran no tests.
+
+The reviewed managed-lock cleanup removed 2,917 completed app/test object files,
+while preserving all 706 qualified product files, dependency downloads and
+dependency intermediates, and all test evidence. Its synchronized journal
+records each removal and completed status; observed free space afterward was
+23.32 GiB.
+
+The no-save exit/full-lock readback control, deterministic transaction-boundary
+qualification, full affected-target and isolated-source gates remain open. This
+transport grants no production permission or feature activation.
+
 ## October 23 — startup ownership integration (focused qualification)
 
 Production startup now builds one explicit non-CloudKit configuration with
