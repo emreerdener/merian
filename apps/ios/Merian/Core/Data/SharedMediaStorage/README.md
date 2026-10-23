@@ -1,3 +1,43 @@
+## October 22 — received release funding adapter qualified
+
+`SharedMediaNativeReceivedReleaseSnapshot` reads an exact received V2 operation
+and measures a hypothetical initial release using the common survivor
+projection. It validates the frozen consumer/cohort, held quartet, authoritative
+original receipts and physical origins. The existing budget now exposes its
+received metadata split without changing any total: current plus reserved
+liability, excluding globally owned original identities and physical media. The
+proposed release must fit that existing charged liability and both metadata cap
+categories; no fresh-space query is introduced.
+
+Persisted package, membership, pair and execution rows remain unchanged. Only
+the hypothetical slot payload and reconstructed pair-plan inventory revision
+reflect the proposed start. Reconstructed pair values include the inventory
+revision even though the raw pair rows do not change, so current byte accounting
+must include a decimal-width crossing such as 99 to 100. Plan.preHeader stays at
+the actual predecessor header; the Received header remains historical.
+Arithmetic checks one proposed start increment and its own remaining steps, not
+aggregate runway across other releases.
+
+The reader returns descriptive values, not a clean-audit witness, reservation or
+write grant. A caller still owes the complete scoped audit and session fence.
+There is no production release-start caller, admission change, cleanup writer,
+unknown-ack retry authority or schema change. Underfunding remains a read-only
+capacity failure; it must never become a new-free-space prerequisite for saved
+recovery.
+
+`received-funding-focused01` passed all five selected methods / seven
+invocations across received funding, shared-origin budget and held-origin
+reconstruction. Exact coverage found no missing, unexpected, skipped or failed
+tests. XCResult `b0f23e1bbb9b455bb7bbfb2e7c3361c8.xcresult` and raw diagnostics
+are retained under `.artifacts/native-app-capture-handoff-20261020`. All 2,922
+frozen source/project hashes and six candidate hashes remained unchanged during
+execution. Only this README result note changed afterward. Independent and IC-1
+review preceded the run. This is focused shared-checkout validation; full
+surface gates, release-start/cleanup writers and integrated acceptance remain
+open. Generated project registration is scoped separately from unrelated
+working-tree additions. Activation disabled; PR116 frozen; deployment hold
+active; AWS unapproved; limits unchanged.
+
 ## October 22 — shared release sizing components
 
 `SharedMediaNativeReleaseSurvivorProjection` now accepts immutable component

@@ -7,12 +7,21 @@ import SwiftData
 /// occupancy and are never assigned a pending-package or retained-library cap.
 @MainActor
 enum SharedMediaNativeAcquisitionBudget {
+    /// Existing received metadata accounting split, excluding physical media and
+    /// globally owned original identities. This is descriptive, not a reservation.
+    struct MetadataLiability: Equatable, Sendable {
+        let current: Int64
+        let reserved: Int64
+        var charged: Int64 { get throws { try PhotoPreparationPolicy.add([current, reserved]) } }
+    }
+
     struct Snapshot {
         let totals: SharedMediaStoragePolicy.Totals
         /// Asset-owned identity bytes and headroom included once in global totals.
         let originalIdentity: SharedMediaNativeOriginalLiability.Snapshot?
         let metadataByPackage: [UUID: Int64]
         let baseMetadataByPackage: [UUID: Int64]
+        let receivedLiabilityByPackage: [UUID: MetadataLiability]
     }
 
     static func evaluate(context: ModelContext, inventory: SharedMediaInventoryRecord) throws -> Snapshot {
@@ -116,6 +125,7 @@ enum SharedMediaNativeAcquisitionBudget {
             intents = [:]
         }
         var totals = SharedMediaStoragePolicy.Totals(), metadata: [UUID: Int64] = [:], baseMetadata: [UUID: Int64] = [:]
+        var receivedLiability: [UUID: MetadataLiability] = [:]
         var chargedOriginAllocations = Set<UUID>(), chargedPhysical = Set<UUID>()
         for allocation in graph.allocations {
             guard chargedPhysical.insert(allocation.id).inserted else { throw SharedMediaStorageFailure.conflict }
@@ -272,6 +282,10 @@ enum SharedMediaNativeAcquisitionBudget {
             let outstandingMetadata = try PhotoPreparationPolicy.add([
                 resultHeadroom - closureBytes, membershipGrowth, planBytes, receivingHeadroom])
             guard outstandingMetadata <= bytes else { throw SharedMediaStorageFailure.conflict }
+            if let intent = intents[id], case .received = intent.slot {
+                guard preparationMetadata == 0 else { throw SharedMediaStorageFailure.conflict }
+                receivedLiability[id] = .init(current: bytes - outstandingMetadata, reserved: outstandingMetadata)
+            }
             try totals.includePhotoPhysical(materialized: bytes - outstandingMetadata, reserved: outstandingMetadata)
             try totals.includePhotoPhysical(materialized: 0, reserved: preparationMetadata)
             var logical = bytes + preparationMetadata
@@ -361,7 +375,8 @@ enum SharedMediaNativeAcquisitionBudget {
             try totals.includePhotoPhysical(materialized: originalIdentity.currentBytes,
                 reserved: originalIdentity.reservedBytes)
         }
-        return .init(totals: totals, originalIdentity: originalIdentity, metadataByPackage: metadata, baseMetadataByPackage: baseMetadata)
+        return .init(totals: totals, originalIdentity: originalIdentity, metadataByPackage: metadata, baseMetadataByPackage: baseMetadata,
+            receivedLiabilityByPackage: receivedLiability)
     }
 
     /// Clean held-release values only. Identity is deliberately absent here:

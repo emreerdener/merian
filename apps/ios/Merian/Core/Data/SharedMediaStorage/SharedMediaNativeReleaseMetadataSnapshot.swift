@@ -162,7 +162,10 @@ enum SharedMediaNativeReleaseMetadataSnapshot {
             allocatedBytes: package.allocatedByteCount, work: values)
     }
 
-    private static func ownedOriginals(_ packageID: UUID, inventory: SharedMediaInventoryRecord,
+    /// Shared physical-origin leaf for clean received and releasing readers.
+    /// Each allocation/receipt is independently validated; logical ownership is
+    /// never a substitute. The caller still owes its phase and complete audit.
+    static func ownedOriginals(_ packageID: UUID, inventory: SharedMediaInventoryRecord,
                                        context: ModelContext, checkpoint: () throws -> Void) throws -> [Original] {
         // Mirror the existing budget's authoritative physical-origin traversal,
         // not the current package's logical-reference list. Page materialization
