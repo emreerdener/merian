@@ -1,3 +1,34 @@
+## October 22 — release request codec qualified
+
+`SharedMediaNativeReleaseStartRequest` is an unconsumed value codec for a future
+versioned durable release request. It binds the exact V2 received payload
+identity, historical staging header and fixed receiving transition revision. The
+post-stage header is a checked successor; the later release Plan must use its
+own then-current audited header. `receivingRequestSHA256` names the existing
+receiving transaction digest, not this request's own external digest.
+
+Canonical parsing is bounded by the existing metadata limit. Exact origin
+association requires `requireMatch` in addition to decoding. The descriptive
+encoding charge is data bytes plus digest UTF-8 bytes; it is not a database/WAL
+footprint. Local collision rejection does not establish graph-wide uniqueness.
+No schema/model, row decoder, writer, reservation, recovery outcome or runtime
+consumer is added. Optional sidecar validation, historical funding
+reconstruction, all writer fences, migration, aggregate runway and disk-backed
+save-closure qualification remain prerequisites for staging. Historical received
+bytes are unchanged.
+
+`release-request-codec-focused01` passed all three selected methods / four
+invocations, covering initial and restaged received payloads, identity binding,
+canonical parsing, checked header arithmetic and the digest-inclusive metadata
+cap. Exact coverage found no missing, unexpected, skipped or failed tests.
+XCResult `690aef1f226945e99a5b8872eff67ac2.xcresult` and diagnostics are
+retained under `.artifacts/native-app-capture-handoff-20261020`. All 2,924
+frozen source/project and four candidate hashes remained unchanged during
+execution. Only this README result note changed afterward. Independent and IC-1
+review preceded the run. This is focused shared-checkout validation; staging,
+full affected gates and integrated acceptance remain open. Activation disabled;
+PR116 frozen; deployment hold active; AWS unapproved; limits unchanged.
+
 ## October 22 — received release funding adapter qualified
 
 `SharedMediaNativeReceivedReleaseSnapshot` reads an exact received V2 operation
