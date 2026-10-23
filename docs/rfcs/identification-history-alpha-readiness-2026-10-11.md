@@ -1,3 +1,54 @@
+## October 23 — inactive release-start transaction qualified locally
+
+The local start implementation reuses the existing stage workflow, coordinator
+locks, account/work authority and repository fences. Only uninterrupted exact
+stage acknowledgement atomically grants its owner a single start right. Save
+fault recovery, discovery, cold reopen and account drain never grant that right.
+Start audits the current staged graph, complete role-aware identities, existing
+funding and aggregate revision runway; logical IDs remain unique while exact
+physical originals may be shared. It freezes the initial Progress, consumes the
+right before synchronous save, and changes only the receiving row and inventory
+revision. Its poststate seal preserves every other raw field and persistent row.
+
+Pending start remains in the existing dispatch and teardown guards. Recovery
+requires the exact frozen initial Progress and complete live graph; a staged,
+absent, partial or mismatched result cannot authorize another write or cleanup.
+Account drain revokes unused rights and uses only its captured repository-fenced
+read closure. Held execution rows, immutable supporting text/media, other
+versions and funding are unchanged. No provider or cleanup path is added.
+
+`SharedMediaNativeReleaseStartOwnerTests` now has scoped passing evidence for
+all 9 methods / 14 invocations, assembled from reviewed partitions. Candidate05
+focused02 passed 8 methods / 13 invocations; the corrected current-header method
+passed separately on candidate06, XCResult
+`2a2e86cf044c45f883b5732741bb0dd8.xcresult`. Only that test method changed
+between candidates; production code and shared fixtures did not. Each reused
+method has exact passing argument coverage and no skips. Both earlier aggregate
+failures remain retained failures, not passing runs.
+
+Coverage includes actual P2 receive, stage and start, shared originals, cold
+recovery, stage/start faults, exact uncertainty, identity collisions, frozen
+drift, revision exhaustion, write seals and cancellation. The counter correction
+permits only validated selected originals and AI/display assets; tests prove
+clean acceptance, non-asset counter rejection and restored acceptance.
+
+The current-header test explicitly records that ordinary acquisition rejects a
+staged release sidecar through the existing generic metadata fence. Its later
+revision advance is test-only metadata mutation, followed by the real owner
+start; it qualifies the typed release reader/start handling of an advanced
+header, not concurrent ordinary acquisition. Acquisition coexistence and full
+app routing remain unqualified and must be assessed at integrated acceptance.
+
+Unchanged stage (10 methods / 12 invocations) and owner-boundary (7/7) passes
+are reused only from exact focused01 suite evidence with independent/IC-1
+concurrence. Source/project and product pins stayed unchanged during each run.
+Evidence is under
+`.artifacts/native-app-capture-handoff-20261020/start-writer-*`. Full
+affected-target, isolated, integrated and abrupt-exit gates remain open. The
+next held pair-retirement transaction is separate; this checkpoint does not
+qualify a complete release or app journey. Activation disabled; PR116 frozen;
+deployment hold active; AWS unapproved; limits unchanged.
+
 ## October 23 — dedicated native release-stage writer qualified locally
 
 The inactive stage writer changes only the receiving sidecar pair and one

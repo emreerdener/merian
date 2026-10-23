@@ -11,6 +11,17 @@ final class SharedMediaNativeReleaseStageAdmission {
     }
 }
 
+/// Exists only in the acknowledging owner's settlement state. Saved sidecars
+/// and copied request values cannot construct or replenish this right.
+@MainActor
+final class SharedMediaNativeReleaseStartAdmission {
+    let request: SharedMediaNativeReleaseStartRequest
+    let row: SharedMediaNativeReceivingIntentGraph.Row
+    fileprivate init(_ request: SharedMediaNativeReleaseStartRequest, row: SharedMediaNativeReceivingIntentGraph.Row) {
+        self.request = request; self.row = row
+    }
+}
+
 /// The owner retains uncertainty independently of each transient operation.
 /// The saved recovery closure holds repository read fences, never dispatch grants.
 @MainActor
@@ -24,6 +35,9 @@ final class SharedMediaNativeReleaseStageSettlement {
         var admission: SharedMediaNativeReleaseStageAdmission?
     }
     private var fresh: [UUID: Entitlement] = [:]
+    private var starts: [UUID: SharedMediaNativeReleaseStartAdmission] = [:]
+    private var pendingStage: SharedMediaNativeReleaseStageAdmission?
+    private(set) var startProgress: SharedMediaNativeReceivingReleaseValues.Progress?
     private var closed = false
     private var readSaved: (() throws -> Saved)?
     private(set) var request: Request?
@@ -57,13 +71,50 @@ final class SharedMediaNativeReleaseStageSettlement {
     func begin(_ admission: SharedMediaNativeReleaseStageAdmission, readSaved: @escaping () throws -> Saved) throws {
         try validate(admission)
         fresh.removeValue(forKey: admission.request.packageID)
-        request = admission.request; self.readSaved = readSaved
+        request = admission.request; pendingStage = admission; self.readSaved = readSaved
     }
     func resolved(_ value: Request) throws {
-        guard request == nil || request == value else { throw SharedMediaStorageFailure.closed }
-        request = nil; readSaved = nil
+        guard startProgress == nil, request == nil || request == value else { throw SharedMediaStorageFailure.closed }
+        request = nil; pendingStage = nil; readSaved = nil
     }
-    func closeAdmission() { closed = true; fresh.removeAll() }
+    /// Only the uninterrupted normal stage success path calls this. No await
+    /// separates exact readback/fences from this atomic ownership transition.
+    func acknowledgedStage(_ admission: SharedMediaNativeReleaseStageAdmission, row: Row) throws {
+        guard !closed, pendingStage === admission, request == admission.request,
+              startProgress == nil, starts[row.id] == nil, row.id == admission.request.packageID,
+              row.releaseStartData == (try admission.request.encoded()),
+              row.releaseStartSHA256 == SharedMediaAcquisitionEncoding.digest(try admission.request.encoded()) else {
+            throw SharedMediaStorageFailure.closed
+        }
+        starts[row.id] = .init(admission.request, row: row)
+        request = nil; pendingStage = nil; readSaved = nil
+    }
+    func startAdmission(_ value: Request) throws -> SharedMediaNativeReleaseStartAdmission {
+        guard !closed, request == nil, let admission = starts[value.packageID], admission.request == value else {
+            throw SharedMediaStorageFailure.closed
+        }
+        return admission
+    }
+    func validateStart(_ admission: SharedMediaNativeReleaseStartAdmission, row: Row) throws {
+        guard try startAdmission(admission.request) === admission, admission.row == row else {
+            throw SharedMediaStorageFailure.closed
+        }
+    }
+    func beginStart(_ admission: SharedMediaNativeReleaseStartAdmission,
+                    progress: SharedMediaNativeReceivingReleaseValues.Progress, readSaved: @escaping () throws -> Saved) throws {
+        try validateStart(admission, row: admission.row)
+        guard progress.plan.releaseID == admission.request.releaseID,
+              progress.plan.package.id == admission.request.packageID else { throw SharedMediaStorageFailure.closed }
+        starts.removeValue(forKey: admission.request.packageID)
+        request = admission.request; startProgress = progress; self.readSaved = readSaved
+    }
+    func resolvedStart(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) throws {
+        guard startProgress == progress, request?.releaseID == progress.plan.releaseID else {
+            throw SharedMediaStorageFailure.closed
+        }
+        startProgress = nil; request = nil; readSaved = nil
+    }
+    func closeAdmission() { closed = true; fresh.removeAll(); starts.removeAll() }
 
     /// Called only after the owner's active work has terminated. Reacquire the
     /// original canonical locks; no save, authority minting, provider call or refund.
@@ -74,8 +125,13 @@ final class SharedMediaNativeReleaseStageSettlement {
         let held = await coordinator.acquireAll(scanIds: [request.queueID.uuidString, request.observationID.uuidString])
         do {
             try Task.checkCancellation()
-            _ = try readSaved()
-            try resolved(request)
+            let saved = try readSaved()
+            if let progress = startProgress {
+                guard saved == .releasing(progress) else { throw SharedMediaStorageFailure.closed }
+                try resolvedStart(progress)
+            } else {
+                try resolved(request)
+            }
             await coordinator.releaseAll(scanIds: held)
         } catch {
             await coordinator.releaseAll(scanIds: held)

@@ -86,6 +86,21 @@ final class SharedMediaNativeAppReleaseStageOperations {
         return try recover(request, exactSuccessor: false)
     }
 
+    func start(_ request: Request) async throws -> Values.Progress {
+        try await SharedMediaNativeAppReleaseStartOperations(container: container, authority: authority,
+            expected: expected, settlement: settlement, recoveryHeader: recoveryHeader, boundary: boundary).apply(request)
+    }
+
+    func reconcileStart(_ progress: Values.Progress) throws -> Values.Progress {
+        try progress.validate(); try validate()
+        guard progress.plan.profile == authority.profile,
+              settlement.request == nil || settlement.startProgress == progress else { throw SharedMediaStorageFailure.closed }
+        let value = try SharedMediaNativeReleaseStartRecovery.read(progress, container: container,
+            header: { try self.authority.header(self.container) })
+        if settlement.startProgress != nil { try settlement.resolvedStart(value) }
+        return value
+    }
+
     func apply(_ admission: SharedMediaNativeReleaseStageAdmission) async throws -> Saved {
         let request = admission.request
         try request.validate(); try validate()
@@ -124,7 +139,7 @@ final class SharedMediaNativeAppReleaseStageOperations {
                 // A thrown save acknowledgement does not prove no save occurred.
                 return try recover(request, exactSuccessor: true)
             }
-            return try recover(request, exactSuccessor: true)
+            return try acknowledge(admission)
         } catch {
             context.rollback(); throw error
         }
@@ -160,6 +175,21 @@ final class SharedMediaNativeAppReleaseStageOperations {
         let result = try SharedMediaNativeReleaseStageRecovery.read(request, container: container,
             exactSuccessor: exactSuccessor, header: { try authority.header(container) })
         try settlement.resolved(request)
+        return result
+    }
+    private func acknowledge(_ admission: SharedMediaNativeReleaseStageAdmission) throws -> Saved {
+        let request = admission.request
+        try boundary(.beforeReadback)
+        let result = try SharedMediaNativeReleaseStageRecovery.read(request, container: container,
+            exactSuccessor: true, header: { try self.authority.header(self.container) })
+        let context = fresh()
+        guard result == .staged(request),
+              let row = try SharedMediaNativeReceivingPhaseGraph.row(request.packageID, in: context) else {
+            throw SharedMediaStorageFailure.closed
+        }
+        try Task.checkCancellation()
+        guard try authority.header(container) == request.postStageHeader else { throw SharedMediaStorageFailure.stale }
+        try settlement.acknowledgedStage(admission, row: .init(row))
         return result
     }
     private func validate() throws {
