@@ -1,3 +1,32 @@
+## October 22 — staged request origin reader qualified
+
+`SharedMediaNativeStagedReleaseOrigin` is an unconsumed, read-only association
+witness. Only its exact persisted-row reader can construct it. It checks both
+canonical sidecar columns, immutable received V2 payload/digest/identity
+binding, the unverified historical header floor against the current
+inventory/bootstrap header, the held receiving quartet and the frozen
+consumer/cohort/membership/original joins. The dedicated consumer sibling
+rechecks complete row and header equality; a saved witness cannot be reused
+after a context change. It grants no funding, global identity, aggregate
+revision-runway, release or save authority.
+
+Ordinary slot, consumer, budget, audit and dirty transaction readers still
+reject populated sidecars. This leaf is deliberately not routed into clean
+accounting until historical B/S/A funding and the complete graph audit are
+qualified. No runtime writer creates or consumes a request. Activation disabled;
+PR116 frozen; deployment hold active; AWS unapproved; limits unchanged. Focused
+validation passed all 14 selected methods / 33 invocations after exact
+independent and IC-1 review. The first attempt failed only test compilation and
+ran zero tests; its evidence is retained. The corrected fixture run
+`staged-origin-focused02` passed with all 2,929 source/project hashes and five
+candidate hashes unchanged. XCResult `0a87aabceb70400b9ea16f16b1950600.xcresult`
+and exact coverage are retained under
+`.artifacts/native-app-capture-handoff-20261020`. Project generation/validation,
+Markdown checks and diff checks passed. This is focused shared-checkout
+validation, not full-target, device, routing or writer qualification.
+
+Earlier dated sections retain their historical validation scope.
+
 ## October 22 — V66 release-start storage foundation qualified
 
 The active schema is V66. The additive V65→V66 stage adds nullable

@@ -5537,6 +5537,19 @@ snapshot SHA-256 values, so a property, annotation, default, relationship,
 initializer, or helper edit requires an explicit historical-shape review.
 `SchemaV51Snapshots.swift` freezes all eight `MerianSchemaV51` model classes and
 their relationships; the unchanged goal-hint companion retains its V50 owner.
+The unconsumed `SharedMediaNativeStagedReleaseOrigin` reader now separately
+validates canonical saved request/origin association, exact receiving rows,
+frozen consumer joins and the current header. The saved historical header is an
+unverified revision floor, not proof that an atomic stage transaction occurred.
+It grants no accounting, staging, release or cleanup authority. All ordinary and
+dirty readers below keep their nil-sidecar fences; clean classification awaits
+historical funding and global identity/runway qualification. This leaf passed
+exact-reviewed focused shared-checkout validation: 14 methods / 33 invocations,
+with all 2,929 source/project hashes unchanged. The preceding test-only compile
+failure remains retained with zero runtime coverage. This is not full-target,
+device, routing or writer qualification. Evidence:
+`.artifacts/native-app-capture-handoff-20261020/staged-origin-focused02-coverage.json`.
+
 `MerianSchemaV66` owns the active global models. Its lightweight V65→V66 stage
 adds optional `releaseStartData` and `releaseStartSHA256` to the existing
 package-keyed `SharedMediaReceivingIntentRecord`. Historical rows preserve their
