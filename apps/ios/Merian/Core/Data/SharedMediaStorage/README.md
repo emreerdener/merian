@@ -1,3 +1,38 @@
+## October 22 — staged funding extraction qualified
+
+Ordinary acquisition accounting and the typed staged-request reader share one
+private, nonmutating package measurement. It preserves receipt ownership,
+maximum pair-closure and membership charges, receiving-slot bytes, and the
+current/reserved split. Only the outer budget owns global deduplication,
+physical/logical/preparation totals and asset identity liability. No raw-byte
+measurement input is exposed to another owner.
+
+The separate `ReceivedReleaseSnapshot.readStaged` adapter reconstructs the
+sidecar-free received liability B under supported immutable receipt/allocation
+owners. It charges canonical request data plus its stored digest in current S,
+reclassifies the remainder B−S as reserved, and measures complete future release
+liability A through the same prospective assembly as the ordinary reader. Both S
+and A must fit B; existing metadata category caps apply. Future sizing uses
+today's inventory/header and the start successor, including decimal-width
+changes. No fresh disk-space query, new funding or historical staging proof is
+introduced. This is not protection against arbitrary compatible database
+forgery.
+
+Generic clean/dirty routes still reject sidecars. Global identity/runway
+integration and actual staging/start save-closure qualification remain separate.
+Exact-reviewed focused validation passed 16 methods / 41 invocations across
+`staged-funding-focused01`, `focused02` and `focused03`. The first two runs had
+incomplete selector coverage (filename versus suite, then enclosing extension);
+those failed coverage records remain retained. Only missing methods were run
+again, with no source changes. All 2,929 source/project and seven candidate
+hashes stayed unchanged in each run. Evidence:
+`.artifacts/native-app-capture-handoff-20261020/staged-funding-composite01.json`.
+Project, Markdown and diff checks passed. Fresh-context equality is not a
+pre-refactor oracle; exhaustive dirty-poststate parity and full affected gates
+remain open. This is shared-checkout focused evidence, not writer, runtime
+routing or full-feature acceptance. Activation remains disabled; PR116 frozen;
+deployment hold active; AWS unapproved; limits unchanged.
+
 ## October 22 — staged request origin reader qualified
 
 `SharedMediaNativeStagedReleaseOrigin` is an unconsumed, read-only association

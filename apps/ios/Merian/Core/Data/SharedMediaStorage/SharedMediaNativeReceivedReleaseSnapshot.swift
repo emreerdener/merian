@@ -61,6 +61,82 @@ enum SharedMediaNativeReceivedReleaseSnapshot {
         let consumer = try SharedMediaNativeConsumerGraph.validateScoped(rows.consumer, context: context,
             format: .appV2, checkpoint: checkpoint)
         guard consumer == transaction.cohort else { throw SharedMediaStorageFailure.conflict }
+        let components = try assemble(slot: slot, prepared: prepared, received: received, rows: rows,
+            header: header, inventory: inventory, releaseID: releaseID, context: context, checkpoint: checkpoint)
+        let budget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: context, inventory: inventory,
+            ownerID: profile.ownerID, format: .appV2, checkpoint: checkpoint)
+        guard let before = budget.receivedLiabilityByPackage[packageID],
+              try before.charged == budget.metadataByPackage[packageID] else { throw SharedMediaStorageFailure.conflict }
+        let funding = try Funding(before: before, projection: Projection.maximum(components))
+        try checkpoint()
+        guard !context.hasChanges, SharedMediaNativeReceivingIntentGraph.Row(record) == slot,
+              header == (try SharedMediaNativeAppEligibility.snapshot(context: context, scope: scope)) else {
+            throw SharedMediaStorageFailure.stale
+        }
+        try requireFrozenRows(components, context: context)
+        return .init(slot: slot, header: header, components: components, funding: funding)
+    }
+
+    /// Reclassifies existing received headroom. These values do not authorize
+    /// global budget inclusion, revision allocation, staging or release-start.
+    struct StagedFunding {
+        let historical: Liability
+        let staged: Liability
+        let release: Funding
+
+        init(historical: Liability, sidecarBytes: Int64, projection: Projection.Projection) throws {
+            let total = try historical.charged
+            guard sidecarBytes >= 0 else { throw SharedMediaStorageFailure.conflict }
+            let current = try PhotoPreparationPolicy.add([historical.current, sidecarBytes])
+            guard current <= total, total <= PhotoPreparationPolicy.metadata else {
+                throw SharedMediaStorageFailure.capacity
+            }
+            self.historical = historical
+            staged = .init(current: current, reserved: total - current)
+            release = try Funding(before: historical, projection: projection)
+            try release.requireExistingFunding()
+        }
+    }
+
+    struct StagedSnapshot {
+        let origin: SharedMediaNativeStagedReleaseOrigin
+        let components: Projection.Components
+        let historical: SharedMediaNativeAcquisitionBudget.HistoricalReceived
+        let funding: StagedFunding
+    }
+
+    static func readStaged(_ origin: SharedMediaNativeStagedReleaseOrigin,
+                           context: ModelContext, checkpoint: () throws -> Void = {}) throws -> StagedSnapshot {
+        try checkpoint(); try origin.requireCurrent(context: context)
+        let inventoryID = origin.prepared.profile.inventoryID
+        let inventory = try one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
+        let rows = try SharedMediaNativeReceivingPhaseGraph.receivedRows(origin.transaction, context: context)
+        _ = try SharedMediaNativeConsumerGraph.validateStagedReceived(rows.consumer, origin: origin,
+            context: context, checkpoint: checkpoint)
+        let components = try assemble(slot: origin.row, prepared: origin.prepared, received: origin.received,
+            rows: rows, header: origin.header, inventory: inventory, releaseID: origin.request.releaseID,
+            context: context, checkpoint: checkpoint)
+        let historical = try SharedMediaNativeAcquisitionBudget.historicalReceived(origin,
+            context: context, checkpoint: checkpoint)
+        let sidecar = try origin.request.encoding()
+        let funding = try StagedFunding(historical: historical.liability,
+            sidecarBytes: sidecar.metadataBytes,
+            projection: Projection.maximum(components))
+        try checkpoint(); try origin.requireCurrent(context: context)
+        try requireFrozenRows(components, context: context)
+        return .init(origin: origin, components: components, historical: historical, funding: funding)
+    }
+
+    /// Only the two validated origin adapters above call this leaf. It neither
+    /// dispatches receiving/clean state nor invokes the global budget. Future
+    /// release sizing uses today's header, never the unverified staging floor.
+    private static func assemble(slot: SharedMediaNativeReceivingIntentGraph.Row,
+                                 prepared: Intent.Prepared, received: Intent.Received,
+                                 rows: SharedMediaNativeReceivingRows.Set,
+                                 header: SharedMediaNativeAppEligibility.Header,
+                                 inventory: SharedMediaInventoryRecord, releaseID: UUID,
+                                 context: ModelContext, checkpoint: () throws -> Void) throws -> Projection.Components {
+        let packageID = slot.id
         let package = try one(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == packageID }))
         let member = try one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == packageID }))
         let postStartRevision = try SharedMediaStoragePolicy.add(inventory.revision, 1)
@@ -115,17 +191,22 @@ enum SharedMediaNativeReceivedReleaseSnapshot {
             slotBytes: Int64(try progress.encoded().count), pairs: pairs,
             ownedOriginals: try Metadata.ownedOriginals(packageID, inventory: inventory, context: context, checkpoint: checkpoint),
             targetOrigins: origins)
-        let budget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: context, inventory: inventory,
-            ownerID: profile.ownerID, format: .appV2, checkpoint: checkpoint)
-        guard let before = budget.receivedLiabilityByPackage[packageID],
-              try before.charged == budget.metadataByPackage[packageID] else { throw SharedMediaStorageFailure.conflict }
-        let funding = try Funding(before: before, projection: Projection.maximum(components))
-        try checkpoint()
-        guard !context.hasChanges, SharedMediaNativeReceivingIntentGraph.Row(record) == slot,
-              header == (try SharedMediaNativeAppEligibility.snapshot(context: context, scope: scope)),
+        guard !context.hasChanges,
               expected.package == SharedMediaNativeAppMetadataFacts.Package(package),
-              expected.member == SharedMediaNativeAppMetadataFacts.Member(member) else { throw SharedMediaStorageFailure.stale }
-        return .init(slot: slot, header: header, components: components, funding: funding)
+              expected.member == SharedMediaNativeAppMetadataFacts.Member(member) else {
+            throw SharedMediaStorageFailure.stale
+        }
+        return components
+    }
+
+    private static func requireFrozenRows(_ components: Projection.Components, context: ModelContext) throws {
+        let id = components.package.id
+        let package = try one(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == id }))
+        let member = try one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
+        guard !context.hasChanges, components.package == SharedMediaNativeAppMetadataFacts.Package(package),
+              components.member == SharedMediaNativeAppMetadataFacts.Member(member) else {
+            throw SharedMediaStorageFailure.stale
+        }
     }
 
     private static func one<T: PersistentModel>(_ context: ModelContext, _ query: FetchDescriptor<T>) throws -> T {

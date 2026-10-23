@@ -18,7 +18,7 @@ enum SharedMediaStoragePolicy {
               !value.contains("\0") else { throw SharedMediaStorageFailure.invalid }
     }
 
-    struct Totals {
+    struct Totals: Equatable {
         private var packages: [UUID: Int64] = [:]
         private var pools: [SharedMediaStoragePool: Int64] = [:]
         private var outstanding: Int64 = 0

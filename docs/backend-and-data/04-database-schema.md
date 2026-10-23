@@ -5550,6 +5550,25 @@ failure remains retained with zero runtime coverage. This is not full-target,
 device, routing or writer qualification. Evidence:
 `.artifacts/native-app-capture-handoff-20261020/staged-origin-focused02-coverage.json`.
 
+The separate staged funding adapter now reuses a private package measurement
+with ordinary acquisition accounting. It reconstructs sidecar-free received
+current/reserved liability B, charges canonical sidecar data and digest in S,
+and requires both S and prospective release maximum A to fit B under the
+existing metadata caps. Only the outer ordinary budget owns global receipt and
+physical deduplication, logical pools and original identity liability. The
+shared prospective assembly uses the current header and next start revision, not
+the unverified historical staging floor. It adds no free-space recovery gate or
+proof against arbitrary database forgery. Generic clean/dirty sidecar fences
+remain closed pending global identity/runway integration; no staging or release
+writer is added. Exact-reviewed shared-checkout validation passed 16 methods /
+41 invocations on unchanged source across three runs. Two incomplete
+selector-coverage reports remain retained; supplemental runs covered only the
+missing methods. Every run preserved 2,929 source/project and seven candidate
+hashes. Evidence: `staged-funding-composite01.json` under
+`.artifacts/native-app-capture-handoff-20261020`. Fresh-context equality is not
+a pre-refactor oracle; exhaustive dirty-poststate parity and complete affected
+gates remain open. This is not routing, writer or feature acceptance.
+
 `MerianSchemaV66` owns the active global models. Its lightweight V65→V66 stage
 adds optional `releaseStartData` and `releaseStartSHA256` to the existing
 package-keyed `SharedMediaReceivingIntentRecord`. Historical rows preserve their

@@ -70,6 +70,30 @@ struct SharedMediaNativeReceivingCleanGraphTests {
             }
             #expect(witness.row.phase == phase && !c.hasChanges)
             #expect(try SharedMediaNativeReceivingPhaseGraph.pending(c, inventory: inventory)[h.packageID]?.row == witness.row)
+            let budget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: c, inventory: inventory,
+                ownerID: h.ownerID, format: .appV2)
+            let base = try #require(budget.baseMetadataByPackage[h.packageID])
+            let charged = try #require(budget.metadataByPackage[h.packageID])
+            switch witness.slot {
+            case .prepared(let value):
+                let future = try SharedMediaNativeReceivingReservation.maximum(value, currentMetadata: base, pairStates: witness.states)
+                #expect(charged == base + Int64(try value.encoded().count) + future.reserved)
+                #expect(budget.receivedLiabilityByPackage[h.packageID] == nil)
+            case .abandoned:
+                #expect(charged == base + Int64(try #require(witness.row.resultData).count))
+                #expect(budget.receivedLiabilityByPackage[h.packageID] == nil)
+            case .received(_, _, let transaction):
+                #expect(charged == base + Int64(try #require(witness.row.preparedData).count)
+                    + Int64(try #require(witness.row.resultData).count) + 2 * Int64(transaction.metadata.utf8.count))
+                #expect(try budget.receivedLiabilityByPackage[h.packageID]?.charged == charged)
+            }
+            let fresh = h.context()
+            let freshInventory = try Fixture.one(fresh, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))
+            let again = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: fresh, inventory: freshInventory,
+                ownerID: h.ownerID, format: .appV2)
+            #expect(again.totals == budget.totals && again.metadataByPackage == budget.metadataByPackage)
+            #expect(again.baseMetadataByPackage == budget.baseMetadataByPackage)
+            #expect(again.receivedLiabilityByPackage == budget.receivedLiabilityByPackage && again.originalIdentity == budget.originalIdentity)
         }
         try check("prepared")
         let terminal = try await owner.abandonAppReceiving(prepared); try check("abandoned")

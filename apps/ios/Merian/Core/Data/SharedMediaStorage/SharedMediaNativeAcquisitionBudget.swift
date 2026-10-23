@@ -141,35 +141,6 @@ enum SharedMediaNativeAcquisitionBudget {
                 metadata[id] = contribution // No generic receiving base or mutation projection for a release.
                 continue
             }
-            let envelope = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData)
-            try SharedMediaNativePreparationGraph.validate(envelope, package: package, context: context, scopedInventory: format == nil ? nil : inventory)
-            let attempt = try envelope.attempt.map { try SharedMediaNativePreparationAttempt.decode($0.bytes) }
-            var states: [SharedMediaNativePairFileState] = []
-            if case .preparation(let value) = envelope, !value.intents.isEmpty {
-                let member = try one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
-                for blob in value.intents {
-                    let pairID = try SharedMediaNativeDerivativeIntent.decode(blob.bytes).pairID
-                    states.append(try SharedMediaNativePairFileGraph.state(context: context, inventory: inventory,
-                        package: package, member: member, pairID: pairID))
-                }
-            }
-            let active = states.filter { $0.phase != "ready" }
-            guard active.count <= 1, attempt == nil || active.isEmpty else { throw SharedMediaStorageFailure.conflict }
-            let pairState = active.first
-            let plannedOutput: Int64
-            if let pairState {
-                let intent = try pairState.intent()
-                plannedOutput = try SharedMediaStoragePolicy.add(intent.ai.byteCount, intent.display.byteCount)
-            } else { plannedOutput = 0 }
-            var planBytes: Int64 = 0
-            for state in states {
-                // Every survivor retains its full future cleanup projection.
-                // Physical allocations and logical references are charged once
-                // below; only the one active pair can own processing scratch.
-                let maximum = try SharedMediaNativePairClosure.maximumStateBytes(state)
-                guard Int64(try SharedMediaNativeDraftEnvelope.bytes(state).count) <= maximum else { throw SharedMediaStorageFailure.capacity }
-                planBytes = try SharedMediaStoragePolicy.add(planBytes, maximum)
-            }
             var receivingBytes: Int64 = 0
             if let consumer = try SharedMediaConsumerLookup.one(context, packageID: id) {
                 guard let format else { throw SharedMediaStorageFailure.closed }
@@ -189,103 +160,20 @@ enum SharedMediaNativeAcquisitionBudget {
                     receivingBytes = Int64(consumer.cohortData.count)
                 }
             }
-            let jobs = graph.work.filter { $0.packageID == id }
-            var pending: [SharedMediaAcquisitionIntent] = []
-            var closureBytes: Int64 = 0
-            for work in jobs {
-                if try SharedMediaNativePairFileGraph.nativeWork(assetID: work.assetID, context: context) != nil { continue }
-                let operation = work.id
-                let row = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.id == operation }))
-                switch try SharedMediaAcquisitionReceipt.read(row) {
-                case .reserved(let request), .held(let request):
-                    guard request.assetID == work.assetID, request.packageID == id else { throw SharedMediaStorageFailure.conflict }
-                    pending.append(request)
-                    if let proof = work.terminalProof {
-                        _ = try SharedMediaNativePendingClosure.decode(proof, request: request)
-                        guard work.writerStateRaw == "closedPendingCleanupV1" else { throw SharedMediaStorageFailure.conflict }
-                        closureBytes = try SharedMediaStoragePolicy.add(closureBytes, Int64(proof.utf8.count))
-                    }
-                default: throw SharedMediaStorageFailure.conflict
-                }
+            // The scoped graph and phase/poststate proofs above have validated
+            // these facts. The private input cannot be supplied by another owner.
+            let measured = try measurePackage(.init(consumerBytes: receivingBytes, intent: intents[id]),
+                package: package, graph: graph, inventory: inventory, context: context,
+                format: format, checkpoint: checkpoint)
+            for assetID in measured.originIDs {
+                guard chargedOriginAllocations.insert(assetID).inserted else { throw SharedMediaStorageFailure.conflict }
             }
-            // Origin charges come from authoritative physical allocations, not
-            // the receipt's package lookup aid or this package's logical shares.
-            var origins = FetchDescriptor<SharedMediaAllocationRecord>(predicate: #Predicate { $0.packageID == id }, sortBy: [SortDescriptor(\.id)])
-            origins.fetchLimit = SharedMediaStoragePolicy.pageSize; origins.includePendingChanges = true
-            var receiptBytes: Int64 = 0, resultHeadroom: Int64 = 0
-            var offset = 0
-            while true {
-                try Task.checkCancellation(); try checkpoint()
-                origins.fetchOffset = offset
-                let allocations = try context.fetch(origins)
-                for allocation in allocations {
-                    try Task.checkCancellation(); try checkpoint()
-                    let assetID = allocation.id
-                    if try SharedMediaNativePairFileGraph.nativeWork(assetID: assetID, context: context) != nil { continue }
-                    let row = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == assetID }))
-                    let request: SharedMediaAcquisitionIntent, result: SharedMediaAcquisitionResult?
-                    switch try SharedMediaAcquisitionReceipt.read(row) {
-                    case .reserved(let value), .held(let value): request = value; result = nil
-                    case .completed(let value, let saved): request = value; result = saved
-                    case .released: throw SharedMediaStorageFailure.conflict
-                    }
-                    guard request.packageID == id, request.ownerID == package.ownerID,
-                          allocation.inventoryID == inventory.id, allocation.accountID == package.ownerID else {
-                        throw SharedMediaStorageFailure.conflict
-                    }
-                    receiptBytes = try SharedMediaStoragePolicy.add(receiptBytes,
-                        SharedMediaAcquisitionReceipt.metadataCharge(request: request, result: result))
-                    guard chargedOriginAllocations.insert(assetID).inserted else { throw SharedMediaStorageFailure.conflict }
-                    if result == nil { resultHeadroom = try SharedMediaStoragePolicy.add(resultHeadroom, Int64(SharedMediaAcquisitionResult.reservedEncodingBytes)) }
-                    guard receiptBytes <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
-                }
-                if allocations.count < SharedMediaStoragePolicy.pageSize { break }
-                let (next, overflow) = offset.addingReportingOverflow(allocations.count)
-                guard !overflow else { throw SharedMediaStorageFailure.capacity }
-                offset = next
-            }
-            let member = try graph.membership(packageID: id)
-            let projected = try maximumMembershipBytes(member, pending: pending)
-            let baseBytes = try PhotoPreparationPolicy.add([Int64(package.supportingContextData.count), projected, receiptBytes, planBytes, receivingBytes])
-            baseMetadata[id] = baseBytes
-            var preparedBytes: Int64 = 0, receivingHeadroom: Int64 = 0
-            if let intent = intents[id] {
-                switch intent.slot {
-                case .prepared(let prepared):
-                    guard attempt == nil, active.isEmpty, receivingBytes == 0 else { throw SharedMediaStorageFailure.closed }
-                    preparedBytes = Int64(try prepared.encoded().count)
-                    let projection = try SharedMediaNativeReceivingReservation.maximum(prepared,
-                        currentMetadata: baseBytes, pairStates: intent.states)
-                    receivingHeadroom = projection.reserved
-                case .received(_, _, let transaction):
-                    guard attempt == nil, active.isEmpty, receivingBytes > 0,
-                          let prepared = intent.row.preparedData, let result = intent.row.resultData else {
-                        throw SharedMediaStorageFailure.conflict
-                    }
-                    preparedBytes = try PhotoPreparationPolicy.add([Int64(prepared.count), Int64(result.count),
-                        Int64(transaction.metadata.utf8.count), Int64(transaction.metadata.utf8.count)])
-                case .abandoned:
-                    guard receivingBytes == 0, let result = intent.row.resultData else { throw SharedMediaStorageFailure.conflict }
-                    preparedBytes = Int64(result.count)
-                }
-            }
-            let bytes = try PhotoPreparationPolicy.add([baseBytes, preparedBytes, receivingHeadroom])
-            guard bytes <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
-            // Reserve the entire remaining existing metadata allowance before
-            // processing. Later pair/result/member encodings must fit it.
-            let preparing = attempt != nil || pairState?.phase == "planned" || pairState?.phase == "writing"
-            let preparationMetadata = preparing ? PhotoPreparationPolicy.metadata - bytes : 0
-            metadata[id] = bytes + preparationMetadata
-            let membershipGrowth = projected - Int64(try member.encoded().count)
-            guard closureBytes <= resultHeadroom else { throw SharedMediaStorageFailure.conflict }
-            // The bounded closure projection is future liability, not bytes already on disk.
-            let outstandingMetadata = try PhotoPreparationPolicy.add([
-                resultHeadroom - closureBytes, membershipGrowth, planBytes, receivingHeadroom])
-            guard outstandingMetadata <= bytes else { throw SharedMediaStorageFailure.conflict }
-            if let intent = intents[id], case .received = intent.slot {
-                guard preparationMetadata == 0 else { throw SharedMediaStorageFailure.conflict }
-                receivedLiability[id] = .init(current: bytes - outstandingMetadata, reserved: outstandingMetadata)
-            }
+            baseMetadata[id] = measured.baseBytes
+            metadata[id] = measured.bytes + measured.preparationMetadata
+            if let received = measured.received { receivedLiability[id] = received }
+            let bytes = measured.bytes, outstandingMetadata = measured.outstandingMetadata
+            let preparationMetadata = measured.preparationMetadata, plannedOutput = measured.plannedOutput
+            let pairState = measured.pairState, attempt = measured.attempt, jobs = measured.jobs
             try totals.includePhotoPhysical(materialized: bytes - outstandingMetadata, reserved: outstandingMetadata)
             try totals.includePhotoPhysical(materialized: 0, reserved: preparationMetadata)
             var logical = bytes + preparationMetadata
@@ -377,6 +265,197 @@ enum SharedMediaNativeAcquisitionBudget {
         }
         return .init(totals: totals, originalIdentity: originalIdentity, metadataByPackage: metadata, baseMetadataByPackage: baseMetadata,
             receivedLiabilityByPackage: receivedLiability)
+    }
+
+    /// Private measured inputs are minted only after the existing consumer and
+    /// phase/poststate checks, or after the explicit staged-origin validator.
+    /// They grant no save, admission, cleanup or global accounting authority.
+    private struct PackageInput {
+        let consumerBytes: Int64
+        let intent: SharedMediaNativeReceivingPhaseGraph.Witness?
+    }
+
+    private struct PackageBreakdown {
+        let baseBytes: Int64
+        let bytes: Int64
+        let outstandingMetadata: Int64
+        let preparationMetadata: Int64
+        let plannedOutput: Int64
+        let pairState: SharedMediaNativePairFileState?
+        let attempt: SharedMediaNativePreparationAttempt?
+        let jobs: [PhotoPreparationLease]
+        let originIDs: Set<UUID>
+        let received: MetadataLiability?
+    }
+
+    /// No global totals or dispatcher calls. Pair/receipt/membership sizing is
+    /// shared by ordinary clean/dirty paths and the staged descriptive reader.
+    private static func measurePackage(_ input: PackageInput, package: PhotoPreparationRecord,
+                                       graph: SharedMediaPendingGraph, inventory: SharedMediaInventoryRecord,
+                                       context: ModelContext, format: SharedMediaNativeScopedFormat?,
+                                       checkpoint: () throws -> Void) throws -> PackageBreakdown {
+        let id = package.id, receivingBytes = input.consumerBytes
+        var originIDs = Set<UUID>(), received: MetadataLiability?
+        let envelope = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData)
+        try SharedMediaNativePreparationGraph.validate(envelope, package: package, context: context, scopedInventory: format == nil ? nil : inventory)
+        let attempt = try envelope.attempt.map { try SharedMediaNativePreparationAttempt.decode($0.bytes) }
+        var states: [SharedMediaNativePairFileState] = []
+        if case .preparation(let value) = envelope, !value.intents.isEmpty {
+            let member = try one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
+            for blob in value.intents {
+                let pairID = try SharedMediaNativeDerivativeIntent.decode(blob.bytes).pairID
+                states.append(try SharedMediaNativePairFileGraph.state(context: context, inventory: inventory,
+                    package: package, member: member, pairID: pairID))
+            }
+        }
+        let active = states.filter { $0.phase != "ready" }
+        guard active.count <= 1, attempt == nil || active.isEmpty else { throw SharedMediaStorageFailure.conflict }
+        let pairState = active.first
+        let plannedOutput: Int64
+        if let pairState {
+            let intent = try pairState.intent()
+            plannedOutput = try SharedMediaStoragePolicy.add(intent.ai.byteCount, intent.display.byteCount)
+        } else { plannedOutput = 0 }
+        var planBytes: Int64 = 0
+        for state in states {
+            // Every survivor retains its full future cleanup projection.
+            // Physical allocations and logical references are charged once
+            // below; only the one active pair can own processing scratch.
+            let maximum = try SharedMediaNativePairClosure.maximumStateBytes(state)
+            guard Int64(try SharedMediaNativeDraftEnvelope.bytes(state).count) <= maximum else { throw SharedMediaStorageFailure.capacity }
+            planBytes = try SharedMediaStoragePolicy.add(planBytes, maximum)
+        }
+        let jobs = graph.work.filter { $0.packageID == id }
+        var pending: [SharedMediaAcquisitionIntent] = []
+        var closureBytes: Int64 = 0
+        for work in jobs {
+            if try SharedMediaNativePairFileGraph.nativeWork(assetID: work.assetID, context: context) != nil { continue }
+            let operation = work.id
+            let row = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.id == operation }))
+            switch try SharedMediaAcquisitionReceipt.read(row) {
+            case .reserved(let request), .held(let request):
+                guard request.assetID == work.assetID, request.packageID == id else { throw SharedMediaStorageFailure.conflict }
+                pending.append(request)
+                if let proof = work.terminalProof {
+                    _ = try SharedMediaNativePendingClosure.decode(proof, request: request)
+                    guard work.writerStateRaw == "closedPendingCleanupV1" else { throw SharedMediaStorageFailure.conflict }
+                    closureBytes = try SharedMediaStoragePolicy.add(closureBytes, Int64(proof.utf8.count))
+                }
+            default: throw SharedMediaStorageFailure.conflict
+            }
+        }
+        // Origin charges come from authoritative physical allocations, not
+        // the receipt's package lookup aid or this package's logical shares.
+        var origins = FetchDescriptor<SharedMediaAllocationRecord>(predicate: #Predicate { $0.packageID == id }, sortBy: [SortDescriptor(\.id)])
+        origins.fetchLimit = SharedMediaStoragePolicy.pageSize; origins.includePendingChanges = true
+        var receiptBytes: Int64 = 0, resultHeadroom: Int64 = 0
+        var offset = 0
+        while true {
+            try Task.checkCancellation(); try checkpoint()
+            origins.fetchOffset = offset
+            let allocations = try context.fetch(origins)
+            for allocation in allocations {
+                try Task.checkCancellation(); try checkpoint()
+                let assetID = allocation.id
+                if try SharedMediaNativePairFileGraph.nativeWork(assetID: assetID, context: context) != nil { continue }
+                let row = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == assetID }))
+                let request: SharedMediaAcquisitionIntent, result: SharedMediaAcquisitionResult?
+                switch try SharedMediaAcquisitionReceipt.read(row) {
+                case .reserved(let value), .held(let value): request = value; result = nil
+                case .completed(let value, let saved): request = value; result = saved
+                case .released: throw SharedMediaStorageFailure.conflict
+                }
+                guard request.packageID == id, request.ownerID == package.ownerID,
+                      allocation.inventoryID == inventory.id, allocation.accountID == package.ownerID else {
+                    throw SharedMediaStorageFailure.conflict
+                }
+                receiptBytes = try SharedMediaStoragePolicy.add(receiptBytes,
+                    SharedMediaAcquisitionReceipt.metadataCharge(request: request, result: result))
+                guard originIDs.insert(assetID).inserted else { throw SharedMediaStorageFailure.conflict }
+                if result == nil { resultHeadroom = try SharedMediaStoragePolicy.add(resultHeadroom, Int64(SharedMediaAcquisitionResult.reservedEncodingBytes)) }
+                guard receiptBytes <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
+            }
+            if allocations.count < SharedMediaStoragePolicy.pageSize { break }
+            let (next, overflow) = offset.addingReportingOverflow(allocations.count)
+            guard !overflow else { throw SharedMediaStorageFailure.capacity }
+            offset = next
+        }
+        let member = try graph.membership(packageID: id)
+        let projected = try maximumMembershipBytes(member, pending: pending)
+        let baseBytes = try PhotoPreparationPolicy.add([Int64(package.supportingContextData.count), projected, receiptBytes, planBytes, receivingBytes])
+
+        var preparedBytes: Int64 = 0, receivingHeadroom: Int64 = 0
+        if let intent = input.intent {
+            switch intent.slot {
+            case .prepared(let prepared):
+                guard attempt == nil, active.isEmpty, receivingBytes == 0 else { throw SharedMediaStorageFailure.closed }
+                preparedBytes = Int64(try prepared.encoded().count)
+                let projection = try SharedMediaNativeReceivingReservation.maximum(prepared,
+                    currentMetadata: baseBytes, pairStates: intent.states)
+                receivingHeadroom = projection.reserved
+            case .received(_, _, let transaction):
+                guard attempt == nil, active.isEmpty, receivingBytes > 0,
+                      let prepared = intent.row.preparedData, let result = intent.row.resultData else {
+                    throw SharedMediaStorageFailure.conflict
+                }
+                preparedBytes = try PhotoPreparationPolicy.add([Int64(prepared.count), Int64(result.count),
+                    Int64(transaction.metadata.utf8.count), Int64(transaction.metadata.utf8.count)])
+            case .abandoned:
+                guard receivingBytes == 0, let result = intent.row.resultData else { throw SharedMediaStorageFailure.conflict }
+                preparedBytes = Int64(result.count)
+            }
+        }
+        let bytes = try PhotoPreparationPolicy.add([baseBytes, preparedBytes, receivingHeadroom])
+        guard bytes <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
+        // Reserve the entire remaining existing metadata allowance before
+        // processing. Later pair/result/member encodings must fit it.
+        let preparing = attempt != nil || pairState?.phase == "planned" || pairState?.phase == "writing"
+        let preparationMetadata = preparing ? PhotoPreparationPolicy.metadata - bytes : 0
+
+        let membershipGrowth = projected - Int64(try member.encoded().count)
+        guard closureBytes <= resultHeadroom else { throw SharedMediaStorageFailure.conflict }
+        // The bounded closure projection is future liability, not bytes already on disk.
+        let outstandingMetadata = try PhotoPreparationPolicy.add([
+            resultHeadroom - closureBytes, membershipGrowth, planBytes, receivingHeadroom])
+        guard outstandingMetadata <= bytes else { throw SharedMediaStorageFailure.conflict }
+        if let intent = input.intent, case .received = intent.slot {
+            guard preparationMetadata == 0 else { throw SharedMediaStorageFailure.conflict }
+            received = .init(current: bytes - outstandingMetadata, reserved: outstandingMetadata)
+        }
+        return .init(baseBytes: baseBytes, bytes: bytes, outstandingMetadata: outstandingMetadata,
+            preparationMetadata: preparationMetadata, plannedOutput: plannedOutput, pairState: pairState,
+            attempt: attempt, jobs: jobs, originIDs: originIDs, received: received)
+    }
+
+    struct HistoricalReceived {
+        let baseBytes: Int64
+        let liability: MetadataLiability
+        let originIDs: Set<UUID>
+    }
+
+    /// Reconstruct the sidecar-free received liability under supported immutable
+    /// receipt/allocation owners. This does not attest historical staging or
+    /// arbitrary database tampering, and does not enter the global budget.
+    static func historicalReceived(_ origin: SharedMediaNativeStagedReleaseOrigin,
+                                   context: ModelContext, checkpoint: () throws -> Void = {}) throws -> HistoricalReceived {
+        try origin.requireCurrent(context: context)
+        let inventoryID = origin.prepared.profile.inventoryID, id = origin.row.id
+        let inventory = try one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
+        let graph = try SharedMediaPendingGraph.deriveScoped(in: context, inventory: inventory,
+            ownerID: origin.prepared.profile.ownerID, format: .appV2)
+        guard graph.sources.isEmpty, graph.handoffs.isEmpty,
+              let package = graph.packages.first(where: { $0.id == id }) else { throw SharedMediaStorageFailure.closed }
+        let rows = try SharedMediaNativeReceivingPhaseGraph.receivedRows(origin.transaction, context: context)
+        _ = try SharedMediaNativeConsumerGraph.validateStagedReceived(rows.consumer, origin: origin,
+            context: context, checkpoint: checkpoint)
+        let phase = SharedMediaNativeReceivingPhaseGraph.Witness(row: origin.row,
+            slot: .received(origin.prepared, origin.received, origin.transaction), states: [])
+        let measured = try measurePackage(.init(consumerBytes: Int64(rows.consumer.cohortData.count), intent: phase),
+            package: package, graph: graph, inventory: inventory, context: context, format: .appV2, checkpoint: checkpoint)
+        guard let received = measured.received, measured.preparationMetadata == 0,
+              try received.charged == measured.bytes else { throw SharedMediaStorageFailure.conflict }
+        try origin.requireCurrent(context: context)
+        return .init(baseBytes: measured.baseBytes, liability: received, originIDs: measured.originIDs)
     }
 
     /// Clean held-release values only. Identity is deliberately absent here:

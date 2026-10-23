@@ -86,11 +86,36 @@ struct SharedMediaNativeReceivedReleaseSnapshotTests {
         #expect(again.funding.before == value.funding.before && again.funding.after == value.funding.after)
     }
 
-    @Test func rejectsPersistedPairReceiptAndFrozenPackageCorruption() async throws {
+    @Test(arguments: [false, true])
+    func rejectsPersistedPairReceiptAndFrozenPackageCorruption(_ staged: Bool) async throws {
         let store = try await received(count: 1)
         let initial = try Reader.read(packageID: store.packageID, inventoryID: store.inventoryID,
             releaseID: UUID(), context: store.context())
         let target = initial.components.progress.plan.targets[0]
+        if staged {
+            let c = store.context(), inventoryID = store.inventoryID
+            let inventory = try Fixture.one(c, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
+            let request = try SharedMediaNativeReleaseStartRequest(prepared: initial.components.prepared,
+                received: initial.components.received, stagePreHeader: initial.header,
+                releaseID: initial.components.progress.plan.releaseID)
+            let encoding = try request.encoding()
+            let row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(store.packageID, in: c))
+            row.releaseStartData = encoding.data; row.releaseStartSHA256 = encoding.sha256
+            inventory.revision += 1; try c.save()
+        }
+        func read(_ c: ModelContext) throws {
+            if staged {
+                let inventoryID = store.inventoryID
+                let inventory = try Fixture.one(c, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
+                let row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(store.packageID, in: c))
+                let origin = try SharedMediaNativeStagedReleaseOrigin.read(.init(row), inventory: inventory, context: c)
+                _ = try Reader.readStaged(origin, context: c)
+            } else {
+                _ = try Reader.read(packageID: store.packageID, inventoryID: store.inventoryID,
+                    releaseID: initial.components.progress.plan.releaseID, context: c)
+            }
+        }
+        try read(store.context())
         for fault in ["package", "pair", "receipt"] {
             let c = store.context(), pairID = target.pairID, receiptID = target.acquisitionID
             let package = try store.package(in: c)
@@ -103,12 +128,9 @@ struct SharedMediaNativeReceivedReleaseSnapshotTests {
             default: receipt.packageID = UUID()
             }
             try c.save()
-            let read = store.context()
-            #expect(throws: (any Error).self) {
-                _ = try Reader.read(packageID: store.packageID, inventoryID: store.inventoryID,
-                    releaseID: initial.components.progress.plan.releaseID, context: read)
-            }
-            #expect(!read.hasChanges)
+            let fresh = store.context()
+            #expect(throws: (any Error).self) { try read(fresh) }
+            #expect(!fresh.hasChanges)
             package.revision = oldRevision; pair.phaseRaw = oldPhase; receipt.packageID = oldOwner
             try c.save()
         }
@@ -117,7 +139,95 @@ struct SharedMediaNativeReceivedReleaseSnapshotTests {
         inventory.revision = Int64.max - 1
         try c.save()
         #expect(throws: (any Error).self) {
-            _ = try Reader.read(packageID: store.packageID, inventoryID: id, releaseID: UUID(), context: store.context())
+            try read(store.context())
+        }
+    }
+
+    @Test(arguments: [98, 99, 998, 999], [false, true])
+    func stagedFundingPreservesHistoricalAccountingAndCurrentReleaseSizing(_ stageRevision: Int, _ foreign: Bool) async throws {
+        let store = try await received(count: foreign ? 1 : 2, foreign: foreign)
+        let c = store.context(), inventoryID = store.inventoryID
+        let inventory = try Fixture.one(c, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
+        inventory.revision = Int64(stageRevision); try c.save()
+        let ordinary = try Reader.read(packageID: store.packageID, inventoryID: inventoryID, releaseID: UUID(), context: c)
+        let budget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: c, inventory: inventory,
+            ownerID: store.ownerID, format: .appV2)
+        let request = try SharedMediaNativeReleaseStartRequest(prepared: ordinary.components.prepared,
+            received: ordinary.components.received, stagePreHeader: ordinary.header,
+            releaseID: ordinary.components.progress.plan.releaseID)
+        let encoding = try request.encoding()
+        let row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(store.packageID, in: c))
+        let original = SharedMediaNativeReceivingIntentGraph.Row(row)
+        // Test-only persisted staging shape; no writer or accounting dispatch.
+        row.releaseStartData = encoding.data; row.releaseStartSHA256 = encoding.sha256
+        inventory.revision += 1; try c.save()
+        for advance in [Int64(0), Int64(1000)] {
+            inventory.revision += advance; try c.save()
+            let fresh = store.context()
+            let inv = try Fixture.one(fresh, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
+            let saved = try #require(try SharedMediaNativeReceivingPhaseGraph.row(store.packageID, in: fresh))
+            let origin = try SharedMediaNativeStagedReleaseOrigin.read(.init(saved), inventory: inv, context: fresh)
+            let measured = try Reader.readStaged(origin, context: fresh)
+            #expect(measured.historical.liability == ordinary.funding.before)
+            #expect(measured.historical.baseBytes == budget.baseMetadataByPackage[store.packageID])
+            #expect(measured.historical.originIDs.count == (foreign ? 0 : 2))
+            #expect(measured.funding.staged.current == ordinary.funding.before.current + encoding.metadataBytes)
+            #expect(try measured.funding.staged.charged == ordinary.funding.before.charged)
+            #expect(measured.components.progress.plan.preHeader == origin.header)
+            #expect(measured.components.pairs.allSatisfy { $0.plan.inventoryRevision == inv.revision + 1 })
+            #expect(origin.row.preparedData == original.preparedData && origin.row.resultData == original.resultData)
+            #expect(!fresh.hasChanges)
+            #expect(throws: SharedMediaStorageFailure.closed) {
+                _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: fresh, inventory: inv,
+                    ownerID: store.ownerID, format: .appV2)
+            }
+            // Compare both adapters at the same current revision. Removing and
+            // restoring the sidecar is fixture construction, never product repair.
+            saved.releaseStartData = nil; saved.releaseStartSHA256 = nil; try fresh.save()
+            let currentOrdinary = try Reader.read(packageID: store.packageID, inventoryID: inventoryID,
+                releaseID: request.releaseID, context: fresh)
+            #expect(currentOrdinary.funding.projection == measured.funding.release.projection)
+            #expect(currentOrdinary.funding.before == measured.funding.historical)
+            let currentBudget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: fresh, inventory: inv,
+                ownerID: store.ownerID, format: .appV2)
+            #expect(currentBudget.totals == budget.totals)
+            #expect(currentBudget.metadataByPackage == budget.metadataByPackage)
+            #expect(currentBudget.baseMetadataByPackage == budget.baseMetadataByPackage)
+            #expect(currentBudget.receivedLiabilityByPackage == budget.receivedLiabilityByPackage)
+            let originalIdentity = try #require(budget.originalIdentity)
+            let currentIdentity = try #require(currentBudget.originalIdentity)
+            #expect(currentIdentity == .init(inventoryID: originalIdentity.inventoryID, generation: originalIdentity.generation,
+                revision: inv.revision, entries: originalIdentity.entries, retainedTargets: originalIdentity.retainedTargets))
+            saved.releaseStartData = encoding.data; saved.releaseStartSHA256 = encoding.sha256; try fresh.save()
+        }
+    }
+
+    @Test func stagedFundingRequiresBothReplacementBoundsWithoutNewCapacity() async throws {
+        let store = try await received(count: 1)
+        let value = try Reader.read(packageID: store.packageID, inventoryID: store.inventoryID,
+            releaseID: UUID(), context: store.context())
+        let projection = value.funding.projection, historical = value.funding.before
+        let exactStage = try Reader.StagedFunding(historical: historical,
+            sidecarBytes: historical.reserved, projection: projection)
+        #expect(exactStage.staged.reserved == 0)
+        #expect(throws: SharedMediaStorageFailure.capacity) {
+            _ = try Reader.StagedFunding(historical: historical, sidecarBytes: historical.reserved + 1, projection: projection)
+        }
+        let maximum = projection.maximumIdentityExcludedBytes
+        let exactRelease = try Reader.StagedFunding(historical: .init(current: 0, reserved: maximum),
+            sidecarBytes: 1, projection: projection)
+        #expect(try exactRelease.release.after.charged == exactRelease.historical.charged)
+        #expect(throws: SharedMediaStorageFailure.capacity) {
+            _ = try Reader.StagedFunding(historical: .init(current: 0, reserved: maximum - 1), sidecarBytes: 1, projection: projection)
+        }
+        #expect(throws: SharedMediaStorageFailure.capacity) {
+            _ = try Reader.StagedFunding(historical: .init(current: 0, reserved: PhotoPreparationPolicy.metadata + 1),
+                sidecarBytes: 1, projection: projection)
+        }
+        for invalid in [Int64(-1), Int64.max] {
+            #expect(throws: (any Error).self) {
+                _ = try Reader.StagedFunding(historical: historical, sidecarBytes: invalid, projection: projection)
+            }
         }
     }
 
