@@ -29,6 +29,7 @@ enum SharedMediaNativeReceivingCleanGraph {
 
     static func validate(_ row: Row, context: ModelContext, inventory: SharedMediaInventoryRecord,
                          checkpoint: () throws -> Void = {}) throws -> Witness {
+        try row.requireNoReleaseStart()
         try Task.checkCancellation(); try checkpoint()
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         guard let saved = try SharedMediaNativeReceivingPhaseGraph.row(row.id, in: context),

@@ -31,22 +31,34 @@ struct SharedMediaReceivingIntentFoundationTests {
         let (store, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture()
         let context = store.context(), row = Self.row(owner: store.ownerID)
         context.insert(row); try context.save()
+        let original = SharedMediaNativeReceivingIntentGraph.Row(row)
         func audit(_ betweenPages: @escaping () async throws -> Void) throws -> SharedMediaNativeScopedAudit {
             try SharedMediaNativeScopedAudit(app: store.container, profile: request.profile,
                 expected: request.header.inventory, check: {}, betweenPages: betweenPages)
         }
-        await #expect(throws: SharedMediaStorageFailure.closed) { _ = try await audit({}).run() }
-        #expect(try context.fetchCount(FetchDescriptor<SharedMediaReceivingIntentRecord>()) == 1)
+        // Missing membership is a graph conflict; populated sidecars separately close.
+        await #expect(throws: SharedMediaStorageFailure.conflict) { _ = try await audit({}).run() }
+        let initialRows = try store.context().fetch(FetchDescriptor<SharedMediaReceivingIntentRecord>())
+        #expect(initialRows.count == 1)
+        let first = try #require(initialRows.first)
+        #expect(SharedMediaNativeReceivingIntentGraph.Row(first) == original && !context.hasChanges)
         context.delete(row); try context.save()
         var inserted = false
+        let lateRow = Self.row(owner: store.ownerID)
+        let lateOriginal = SharedMediaNativeReceivingIntentGraph.Row(lateRow)
         let delayed = try audit {
             if !inserted {
                 inserted = true
-                let fresh = store.context(); fresh.insert(Self.row(owner: store.ownerID)); try fresh.save()
+                let fresh = store.context(); fresh.insert(lateRow); try fresh.save()
             }
         }
-        await #expect(throws: SharedMediaStorageFailure.closed) { _ = try await delayed.run() }
+        await #expect(throws: SharedMediaStorageFailure.conflict) { _ = try await delayed.run() }
         #expect(inserted)
+        let finalContext = store.context()
+        let remaining = try finalContext.fetch(FetchDescriptor<SharedMediaReceivingIntentRecord>())
+        #expect(remaining.count == 1)
+        #expect(SharedMediaNativeReceivingIntentGraph.Row(try #require(remaining.first)) == lateOriginal)
+        #expect(!finalContext.hasChanges)
         #expect(try store.context().fetchCount(FetchDescriptor<SharedMediaConsumerRecord>()) == 0)
         #expect(try store.package(in: store.context()).revision == request.package.revision)
         #expect(await owner.invalidateAndAwaitForAccountTransition())
@@ -67,6 +79,9 @@ struct SharedMediaReceivingIntentFoundationTests {
             let row = SharedMediaReceivingIntentRecord(packageID: id, inventoryID: inventory,
                 inventoryGeneration: generation, ownerID: owner, draftGeneration: draft,
                 operationID: operation, preparedData: prepared, preparedSHA256: String(repeating: "a", count: 64))
+            #expect(row.releaseStartData == nil && row.releaseStartSHA256 == nil)
+            // Raw persistence only: current typed readers reject this data.
+            row.releaseStartData = Data([17, 0, 255]); row.releaseStartSHA256 = String(repeating: "c", count: 64)
             row.phaseRaw = "received"; row.revision = 9
             row.resultData = result; row.resultSHA256 = String(repeating: "b", count: 64)
             context.insert(row); try context.save()
@@ -80,6 +95,8 @@ struct SharedMediaReceivingIntentFoundationTests {
             #expect(row.preparedSHA256 == String(repeating: "a", count: 64))
             #expect(row.resultSHA256 == String(repeating: "b", count: 64) && row.resultData == result)
             #expect(row.preparedData == (clearPrepared ? prepared : nil))
+            #expect(row.releaseStartData == Data([17, 0, 255]) && row.releaseStartSHA256 == String(repeating: "c", count: 64))
+            #expect(throws: SharedMediaStorageFailure.closed) { try SharedMediaNativeReceivingIntentGraph.Row(row).requireNoReleaseStart() }
             #expect(row.phaseRaw == (clearPrepared ? "received" : "abandoned"))
             #expect(row.revision == (clearPrepared ? 9 : 10))
             #expect(try SharedMediaStorageRepository.hasLiabilities(in: context))

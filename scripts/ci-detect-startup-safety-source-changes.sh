@@ -130,6 +130,8 @@ is_startup_runtime_file() {
     apps/ios/Merian/Models/Schema/SchemaV63ScanSnapshots.swift | \
     apps/ios/Merian/Models/Schema/SchemaV64.swift | \
     apps/ios/Merian/Models/Schema/SchemaV65.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV66.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV65ReceivingSnapshots.swift | \
     apps/ios/Merian/Models/ActiveSchema/SharedMediaReceivingIntentRecord.swift | \
     apps/ios/Merian/Models/Schema/SchemaV64ScanSnapshots.swift | \
     apps/ios/Merian/Models/Schema/SchemaV64QueueSnapshots.swift | \

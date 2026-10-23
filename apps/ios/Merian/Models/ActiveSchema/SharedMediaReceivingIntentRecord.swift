@@ -20,6 +20,10 @@ final class SharedMediaReceivingIntentRecord {
     var preparedSHA256: String
     var resultData: Data?
     var resultSHA256: String?
+    /// Reserved for a separately qualified durable release-start owner.
+    /// Any present or partial sidecar remains closed in this storage foundation.
+    var releaseStartData: Data?
+    var releaseStartSHA256: String?
 
     init(packageID: UUID, inventoryID: UUID, inventoryGeneration: UUID,
          ownerID: UUID, draftGeneration: UUID, operationID: UUID,
@@ -38,5 +42,7 @@ final class SharedMediaReceivingIntentRecord {
         self.preparedSHA256 = preparedSHA256
         resultData = nil
         resultSHA256 = nil
+        releaseStartData = nil
+        releaseStartSHA256 = nil
     }
 }

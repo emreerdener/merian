@@ -64,6 +64,7 @@ struct SharedMediaNativeScopedAudit {
             // Intentionally no inventory predicate: every raw intent, including
             // foreign/orphan rows, must either validate or close this scope.
             _ = try await page(FetchDescriptor<SharedMediaReceivingIntentRecord>(sortBy: [SortDescriptor(\.cursorKey)])) { row, context, inventory in
+                try SharedMediaNativeReceivingIntentGraph.Row(row).requireNoReleaseStart()
                 let roots = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory, checkpoint: check)
                 guard let witness = roots[row.id] else { throw SharedMediaStorageFailure.conflict }
                 let saved: SharedMediaNativeReceivingIntentGraph.Row

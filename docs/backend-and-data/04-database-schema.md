@@ -5537,29 +5537,33 @@ snapshot SHA-256 values, so a property, annotation, default, relationship,
 initializer, or helper edit requires an explicit historical-shape review.
 `SchemaV51Snapshots.swift` freezes all eight `MerianSchemaV51` model classes and
 their relationships; the unchanged goal-hint companion retains its V50 owner.
-`MerianSchemaV65` owns the active global models and adds the inactive scalar
-`SharedMediaReceivingIntentRecord`: one package-keyed slot holding explicit
-operation identity, phase/revision, and exact prepared/result bytes and digests.
-The additive V64→V65 stage creates no intents and reconstructs no operation. V64
-freezes its complete relationship graph and acquisition receipt shape; unchanged
-scalar records alias their frozen predecessors. Its outgoing snapshot compiled
-before the active entity was introduced. Storage alone grants no receiving,
-execution or cleanup authority. Every intent phase remains a storage liability
-and blocks legacy qualification/purge. The inactive staging owner validates
-bounded prepared-only slots at every scoped audit page boundary and preserves
-their exact facts across unrelated draft mutations. Malformed, unanchored,
-received and abandoned rows remain closed. A prepared target rejects competing
-edits and cleanup; its saved operation is recovered without a new ID or save.
-Prepared bytes are materialized metadata and future receiving headroom is
-reserved once. Staging inserts one slot and increments the inventory once; it
-creates no queue, job, event or consumer. Focused shared-checkout validation
-passed 76 methods across seven suites (166 invocations) without
-failures/skips/runtime warnings or source-hash drift. Exact persisted
-metadata-cap boundaries, receiving, abandonment and Capture handoff remain open.
-Disk-backed V64 migration/cold reopen and all migration/startup selectors passed
-focused verification. The complete unit run's sole omitted account-purge fixture
-was corrected and its affected suites passed without runtime changes. Exact
-shared-checkout evidence and remaining integration gates are recorded in the
+`MerianSchemaV66` owns the active global models. Its lightweight V65→V66 stage
+adds optional `releaseStartData` and `releaseStartSHA256` to the existing
+package-keyed `SharedMediaReceivingIntentRecord`. Historical rows preserve their
+identity, phase/revision and exact prepared/result bytes and digests; both new
+fields remain nil. V65 was frozen and compiled first. Its receiving record is an
+exact scalar snapshot, while unchanged models alias the entire closed V64 graph.
+No operation, request, relationship, file ownership or activation is inferred.
+
+Every current generic receiving decoder, clean/dirty audit, direct release
+reader and raw whole-store page rejects any populated or partial sidecar,
+including foreign/orphan rows. Complete Row equality includes both fields. There
+is no sidecar writer or clearing route in this foundation. Later request staging
+and release start require their own typed audit, historical funding, aggregate
+revision runway and durable save/recovery qualification. Numeric limits and
+original-operation recovery restrictions remain unchanged.
+
+V65 introduced the receiving-intent table through V64→V65. Existing prepared,
+received and abandoned handling retains its separate typed owners and tests;
+this schema amendment does not broaden their authority. Earlier V64 migration
+and V65 validation evidence remains historical. Current V66 disk migration, cold
+reopen, startup recovery and rejection checks passed in the reviewed 17-suite
+shared-checkout simulator selection (177 methods / 232 invocations). The
+retained first-run orphan-error expectation failure was corrected in one test
+method and passed on its focused rerun; production was unchanged. Both runs
+preserved all 2,927 source/project hashes. This is installed-simulator
+foundation evidence, not device or full-feature acceptance. Exact evidence and
+remaining integration gates are recorded in the local continuation summaries and
 [alpha readiness status](../rfcs/identification-history-alpha-readiness-2026-10-11.md).
 
 V64 added the inactive scalar `SharedMediaAcquisitionReceiptRecord`. The
@@ -5645,12 +5649,14 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current source schema is `MerianSchemaV65`. V65 adds an empty receiving
-intent table through lightweight V64→V65. Canonical codec and reservation
-validation are separate from typed staging/receiving and Capture acceptance; the
-schema does not activate those paths. V64 added an empty acquisition receipt
-table through lightweight V63→V64. V63 added explicit native consumer authority
-and pending/retained accounting through lightweight V62→V63. All existing rows
+The current source schema is `MerianSchemaV66`. V66 adds nil-default optional
+release-request columns through lightweight V65→V66, with populated values
+closed to existing owners. V65 added an empty receiving intent table through
+lightweight V64→V65. Canonical codec and reservation validation are separate
+from typed staging/receiving and Capture acceptance; the schema does not
+activate those paths. V64 added an empty acquisition receipt table through
+lightweight V63→V64. V63 added explicit native consumer authority and
+pending/retained accounting through lightweight V62→V63. All existing rows
 retain their legacy semantics. V62 added `SharedMediaDerivativePairRecord` and
 `SharedMediaDerivativeWorkRecord` through lightweight V61→V62. Pair rows bind an
 exact original, revision and AI/display membership; work rows retain prepared
@@ -5727,22 +5733,23 @@ Ordinary Capture access remains nil. Recent milestones:
   directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
-  `ModelContainer`: fresh/current V65 stores open without a migration plan,
+  `ModelContainer`: fresh/current V66 stores open without a migration plan,
   known recent stores use the source-isolated
-  V64/V63/V62/V61/V60/V59/V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42
-  plans, and only unknown older stores use the full historical plan. V64 needs
-  only lightweight V64→V65; earlier plans retain their previous stages and
-  append V64→V65. Each V50 plan contains its custom V50→V51 preference-ownership
-  stage followed by V51→V52→V53→V54→V55→V56→V57→V58→V59→V60→V61→V62→V63→V64→V65;
-  the V49 plan prepends the required lightweight V49→V50 hop. Immediate
-  predecessors therefore never validate unrelated history. The V42 and V43
-  recent plans jump directly to V49 to avoid validating older full-historical
-  custom stages and to keep V42 off the older V42→V43 bridge that still failed
-  on real TestFlight stores, while V45 and V46 deliberately use one matching
-  source representative each before the V49 repair target. Stores that still hit
-  SwiftData's duplicate-checksum validator during plan construction retry with
-  the same source-isolated recent plans before legacy rescue or safe mode. Safe
-  mode itself creates an empty in-memory current-schema container without any
+  V65/V64/V63/V62/V61/V60/V59/V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42
+  plans, and only unknown older stores use the full historical plan. V65 needs
+  only lightweight V65→V66; earlier plans retain their previous stages and
+  append V65→V66. Each V50 plan contains its custom V50→V51 preference-ownership
+  stage followed by
+  V51→V52→V53→V54→V55→V56→V57→V58→V59→V60→V61→V62→V63→V64→V65→V66; the V49 plan
+  prepends the required lightweight V49→V50 hop. Immediate predecessors
+  therefore never validate unrelated history. The V42 and V43 recent plans jump
+  directly to V49 to avoid validating older full-historical custom stages and to
+  keep V42 off the older V42→V43 bridge that still failed on real TestFlight
+  stores, while V45 and V46 deliberately use one matching source representative
+  each before the V49 repair target. Stores that still hit SwiftData's
+  duplicate-checksum validator during plan construction retry with the same
+  source-isolated recent plans before legacy rescue or safe mode. Safe mode
+  itself creates an empty in-memory current-schema container without any
   migration plan; it does not validate this historical ladder again.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the

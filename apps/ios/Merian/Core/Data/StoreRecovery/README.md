@@ -1,3 +1,36 @@
+## October 22 — V66 release-start storage foundation qualified
+
+The active schema is V66. The additive V65→V66 stage adds nullable
+`releaseStartData` and `releaseStartSHA256` to the existing receiving slot.
+Migration leaves both nil and preserves every historical identity, phase,
+revision, prepared/result byte sequence and digest. V65 was frozen and compiled
+before editing the active record. Its unchanged models retain the complete
+closed V64 relationship graph. No relationship or historical schema is changed.
+Every applicable forward plan appends V65→V66; V65 has a dedicated recent-source
+startup plan. Rescue and quarantine eligibility are unchanged.
+
+Raw Row equality includes both fields. All current slot/phase, clean and dirty
+receiving, manual release and whole-store paged audit paths reject any populated
+or partial sidecar. This includes foreign/orphan rows. Storage grants no request
+staging, release start, provider execution or cleanup permission. No runtime
+writer creates, consumes or clears these fields. A future typed owner requires
+separate binding/audit, accounting, writer-closure and recovery qualification.
+Existing metadata, package and physical limits remain unchanged.
+
+Exact independent and IC-1 reviewed shared-checkout validation passed 177
+methods / 232 invocations across the 17 selected migration, recovery, model,
+receiving, audit, funding, codec and purge suites on the installed simulator.
+The first run retained one stale orphan-error expectation failure; its reviewed
+test-only correction passed in a single-method rerun. All 2,927 source/project
+hashes stayed unchanged during each run. Source guardrails and their adversarial
+checks, full portable iOS CI tooling, project generation/validation and Markdown
+checks passed. This does not claim device, broader matrix or full-feature
+acceptance. Exact evidence:
+`.artifacts/native-app-capture-handoff-20261020/v66-validation01.json`.
+Activation disabled; PR116 frozen; deployment hold active; AWS unapproved.
+Earlier dated sections below retain historical implementation and validation
+facts; this section owns the current schema version and sidecar behavior.
+
 ## October 20 — V65 receiving-intent storage foundation
 
 The active schema is V65. Its additive V64→V65 stage introduces one empty

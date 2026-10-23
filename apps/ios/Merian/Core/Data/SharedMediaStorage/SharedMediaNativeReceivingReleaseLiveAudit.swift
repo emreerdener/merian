@@ -53,6 +53,7 @@ enum SharedMediaNativeReceivingReleaseLiveAudit {
         let header = try SharedMediaNativeAppEligibility.snapshot(context: context, scope: scope)
         let saved = try one(context, FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == packageID }))
         let slot = SharedMediaNativeReceivingIntentGraph.Row(saved)
+        try slot.requireNoReleaseStart()
         guard slot.version == 2, slot.phase == "releasing", slot.preparedData == nil,
               slot.cursor == packageID.uuidString.lowercased(), slot.inventoryID == inventoryID,
               slot.inventoryGeneration == profile.generation, slot.ownerID == profile.ownerID,

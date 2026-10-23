@@ -12,6 +12,16 @@ enum SharedMediaNativeReceivingIntentGraph {
         let version: Int, revision: Int64
         let preparedData: Data?, resultData: Data?
         let resultSHA256: String?
+        let releaseStartData: Data?
+        let releaseStartSHA256: String?
+
+        /// The V66 storage foundation grants no sidecar-aware mutation or read.
+        /// Keep raw projection/equality complete for a future dedicated owner.
+        func requireNoReleaseStart() throws {
+            guard releaseStartData == nil, releaseStartSHA256 == nil else {
+                throw SharedMediaStorageFailure.closed
+            }
+        }
 
         init(_ row: SharedMediaReceivingIntentRecord) {
             id = row.id; inventoryID = row.inventoryID; inventoryGeneration = row.inventoryGeneration
@@ -19,6 +29,7 @@ enum SharedMediaNativeReceivingIntentGraph {
             cursor = row.cursorKey; phase = row.phaseRaw; preparedSHA256 = row.preparedSHA256
             version = row.schemaVersion; revision = row.revision; preparedData = row.preparedData
             resultData = row.resultData; resultSHA256 = row.resultSHA256
+            releaseStartData = row.releaseStartData; releaseStartSHA256 = row.releaseStartSHA256
         }
     }
     struct Witness: Sendable {
@@ -38,6 +49,7 @@ enum SharedMediaNativeReceivingIntentGraph {
         guard rows.count <= PhotoPreparationPolicy.maximumPackages else { throw SharedMediaStorageFailure.capacity }
         var result: [UUID: Row] = [:]
         for row in rows {
+            try Row(row).requireNoReleaseStart()
             guard result.updateValue(Row(row), forKey: row.id) == nil else { throw SharedMediaStorageFailure.conflict }
         }
         return result
@@ -49,6 +61,7 @@ enum SharedMediaNativeReceivingIntentGraph {
         let profile = try SharedMediaNativeAppEligibility.profile(inventory)
         var result: [UUID: Witness] = [:], identities = Set<UUID>()
         for row in try snapshots(context).values {
+            try row.requireNoReleaseStart()
             guard row.version == 1, row.phase == "prepared", row.revision == 0,
                   row.cursor == row.id.uuidString.lowercased(), row.resultData == nil, row.resultSHA256 == nil,
                   row.inventoryID == profile.inventoryID, row.inventoryGeneration == profile.generation,
