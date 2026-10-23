@@ -20,21 +20,6 @@ final class SharedMediaNativeLockedRoot: @unchecked Sendable {
     }
 }
 
-struct SharedMediaNativeAppProfile: Codable, Equatable, Sendable {
-    static let mode = "nativeAppContainerV2"
-    static let phase = "readyNativeAppContainerV2"
-    let ownerID: UUID, inventoryID: UUID, generation: UUID
-    let storeIdentity: String, physicalBinding: String, receiptDigest: String
-    var binding: Data {
-        get throws {
-            let result = try SharedMediaNativeBootstrapCodec.encode([Self.mode, ownerID.uuidString,
-                inventoryID.uuidString, generation.uuidString, storeIdentity, physicalBinding, receiptDigest])
-            guard result.count <= 512 else { throw SharedMediaStorageFailure.invalid }; return result
-        }
-    }
-    var rootIdentity: String { get throws { String(decoding: try binding, as: UTF8.self) } }
-}
-
 enum SharedMediaNativeBootstrapBoundary: String, CaseIterable, Sendable {
     case afterIntent, afterAuthorityRoot, afterPhotoRoot, afterPhotoNamespace
     case afterInboxRoot, afterInboxNamespace, afterFinal, afterAuthorityMarker
@@ -146,11 +131,12 @@ final class SharedMediaNativeBootstrapFiles {
         if let savedIntent {
             intent = try SharedMediaNativeBootstrapCodec.decode(SharedMediaNativeBootstrapCodec.Intent.self, savedIntent)
         } else {
-            intent = .init(version: 2, ownerID: authority.ownerID, inventoryID: authority.inventoryID,
+            intent = .init(version: 3, ownerID: authority.ownerID, inventoryID: authority.inventoryID,
                 generation: UUID(), operationID: UUID(), nonce: UUID(), store: authority.storeIdentity,
                 parent: parentIdentity, storeParent: storeParentIdentity, names: SharedMediaNativeBootstrapCodec.names)
         }
-        guard intent.version == 2, intent.ownerID == authority.ownerID, intent.inventoryID == authority.inventoryID,
+        let bindingFormat = try SharedMediaNativeAppProfile.PhysicalBindingFormat(journalVersion: intent.version)
+        guard intent.ownerID == authority.ownerID, intent.inventoryID == authority.inventoryID,
               intent.store == authority.storeIdentity, intent.parent == parentIdentity, intent.storeParent == storeParentIdentity,
               intent.names == SharedMediaNativeBootstrapCodec.names,
               SharedMediaNativeBootstrapCodec.identity(intent.parent), SharedMediaNativeBootstrapCodec.identity(intent.storeParent) else {
@@ -164,7 +150,7 @@ final class SharedMediaNativeBootstrapFiles {
             guard let record else { missingProgress = true; continue }
             let parentIndex = index == 2 ? 1 : index == 4 ? 3 : nil
             let expectedParent = parentIndex.flatMap { progress[$0]?.identity } ?? parentIdentity
-            guard !missingProgress, record.version == 2, record.intentDigest == intentDigest,
+            guard !missingProgress, record.version == intent.version, record.intentDigest == intentDigest,
                   record.name == SharedMediaNativeBootstrapCodec.names[index], record.parentIdentity == expectedParent,
                   SharedMediaNativeBootstrapCodec.identity(record.identity), SharedMediaNativeBootstrapCodec.identity(record.parentIdentity) else {
                 throw SharedMediaStorageFailure.conflict
@@ -179,7 +165,7 @@ final class SharedMediaNativeBootstrapFiles {
         let final: SharedMediaNativeBootstrapCodec.Final?
         if let savedFinal {
             final = try SharedMediaNativeBootstrapCodec.decode(SharedMediaNativeBootstrapCodec.Final.self, savedFinal)
-            guard final?.version == 2, final?.intentDigest == SharedMediaNativeBootstrapCodec.digest(expectedIntent),
+            guard final?.version == intent.version, final?.intentDigest == SharedMediaNativeBootstrapCodec.digest(expectedIntent),
                   final?.identities.count == 5, final?.identities.allSatisfy(SharedMediaNativeBootstrapCodec.identity) == true,
                   !missingProgress, final?.progressDigests == savedProgress.compactMap({ $0.map(SharedMediaNativeBootstrapCodec.digest) }) else {
                 throw SharedMediaStorageFailure.conflict
@@ -211,27 +197,27 @@ final class SharedMediaNativeBootstrapFiles {
                     var url = parent.appendingPathComponent(name), attributes = URLResourceValues()
                     attributes.isExcludedFromBackup = true; try url.setResourceValues(attributes)
                     guard fsync(root) == 0, fsync(base) == 0 else { throw SharedMediaStorageFailure.unavailable }
-                    let record = SharedMediaNativeBootstrapCodec.Progress(version: 2, intentDigest: intentDigest,
+                    let record = SharedMediaNativeBootstrapCodec.Progress(version: intent.version, intentDigest: intentDigest,
                         name: name, identity: identity, parentIdentity: parentID)
                     try Self.write(fd, SharedMediaNativeBootstrapCodec.progressNames[index], SharedMediaNativeBootstrapCodec.encode(record))
                 }
                 try authority.boundary([.afterAuthorityRoot, .afterPhotoRoot, .afterPhotoNamespace, .afterInboxRoot, .afterInboxNamespace][index])
             }
-            let record = try SharedMediaNativeBootstrapCodec.encode(SharedMediaNativeBootstrapCodec.Progress(version: 2,
+            let record = try SharedMediaNativeBootstrapCodec.encode(SharedMediaNativeBootstrapCodec.Progress(version: intent.version,
                 intentDigest: intentDigest, name: name, identity: identity, parentIdentity: parentID))
             guard try Self.read(fd, SharedMediaNativeBootstrapCodec.progressNames[index]) == record else { throw SharedMediaStorageFailure.conflict }
             expectedProgress.append(record)
             expectedIdentities.append(identity)
         }
-        let result = final ?? .init(version: 2, intentDigest: intentDigest, identities: expectedIdentities, progressDigests: expectedProgress.map(SharedMediaNativeBootstrapCodec.digest))
+        let result = final ?? .init(version: intent.version, intentDigest: intentDigest, identities: expectedIdentities, progressDigests: expectedProgress.map(SharedMediaNativeBootstrapCodec.digest))
         expectedFinal = try SharedMediaNativeBootstrapCodec.encode(result)
         if final == nil { try Self.write(fd, SharedMediaNativeBootstrapCodec.finalName, expectedFinal); try authority.boundary(.afterFinal) }
-        let physical = try SharedMediaStorageLookup.binding(authority: expectedIdentities[0], sources: [
+        let physical = try SharedMediaNativeAppProfile.rootBinding(format: bindingFormat, authority: expectedIdentities[0], sources: [
             SharedMediaPhotoLedger.namespace: parent.appendingPathComponent("photo", isDirectory: true),
             SharedMediaInboxFiles.namespace: parent.appendingPathComponent("inbox", isDirectory: true)])
         let profile = SharedMediaNativeAppProfile(ownerID: intent.ownerID, inventoryID: intent.inventoryID,
             generation: intent.generation, storeIdentity: intent.store, physicalBinding: physical,
-            receiptDigest: SharedMediaNativeBootstrapCodec.digest(expectedFinal))
+            receiptDigest: SharedMediaNativeBootstrapCodec.digest(expectedFinal), physicalBindingFormat: bindingFormat)
         self.profile = profile
         let binding = try profile.binding
         try authority.validateDatabase(profile: profile)

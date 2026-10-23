@@ -274,7 +274,8 @@ final class SharedMediaNativeStorageRepository {
         try files.check(); try files.bindStore(binding, initializing: false); try photos.checkIdentity(); try inbox.check()
         let persisted = try files.bootstrapProfile()
         guard persisted == profile, profile.generation == generation,
-              profile.physicalBinding == (try SharedMediaStorageLookup.binding(authority: files.identity, sources: sources)) else { throw SharedMediaStorageFailure.conflict }
+              profile.physicalBinding == (try SharedMediaNativeAppProfile.rootBinding(format: profile.physicalBindingFormat,
+                authority: files.identity, sources: sources)) else { throw SharedMediaStorageFailure.conflict }
     }
     private func appHeader() throws -> SharedMediaNativeAppEligibility.Header {
         guard let scope = scopedIdentity else { throw SharedMediaStorageFailure.closed }

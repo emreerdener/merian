@@ -193,8 +193,11 @@ struct SharedMediaNativeAppReceivingTests {
         try unchanged(h, r)
     }
 
-    func fixture(count: Int = 1, receiving: Bool = false, staged: Bool = false, foreignOriginal: Bool = false) async throws -> (Store, SharedMediaNativeOriginalOwner, SharedMediaNativeAppReceivingRequest) {
-        let h = try Store(receiving: receiving)
+    func fixture(count: Int = 1, receiving: Bool = false, staged: Bool = false, foreignOriginal: Bool = false,
+                 temporaryStore: Bool = false, fenceBootstrap: Bool = false) async throws -> (Store, SharedMediaNativeOriginalOwner, SharedMediaNativeAppReceivingRequest) {
+        // Temporary placement need not seed an unrelated historical V1 graph.
+        // The process control uses the existing ordinary P2 path only.
+        let h = try Store(receiving: receiving || temporaryStore, fenceBootstrap: fenceBootstrap)
         let owner = try await (receiving ? h.openWithReceivingConsumer().0 : h.open())
         if foreignOriginal {
             guard count == 1, !receiving else { throw SharedMediaStorageFailure.conflict }

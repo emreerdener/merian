@@ -1,3 +1,98 @@
+## October 23 — physical-root reopen and metadata boundary controls qualified
+
+The reviewed inactive profile correction passed the fresh `stage-exit-nosave08`
+control: the observer positively established child process closure, and a
+separate full native owner reopened the same physically bound fixture and
+acknowledged exact readback. The intentionally exiting child is an expected
+failed test, not a passing test. Child XCResult
+`1c60ebfcdb0d43cdabc30270889e0e52.xcresult` and passing reader XCResult
+`9ed5d1f2be1d45cfbf1767debcd246e4.xcresult` remain retained. This qualifies the
+exercised no-save process-exit/reopen control, not transaction-save atomicity,
+power-loss durability or complete feature acceptance.
+
+The deterministic metadata gate also passed one method/two arguments. Pure
+production reservation arithmetic accepts exactly 1,048,576 and rejects
+1,048,577 using explicitly non-persisted synthetic accounting input. Each
+independent real-file fixture found an adjacent legal-text crossing within 16
+projections: 1,048,533 was admitted and replayed without a save; 1,048,619 was
+rejected with unchanged draft/inventory and no receiving slot. These owner
+inputs are not described as exact-cap inputs. XCResult
+`724544c83d4344fbbdfe7401e14466d6.xcresult` and numeric measurements are
+retained. The prior 21 profile/bootstrap methods / 69 invocations remain
+unchanged passing evidence; their original whole run still records its failed
+old boundary cases.
+
+All 2,942 source/project pins and 708 compiled product pins remained unchanged
+through these runs. Independent and IC-1 concurrence preceded each execution;
+project/Markdown validation and diff checks passed. Evidence is under
+`.artifacts/native-app-capture-handoff-20261020`. This is focused
+shared-checkout qualification; complete affected-target, isolated-source and
+integrated acceptance remain open. Next are the already-planned deterministic
+save-boundary controls and typed release-request stage transaction. No
+absence-based fresh admission or repeat AI execution is enabled. Activation
+disabled; PR116 frozen; deployment hold active; AWS unapproved; limits
+unchanged.
+
+## Historical October 23 status — deterministic metadata boundary qualification in progress
+
+This records an earlier checkpoint, superseded by the qualified October 23
+result at the top of this document. Pending statements below describe that
+earlier state; retained failures remain failures.
+
+The latest receipt-boundary run passed actual exact-cap admission and replay,
+but its other fresh fixture failed before save at 1,048,523 bytes. The overall
+method failed. Exact filesystem timestamp widths vary and are nested in the
+encoded graph, so fixed supporting text cannot reliably target a byte-exact
+persisted boundary. All prior results remain retained historical evidence.
+
+Independent and IC-1 review cleared a test-only decomposition: the production
+reservation function must accept exactly 1 MiB and reject one byte more using an
+explicitly synthetic, non-persisted arithmetic input. Separately, each real-file
+fixture derives its own adjacent legal-text crossing in at most 16 full
+projections. The real owner must accept/replay its measured below-cap input or
+reject its measured above-cap input without changing saved state. Errors abort
+measurement; no file proof, saved request or production limit is rewritten. The
+two fixtures are independent and are not one shared physical adjacent pair.
+Actual owner byte counts will be reported; these cases do not claim exact-cap
+owner inputs. The new test is implemented but not yet compiled or passed.
+
+The prior 69 compatibility/bootstrap invocations passed and remain retained.
+Fresh no-save readback, release-sidecar accounting, full affected/isolated gates
+and integrated acceptance remain open. Activation disabled; PR116 frozen;
+deployment hold active; AWS unapproved; production limits unchanged.
+
+## Historical October 23 status — physical-root profile compatibility qualified; boundary and process readback open
+
+This records an earlier checkpoint, superseded by the qualified October 23
+result at the top of this document. Pending statements below describe that
+earlier state; retained failures remain failures.
+
+The inactive native owner now selects an explicit physical-root profile for new
+version-3 bootstrap journals. Legacy version-2 journals and nested snapshots
+retain their original path-bound encoding and recovery rules. This addresses the
+demonstrated no-save07 failure after an identity-preserving simulator container
+relocation; it does not migrate an existing committed profile or relax the
+store, account, directory or no-follow fences.
+
+The focused profile/bootstrap run passed 21 methods / 69 invocations. Its two
+old exact-cap arguments failed because the new explicit profile adds 42 bytes.
+The later fixed V3 boundary run proved actual owner rejection at 1,048,577 bytes
+with unchanged draft and inventory, but its proposed exact-cap payload measured
+1,048,572 bytes and failed before saving. Eight subsequent fixed encoding
+measurements reached neither the exact cap nor acceptance. All failed evidence
+remains retained. The October 22 exact-cap qualification below describes the
+previous profile and is not qualification of this candidate.
+
+Exact 1,048,576-byte admission and a fresh no-save child/full-owner readback
+remain open. The 69 unchanged passing cases are carried forward; diagnostic
+success is not a replacement for the failed boundary assertion. Evidence is
+under `.artifacts/native-app-capture-handoff-20261020` in the
+`stage-profile-binding-focused01`, `stage-profile-boundary-focused01` and
+`stage-profile-residues-focused01` records. No complete affected-target,
+isolated-source, save-atomicity or feature acceptance is claimed. Activation
+disabled; PR116 frozen; deployment hold active; AWS unapproved; all limits
+unchanged.
+
 ## October 22 — clean held-release routing qualified
 
 The scoped native audit and budget now consume the existing clean release

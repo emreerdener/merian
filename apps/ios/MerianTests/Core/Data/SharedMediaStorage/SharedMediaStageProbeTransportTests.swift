@@ -81,6 +81,28 @@ final class SharedMediaStageProbeTransportTests: XCTestCase {
         XCTAssertThrowsError(try Probe.read(Probe.Ticket.self, name: "whitespace.json", root: root))
     }
 
+    /// Fixed host-produced bytes, not bytes synthesized by the encoder under test.
+    /// Synthetic identities prove codec compatibility only, never filesystem ownership.
+    func testHostCanonicalAnchorRoundTripAndRawSlashRejection() throws {
+        typealias Locations = SharedMediaStageExitProbeLocation
+        let root = try temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let golden = Data(#"{"location":{"bindings":{"":{"device":1,"inode":100,"kind":16384,"links":2},"Library":{"device":1,"inode":101,"kind":16384,"links":2},"Library\/Caches":{"device":1,"inode":102,"kind":16384,"links":2},"Library\/Caches\/merian-stage-exit-probes":{"device":1,"inode":103,"kind":16384,"links":2},"Library\/Caches\/merian-stage-exit-probes\/01234567-89ab-4cde-8fab-0123456789ab":{"device":1,"inode":104,"kind":16384,"links":2}},"bundle":"app.merian.Merian","dataPath":"\/fixture\/data","nonce":"01234567-89AB-4CDE-8FAB-0123456789AB"},"ticket":{"appSHA256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","candidate":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","nonce":"01234567-89AB-4CDE-8FAB-0123456789AB","testSHA256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","version":1}}"#.utf8)
+        try golden.write(to: root.appendingPathComponent("host-anchor.json"))
+        let anchor = try Probe.read(Locations.Anchor.self, name: "host-anchor.json", root: root)
+        XCTAssertEqual(anchor.ticket.nonce, nonce)
+        XCTAssertEqual(anchor.location.dataPath, "/fixture/data")
+        XCTAssertEqual(anchor.location.bindings["Library/Caches"]?.inode, 102)
+        XCTAssertEqual(Set(anchor.location.bindings.keys), Set(Locations.components(nonce)))
+        try Probe.create(anchor, name: "native-anchor.json", root: root)
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("native-anchor.json")), golden)
+        let rawSlashes = Data(String(decoding: golden, as: UTF8.self)
+            .replacingOccurrences(of: #"\/"#, with: "/").utf8)
+        XCTAssertNotEqual(rawSlashes, golden)
+        try rawSlashes.write(to: root.appendingPathComponent("raw-anchor.json"))
+        XCTAssertThrowsError(try Probe.read(Locations.Anchor.self, name: "raw-anchor.json", root: root))
+    }
+
     func testStreamingDigestAndMissingRoot() throws {
         let root = try temporaryRoot()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -94,7 +116,7 @@ final class SharedMediaStageProbeTransportTests: XCTestCase {
     /// Selected separately with exact per-invocation environment and ticket.
     /// This handshake proves transport only; it cannot arm an abrupt exit.
     func testInvocationHandshake() throws {
-        let invocation = try Probe.invocation(selector: Probe.handshakeSelector, phase: "handshake", testBundle: Bundle(for: Self.self))
+        guard let invocation = try Probe.invocation(selector: Probe.handshakeSelector, phase: "handshake", testBundle: Bundle(for: Self.self)) else { return }
         let ticket = try Probe.read(Probe.Ticket.self, name: "ticket.json", root: invocation.root)
         guard ticket == invocation.ticket else { throw Probe.Failure.invalid }
         try Probe.create(ticket, name: "handshake.json", root: invocation.root)

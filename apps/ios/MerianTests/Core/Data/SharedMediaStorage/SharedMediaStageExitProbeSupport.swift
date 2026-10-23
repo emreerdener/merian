@@ -42,12 +42,14 @@ enum SharedMediaStageExitProbeSupport {
         return Ticket(version: 1, nonce: nonce, candidate: hashes[0], appSHA256: hashes[1], testSHA256: hashes[2])
     }
 
-    static func invocation(selector: String, phase: String, testBundle: Bundle) throws -> Invocation {
-        #if targetEnvironment(simulator)
-        guard TestExecutionCoordinator.isRunningTests,
-              let ticket = try ticket(environment: ProcessInfo.processInfo.environment, selector: selector, phase: phase) else {
-            throw XCTSkip("Requires the exact reviewed simulator probe invocation.")
+    static func invocation(selector: String, phase: String, testBundle: Bundle) throws -> Invocation? {
+        // A normal complete-suite invocation qualifies this inert guard only.
+        // It must not introduce a skip or claim armed control qualification.
+        guard let ticket = try ticket(environment: ProcessInfo.processInfo.environment, selector: selector, phase: phase) else {
+            return nil
         }
+        #if targetEnvironment(simulator)
+        guard TestExecutionCoordinator.isRunningTests else { throw Failure.invalid }
         guard let app = Bundle.main.executableURL, let test = testBundle.executableURL,
               try digest(app) == ticket.appSHA256, try digest(test) == ticket.testSHA256 else { throw Failure.invalid }
         let base = try FileManager.default.url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
@@ -55,7 +57,7 @@ enum SharedMediaStageExitProbeSupport {
         let root = base.appendingPathComponent(ticket.nonce.uuidString.lowercased(), isDirectory: true)
         return Invocation(ticket: ticket, phase: phase, root: root)
         #else
-        throw XCTSkip("Process-exit probes are simulator-only.")
+        throw Failure.invalid
         #endif
     }
 

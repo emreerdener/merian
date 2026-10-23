@@ -305,7 +305,7 @@ struct SharedMediaNativeAppBootstrapTests {
         func release() { released = true; waiting?.resume(); waiting = nil }
     }
 
-    @MainActor private struct Store {
+    @MainActor struct Store {
         let parent: URL, container: ModelContainer
         let ownerID = UUID(), inventoryID = UUID(), runtime = AuthRuntimeState()
         init() throws {
@@ -332,7 +332,8 @@ struct SharedMediaNativeAppBootstrapTests {
             try await owner.initializeApp(container: container, parent: parent, inventoryID: inventoryID ?? self.inventoryID,
                 fault: fault, availableBytes: availableBytes)
         }
-        func controls() throws -> [String: Data] {
+        func controls(at alternate: URL? = nil) throws -> [String: Data] {
+            let parent = alternate ?? self.parent
             var result: [String: Data] = [:]
             for name in [SharedMediaNativeBootstrapCodec.intentName, SharedMediaNativeBootstrapCodec.finalName] + SharedMediaNativeBootstrapCodec.progressNames {
                 let url = parent.appendingPathComponent(name)

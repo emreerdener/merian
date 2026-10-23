@@ -1,4 +1,195 @@
-## October 23 — process-exit probe transport focused qualification
+## October 23 — physical-root reopen and metadata boundary controls qualified
+
+The reviewed inactive profile correction passed the fresh `stage-exit-nosave08`
+control: the observer positively established child process closure, and a
+separate full native owner reopened the same physically bound fixture and
+acknowledged exact readback. The intentionally exiting child is an expected
+failed test, not a passing test. Child XCResult
+`1c60ebfcdb0d43cdabc30270889e0e52.xcresult` and passing reader XCResult
+`9ed5d1f2be1d45cfbf1767debcd246e4.xcresult` remain retained. This qualifies the
+exercised no-save process-exit/reopen control, not transaction-save atomicity,
+power-loss durability or complete feature acceptance.
+
+The deterministic metadata gate also passed one method/two arguments. Pure
+production reservation arithmetic accepts exactly 1,048,576 and rejects
+1,048,577 using explicitly non-persisted synthetic accounting input. Each
+independent real-file fixture found an adjacent legal-text crossing within 16
+projections: 1,048,533 was admitted and replayed without a save; 1,048,619 was
+rejected with unchanged draft/inventory and no receiving slot. These owner
+inputs are not described as exact-cap inputs. XCResult
+`724544c83d4344fbbdfe7401e14466d6.xcresult` and numeric measurements are
+retained. The prior 21 profile/bootstrap methods / 69 invocations remain
+unchanged passing evidence; their original whole run still records its failed
+old boundary cases.
+
+All 2,942 source/project pins and 708 compiled product pins remained unchanged
+through these runs. Independent and IC-1 concurrence preceded each execution;
+project/Markdown validation and diff checks passed. Evidence is under
+`.artifacts/native-app-capture-handoff-20261020`. This is focused
+shared-checkout qualification; complete affected-target, isolated-source and
+integrated acceptance remain open. Next are the already-planned deterministic
+save-boundary controls and typed release-request stage transaction. No
+absence-based fresh admission or repeat AI execution is enabled. Activation
+disabled; PR116 frozen; deployment hold active; AWS unapproved; limits
+unchanged.
+
+## Historical October 23 status — deterministic metadata boundary qualification in progress
+
+This records an earlier checkpoint, superseded by the qualified October 23
+result at the top of this document. Pending statements below describe that
+earlier state; retained failures remain failures.
+
+The latest receipt-boundary run passed actual exact-cap admission and replay,
+but its other fresh fixture failed before save at 1,048,523 bytes. The overall
+method failed. Exact filesystem timestamp widths vary and are nested in the
+encoded graph, so fixed supporting text cannot reliably target a byte-exact
+persisted boundary. All prior results remain retained historical evidence.
+
+Independent and IC-1 review cleared a test-only decomposition: the production
+reservation function must accept exactly 1 MiB and reject one byte more using an
+explicitly synthetic, non-persisted arithmetic input. Separately, each real-file
+fixture derives its own adjacent legal-text crossing in at most 16 full
+projections. The real owner must accept/replay its measured below-cap input or
+reject its measured above-cap input without changing saved state. Errors abort
+measurement; no file proof, saved request or production limit is rewritten. The
+two fixtures are independent and are not one shared physical adjacent pair.
+Actual owner byte counts will be reported; these cases do not claim exact-cap
+owner inputs. The new test is implemented but not yet compiled or passed.
+
+The prior 69 compatibility/bootstrap invocations passed and remain retained.
+Fresh no-save readback, release-sidecar accounting, full affected/isolated gates
+and integrated acceptance remain open. Activation disabled; PR116 frozen;
+deployment hold active; AWS unapproved; production limits unchanged.
+
+## Historical October 23 status — versioned physical-root reopen correction (implementation pending qualification)
+
+This records an earlier checkpoint, superseded by the qualified October 23
+result at the top of this document. Pending statements below describe that
+earlier state; retained failures remain failures.
+
+The no-save07 reader failure is now traced to the legacy absolute-path digest:
+its three saved markers reproduce the child path's hash, while the relocated
+container path produces a different hash with unchanged directory identities.
+The bootstrap database profile-equality check correctly rejects that mismatch.
+
+`SharedMediaNativeAppProfile` now distinguishes the historical path-bound format
+from `physicalRootsV1`. New empty bootstrap writes version-3 intent, progress
+and final records. The explicit new profile tag is present in both its
+persistent binding and nested Codable representation. Its domain-separated,
+ordered digest binds the authority and fixed namespace-to-directory identities.
+Containment, no-follow access, backup flags, nested root journal identities,
+markers, store identity, fences and full-owner locks remain required.
+
+Version-2 journals keep the legacy algorithm and exact seven-field/profile
+bytes. Missing discriminator stays omitted when encoded; null, unknown and
+explicit legacy tags reject. An interrupted legacy bootstrap before any
+path-bound commitment may finish as version 2 under existing guards; it never
+infers a new version from missing records. Existing committed profiles are never
+rewritten or adopted after relocation. Generic V1/qualification bindings are
+unchanged. No schema, funding, admission, storage-limit or activation change is
+included. Independent and IC-1 design review cleared this approach; compiled
+compatibility, new-format reopen and fresh no-save controls remain pending.
+
+## Historical October 23 status — no-save child closure observed; full readback remains open
+
+This records an earlier checkpoint, superseded by the qualified October 23
+result at the top of this document. Pending statements below describe that
+earlier state; retained failures remain failures.
+
+The test-only `SharedMediaStageExitProbeTests` adds two explicitly armed
+methods: a single no-save child and a separate readback. The child consumes its
+durable attempt before fixture creation, constructs the existing disposable P2
+fixture under the store bootstrap fence, retains its complete native owner, and
+waits for a host process-watch acknowledgement before its final durable boundary
+and self-exit. Ordinary runs verify only an inert arming guard before file
+access. The reader requires the matching closure certificate, existing store
+identity, constructor fence and complete `appDispatch` ownership before exact
+application-state comparison. Missing or conflicting evidence never authorizes a
+retry or a production write.
+
+`SharedMediaStageExitProbeState` reuses clean receiving/audit readers for the
+frozen slot, header, quartet, package/member, receipt and actual pair values.
+`SharedMediaStageExitProbeRecords` bounds disposable fixture paths and rejects
+missing stores before construction. Optional fixture bootstrap fencing and
+temporary placement change only this opt-in setup. It uses the existing ordinary
+P2 path without the unrelated V1 consumer seed; the ordinary non-membership
+draft is included in exact readback. The local observer binds host PID,
+executable and start time before registering `NOTE_EXIT`; numeric host exit
+status remains unobserved. The console sentinel is corroboration, not an
+acceptance authority.
+
+All three special methods now return inertly when wholly unarmed, preserving
+complete CI's zero-skip gate. Partially armed invocations still fail closed.
+This supersedes the transport checkpoint's historical unarmed-skip behavior
+below. An inert ordinary-suite pass never qualifies an armed handshake or exit.
+
+The first compiled no-save attempt failed before acknowledgement because the
+selected simulator data-container pathname changed. Its child timed out
+normally; no self-exit, closure or reader was qualified. The original prelaunch
+physical identity was not recorded, so the change cannot be classified as a
+rename or copy. The failed attempt and prior nine unarmed passes remain
+historical evidence.
+
+The test-only correction adds `SharedMediaStageExitProbeLocation`: an immutable
+prelaunch anchor binds the data root and probe-directory chain by no-follow
+descriptor identity. Child and reader check that anchor before fixture access.
+Fixture paths are canonical relative paths beneath the currently matching root;
+physical store-file, store-parent, control and fixture-root identities
+supplement the SQLite UUID and existing fence binding. The host retains
+descriptors across both launches, accepts only identity-preserving relocation
+and records the reader's current location. Copied trees, traversal, symlink
+aliases and identical-byte store replacements are covered by focused tests.
+Directory continuity compares device/inode/type and requires positive link
+counts; raw counts are retained as evidence but may change during publication or
+SQLite file lifecycle. Regular store files retain the exact single-link
+requirement. A positive held-directory link count alone does not prove the named
+entry still exists. Fresh no-follow path capture and physical binding comparison
+must reject a missing or replaced entry while the original descriptor stays
+open. A publication/deletion/same-path replacement case covers this distinction.
+
+The first relocation correction compiled and passed thirteen safe checks, but
+its armed attempt stopped before fixture creation. A read-only check found that
+publishing the anchor changed the nonce directory's link count from 3 to 4 while
+every device, inode and type stayed unchanged; its unlocated failure does not
+prove which guard failed first. The directory-count correction then exposed a
+bad test assumption about deleted-directory link counts. After correcting that
+assumption, all fourteen safe checks passed. These failed attempts are retained.
+
+The next no-save attempt stopped at strict canonical JSON re-encoding before
+child-attempt/readiness. Host JSON left slashes unescaped while the native
+sorted-key encoder escaped them. The host correction preserves the native codec
+and exact byte equality. A fixed host-produced anchor regression checks native
+reading, reverse writing and raw-slash rejection. The twelve-record
+host/Foundation byte oracle and all fifteen safe native checks passed. Fixture
+digests continue to cover original native bytes.
+
+Three further failed attempts exposed host-observer compatibility issues:
+Python's kqueue object does not support the context-manager protocol; an exact
+XCTest exit86 case contains a failure-message leaf; and xcresulttool can lack a
+console-log attachment even when the managed invocation log contains the marker.
+Each correction passed a bounded host diagnostic and exact independent/IC-1
+review. Failed evidence remains retained. The observer now closes kqueue
+explicitly, validates exactly one expected failure-message leaf, and reads a
+bounded, stable, no-follow managed log for exactly one full nonce-marker line.
+These checks do not turn a generic XCTest failure into exit evidence.
+
+`stage-exit-nosave07` passed child process closure, physical continuity,
+expected singleton exit86 and sentinel checks. Its separate native reader then
+failed with `conflict` at the complete owner's `openApp` boundary; the no-save
+control remains unqualified. The reader XCResult is
+`fe52221ddefb42f08b4617e1b80dfcea`; all 2,940 source/project and 707 product
+hashes remained unchanged. Held descriptors were released, so this attempt
+cannot resume. Reopen tracing precedes any further reviewed attempt.
+
+This control cannot establish save atomicity, power-loss durability,
+installed-store eligibility or feature acceptance. Activation disabled; PR116
+frozen; deployment hold active.
+
+## Historical October 23 status — process-exit probe transport focused qualification
+
+This records an earlier checkpoint, superseded by the qualified October 23
+result at the top of this document. Pending statements below describe that
+earlier state; retained failures remain failures.
 
 `SharedMediaStageExitProbeSupport` and `SharedMediaStageProbeTransportTests` are
 test-bundle-only preparation for the bounded release-stage process-exit control.
@@ -32,7 +223,11 @@ The no-save exit/full-lock readback control, deterministic transaction-boundary
 qualification, full affected-target and isolated-source gates remain open. This
 transport grants no production permission or feature activation.
 
-## October 23 — startup ownership integration (focused qualification)
+## Historical October 23 status — startup ownership integration (focused qualification)
+
+This records an earlier checkpoint, superseded by the qualified October 23
+result at the top of this document. Pending statements below describe that
+earlier state; retained failures remain failures.
 
 Production startup now builds one explicit non-CloudKit configuration with
 unchanged automatic App Group placement, and holds the existing exclusive store
@@ -67,7 +262,11 @@ not authorize a stage/start/cleanup writer or feature activation. Canonical
 contract: `docs/backend-and-data/08-startup-store-recovery.md`. Activation
 disabled; PR116 frozen; deployment hold active; AWS unapproved.
 
-## October 23 — context-local release sizing memo focused validation
+## Historical October 23 status — context-local release sizing memo focused validation
+
+This records an earlier checkpoint, superseded by the qualified October 23
+result at the top of this document. Pending statements below describe that
+earlier state; retained failures remain failures.
 
 Scoped audits now pass one explicitly owned sizing memo through each synchronous
 pending/context or page read. It is discarded before page suspension and is not
@@ -107,7 +306,11 @@ rerun. Full affected gates, isolated-source, performance and integrated writer
 acceptance remain open. Activation disabled; PR116 frozen; deployment hold
 active; AWS unapproved; existing limits unchanged.
 
-## October 23 — typed staged clean routing focused validation
+## Historical October 23 status — typed staged clean routing focused validation
+
+This records an earlier checkpoint, superseded by the qualified October 23
+result at the top of this document. Pending statements below describe that
+earlier state; retained failures remain failures.
 
 CleanGraph now reconstructs a typed staged funding witness for an exact saved
 request. Clean Budget and every scoped audit context route that witness without

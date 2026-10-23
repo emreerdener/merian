@@ -669,6 +669,82 @@ make ios-clean-build-cache
 make ios-clean-build-cache ARGS=--apply
 ```
 
+The complete target retains the three explicitly armed simulator controls:
+`SharedMediaStageProbeTransportTests/testInvocationHandshake`,
+`SharedMediaStageExitProbeTests/testNoSaveChildExit`, and
+`SharedMediaStageExitProbeTests/testNoSaveReadback`. With all arming variables
+absent they return inertly before probe file or store access. An ordinary
+complete-suite pass verifies only this arming guard; it is **not** handshake or
+process-exit qualification. Partial or malformed arming fails closed. The
+complete CI target and its zero-skip predicate remain unchanged, as does the
+runtime-audit manifest's zero-skip requirement. Qualification requires explicit
+arming, a separately reviewed exact candidate and retained per-method evidence.
+The special runner additionally requires its bound durable acknowledgement and
+complete process-closure/readback evidence, so an inert pass cannot qualify the
+control. Its expected child failure is never counted as a passing test.
+
+The no-save control's test-only location anchor binds the private container and
+probe-directory chain to held descriptor identities across child and reader
+launches. A pathname change alone does not prove continuity. Relative fixture
+paths require the same physical store file, parent, control and fixture roots
+before SwiftData construction; identical content or SQLite UUID is insufficient.
+`SharedMediaStageExitProbeLocationTests` covers directory rename, copied trees,
+traversal/symlinks, identical-byte store replacement, and record publication
+versus deleted-directory rejection. Directory device/inode/type remain exact;
+positive directory link counts are recorded but may change as entries change. A
+deleted directory's held descriptor may still have positive links. Fresh
+no-follow capture must reject the missing path, and physical binding comparison
+must reject a replacement at the same path while the original descriptor remains
+open. Link counts alone do not establish named-entry continuity. Regular store
+files still require exactly one link. These checks supplement rather than
+qualify the separately armed process-closure control.
+
+The corrected directory regression passed all fourteen safe checks. The later
+host/native canonical-path regression and twelve-record Foundation byte oracle
+passed, followed by all fifteen safe native checks. Native/production codecs and
+strict byte equality remain unchanged; fixture digests cover original native
+bytes. Host-only diagnostics also qualified explicit kqueue closure, exact
+singleton exit86 failure-message parsing and bounded managed-log corroboration.
+The sentinel is exactly one full nonce-marker line in a no-follow single-link
+regular file whose identity, size and modification time remain stable. It is
+corroboration only; the durable boundary, process watch and physical bindings
+remain required.
+
+`stage-exit-nosave07` established child closure but its separate full-owner
+reader failed at `openApp` with `conflict`. It does not qualify the no-save
+control or transaction-save atomicity. Preserve its failed XCResult and all
+prior failures. Once held descriptors are released, an old attempt cannot be
+resumed; any corrected candidate needs review and a new nonce. An ordinary
+unarmed pass never substitutes for successful armed readback.
+
+The focused profile/bootstrap checks qualified exact legacy receiving/release
+snapshot bytes through both existing canonical encoders, explicit format
+rejection, mixed-journal rejection and retained version-2 interruption recovery.
+New version-3 journal profiles bind physical roots rather than the current
+container pathname; copied/replaced roots and symlinks remain rejected by the
+complete ownership chain. The new-format metadata is charged under unchanged
+limits. Exact cap/cap+1 reservation arithmetic uses explicitly non-persisted
+synthetic accounting input; real-owner tests independently derive and verify
+below/above-cap inputs from authentic captured fixtures. At most 16 full
+projections locate each adjacent legal-text crossing; validation errors abort
+and actual persisted projections must match. Report each owner byte count
+without claiming byte-exact owner inputs. Source implementation alone does not
+qualify these gates, relocation or process-exit readback.
+
+The reviewed correction subsequently passed `stage-exit-nosave08`: one expected
+child exit/failure with positive closure, then one passing full-owner readback
+with physical continuity. Its observation explicitly leaves save atomicity
+unqualified. The new metadata test passed pure exact cap/cap+1 arithmetic and
+independent authentic owner inputs at 1,048,533 admitted/replayed and 1,048,619
+rejected unchanged, each bracketed within 16 projections. The earlier 69
+profile/bootstrap invocations remain unchanged passing evidence; their whole run
+retains its two failed old boundary cases. These are focused shared-checkout
+results, not full-target, isolated-source, save-boundary or feature acceptance.
+Retain all failed attempts; do not reclassify an expected child failure as a
+passing test. Exact results and hashes are in
+`.artifacts/native-app-capture-handoff-20261020/stage-exit-nosave08-*` and
+`stage-profile-decomposition-focused01-*`.
+
 | Location                                        | Ownership and retention                                                       |
 | ----------------------------------------------- | ----------------------------------------------------------------------------- |
 | `.build/local-ios/simulator`                    | Reusable simulator DerivedData; disposable after builds stop.                 |

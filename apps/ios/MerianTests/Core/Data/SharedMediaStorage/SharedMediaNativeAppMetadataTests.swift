@@ -196,7 +196,7 @@ struct SharedMediaNativeAppMetadataTests {
         let container: ModelContainer, parent: URL
         let ownerID = UUID(), inventoryID = UUID(), packageID = UUID(), ordinaryID = UUID(), draft = UUID()
         let runtime = AuthRuntimeState()
-        init(receiving: Bool = false) throws {
+        init(receiving: Bool = false, fenceBootstrap: Bool = false) throws {
             let base = URL.applicationSupportDirectory.resolvingSymlinksInPath().appendingPathComponent("native-app-metadata-" + UUID().uuidString)
             parent = base.appendingPathComponent("control", isDirectory: true)
             // V1 qualification requires a disposable temporary store and sibling
@@ -210,8 +210,15 @@ struct SharedMediaNativeAppMetadataTests {
                 var url = directory, values = URLResourceValues(); values.isExcludedFromBackup = true; try url.setResourceValues(values)
             }
             let schema = Schema(versionedSchema: CurrentSchema.self)
-            container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema,
-                url: database.appendingPathComponent("ledger.store"), cloudKitDatabase: .none)])
+            let configuration = ModelConfiguration(schema: schema,
+                url: database.appendingPathComponent("ledger.store"), cloudKitDatabase: .none)
+            // The opt-in process-exit control qualifies construction under the
+            // same store fence used by its separate readback. Other fixtures
+            // retain their existing behavior; no production entry is changed.
+            let fence = try fenceBootstrap ? SharedMediaStoreReadFence(store: configuration.url, access: .sharedWriter) : nil
+            container = try withExtendedLifetime(fence) {
+                try ModelContainer(for: schema, configurations: [configuration])
+            }
         }
         func context() -> ModelContext { let value = ModelContext(container); value.autosaveEnabled = false; return value }
         func row(_ id: UUID, envelope: Data, phase: String) -> PhotoPreparationRecord {

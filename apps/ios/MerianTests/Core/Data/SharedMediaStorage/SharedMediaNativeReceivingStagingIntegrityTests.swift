@@ -7,18 +7,25 @@ import Testing
 @MainActor
 struct SharedMediaNativeReceivingBoundaryTests {
     private let checks = SharedMediaNativeReceivingStagingTests()
-    // Fixed legal one-original shapes measured with the production codec.
-    // Both values must still be proved through the real persisted owner.
-    @Test(arguments: [Int64(0), Int64(1)])
-    func persistedMetadataBoundaryUsesActualDraftAndOwnerAdmission(_ excess: Int64) async throws {
+    // Exact arithmetic and real-file admission are separate obligations:
+    // physical stat widths vary, so no fixed text guarantees an exact owner cap.
+    @Test(arguments: [false, true])
+    func exactArithmeticAndAdjacentPersistedOwnerBoundary(_ reject: Bool) async throws {
         let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(count: 1)
         let fixture = try SharedMediaNativeReceivingTestFixture.capture(h, request: request).freshP2()
-        #expect(try fixture.metadata() == fixture.auditedMetadata)
-        let target = PhotoPreparationPolicy.metadata + excess
-        let contexts = boundaryContexts(excess: excess)
-        _ = try PhotoPreparationPolicy.contexts(contexts)
-        let projected = try projectedCharge(fixture.context(contexts, advancingPackage: true))
-        try #require(projected == target, "Fixed boundary encoding drifted; do not search or substitute a nearby value")
+        let audited = try fixture.metadata()
+        try #require(audited == fixture.auditedMetadata)
+        try #require(fixture.request.profile.physicalBindingFormat == .physicalRootsV1)
+        let beforeProjection = try checks.facts(h), projectionRevision = try checks.inventory(h).revision
+        let bracket = try adjacentBoundary(fixture)
+        let below = try fixture.context(boundaryContexts(bracket.lower), advancingPackage: true)
+        try assertExactArithmetic(below, projection: bracket.lowerCharge)
+        // Neither the probes nor synthetic arithmetic have persistence authority.
+        try #require(try checks.facts(h) == beforeProjection)
+        try #require(try checks.inventory(h).revision == projectionRevision)
+        let contexts = boundaryContexts(reject ? bracket.upper : bracket.lower)
+        let target = reject ? bracket.upperCharge : bracket.lowerCharge
+        print("METADATA_BOUNDARY reject=\(reject) lowerUnits=\(bracket.lower) upperUnits=\(bracket.upper) lowerBytes=\(bracket.lowerCharge) upperBytes=\(bracket.upperCharge) probes=\(bracket.probes)")
         let edit = try await owner.prepareAppMetadata(packageID: h.packageID, draftGeneration: h.draft, contexts: contexts)
         _ = try await owner.saveAppMetadata(edit)
         let current = try await owner.appReceivingRequest(packageID: h.packageID, pairIDs: checks.pairIDs(request),
@@ -31,12 +38,12 @@ struct SharedMediaNativeReceivingBoundaryTests {
         let persistedCharge = try projectedCharge(persisted)
         try #require(persistedCharge == target)
         let before = try checks.facts(h), revision = try checks.inventory(h).revision
-        if excess == 0 {
+        if !reject {
             let saved = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: checks.pairIDs(request))
             let c = h.context(), inventory = try #require(try c.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
             let budget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: c, inventory: inventory,
                 ownerID: h.ownerID, format: .appV2)
-            #expect(budget.metadataByPackage[h.packageID] == PhotoPreparationPolicy.metadata)
+            #expect(budget.metadataByPackage[h.packageID] == target)
             #expect(inventory.revision == revision + 1)
             #expect(try checks.facts(h).packages == before.packages)
             #expect(try SharedMediaNativeFrozenCohort.decode(saved.cohort.bytes).supportingBytes ==
@@ -68,16 +75,73 @@ struct SharedMediaNativeReceivingBoundaryTests {
                 header: header, currentMetadata: metadata, pairStates: fixture.states))
     }
 
-    private func boundaryContexts(excess: Int64) -> [ObservationContext] {
-        // Four fields of 3,021 preserved control scalars plus 11/12 ASCII
-        // characters measure 1,048,576 / 1,048,577 bytes respectively. These
-        // fixed shapes replace the exhausted multi-thousand-probe search.
-        // No synthetic liability, changed limit or extra metadata save is used.
-        (0..<4).map { field in
-            .init(freeText: String(repeating: "\u{0001}", count: 3_021) +
-                (field == 3 ? String(repeating: "a", count: 11 + Int(excess)) : ""))
+    private struct Boundary {
+        var lower = 0
+        var upper = 16_000
+        var lowerCharge: Int64 = 0
+        var upperCharge: Int64 = 0
+        var probes = 0
+    }
+
+    private func adjacentBoundary(_ fixture: SharedMediaNativeReceivingTestFixture) throws -> Boundary {
+        var result = Boundary()
+        func measure(_ units: Int) throws -> Int64 {
+            try #require(result.probes < 16)
+            result.probes += 1
+            let contexts = boundaryContexts(units)
+            _ = try PhotoPreparationPolicy.contexts(contexts)
+            // One immutable captured graph for every probe. Errors propagate;
+            // malformed inputs are never classified as over-cap measurements.
+            return try projectedCharge(fixture.context(contexts, advancingPackage: true))
+        }
+        result.lowerCharge = try measure(result.lower)
+        result.upperCharge = try measure(result.upper)
+        try #require(result.lowerCharge <= PhotoPreparationPolicy.metadata)
+        try #require(result.upperCharge > PhotoPreparationPolicy.metadata)
+        while result.upper - result.lower > 1 {
+            let mid = result.lower + (result.upper - result.lower) / 2
+            let charge = try measure(mid)
+            if charge <= PhotoPreparationPolicy.metadata {
+                result.lower = mid; result.lowerCharge = charge
+            } else {
+                result.upper = mid; result.upperCharge = charge
+            }
+        }
+        // Opposite predicates plus a halved integer interval establish SOME
+        // adjacent crossing; no global monotonicity/maximality claim is made.
+        try #require(result.upper == result.lower + 1 && result.probes <= 16)
+        try #require(result.lowerCharge <= PhotoPreparationPolicy.metadata &&
+            result.upperCharge > PhotoPreparationPolicy.metadata)
+        return result
+    }
+
+    private func assertExactArithmetic(_ fixture: SharedMediaNativeReceivingTestFixture,
+                                       projection: Int64) throws {
+        let cap = PhotoPreparationPolicy.metadata
+        let unadjusted = try projectedCharge(fixture)
+        try #require(projection == unadjusted)
+        try #require(projection >= 0 && projection <= cap)
+        let prepared = try SharedMediaNativeReceivingIntent.Prepared(fixture.request)
+        let metadata = try fixture.metadata()
+        // Pure arithmetic only. Each branch includes currentMetadata once.
+        // This adjusted scalar is never saved or supplied to the real owner.
+        let syntheticMetadata = try PhotoPreparationPolicy.add([metadata, cap - projection])
+        let exact = try SharedMediaNativeReceivingReservation.maximum(prepared,
+            currentMetadata: syntheticMetadata, pairStates: fixture.states)
+        #expect(exact.charged == cap)
+        let oneMore = try PhotoPreparationPolicy.add([syntheticMetadata, 1])
+        #expect(throws: SharedMediaStorageFailure.capacity) {
+            _ = try SharedMediaNativeReceivingReservation.maximum(prepared,
+                currentMetadata: oneMore, pairStates: fixture.states)
         }
     }
+
+    private func boundaryContexts(_ units: Int) -> [ObservationContext] {
+        (0..<4).map { field in
+            .init(freeText: String(repeating: "\u{0001}", count: units / 4 + (field < units % 4 ? 1 : 0)))
+        }
+    }
+
 }
 
 extension SharedMediaNativeReceivingStagingTests {

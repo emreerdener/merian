@@ -49,7 +49,8 @@ enum SharedMediaNativeAppEligibility {
               inventory.revision >= 0, inventory.cursor.isEmpty else { throw SharedMediaStorageFailure.conflict }
         let bytes = Data(inventory.rootIdentity.utf8)
         let fields = try SharedMediaNativeBootstrapCodec.decode([String].self, bytes)
-        guard fields.count == 7, fields[0] == SharedMediaNativeAppProfile.mode,
+        let format = try SharedMediaNativeAppProfile.PhysicalBindingFormat(bindingFields: fields)
+        guard fields[0] == SharedMediaNativeAppProfile.mode,
               let owner = UUID(uuidString: fields[1]), owner.uuidString == fields[1],
               fields[2] == inventory.id.uuidString, fields[3] == inventory.generation.uuidString,
               fields[4] == inventory.storeIdentity, UUID(uuidString: fields[4]) != nil,
@@ -57,7 +58,7 @@ enum SharedMediaNativeAppEligibility {
             throw SharedMediaStorageFailure.conflict
         }
         let value = SharedMediaNativeAppProfile(ownerID: owner, inventoryID: inventory.id, generation: inventory.generation,
-            storeIdentity: inventory.storeIdentity, physicalBinding: fields[5], receiptDigest: fields[6])
+            storeIdentity: inventory.storeIdentity, physicalBinding: fields[5], receiptDigest: fields[6], physicalBindingFormat: format)
         guard try value.binding == bytes else { throw SharedMediaStorageFailure.conflict }; return value
     }
 
