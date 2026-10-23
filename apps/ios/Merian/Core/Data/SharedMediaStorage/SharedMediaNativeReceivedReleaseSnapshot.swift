@@ -44,6 +44,31 @@ enum SharedMediaNativeReceivedReleaseSnapshot {
 
     static func read(packageID: UUID, inventoryID: UUID, releaseID: UUID,
                      context: ModelContext, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+        try readReceived(packageID: packageID, inventoryID: inventoryID, releaseID: releaseID,
+            stageRequest: nil, context: context, checkpoint: checkpoint)
+    }
+
+    struct ProspectiveStageSnapshot {
+        /// Exact observed predecessor, never a fabricated staged database row.
+        let predecessor: Snapshot
+        let request: SharedMediaNativeReleaseStartRequest
+        let funding: StagedFunding
+    }
+
+    /// Measures the two-save stage/start sequence against unchanged received
+    /// funding. No admission, global identity/runway proof or save authority.
+    static func prospectiveStage(_ request: SharedMediaNativeReleaseStartRequest,
+                                 context: ModelContext, checkpoint: () throws -> Void = {}) throws -> ProspectiveStageSnapshot {
+        let predecessor = try readReceived(packageID: request.packageID, inventoryID: request.profile.inventoryID,
+            releaseID: request.releaseID, stageRequest: request, context: context, checkpoint: checkpoint)
+        let funding = try StagedFunding(historical: predecessor.funding.before,
+            sidecarBytes: request.encoding().metadataBytes, projection: predecessor.funding.projection)
+        return .init(predecessor: predecessor, request: request, funding: funding)
+    }
+
+    private static func readReceived(packageID: UUID, inventoryID: UUID, releaseID: UUID,
+                                     stageRequest: SharedMediaNativeReleaseStartRequest?,
+                                     context: ModelContext, checkpoint: () throws -> Void) throws -> Snapshot {
         try checkpoint()
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         let inventory = try one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
@@ -61,8 +86,16 @@ enum SharedMediaNativeReceivedReleaseSnapshot {
         let consumer = try SharedMediaNativeConsumerGraph.validateScoped(rows.consumer, context: context,
             format: .appV2, checkpoint: checkpoint)
         guard consumer == transaction.cohort else { throw SharedMediaStorageFailure.conflict }
+        let startHeader: SharedMediaNativeAppEligibility.Header
+        if let stageRequest {
+            try stageRequest.requireMatch(prepared: prepared, received: received)
+            guard stageRequest.stagePreHeader == header else { throw SharedMediaStorageFailure.stale }
+            startHeader = try stageRequest.postStageHeader
+        } else {
+            startHeader = header
+        }
         let components = try assemble(slot: slot, prepared: prepared, received: received, rows: rows,
-            header: header, inventory: inventory, releaseID: releaseID, context: context, checkpoint: checkpoint)
+            header: startHeader, inventory: inventory, releaseID: releaseID, context: context, checkpoint: checkpoint)
         let budget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: context, inventory: inventory,
             ownerID: profile.ownerID, format: .appV2, checkpoint: checkpoint)
         guard let before = budget.receivedLiabilityByPackage[packageID],
@@ -127,9 +160,10 @@ enum SharedMediaNativeReceivedReleaseSnapshot {
         return .init(origin: origin, components: components, historical: historical, funding: funding)
     }
 
-    /// Only the two validated origin adapters above call this leaf. It neither
-    /// dispatches receiving/clean state nor invokes the global budget. Future
-    /// release sizing uses today's header, never the unverified staging floor.
+    /// Only validated origin adapters above call this leaf. The supplied start
+    /// header is current for saved/ordinary reads, or its checked successor for
+    /// prospective staging. It never uses an unverified historical staging floor.
+    /// Database graph reads still use the actual, unchanged inventory.
     private static func assemble(slot: SharedMediaNativeReceivingIntentGraph.Row,
                                  prepared: Intent.Prepared, received: Intent.Received,
                                  rows: SharedMediaNativeReceivingRows.Set,
@@ -139,7 +173,7 @@ enum SharedMediaNativeReceivedReleaseSnapshot {
         let packageID = slot.id
         let package = try one(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == packageID }))
         let member = try one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == packageID }))
-        let postStartRevision = try SharedMediaStoragePolicy.add(inventory.revision, 1)
+        let postStartRevision = try SharedMediaStoragePolicy.add(header.inventory.revision, 1)
         let cohort = try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes)
         var pairs: [SharedMediaNativePairFileState] = [], origins: [Metadata.TargetOrigin] = []
         for entry in cohort.entries {
@@ -152,8 +186,8 @@ enum SharedMediaNativeReceivedReleaseSnapshot {
                 package: package, member: member, pairID: intent.pairID)
             guard pair.phase == "ready", pair.plan.intent == entry.intent,
                   pair.allocatedBytes == package.allocatedByteCount else { throw SharedMediaStorageFailure.conflict }
-            // The rows are unchanged. The reconstructed value includes today's
-            // inventory revision, so predict the post-start view explicitly.
+            // The rows are unchanged. Predict the post-start view explicitly,
+            // including both increments when staging has not happened yet.
             // This matters at decimal-width boundaries (e.g. 99 -> 100).
             let p = pair.plan
             let postPlan = SharedMediaNativePairPlan(intent: p.intent, writerEpoch: p.writerEpoch,

@@ -1,3 +1,30 @@
+## October 23 — prospective stage/start funding qualified locally
+
+The inactive received-release reader now measures the full two-save sequence:
+its future Plan uses H+1 after staging and its pair snapshots and revision
+runway use H+2 after start. It binds the full caller-fixed request to the exact
+clean received predecessor and keeps historical received funding unchanged. Both
+sidecar data plus digest and the future release maximum must fit that funding.
+Existing ordinary and saved-stage readers preserve their one-start semantics.
+
+The managed compile and focused suite passed six methods / eighteen invocations.
+Tests compare exact prediction with saved fixture state at 98/99/998/999 and for
+owned/shared originals, reject stale/dirty/absent/exhausted predecessors without
+writes, and retain the ordinary reader, corruption and funding-bound checks.
+XCResult `952541352a9a40b78308d4a3ff329f3f.xcresult` is retained under
+`.artifacts/local-ios`; candidate/evidence are in
+`.artifacts/native-app-capture-handoff-20261020/stage-prospective-sizing-*`. All
+2,942 source/project and 708 product pins remained unchanged. Independent and
+IC-1 concurrence preceded compilation and focused execution.
+
+This is read-only sizing qualification, not stage-writer, transaction-save or
+complete feature acceptance. No synthetic staged row or dirty CleanGraph audit
+was introduced. Next is the already-reviewed dedicated two-row stage writer,
+including retained-identity collision checks, owner-held save uncertainty and
+deterministic save-boundary/full-reopen controls. Complete affected-target,
+isolated-source and integrated acceptance remain open. Activation disabled;
+PR116 frozen; deployment hold active; AWS unapproved; limits unchanged.
+
 ## October 23 — physical-root reopen and metadata boundary controls qualified
 
 The reviewed inactive profile correction passed the fresh `stage-exit-nosave08`

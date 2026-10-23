@@ -162,6 +162,13 @@ struct SharedMediaNativeReceivedReleaseSnapshotTests {
         let encoding = try request.encoding()
         let row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(store.packageID, in: c))
         let original = SharedMediaNativeReceivingIntentGraph.Row(row)
+        let prospective = try Reader.prospectiveStage(request, context: c)
+        #expect(prospective.predecessor.slot == original && prospective.predecessor.header == ordinary.header)
+        #expect(prospective.predecessor.funding.before == ordinary.funding.before)
+        #expect(try prospective.predecessor.components.progress.plan.preHeader == request.postStageHeader)
+        #expect(prospective.predecessor.components.pairs.allSatisfy { $0.plan.inventoryRevision == Int64(stageRevision) + 2 })
+        #expect(!c.hasChanges && inventory.revision == Int64(stageRevision))
+        #expect(SharedMediaNativeReceivingIntentGraph.Row(row) == original)
         // Test-only persisted staging shape; no production staging writer.
         row.releaseStartData = encoding.data; row.releaseStartSHA256 = encoding.sha256
         inventory.revision += 1; try c.save()
@@ -172,6 +179,16 @@ struct SharedMediaNativeReceivedReleaseSnapshotTests {
             let saved = try #require(try SharedMediaNativeReceivingPhaseGraph.row(store.packageID, in: fresh))
             let origin = try SharedMediaNativeStagedReleaseOrigin.read(.init(saved), inventory: inv, context: fresh)
             let measured = try Reader.readStaged(origin, context: fresh)
+            if advance == 0 {
+                #expect(try measured.components.progress.encoded() == prospective.predecessor.components.progress.encoded())
+                #expect(try measured.components.pairs.map { try SharedMediaNativeDraftEnvelope.bytes($0) } ==
+                    prospective.predecessor.components.pairs.map { try SharedMediaNativeDraftEnvelope.bytes($0) })
+                #expect(measured.funding.release.projection == prospective.funding.release.projection)
+                #expect(measured.funding.staged == prospective.funding.staged)
+                #expect(measured.funding.release.after == prospective.funding.release.after)
+                // A staged row cannot be reused as a fresh prospective predecessor.
+                #expect(throws: (any Error).self) { _ = try Reader.prospectiveStage(request, context: fresh) }
+            }
             #expect(measured.historical.liability == ordinary.funding.before)
             #expect(measured.historical.baseBytes == budget.baseMetadataByPackage[store.packageID])
             #expect(measured.historical.originIDs.count == (foreign ? 0 : 2))
@@ -258,6 +275,38 @@ struct SharedMediaNativeReceivedReleaseSnapshotTests {
                 _ = try Reader.StagedFunding(historical: historical, sidecarBytes: invalid, projection: projection)
             }
         }
+    }
+
+    @Test(arguments: ["stale", "dirty", "absent", "runway"])
+    func prospectiveStageRejectsInvalidPredecessorsWithoutWrites(_ fault: String) async throws {
+        let store = try await received(count: 1)
+        let c = store.context(), id = store.inventoryID
+        let inventory = try Fixture.one(c, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))
+        let ordinary = try Reader.read(packageID: store.packageID, inventoryID: id, releaseID: UUID(), context: c)
+        var request = try SharedMediaNativeReleaseStartRequest(prepared: ordinary.components.prepared,
+            received: ordinary.components.received, stagePreHeader: ordinary.header,
+            releaseID: ordinary.components.progress.plan.releaseID)
+        switch fault {
+        case "stale": inventory.revision += 1; try c.save()
+        case "dirty": inventory.revision += 1
+        case "absent":
+            request = try SharedMediaNativeReceivingTestFixture.copy(request, changes: ["packageID": UUID().uuidString])
+        default:
+            inventory.revision = Int64.max - 2; try c.save()
+            let header = try SharedMediaNativeAppEligibility.snapshot(context: c,
+                scope: .init(inventoryID: request.profile.inventoryID, generation: request.profile.generation,
+                    ownerID: request.profile.ownerID, storeIdentity: request.profile.storeIdentity,
+                    rootBinding: request.profile.rootIdentity))
+            request = try .init(prepared: ordinary.components.prepared, received: ordinary.components.received,
+                stagePreHeader: header, releaseID: request.releaseID)
+        }
+        let revision = inventory.revision, dirty = c.hasChanges
+        let row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(store.packageID, in: c))
+        let before = SharedMediaNativeReceivingIntentGraph.Row(row)
+        #expect(throws: (any Error).self) { _ = try Reader.prospectiveStage(request, context: c) }
+        #expect(inventory.revision == revision && c.hasChanges == dirty)
+        #expect(SharedMediaNativeReceivingIntentGraph.Row(row) == before)
+        c.rollback()
     }
 
     private func pairRowScalars(_ ids: [UUID], context: ModelContext) throws -> [[String]] {
