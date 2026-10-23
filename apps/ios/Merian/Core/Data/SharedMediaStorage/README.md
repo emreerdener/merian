@@ -1,3 +1,40 @@
+## October 23 — typed staged clean routing focused validation
+
+CleanGraph now reconstructs a typed staged funding witness for an exact saved
+request. Clean Budget and every scoped audit context route that witness without
+opening generic phase, consumer, retained-only or dirty mutation paths. The
+budget charges current S and reserved B−S exactly once; metadata and logical
+package liability remain B. Staged packages omit ordinary mutable base and
+received-liability maps. Physical receipts, shared originals and their identity
+headroom retain the outer accounting owner.
+
+The complete pending-root pass indexes six receiving identities plus every
+staged/live release ID together. Checked revision arithmetic sums each live
+Progress's remaining saves and each staged request's start plus all subsequent
+saves, including Released and consumption. A local single-root witness is not a
+complete identity/runway audit. Raw paged enumeration still rejects orphan,
+foreign, partial and unsupported terminal Released slots, including terminals
+without pending membership. Every page revalidates its header and typed facts.
+
+No stage/start, cleanup or terminal writer is introduced. Future writers must
+preserve aggregate runway in their exact poststate and qualify disk save and
+old-writer closure. The historical sections below describe earlier checkpoints;
+this section supersedes their clean-routing exclusion only.
+
+Focused shared-checkout validation passed 18 methods / 40 invocations, with no
+missing, unexpected, failed or skipped tests. All 2,929 frozen source/project
+hashes and nine candidate hashes remained unchanged. Exact independent and IC-1
+review preceded execution. Evidence is retained under
+`.artifacts/native-app-capture-handoff-20261020/staged-routing-focused02-coverage.json`,
+with XCResult `a086ea035c744545b5526e5c42bd5c01.xcresult`. The preceding
+compile-only failure remains retained with zero runtime coverage. Synthetic
+release states do not qualify a stage/start or cleanup writer. Full affected
+gates, isolated-source and integrated acceptance remain open. Repeated
+projection cost, startup writer exclusion and disk save/recovery qualification
+are the next integration work; this result makes no performance acceptance
+claim. Activation disabled; PR116 frozen; deployment hold active; AWS
+unapproved; limits unchanged.
+
 ## October 22 — staged funding extraction qualified
 
 Ordinary acquisition accounting and the typed staged-request reader share one

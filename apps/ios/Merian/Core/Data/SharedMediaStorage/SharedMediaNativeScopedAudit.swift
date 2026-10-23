@@ -64,13 +64,16 @@ struct SharedMediaNativeScopedAudit {
             // Intentionally no inventory predicate: every raw intent, including
             // foreign/orphan rows, must either validate or close this scope.
             _ = try await page(FetchDescriptor<SharedMediaReceivingIntentRecord>(sortBy: [SortDescriptor(\.cursorKey)])) { row, context, inventory in
-                try SharedMediaNativeReceivingIntentGraph.Row(row).requireNoReleaseStart()
+                // Terminal enumeration/runway is not yet qualified. Never let
+                // a Released slot evade the root index by losing membership.
+                guard row.phaseRaw != "released" else { throw SharedMediaStorageFailure.closed }
                 let roots = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory, checkpoint: check)
                 guard let witness = roots[row.id] else { throw SharedMediaStorageFailure.conflict }
                 let saved: SharedMediaNativeReceivingIntentGraph.Row
                 switch witness {
                 case .generic(let value): saved = value.row
                 case .releasing(let value): saved = value.release.slot
+                case .staged(let value): saved = value.origin.row
                 }
                 guard saved == SharedMediaNativeReceivingIntentGraph.Row(row) else { throw SharedMediaStorageFailure.stale }
             }
@@ -84,6 +87,9 @@ struct SharedMediaNativeScopedAudit {
                 guard origin.rows.consumer.persistentModelID == row.persistentModelID else {
                     throw SharedMediaStorageFailure.conflict
                 }
+            } else if row.kindRaw == "queue", let staged = try staged(row.packageID, context: context, inventory: inventory) {
+                _ = try SharedMediaNativeConsumerGraph.validateStagedReceived(row, origin: staged.origin,
+                    context: context, checkpoint: check)
             } else {
                 _ = try SharedMediaNativeConsumerGraph.validateScoped(row, context: context, format: format, checkpoint: check)
             }
@@ -145,6 +151,12 @@ struct SharedMediaNativeScopedAudit {
                 throw SharedMediaStorageFailure.stale
             }
             return row
+        }
+        if row.accountingTierRaw == "pending", let staged = try staged(id, context: context, inventory: inventory) {
+            guard SharedMediaNativeAppMetadataFacts.Package(row) == staged.components.package else {
+                throw SharedMediaStorageFailure.stale
+            }
+            return row // Typed origin already validates the frozen member and quartet.
         }
         let consumer = try SharedMediaConsumerLookup.one(context, packageID: id)
         if row.accountingTierRaw == "pending" {
@@ -231,6 +243,18 @@ struct SharedMediaNativeScopedAudit {
               let row = try SharedMediaNativeReceivingPhaseGraph.row(packageID, in: context),
               row.phaseRaw == "releasing" else { return nil }
         guard case .releasing(let snapshot) = try SharedMediaNativeReceivingCleanGraph.validate(
+            .init(row), context: context, inventory: inventory, checkpoint: check) else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        return snapshot
+    }
+
+    private func staged(_ packageID: UUID, context: ModelContext,
+                        inventory: SharedMediaInventoryRecord) throws -> SharedMediaNativeReceivedReleaseSnapshot.StagedSnapshot? {
+        guard format == .appV2,
+              let row = try SharedMediaNativeReceivingPhaseGraph.row(packageID, in: context),
+              row.releaseStartData != nil || row.releaseStartSHA256 != nil else { return nil }
+        guard case .staged(let snapshot) = try SharedMediaNativeReceivingCleanGraph.validate(
             .init(row), context: context, inventory: inventory, checkpoint: check) else {
             throw SharedMediaStorageFailure.conflict
         }

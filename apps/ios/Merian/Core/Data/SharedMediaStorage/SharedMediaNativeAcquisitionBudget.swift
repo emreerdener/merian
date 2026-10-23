@@ -141,37 +141,58 @@ enum SharedMediaNativeAcquisitionBudget {
                 metadata[id] = contribution // No generic receiving base or mutation projection for a release.
                 continue
             }
-            var receivingBytes: Int64 = 0
-            if let consumer = try SharedMediaConsumerLookup.one(context, packageID: id) {
-                guard let format else { throw SharedMediaStorageFailure.closed }
-                if let intentProof { receivingBytes = try intentProof.receivingBytes(consumer, context: context, inventory: inventory) }
-                else if let stagingProof { receivingBytes = try stagingProof.receivingBytes(consumer) }
-                else if let pendingCleanupProof { receivingBytes = try pendingCleanupProof.receivingBytes(consumer) }
-                else if let originalProof { receivingBytes = try originalProof.receivingBytes(consumer) }
-                else if let originalReleaseProof { receivingBytes = try originalReleaseProof.receivingBytes(consumer) }
-                else if let pairRetirementProof { receivingBytes = try pairRetirementProof.receivingBytes(consumer) }
-                else if let pairFileProof { receivingBytes = try pairFileProof.receivingBytes(consumer) }
-                else if let pairClosureProof { receivingBytes = try pairClosureProof.receivingBytes(consumer) }
-                else if let pairPlanProof { receivingBytes = try pairPlanProof.receivingBytes(consumer) }
-                else if let preparationProof { receivingBytes = try preparationProof.receivingBytes(consumer) }
-                else if let metadataProof { receivingBytes = try metadataProof.receivingBytes(consumer) }
-                else if let acquisitionProof { receivingBytes = try acquisitionProof.receivingBytes(consumer) } else {
-                    _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, checkpoint: checkpoint)
-                    receivingBytes = Int64(consumer.cohortData.count)
+            let staged: SharedMediaNativeReceivedReleaseSnapshot.StagedSnapshot?
+            if case .staged(let value) = clean?[id] { staged = value } else { staged = nil }
+            let input: PackageInput
+            if let staged {
+                input = try stagedInput(staged.origin, context: context, checkpoint: checkpoint)
+            } else {
+                var receivingBytes: Int64 = 0
+                if let consumer = try SharedMediaConsumerLookup.one(context, packageID: id) {
+                    guard let format else { throw SharedMediaStorageFailure.closed }
+                    if let intentProof { receivingBytes = try intentProof.receivingBytes(consumer, context: context, inventory: inventory) }
+                    else if let stagingProof { receivingBytes = try stagingProof.receivingBytes(consumer) }
+                    else if let pendingCleanupProof { receivingBytes = try pendingCleanupProof.receivingBytes(consumer) }
+                    else if let originalProof { receivingBytes = try originalProof.receivingBytes(consumer) }
+                    else if let originalReleaseProof { receivingBytes = try originalReleaseProof.receivingBytes(consumer) }
+                    else if let pairRetirementProof { receivingBytes = try pairRetirementProof.receivingBytes(consumer) }
+                    else if let pairFileProof { receivingBytes = try pairFileProof.receivingBytes(consumer) }
+                    else if let pairClosureProof { receivingBytes = try pairClosureProof.receivingBytes(consumer) }
+                    else if let pairPlanProof { receivingBytes = try pairPlanProof.receivingBytes(consumer) }
+                    else if let preparationProof { receivingBytes = try preparationProof.receivingBytes(consumer) }
+                    else if let metadataProof { receivingBytes = try metadataProof.receivingBytes(consumer) }
+                    else if let acquisitionProof { receivingBytes = try acquisitionProof.receivingBytes(consumer) } else {
+                        _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, checkpoint: checkpoint)
+                        receivingBytes = Int64(consumer.cohortData.count)
+                    }
                 }
+                input = .init(consumerBytes: receivingBytes, intent: intents[id])
             }
             // The scoped graph and phase/poststate proofs above have validated
             // these facts. The private input cannot be supplied by another owner.
-            let measured = try measurePackage(.init(consumerBytes: receivingBytes, intent: intents[id]),
+            let measured = try measurePackage(input,
                 package: package, graph: graph, inventory: inventory, context: context,
                 format: format, checkpoint: checkpoint)
             for assetID in measured.originIDs {
                 guard chargedOriginAllocations.insert(assetID).inserted else { throw SharedMediaStorageFailure.conflict }
             }
-            baseMetadata[id] = measured.baseBytes
+            let outstandingMetadata: Int64
+            if let staged {
+                guard measured.received == staged.historical.liability,
+                      measured.baseBytes == staged.historical.baseBytes,
+                      measured.originIDs == staged.historical.originIDs,
+                      measured.preparationMetadata == 0 else { throw SharedMediaStorageFailure.conflict }
+                try staged.origin.requireCurrent(context: context)
+                outstandingMetadata = staged.funding.staged.reserved
+                // No ordinary mutation base or received projection for a staged
+                // root. Historical B and current S remain typed witness values.
+            } else {
+                baseMetadata[id] = measured.baseBytes
+                if let received = measured.received { receivedLiability[id] = received }
+                outstandingMetadata = measured.outstandingMetadata
+            }
             metadata[id] = measured.bytes + measured.preparationMetadata
-            if let received = measured.received { receivedLiability[id] = received }
-            let bytes = measured.bytes, outstandingMetadata = measured.outstandingMetadata
+            let bytes = measured.bytes
             let preparationMetadata = measured.preparationMetadata, plannedOutput = measured.plannedOutput
             let pairState = measured.pairState, attempt = measured.attempt, jobs = measured.jobs
             try totals.includePhotoPhysical(materialized: bytes - outstandingMetadata, reserved: outstandingMetadata)
@@ -445,17 +466,23 @@ enum SharedMediaNativeAcquisitionBudget {
             ownerID: origin.prepared.profile.ownerID, format: .appV2)
         guard graph.sources.isEmpty, graph.handoffs.isEmpty,
               let package = graph.packages.first(where: { $0.id == id }) else { throw SharedMediaStorageFailure.closed }
-        let rows = try SharedMediaNativeReceivingPhaseGraph.receivedRows(origin.transaction, context: context)
-        _ = try SharedMediaNativeConsumerGraph.validateStagedReceived(rows.consumer, origin: origin,
-            context: context, checkpoint: checkpoint)
-        let phase = SharedMediaNativeReceivingPhaseGraph.Witness(row: origin.row,
-            slot: .received(origin.prepared, origin.received, origin.transaction), states: [])
-        let measured = try measurePackage(.init(consumerBytes: Int64(rows.consumer.cohortData.count), intent: phase),
-            package: package, graph: graph, inventory: inventory, context: context, format: .appV2, checkpoint: checkpoint)
+        let input = try stagedInput(origin, context: context, checkpoint: checkpoint)
+        let measured = try measurePackage(input, package: package, graph: graph,
+            inventory: inventory, context: context, format: .appV2, checkpoint: checkpoint)
         guard let received = measured.received, measured.preparationMetadata == 0,
               try received.charged == measured.bytes else { throw SharedMediaStorageFailure.conflict }
         try origin.requireCurrent(context: context)
         return .init(baseBytes: measured.baseBytes, liability: received, originIDs: measured.originIDs)
+    }
+
+    private static func stagedInput(_ origin: SharedMediaNativeStagedReleaseOrigin,
+                                    context: ModelContext, checkpoint: () throws -> Void) throws -> PackageInput {
+        try origin.requireCurrent(context: context)
+        let rows = try SharedMediaNativeReceivingPhaseGraph.receivedRows(origin.transaction, context: context)
+        _ = try SharedMediaNativeConsumerGraph.validateStagedReceived(rows.consumer, origin: origin,
+            context: context, checkpoint: checkpoint)
+        return .init(consumerBytes: Int64(rows.consumer.cohortData.count),
+            intent: .init(row: origin.row, slot: .received(origin.prepared, origin.received, origin.transaction), states: []))
     }
 
     /// Clean held-release values only. Identity is deliberately absent here:

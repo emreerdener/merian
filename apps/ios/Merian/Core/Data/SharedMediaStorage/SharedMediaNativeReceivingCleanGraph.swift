@@ -10,6 +10,7 @@ enum SharedMediaNativeReceivingCleanGraph {
     enum Witness {
         case generic(SharedMediaNativeReceivingPhaseGraph.Witness)
         case releasing(SharedMediaNativeReleaseMetadataSnapshot.Snapshot)
+        case staged(SharedMediaNativeReceivedReleaseSnapshot.StagedSnapshot)
 
         var identities: [UUID] {
             switch self {
@@ -22,20 +23,39 @@ enum SharedMediaNativeReceivingCleanGraph {
                 }
             case .releasing(let snapshot):
                 let p = snapshot.release.progress.plan
-                return [p.operationID, p.queueID, p.observationID, p.bindingID, p.generation, p.eventID]
+                return [p.operationID, p.queueID, p.observationID, p.bindingID, p.generation, p.eventID, p.releaseID]
+            case .staged(let snapshot):
+                let p = snapshot.origin.request
+                return [p.operationID, p.queueID, p.observationID, p.bindingID, p.generation, p.eventID, p.releaseID]
+            }
+        }
+
+        var remainingAdvances: Int64 {
+            get throws {
+                switch self {
+                case .generic: return 0
+                case .releasing(let snapshot): return try snapshot.release.progress.remainingAdvances
+                case .staged(let snapshot):
+                    return try PhotoPreparationPolicy.add([1, snapshot.components.progress.remainingAdvances])
+                }
             }
         }
     }
 
     static func validate(_ row: Row, context: ModelContext, inventory: SharedMediaInventoryRecord,
                          checkpoint: () throws -> Void = {}) throws -> Witness {
-        try row.requireNoReleaseStart()
         try Task.checkCancellation(); try checkpoint()
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         guard let saved = try SharedMediaNativeReceivingPhaseGraph.row(row.id, in: context),
               Row(saved) == row else { throw SharedMediaStorageFailure.stale }
+        let revision = inventory.revision
         let result: Witness
-        if row.phase == "releasing" {
+        if row.releaseStartData != nil || row.releaseStartSHA256 != nil {
+            let origin = try SharedMediaNativeStagedReleaseOrigin.read(row, inventory: inventory,
+                context: context, checkpoint: checkpoint)
+            result = .staged(try SharedMediaNativeReceivedReleaseSnapshot.readStaged(origin,
+                context: context, checkpoint: checkpoint))
+        } else if row.phase == "releasing" {
             let snapshot = try SharedMediaNativeReleaseMetadataSnapshot.read(packageID: row.id,
                 inventoryID: inventory.id, context: context, checkpoint: checkpoint)
             guard snapshot.release.slot == row, snapshot.inventoryRevision == inventory.revision else {
@@ -46,7 +66,11 @@ enum SharedMediaNativeReceivingCleanGraph {
             result = .generic(try SharedMediaNativeReceivingPhaseGraph.validate(row, context: context, inventory: inventory))
         }
         try Task.checkCancellation(); try checkpoint()
-        guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
+        guard !context.hasChanges, inventory.revision == revision,
+              let final = try SharedMediaNativeReceivingPhaseGraph.row(row.id, in: context), Row(final) == row else {
+            throw SharedMediaStorageFailure.stale
+        }
+        if case .staged(let snapshot) = result { try snapshot.origin.requireCurrent(context: context) }
         return result
     }
 
@@ -58,6 +82,7 @@ enum SharedMediaNativeReceivingCleanGraph {
         try Task.checkCancellation(); try checkpoint()
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         let profile = try SharedMediaNativeAppEligibility.profile(inventory), id = inventory.id
+        let revision = inventory.revision
         var query = FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.inventoryID == id })
         query.fetchLimit = PhotoPreparationPolicy.maximumPackages + 1
         let members = try context.fetch(query)
@@ -77,7 +102,15 @@ enum SharedMediaNativeReceivingCleanGraph {
             }
         }
         try Task.checkCancellation(); try checkpoint()
-        guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
+        guard !context.hasChanges, inventory.revision == revision else { throw SharedMediaStorageFailure.stale }
+        try requireAggregateRunway(inventoryRevision: revision, witnesses: Array(result.values))
         return result
+    }
+
+    /// Complete pending-root arithmetic only; raw orphan/terminal enumeration
+    /// remains the scoped audit's obligation. This grants no write permission.
+    static func requireAggregateRunway(inventoryRevision: Int64, witnesses: [Witness]) throws {
+        let remaining = try PhotoPreparationPolicy.add(witnesses.map { try $0.remainingAdvances })
+        _ = try SharedMediaStoragePolicy.add(inventoryRevision, remaining)
     }
 }

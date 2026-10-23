@@ -158,7 +158,7 @@ struct SharedMediaNativeReceivedReleaseSnapshotTests {
         let encoding = try request.encoding()
         let row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(store.packageID, in: c))
         let original = SharedMediaNativeReceivingIntentGraph.Row(row)
-        // Test-only persisted staging shape; no writer or accounting dispatch.
+        // Test-only persisted staging shape; no production staging writer.
         row.releaseStartData = encoding.data; row.releaseStartSHA256 = encoding.sha256
         inventory.revision += 1; try c.save()
         for advance in [Int64(0), Int64(1000)] {
@@ -177,9 +177,34 @@ struct SharedMediaNativeReceivedReleaseSnapshotTests {
             #expect(measured.components.pairs.allSatisfy { $0.plan.inventoryRevision == inv.revision + 1 })
             #expect(origin.row.preparedData == original.preparedData && origin.row.resultData == original.resultData)
             #expect(!fresh.hasChanges)
-            #expect(throws: SharedMediaStorageFailure.closed) {
-                _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: fresh, inventory: inv,
-                    ownerID: store.ownerID, format: .appV2)
+            let stagedBudget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: fresh, inventory: inv,
+                ownerID: store.ownerID, format: .appV2)
+            #expect(stagedBudget.metadataByPackage == budget.metadataByPackage)
+            #expect(stagedBudget.baseMetadataByPackage[store.packageID] == nil)
+            #expect(stagedBudget.receivedLiabilityByPackage[store.packageID] == nil)
+            let stagedIdentity = try #require(stagedBudget.originalIdentity)
+            let outstanding = try measured.funding.staged.reserved + stagedIdentity.reservedBytes
+            try stagedBudget.totals.checkAvailable(SharedMediaStoragePolicy.reserve + outstanding)
+            #expect(throws: SharedMediaStorageFailure.capacity) {
+                try stagedBudget.totals.checkAvailable(SharedMediaStoragePolicy.reserve + outstanding - 1)
+            }
+            let allocations = try fresh.fetch(FetchDescriptor<SharedMediaAllocationRecord>())
+            let physical = try PhotoPreparationPolicy.add(allocations.map {
+                try SharedMediaStoragePolicy.add($0.materializedBytes, $0.reservedBytes)
+            })
+            let total = try PhotoPreparationPolicy.add([physical,
+                PhotoPreparationPolicy.add(Array(stagedBudget.metadataByPackage.values)),
+                Int64(stagedIdentity.entries.count) * 512])
+            var exact = stagedBudget.totals
+            try exact.includePhotoPhysical(materialized: PhotoPreparationPolicy.durable - total, reserved: 0)
+            #expect(throws: SharedMediaStorageFailure.capacity) {
+                try exact.includePhotoPhysical(materialized: 1, reserved: 0)
+            }
+            let profile = origin.prepared.profile
+            _ = try await SharedMediaNativeScopedAudit(app: store.container, profile: profile,
+                expected: origin.header.inventory, check: {}, betweenPages: { await Task.yield() }).run()
+            #expect(throws: (any Error).self) {
+                _ = try SharedMediaNativeAppMetadataFacts.capture(fresh, profile: profile)
             }
             // Compare both adapters at the same current revision. Removing and
             // restoring the sidecar is fixture construction, never product repair.

@@ -29,10 +29,11 @@ struct SharedMediaNativeStagedReleaseOriginTests {
         #expect(throws: SharedMediaStorageFailure.closed) {
             _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: c, format: .appV2)
         }
-        #expect(throws: SharedMediaStorageFailure.closed) {
-            _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: c, inventory: inventory,
-                ownerID: store.ownerID, format: .appV2)
-        }
+        let budget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: c, inventory: inventory,
+            ownerID: store.ownerID, format: .appV2)
+        #expect(budget.metadataByPackage[store.packageID] != nil)
+        #expect(budget.baseMetadataByPackage[store.packageID] == nil)
+        #expect(budget.receivedLiabilityByPackage[store.packageID] == nil)
         inventory.revision += 17; try c.save()
         #expect(throws: SharedMediaStorageFailure.stale) { try value.requireCurrent(context: c) }
         let fresh = store.context()
@@ -42,7 +43,7 @@ struct SharedMediaNativeStagedReleaseOriginTests {
         #expect(!fresh.hasChanges)
         // Persisted columns cannot attest that staging occurred at this header.
         // Another canonical historical floor is structurally indistinguishable;
-        // it still grants no ordinary accounting/acceptance/start authority.
+        // it still grants no mutation, acceptance or start authority.
         let alternateHeader = try SharedMediaNativeAppMetadataFacts.successor(value.request.stagePreHeader)
         let alternate = try SharedMediaNativeReleaseStartRequest(prepared: value.prepared, received: value.received,
             stagePreHeader: alternateHeader, releaseID: value.request.releaseID)

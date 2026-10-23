@@ -24,7 +24,7 @@ struct SharedMediaNativeReceivingCleanGraphTests {
             #expect(snapshot.release.progress == f.progress)
             #expect(snapshot.release.slot == row && pending.count == 1)
             #expect(witness.identities == [f.prepared.operationID, f.prepared.queueID, f.prepared.observationID,
-                f.prepared.bindingID, f.prepared.generation, f.prepared.eventID])
+                f.prepared.bindingID, f.prepared.generation, f.prepared.eventID, f.progress.plan.releaseID])
             #expect(!c.hasChanges)
             // This clean classifier does not open generic mutation facts.
             #expect(throws: (any Error).self) { _ = try SharedMediaNativeReceivingPhaseGraph.pending(c, inventory: inventory) }
@@ -229,4 +229,193 @@ struct SharedMediaNativeReceivingCleanGraphTests {
         }
     }
 
+}
+
+extension SharedMediaNativeReceivingCleanGraphTests {
+    typealias ReceivedReader = SharedMediaNativeReceivedReleaseSnapshot
+    typealias Store = SharedMediaNativeAppMetadataTests.Store
+
+    @Test(arguments: ["generic-staged", "staged-staged", "live-staged", "live-live"])
+    func indexesCoreAndReleaseIdentitiesAcrossIndependentRoots(_ mode: String) async throws {
+        let (h, secondID) = try await twoReceived()
+        let first = try ReceivedReader.read(packageID: h.packageID, inventoryID: h.inventoryID,
+            releaseID: UUID(), context: h.context())
+        if mode.hasPrefix("staged") { try stage(first, in: h) }
+        if mode.hasPrefix("live") { _ = try live(first, in: h) }
+        let second = try ReceivedReader.read(packageID: secondID, inventoryID: h.inventoryID,
+            releaseID: UUID(), context: h.context())
+        func saveSecond(_ releaseID: UUID) throws {
+            if mode.hasSuffix("live") { _ = try live(second, in: h, releaseID: releaseID) }
+            else { try stage(second, in: h, releaseID: releaseID) }
+        }
+        try saveSecond(second.components.progress.plan.releaseID)
+        #expect(try roots(h).count == 2)
+        try await audit(h)
+        let collisions = [first.components.prepared.eventID]
+            + (mode.hasPrefix("generic") ? [] : [first.components.progress.plan.releaseID])
+        for identity in collisions {
+            try saveSecond(identity)
+            // Each root is structurally valid alone; the complete index must
+            // reject cross-root release/core and release/release substitutions.
+            let c = h.context(), inv = try inventory(h, c)
+            let row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(secondID, in: c))
+            _ = try Graph.validate(.init(row), context: c, inventory: inv)
+            #expect(throws: SharedMediaStorageFailure.conflict) { _ = try Graph.pending(c, inventory: inv) }
+            await #expect(throws: (any Error).self) { try await audit(h) }
+            try saveSecond(second.components.progress.plan.releaseID)
+            #expect(try roots(h).count == 2)
+        }
+    }
+
+    @Test func mixedRunwaySumsEveryRemainingSaveIncludingTerminalConsumption() async throws {
+        let (h, secondID) = try await twoReceived()
+        let first = try ReceivedReader.read(packageID: h.packageID, inventoryID: h.inventoryID,
+            releaseID: UUID(), context: h.context())
+        let f = try live(first, in: h)
+        let second = try ReceivedReader.read(packageID: secondID, inventoryID: h.inventoryID,
+            releaseID: UUID(), context: h.context())
+        try stage(second, in: h)
+        for terminalOnly in [false, true] {
+            if terminalOnly {
+                try f.retirePair(0); try f.removePair(0)
+                try f.retireOriginal(0); try f.removeOriginal(0)
+                #expect(try f.progress.remainingAdvances == 2) // Released + consumption.
+            }
+            let witnesses = try roots(h)
+            let remaining = try PhotoPreparationPolicy.add(witnesses.values.map { try $0.remainingAdvances })
+            let c = h.context(), inv = try inventory(h, c), old = inv.revision
+            inv.revision = Int64.max - remaining; try c.save()
+            #expect(try roots(h).count == 2)
+            try await audit(h)
+            inv.revision += 1; try c.save()
+            let fresh = h.context(), current = try inventory(h, fresh)
+            // Both local witnesses still fit individually: only their sum fails.
+            for id in [h.packageID, secondID] {
+                let row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(id, in: fresh))
+                let witness = try Graph.validate(.init(row), context: fresh, inventory: current)
+                try Graph.requireAggregateRunway(inventoryRevision: current.revision, witnesses: [witness])
+            }
+            #expect(throws: (any Error).self) { _ = try roots(h) }
+            await #expect(throws: (any Error).self) { try await audit(h) }
+            inv.revision = old; try c.save() // Synthetic boundary probe only.
+        }
+    }
+
+    @Test(arguments: ["partial", "foreign", "orphan", "abandoned", "releasing", "terminal", "terminalOrphan"])
+    func stagedRawAuditRejectsUnownedMalformedAndUnsupportedTerminalSlots(_ corruption: String) async throws {
+        let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(staged: true)
+        _ = try await owner.receiveAppPrepared(.init(request))
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let value = try ReceivedReader.read(packageID: h.packageID, inventoryID: h.inventoryID,
+            releaseID: UUID(), context: h.context())
+        try stage(value, in: h); try await audit(h)
+        let c = h.context(), id = h.packageID
+        let row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(id, in: c))
+        switch corruption {
+        case "partial": row.releaseStartSHA256 = nil
+        case "foreign": row.ownerID = UUID()
+        case "abandoned", "releasing": row.phaseRaw = corruption // Complete sidecar on an incompatible phase.
+        case "terminal", "terminalOrphan":
+            row.phaseRaw = "released"; row.releaseStartData = nil; row.releaseStartSHA256 = nil
+        default: break
+        }
+        if corruption == "orphan" || corruption == "terminalOrphan" {
+            c.delete(try Fixture.one(c, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id })))
+        }
+        try c.save()
+        await #expect(throws: (any Error).self) { try await audit(h) }
+        #expect(!c.hasChanges)
+    }
+
+    @Test(arguments: [false, true])
+    func stagedAuditRebuildsProofAfterPageSuspension(_ headerDrift: Bool) async throws {
+        let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(staged: true)
+        _ = try await owner.receiveAppPrepared(.init(request))
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let value = try ReceivedReader.read(packageID: h.packageID, inventoryID: h.inventoryID,
+            releaseID: UUID(), context: h.context())
+        try stage(value, in: h)
+        var changed = false
+        await #expect(throws: (any Error).self) {
+            try await audit(h) {
+                if !changed {
+                    changed = true
+                    let c = h.context()
+                    if headerDrift { try inventory(h, c).revision += 1 }
+                    else {
+                        let row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(h.packageID, in: c))
+                        row.releaseStartSHA256 = String(repeating: "0", count: 64)
+                    }
+                    try c.save()
+                }
+                await Task.yield()
+            }
+        }
+        #expect(changed)
+    }
+
+    private func inventory(_ h: Store, _ c: ModelContext) throws -> SharedMediaInventoryRecord {
+        let id = h.inventoryID
+        return try Fixture.one(c, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))
+    }
+    private func roots(_ h: Store) throws -> [UUID: Graph.Witness] {
+        let c = h.context()
+        return try Graph.pending(c, inventory: inventory(h, c))
+    }
+    private func audit(_ h: Store, betweenPages: @escaping () async throws -> Void = { await Task.yield() }) async throws {
+        let c = h.context(), inv = try inventory(h, c)
+        _ = try await SharedMediaNativeScopedAudit(app: h.container,
+            profile: SharedMediaNativeAppEligibility.profile(inv),
+            expected: .init(generation: inv.generation, revision: inv.revision, phase: inv.phaseRaw, cursor: inv.cursor),
+            check: {}, betweenPages: betweenPages).run()
+    }
+    private func stage(_ value: ReceivedReader.Snapshot, in h: Store, releaseID: UUID? = nil) throws {
+        let c = h.context(), inv = try inventory(h, c)
+        let request = try SharedMediaNativeReleaseStartRequest(prepared: value.components.prepared,
+            received: value.components.received, stagePreHeader: value.header,
+            releaseID: releaseID ?? value.components.progress.plan.releaseID)
+        let bytes = try request.encoding()
+        let row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(value.slot.id, in: c))
+        row.releaseStartData = bytes.data; row.releaseStartSHA256 = bytes.sha256
+        inv.revision += 1; try c.save()
+    }
+    @discardableResult
+    private func live(_ value: ReceivedReader.Snapshot, in h: Store, releaseID: UUID? = nil) throws -> Fixture {
+        let plan = try Fixture.Values.Plan(prepared: value.components.prepared, received: value.components.received,
+            header: value.header, releaseID: releaseID ?? value.components.progress.plan.releaseID,
+            acquisitionIDs: value.components.progress.plan.targets.map(\.acquisitionID))
+        let f = try Fixture(store: h, prepared: value.components.prepared, received: value.components.received, plan: plan)
+        try f.save(h.context()); return f
+    }
+    private func twoReceived() async throws -> (Store, UUID) {
+        let (h, owner, first) = try await SharedMediaNativeAppReceivingTests().fixture(staged: true)
+        _ = try await owner.receiveAppPrepared(.init(first))
+        let c = h.context(), inv = try inventory(h, c), id = UUID(), draft = UUID()
+        // Only an empty draft is seeded. Its media and receiving rows are made
+        // by the real owner in this same store; no unrelated graph is copied.
+        c.insert(PhotoPreparationRecord(id: id, ownerID: h.ownerID, contractVersion: PhotoPreparationPolicy.contract,
+            draftID: id, draftGeneration: draft, revision: 0, phaseRaw: "draftOwned",
+            supportingContextData: try PhotoPreparationPolicy.encodeDraft(contexts: [], presentation: []),
+            allocatedByteCount: 0, retirementRequested: false))
+        c.insert(SharedMediaPendingMembershipRecord(packageID: id, inventoryID: inv.id,
+            inventoryGeneration: inv.generation, ownerID: h.ownerID, draftGeneration: draft,
+            membersData: try SharedMediaMembership(groups: []).encoded()))
+        try c.save()
+        let metadata = try await owner.prepareAppMetadata(packageID: id, draftGeneration: draft,
+            contexts: [.init(freeText: "Independent second submitted description")])
+        _ = try await owner.saveAppMetadata(metadata)
+        let request = try await owner.prepareAppOriginal(packageID: id, draftGeneration: draft, ordinal: 0, kind: .picker)
+        let data = PhotoPreparationTestHarness.image()
+        let acquired = try await owner.acquireAppOriginal(request) { data }
+        let original = PhotoOriginalReference(ownerID: h.ownerID, packageID: id, referenceID: request.referenceID,
+            assetID: request.assetID, assetGeneration: request.assetGeneration, draftGeneration: draft,
+            referenceRevision: acquired.referenceRevision)
+        let ready = try await owner.prepareAndDeliverAppPhoto(original: original,
+            recipe: .init(format: .stillImage, isPro: false, cropDisplaySize: nil, quarterTurns: 0, scale: 1, offsetX: 0, offsetY: 0))
+        let prepared = try await owner.stageAppReceiving(packageID: id, draftGeneration: draft,
+            pairIDs: [ready.intent().pairID])
+        _ = try await owner.receiveAppPrepared(prepared)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        return (h, id)
+    }
 }

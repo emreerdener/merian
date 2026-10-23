@@ -5537,17 +5537,58 @@ snapshot SHA-256 values, so a property, annotation, default, relationship,
 initializer, or helper edit requires an explicit historical-shape review.
 `SchemaV51Snapshots.swift` freezes all eight `MerianSchemaV51` model classes and
 their relationships; the unchanged goal-hint companion retains its V50 owner.
-The unconsumed `SharedMediaNativeStagedReleaseOrigin` reader now separately
-validates canonical saved request/origin association, exact receiving rows,
-frozen consumer joins and the current header. The saved historical header is an
-unverified revision floor, not proof that an atomic stage transaction occurred.
-It grants no accounting, staging, release or cleanup authority. All ordinary and
-dirty readers below keep their nil-sidecar fences; clean classification awaits
-historical funding and global identity/runway qualification. This leaf passed
-exact-reviewed focused shared-checkout validation: 14 methods / 33 invocations,
-with all 2,929 source/project hashes unchanged. The preceding test-only compile
-failure remains retained with zero runtime coverage. This is not full-target,
-device, routing or writer qualification. Evidence:
+
+## October 23 — typed staged clean routing focused validation
+
+CleanGraph now reconstructs a typed staged funding witness for an exact saved
+request. Clean Budget and every scoped audit context route that witness without
+opening generic phase, consumer, retained-only or dirty mutation paths. The
+budget charges current S and reserved B−S exactly once; metadata and logical
+package liability remain B. Staged packages omit ordinary mutable base and
+received-liability maps. Physical receipts, shared originals and their identity
+headroom retain the outer accounting owner.
+
+The complete pending-root pass indexes six receiving identities plus every
+staged/live release ID together. Checked revision arithmetic sums each live
+Progress's remaining saves and each staged request's start plus all subsequent
+saves, including Released and consumption. A local single-root witness is not a
+complete identity/runway audit. Raw paged enumeration still rejects orphan,
+foreign, partial and unsupported terminal Released slots, including terminals
+without pending membership. Every page revalidates its header and typed facts.
+
+No stage/start, cleanup or terminal writer is introduced. Future writers must
+preserve aggregate runway in their exact poststate and qualify disk save and
+old-writer closure. The historical sections below describe earlier checkpoints;
+this section supersedes their clean-routing exclusion only.
+
+Focused shared-checkout validation passed 18 methods / 40 invocations, with no
+missing, unexpected, failed or skipped tests. All 2,929 frozen source/project
+hashes and nine candidate hashes remained unchanged. Exact independent and IC-1
+review preceded execution. Evidence is retained under
+`.artifacts/native-app-capture-handoff-20261020/staged-routing-focused02-coverage.json`,
+with XCResult `a086ea035c744545b5526e5c42bd5c01.xcresult`. The preceding
+compile-only failure remains retained with zero runtime coverage. Synthetic
+release states do not qualify a stage/start or cleanup writer. Full affected
+gates, isolated-source and integrated acceptance remain open. Repeated
+projection cost, startup writer exclusion and disk save/recovery qualification
+are the next integration work; this result makes no performance acceptance
+claim. Activation disabled; PR116 frozen; deployment hold active; AWS
+unapproved; limits unchanged.
+
+### Historical staged-origin and funding qualification (October 22)
+
+At that checkpoint, the unconsumed `SharedMediaNativeStagedReleaseOrigin` reader
+separately validates canonical saved request/origin association, exact receiving
+rows, frozen consumer joins and the current header. The saved historical header
+is an unverified revision floor, not proof that an atomic stage transaction
+occurred. It grants no accounting, staging, release or cleanup authority. All
+ordinary and dirty readers below keep their nil-sidecar fences; clean
+classification awaits historical funding and global identity/runway
+qualification. This leaf passed exact-reviewed focused shared-checkout
+validation: 14 methods / 33 invocations, with all 2,929 source/project hashes
+unchanged. The preceding test-only compile failure remains retained with zero
+runtime coverage. This is not full-target, device, routing or writer
+qualification. Evidence:
 `.artifacts/native-app-capture-handoff-20261020/staged-origin-focused02-coverage.json`.
 
 The separate staged funding adapter now reuses a private package measurement

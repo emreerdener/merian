@@ -13,6 +13,7 @@ final class SharedMediaNativeReleaseLiveFixture {
     typealias Audit = SharedMediaNativeReceivingReleaseLiveAudit
     let store: Store, prepared: Intent.Prepared, received: Intent.Received
     let entries: [SharedMediaNativeFrozenEntry]
+    var packageID: UUID { prepared.package.id }
     var progress: Values.Progress
 
     init(store: Store, prepared: Intent.Prepared, received: Intent.Received, plan: Values.Plan) throws {
@@ -45,14 +46,14 @@ final class SharedMediaNativeReleaseLiveFixture {
     }
     func read() throws -> Audit.Witness {
         let c = store.context()
-        let result = try Audit.read(packageID: store.packageID, inventoryID: store.inventoryID, context: c)
+        let result = try Audit.read(packageID: packageID, inventoryID: store.inventoryID, context: c)
         #expect(!c.hasChanges); #expect(result.progress == progress)
         return result
     }
     func save(_ c: ModelContext) throws {
         let expected = try SharedMediaNativeReceivingReleaseState.expected(progress, prepared: prepared, received: received)
-        let id = store.packageID, invID = store.inventoryID
-        let package = try store.package(in: c)
+        let id = packageID, invID = store.inventoryID
+        let package = try store.package(packageID, in: c)
         let member = try Self.one(c, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
         let inventory = try Self.one(c, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == invID }))
         let slot = try Self.one(c, FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == id }))
@@ -73,7 +74,7 @@ final class SharedMediaNativeReleaseLiveFixture {
         let c = store.context(), target = progress.plan.targets[index], entry = entries[index]
         let intent = try SharedMediaNativeDerivativeIntent.decode(entry.intent.bytes), id = target.pairID
         let row = try Self.one(c, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == id }))
-        let invID = store.inventoryID, package = try store.package(in: c)
+        let invID = store.inventoryID, package = try store.package(packageID, in: c)
         let inventory = try Self.one(c, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == invID }))
         let packageID = package.id
         let member = try Self.one(c, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == packageID }))
