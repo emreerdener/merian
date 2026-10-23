@@ -1,3 +1,34 @@
+## October 22 — shared release sizing components
+
+`SharedMediaNativeReleaseSurvivorProjection` now accepts immutable component
+values as well as the existing clean snapshot adapter. The component values
+contain no database rows, audit capability, reservation or write grant. The same
+stage enumeration supplies both diagnostic identity-inclusive projections and
+explicit identity-excluded current/future totals consumed by the global budget.
+Global original identity charging remains separate and unchanged. Live-package
+and terminal-slot metadata caps retain their existing categories.
+
+This extraction prepares a common calculation for an eventual
+received-to-release proof. It does not implement that predecessor adapter,
+fresh-admission predicate, revision-runway preservation, release-start seal or
+cleanup writer. The older unconsumed ReceivingReleaseProjection remains
+historical feasibility arithmetic; it must not be used unchanged as an
+identity-excluded funding proof.
+
+`release-components-focused01` passed all 9 selected methods / 12 invocations
+across the survivor projection and integrated clean audit/budget suites, with no
+missing, unexpected, skipped or failed tests. XCResult
+`8c7573d0110e43bfaef75004ffae3a90.xcresult` and exact coverage are retained
+under `.artifacts/native-app-capture-handoff-20261020`. All 2,920 frozen
+source/project hashes and all four candidate hashes stayed unchanged during
+execution. The three Swift/test files remain identical afterward; this README
+result note was updated after execution. Independent and IC-1 review preceded
+the run. This is focused shared-checkout validation, not full-target,
+isolated-source, cleanup writer or feature acceptance. Raw simulator/Xcode
+diagnostics remain retained; XCResult reports no runtime warnings. Activation
+disabled; PR116 frozen; deployment hold active; AWS unapproved; storage limits
+unchanged.
+
 ## October 22 — clean held-release routing qualified
 
 The scoped native audit and budget now consume the existing clean release

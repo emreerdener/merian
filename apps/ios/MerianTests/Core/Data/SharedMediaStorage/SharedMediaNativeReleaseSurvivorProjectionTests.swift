@@ -104,6 +104,8 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
             receiptBytes: 100, identityBytes: 40, retiring: false)
         let ordinary = try Projection.maximum(s), withExtra = try Projection.maximum(copy(s, originals: s.ownedOriginals + [extra]))
         #expect(withExtra.currentBytes == ordinary.currentBytes + 140)
+        #expect(withExtra.currentIdentityExcludedBytes == ordinary.currentIdentityExcludedBytes + 100)
+        #expect(withExtra.maximumIdentityExcludedBytes == ordinary.maximumIdentityExcludedBytes + 100)
         for (left, right) in zip(ordinary.charges, withExtra.charges) {
             #expect(left.packageBytes == right.packageBytes)
             #expect(right.originBytes == left.originBytes + 612)
@@ -115,10 +117,12 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
         #expect(offset >= 0)
         let exact = try Projection.maximum(copy(s, execution: s.executionBytes + offset))
         #expect(exact.maximumLivePackageMetadataBytes == PhotoPreparationPolicy.metadata)
+        #expect(exact.maximumIdentityExcludedBytes == PhotoPreparationPolicy.metadata)
         #expect(exact.maximumBytes > PhotoPreparationPolicy.metadata)
         try exact.requireMetadataCapacity()
         let over = try Projection.maximum(copy(s, execution: s.executionBytes + offset + 1))
         #expect(over.maximumLivePackageMetadataBytes == PhotoPreparationPolicy.metadata + 1)
+        #expect(over.maximumIdentityExcludedBytes == PhotoPreparationPolicy.metadata + 1)
         #expect(throws: SharedMediaStorageFailure.capacity) { try over.requireMetadataCapacity() }
         #expect(exact.maximumTerminalSlotBytes == ordinary.maximumTerminalSlotBytes)
         for charge in exact.charges where charge.terminal {
@@ -129,6 +133,8 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
             receiptBytes: first.receiptBytes, identityBytes: 512, retiring: first.retiring)
         let identities = try Projection.maximum(copy(s, originals: [identity] + s.ownedOriginals.dropFirst()))
         #expect(identities.currentBytes == ordinary.currentBytes + 512 - first.identityBytes)
+        #expect(identities.currentIdentityExcludedBytes == ordinary.currentIdentityExcludedBytes)
+        #expect(identities.maximumIdentityExcludedBytes == ordinary.maximumIdentityExcludedBytes)
         #expect(identities.maximumLivePackageMetadataBytes == ordinary.maximumLivePackageMetadataBytes)
         #expect(identities.maximumTerminalSlotBytes == ordinary.maximumTerminalSlotBytes)
         let targetIndex = try #require(s.release.progress.plan.targets.firstIndex { $0.original.assetID == first.assetID })

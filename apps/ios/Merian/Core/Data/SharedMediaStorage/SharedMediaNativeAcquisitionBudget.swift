@@ -376,11 +376,8 @@ enum SharedMediaNativeAcquisitionBudget {
         }
         let projection = try SharedMediaNativeReleaseSurvivorProjection.maximum(snapshot)
         try projection.requireMetadataCapacity()
-        let current = try PhotoPreparationPolicy.add([snapshot.packagePayloadBytes, snapshot.originReceiptBytes])
-        var maximum = current
-        for charge in projection.charges {
-            maximum = max(maximum, try PhotoPreparationPolicy.add([charge.packageBytes, charge.originReceiptBytes]))
-        }
+        let current = projection.currentIdentityExcludedBytes
+        let maximum = projection.maximumIdentityExcludedBytes
         try totals.includePhotoPhysical(materialized: current, reserved: maximum - current)
         let id = snapshot.release.state.package.id
         for original in snapshot.ownedOriginals {

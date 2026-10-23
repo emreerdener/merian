@@ -8,6 +8,50 @@ enum SharedMediaNativeReleaseSurvivorProjection {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     typealias Snapshot = SharedMediaNativeReleaseMetadataSnapshot.Snapshot
 
+    /// Immutable sizing inputs, without a live-audit witness or database rows.
+    /// Constructing these values grants no ownership, reservation or write right.
+    /// A prospective start must supply its own exact audited predecessor proof.
+    struct Components {
+        let progress: Values.Progress
+        let prepared: SharedMediaNativeReceivingIntent.Prepared
+        let received: SharedMediaNativeReceivingIntent.Received
+        let package: SharedMediaNativeAppMetadataFacts.Package
+        let member: SharedMediaNativeAppMetadataFacts.Member
+        let envelopeBytes: Int64
+        let membershipBytes: Int64
+        let consumerBytes: Int64
+        let executionBytes: Int64
+        let slotBytes: Int64
+        let pairs: [SharedMediaNativePairFileState]
+        let ownedOriginals: [SharedMediaNativeReleaseMetadataSnapshot.Original]
+        let targetOrigins: [SharedMediaNativeReleaseMetadataSnapshot.TargetOrigin]
+
+        var pairBytes: Int64 {
+            get throws { try PhotoPreparationPolicy.add(pairs.map { Int64(try SharedMediaNativeDraftEnvelope.bytes($0).count) }) }
+        }
+        var packagePayloadBytes: Int64 {
+            get throws { try PhotoPreparationPolicy.add([envelopeBytes, membershipBytes, consumerBytes, executionBytes, slotBytes, pairBytes]) }
+        }
+        var originReceiptBytes: Int64 {
+            get throws { try PhotoPreparationPolicy.add(ownedOriginals.map(\.receiptBytes)) }
+        }
+        var originIdentityBytes: Int64 {
+            get throws { try PhotoPreparationPolicy.add(ownedOriginals.map(\.identityBytes)) }
+        }
+        var currentSerializedBytes: Int64 {
+            get throws { try PhotoPreparationPolicy.add([packagePayloadBytes, originReceiptBytes, originIdentityBytes]) }
+        }
+    }
+
+    static func components(_ snapshot: Snapshot) -> Components {
+        .init(progress: snapshot.release.progress, prepared: snapshot.release.origin.prepared,
+            received: snapshot.release.origin.received, package: snapshot.release.state.package,
+            member: snapshot.release.state.member, envelopeBytes: snapshot.envelopeBytes,
+            membershipBytes: snapshot.membershipBytes, consumerBytes: snapshot.consumerBytes,
+            executionBytes: snapshot.executionBytes, slotBytes: snapshot.slotBytes,
+            pairs: snapshot.pairs, ownedOriginals: snapshot.ownedOriginals, targetOrigins: snapshot.targetOrigins)
+    }
+
     struct Charge: Equatable, Sendable {
         /// 0 ready, 1 pair retiring, 2 pair gone, 3 original retiring,
         /// 4 physically removed, 5 shared logical reference removed.
@@ -37,6 +81,10 @@ enum SharedMediaNativeReleaseSurvivorProjection {
         let maximumPackagePayloadBytes: Int64
         let maximumLivePackageMetadataBytes: Int64
         let maximumTerminalSlotBytes: Int64
+        /// Package payload plus owned receipts only. Global original identity
+        /// current bytes/headroom remain the separate asset-owned budget pass.
+        let currentIdentityExcludedBytes: Int64
+        let maximumIdentityExcludedBytes: Int64
         var futureGrowthBytes: Int64 { maximumBytes - currentBytes }
         /// Arithmetic feasibility only; no caller can admit or release media
         /// from this result. Global storage and revision gates remain separate.
@@ -49,10 +97,14 @@ enum SharedMediaNativeReleaseSurvivorProjection {
     }
 
     static func maximum(_ snapshot: Snapshot) throws -> Projection {
-        let release = snapshot.release, progress = release.progress, plan = progress.plan
+        try maximum(components(snapshot))
+    }
+
+    static func maximum(_ snapshot: Components) throws -> Projection {
+        let progress = snapshot.progress, plan = progress.plan
         try progress.validate()
-        let slot = try Values.slotBound(plan: plan, prepared: release.origin.prepared,
-            received: release.origin.received, acquisitionIDs: plan.targets.map(\.acquisitionID))
+        let slot = try Values.slotBound(plan: plan, prepared: snapshot.prepared,
+            received: snapshot.received, acquisitionIDs: plan.targets.map(\.acquisitionID))
         try validateOrigins(snapshot)
         let current = try snapshot.currentSerializedBytes
         let replaced = try PhotoPreparationPolicy.add([snapshot.membershipBytes, snapshot.slotBytes,
@@ -60,7 +112,7 @@ enum SharedMediaNativeReleaseSurvivorProjection {
         let residual = try PhotoPreparationPolicy.add([snapshot.envelopeBytes, snapshot.consumerBytes, snapshot.executionBytes])
         guard current >= replaced, current - replaced == residual,
               snapshot.slotBytes == Int64(try progress.encoded().count),
-              snapshot.membershipBytes == Int64(release.state.member.bytes.count) else {
+              snapshot.membershipBytes == Int64(snapshot.member.bytes.count) else {
             throw SharedMediaStorageFailure.conflict
         }
         let bounds = try pairBounds(snapshot)
@@ -70,11 +122,13 @@ enum SharedMediaNativeReleaseSurvivorProjection {
         }
         var charges: [Charge] = [], maximum = current, maximumPackage = try snapshot.packagePayloadBytes
         var maximumLive = try PhotoPreparationPolicy.add([snapshot.packagePayloadBytes, snapshot.originReceiptBytes])
+        let currentIdentityExcluded = maximumLive
+        var maximumIdentityExcluded = currentIdentityExcluded
         var maximumTerminal: Int64?
         for stages in combinations {
             let future = try sizingProgress(progress, stages: stages)
             let expected = try SharedMediaNativeReceivingReleaseState.expected(future,
-                prepared: release.origin.prepared, received: release.origin.received)
+                prepared: snapshot.prepared, received: snapshot.received)
             let pairBytes = try PhotoPreparationPolicy.add(stages.enumerated().compactMap { index, stage in
                 stage <= 1 ? bounds[plan.targets[index].pairID] : nil
             })
@@ -84,6 +138,8 @@ enum SharedMediaNativeReleaseSurvivorProjection {
                 receipts: origin.receipts, identities: origin.identities, terminal: false)
             charges.append(charge); maximum = max(maximum, try charge.total); maximumPackage = max(maximumPackage, packageBytes)
             maximumLive = max(maximumLive, try charge.metadataCapBytes)
+            maximumIdentityExcluded = max(maximumIdentityExcluded,
+                try PhotoPreparationPolicy.add([charge.packageBytes, charge.originReceiptBytes]))
             if stages.allSatisfy({ $0 >= 4 }) {
                 // Contract prerequisite: one future atomic save replaces the
                 // Progress slot and removes package/member/consumer/execution.
@@ -94,16 +150,20 @@ enum SharedMediaNativeReleaseSurvivorProjection {
                 charges.append(terminal); maximum = max(maximum, try terminal.total)
                 maximumPackage = max(maximumPackage, terminal.packageBytes)
                 maximumTerminal = max(maximumTerminal ?? 0, try terminal.metadataCapBytes)
+                maximumIdentityExcluded = max(maximumIdentityExcluded,
+                    try PhotoPreparationPolicy.add([terminal.packageBytes, terminal.originReceiptBytes]))
             }
         }
         guard let maximumTerminal, charges.contains(where: { !$0.terminal }) else { throw SharedMediaStorageFailure.conflict }
         return .init(currentBytes: current, charges: charges, maximumBytes: maximum,
             maximumPackagePayloadBytes: maximumPackage, maximumLivePackageMetadataBytes: maximumLive,
-            maximumTerminalSlotBytes: maximumTerminal)
+            maximumTerminalSlotBytes: maximumTerminal,
+            currentIdentityExcludedBytes: currentIdentityExcluded,
+            maximumIdentityExcludedBytes: maximumIdentityExcluded)
     }
 
-    private static func validateOrigins(_ s: Snapshot) throws {
-        let plan = s.release.progress.plan, targets = plan.targets
+    private static func validateOrigins(_ s: Components) throws {
+        let plan = s.progress.plan, targets = plan.targets
         guard s.targetOrigins.map(\.assetID) == targets.map({ $0.original.assetID }),
               s.targetOrigins.map(\.acquisitionID) == targets.map(\.acquisitionID),
               Set(s.ownedOriginals.map(\.assetID)).count == s.ownedOriginals.count else {
@@ -115,7 +175,7 @@ enum SharedMediaNativeReleaseSurvivorProjection {
         }
         for (index, origin) in s.targetOrigins.enumerated() {
             let local = s.ownedOriginals.first { $0.assetID == origin.assetID }
-            let state = s.release.progress.targets[index]
+            let state = s.progress.targets[index]
             switch origin.location {
             case .present(let packageID):
                 guard (packageID == plan.package.id) == (local != nil),
@@ -135,10 +195,10 @@ enum SharedMediaNativeReleaseSurvivorProjection {
         }
     }
 
-    private static func originalBytes(_ s: Snapshot, stages: [Int]) throws -> (receipts: Int64, identities: Int64) {
+    private static func originalBytes(_ s: Components, stages: [Int]) throws -> (receipts: Int64, identities: Int64) {
         var receipts: Int64 = 0, identities: Int64 = 0
         for original in s.ownedOriginals {
-            let index = s.release.progress.plan.targets.firstIndex { $0.original.assetID == original.assetID }
+            let index = s.progress.plan.targets.firstIndex { $0.original.assetID == original.assetID }
             if let index, stages[index] == 4 { continue }
             // Extra physical origins and shared removals can later retire under
             // another logical owner. Replace today's identity charge with 512;
@@ -150,9 +210,9 @@ enum SharedMediaNativeReleaseSurvivorProjection {
         return (receipts, identities)
     }
 
-    private static func pairBounds(_ s: Snapshot) throws -> [UUID: Int64] {
-        let plan = s.release.progress.plan
-        var groups = Dictionary(uniqueKeysWithValues: try SharedMediaMembership.decode(s.release.origin.prepared.member.bytes).groups.map { ($0.kind, Set($0.ids)) })
+    private static func pairBounds(_ s: Components) throws -> [UUID: Int64] {
+        let plan = s.progress.plan
+        var groups = Dictionary(uniqueKeysWithValues: try SharedMediaMembership.decode(s.prepared.member.bytes).groups.map { ($0.kind, Set($0.ids)) })
         for target in plan.targets {
             for output in [target.ai, target.display] {
                 groups[.work, default: []].insert(output.leaseID)
@@ -164,13 +224,13 @@ enum SharedMediaNativeReleaseSurvivorProjection {
             .init(kind: kind, ids: ids.sorted { $0.uuidString < $1.uuidString })
         }.sorted { $0.kind.rawValue < $1.kind.rawValue }).encoded()
         var result: [UUID: Int64] = [:]
-        let surviving = Set(s.release.progress.targets.filter { $0.stage == .readyPair || $0.stage == .retiringPair }.map(\.pairID))
+        let surviving = Set(s.progress.targets.filter { $0.stage == .readyPair || $0.stage == .retiringPair }.map(\.pairID))
         for state in s.pairs {
             let intent = try state.intent(), id = intent.pairID, p = state.plan
             guard surviving.contains(id), result[id] == nil,
                   let target = plan.targets.first(where: { $0.pairID == id }), target.intentSHA256 == p.intent.sha256,
-                  p.packageID == plan.package.id, p.envelope == s.release.state.package.envelope,
-                  p.membership == s.release.state.member.bytes else { throw SharedMediaStorageFailure.conflict }
+                  p.packageID == plan.package.id, p.envelope == s.package.envelope,
+                  p.membership == s.member.bytes else { throw SharedMediaStorageFailure.conflict }
             _ = try state.selected(intent.ai.id); _ = try state.selected(intent.display.id)
             guard p.inventoryID == plan.profile.inventoryID, p.inventoryGeneration == plan.profile.generation,
                   p.draftGeneration == plan.package.generation,
