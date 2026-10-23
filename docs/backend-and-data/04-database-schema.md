@@ -5538,6 +5538,41 @@ initializer, or helper edit requires an explicit historical-shape review.
 `SchemaV51Snapshots.swift` freezes all eight `MerianSchemaV51` model classes and
 their relationships; the unchanged goal-hint companion retains its V50 owner.
 
+## October 23 — startup ownership integration (focused qualification)
+
+Production startup now builds one explicit non-CloudKit configuration with
+unchanged automatic App Group placement, and holds the existing exclusive store
+fence across metadata, constructor attempts and classified archive/replacement.
+First-parent creation stays beneath the trusted App Group anchor. Test startup
+selects memory-only construction before any production path access.
+
+The factory's persistent implementation now lives in
+`ModelContainerFactory+Persistent.swift` with a per-bootstrap session,
+preserving migration/checksum order and the 600-line review guard. Typed
+boundary failures, Objective-C exceptions and missing-container outcomes bypass
+persistent retries and destructive recovery. Ordinary classified Swift failures
+retain historical signature-gated recovery, with no new stage eligibility.
+
+A default-denied ephemeral construction admission binds only a first successful
+attempt to its exact container, configured URL and parent/control fence. Retry,
+recovery or subsequent failure cannot mint or revive it. It stays internal to
+the bootstrap outcome, with no installed writer consumer. Existing receiving and
+saved-result recovery remain token-free; a later clean launch can qualify. No
+schema, storage limit, provider policy or release writer changes here. Focused
+shared-checkout qualification covers 133 methods / 134 invocations: 130
+unchanged methods / 131 invocations from the first run, two corrected XCTest
+methods from the second, and the corrected Swift Testing migration method from
+the third. The first run's three failures and the second run's incomplete
+selector coverage remain retained. Each run preserved all 2,933 frozen
+source/project hashes. Source/project/CI-tooling, adversarial guardrail,
+Markdown and diff checks passed. Exact combined evidence is
+`.artifacts/native-app-capture-handoff-20261020/startup-closure-combined01.json`.
+Actual installed App Group path spelling, full affected-target, isolated-source,
+and release-stage process-death/save qualification remain open. These checks do
+not authorize a stage/start/cleanup writer or feature activation. Canonical
+contract: `docs/backend-and-data/08-startup-store-recovery.md`. Activation
+disabled; PR116 frozen; deployment hold active; AWS unapproved.
+
 ## October 23 — context-local release sizing memo focused validation
 
 Scoped audits now pass one explicitly owned sizing memo through each synchronous

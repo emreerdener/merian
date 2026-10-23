@@ -35,4 +35,5 @@ struct ModelContainerBootstrapOutcome {
     let startupStoreState: StartupStoreState
     let startupNotice: StartupRecoveryNotice?
     let telemetryEvent: StartupRecoveryTelemetryEvent?
+    var nativeReleaseAdmission: NativeReleaseStartupAdmission? = nil
 }

@@ -20,7 +20,7 @@ enum ModelStoreRecoveryCoordinator {
             schema: schema,
             isStoredInMemoryOnly: false,
             groupContainer: .automatic,
-            cloudKitDatabase: .automatic
+            cloudKitDatabase: .none
         )
     }
 

@@ -35,6 +35,8 @@ recovery_manifest_file="$recovery_root/Models/StoreRecoveryManifest.swift"
 recovery_archive_file="$recovery_root/Services/StoreRecoveryArtifactArchiver.swift"
 recovery_metadata_file="$recovery_root/Services/StoreRecoveryMetadataService.swift"
 container_factory_file="$recovery_root/Services/ModelContainerFactory.swift"
+persistent_factory_file="$recovery_root/Services/ModelContainerFactory+Persistent.swift"
+bootstrap_session_file="$recovery_root/Services/PersistentStoreBootstrapSession.swift"
 container_bootstrapper_file="$recovery_root/Services/ModelContainerBootstrapper.swift"
 recovery_test_root="apps/ios/MerianTests/Core/Data/StoreRecovery"
 container_bootstrapper_test_file="$recovery_test_root/ModelContainerBootstrapperTests.swift"
@@ -131,6 +133,8 @@ for recovery_source_file in \
   "$recovery_archive_file" \
   "$recovery_metadata_file" \
   "$container_factory_file" \
+  "$persistent_factory_file" \
+  "$bootstrap_session_file" \
   "$container_bootstrapper_file"; do
   if [ ! -f "$recovery_source_file" ]; then
     echo "Missing $recovery_source_file" >&2
@@ -726,7 +730,7 @@ contains "$recovery_test_file" "testRecognizesReleasedActiveV50ModelChecksum" \
   || fail "Store recovery tests must lock processed-release V50 checksum classification."
 contains "$recovery_test_file" "testSourceIsolatedSchemasAreConsecutiveAndEndAtCurrentPredecessor" \
   || fail "Store recovery tests must fail when a future schema bump omits its immediate-predecessor plan."
-contains "$container_factory_file" "private static func makePersistentContainerForRecentSource(" \
+contains "$persistent_factory_file" "private func makePersistentContainerForRecentSource(" \
   || fail "ModelContainerFactory must dispatch recent sources through an exhaustive plan selector."
 safe_mode_container_factory="$(
   awk '
@@ -756,10 +760,10 @@ grep -Fq "migrationPlan: MerianMigrationPlan.self" <<< "$full_plan_initializatio
   || fail "MigrationPlanTests must validate the full historical plan independently from safe mode."
 recent_source_dispatch="$(
   awk '
-    /private static func makePersistentContainerForRecentSource\(/ { printing = 1 }
+    /private func makePersistentContainerForRecentSource\(/ { printing = 1 }
     printing { print }
     printing && /forStoreMigrationHint hint:/ { exit }
-  ' "$container_factory_file"
+  ' "$persistent_factory_file"
 )"
 for recent_major in $(seq 42 52); do
   grep -Fq "case .v${recent_major}:" <<< "$recent_source_dispatch" \
@@ -768,25 +772,25 @@ done
 if grep -Eq '^[[:space:]]*(@unknown[[:space:]]+)?default:' <<< "$recent_source_dispatch"; then
   fail "ModelContainerFactory recent-source dispatch must remain compiler-exhaustive without a default branch."
 fi
-not_contains "$container_factory_file" "recent-fallback-full"
-contains "$container_factory_file" "named: \"recent-v49\"" \
+not_contains "$persistent_factory_file" "recent-fallback-full"
+contains "$persistent_factory_file" "named: \"recent-v49\"" \
   || fail "ModelContainerFactory must record the selected recent-v49 startup attempt."
-contains "$container_factory_file" "named: \"recent-v50-released-active\"" \
+contains "$persistent_factory_file" "named: \"recent-v50-released-active\"" \
   || fail "ModelContainerFactory must record the selected processed-release V50 startup attempt."
-contains "$container_factory_file" "named: \"recent-v50-frozen-snapshot\"" \
+contains "$persistent_factory_file" "named: \"recent-v50-frozen-snapshot\"" \
   || fail "ModelContainerFactory must record the selected original V50 startup attempt."
-contains "$container_factory_file" "named: \"checksum-recent-v49\"" \
+contains "$persistent_factory_file" "named: \"checksum-recent-v49\"" \
   || fail "The checksum retry ladder must try the V49 plan before older sources."
-contains "$container_factory_file" "named: \"checksum-recent-v50-released-active\"" \
+contains "$persistent_factory_file" "named: \"checksum-recent-v50-released-active\"" \
   || fail "The checksum retry ladder must try the processed-release V50 plan before V49."
-contains "$container_factory_file" "named: \"checksum-recent-v50-frozen-snapshot\"" \
+contains "$persistent_factory_file" "named: \"checksum-recent-v50-frozen-snapshot\"" \
   || fail "The checksum retry ladder must try the original V50 plan before V49."
 checksum_retry_dispatch="$(
   awk '
-    /private static func makePersistentContainerRetryingChecksumRepresentative\(/ { printing = 1 }
+    /private func makePersistentContainerRetryingChecksumRepresentative\(/ { printing = 1 }
     printing { print }
-    printing && /private static func makePersistentContainerForV48Source\(/ { exit }
-  ' "$container_factory_file"
+    printing && /private func makePersistentContainerForV48Source\(/ { exit }
+  ' "$persistent_factory_file"
 )"
 checksum_retry_markers=(
   'named: "checksum-current-store"'
@@ -828,10 +832,17 @@ contains "$recovery_file" "groupContainer: .automatic" \
 if grep -RFq -- 'URL.applicationSupportDirectory.appending(path: "default.store")' "$recovery_root"; then
   fail "Store recovery must not reconstruct the SwiftData store under Application Support."
 fi
-contains "$container_factory_file" "ModelStoreRecoveryCoordinator.productionStoreConfiguration(" \
+contains "$bootstrap_session_file" "ModelStoreRecoveryCoordinator.productionStoreConfiguration(" \
   || fail "ModelContainerFactory and recovery must share one production SwiftData configuration factory."
-contains "$container_bootstrapper_file" "let storeURL = ModelStoreRecoveryCoordinator.defaultStoreURL()" \
+contains "$container_bootstrapper_file" "let storeURL = session.storeURL" \
   || fail "ModelContainerBootstrapper must inspect the exact SwiftData-configured store URL before migration selection."
+contains "$recovery_file" "cloudKitDatabase: .none" \
+  || fail "Production startup must explicitly disable CloudKit for the configured store."
+contains "$persistent_factory_file" "let config = session.configuration" \
+  || fail "Persistent attempts must consume the single held bootstrap configuration."
+not_contains "$persistent_factory_file" "try?"
+contains "$bootstrap_session_file" "case indeterminateConstruction" \
+  || fail "Indeterminate constructor outcomes must stay nonrecoverable."
 contains "$app_file" "ModelContainerBootstrapper.bootstrap()" \
   || fail "MerianApp must delegate startup store construction to ModelContainerBootstrapper."
 not_contains "$app_file" "ModelContainer("
@@ -891,6 +902,10 @@ contains "$image_recovery_file" "LegacyScanMediaRecoveryStoreLocator.storeURLs" 
   || fail "Rescue-media lookup must use the configured and legacy store locator."
 contains "$image_test_file" "legacyRecoveryStoreLocatorPrefersConfiguredRootAndNewestArchives" \
   || fail "LocalImageLoaderTests must keep configured-root rescue archives ahead of legacy archives."
+contains "$startup_workflow_file" "-only-testing:merianTests/PersistentStoreBootstrapSessionTests" \
+  || fail "Startup Safety must execute persistent bootstrap ownership tests."
+contains "$startup_workflow_file" "-only-testing:merianTests/StartupStoreFenceTests" \
+  || fail "Startup Safety must execute anchored startup fence tests."
 contains "$startup_workflow_file" "-only-testing:merianTests/LocalImageLoaderTests" \
   || fail "Startup Safety must execute the rescue-store locator regression suite."
 contains "$startup_workflow_file" "bash $startup_scope_file" \
@@ -946,8 +961,8 @@ recent_v54_plan="$(extract_block "enum MerianRecentV54MigrationPlan" "END_OF_FIL
 grep -Fq '[MerianSchemaV54.self, MerianSchemaV55.self, MerianSchemaV56.self, MerianSchemaV57.self, MerianSchemaV58.self, MerianSchemaV59.self, MerianSchemaV60.self, MerianSchemaV61.self, MerianSchemaV62.self, MerianSchemaV63.self, MerianSchemaV64.self, MerianSchemaV65.self, MerianSchemaV66.self]' <<< "$recent_v54_plan" || fail "Missing V54 source-isolated plan."
 grep -Fq '[MerianMigrationPlan.migrateV54toV55, MerianMigrationPlan.migrateV55toV56, MerianMigrationPlan.migrateV56toV57, MerianMigrationPlan.migrateV57toV58, MerianMigrationPlan.migrateV58toV59, MerianMigrationPlan.migrateV59toV60, MerianMigrationPlan.migrateV60toV61, MerianMigrationPlan.migrateV61toV62, MerianMigrationPlan.migrateV62toV63, MerianMigrationPlan.migrateV63toV64, MerianMigrationPlan.migrateV64toV65, MerianMigrationPlan.migrateV65toV66]' <<< "$recent_v54_plan" || fail "Missing V54 forward stage."
 contains "$recovery_models_file" "case v54 = 54" || fail "Missing V54 startup source."
-contains "$container_factory_file" 'case .v54:' || fail "Missing V54 startup route."
-contains "$container_factory_file" 'named: "checksum-recent-v54"' || fail "Missing V54 checksum retry."
+contains "$persistent_factory_file" 'case .v54:' || fail "Missing V54 startup route."
+contains "$persistent_factory_file" 'named: "checksum-recent-v54"' || fail "Missing V54 checksum retry."
 contains "$test_file" 'v54StorePreservesCurrentProjectionWithoutInventingHistory' || fail "Missing V54 preservation fixture."
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV54ScanSnapshots.swift" | awk '{print $1}')" = "cfc96410d51e8dfcaf741c9cf7f18b108f486a7abb593d53a84ce58b6f880a2a" ] || fail "V54 frozen snapshot changed: ScanSnapshots"
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV54QueueSnapshots.swift" | awk '{print $1}')" = "488436ad73da3c3da47b0451f035d4336a93de9567245db5d362b00560db4283" ] || fail "V54 frozen snapshot changed: QueueSnapshots"
@@ -966,7 +981,7 @@ recent_v55_plan="$(extract_block "enum MerianRecentV55MigrationPlan" "END_OF_FIL
 grep -Fq '[MerianSchemaV55.self, MerianSchemaV56.self, MerianSchemaV57.self, MerianSchemaV58.self, MerianSchemaV59.self, MerianSchemaV60.self, MerianSchemaV61.self, MerianSchemaV62.self, MerianSchemaV63.self, MerianSchemaV64.self, MerianSchemaV65.self, MerianSchemaV66.self]' <<< "$recent_v55_plan" || fail "Missing V55 source-isolated plan."
 grep -Fq '[MerianMigrationPlan.migrateV55toV56, MerianMigrationPlan.migrateV56toV57, MerianMigrationPlan.migrateV57toV58, MerianMigrationPlan.migrateV58toV59, MerianMigrationPlan.migrateV59toV60, MerianMigrationPlan.migrateV60toV61, MerianMigrationPlan.migrateV61toV62, MerianMigrationPlan.migrateV62toV63, MerianMigrationPlan.migrateV63toV64, MerianMigrationPlan.migrateV64toV65, MerianMigrationPlan.migrateV65toV66]' <<< "$recent_v55_plan" || fail "Missing V55 forward stage."
 contains "$recovery_models_file" "case v55 = 55" || fail "Missing V55 startup source."
-contains "$container_factory_file" 'case .v55:' || fail "Missing V55 startup route."
+contains "$persistent_factory_file" 'case .v55:' || fail "Missing V55 startup route."
 contains "$test_file" 'v55MigrationPreservesCompletionAndAdmitsUnknownImportedCompletion' || fail "Missing V55 completion preservation fixture."
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV55ScanSnapshots.swift" | awk '{print $1}')" = "ea595c78c66155aa5933114da01ae25a351a91f09d91c93c241e3abde14e1767" ] || fail "V55 frozen snapshot changed: ScanSnapshots"
 contains "$startup_scope_file" "apps/ios/Merian/Models/Schema/SchemaV55ScanSnapshots.swift" || fail "Startup Safety must include SchemaV55ScanSnapshots.swift."
@@ -982,7 +997,7 @@ recent_v56_plan="$(extract_block "enum MerianRecentV56MigrationPlan" "END_OF_FIL
 grep -Fq '[MerianSchemaV56.self, MerianSchemaV57.self, MerianSchemaV58.self, MerianSchemaV59.self, MerianSchemaV60.self, MerianSchemaV61.self, MerianSchemaV62.self, MerianSchemaV63.self, MerianSchemaV64.self, MerianSchemaV65.self, MerianSchemaV66.self]' <<< "$recent_v56_plan" || fail "Missing V56 source-isolated plan."
 grep -Fq '[MerianMigrationPlan.migrateV56toV57, MerianMigrationPlan.migrateV57toV58, MerianMigrationPlan.migrateV58toV59, MerianMigrationPlan.migrateV59toV60, MerianMigrationPlan.migrateV60toV61, MerianMigrationPlan.migrateV61toV62, MerianMigrationPlan.migrateV62toV63, MerianMigrationPlan.migrateV63toV64, MerianMigrationPlan.migrateV64toV65, MerianMigrationPlan.migrateV65toV66]' <<< "$recent_v56_plan" || fail "Missing V56 forward stage."
 contains "$recovery_models_file" "case v56 = 56" || fail "Missing V56 startup source."
-contains "$container_factory_file" 'case .v56:' || fail "Missing V56 startup route."
+contains "$persistent_factory_file" 'case .v56:' || fail "Missing V56 startup route."
 contains "$test_file" 'v56MigrationPreservesSelectionAndAddsEmptyAnalysisStateCache' || fail "Missing V56 state preservation fixture."
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV56ScanSnapshots.swift" | awk '{print $1}')" = "b9dc1f6ceec10b2e134cb6037704b95f5ae76904c8050ed3fef9063de403aa5f" ] || fail "V56 frozen snapshot changed: ScanSnapshots"
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV56QueueSnapshots.swift" | awk '{print $1}')" = "0706c096ba330e435d945f32f3569e2f9d08d32bc86e1b34b7916259f59e4ea6" ] || fail "V56 frozen snapshot changed: QueueSnapshots"
@@ -1002,7 +1017,7 @@ recent_v57_plan="$(extract_block "enum MerianRecentV57MigrationPlan" "END_OF_FIL
 grep -Fq '[MerianSchemaV57.self, MerianSchemaV58.self, MerianSchemaV59.self, MerianSchemaV60.self, MerianSchemaV61.self, MerianSchemaV62.self, MerianSchemaV63.self, MerianSchemaV64.self, MerianSchemaV65.self, MerianSchemaV66.self]' <<< "$recent_v57_plan" || fail "Missing V57 source-isolated plan."
 grep -Fq '[MerianMigrationPlan.migrateV57toV58, MerianMigrationPlan.migrateV58toV59, MerianMigrationPlan.migrateV59toV60, MerianMigrationPlan.migrateV60toV61, MerianMigrationPlan.migrateV61toV62, MerianMigrationPlan.migrateV62toV63, MerianMigrationPlan.migrateV63toV64, MerianMigrationPlan.migrateV64toV65, MerianMigrationPlan.migrateV65toV66]' <<< "$recent_v57_plan" || fail "Missing V57 forward stage."
 contains "$recovery_models_file" "case v57 = 57" || fail "Missing V57 startup source."
-contains "$container_factory_file" 'case .v57:' || fail "Missing V57 startup route."
+contains "$persistent_factory_file" 'case .v57:' || fail "Missing V57 startup route."
 contains "$test_file" 'v57MigrationPreservesQueuedWorkAndAddsOrdinaryQualification' || fail "Missing V57 queue preservation fixture."
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV57ScanSnapshots.swift" | awk '{print $1}')" = "80042f153f66a68e811edd52fc3ecfe42a4250d502601faa03e9bcb791973b0a" ] || fail "V57 frozen snapshot changed: ScanSnapshots"
 contains "$startup_scope_file" "apps/ios/Merian/Models/Schema/SchemaV57ScanSnapshots.swift" || fail "Startup Safety must include SchemaV57ScanSnapshots.swift."
@@ -1020,7 +1035,7 @@ recent_v58_plan="$(extract_block "enum MerianRecentV58MigrationPlan" "END_OF_FIL
 grep -Fq '[MerianSchemaV58.self, MerianSchemaV59.self, MerianSchemaV60.self, MerianSchemaV61.self, MerianSchemaV62.self, MerianSchemaV63.self, MerianSchemaV64.self, MerianSchemaV65.self, MerianSchemaV66.self]' <<< "$recent_v58_plan" || fail "Missing V58 source-isolated plan."
 grep -Fq '[MerianMigrationPlan.migrateV58toV59, MerianMigrationPlan.migrateV59toV60, MerianMigrationPlan.migrateV60toV61, MerianMigrationPlan.migrateV61toV62, MerianMigrationPlan.migrateV62toV63, MerianMigrationPlan.migrateV63toV64, MerianMigrationPlan.migrateV64toV65, MerianMigrationPlan.migrateV65toV66]' <<< "$recent_v58_plan" || fail "Missing V58 forward stage."
 contains "$recovery_models_file" "case v58 = 58" || fail "Missing V58 startup source."
-contains "$container_factory_file" 'case .v58:' || fail "Missing V58 startup route."
+contains "$persistent_factory_file" 'case .v58:' || fail "Missing V58 startup route."
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV58ScanSnapshots.swift" | awk '{print $1}')" = "5acc8cba9f1ffa6b6a64c8695d5be8282899372bcdad8a9e9294780e8e0fe855" ] || fail "V58 frozen snapshot changed: ScanSnapshots"
 contains "$startup_scope_file" "apps/ios/Merian/Models/Schema/SchemaV58ScanSnapshots.swift" || fail "Startup Safety must include SchemaV58ScanSnapshots.swift."
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV58QueueSnapshots.swift" | awk '{print $1}')" = "f509f549e500689dd834c9f6c1d1a3119bc2484f657a2f85e92f7b4e96eeccb2" ] || fail "V58 frozen snapshot changed: QueueSnapshots"
@@ -1036,7 +1051,7 @@ recent_v59_plan="$(extract_block "enum MerianRecentV59MigrationPlan" "END_OF_FIL
 grep -Fq '[MerianSchemaV59.self, MerianSchemaV60.self, MerianSchemaV61.self, MerianSchemaV62.self, MerianSchemaV63.self, MerianSchemaV64.self, MerianSchemaV65.self, MerianSchemaV66.self]' <<< "$recent_v59_plan" || fail "Missing V59 source-isolated plan."
 grep -Fq '[MerianMigrationPlan.migrateV59toV60, MerianMigrationPlan.migrateV60toV61, MerianMigrationPlan.migrateV61toV62, MerianMigrationPlan.migrateV62toV63, MerianMigrationPlan.migrateV63toV64, MerianMigrationPlan.migrateV64toV65, MerianMigrationPlan.migrateV65toV66]' <<< "$recent_v59_plan" || fail "Missing V59 forward stage."
 contains "$recovery_models_file" "case v59 = 59" || fail "Missing V59 startup source."
-contains "$container_factory_file" 'case .v59:' || fail "Missing V59 startup route."
+contains "$persistent_factory_file" 'case .v59:' || fail "Missing V59 startup route."
 contains "$test_file" 'v59FreezeMatchesOutgoingModelsAndMigrationPreservesOwnership' || fail "Missing V59 disk preservation fixture."
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV59ScanSnapshots.swift" | awk '{print $1}')" = "9e93cd512ae87da5851d144d0267f68ac0d93c730e40a40e33b23aea0b9c10fc" ] || fail "V59 frozen snapshot changed: ScanSnapshots"
 contains "$startup_scope_file" "apps/ios/Merian/Models/Schema/SchemaV59ScanSnapshots.swift" || fail "Startup Safety must include V59 ScanSnapshots."
@@ -1053,8 +1068,8 @@ recent_v60_plan="$(extract_block "enum MerianRecentV60MigrationPlan" "END_OF_FIL
 grep -Fq '[MerianSchemaV60.self, MerianSchemaV61.self, MerianSchemaV62.self, MerianSchemaV63.self, MerianSchemaV64.self, MerianSchemaV65.self, MerianSchemaV66.self]' <<< "$recent_v60_plan" || fail "Missing V60 source-isolated plan."
 grep -Fq '[MerianMigrationPlan.migrateV60toV61, MerianMigrationPlan.migrateV61toV62, MerianMigrationPlan.migrateV62toV63, MerianMigrationPlan.migrateV63toV64, MerianMigrationPlan.migrateV64toV65, MerianMigrationPlan.migrateV65toV66]' <<< "$recent_v60_plan" || fail "Missing V60 forward stage."
 contains "$recovery_models_file" "case v60 = 60" || fail "Missing V60 startup source."
-contains "$container_factory_file" 'case .v60:' || fail "Missing V60 startup route."
-contains "$container_factory_file" 'named: "checksum-recent-v60"' || fail "Missing V60 checksum retry."
+contains "$persistent_factory_file" 'case .v60:' || fail "Missing V60 startup route."
+contains "$persistent_factory_file" 'named: "checksum-recent-v60"' || fail "Missing V60 checksum retry."
 contains "$test_file" 'v60FreezeMatchesOutgoingModelsAndMigrationPreservesOwnership' || fail "Missing V60 disk fixture."
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV60.swift" | awk '{print $1}')" = "6eb416460ed6688e02da45cd60a856b7f1a7565ef81d3e923a3da8d4caa2b641" ] || fail "V60 frozen snapshot changed: SchemaV60.swift"
 contains "$startup_scope_file" "apps/ios/Merian/Models/Schema/SchemaV60.swift" || fail "Startup Safety must include SchemaV60.swift."
@@ -1068,8 +1083,8 @@ recent_v61_plan="$(extract_block "enum MerianRecentV61MigrationPlan" "END_OF_FIL
 grep -Fq '[MerianSchemaV61.self, MerianSchemaV62.self, MerianSchemaV63.self, MerianSchemaV64.self, MerianSchemaV65.self, MerianSchemaV66.self]' <<< "$recent_v61_plan" || fail "Missing V61 source-isolated plan."
 grep -Fq '[MerianMigrationPlan.migrateV61toV62, MerianMigrationPlan.migrateV62toV63, MerianMigrationPlan.migrateV63toV64, MerianMigrationPlan.migrateV64toV65, MerianMigrationPlan.migrateV65toV66]' <<< "$recent_v61_plan" || fail "Missing V61 forward stage."
 contains "$recovery_models_file" "case v61 = 61" || fail "Missing V61 startup source."
-contains "$container_factory_file" 'case .v61:' || fail "Missing V61 startup route."
-contains "$container_factory_file" 'named: "checksum-recent-v61"' || fail "Missing V61 checksum retry."
+contains "$persistent_factory_file" 'case .v61:' || fail "Missing V61 startup route."
+contains "$persistent_factory_file" 'named: "checksum-recent-v61"' || fail "Missing V61 checksum retry."
 contains "$test_file" 'v61FreezeMatchesOutgoingModelsAndMigrationPreservesOwnership' || fail "Missing V61 disk fixture."
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV61.swift" | awk '{print $1}')" = "511806178749e9b3c8593eeef8315fd7368f145e9458a74bb90d8212cbb325e3" ] || fail "V61 frozen snapshot changed: SchemaV61.swift"
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV61InboxSnapshots.swift" | awk '{print $1}')" = "dbf6cfdbff5cc51d3bb3d4b7c340356ab1314401e43d03a1544d7a003fc22908" ] || fail "V61 frozen snapshot changed: SchemaV61InboxSnapshots.swift"
@@ -1085,8 +1100,8 @@ recent_v62_plan="$(extract_block "enum MerianRecentV62MigrationPlan" "END_OF_FIL
 grep -Fq '[MerianSchemaV62.self, MerianSchemaV63.self, MerianSchemaV64.self, MerianSchemaV65.self, MerianSchemaV66.self]' <<< "$recent_v62_plan" || fail "Missing V62 source-isolated plan."
 grep -Fq '[MerianMigrationPlan.migrateV62toV63, MerianMigrationPlan.migrateV63toV64, MerianMigrationPlan.migrateV64toV65, MerianMigrationPlan.migrateV65toV66]' <<< "$recent_v62_plan" || fail "Missing V62 forward stage."
 contains "$recovery_models_file" "case v62 = 62" || fail "Missing V62 startup source."
-contains "$container_factory_file" 'case .v62:' || fail "Missing V62 startup route."
-contains "$container_factory_file" 'named: "checksum-recent-v62"' || fail "Missing V62 checksum retry."
+contains "$persistent_factory_file" 'case .v62:' || fail "Missing V62 startup route."
+contains "$persistent_factory_file" 'named: "checksum-recent-v62"' || fail "Missing V62 checksum retry."
 contains "$test_file" 'v62MigrationPreservesMediaAndAddsLegacyConsumerDefaults' || fail "Missing V62 disk fixture."
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV62.swift" | awk '{print $1}')" = "044d95a7e6fcff0ffd94bea8da32a9a548f3bf5b86186bc70e4cfb09e733f06e" ] || fail "V62 frozen snapshot changed: SchemaV62.swift"
 contains "$startup_scope_file" "apps/ios/Merian/Models/Schema/SchemaV62.swift" || fail "Startup Safety must include SchemaV62.swift."
@@ -1109,8 +1124,8 @@ recent_v64_plan="$(extract_block "enum MerianRecentV64MigrationPlan" "enum Meria
 grep -Fq '[MerianSchemaV64.self, MerianSchemaV65.self, MerianSchemaV66.self]' <<< "$recent_v64_plan" || fail "Missing V64 source-isolated plan."
 grep -Fq '[MerianMigrationPlan.migrateV64toV65, MerianMigrationPlan.migrateV65toV66]' <<< "$recent_v64_plan" || fail "Missing V64 forward stage."
 contains "$recovery_models_file" "case v64 = 64" || fail "Missing V64 startup source."
-contains "$container_factory_file" 'case .v64:' || fail "Missing V64 startup route."
-contains "$container_factory_file" 'named: "checksum-recent-v64"' || fail "Missing V64 checksum retry."
+contains "$persistent_factory_file" 'case .v64:' || fail "Missing V64 startup route."
+contains "$persistent_factory_file" 'named: "checksum-recent-v64"' || fail "Missing V64 checksum retry."
 contains "$test_file" 'v64MigrationPreservesReceiptsAndAddsNoReceivingIntents' || fail "Missing V64 disk fixture."
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV64.swift" | awk '{print $1}')" = "f3088c8f7296a8d42cf91d3bde0afb39afcf2c71d6706f8f64cb24a2e0bc9574" ] || fail "V64 frozen snapshot changed: SchemaV64.swift"
 contains "$startup_scope_file" "apps/ios/Merian/Models/Schema/SchemaV64.swift" || fail "Startup Safety must include SchemaV64.swift."
@@ -1130,8 +1145,8 @@ recent_v65_plan="$(extract_block "enum MerianRecentV65MigrationPlan" "END_OF_FIL
 grep -Fq '[MerianSchemaV65.self, MerianSchemaV66.self]' <<< "$recent_v65_plan" || fail "Missing V65 source-isolated plan."
 grep -Fq '[MerianMigrationPlan.migrateV65toV66]' <<< "$recent_v65_plan" || fail "Missing V65 forward stage."
 contains "$recovery_models_file" "case v65 = 65" || fail "Missing V65 startup source."
-contains "$container_factory_file" 'case .v65:' || fail "Missing V65 startup route."
-contains "$container_factory_file" 'named: "checksum-recent-v65"' || fail "Missing V65 checksum retry."
+contains "$persistent_factory_file" 'case .v65:' || fail "Missing V65 startup route."
+contains "$persistent_factory_file" 'named: "checksum-recent-v65"' || fail "Missing V65 checksum retry."
 contains "$test_file" 'v65MigrationPreservesReceivingBytesAndAddsNoReleaseRequests' || fail "Missing V65 disk fixture."
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV65.swift" | awk '{print $1}')" = "a8dc3019005c918c51234a2699ef95c35f156c0a7886e70fe34d26d9cb8bb949" ] || fail "V65 frozen snapshot changed: SchemaV65.swift"
 contains "$startup_scope_file" "apps/ios/Merian/Models/Schema/SchemaV65.swift" || fail "Startup Safety must include SchemaV65.swift."
@@ -1147,8 +1162,8 @@ recent_v63_plan="$(extract_block "enum MerianRecentV63MigrationPlan" "enum Meria
 grep -Fq '[MerianSchemaV63.self, MerianSchemaV64.self, MerianSchemaV65.self, MerianSchemaV66.self]' <<< "$recent_v63_plan" || fail "Missing V63 source-isolated plan."
 grep -Fq '[MerianMigrationPlan.migrateV63toV64, MerianMigrationPlan.migrateV64toV65, MerianMigrationPlan.migrateV65toV66]' <<< "$recent_v63_plan" || fail "Missing V63 forward stage."
 contains "$recovery_models_file" "case v63 = 63" || fail "Missing V63 startup source."
-contains "$container_factory_file" 'case .v63:' || fail "Missing V63 startup route."
-contains "$container_factory_file" 'named: "checksum-recent-v63"' || fail "Missing V63 checksum retry."
+contains "$persistent_factory_file" 'case .v63:' || fail "Missing V63 startup route."
+contains "$persistent_factory_file" 'named: "checksum-recent-v63"' || fail "Missing V63 checksum retry."
 contains "$test_file" 'v63MigrationPreservesNativeOwnershipAndAddsNoReceipts' || fail "Missing V63 disk fixture."
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV63.swift" | awk '{print $1}')" = "22d7dddc4d216a8e432b47f880c72b4aa2fea26fa06e9078e99d31eaccb1378b" ] || fail "V63 frozen snapshot changed: SchemaV63.swift"
 [ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV63ConsumerSnapshots.swift" | awk '{print $1}')" = "4b290e088b0b787bfab298bb0aed4657f11bd37741a413e290c72beabb73842e" ] || fail "V63 frozen snapshot changed: SchemaV63ConsumerSnapshots.swift"

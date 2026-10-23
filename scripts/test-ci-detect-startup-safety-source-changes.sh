@@ -148,6 +148,10 @@ echo "Startup safety scope detector regression tests passed."
 
 # Private history schema and storage regressions must run startup validation.
 for history_path in \
+  apps/ios/Merian/Core/Data/SharedMediaStorage/SharedMediaStoreReadFence.swift \
+  apps/ios/Merian/Core/Data/SharedMediaStorage/SharedMediaStorageFileOwner.swift \
+  apps/ios/Merian/Core/Data/StoreRecovery/Services/ModelContainerFactory+Persistent.swift \
+  apps/ios/Merian/Core/Data/StoreRecovery/Services/PersistentStoreBootstrapSession.swift \
   apps/ios/Merian/Models/ActiveSchema/LocalAnalysisRecord.swift \
   apps/ios/Merian/Models/Schema/SchemaV55.swift \
   apps/ios/Merian/Models/Schema/SchemaV55ScanSnapshots.swift \

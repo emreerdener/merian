@@ -840,7 +840,7 @@ struct MigrationPlanTests {
         keepSQLiteStoreForProcessLifetime(at: url)
     }
 
-    @Test func fullHistoricalEqualReferenceFailureIsLegacyRescueEligible() throws {
+    @Test func fullHistoricalConstructionPreservesDataOrClassifiesFailure() throws {
         let url = migrationStoreURL(named: "full_historical_rescue_eligibility_test")
         defer { keepSQLiteStoreForProcessLifetime(at: url) }
 
@@ -862,20 +862,30 @@ struct MigrationPlanTests {
 
         let currentSchema = Schema(versionedSchema: CurrentSchema.self)
         let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
+        let current: ModelContainer
         do {
-            _ = try makeModelContainer(
+            current = try makeModelContainer(
                 for: currentSchema,
                 migrationPlan: MerianMigrationPlan.self,
                 configurations: [currentConfig]
             )
+        } catch StoreBootstrapBoundaryFailure.indeterminateConstruction {
+            // An Objective-C constructor exception no longer enters legacy
+            // recovery. The session/bootstrap suite proves no second open or
+            // archive; this full-plan fixture retains the real framework path.
+            #expect(FileManager.default.fileExists(atPath: url.path))
+            return
         } catch {
             assertLegacyMigrationFailureIsRescueEligible(
-                error,
-                storeURL: url,
-                storedSchemaMajorVersion: 26,
-                hint: .fullHistorical
+                error, storeURL: url, storedSchemaMajorVersion: 26, hint: .fullHistorical
             )
+            return
         }
+        // A successful constructor must expose the migrated data. Fetch failures
+        // are test failures, not evidence of a rescue-eligible constructor error.
+        let migrated = try ModelContext(current).fetch(FetchDescriptor<LocalScanRecord>())
+        #expect(migrated.count == 1)
+        #expect(migrated.first?.scientificName == "Rescuus testus")
     }
 
     /// Simulates the last stable pre-cluster source path. Startup opens V43

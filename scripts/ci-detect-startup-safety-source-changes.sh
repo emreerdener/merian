@@ -81,6 +81,8 @@ is_startup_runtime_file() {
     apps/ios/Merian/Core/Data/Images/Services/CloudScanImageRepairActor.swift | \
     apps/ios/Merian/Core/Data/Images/Services/ScanMediaRecoveryRegistrationService.swift | \
     apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift | \
+    apps/ios/Merian/Core/Data/SharedMediaStorage/SharedMediaStoreReadFence.swift | \
+    apps/ios/Merian/Core/Data/SharedMediaStorage/SharedMediaStorageFileOwner.swift | \
     apps/ios/Merian/Core/Data/StoreRecovery/* | \
     apps/ios/Merian/Models/Aliases.swift | \
     apps/ios/Merian/Models/ActiveSchema/* | \

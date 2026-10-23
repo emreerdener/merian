@@ -15,9 +15,10 @@ final class SharedMediaStoreReadFence {
     private var invalidated = false
 
     init(store: URL, access: Access = .standalone, requireExisting: Bool = false,
+         creationAnchor: URL? = nil,
          synchronization: SharedMediaFenceSynchronization = .init()) throws {
         parent = store.deletingLastPathComponent()
-        let directory = try SharedMediaStorageFileOwner.openDirectory(parent)
+        let directory = try Self.openParent(parent, creationAnchor: creationAnchor, synchronization: synchronization)
         var retained = false
         defer { if !retained { Darwin.close(directory) } }
         var parentInfo = stat()
@@ -61,6 +62,55 @@ final class SharedMediaStoreReadFence {
 
     deinit { Darwin.close(descriptor); Darwin.close(parentDescriptor) }
 
+    struct Binding: Equatable {
+        let parent: String
+        let control: String
+    }
+
+    func binding() throws -> Binding {
+        try check()
+        return Binding(parent: parentIdentity, control: identity)
+    }
+
+    /// Bootstrap alone supplies a trusted, already-existing container anchor.
+    /// Other owners never create a missing store parent.
+    private static func openParent(_ parent: URL, creationAnchor: URL?,
+                                   synchronization: SharedMediaFenceSynchronization) throws -> Int32 {
+        guard let anchor = creationAnchor else {
+            return try SharedMediaStorageFileOwner.openDirectory(parent)
+        }
+        guard anchor.isFileURL, parent.isFileURL,
+              !parent.pathComponents.contains(".."), !anchor.pathComponents.contains("..") else {
+            throw SharedMediaStorageFailure.invalid
+        }
+        let rootParts = anchor.standardizedFileURL.pathComponents
+        let parentParts = parent.standardizedFileURL.pathComponents
+        guard parentParts.starts(with: rootParts) else { throw SharedMediaStorageFailure.invalid }
+        var fd = try SharedMediaStorageFileOwner.openDirectory(anchor)
+        do {
+            for component in parentParts.dropFirst(rootParts.count) {
+                var next = openat(fd, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+                if next < 0 && errno == ENOENT {
+                    guard mkdirat(fd, component, 0o700) == 0 || errno == EEXIST else {
+                        throw SharedMediaStorageFailure.unavailable
+                    }
+                    next = openat(fd, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+                }
+                guard next >= 0 else { throw SharedMediaStorageFailure.unavailable }
+                // An existing child may survive an earlier interrupted setup.
+                // Re-establish each parent entry's durability before admission.
+                do { try synchronization.synchronizeParent(fd) }
+                catch { Darwin.close(next); throw error }
+                Darwin.close(fd)
+                fd = next
+            }
+            return fd
+        } catch {
+            Darwin.close(fd)
+            throw error
+        }
+    }
+
     private static func identity(_ info: stat) -> String { "\(info.st_dev):\(info.st_ino)" }
 
     private static func validate(fd: Int32, parent: Int32) throws -> String {
@@ -100,6 +150,13 @@ struct SharedMediaFenceSynchronization: Sendable {
     #else
     init() {}
     #endif
+
+    func synchronizeParent(_ descriptor: Int32) throws {
+        #if DEBUG
+        if failing == .parent { throw PhotoPreparationFailure.unavailable }
+        #endif
+        guard fsync(descriptor) == 0 else { throw PhotoPreparationFailure.unavailable }
+    }
 
     func synchronize(file: Int32, parent: Int32) throws {
         for (stage, fd) in [(SharedMediaFenceSyncStage.file, file), (.parent, parent)] {

@@ -181,6 +181,8 @@ jobs:
             -only-testing:merianTests/StoreRecoveryArtifactArchiverTests \
             -only-testing:merianTests/StoreRecoveryArchitectureTests \
             -only-testing:merianTests/ModelContainerBootstrapperTests \
+            -only-testing:merianTests/PersistentStoreBootstrapSessionTests \
+            -only-testing:merianTests/StartupStoreFenceTests \
             -only-testing:merianTests/AppRootArchitectureTests \
             -only-testing:merianTests/AppRootPresentationTests \
             -only-testing:merianTests/LocalImageLoaderTests \

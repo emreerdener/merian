@@ -161,9 +161,17 @@ elif mode == "missing-v51-plan":
     source = source[:source.index("enum MerianRecentV51MigrationPlan")]
 (Path(fixture) / path).write_text(source)
 
+# Reset both owners before each mutation; otherwise a moved dispatch mutation
+# leaks into subsequent independent guardrail cases.
+for factory_name in ["ModelContainerFactory.swift", "ModelContainerFactory+Persistent.swift"]:
+    reset_path = Path("apps/ios/Merian/Core/Data/StoreRecovery/Services") / factory_name
+    (Path(fixture) / reset_path).write_bytes((Path(repo) / reset_path).read_bytes())
+
 factory_path = Path(
     "apps/ios/Merian/Core/Data/StoreRecovery/Services/ModelContainerFactory.swift"
 )
+if mode == "missing-v51-dispatch":
+    factory_path = factory_path.with_name("ModelContainerFactory+Persistent.swift")
 factory_source = (Path(repo) / factory_path).read_text()
 if mode == "safe-mode-plan":
     start = factory_source.index(
