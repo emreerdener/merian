@@ -1,3 +1,53 @@
+## October 23 — dedicated native release-stage writer qualified locally
+
+The inactive stage writer changes only the receiving sidecar pair and one
+inventory revision, under existing account/work authority, canonical coordinator
+locks and repository physical fences. It audits retained identities, prospective
+two-save funding and aggregate revision capacity, seals the exact dirty write
+set, and compares a fresh clean predecessor immediately before synchronous save.
+
+Fresh admission is now separate from descriptive recovery. Only this owner's
+actual new P2 receive save plus exact fresh readback records an entitlement to
+the full received row and profile. An opaque single-use capability binds the
+request and owner lifetime; its right is consumed before attempting stage save.
+Receipt replay, reconstruction and cold discovery cannot mint or replenish it.
+Proven pre-save rejection can retry the same unused capability. Raw requests can
+only reconcile an exact saved sidecar or retained Progress association. Cold
+fresh-P2 staging remains deferred until finite persistent writer closure is
+qualified; missing evidence never grants fresh admission. Typed cold discovery
+returns staged/Progress evidence under its retained canonical IDs, without
+reconstructing a consumed historical stage header.
+
+The owner retains an uncertain request and a repository-fenced read-only
+recovery closure. Account drain invalidates unused admission, waits for active
+work to terminate, reacquires the original coordinator locks, and clears
+uncertainty only for matching saved evidence. The closure captures no dispatch
+grant or owner and has no mutation path. Absent, partial or mismatched evidence
+keeps drain closed. Original media, submitted descriptions, AI/funding and other
+versions are unchanged.
+
+The managed build and focused run passed 28 methods / 50 invocations across
+stage ownership (10/12), capability boundaries (7/7) and affected existing
+receiving (11/31), with zero failures or skips. Stage checks cover exact save
+and replay, cold absence and receipt replay, save-boundary faults, missing or
+mismatched evidence, exact write sets, retained identity collisions, cold
+Progress discovery, cancellation and sealed-account reconciliation. XCResult
+`61a7a2596e1f4d50b247335701ec3b09.xcresult` and candidate03/evidence are
+retained under `.artifacts/native-app-capture-handoff-20261020/stage-writer-*`
+and `.artifacts/local-ios`. All 2,950 source/project and 708 product pins stayed
+unchanged. The earlier compiler failure remains retained; its two mechanical
+corrections passed the later build. Independent/IC-1 concurrence preceded both
+compile and focused execution.
+
+Synthetic Progress is saved-state evidence, not qualification of the separate
+start writer. Abrupt process-exit, complete affected-target, isolated-source and
+integrated acceptance remain open. Private owner/repository boundaries and the
+610/622-line ceilings remain intact. The next reviewed increment is the separate
+start transaction with an atomic owner-local single-use entitlement, exact
+start-outcome recovery and pending-start dispatch/drain guards. It does not
+authorize cleanup, provider work or cold fresh admission. Activation disabled;
+PR116 frozen; deployment hold active; AWS unapproved; limits unchanged.
+
 ## October 23 — prospective stage/start funding qualified locally
 
 The inactive received-release reader now measures the full two-save sequence:

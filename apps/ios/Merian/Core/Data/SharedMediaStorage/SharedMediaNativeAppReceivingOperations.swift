@@ -14,18 +14,21 @@ final class SharedMediaNativeAppReceivingOperations {
     private let availableBytes: () throws -> Int64
     private let boundary: (SharedMediaNativeMetadataBoundary) throws -> Void
     private let verify: (SharedMediaPhotoRetirementInspection) throws -> Void
+    private let received: (SharedMediaNativeReceivingIntentGraph.Row, SharedMediaNativeAppProfile) throws -> Void
     private var consumed = false
     private init(container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority,
                  expected: SharedMediaNativeAppEligibility.Header, facts: SharedMediaNativeAppMetadataFacts,
                  io: SharedMediaNativeOriginalIO, binding: SharedMediaNativeBinding, availableBytes: @escaping () throws -> Int64,
                  boundary: @escaping (SharedMediaNativeMetadataBoundary) throws -> Void,
+                 received: @escaping (SharedMediaNativeReceivingIntentGraph.Row, SharedMediaNativeAppProfile) throws -> Void,
                  verify: @escaping (SharedMediaPhotoRetirementInspection) throws -> Void) {
         self.container = container; self.authority = authority; self.expected = expected; self.facts = facts
-        self.io = io; self.binding = binding; self.availableBytes = availableBytes; self.boundary = boundary; self.verify = verify
+        self.io = io; self.binding = binding; self.availableBytes = availableBytes; self.boundary = boundary; self.verify = verify; self.received = received
     }
     static func audited(container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority,
                         io: SharedMediaNativeOriginalIO, binding: SharedMediaNativeBinding, availableBytes: @escaping () throws -> Int64,
                         boundary: @escaping (SharedMediaNativeMetadataBoundary) throws -> Void,
+                        received: @escaping (SharedMediaNativeReceivingIntentGraph.Row, SharedMediaNativeAppProfile) throws -> Void,
                         verify: @escaping (SharedMediaPhotoRetirementInspection) throws -> Void) async throws -> SharedMediaNativeAppReceivingOperations {
         let expected = try authority.header(container)
         _ = try await SharedMediaNativeScopedAudit(app: container, profile: authority.profile, expected: expected.inventory,
@@ -35,7 +38,7 @@ final class SharedMediaNativeAppReceivingOperations {
         let context = ModelContext(container); context.autosaveEnabled = false
         return .init(container: container, authority: authority, expected: expected,
             facts: try SharedMediaNativeAppMetadataFacts.capture(context, profile: authority.profile), io: io,
-            binding: binding, availableBytes: availableBytes, boundary: boundary, verify: verify)
+            binding: binding, availableBytes: availableBytes, boundary: boundary, received: received, verify: verify)
     }
     func request(packageID: UUID, pairIDs: [UUID], operationID: UUID, queueID: UUID, observationID: UUID,
                  bindingID: UUID, generation: UUID, eventID: UUID, timestamp: Date) async throws -> SharedMediaNativeAppReceivingRequest {
@@ -470,10 +473,15 @@ extension SharedMediaNativeAppReceivingOperations {
               try originalFacts(frozen, context: current) == originals else { throw SharedMediaStorageFailure.stale }
         try after.totals.checkAvailable(availableBytes(), additionalReservation: added)
         for observation in proofs { try verify(observation) }
-        return try afterIntentSave(c, proof: proof) {
+        let saved = try afterIntentSave(c, proof: proof) {
             guard let saved = try self.exactReceived(prepared) else { throw SharedMediaStorageFailure.conflict }
             return saved
         }
+        guard let acknowledged = try SharedMediaNativeReceivingPhaseGraph.row(prepared.package.id, in: fresh()) else {
+            throw SharedMediaStorageFailure.closed
+        }
+        try received(.init(acknowledged), authority.profile)
+        return saved
     }
 
     func abandonPrepared(_ prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> SharedMediaNativeReceivingIntent.Abandoned {

@@ -72,7 +72,7 @@ struct SharedMediaNativeOwnerBoundaryTests {
         #expect(wrapper.contains("fileprivate init() {}"))
         #expect(wrapper.contains("private func withReceivingLocks"))
         #expect(owner.contains("func appReceivingWorkflow<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant,"))
-        #expect(repository.contains("func appReceiving(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant)"))
+        #expect(repository.contains("func appReceiving(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant, releaseStage: SharedMediaNativeReleaseStageSettlement)"))
         let start = try #require(repository.range(of: "    func appReceiving("))
         let end = try #require(repository.range(of: "    func appAcquisition", range: start.upperBound..<repository.endIndex))
         let receiving = String(repository[start.lowerBound..<end.lowerBound])

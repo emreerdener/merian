@@ -1,27 +1,18 @@
 import Foundation
 import SwiftData
 
-/// Registered before admission, so Auth can reach an in-flight open. This
-/// qualification composition owns acquisition and settlement; live wiring stays disabled.
+/// Registered acquisition/release settlement owner; production wiring stays disabled.
 @MainActor
 final class SharedMediaNativeOriginalOwner {
-    private enum OpenKind { case qualification, scopedInspection, appInitialization, appDispatch }
-    private let openKind: OpenKind
+    private let openKind: SharedMediaNativeOriginalOpenKind
     private var scopedIdentity: SharedMediaNativeScopeIdentity?
     private var appProfile: SharedMediaNativeAppProfile?, appParent: URL?
-    private enum Phase { case unopened, opening, ready, failed, suspended }
     private let account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain
     private var registration: SharedMediaNativeOriginalDrain.Registration?
-    private var phase = Phase.unopened
+    private var phase = SharedMediaNativeOriginalPhase.unopened
     private let writerEpoch = UUID()
-    private struct PendingSettlement {
-        let id = UUID()
-        let request: SharedMediaAcquisitionIntent
-        let loaderStarted: Bool
-        let writerReturned: Bool
-        var appTicket: SharedMediaNativeAppAcquisitionSettlement? = nil
-    }
-    private var pendingSettlement: PendingSettlement?
+    private var pendingSettlement: SharedMediaNativeOriginalPendingSettlement?
+    private let releaseStageSettlement = SharedMediaNativeReleaseStageSettlement()
     private var writerActive = false
     private var activeDispatchID: UUID?
     #if DEBUG
@@ -31,7 +22,7 @@ final class SharedMediaNativeOriginalOwner {
     private var cancelActive: (() -> Void)?, awaitActive: (() async -> Void)?
 
     private init(account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain,
-                 openKind: OpenKind = .qualification) throws {
+                 openKind: SharedMediaNativeOriginalOpenKind = .qualification) throws {
         self.account = account; self.drain = drain; self.openKind = openKind
         registration = try drain.register { [weak self] in
             guard let self else { return true }; return await self.invalidateAndAwaitForAccountTransition()
@@ -207,13 +198,21 @@ final class SharedMediaNativeOriginalOwner {
         try lock.validate()
         return try await withAppDispatch { storage, grant in
             try lock.validate()
-            let operation = try await storage.appReceiving(grant: grant, lock: lock)
+            let operation = try await storage.appReceiving(grant: grant, lock: lock, releaseStage: self.releaseStageSettlement)
             try lock.validate(); try grant.validate(); return try await body(operation)
         }
     }
-    private func withAppDispatch<T: Sendable>(settled: Bool = true,
+    func appReleaseStageWorkflow<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant,
+        _ body: @escaping @MainActor (SharedMediaNativeAppReleaseStageOperations) async throws -> T) async throws -> T {
+        try lock.validate()
+        guard pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
+        return try await withAppDispatch(settled: false, releaseStage: true) { storage, grant in
+            try await body(storage.appReleaseStage(grant: grant, lock: lock, settlement: self.releaseStageSettlement))
+        }
+    }
+    private func withAppDispatch<T: Sendable>(settled: Bool = true, releaseStage: Bool = false,
         _ body: @escaping @MainActor (SharedMediaNativeStorageRepository, SharedMediaNativeAppDispatchGrant) async throws -> T) async throws -> T {
-        guard openKind == .appDispatch, phase == .ready, !settled || pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
+        guard openKind == .appDispatch, phase == .ready, !settled || pendingSettlement == nil, releaseStage || releaseStageSettlement.request == nil else { throw SharedMediaStorageFailure.closed }
         return try await performOperation { [self] lease, identity in
             guard let storage, let appProfile, let appParent else { throw SharedMediaStorageFailure.closed }
             let grant = SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
@@ -457,17 +456,16 @@ final class SharedMediaNativeOriginalOwner {
     }
 
     func invalidateAndAwaitForAccountTransition() async -> Bool {
-        phase = .suspended
+        phase = .suspended; releaseStageSettlement.closeAdmission()
         if let registration { drain.seal(registration) }
         cancelActive?()
         await awaitActive?()
-        // Durable held settlement retains liability but permits process-fence
-        // release after actual termination. Unknown settlement remains closed.
         do {
             if pendingSettlement?.appTicket != nil { _ = try await reconcileAppSettlement() }
             else { _ = try reconcileSettlement() }
+            try await releaseStageSettlement.reconcileAfterTermination()
         } catch { return false }
-        guard pendingSettlement == nil else { return false }
+        guard pendingSettlement == nil, releaseStageSettlement.request == nil else { return false }
         storage = nil; scopedIdentity = nil; appProfile = nil; appParent = nil
         return true
     }

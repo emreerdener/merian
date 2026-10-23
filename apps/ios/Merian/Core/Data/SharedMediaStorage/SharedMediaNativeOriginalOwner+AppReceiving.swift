@@ -40,6 +40,36 @@ extension SharedMediaNativeOriginalOwner {
             try await self.appReceivingWorkflow(lock: lock) { try $0.abandonPrepared(prepared) }
         }
     }
+    func appReleaseStageRequest(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                releaseID: UUID) async throws -> SharedMediaNativeReleaseStageAdmission {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appReleaseStageWorkflow(lock: lock) { operation in
+                let request = try operation.request(packageID: prepared.package.id, releaseID: releaseID)
+                guard request.request.preparedSHA256 == SharedMediaAcquisitionEncoding.digest(try prepared.encoded()) else {
+                    throw SharedMediaStorageFailure.stale
+                }
+                return request
+            }
+        }
+    }
+    func stageAppRelease(_ admission: SharedMediaNativeReleaseStageAdmission) async throws -> SharedMediaNativeAppReleaseStageOperations.Saved {
+        let request = admission.request
+        return try await withReceivingLocks(queueID: request.queueID.uuidString, observationID: request.observationID.uuidString) { lock in
+            try await self.appReleaseStageWorkflow(lock: lock) { try await $0.apply(admission) }
+        }
+    }
+    func recoverAppRelease(_ request: SharedMediaNativeReleaseStartRequest) async throws -> SharedMediaNativeAppReleaseStageOperations.Saved {
+        try await withReceivingLocks(queueID: request.queueID.uuidString, observationID: request.observationID.uuidString) { lock in
+            try await self.appReleaseStageWorkflow(lock: lock) { try $0.reconcile(request) }
+        }
+    }
+    /// Uses retained IDs only, and returns typed saved evidence without inventing
+    /// the consumed stage header. The supplied Prepared is descriptive, not authority.
+    func discoverAppRelease(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeAppReleaseStageOperations.Saved? {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appReleaseStageWorkflow(lock: lock) { try $0.discover(prepared: prepared) }
+        }
+    }
     private func withReceivingLocks<T: Sendable>(queueID: String, observationID: String,
                                                  body: @MainActor (SharedMediaNativeReceivingLockGrant) async throws -> T) async throws -> T {
         let coordinator = ScanInferencePersistenceCoordinator.shared
