@@ -96,11 +96,75 @@ enum SharedMediaNativeReleaseSurvivorProjection {
         }
     }
 
+    /// One synchronous audit context owns this memo. Only full immutable sizing
+    /// values are retained; callers must discard it before any context/page await.
+    /// The byte budget covers encoded payload/scalars, not allocator overhead;
+    /// entry and array counts bound that overhead separately. Oversize keys simply
+    /// use the unchanged uncached computation, never fail media admission.
+    final class Memo {
+        fileprivate struct Key: Equatable {
+            let encoded: [Data]
+            let counts: [Int64]
+            let originals: [SharedMediaNativeReleaseMetadataSnapshot.Original]
+            let origins: [SharedMediaNativeReleaseMetadataSnapshot.TargetOrigin]
+            init?(_ s: Components, limit: Int64) throws {
+                // Optimization-only limits. Extra physical origins remain valid
+                // inputs; they just take the uncached path. At most two targets
+                // are supported by Progress, but bound all retained arrays here.
+                guard s.ownedOriginals.count <= 2, s.targetOrigins.count <= 2,
+                      s.pairs.count <= 2 else { return nil }
+                var values: [Data] = []
+                var used = Int64(5 * 8 + s.ownedOriginals.count * 64 + s.targetOrigins.count * 256)
+                guard used < limit else { return nil }
+                func append<T: Encodable>(_ value: T) throws -> Bool {
+                    guard used < limit else { return false }
+                    let data = try SharedMediaAcquisitionEncoding.encode(value,
+                        maximum: Int(min(PhotoPreparationPolicy.metadata, limit - used)))
+                    used = try PhotoPreparationPolicy.add([used, Int64(data.count)])
+                    values.append(data); return true
+                }
+                guard try append(s.progress), try append(s.prepared), try append(s.received),
+                      try append(s.package), try append(s.member), try append(s.pairs) else { return nil }
+                encoded = values
+                counts = [s.envelopeBytes, s.membershipBytes, s.consumerBytes, s.executionBytes, s.slotBytes]
+                originals = s.ownedOriginals; origins = s.targetOrigins
+            }
+            var bytes: Int64 {
+                get throws {
+                    try PhotoPreparationPolicy.add(encoded.map { Int64($0.count) }
+                        + [Int64(counts.count) * 8, Int64(originals.count) * 64, Int64(origins.count) * 256])
+                }
+            }
+        }
+        private struct Entry { let key: Key; let projection: Projection; let bytes: Int64 }
+        private var entries: [Entry] = []
+        fileprivate let capacity: Int64
+        init(byteLimit: Int64 = Memo.byteLimit) { capacity = max(0, min(byteLimit, Self.byteLimit)) }
+        private(set) var hits = 0
+        private(set) var retainedBytes: Int64 = 0
+        var count: Int { entries.count }
+        static let byteLimit = PhotoPreparationPolicy.metadata * Int64(PhotoPreparationPolicy.maximumPackages)
+        fileprivate func lookup(_ key: Key) -> Projection? {
+            guard let found = entries.first(where: { $0.key == key }) else { return nil }
+            hits += 1; return found.projection
+        }
+        fileprivate func insert(_ projection: Projection, key: Key) {
+            guard let bytes = try? PhotoPreparationPolicy.add([key.bytes, 128]
+                + projection.charges.map { 64 + Int64($0.stages.count) * 8 }),
+                bytes <= capacity else { return }
+            while entries.count >= PhotoPreparationPolicy.maximumPackages || retainedBytes > capacity - bytes {
+                retainedBytes -= entries.removeFirst().bytes
+            }
+            entries.append(.init(key: key, projection: projection, bytes: bytes)); retainedBytes += bytes
+        }
+    }
+
     static func maximum(_ snapshot: Snapshot) throws -> Projection {
         try maximum(components(snapshot))
     }
 
-    static func maximum(_ snapshot: Components) throws -> Projection {
+    static func maximum(_ snapshot: Components, memo: Memo? = nil) throws -> Projection {
+        try Task.checkCancellation()
         let progress = snapshot.progress, plan = progress.plan
         try progress.validate()
         let slot = try Values.slotBound(plan: plan, prepared: snapshot.prepared,
@@ -116,6 +180,11 @@ enum SharedMediaNativeReleaseSurvivorProjection {
             throw SharedMediaStorageFailure.conflict
         }
         let bounds = try pairBounds(snapshot)
+        // Validation above runs even on a hit. No cached graph, funding or
+        // authority bypass; all caller postchecks also run after this returns.
+        let key = memo.flatMap { try? Memo.Key(snapshot, limit: $0.capacity) }
+        try Task.checkCancellation()
+        if let key, let hit = memo?.lookup(key) { return hit }
         var combinations: [[Int]] = [[]]
         for target in progress.targets {
             combinations = combinations.flatMap { prefix in options(target).map { prefix + [$0] } }
@@ -155,11 +224,14 @@ enum SharedMediaNativeReleaseSurvivorProjection {
             }
         }
         guard let maximumTerminal, charges.contains(where: { !$0.terminal }) else { throw SharedMediaStorageFailure.conflict }
-        return .init(currentBytes: current, charges: charges, maximumBytes: maximum,
+        let projection = Projection(currentBytes: current, charges: charges, maximumBytes: maximum,
             maximumPackagePayloadBytes: maximumPackage, maximumLivePackageMetadataBytes: maximumLive,
             maximumTerminalSlotBytes: maximumTerminal,
             currentIdentityExcludedBytes: currentIdentityExcluded,
             maximumIdentityExcludedBytes: maximumIdentityExcluded)
+        try Task.checkCancellation()
+        if let key { memo?.insert(projection, key: key) }
+        return projection
     }
 
     private static func validateOrigins(_ s: Components) throws {

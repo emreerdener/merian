@@ -15,6 +15,7 @@ struct SharedMediaNativeScopedSnapshot: Equatable, Sendable {
 /// Contexts/models never survive a page await. Retained-library size is uncapped.
 @MainActor
 struct SharedMediaNativeScopedAudit {
+    private typealias ProjectionMemo = SharedMediaNativeReleaseSurvivorProjection.Memo
     let container: ModelContainer
     private let appHeader: SharedMediaNativeAppEligibility.Header?
     private let format: SharedMediaNativeScopedFormat
@@ -49,11 +50,11 @@ struct SharedMediaNativeScopedAudit {
         let id = scope.inventoryID
         var futureReferences = Set<UUID>()
         let receipts = try await page(FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(
-            predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory in
+            predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory, projectionMemo in
             guard row.ownerID == scope.ownerID, row.inventoryGeneration == scope.generation else { throw SharedMediaStorageFailure.conflict }
             switch try SharedMediaNativeAcquisitionGraph.scopedReceipt(row, inventory: inventory, context: context, format: format, checkpoint: check) {
             case .reserved(let request), .held(let request):
-                _ = try package(request.packageID, context: context, inventory: inventory)
+                _ = try package(request.packageID, context: context, inventory: inventory, projectionMemo: projectionMemo)
                 guard futureReferences.insert(request.referenceID).inserted,
                       futureReferences.count <= PhotoPreparationPolicy.maximumPackages * 2 else { throw SharedMediaStorageFailure.conflict }
             case .completed: break // Current logical owners are reached through the physical allocation below.
@@ -63,11 +64,11 @@ struct SharedMediaNativeScopedAudit {
         if format == .appV2 {
             // Intentionally no inventory predicate: every raw intent, including
             // foreign/orphan rows, must either validate or close this scope.
-            _ = try await page(FetchDescriptor<SharedMediaReceivingIntentRecord>(sortBy: [SortDescriptor(\.cursorKey)])) { row, context, inventory in
+            _ = try await page(FetchDescriptor<SharedMediaReceivingIntentRecord>(sortBy: [SortDescriptor(\.cursorKey)])) { row, context, inventory, projectionMemo in
                 // Terminal enumeration/runway is not yet qualified. Never let
                 // a Released slot evade the root index by losing membership.
                 guard row.phaseRaw != "released" else { throw SharedMediaStorageFailure.closed }
-                let roots = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory, checkpoint: check)
+                let roots = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory, projectionMemo: projectionMemo, checkpoint: check)
                 guard let witness = roots[row.id] else { throw SharedMediaStorageFailure.conflict }
                 let saved: SharedMediaNativeReceivingIntentGraph.Row
                 switch witness {
@@ -79,15 +80,15 @@ struct SharedMediaNativeScopedAudit {
             }
         }
         let consumers = try await page(FetchDescriptor<SharedMediaConsumerRecord>(
-            predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory in
+            predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory, projectionMemo in
             guard row.ownerID == scope.ownerID, row.inventoryGeneration == scope.generation else { throw SharedMediaStorageFailure.conflict }
-            _ = try package(row.packageID, context: context, inventory: inventory)
-            if let release = try release(row.packageID, context: context, inventory: inventory) {
+            _ = try package(row.packageID, context: context, inventory: inventory, projectionMemo: projectionMemo)
+            if let release = try release(row.packageID, context: context, inventory: inventory, projectionMemo: projectionMemo) {
                 let origin = try SharedMediaNativeReleaseOrigin.read(release.release.progress.plan, in: context)
                 guard origin.rows.consumer.persistentModelID == row.persistentModelID else {
                     throw SharedMediaStorageFailure.conflict
                 }
-            } else if row.kindRaw == "queue", let staged = try staged(row.packageID, context: context, inventory: inventory) {
+            } else if row.kindRaw == "queue", let staged = try staged(row.packageID, context: context, inventory: inventory, projectionMemo: projectionMemo) {
                 _ = try SharedMediaNativeConsumerGraph.validateStagedReceived(row, origin: staged.origin,
                     context: context, checkpoint: check)
             } else {
@@ -95,22 +96,22 @@ struct SharedMediaNativeScopedAudit {
             }
         }
         _ = try await page(FetchDescriptor<SharedMediaDerivativePairRecord>(
-            predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory in
-            try pair(row, context: context, inventory: inventory)
+            predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory, projectionMemo in
+            try pair(row, context: context, inventory: inventory, projectionMemo: projectionMemo)
         }
         let allocations = try await page(FetchDescriptor<SharedMediaAllocationRecord>(
-            predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory in
+            predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory, projectionMemo in
             guard row.accountID == scope.ownerID, row.namespaceRaw == SharedMediaPhotoLedger.namespace else { throw SharedMediaStorageFailure.conflict }
-            try asset(row.id, context: context, inventory: inventory)
+            try asset(row.id, context: context, inventory: inventory, projectionMemo: projectionMemo)
         }
         _ = try await page(FetchDescriptor<SharedMediaAssetReferenceCountRecord>(
-            predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory in
+            predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory, projectionMemo in
             guard row.ownerID == scope.ownerID, row.inventoryGeneration == scope.generation else { throw SharedMediaStorageFailure.conflict }
-            try asset(row.id, context: context, inventory: inventory)
+            try asset(row.id, context: context, inventory: inventory, projectionMemo: projectionMemo)
         }
         // Accountless inbox admission is not part of this exact native profile.
         _ = try await page(FetchDescriptor<SharedMediaInboxSourceRecord>(
-            predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { _, _, _ in
+            predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { _, _, _, _ in
             throw SharedMediaStorageFailure.closed
         }
         try check(); _ = try header(freshContext())
@@ -120,15 +121,16 @@ struct SharedMediaNativeScopedAudit {
 
     private func pending() throws -> Int {
         try check()
-        let context = freshContext(), inventory = try header(context)
+        let projectionMemo = ProjectionMemo()
+        let context = freshContext(), inventory = try header(context, projectionMemo: projectionMemo)
         let graph = try SharedMediaPendingGraph.deriveScoped(in: context, inventory: inventory, ownerID: scope.ownerID, format: format)
         guard graph.sources.isEmpty, graph.handoffs.isEmpty else { throw SharedMediaStorageFailure.closed }
         var active = 0, releasePairs = Set<UUID>()
         for row in graph.packages {
             try Task.checkCancellation(); try check()
-            _ = try package(row.id, context: context, inventory: inventory)
+            _ = try package(row.id, context: context, inventory: inventory, projectionMemo: projectionMemo)
             let envelope = try SharedMediaNativeDraftEnvelope.decode(row.supportingContextData)
-            if let release = try release(row.id, context: context, inventory: inventory) {
+            if let release = try release(row.id, context: context, inventory: inventory, projectionMemo: projectionMemo) {
                 guard envelope.attempt == nil else { throw SharedMediaStorageFailure.conflict }
                 for pair in release.pairs {
                     guard releasePairs.insert(try pair.intent().pairID).inserted else { throw SharedMediaStorageFailure.conflict }
@@ -138,21 +140,21 @@ struct SharedMediaNativeScopedAudit {
         }
         active += graph.pairs.filter { $0.phaseRaw != "ready" && !releasePairs.contains($0.id) }.count
         guard active <= 1 else { throw SharedMediaStorageFailure.conflict }
-        _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: context, inventory: inventory, ownerID: scope.ownerID, format: format, checkpoint: check)
-        try check(); _ = try header(context)
+        _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: context, inventory: inventory, ownerID: scope.ownerID, format: format, projectionMemo: projectionMemo, checkpoint: check)
+        try check(); _ = try header(context, projectionMemo: projectionMemo)
         return graph.packages.count
     }
 
-    private func package(_ id: UUID, context: ModelContext, inventory: SharedMediaInventoryRecord) throws -> PhotoPreparationRecord {
+    private func package(_ id: UUID, context: ModelContext, inventory: SharedMediaInventoryRecord, projectionMemo: ProjectionMemo) throws -> PhotoPreparationRecord {
         let row = try one(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == id }))
         guard row.ownerID == scope.ownerID else { throw SharedMediaStorageFailure.conflict }
-        if let release = try release(id, context: context, inventory: inventory) {
+        if let release = try release(id, context: context, inventory: inventory, projectionMemo: projectionMemo) {
             guard SharedMediaNativeAppMetadataFacts.Package(row) == release.release.state.package else {
                 throw SharedMediaStorageFailure.stale
             }
             return row
         }
-        if row.accountingTierRaw == "pending", let staged = try staged(id, context: context, inventory: inventory) {
+        if row.accountingTierRaw == "pending", let staged = try staged(id, context: context, inventory: inventory, projectionMemo: projectionMemo) {
             guard SharedMediaNativeAppMetadataFacts.Package(row) == staged.components.package else {
                 throw SharedMediaStorageFailure.stale
             }
@@ -182,11 +184,11 @@ struct SharedMediaNativeScopedAudit {
         return row
     }
 
-    private func pair(_ row: SharedMediaDerivativePairRecord, context: ModelContext, inventory: SharedMediaInventoryRecord) throws {
+    private func pair(_ row: SharedMediaDerivativePairRecord, context: ModelContext, inventory: SharedMediaInventoryRecord, projectionMemo: ProjectionMemo) throws {
         guard row.inventoryID == scope.inventoryID, row.inventoryGeneration == scope.generation,
               row.ownerID == scope.ownerID else { throw SharedMediaStorageFailure.conflict }
-        let owner = try package(row.packageID, context: context, inventory: inventory)
-        if let release = try release(row.packageID, context: context, inventory: inventory) {
+        let owner = try package(row.packageID, context: context, inventory: inventory, projectionMemo: projectionMemo)
+        if let release = try release(row.packageID, context: context, inventory: inventory, projectionMemo: projectionMemo) {
             let ids = try release.pairs.map { try $0.intent().pairID }
             guard ids.contains(row.id) else { throw SharedMediaStorageFailure.conflict }
             // The clean live audit fetched and validated this exact row in this
@@ -200,11 +202,11 @@ struct SharedMediaNativeScopedAudit {
               try SharedMediaNativePairPlanGraph.select(envelope, pairID: row.id) != nil else { throw SharedMediaStorageFailure.conflict }
     }
 
-    private func asset(_ id: UUID, context: ModelContext, inventory: SharedMediaInventoryRecord) throws {
+    private func asset(_ id: UUID, context: ModelContext, inventory: SharedMediaInventoryRecord, projectionMemo: ProjectionMemo) throws {
         if let work = try SharedMediaNativePairFileGraph.nativeWork(assetID: id, context: context) {
             let pairID = work.pairID
             let row = try one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == pairID }))
-            try pair(row, context: context, inventory: inventory)
+            try pair(row, context: context, inventory: inventory, projectionMemo: projectionMemo)
             return
         }
         let receipt = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == id }))
@@ -221,7 +223,7 @@ struct SharedMediaNativeScopedAudit {
                 let refs = try context.fetch(query)
                 for ref in refs {
                     try Task.checkCancellation(); try check()
-                    _ = try package(ref.packageID, context: context, inventory: inventory)
+                    _ = try package(ref.packageID, context: context, inventory: inventory, projectionMemo: projectionMemo)
                 }
                 if refs.count < SharedMediaStoragePolicy.pageSize { break }
                 let (next, overflow) = offset.addingReportingOverflow(refs.count)
@@ -229,7 +231,7 @@ struct SharedMediaNativeScopedAudit {
             }
         } else {
             switch value {
-            case .reserved(let request), .held(let request): _ = try package(request.packageID, context: context, inventory: inventory)
+            case .reserved(let request), .held(let request): _ = try package(request.packageID, context: context, inventory: inventory, projectionMemo: projectionMemo)
             default: throw SharedMediaStorageFailure.conflict
             }
         }
@@ -238,24 +240,24 @@ struct SharedMediaNativeScopedAudit {
     /// Fresh-context classification, never a cached package-ID exemption.
     /// The complete live audit validates exact persisted rows before routing.
     private func release(_ packageID: UUID, context: ModelContext,
-                         inventory: SharedMediaInventoryRecord) throws -> SharedMediaNativeReleaseMetadataSnapshot.Snapshot? {
+                         inventory: SharedMediaInventoryRecord, projectionMemo: ProjectionMemo) throws -> SharedMediaNativeReleaseMetadataSnapshot.Snapshot? {
         guard format == .appV2,
               let row = try SharedMediaNativeReceivingPhaseGraph.row(packageID, in: context),
               row.phaseRaw == "releasing" else { return nil }
         guard case .releasing(let snapshot) = try SharedMediaNativeReceivingCleanGraph.validate(
-            .init(row), context: context, inventory: inventory, checkpoint: check) else {
+            .init(row), context: context, inventory: inventory, projectionMemo: projectionMemo, checkpoint: check) else {
             throw SharedMediaStorageFailure.conflict
         }
         return snapshot
     }
 
     private func staged(_ packageID: UUID, context: ModelContext,
-                        inventory: SharedMediaInventoryRecord) throws -> SharedMediaNativeReceivedReleaseSnapshot.StagedSnapshot? {
+                        inventory: SharedMediaInventoryRecord, projectionMemo: ProjectionMemo) throws -> SharedMediaNativeReceivedReleaseSnapshot.StagedSnapshot? {
         guard format == .appV2,
               let row = try SharedMediaNativeReceivingPhaseGraph.row(packageID, in: context),
               row.releaseStartData != nil || row.releaseStartSHA256 != nil else { return nil }
         guard case .staged(let snapshot) = try SharedMediaNativeReceivingCleanGraph.validate(
-            .init(row), context: context, inventory: inventory, checkpoint: check) else {
+            .init(row), context: context, inventory: inventory, projectionMemo: projectionMemo, checkpoint: check) else {
             throw SharedMediaStorageFailure.conflict
         }
         return snapshot
@@ -264,13 +266,13 @@ struct SharedMediaNativeScopedAudit {
     private func freshContext() -> ModelContext {
         let context = ModelContext(container); context.autosaveEnabled = false; return context
     }
-    private func header(_ context: ModelContext) throws -> SharedMediaInventoryRecord {
+    private func header(_ context: ModelContext, projectionMemo: ProjectionMemo? = nil) throws -> SharedMediaInventoryRecord {
         guard !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.conflict }
         let row = try format.header(context: context, scope: scope)
         // Bounded pending slots at every boundary; all raw slots receive a
         // separate paged reverse audit in run(). No retained-library count cap.
         if format == .appV2 {
-            _ = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: row, checkpoint: check)
+            _ = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: row, projectionMemo: projectionMemo, checkpoint: check)
         } else {
             guard try context.fetchCount(FetchDescriptor<SharedMediaReceivingIntentRecord>()) == 0 else {
                 throw SharedMediaStorageFailure.closed
@@ -284,7 +286,7 @@ struct SharedMediaNativeScopedAudit {
         return row
     }
     private func page<T: PersistentModel>(_ descriptor: FetchDescriptor<T>,
-        body: (T, ModelContext, SharedMediaInventoryRecord) throws -> Void) async throws -> Int64 {
+        body: (T, ModelContext, SharedMediaInventoryRecord, ProjectionMemo) throws -> Void) async throws -> Int64 {
         var offset = 0, total: Int64 = 0
         while true {
             try Task.checkCancellation(); try check()
@@ -299,12 +301,13 @@ struct SharedMediaNativeScopedAudit {
         }
     }
     private func readPage<T: PersistentModel>(_ descriptor: FetchDescriptor<T>, offset: Int,
-        body: (T, ModelContext, SharedMediaInventoryRecord) throws -> Void) throws -> Int {
-        let context = freshContext(), inventory = try header(context)
+        body: (T, ModelContext, SharedMediaInventoryRecord, ProjectionMemo) throws -> Void) throws -> Int {
+        let projectionMemo = ProjectionMemo()
+        let context = freshContext(), inventory = try header(context, projectionMemo: projectionMemo)
         var query = descriptor; query.fetchLimit = SharedMediaStoragePolicy.pageSize; query.fetchOffset = offset
         let rows = try context.fetch(query)
-        for row in rows { try Task.checkCancellation(); try check(); try body(row, context, inventory) }
-        try check(); _ = try header(context)
+        for row in rows { try Task.checkCancellation(); try check(); try body(row, context, inventory, projectionMemo) }
+        try check(); _ = try header(context, projectionMemo: projectionMemo)
         return rows.count
     }
     private func one<T: PersistentModel>(_ context: ModelContext, _ query: FetchDescriptor<T>) throws -> T {

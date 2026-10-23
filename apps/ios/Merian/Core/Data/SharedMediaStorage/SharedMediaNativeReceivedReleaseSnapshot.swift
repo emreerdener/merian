@@ -106,7 +106,7 @@ enum SharedMediaNativeReceivedReleaseSnapshot {
     }
 
     static func readStaged(_ origin: SharedMediaNativeStagedReleaseOrigin,
-                           context: ModelContext, checkpoint: () throws -> Void = {}) throws -> StagedSnapshot {
+                           context: ModelContext, projectionMemo: Projection.Memo? = nil, checkpoint: () throws -> Void = {}) throws -> StagedSnapshot {
         try checkpoint(); try origin.requireCurrent(context: context)
         let inventoryID = origin.prepared.profile.inventoryID
         let inventory = try one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
@@ -121,7 +121,7 @@ enum SharedMediaNativeReceivedReleaseSnapshot {
         let sidecar = try origin.request.encoding()
         let funding = try StagedFunding(historical: historical.liability,
             sidecarBytes: sidecar.metadataBytes,
-            projection: Projection.maximum(components))
+            projection: Projection.maximum(components, memo: projectionMemo))
         try checkpoint(); try origin.requireCurrent(context: context)
         try requireFrozenRows(components, context: context)
         return .init(origin: origin, components: components, historical: historical, funding: funding)

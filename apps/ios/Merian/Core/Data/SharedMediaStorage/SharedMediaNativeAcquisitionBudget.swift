@@ -29,9 +29,9 @@ enum SharedMediaNativeAcquisitionBudget {
         return try evaluate(context: context, inventory: inventory, graph: graph, format: nil)
     }
 
-    static func evaluateScoped(context: ModelContext, inventory: SharedMediaInventoryRecord, ownerID: UUID, format: SharedMediaNativeScopedFormat = .existingV1, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+    static func evaluateScoped(context: ModelContext, inventory: SharedMediaInventoryRecord, ownerID: UUID, format: SharedMediaNativeScopedFormat = .existingV1, projectionMemo: SharedMediaNativeReleaseSurvivorProjection.Memo? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.deriveScoped(in: context, inventory: inventory, ownerID: ownerID, format: format)
-        let clean = format == .appV2 ? try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory, checkpoint: checkpoint) : nil
+        let clean = format == .appV2 ? try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory, projectionMemo: projectionMemo, checkpoint: checkpoint) : nil
         return try evaluate(context: context, inventory: inventory, graph: graph, format: format, clean: clean, checkpoint: checkpoint)
     }
 

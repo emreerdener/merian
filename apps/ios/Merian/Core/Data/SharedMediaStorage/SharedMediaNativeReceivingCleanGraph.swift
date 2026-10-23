@@ -43,6 +43,7 @@ enum SharedMediaNativeReceivingCleanGraph {
     }
 
     static func validate(_ row: Row, context: ModelContext, inventory: SharedMediaInventoryRecord,
+                         projectionMemo: SharedMediaNativeReleaseSurvivorProjection.Memo? = nil,
                          checkpoint: () throws -> Void = {}) throws -> Witness {
         try Task.checkCancellation(); try checkpoint()
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
@@ -54,7 +55,7 @@ enum SharedMediaNativeReceivingCleanGraph {
             let origin = try SharedMediaNativeStagedReleaseOrigin.read(row, inventory: inventory,
                 context: context, checkpoint: checkpoint)
             result = .staged(try SharedMediaNativeReceivedReleaseSnapshot.readStaged(origin,
-                context: context, checkpoint: checkpoint))
+                context: context, projectionMemo: projectionMemo, checkpoint: checkpoint))
         } else if row.phase == "releasing" {
             let snapshot = try SharedMediaNativeReleaseMetadataSnapshot.read(packageID: row.id,
                 inventoryID: inventory.id, context: context, checkpoint: checkpoint)
@@ -78,6 +79,7 @@ enum SharedMediaNativeReceivingCleanGraph {
     /// eagerly decode the slot and intentionally reject releasing states.
     /// Orphan/foreign raw slots still require a separate exhaustive paged audit.
     static func pending(_ context: ModelContext, inventory: SharedMediaInventoryRecord,
+                        projectionMemo: SharedMediaNativeReleaseSurvivorProjection.Memo? = nil,
                         checkpoint: () throws -> Void = {}) throws -> [UUID: Witness] {
         try Task.checkCancellation(); try checkpoint()
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
@@ -94,7 +96,7 @@ enum SharedMediaNativeReceivingCleanGraph {
                   packages.insert(member.id).inserted else { throw SharedMediaStorageFailure.conflict }
             if let saved = try SharedMediaNativeReceivingPhaseGraph.row(member.id, in: context) {
                 let row = Row(saved)
-                let witness = try validate(row, context: context, inventory: inventory, checkpoint: checkpoint)
+                let witness = try validate(row, context: context, inventory: inventory, projectionMemo: projectionMemo, checkpoint: checkpoint)
                 for identity in witness.identities {
                     guard identities.insert(identity).inserted else { throw SharedMediaStorageFailure.conflict }
                 }

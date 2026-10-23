@@ -103,19 +103,23 @@ struct SharedMediaNativeReceivedReleaseSnapshotTests {
             row.releaseStartData = encoding.data; row.releaseStartSHA256 = encoding.sha256
             inventory.revision += 1; try c.save()
         }
+        // Deliberately retain a sizing memo across test contexts to prove that
+        // even misuse cannot turn an earlier hit into graph/funding authority.
+        let memo = SharedMediaNativeReleaseSurvivorProjection.Memo()
         func read(_ c: ModelContext) throws {
             if staged {
                 let inventoryID = store.inventoryID
                 let inventory = try Fixture.one(c, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
                 let row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(store.packageID, in: c))
                 let origin = try SharedMediaNativeStagedReleaseOrigin.read(.init(row), inventory: inventory, context: c)
-                _ = try Reader.readStaged(origin, context: c)
+                _ = try Reader.readStaged(origin, context: c, projectionMemo: memo)
             } else {
                 _ = try Reader.read(packageID: store.packageID, inventoryID: store.inventoryID,
                     releaseID: initial.components.progress.plan.releaseID, context: c)
             }
         }
-        try read(store.context())
+        try read(store.context()); try read(store.context())
+        if staged { #expect(memo.hits == 1) }
         for fault in ["package", "pair", "receipt"] {
             let c = store.context(), pairID = target.pairID, receiptID = target.acquisitionID
             let package = try store.package(in: c)

@@ -327,8 +327,8 @@ extension SharedMediaNativeReceivingCleanGraphTests {
         #expect(!c.hasChanges)
     }
 
-    @Test(arguments: [false, true])
-    func stagedAuditRebuildsProofAfterPageSuspension(_ headerDrift: Bool) async throws {
+    @Test(arguments: ["header", "sidecar", "consumer", "pair"])
+    func stagedAuditRebuildsProofAfterPageSuspension(_ drift: String) async throws {
         let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(staged: true)
         _ = try await owner.receiveAppPrepared(.init(request))
         #expect(await owner.invalidateAndAwaitForAccountTransition())
@@ -341,8 +341,15 @@ extension SharedMediaNativeReceivingCleanGraphTests {
                 if !changed {
                     changed = true
                     let c = h.context()
-                    if headerDrift { try inventory(h, c).revision += 1 }
-                    else {
+                    if drift == "header" { try inventory(h, c).revision += 1 }
+                    else if drift == "consumer" {
+                        let row = try #require(try SharedMediaConsumerLookup.one(c, packageID: h.packageID))
+                        row.revision += 1 // Slot and inventory stay unchanged.
+                    } else if drift == "pair" {
+                        let pairID = value.components.progress.plan.targets[0].pairID
+                        let row = try Fixture.one(c, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == pairID }))
+                        row.phaseRaw = "writing" // Slot and inventory stay unchanged.
+                    } else {
                         let row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(h.packageID, in: c))
                         row.releaseStartSHA256 = String(repeating: "0", count: 64)
                     }

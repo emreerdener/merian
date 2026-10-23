@@ -1,3 +1,43 @@
+## October 23 — context-local release sizing memo focused validation
+
+Scoped audits now pass one explicitly owned sizing memo through each synchronous
+pending/context or page read. It is discarded before page suspension and is not
+stored on the audit, repository or graph. Only the pure survivor projection is
+reused. Every call still reconstructs current staged evidence, consumer and pair
+facts, original receipts and historical funding, validates projection inputs,
+and performs final saved-row/header checks. Budget independently remeasures the
+package. Ordinary and non-audit callers remain uncached by default.
+
+The key compares canonical full Progress, Prepared, Received, package,
+membership and ordered pair values, every serialized byte count and exact origin
+values. It never uses only a package ID, header, hash or size. The optional memo
+retains at most four entries and 4 MiB of encoded/scalar payload plus bounded
+collection and allocator overhead. Key fields are encoded sequentially within
+the remaining payload budget; original/origin/pair arrays have an
+optimization-only two-element bound. Extra origins, oversized keys or encoding
+failure use the unchanged uncached calculation. These are cache bounds, not
+changes to media, package, durable-storage or temporary-storage limits, and not
+an RSS/encoder-scratch memory guarantee. Nothing cached grants write, admission,
+funding or recovery authority.
+
+The single managed `projection-memo-focused01` run passed all 20 methods / 44
+invocations, with no missing, unexpected, failed or skipped tests. All 2,929
+frozen source/project hashes and all ten candidate hashes remained unchanged.
+XCResult `812abef9581843d2905e86ec0bc5fb22.xcresult` and exact coverage are
+retained under `.artifacts/native-app-capture-handoff-20261020`. Independent and
+IC-1 concurrence preceded execution. The eight Swift/test files remain identical
+to the tested candidate; these two result documents were updated only afterward.
+
+A report-only comparison against the retained prior run matches thirteen
+unchanged test bodies and the same simulator/configuration. The eight-case
+staged-funding method took 905.492 seconds versus 1,165.979 seconds previously;
+this single comparison does not establish a general performance guarantee.
+Changed workloads are excluded. The first timing extraction failed to recognize
+inline `@Test` declarations; correcting that evidence script required no test
+rerun. Full affected gates, isolated-source, performance and integrated writer
+acceptance remain open. Activation disabled; PR116 frozen; deployment hold
+active; AWS unapproved; existing limits unchanged.
+
 ## October 23 — typed staged clean routing focused validation
 
 CleanGraph now reconstructs a typed staged funding witness for an exact saved

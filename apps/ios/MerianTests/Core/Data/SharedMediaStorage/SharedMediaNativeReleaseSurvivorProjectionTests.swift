@@ -76,6 +76,12 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
         #expect(receipt.packageID == packageID && receipt.resultData != nil)
         #expect(try Projection.maximum(snapshot).charges.allSatisfy { $0.originBytes == 0 })
         #expect(!c.hasChanges)
+        let memo = Projection.Memo()
+        let expected = try Projection.maximum(Projection.components(snapshot), memo: memo)
+        let otherForeign = Reader.TargetOrigin(assetID: origin.assetID, acquisitionID: origin.acquisitionID,
+            location: .present(packageID: UUID()))
+        #expect(try Projection.maximum(Projection.components(copy(snapshot, origins: [otherForeign])), memo: memo) == expected)
+        #expect(memo.hits == 0 && memo.count == 2)
         // A foreign classification cannot conceal a missing local origin, or
         // be charged once here and again by the physical owner's budget pass.
         let fakeLocal = Reader.TargetOrigin(assetID: origin.assetID, acquisitionID: origin.acquisitionID,
@@ -145,6 +151,61 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
             #expect(right.originIdentityBytes == left.originIdentityBytes + delta)
             #expect(try right.total == left.total + delta)
         }
+    }
+
+    @Test func memoRetainsOnlyExactSizingValuesWithinEntryAndByteBounds() async throws {
+        let f = try await Fixture.make(count: 1)
+        let s = try Reader.read(packageID: f.store.packageID, inventoryID: f.store.inventoryID, context: f.store.context())
+        let input = Projection.components(s), memo = Projection.Memo()
+        let baseline = try Projection.maximum(input)
+        #expect(try Projection.maximum(input, memo: memo) == baseline)
+        #expect(memo.hits == 0 && memo.count == 1)
+        #expect(try Projection.maximum(Projection.components(s), memo: memo) == baseline)
+        #expect(memo.hits == 1 && memo.count == 1)
+        // Same snapshot/header, different scalar liability must never reuse it.
+        for delta in 1...5 {
+            let changed = Projection.components(copy(s, execution: s.executionBytes + Int64(delta)))
+            #expect(try Projection.maximum(changed, memo: memo) == Projection.maximum(changed))
+            #expect(memo.hits == 1)
+            #expect(memo.count <= PhotoPreparationPolicy.maximumPackages)
+            #expect(memo.retainedBytes <= Projection.Memo.byteLimit)
+        }
+        _ = try Projection.maximum(input, memo: memo)
+        #expect(memo.hits == 1) // oldest full-value key was evicted
+        let fresh = Projection.Memo(), tiny = Projection.Memo(byteLimit: 1)
+        #expect(try Projection.maximum(input, memo: fresh) == baseline)
+        #expect(fresh.hits == 0)
+        for _ in 0..<2 { #expect(try Projection.maximum(input, memo: tiny) == baseline) }
+        #expect(tiny.count == 0 && tiny.hits == 0 && tiny.retainedBytes == 0)
+        let small = Projection.Memo(byteLimit: 512)
+        #expect(try Projection.maximum(input, memo: small) == baseline)
+        #expect(small.count == 0 && small.retainedBytes == 0)
+        let extra = (0..<2).map { _ in Reader.Original(assetID: UUID(), physicalOriginID: f.store.packageID,
+            receiptBytes: 100, identityBytes: 40, retiring: false) }
+        let oversized = Projection.components(copy(s, originals: s.ownedOriginals + extra))
+        let oldCount = memo.count, oldBytes = memo.retainedBytes, oldHits = memo.hits
+        #expect(try Projection.maximum(oversized, memo: memo) == Projection.maximum(oversized))
+        #expect(memo.count == oldCount && memo.retainedBytes == oldBytes && memo.hits == oldHits)
+    }
+
+    @Test func memoRevalidatesOriginsPairsAndArithmeticBeforeReuse() async throws {
+        let f = try await Fixture.make(count: 1)
+        let s = try Reader.read(packageID: f.store.packageID, inventoryID: f.store.inventoryID, context: f.store.context())
+        let memo = Projection.Memo()
+        _ = try Projection.maximum(Projection.components(s), memo: memo)
+        for invalid in [copy(s, originals: []), copy(s, origins: []), copy(s, pairs: []), copy(s, execution: -1)] {
+            #expect(throws: (any Error).self) { _ = try Projection.maximum(Projection.components(invalid), memo: memo) }
+        }
+        #expect(memo.hits == 0 && memo.count == 1)
+        let original = try #require(s.ownedOriginals.first)
+        let changed = copy(s, originals: [.init(assetID: original.assetID, physicalOriginID: original.physicalOriginID,
+            receiptBytes: original.receiptBytes + 1, identityBytes: original.identityBytes, retiring: original.retiring)])
+        #expect(try Projection.maximum(Projection.components(changed), memo: memo) == Projection.maximum(changed))
+        #expect(memo.hits == 0 && memo.count == 2)
+        try f.retirePair(0)
+        let advanced = try Reader.read(packageID: f.store.packageID, inventoryID: f.store.inventoryID, context: f.store.context())
+        #expect(try Projection.maximum(Projection.components(advanced), memo: memo) == Projection.maximum(advanced))
+        #expect(memo.hits == 0 && memo.count == 3)
     }
 
     private func copy(_ s: Reader.Snapshot, originals: [Reader.Original]? = nil,
