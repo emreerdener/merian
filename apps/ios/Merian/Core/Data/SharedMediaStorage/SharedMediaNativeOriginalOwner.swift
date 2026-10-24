@@ -212,7 +212,7 @@ final class SharedMediaNativeOriginalOwner {
     }
     private func withAppDispatch<T: Sendable>(settled: Bool = true, releaseStage: Bool = false,
         _ body: @escaping @MainActor (SharedMediaNativeStorageRepository, SharedMediaNativeAppDispatchGrant) async throws -> T) async throws -> T {
-        guard openKind == .appDispatch, phase == .ready, !settled || pendingSettlement == nil, releaseStage || releaseStageSettlement.request == nil else { throw SharedMediaStorageFailure.closed }
+        guard openKind == .appDispatch, phase == .ready, !settled || pendingSettlement == nil, releaseStage || !releaseStageSettlement.hasPending else { throw SharedMediaStorageFailure.closed }
         return try await performOperation { [self] lease, identity in
             guard let storage, let appProfile, let appParent else { throw SharedMediaStorageFailure.closed }
             let grant = SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
@@ -465,7 +465,7 @@ final class SharedMediaNativeOriginalOwner {
             else { _ = try reconcileSettlement() }
             try await releaseStageSettlement.reconcileAfterTermination()
         } catch { return false }
-        guard pendingSettlement == nil, releaseStageSettlement.request == nil else { return false }
+        guard pendingSettlement == nil, !releaseStageSettlement.hasPending else { return false }
         storage = nil; scopedIdentity = nil; appProfile = nil; appParent = nil
         return true
     }

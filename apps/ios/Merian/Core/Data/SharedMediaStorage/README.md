@@ -1,3 +1,38 @@
+## October 24 — inactive held pair removal qualified locally
+
+The first saved `retiringPair` can now advance to `pairGoneOriginalLive` through
+the registered native owner. Cleanup uses the saved pair identity, existing
+locks and a synchronous revocable descriptor permit. Account shutdown revokes
+before cancellation and joins active work before reconciliation or root release.
+Exact saved successor recovery does not repeat unlink. A complete durable
+retiring predecessor retains its charges and can resume the same deterministic
+cleanup; a replacement path or uncertain identity keeps settlement closed.
+
+The sealed metadata save removes only the selected pair's derivative rows and
+charges. Originals, other targets, held execution and submitted media/text
+remain owned. Fresh logical IDs are checked against retained release witnesses
+and indexed rows. Ordinary physical-original sharing retains its existing
+checks; ordinary routing still rejects held-release graphs. This step grants no
+AI invocation, scan-token change, refund or replacement operation.
+
+Candidate04 compiled in managed build05. Reviewed partitioned focused evidence
+covers 12 methods / 19 invocations: 8 unchanged methods / 12 invocations from
+focused01, 3 / 6 from focused03, and the corrected shutdown method / 1
+invocation from focused05. The earlier aggregate failures and warning-bearing
+focused04 remain failed qualification evidence; they are not relabeled as
+passing runs. Regression03 passed all 61 methods / 119 invocations in six
+affected suites. Selected passing evidence has zero skips and zero structured
+runtime warnings. The latest focused and regression runs retained all 2,973
+source/project pins and 708 compiled-product pins unchanged.
+
+This is scoped local qualification. Full-target, isolated-source, integrated app
+and abrupt-exit acceptance remain open. Original disposition/release, later
+targets and terminal completion still require integration before the native
+release journey is complete. Evidence:
+`.artifacts/native-app-capture-handoff-20261020/pair-gone-*`. Activation
+disabled; PR116 frozen; deployment hold active; AWS unapproved; limits
+unchanged. No external operation is authorized.
+
 ## October 23 — inactive held pair-retirement writer qualified locally
 
 The first held ready pair can now be recorded as retiring in one metadata save,

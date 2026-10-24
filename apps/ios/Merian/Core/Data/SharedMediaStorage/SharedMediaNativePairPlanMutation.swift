@@ -78,6 +78,7 @@ final class SharedMediaNativePairPlanMutation {
               envelope.intents.count < 2, envelope.frozen == nil, envelope.attempt?.bytes == (try attempt.encoded()) else {
             throw SharedMediaStorageFailure.closed
         }
+        try requireFreshOutputIDs(intent)
         let blob = SharedMediaNativePreparationBlob(bytes: try intent.encoded()), original = attempt.original.reference
         let row = SharedMediaDerivativePairRecord(id: intent.pairID, nonce: intent.nonce, inventoryID: inventory.id,
             inventoryGeneration: inventory.generation, expectedInventoryRevision: inventory.revision,
@@ -108,6 +109,7 @@ final class SharedMediaNativePairPlanMutation {
             let budget = try budgetAfterPlan(intent)
             try budget.totals.checkAvailable(availableBytes,
                 additionalReservation: max(0, Int64(package.supportingContextData.count - before.envelope.count)))
+            try requireFreshOutputIDs(intent)
             // The physical seal is the final synchronous check before persistence.
             try value.verifyOriginal()
             do { try context.save(); try afterSave() }
@@ -118,6 +120,14 @@ final class SharedMediaNativePairPlanMutation {
             try acknowledgeApp(expected)
         } else { try save(beforeSave: beforeSave, afterSave: afterSave) }
         return expected
+    }
+
+    private func requireFreshOutputIDs(_ intent: SharedMediaNativeDerivativeIntent) throws {
+        guard case .app = authority else { return }
+        let c = ModelContext(container); c.autosaveEnabled = false
+        let ids = [intent.pairID] + [intent.ai, intent.display].flatMap { [$0.id, $0.assetID, $0.referenceID, $0.leaseID] }
+        try SharedMediaNativeReleaseStageIdentity.requireFresh(ids, inventoryID: inventory.id, context: c)
+        try authority.validate(container)
     }
 
     func abandon(_ plan: SharedMediaNativePairPlan, beforeSave: () throws -> Void, afterSave: () throws -> Void) throws {

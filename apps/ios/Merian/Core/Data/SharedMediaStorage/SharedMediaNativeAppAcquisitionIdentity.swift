@@ -9,7 +9,7 @@ enum SharedMediaNativeAppAcquisitionIdentity {
     static func audit(_ request: SharedMediaAcquisitionIntent, container: ModelContainer,
                       check: () throws -> Void) async throws {
         try request.validate(); try check()
-        let wanted = Set([request.operationID, request.assetID, request.referenceID])
+        let wanted = Self.freshIDs(request)
         var offset = 0
         while true {
             try Task.checkCancellation(); try check()
@@ -19,13 +19,8 @@ enum SharedMediaNativeAppAcquisitionIdentity {
                 query.fetchOffset = offset; query.fetchLimit = SharedMediaStoragePolicy.pageSize
                 let rows = try context.fetch(query)
                 for row in rows {
-                    let ids: Set<UUID>
-                    switch try SharedMediaAcquisitionReceipt.read(row) {
-                    case .reserved(let old), .held(let old), .completed(let old, _):
-                        ids = [old.operationID, old.assetID, old.referenceID]
-                    case .released(let old): ids = [old.operationID]
-                    }
-                    guard wanted.isDisjoint(with: ids) else { throw SharedMediaStorageFailure.conflict }
+                    let receipt = try SharedMediaAcquisitionReceipt.read(row)
+                    for id in wanted { try SharedMediaNativeReleaseStageIdentity.requireAbsent(id, receipt: receipt) }
                 }
                 return rows.count
             }()
@@ -43,23 +38,11 @@ enum SharedMediaNativeAppAcquisitionIdentity {
     /// requestData reference aliases are covered by the pinned paged audit;
     /// any header drift invalidates that audit instead of rescanning in save.
     static func direct(_ request: SharedMediaAcquisitionIntent, context: ModelContext) throws {
-        guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
-        for id in [request.operationID, request.assetID, request.referenceID] {
-            try empty(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.id == id || $0.assetID == id }))
-            try empty(context, FetchDescriptor<SharedMediaAllocationRecord>(predicate: #Predicate { $0.id == id }))
-            try empty(context, FetchDescriptor<SharedMediaLeaseRecord>(predicate: #Predicate { $0.id == id || $0.allocationID == id }))
-            try empty(context, FetchDescriptor<PhotoPreparationLease>(predicate: #Predicate { $0.id == id || $0.assetID == id }))
-            try empty(context, FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.id == id }))
-            try empty(context, FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.id == id || $0.assetID == id }))
-            try empty(context, FetchDescriptor<SharedMediaReferenceRecord>(predicate: #Predicate { $0.id == id || $0.allocationID == id }))
-            try empty(context, FetchDescriptor<SharedMediaAssetReferenceCountRecord>(predicate: #Predicate { $0.id == id }))
-            try empty(context, FetchDescriptor<SharedMediaDerivativeWorkRecord>(predicate: #Predicate { $0.id == id || $0.assetID == id || $0.referenceID == id || $0.leaseID == id }))
-            try empty(context, FetchDescriptor<SharedMediaInboxSourceRecord>(predicate: #Predicate { $0.id == id || $0.workID == id }))
-            try empty(context, FetchDescriptor<SharedMediaInboxHandoffRecord>(predicate: #Predicate { $0.id == id || $0.assetID == id || $0.sourceHoldID == id }))
-        }
+        try SharedMediaNativeReleaseStageIdentity.requireFresh(freshIDs(request), inventoryID: request.inventoryID, context: context)
     }
-    private static func empty<T: PersistentModel>(_ context: ModelContext, _ descriptor: FetchDescriptor<T>) throws {
-        var query = descriptor; query.fetchLimit = 1; query.includePendingChanges = true
-        guard try context.fetch(query).isEmpty else { throw SharedMediaStorageFailure.conflict }
+    private static func freshIDs(_ request: SharedMediaAcquisitionIntent) -> [UUID] {
+        let ids = [request.operationID, request.assetID, request.referenceID]
+        if case .absent = request.packageExpectation { return ids + [request.packageID] }
+        return ids
     }
 }

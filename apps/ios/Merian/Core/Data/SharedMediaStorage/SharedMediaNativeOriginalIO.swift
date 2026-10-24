@@ -109,7 +109,11 @@ actor SharedMediaNativeOriginalIO {
         await acquisitionEntryPause?(.releasePair)
         #endif
         try Task.checkCancellation()
-        return try withPair(disposal.state, workID: workID, create: false) { try $0.release(disposal) }
+        // A held disposal carries its own opaque permit, so ordinary entry
+        // cannot bypass revocation. No actor hop/re-entrant fault inside body.
+        return try disposal.withCurrent(workID: workID) {
+            try withPair(disposal.state, workID: workID, create: false) { try $0.release(disposal) }
+        }
     }
     func beginPair(_ state: SharedMediaNativePairFileState, workID: UUID) async throws -> SharedMediaNativePairPartial {
         try Task.checkCancellation()
@@ -138,6 +142,9 @@ actor SharedMediaNativeOriginalIO {
         return try state.work.map { work in
             try withPair(state, workID: work.id, create: false) { try $0.inspectPlannedAbsent() }
         }
+    }
+    func inspectRetiringPair(_ state: SharedMediaNativePairFileState, workID: UUID) throws -> SharedMediaNativeRetiringPairInspection {
+        try withPair(state, workID: workID, create: false) { try $0.inspectRetiring() }
     }
     func inspectPair(_ state: SharedMediaNativePairFileState, workID: UUID) throws -> SharedMediaNativePairInspection {
         try withPair(state, workID: workID, create: false) { try $0.inspect() }

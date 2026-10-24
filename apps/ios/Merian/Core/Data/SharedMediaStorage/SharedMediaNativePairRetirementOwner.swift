@@ -124,22 +124,7 @@ final class SharedMediaNativePairRetirementOwner {
             try binding(proof.binding, proof.epoch)
             guard proof.state == before else { throw SharedMediaStorageFailure.stale }
         }
-        for proof in proofs {
-            let (work, input) = try rows(proof.workID), assetID = input.assetID, referenceID = input.referenceID, leaseID = input.leaseID
-            if work.finalIdentity != nil {
-                context.delete(try one(FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.id == assetID })))
-                context.delete(try one(FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.id == referenceID })))
-                context.delete(try one(FetchDescriptor<SharedMediaReferenceRecord>(predicate: #Predicate { $0.id == referenceID })))
-                context.delete(try one(FetchDescriptor<SharedMediaAssetReferenceCountRecord>(predicate: #Predicate { $0.id == assetID })))
-                guard package.allocatedByteCount >= input.byteCount else { throw SharedMediaStorageFailure.conflict }
-                package.allocatedByteCount -= input.byteCount
-            }
-            context.delete(try one(FetchDescriptor<PhotoPreparationLease>(predicate: #Predicate { $0.id == leaseID })))
-            context.delete(try one(FetchDescriptor<SharedMediaLeaseRecord>(predicate: #Predicate { $0.id == leaseID })))
-            context.delete(try one(FetchDescriptor<SharedMediaAllocationRecord>(predicate: #Predicate { $0.id == assetID })))
-            context.delete(work)
-        }
-        context.delete(pair)
+        try SharedMediaNativePairRemovalRows.apply(context: context, package: package, pair: pair, before: before)
         guard case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData) else { throw SharedMediaStorageFailure.conflict }
         package.supportingContextData = try SharedMediaNativeDraftEnvelope.V2(version: 2, contexts: envelope.contexts,
             presentation: envelope.presentation, sequence: envelope.sequence, attempt: nil, intents: envelope.intents.filter { $0 != before.plan.intent }, frozen: nil).encoded()
@@ -238,8 +223,19 @@ struct SharedMediaNativePairDisposal: Sendable {
     let state: SharedMediaNativePairFileState
     let binding: Data
     let epoch: UUID
-    fileprivate init(state: SharedMediaNativePairFileState, binding: Data, epoch: UUID) {
-        self.state = state; self.binding = binding; self.epoch = epoch
+    private let heldPermit: SharedMediaNativePairUnlinkPermit?
+    @MainActor static func held(_ capability: SharedMediaNativeReleasePairRemovalCapability) throws -> Self {
+        try capability.requireDisposal()
+        return .init(state: capability.state, binding: capability.binding.bytes, epoch: capability.binding.epoch, heldPermit: capability.permit)
+    }
+    fileprivate init(state: SharedMediaNativePairFileState, binding: Data, epoch: UUID, heldPermit: SharedMediaNativePairUnlinkPermit? = nil) {
+        self.state = state; self.binding = binding; self.epoch = epoch; self.heldPermit = heldPermit
+    }
+    /// The held permit cannot be stripped by routing through ordinary release.
+    /// Its fileprivate constructor is the only place this distinction is set.
+    func withCurrent<T>(workID: UUID, body: () throws -> T) throws -> T {
+        if let heldPermit { return try heldPermit.withCurrent(self, workID: workID, body: body) }
+        return try body()
     }
 }
 

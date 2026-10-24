@@ -79,6 +79,7 @@ final class SharedMediaNativeAppOriginalOperations {
         if try savedShare(request) { return destination }
         let c = fresh(), rows = try before(c, request)
         try absentPackage(c, destination.packageID); try Rows.absentReference(c, destination.referenceID)
+        try SharedMediaNativeReleaseStageIdentity.requireFresh([destination.packageID, destination.referenceID], inventoryID: facts.profile.inventoryID, context: c)
         let inspection = try await io.inspect(request.original.file)
         try requireBefore(request)
         guard inspection.identity == (try rows.completed().1.descriptor), inspection.binding == binding.bytes,
@@ -226,7 +227,11 @@ final class SharedMediaNativeAppOriginalOperations {
         try validate(); let c = fresh(); _ = try before(c, r)
         guard try SharedMediaNativeAppMetadataFacts.capture(c, profile: facts.profile) == facts,
               try Rows.originalFacts(c, facts: facts) == originals else { throw SharedMediaStorageFailure.stale }
-        if case .share(let share) = r.action { try absentPackage(c, share.packageID); try Rows.absentReference(c, share.destination().referenceID) }
+        if case .share(let share) = r.action {
+            let destination = try share.destination()
+            try absentPackage(c, share.packageID); try Rows.absentReference(c, destination.referenceID)
+            try SharedMediaNativeReleaseStageIdentity.requireFresh([destination.packageID, destination.referenceID], inventoryID: facts.profile.inventoryID, context: c)
+        }
     }
     private func savedShare(_ r: SharedMediaNativeAppOriginalRequest) throws -> Bool {
         guard case .share(let share) = r.action else { throw SharedMediaStorageFailure.conflict }

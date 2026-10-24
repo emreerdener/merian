@@ -66,16 +66,32 @@ enum SharedMediaNativeReleaseStageIdentity {
     static func requireAbsent(_ id: UUID, progress: Values.Progress) throws {
         try progress.validate()
         let p = progress.plan
-        let identities = [p.releaseID, p.operationID, p.queueID, p.observationID, p.bindingID, p.generation, p.eventID]
+        let identities = [p.package.id, p.releaseID, p.operationID, p.queueID, p.observationID, p.bindingID, p.generation, p.eventID]
             + p.targets.flatMap(\.identities)
             + progress.targets.flatMap { [$0.pair?.retirementID, $0.original?.retirementID].compactMap { $0 } }
         guard !identities.contains(id) else { throw SharedMediaStorageFailure.conflict }
+    }
+
+    /// Fresh logical IDs only. Existing physical originals/acquisition leases
+    /// are deliberately omitted by sharing callers, never relabelled as fresh.
+    /// A terminal receiving row remains rejected by the complete clean reader.
+    static func requireFresh(_ ids: [UUID], inventoryID: UUID, context: ModelContext) throws {
+        guard !context.hasChanges, Set(ids).count == ids.count else { throw SharedMediaStorageFailure.conflict }
+        let inventory = try SharedMediaNativePairPlanGraph.one(context,
+            FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
+        let witnesses = Array(try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory).values)
+        for id in ids {
+            try requireAbsent(id, witnesses: witnesses)
+            try direct(id, context: context)
+        }
     }
 
     /// Indexed probes repeat immediately before save. Arbitrary metadata JSON,
     /// fence generations and process epochs are not part of this namespace.
     static func direct(_ id: UUID, context c: ModelContext) throws {
         guard !c.hasChanges else { throw SharedMediaStorageFailure.conflict }
+        try empty(c, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == id }))
+        try empty(c, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
         try empty(c, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.id == id || $0.assetID == id }))
         try empty(c, FetchDescriptor<SharedMediaAllocationRecord>(predicate: #Predicate { $0.id == id }))
         try empty(c, FetchDescriptor<SharedMediaLeaseRecord>(predicate: #Predicate { $0.id == id || $0.allocationID == id }))

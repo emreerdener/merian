@@ -102,6 +102,23 @@ struct SharedMediaNativePairFiles {
         guard proof.state == state, proof.workID == workID, proof.binding == binding.bytes,
               proof.epoch == binding.epoch, try inspect().identity == proof.identity else { throw SharedMediaStorageFailure.stale }
     }
+    /// Read-only retiring inspection, separate from the pre-retirement proof.
+    /// Saved closed-work identities may match or be absent; replacement cannot.
+    func inspectRetiring() throws -> SharedMediaNativeRetiringPairInspection {
+        let (work, _) = try state.selected(workID)
+        guard state.phase == "retiring", work.phase == "retiring", work.writerState == "closed",
+              work.retirementID != nil, work.closure != nil,
+              work.retirementParent != nil, work.retirementNamespace != nil else { throw SharedMediaStorageFailure.closed }
+        let found = try work.device == nil ? bytes().inspectReservedEmpty() : bytes().inspectRetirement()
+        guard found.parent == work.retirementParent, found.namespace == work.retirementNamespace,
+              found.partial == "absent" || found.partial == work.retirementPartial,
+              found.final == "absent" || found.final == work.retirementFinal else { throw SharedMediaStorageFailure.conflict }
+        return .init(state: state, workID: workID, identity: found, binding: binding.bytes, epoch: binding.epoch)
+    }
+    func requireCurrentRetiringInspection(_ proof: SharedMediaNativeRetiringPairInspection) throws {
+        guard proof.state == state, proof.workID == workID, proof.binding == binding.bytes,
+              proof.epoch == binding.epoch, try inspectRetiring().identity == proof.identity else { throw SharedMediaStorageFailure.stale }
+    }
     func requireCurrentAbsence(_ proof: SharedMediaNativePairAbsence) throws {
         guard proof.state == state, proof.workID == workID, proof.binding == binding.bytes,
               proof.epoch == binding.epoch, state.phase == "retiring" else { throw SharedMediaStorageFailure.stale }
@@ -160,6 +177,15 @@ struct SharedMediaNativePairInspection: Sendable {
     }
 }
 
+struct SharedMediaNativeRetiringPairInspection: Sendable {
+    let state: SharedMediaNativePairFileState, workID: UUID
+    let identity: SharedMediaInboxDestinationRetirementIdentity
+    let binding: Data, epoch: UUID
+    fileprivate init(state: SharedMediaNativePairFileState, workID: UUID, identity: SharedMediaInboxDestinationRetirementIdentity, binding: Data, epoch: UUID) {
+        self.state = state; self.workID = workID; self.identity = identity; self.binding = binding; self.epoch = epoch
+    }
+}
+
 struct SharedMediaNativePairAbsence: Sendable {
     let state: SharedMediaNativePairFileState, workID: UUID
     let binding: Data, epoch: UUID
@@ -179,6 +205,9 @@ struct SharedMediaNativePlannedAbsence: Sendable {
 }
 
 extension PhotoPreparationLockedFiles {
+    func requireCurrentRetiringPairInspection(_ proof: SharedMediaNativeRetiringPairInspection, binding: SharedMediaNativeBinding) throws {
+        try withNativePairDestination(proof.state, workID: proof.workID, binding: binding, create: false) { try $0.requireCurrentRetiringInspection(proof) }
+    }
     func requireCurrentPairInspection(_ proof: SharedMediaNativePairInspection, binding: SharedMediaNativeBinding) throws {
         try withNativePairDestination(proof.state, workID: proof.workID, binding: binding, create: false) { try $0.requireCurrentInspection(proof) }
     }
