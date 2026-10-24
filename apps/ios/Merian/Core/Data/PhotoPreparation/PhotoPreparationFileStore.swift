@@ -464,17 +464,52 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
         }
     }
 
-    func releaseNative(_ retirement: SharedMediaNativeRetirement) throws -> SharedMediaNativeReleaseProof {
-        guard let sharedBinding, sharedBinding.bytes == retirement.binding, sharedBinding.epoch == retirement.epoch else { throw PhotoPreparationFailure.unsupportedComposition }
+    func inspectHeldOriginal(_ state: SharedMediaNativeRetirementState,
+                             binding: SharedMediaNativeBinding) throws -> SharedMediaNativeHeldOriginalInspection {
+        let present: Bool
         do {
-            guard try inspectSharedRetirement(retirement.state.file).identity == retirement.state.identity.proof else { throw PhotoPreparationFailure.inconsistentOwnership }
-        } catch PhotoPreparationFailure.missingMedia { /* Exact saved absence is checked below. */ }
-        return try withSharedDestination(retirement.state.file.token, create: false) { access in
-            var operation = SharedMediaNativeRetirementFiles(access: access, retirement: retirement)
-            #if DEBUG
-            operation.fault = sharedReleaseFault
-            #endif
-            return try operation.release()
+            let value = try inspectSharedRetirement(state.file)
+            guard value.identity == state.identity.proof, value.binding == binding.bytes,
+                  value.epoch == binding.epoch else { throw PhotoPreparationFailure.inconsistentOwnership }
+            present = true
+        } catch PhotoPreparationFailure.missingMedia {
+            try requireNativeAbsence(state.file, retirement: state.identity, binding: binding)
+            present = false
+        }
+        return .init(state: state, binding: binding.bytes, epoch: binding.epoch, present: present)
+    }
+    func currentHeldOriginalInspection(_ proof: SharedMediaNativeHeldOriginalInspection,
+                                      binding: SharedMediaNativeBinding) throws -> SharedMediaNativeHeldOriginalInspection {
+        guard proof.binding == binding.bytes, proof.epoch == binding.epoch else { throw PhotoPreparationFailure.inconsistentOwnership }
+        // Return every exact observation so the held permit can retain absence
+        // before rejecting a presence transition. No absence is hidden by Void.
+        return try inspectHeldOriginal(proof.state, binding: binding)
+    }
+    func releaseNative(_ retirement: SharedMediaNativeRetirement, binding: SharedMediaNativeBinding) throws -> SharedMediaNativeReleaseProof {
+        // Every route to a held disposal consumes the permit here, enclosing
+        // inspection, unlink, directory sync and final absence as one operation.
+        try retirement.withCurrent { wasAbsent, observedAbsence in
+            guard let sharedBinding, sharedBinding.bytes == retirement.binding, sharedBinding.epoch == retirement.epoch,
+                  binding.bytes == retirement.binding, binding.epoch == retirement.epoch else { throw PhotoPreparationFailure.unsupportedComposition }
+            var requireAbsent = wasAbsent
+            if !wasAbsent {
+                do {
+                    guard try inspectSharedRetirement(retirement.state.file).identity == retirement.state.identity.proof else { throw PhotoPreparationFailure.inconsistentOwnership }
+                } catch PhotoPreparationFailure.missingMedia {
+                    try requireNativeAbsence(retirement.state.file, retirement: retirement.state.identity, binding: binding)
+                    requireAbsent = true; observedAbsence()
+                }
+            }
+            if wasAbsent {
+                try requireNativeAbsence(retirement.state.file, retirement: retirement.state.identity, binding: binding)
+            }
+            return try withSharedDestination(retirement.state.file.token, create: false) { access in
+                var operation = SharedMediaNativeRetirementFiles(access: access, retirement: retirement)
+                #if DEBUG
+                operation.fault = sharedReleaseFault
+                #endif
+                return try operation.release(requireAbsent: requireAbsent, observedAbsence: observedAbsence)
+            }
         }
     }
 
@@ -597,3 +632,14 @@ enum SharedMediaPhotoReleaseProof: Sendable {
 }
 
 enum SharedMediaPhotoReleaseBoundary: Sendable { case beforeUnlink, afterUnlink, beforeSync, afterSync }
+
+/// Nonserializable inspection; only the locked original-file owner constructs it.
+struct SharedMediaNativeHeldOriginalInspection: Sendable {
+    let state: SharedMediaNativeRetirementState
+    let binding: Data
+    let epoch: UUID
+    let present: Bool
+    fileprivate init(state: SharedMediaNativeRetirementState, binding: Data, epoch: UUID, present: Bool) {
+        self.state = state; self.binding = binding; self.epoch = epoch; self.present = present
+    }
+}

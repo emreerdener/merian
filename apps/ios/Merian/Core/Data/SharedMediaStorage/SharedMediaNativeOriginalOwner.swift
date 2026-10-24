@@ -13,6 +13,13 @@ final class SharedMediaNativeOriginalOwner {
     private let writerEpoch = UUID()
     private var pendingSettlement: SharedMediaNativeOriginalPendingSettlement?
     private let releaseStageSettlement = SharedMediaNativeReleaseStageSettlement()
+    #if DEBUG
+    /// Read-only fault-test observation. No capability or mutation grant escapes.
+    var heldOriginalAdmissionClosedForTesting: Bool { phase == .suspended }
+    var observedHeldOriginalAbsenceForTesting: Bool {
+        releaseStageSettlement.pendingOriginalDisposal?.permit.hasObservedAbsence ?? false
+    }
+    #endif
     private var writerActive = false
     private var activeDispatchID: UUID?
     #if DEBUG

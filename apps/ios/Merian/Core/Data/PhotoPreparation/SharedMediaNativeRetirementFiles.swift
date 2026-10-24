@@ -8,7 +8,7 @@ struct SharedMediaNativeRetirementFiles {
     let retirement: SharedMediaNativeRetirement
     var fault: ((SharedMediaPhotoReleaseBoundary) throws -> Void)?
 
-    func release() throws -> SharedMediaNativeReleaseProof {
+    func release(requireAbsent: Bool = false, observedAbsence: () -> Void = {}) throws -> SharedMediaNativeReleaseProof {
         try Task.checkCancellation()
         try access.perform { parent, namespace in
             let proof = retirement.state.identity.proof
@@ -31,13 +31,15 @@ struct SharedMediaNativeRetirementFiles {
             try directories()
             guard try absent(access.name + ".partial") else { throw PhotoPreparationFailure.cleanupPending }
             if try !absent(access.name) {
+                guard !requireAbsent else { throw PhotoPreparationFailure.inconsistentOwnership }
                 try validateFile(); try fault?(.beforeUnlink)
                 try directories(); try validateFile()
                 guard try absent(access.name + ".partial") else { throw PhotoPreparationFailure.cleanupPending }
                 try Task.checkCancellation()
                 guard unlinkat(parent, access.name, 0) == 0 else { throw PhotoPreparationFailure.cleanupPending }
+                observedAbsence()
                 try fault?(.afterUnlink)
-            }
+            } else { observedAbsence() }
             try fault?(.beforeSync)
             guard fsync(parent) == 0, fsync(namespace) == 0 else { throw PhotoPreparationFailure.cleanupPending }
             try fault?(.afterSync)

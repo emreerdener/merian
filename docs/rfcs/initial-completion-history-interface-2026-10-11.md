@@ -1,3 +1,42 @@
+## October 24 — inactive held physical original cleanup qualified locally
+
+The next inactive owner step handles only the first saved `originalRetiring`
+target. It consumes the persisted retirement identity through the existing
+original-file descriptor operations, with a held-specific revocable permit
+spanning inspection, unlink, directory synchronization and final absence.
+Shutdown revokes and joins the synchronous operation before root release. Once
+absence has been observed, reappearance blocks that attempt even if the saved
+identity appears to match. Every exact inspection records absence before any
+authority or presence-transition rejection, including observations returned
+after revocation and synchronous reinspection. Recording evidence cannot renew a
+deletion permit. Immediate synchronous absence and raw-row checks run after
+fault hooks and fresh predecessor validation before the metadata save.
+
+The held seal removes six owned rows, requires the photo-preparation lease
+already absent, terminalizes the acquisition receipt while preserving its
+identity/fingerprint, and updates exact release/package/member/inventory facts.
+Original bytes and identity liability remain charged until the save succeeds.
+Same-owner uncertainty is read-only; joined shutdown can hand back the same
+durable retirement to a new registered owner. Exact saved successors win before
+filesystem work. Shared removals, later targets and terminal completion grant no
+physical deletion through this step. Ordinary lifecycle guards remain.
+
+Candidate05 compiled in managed build05. Focused02 passed all 12 methods / 23
+cases. Affected regression01 passed all 90 methods / 167 cases in 13 full
+suites. Both actual runners and commands exited 0, with zero skips and zero
+structured runtime warnings. All 2,987 source/project and 708 compiled-product
+pins stayed unchanged. Compiler lint/style warnings and simulator service
+messages remain in the retained evidence; failed prior builds are preserved.
+
+This is scoped local qualification. Full-target, isolated-source, integrated app
+and abrupt-exit acceptance remain open. Later-target continuation and terminal
+receiving-slot closure still require integration; completing this first target
+does not close a whole package. Evidence:
+`.artifacts/native-app-capture-handoff-20261020/original-removal-*`. No schema,
+storage-limit, provider, scan-token, UI or activation change. Activation
+disabled; PR116 frozen; deployment hold active; AWS unapproved; limits
+unchanged.
+
 ## October 24 — inactive held original disposition qualified locally
 
 The next inactive native owner step handles only the first selected original at

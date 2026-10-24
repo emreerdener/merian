@@ -42,7 +42,24 @@ actor SharedMediaNativeOriginalIO {
     }
     func releasePending(_ disposal: SharedMediaNativePendingDisposal) throws -> SharedMediaNativePendingAbsence { try files.releaseNativePending(disposal) }
     func inspect(_ file: PhotoPreparationFile) throws -> SharedMediaPhotoRetirementInspection { try files.inspectSharedRetirement(file) }
-    func release(_ retirement: SharedMediaNativeRetirement) throws -> SharedMediaNativeReleaseProof { try files.releaseNative(retirement) }
+    func inspectHeldOriginal(_ state: SharedMediaNativeRetirementState) async throws -> SharedMediaNativeHeldOriginalInspection {
+        try Task.checkCancellation()
+        let proof = try files.inspectHeldOriginal(state, binding: binding)
+        #if DEBUG
+        await acquisitionEntryPause?(.inspectOriginal)
+        #endif
+        // Deliver the observation even if authority was revoked during the hop.
+        // The caller records it before checking authority; this grants no I/O.
+        return proof
+    }
+    func release(_ retirement: SharedMediaNativeRetirement) async throws -> SharedMediaNativeReleaseProof {
+        try Task.checkCancellation()
+        #if DEBUG
+        await acquisitionEntryPause?(.releaseOriginal)
+        #endif
+        try Task.checkCancellation()
+        return try files.releaseNative(retirement, binding: binding)
+    }
     #if DEBUG
     func setReleaseFault(_ fault: (@Sendable (SharedMediaPhotoReleaseBoundary) throws -> Void)?) { files.sharedReleaseFault = fault }
     #endif
@@ -166,5 +183,5 @@ actor SharedMediaNativeOriginalIO {
 }
 
 #if DEBUG
-enum SharedMediaNativeOriginalIOEntry: Sendable { case load, write, beginPair, recoverPair, releasePair }
+enum SharedMediaNativeOriginalIOEntry: Sendable { case load, write, beginPair, recoverPair, releasePair, releaseOriginal, inspectOriginal }
 #endif

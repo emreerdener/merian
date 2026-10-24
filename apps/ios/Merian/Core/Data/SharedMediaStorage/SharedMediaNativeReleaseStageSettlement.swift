@@ -56,7 +56,9 @@ final class SharedMediaNativeReleaseStageSettlement {
     private var readPairDisposal: (() async throws -> Void)?
     private(set) var pendingOriginalDisposition: SharedMediaNativeOriginalDispositionAttempt?
     private var readOriginalDisposition: (() throws -> SharedMediaNativeReceivingReleaseValues.Progress)?
-    var hasPending: Bool { request != nil || pendingPairDisposal != nil || pendingOriginalDisposition != nil }
+    private(set) var pendingOriginalDisposal: SharedMediaNativeOriginalRemovalCapability?
+    private var readOriginalDisposal: (() async throws -> Void)?
+    var hasPending: Bool { request != nil || pendingPairDisposal != nil || pendingOriginalDisposition != nil || pendingOriginalDisposal != nil }
     private(set) var pairAttempt: SharedMediaNativeReleasePairAttempt?
     private var pendingStage: SharedMediaNativeReleaseStageAdmission?
     private(set) var startProgress: SharedMediaNativeReceivingReleaseValues.Progress?
@@ -184,7 +186,7 @@ final class SharedMediaNativeReleaseStageSettlement {
     }
     func beginPairDisposal(_ capability: SharedMediaNativeReleasePairRemovalCapability,
                            read: @escaping () async throws -> Void) throws {
-        guard !closed, request == nil, pendingOriginalDisposition == nil else { throw SharedMediaStorageFailure.closed }
+        guard !closed, request == nil, pendingOriginalDisposition == nil, pendingOriginalDisposal == nil else { throw SharedMediaStorageFailure.closed }
         if let prior = pendingPairDisposal {
             try prior.requireSame(capability)
             prior.permit.revoke()
@@ -204,14 +206,33 @@ final class SharedMediaNativeReleaseStageSettlement {
         guard pendingOriginalDisposition === attempt else { throw SharedMediaStorageFailure.closed }
         pendingOriginalDisposition = nil; readOriginalDisposition = nil
     }
+    func beginOriginalDisposal(_ value: SharedMediaNativeOriginalRemovalCapability,
+                               read: @escaping () async throws -> Void) throws {
+        guard !closed, !hasPending else { throw SharedMediaStorageFailure.closed }
+        pendingOriginalDisposal = value; readOriginalDisposal = read
+    }
+    func resolvedOriginalDisposal(_ value: SharedMediaNativeOriginalRemovalCapability) throws {
+        guard pendingOriginalDisposal === value else { throw SharedMediaStorageFailure.closed }
+        value.permit.revoke(); pendingOriginalDisposal = nil; readOriginalDisposal = nil
+    }
     func closeAdmission() {
-        closed = true; pendingPairDisposal?.permit.revoke()
+        closed = true; pendingPairDisposal?.permit.revoke(); pendingOriginalDisposal?.permit.revoke()
         fresh.removeAll(); starts.removeAll(); pairs.removeAll()
     }
 
     /// Called only after the owner's active work has terminated. Reacquire the
     /// original canonical locks; no save, authority minting, provider call or refund.
     func reconcileAfterTermination() async throws {
+        if let pending = pendingOriginalDisposal {
+            guard closed, let readOriginalDisposal else { throw SharedMediaStorageFailure.closed }
+            let coordinator = ScanInferencePersistenceCoordinator.shared, plan = pending.before.plan
+            let held = await coordinator.acquireAll(scanIds: [plan.queueID.uuidString, plan.observationID.uuidString])
+            do {
+                try await readOriginalDisposal()
+                try resolvedOriginalDisposal(pending)
+                await coordinator.releaseAll(scanIds: held)
+            } catch { await coordinator.releaseAll(scanIds: held); throw error }
+        }
         if let pending = pendingPairDisposal {
             guard closed, let readPairDisposal else { throw SharedMediaStorageFailure.closed }
             let coordinator = ScanInferencePersistenceCoordinator.shared, plan = pending.before.plan

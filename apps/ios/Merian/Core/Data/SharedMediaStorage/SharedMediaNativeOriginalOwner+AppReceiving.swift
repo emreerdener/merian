@@ -101,6 +101,12 @@ extension SharedMediaNativeOriginalOwner {
             try await self.appReleaseStageWorkflow(lock: lock) { try await $0.disposeOriginal(progress) }
         }
     }
+    func removeAppReleaseOriginal(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) async throws -> SharedMediaNativeReceivingReleaseValues.Progress {
+        let plan = progress.plan
+        return try await withReceivingLocks(queueID: plan.queueID.uuidString, observationID: plan.observationID.uuidString) { lock in
+            try await self.appReleaseStageWorkflow(lock: lock) { try await $0.removeOriginal(progress) }
+        }
+    }
     func recoverAppReleasePair(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) async throws -> SharedMediaNativeReceivingReleaseValues.Progress {
         let plan = progress.plan
         return try await withReceivingLocks(queueID: plan.queueID.uuidString, observationID: plan.observationID.uuidString) { lock in

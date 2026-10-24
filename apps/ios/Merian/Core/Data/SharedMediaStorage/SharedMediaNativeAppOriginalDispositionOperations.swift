@@ -15,6 +15,7 @@ struct SharedMediaNativeAppOriginalDispositionOperations {
 
     func apply(_ before: Values.Progress) async throws -> Values.Progress {
         try validate()
+        guard settlement.pendingOriginalDisposal == nil else { throw SharedMediaStorageFailure.closed }
         guard settlement.request == nil, settlement.pendingPairDisposal == nil else { throw SharedMediaStorageFailure.closed }
         if let pending = settlement.pendingOriginalDisposition {
             guard pending.before == before else { throw SharedMediaStorageFailure.closed }

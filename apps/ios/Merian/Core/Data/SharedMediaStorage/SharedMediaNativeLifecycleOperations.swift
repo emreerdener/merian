@@ -48,7 +48,7 @@ final class SharedMediaNativeLifecycleOperations {
         while let assetID = try removal().nextRetirementAsset() {
             let state = try removal().retirement(assetID: assetID)
             try authority.validate()
-            let intent = SharedMediaNativeRetirement(state: state, binding: authority.binding.bytes, epoch: authority.binding.epoch)
+            let intent = SharedMediaNativeRetirement(state: state, binding: authority.binding.bytes, epoch: authority.binding.epoch, permit: nil)
             let proof = try await io.release(intent)
             try authority.validate()
             func release() throws -> SharedMediaNativeRelease {
@@ -95,13 +95,24 @@ final class SharedMediaNativeLifecycleOperations {
 
 struct SharedMediaNativeRetirement: Sendable {
     static func app(_ witness: SharedMediaNativeAppOriginalDisposalWitness) -> Self {
-        .init(state: witness.state, binding: witness.binding.bytes, epoch: witness.binding.epoch)
+        .init(state: witness.state, binding: witness.binding.bytes, epoch: witness.binding.epoch, permit: nil)
+    }
+    @MainActor static func held(_ capability: SharedMediaNativeOriginalRemovalCapability) throws -> Self {
+        try capability.requireDisposal()
+        return .init(state: capability.state, binding: capability.binding.bytes,
+            epoch: capability.binding.epoch, permit: capability.permit)
     }
     let state: SharedMediaNativeRetirementState
     let binding: Data
     let epoch: UUID
-    fileprivate init(state: SharedMediaNativeRetirementState, binding: Data, epoch: UUID) {
-        self.state = state; self.binding = binding; self.epoch = epoch
+    private let permit: SharedMediaNativeOriginalUnlinkPermit?
+    fileprivate init(state: SharedMediaNativeRetirementState, binding: Data, epoch: UUID,
+                     permit: SharedMediaNativeOriginalUnlinkPermit?) {
+        self.state = state; self.binding = binding; self.epoch = epoch; self.permit = permit
+    }
+    func withCurrent<T>(_ body: (Bool, () -> Void) throws -> T) throws -> T {
+        if let permit { return try permit.withCurrent(self, body: body) }
+        return try body(false, {})
     }
 }
 
