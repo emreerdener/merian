@@ -119,6 +119,10 @@ final class SharedMediaNativeAppReleaseStageOperations {
             expected: expected, settlement: settlement, io: io, binding: fileBinding, verify: verifyRetiring,
             verifyAbsence: verifyAbsence, recoveryHeader: recoveryHeader, boundary: boundary).apply(progress)
     }
+    func disposeOriginal(_ progress: Values.Progress) async throws -> Values.Progress {
+        try await SharedMediaNativeAppOriginalDispositionOperations(container: container, authority: authority,
+            expected: expected, settlement: settlement, recoveryHeader: recoveryHeader, boundary: boundary).apply(progress)
+    }
     func reconcilePair(_ progress: Values.Progress) throws -> Values.Progress {
         try progress.validate(); try validate()
         guard progress.plan.profile == authority.profile,

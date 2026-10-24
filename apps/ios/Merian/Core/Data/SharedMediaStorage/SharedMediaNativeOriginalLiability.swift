@@ -118,6 +118,11 @@ enum SharedMediaNativeOriginalLiability {
         let original = try SharedMediaNativeOriginalAccounting.audit(assetID: assetID,
             inventoryID: inventory.id, context: context, checkpoint: checkpoint)
         guard original.liveCount > 0, original.retirement == nil else { throw SharedMediaStorageFailure.conflict }
+        try requireRetainedSurvivors(assetID: assetID, expectedCount: original.liveCount,
+            context: context, checkpoint: checkpoint)
+    }
+    static func requireRetainedSurvivors(assetID: UUID, excludingID: UUID? = nil, expectedCount: Int64,
+                                        context: ModelContext, checkpoint: () throws -> Void = {}) throws {
         var query = FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.assetID == assetID }, sortBy: [SortDescriptor(\.id)])
         query.fetchLimit = SharedMediaStoragePolicy.pageSize
         var offset = 0, total: Int64 = 0
@@ -126,23 +131,29 @@ enum SharedMediaNativeOriginalLiability {
             let refs = try context.fetch(query)
             for ref in refs {
                 try Task.checkCancellation(); try checkpoint()
-                let packageID = ref.packageID
-                let package = try one(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == packageID }))
-                guard ref.isLive, package.accountingTierRaw == "retained", !package.retirementRequested,
-                      try context.fetchCount(FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == packageID })) == 0,
-                      let consumer = try SharedMediaConsumerLookup.one(context, packageID: packageID), consumer.kindRaw != "queue" else {
-                    throw SharedMediaStorageFailure.conflict
-                }
-                // Includes exact retained freeze/membership and original joins;
-                // a terminal slot or an unbound retained row is not sufficient.
-                _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: .appV2, checkpoint: checkpoint)
+                if ref.id == excludingID { continue }
+                try requireRetainedReference(ref, context: context, checkpoint: checkpoint)
+                total = try SharedMediaStoragePolicy.add(total, 1)
             }
-            total = try SharedMediaStoragePolicy.add(total, Int64(refs.count))
             if refs.count < SharedMediaStoragePolicy.pageSize { break }
             let (next, overflow) = offset.addingReportingOverflow(refs.count)
             guard !overflow else { throw SharedMediaStorageFailure.capacity }; offset = next
         }
-        guard total == original.liveCount else { throw SharedMediaStorageFailure.conflict }
+        guard total == expectedCount, total > 0 else { throw SharedMediaStorageFailure.conflict }
+    }
+    /// Same retained-only validation used by prospective held disposition.
+    static func requireRetainedReference(_ ref: PhotoPreparationReference, context: ModelContext,
+                                        checkpoint: () throws -> Void = {}) throws {
+        let packageID = ref.packageID
+        let package = try one(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == packageID }))
+        guard ref.isLive, package.accountingTierRaw == "retained", !package.retirementRequested,
+              try context.fetchCount(FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == packageID })) == 0,
+              let consumer = try SharedMediaConsumerLookup.one(context, packageID: packageID), consumer.kindRaw != "queue" else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        // Includes exact retained freeze/membership and original joins;
+        // a terminal slot or an unbound retained row is not sufficient.
+        _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: .appV2, checkpoint: checkpoint)
     }
     private static func one<T: PersistentModel>(_ context: ModelContext, _ query: FetchDescriptor<T>) throws -> T {
         try SharedMediaNativePairPlanGraph.one(context, query)

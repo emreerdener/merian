@@ -106,7 +106,7 @@ enum SharedMediaNativeReceivingReleaseLiveAudit {
                 if state.original?.disposition == .removed {
                     try absentOriginal(target, profile: profile, inventory: inventory, context: context)
                 } else {
-                    try sharedOriginal(target, intent: intent, profile: profile, inventory: inventory, context: context)
+                    try sharedOriginal(target, selectedPackageID: packageID, intent: intent, profile: profile, inventory: inventory, context: context)
                 }
                 // Deleted closure bodies cannot be independently re-proven.
                 // These branches consume the future sealed writer's atomic
@@ -202,7 +202,7 @@ enum SharedMediaNativeReceivingReleaseLiveAudit {
         }
     }
 
-    private static func sharedOriginal(_ target: Values.Target, intent: SharedMediaNativeDerivativeIntent,
+    private static func sharedOriginal(_ target: Values.Target, selectedPackageID: UUID, intent: SharedMediaNativeDerivativeIntent,
                                        profile: SharedMediaNativeAppProfile, inventory: SharedMediaInventoryRecord,
                                        context: ModelContext) throws {
         let id = target.acquisitionID, source = target.original, expected = intent.preparation.original
@@ -214,6 +214,15 @@ enum SharedMediaNativeReceivingReleaseLiveAudit {
                   result.byteCount == expected.byteCount, result.sha256 == expected.sha256,
                   result.contentType == expected.contentType, result.descriptor == expected.descriptor else {
                 throw SharedMediaStorageFailure.conflict
+            }
+            // Saved shared disposition still requires a surviving logical owner.
+            // Receipt identity alone cannot prove count/reference integrity.
+            let original = try SharedMediaNativeOriginalAccounting.audit(assetID: source.assetID,
+                inventoryID: inventory.id, context: context)
+            guard original.liveCount > 0, original.retirement == nil else { throw SharedMediaStorageFailure.conflict }
+            if request.packageID != selectedPackageID {
+                try SharedMediaNativeOriginalLiability.requireRetainedSurvivors(assetID: source.assetID,
+                    expectedCount: original.liveCount, context: context)
             }
         case .released:
             try absentOriginal(target, profile: profile, inventory: inventory, context: context)

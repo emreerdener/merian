@@ -22,7 +22,7 @@ struct SharedMediaNativeAppReleasePairRemovalOperations {
         let saved = try SharedMediaNativeReleasePairRemovalRecovery.read(before, container: container,
             header: { try authority.header(container) })
         let after = try SharedMediaNativeReleasePairRemovalRecovery.successor(before)
-        guard settlement.request == nil,
+        guard settlement.request == nil, settlement.pendingOriginalDisposition == nil,
               settlement.pendingPairDisposal == nil || settlement.pendingPairDisposal?.before == before else {
             throw SharedMediaStorageFailure.closed
         }

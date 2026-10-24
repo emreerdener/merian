@@ -1,3 +1,43 @@
+## October 24 — inactive held original disposition qualified locally
+
+The next inactive native owner step handles only the first selected original at
+`pairGoneOriginalLive`. Shared disposition deletes its reference and edge,
+decrements the authoritative count once, and preserves the physical origin and
+surviving owners. Final-reference disposition records the existing canonical
+retirement identity from the persisted acquisition descriptor, retires the
+reference/accounting rows, and retains original bytes and charges. Neither
+branch receives filesystem or provider authority. Later targets and terminal
+completion remain outside this step.
+
+A versioned shared attestation binds the clean predecessor, raw persistent row
+identities, full reference-set digest and exact successor projection without
+hashing its own derived result. A frozen owner-local attempt seals the changed,
+deleted and preserved rows around one metadata save. Uncertain in-process saves
+permit only exact readback. After joined prior-owner shutdown, a fresh
+registered owner can admit a new deterministic metadata attempt from the
+complete durable predecessor; saved successors take priority. Missing or mixed
+evidence stays closed. Existing survivor projection and asset-owned identity
+liability remain separate; locally originated shared assets retain their
+physical charge, while foreign retained-only references use the existing
+complete retained audit.
+
+Candidate05 compiled in managed build05. Reviewed focused composition covers 8
+methods / 20 invocations: six unchanged owner methods / 14 cases from focused01
+and both corrected sharing methods / 6 cases from focused02. The focused01
+aggregate remains failed evidence; its sharing results are excluded. Affected
+regression02 passed 82 methods / 147 invocations in 11 full suites, with zero
+skips and zero structured runtime warnings. All 2,981 source/project pins and
+708 compiled-product pins remained unchanged. Simulator service messages remain
+in the retained console log.
+
+This is scoped local qualification. Full-target, isolated-source, integrated app
+and abrupt-exit acceptance remain open. Physical original cleanup, later targets
+and terminal completion still require integration. No schema, storage limit,
+scan funding, UI routing or activation change is included. Evidence:
+`.artifacts/native-app-capture-handoff-20261020/original-disposition-*`.
+Activation disabled; PR116 frozen; deployment hold active; AWS unapproved;
+limits unchanged.
+
 ## October 24 — inactive held pair removal qualified locally
 
 The first saved `retiringPair` can now advance to `pairGoneOriginalLive` through
