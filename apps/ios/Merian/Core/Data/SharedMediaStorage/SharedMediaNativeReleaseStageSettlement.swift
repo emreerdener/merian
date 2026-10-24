@@ -22,6 +22,21 @@ final class SharedMediaNativeReleaseStartAdmission {
     }
 }
 
+/// One normal start acknowledgement authorizes only its first retained target.
+/// Saved Progress and recovery cannot construct this owner-local right.
+@MainActor
+final class SharedMediaNativeReleasePairAdmission {
+    let request: SharedMediaNativeReleaseStartRequest
+    let row: SharedMediaNativeReceivingIntentGraph.Row
+    let progress: SharedMediaNativeReceivingReleaseValues.Progress
+    fileprivate var attempt: SharedMediaNativeReleasePairAttempt?
+    fileprivate init(_ request: SharedMediaNativeReleaseStartRequest,
+                     row: SharedMediaNativeReceivingIntentGraph.Row,
+                     progress: SharedMediaNativeReceivingReleaseValues.Progress) {
+        self.request = request; self.row = row; self.progress = progress
+    }
+}
+
 /// The owner retains uncertainty independently of each transient operation.
 /// The saved recovery closure holds repository read fences, never dispatch grants.
 @MainActor
@@ -36,6 +51,8 @@ final class SharedMediaNativeReleaseStageSettlement {
     }
     private var fresh: [UUID: Entitlement] = [:]
     private var starts: [UUID: SharedMediaNativeReleaseStartAdmission] = [:]
+    private var pairs: [UUID: SharedMediaNativeReleasePairAdmission] = [:]
+    private(set) var pairAttempt: SharedMediaNativeReleasePairAttempt?
     private var pendingStage: SharedMediaNativeReleaseStageAdmission?
     private(set) var startProgress: SharedMediaNativeReceivingReleaseValues.Progress?
     private var closed = false
@@ -74,7 +91,7 @@ final class SharedMediaNativeReleaseStageSettlement {
         request = admission.request; pendingStage = admission; self.readSaved = readSaved
     }
     func resolved(_ value: Request) throws {
-        guard startProgress == nil, request == nil || request == value else { throw SharedMediaStorageFailure.closed }
+        guard startProgress == nil, pairAttempt == nil, request == nil || request == value else { throw SharedMediaStorageFailure.closed }
         request = nil; pendingStage = nil; readSaved = nil
     }
     /// Only the uninterrupted normal stage success path calls this. No await
@@ -114,7 +131,53 @@ final class SharedMediaNativeReleaseStageSettlement {
         }
         startProgress = nil; request = nil; readSaved = nil
     }
-    func closeAdmission() { closed = true; fresh.removeAll(); starts.removeAll() }
+    /// Atomic pending-start -> unused pair right transition. Fault recovery never calls this.
+    func acknowledgedStart(_ progress: SharedMediaNativeReceivingReleaseValues.Progress, row: Row) throws {
+        guard !closed, let request, startProgress == progress, pairAttempt == nil,
+              pairs[row.id] == nil, row.id == request.packageID,
+              progress == (try .init(plan: progress.plan)), row.phase == "releasing",
+              row.revision == (try progress.plan.releasingRevision), row.preparedData == nil,
+              row.releaseStartData == nil, row.releaseStartSHA256 == nil,
+              row.resultData == (try progress.encoded()),
+              row.resultSHA256 == SharedMediaAcquisitionEncoding.digest(try progress.encoded()) else {
+            throw SharedMediaStorageFailure.closed
+        }
+        pairs[row.id] = .init(request, row: row, progress: progress)
+        startProgress = nil; self.request = nil; readSaved = nil
+    }
+    func pairAdmission(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) throws -> SharedMediaNativeReleasePairAdmission {
+        guard !closed, request == nil, let admission = pairs[progress.plan.package.id],
+              admission.progress == progress else { throw SharedMediaStorageFailure.closed }
+        return admission
+    }
+    func freezePair(_ value: SharedMediaNativeReleasePairAttempt,
+                    admission: SharedMediaNativeReleasePairAdmission) throws -> SharedMediaNativeReleasePairAttempt {
+        guard try pairAdmission(value.before) === admission, value.row == admission.row else {
+            throw SharedMediaStorageFailure.closed
+        }
+        if let prior = admission.attempt {
+            guard prior === value else { throw SharedMediaStorageFailure.closed }
+            return prior
+        }
+        admission.attempt = value; return value
+    }
+    func frozenPair(_ admission: SharedMediaNativeReleasePairAdmission) throws -> SharedMediaNativeReleasePairAttempt? {
+        guard try pairAdmission(admission.progress) === admission else { throw SharedMediaStorageFailure.closed }
+        return admission.attempt
+    }
+    func beginPair(_ attempt: SharedMediaNativeReleasePairAttempt, readSaved: @escaping () throws -> Saved) throws {
+        let admission = try pairAdmission(attempt.before)
+        guard admission.attempt === attempt else { throw SharedMediaStorageFailure.closed }
+        pairs.removeValue(forKey: attempt.before.plan.package.id)
+        request = admission.request; pairAttempt = attempt; self.readSaved = readSaved
+    }
+    func resolvedPair(_ value: SharedMediaNativeReceivingReleaseValues.Progress) throws {
+        guard pairAttempt?.after == value, request?.releaseID == value.plan.releaseID else {
+            throw SharedMediaStorageFailure.closed
+        }
+        pairAttempt = nil; request = nil; readSaved = nil
+    }
+    func closeAdmission() { closed = true; fresh.removeAll(); starts.removeAll(); pairs.removeAll() }
 
     /// Called only after the owner's active work has terminated. Reacquire the
     /// original canonical locks; no save, authority minting, provider call or refund.
@@ -126,7 +189,10 @@ final class SharedMediaNativeReleaseStageSettlement {
         do {
             try Task.checkCancellation()
             let saved = try readSaved()
-            if let progress = startProgress {
+            if let attempt = pairAttempt {
+                guard saved == .releasing(attempt.after) else { throw SharedMediaStorageFailure.closed }
+                try resolvedPair(attempt.after)
+            } else if let progress = startProgress {
                 guard saved == .releasing(progress) else { throw SharedMediaStorageFailure.closed }
                 try resolvedStart(progress)
             } else {

@@ -1,3 +1,39 @@
+## October 23 — inactive held pair-retirement writer qualified locally
+
+The first held ready pair can now be recorded as retiring in one metadata save,
+with its immutable physical closure and receiving Progress. This inactive path
+reuses the registered native owner, coordinator locks, repository file access
+and shared no-save pair-row mechanics. It does not unlink files, reduce storage
+charges, change submitted media/text or invoke a provider.
+
+Only uninterrupted normal start acknowledgement with exact readback atomically
+grants the owner-local first-target right. Recovery, cold discovery and account
+drain cannot grant it. The target, retirement identity, closure and physical
+inspections are frozen before the save attempt. Pre-save rejection revalidates
+only that same attempt; save uncertainty permits exact outcome recovery. The
+joint write seal checks every raw field, persistent row identity and exact
+inserted/changed set. Complete clean predecessor, existing funding/runway and
+current physical inspection checks precede the save. Ordinary retirement IDs are
+included in indexed collision checks.
+
+Candidate04 compiled in managed build05. Focused01 passed all 10 methods / 17
+invocations with no skips, including owned/shared originals, absent outputs,
+save/readback faults, recovery denial, replacement paths, cancellation, account
+drain, exact raw seals and immutable retries. Regression02 passed all 28 methods
+/ 49 invocations across release start, release stage and ordinary pair
+retirement. Both runs used the same 2,965 source/project pins and 708 compiled
+product pins; no source or product changed during execution. Earlier
+build02/build04 failures, build03 NOT RUN and regression01 HOLD remain retained
+evidence.
+
+This is scoped local qualification. Full-target, isolated, integrated app and
+abrupt-exit acceptance remain open; complete release and native journeys are not
+qualified by this checkpoint. The next reviewed pair-gone transition, original
+release, later targets and terminal completion remain separate work. Evidence:
+`.artifacts/native-app-capture-handoff-20261020/retire-writer-*`. Activation
+disabled; PR116 frozen; deployment hold active; AWS unapproved; limits
+unchanged. No external operations are authorized.
+
 ## October 23 — inactive release-start transaction qualified locally
 
 The local start implementation reuses the existing stage workflow, coordinator

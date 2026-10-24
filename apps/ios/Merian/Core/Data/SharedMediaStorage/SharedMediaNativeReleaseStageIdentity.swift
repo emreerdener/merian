@@ -80,7 +80,7 @@ enum SharedMediaNativeReleaseStageIdentity {
         try empty(c, FetchDescriptor<SharedMediaAllocationRecord>(predicate: #Predicate { $0.id == id }))
         try empty(c, FetchDescriptor<SharedMediaLeaseRecord>(predicate: #Predicate { $0.id == id || $0.allocationID == id }))
         try empty(c, FetchDescriptor<SharedMediaReferenceRecord>(predicate: #Predicate { $0.id == id || $0.allocationID == id }))
-        try empty(c, FetchDescriptor<SharedMediaAssetReferenceCountRecord>(predicate: #Predicate { $0.id == id }))
+        try empty(c, FetchDescriptor<SharedMediaAssetReferenceCountRecord>(predicate: #Predicate { $0.id == id || $0.retirementID == id }))
         try empty(c, FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.id == id }))
         try empty(c, FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.id == id || $0.assetID == id }))
         try empty(c, FetchDescriptor<PhotoPreparationLease>(predicate: #Predicate { $0.id == id || $0.assetID == id }))
@@ -88,7 +88,7 @@ enum SharedMediaNativeReleaseStageIdentity {
             $0.id == id || $0.originalReferenceID == id || $0.originalAssetID == id || $0.aiWorkID == id || $0.displayWorkID == id || $0.previousPairID == id
         }))
         try empty(c, FetchDescriptor<SharedMediaDerivativeWorkRecord>(predicate: #Predicate {
-            $0.id == id || $0.pairID == id || $0.assetID == id || $0.referenceID == id || $0.leaseID == id
+            $0.id == id || $0.pairID == id || $0.assetID == id || $0.referenceID == id || $0.leaseID == id || $0.retirementID == id
         }))
         try empty(c, FetchDescriptor<SharedMediaInboxSourceRecord>(predicate: #Predicate { $0.id == id || $0.workID == id }))
         try empty(c, FetchDescriptor<SharedMediaInboxHandoffRecord>(predicate: #Predicate {

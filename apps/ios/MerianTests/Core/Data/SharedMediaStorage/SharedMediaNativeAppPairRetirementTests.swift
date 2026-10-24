@@ -166,7 +166,7 @@ struct SharedMediaNativeAppPairRetirementTests {
         #expect(await owner.invalidateAndAwaitForAccountTransition())
     }
 
-    private func fixture(_ mode: String, receiving: Bool = false) async throws -> (Store, SharedMediaNativePairFileState) {
+    func fixture(_ mode: String, receiving: Bool = false) async throws -> (Store, SharedMediaNativePairFileState) {
         let h = try Store(receiving: receiving)
         let owner: SharedMediaNativeOriginalOwner
         if receiving { owner = try await h.openWithReceivingConsumer().0 } else { owner = try await h.open() }
@@ -215,14 +215,14 @@ struct SharedMediaNativeAppPairRetirementTests {
     }
     private func path(_ h: Store, _ token: String) -> URL { h.parent.appendingPathComponent("photo/PhotoPreparation").appendingPathComponent(token) }
     private func consumers(_ h: Store) throws -> [SharedMediaNativeAppMetadataFacts.Consumer] { try h.context().fetch(FetchDescriptor<SharedMediaConsumerRecord>()).map { .init($0) } }
-    private func state(_ h: Store, pairID: UUID? = nil) throws -> SharedMediaNativePairFileState {
+    func state(_ h: Store, pairID: UUID? = nil) throws -> SharedMediaNativePairFileState {
         let c = h.context(), id = h.packageID, inventoryID = h.inventoryID
         let inventory = try #require(try c.fetch(FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID })).first)
         let package = try #require(try c.fetch(FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == id })).first)
         let member = try #require(try c.fetch(FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id })).first)
         return try SharedMediaNativePairFileGraph.state(context: c, inventory: inventory, package: package, member: member, pairID: pairID)
     }
-    private func reopen(_ h: Store) async throws -> SharedMediaNativeOriginalOwner {
+    func reopen(_ h: Store) async throws -> SharedMediaNativeOriginalOwner {
         let owner = try SharedMediaNativeOriginalOwner.appDispatch(account: PhotoOriginalPreparationOwner.syntheticAccount(ownerID: h.ownerID, runtime: h.runtime), drain: .init())
         _ = try await owner.openApp(container: h.container, parent: h.parent, inventoryID: h.inventoryID); return owner
     }

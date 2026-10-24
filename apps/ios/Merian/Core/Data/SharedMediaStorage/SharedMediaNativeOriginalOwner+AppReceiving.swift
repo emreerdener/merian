@@ -74,6 +74,26 @@ extension SharedMediaNativeOriginalOwner {
             try await self.appReleaseStageWorkflow(lock: lock) { try $0.reconcileStart(progress) }
         }
     }
+    #if DEBUG
+    func frozenAppReleasePairForTesting(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) async throws -> SharedMediaNativeReleasePairAttempt? {
+        let plan = progress.plan
+        return try await withReceivingLocks(queueID: plan.queueID.uuidString, observationID: plan.observationID.uuidString) { lock in
+            try await self.appReleaseStageWorkflow(lock: lock) { try $0.frozenPairForTesting(progress) }
+        }
+    }
+    #endif
+    func retireAppReleasePair(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) async throws -> SharedMediaNativeReceivingReleaseValues.Progress {
+        let plan = progress.plan
+        return try await withReceivingLocks(queueID: plan.queueID.uuidString, observationID: plan.observationID.uuidString) { lock in
+            try await self.appReleaseStageWorkflow(lock: lock) { try await $0.retirePair(progress) }
+        }
+    }
+    func recoverAppReleasePair(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) async throws -> SharedMediaNativeReceivingReleaseValues.Progress {
+        let plan = progress.plan
+        return try await withReceivingLocks(queueID: plan.queueID.uuidString, observationID: plan.observationID.uuidString) { lock in
+            try await self.appReleaseStageWorkflow(lock: lock) { try $0.reconcilePair(progress) }
+        }
+    }
     /// Uses retained IDs only, and returns typed saved evidence without inventing
     /// the consumed stage header. The supplied Prepared is descriptive, not authority.
     func discoverAppRelease(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeAppReleaseStageOperations.Saved? {

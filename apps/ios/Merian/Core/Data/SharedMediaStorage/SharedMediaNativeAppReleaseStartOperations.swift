@@ -48,7 +48,7 @@ struct SharedMediaNativeAppReleaseStartOperations {
             }
             do { try context.save(); try boundary(.afterSave) }
             catch { context.rollback(); return try recover(progress) }
-            return try recover(progress)
+            return try acknowledge(progress)
         } catch { context.rollback(); throw error }
     }
     private func predecessor(_ admission: SharedMediaNativeReleaseStartAdmission,
@@ -76,6 +76,19 @@ struct SharedMediaNativeAppReleaseStartOperations {
               a.historical.baseBytes == b.historical.baseBytes, a.historical.originIDs == b.historical.originIDs,
               a.historical.liability == b.historical.liability, a.funding.staged == b.funding.staged,
               a.funding.release.projection == b.funding.release.projection else { throw SharedMediaStorageFailure.stale }
+    }
+    private func acknowledge(_ progress: Values.Progress) throws -> Values.Progress {
+        try boundary(.beforeReadback)
+        let result = try SharedMediaNativeReleaseStartRecovery.read(progress, container: container,
+            exactSuccessor: true, header: { try authority.header(container) })
+        guard let row = try SharedMediaNativeReceivingPhaseGraph.row(progress.plan.package.id, in: fresh()) else {
+            throw SharedMediaStorageFailure.closed
+        }
+        try Task.checkCancellation()
+        guard try authority.header(container) == SharedMediaNativeAppMetadataFacts.successor(expected) else {
+            throw SharedMediaStorageFailure.stale
+        }
+        try settlement.acknowledgedStart(result, row: .init(row)); return result
     }
     private func recover(_ progress: Values.Progress) throws -> Values.Progress {
         try boundary(.beforeReadback)
