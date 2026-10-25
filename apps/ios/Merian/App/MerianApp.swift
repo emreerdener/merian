@@ -99,6 +99,9 @@ struct MerianApp: App {
     
     // MARK: - SwiftData Container
     let container: ModelContainer?
+    // Preserve first-construction provenance for the inactive native composition.
+    // Retaining it opens no media owner and grants no operation by itself.
+    let nativeReleaseStartupAdmission: NativeReleaseStartupAdmission?
     let startupStoreState: StartupStoreState
     let startupRecoveryNotice: StartupRecoveryNotice?
     let shouldOpenExploreOnFreshLaunch: Bool
@@ -136,6 +139,7 @@ struct MerianApp: App {
 
         let bootstrapOutcome = ModelContainerBootstrapper.bootstrap()
         container = bootstrapOutcome.container
+        nativeReleaseStartupAdmission = bootstrapOutcome.nativeReleaseAdmission
         startupStoreState = bootstrapOutcome.startupStoreState
         startupRecoveryNotice = StartupRecoveryNoticePolicy.combined(
             storeNotice: bootstrapOutcome.startupNotice

@@ -14,7 +14,7 @@ fileprivate final class StartupConstructionProvenance {
 }
 
 /// Ephemeral construction provenance, not an operation or durable recovery grant.
-/// No current native writer consumes this value.
+/// Retained by App; no current native writer consumes this value.
 @MainActor
 struct NativeReleaseStartupAdmission {
     private let container: ModelContainer
@@ -37,6 +37,19 @@ struct NativeReleaseStartupAdmission {
               try fence.binding() == binding else {
             throw StoreBootstrapBoundaryFailure.ownership
         }
+    }
+
+    /// Reacquire the existing serialized boundary after startup releases it.
+    /// This never creates a missing fence or changes construction provenance.
+    /// The caller must retain this same fence throughout profile resolution.
+    func acquireFence(container candidate: ModelContainer) throws -> SharedMediaStoreReadFence {
+        guard !provenance.denied, candidate === container else {
+            throw StoreBootstrapBoundaryFailure.ownership
+        }
+        let fence = try SharedMediaStoreReadFence(store: storeURL, access: .sharedWriter,
+                                                  requireExisting: true)
+        try require(container: candidate, fence: fence)
+        return fence
     }
 }
 

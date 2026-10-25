@@ -114,11 +114,17 @@ Only a first-attempt successful supported persistent open under the checked
 fence can mint ephemeral `NativeReleaseStartupAdmission`, bound to the exact
 container, configured URL and fence binding. Retry/recovered/safe-mode outcomes
 remain denied for that container lifetime; a later clean launch may qualify. The
-value stays internal to `ModelContainerBootstrapOutcome` and has no installed
-writer consumer yet. The future stage/start leaf must explicitly require it with
-fresh operation locks and checks. Existing receiving, restage, exact received-P2
-recovery and read-only audits remain token-free; this is not a new durable or
-fresh-only continuity grant. Activation remains disabled.
+value is retained by `MerianApp` from `ModelContainerBootstrapOutcome` and has
+no installed writer consumer yet. Its explicit `acquireFence` entry reacquires
+only the existing exclusive fence after the startup session ends, then
+revalidates the exact container, store URL, parent and control-file identity. It
+cannot create a missing fence, adopt a replacement or reverse sticky startup
+denial. The caller must keep that same fence through profile resolution;
+retaining the value alone neither opens a native profile nor enables Capture.
+The future stage/start leaf must explicitly require it with fresh operation
+locks and checks. Existing receiving, restage, exact received-P2 recovery and
+read-only audits remain token-free; this is not a new durable or fresh-only
+continuity grant. Activation remains disabled.
 
 Generic current-store startup failures must not move local store files. They
 skip quarantine/rescue and go directly to safe mode.

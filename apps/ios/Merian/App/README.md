@@ -11,7 +11,12 @@ reusable infrastructure remains in `Core`.
   dependencies, requests and attaches the Store Recovery-owned SwiftData
   bootstrap outcome, selects the root surface, binds scene phase, owns
   account-deletion recovery presentation, and remains the sole asynchronous
-  caller for fallback Supabase authentication URLs.
+  caller for fallback Supabase authentication URLs. It retains the first-success
+  native startup admission with the exact container for the inactive media
+  composition. Retention does not open a profile, register an Auth drain or
+  enable Capture; the
+  [startup contract](../../../../docs/backend-and-data/08-startup-store-recovery.md)
+  owns its fence and recovery-denial requirements.
 - `AppDelegate.swift` is the UIKit callback bridge for background URLSession
   completion and APNs registration results. The platform-required delegate may
   forward into the established app-scoped managers; views must not duplicate

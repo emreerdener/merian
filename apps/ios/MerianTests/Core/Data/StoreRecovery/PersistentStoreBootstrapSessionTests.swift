@@ -5,6 +5,53 @@ import XCTest
 
 @MainActor
 final class PersistentStoreBootstrapSessionTests: XCTestCase {
+    func testRetainedAdmissionReacquiresExactFenceAfterStartupSessionEnds() throws {
+        let root = try temporaryRoot()
+        let outcome = ModelContainerBootstrapper.fixtureBootstrap { try self.fixture(root) }
+        let container = try XCTUnwrap(outcome.container)
+        let admission = try XCTUnwrap(outcome.nativeReleaseAdmission)
+        let fence = try admission.acquireFence(container: container)
+        try admission.require(container: container, fence: fence)
+        XCTAssertThrowsError(try admission.acquireFence(container: container))
+        let other = try ModelContainerFactory.makeInMemoryContainer()
+        XCTAssertThrowsError(try admission.acquireFence(container: other))
+        try admission.require(container: container, fence: fence)
+    }
+
+    func testRetainedAdmissionNeverRecreatesMissingFence() throws {
+        let root = try temporaryRoot()
+        let outcome = ModelContainerBootstrapper.fixtureBootstrap { try self.fixture(root) }
+        let container = try XCTUnwrap(outcome.container)
+        let admission = try XCTUnwrap(outcome.nativeReleaseAdmission)
+        let configuration = try XCTUnwrap(container.configurations.first)
+        let fenceURL = configuration.url.deletingLastPathComponent()
+            .appendingPathComponent(SharedMediaStoreReadFence.name)
+        try FileManager.default.removeItem(at: fenceURL)
+        XCTAssertThrowsError(try admission.acquireFence(container: container))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fenceURL.path))
+    }
+
+    func testRetainedAdmissionRejectsReplacementFenceWithoutAdoptingIt() throws {
+        let root = try temporaryRoot()
+        let outcome = ModelContainerBootstrapper.fixtureBootstrap { try self.fixture(root) }
+        let container = try XCTUnwrap(outcome.container)
+        let admission = try XCTUnwrap(outcome.nativeReleaseAdmission)
+        let configuration = try XCTUnwrap(container.configurations.first)
+        let fenceURL = configuration.url.deletingLastPathComponent()
+            .appendingPathComponent(SharedMediaStoreReadFence.name)
+        // Keep the old inode alive at another fixture name, preventing inode reuse.
+        try FileManager.default.moveItem(at: fenceURL,
+            to: fenceURL.appendingPathExtension("retained-original"))
+        var replacement: SharedMediaStoreReadFence? = try SharedMediaStoreReadFence(
+            store: configuration.url, access: .sharedWriter)
+        let replacementBinding = try XCTUnwrap(replacement).binding()
+        replacement = nil
+        XCTAssertThrowsError(try admission.acquireFence(container: container))
+        let reopened = try SharedMediaStoreReadFence(store: configuration.url,
+            access: .sharedWriter, requireExisting: true)
+        XCTAssertEqual(try reopened.binding(), replacementBinding)
+    }
+
     func testFirstSuccessfulOpenBindsAdmissionToExactContainerAndFence() throws {
         let root = try temporaryRoot()
         let session = try fixture(root)
@@ -22,6 +69,7 @@ final class PersistentStoreBootstrapSessionTests: XCTestCase {
         _ = try session.construct { container }
         XCTAssertNil(try session.admission(for: container))
         XCTAssertThrowsError(try admission.require(container: container, fence: session.fence))
+        XCTAssertThrowsError(try admission.acquireFence(container: container))
     }
 
     func testWrongConfigurationInvalidatesSessionBeforeAnotherAttempt() throws {
