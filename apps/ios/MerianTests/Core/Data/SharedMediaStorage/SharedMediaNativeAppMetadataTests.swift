@@ -230,8 +230,8 @@ struct SharedMediaNativeAppMetadataTests {
             let bootstrap = try SharedMediaNativeOriginalOwner.appInitialization(account: account, drain: .init())
             let snapshot = try await bootstrap.initializeApp(container: container, parent: parent, inventoryID: inventoryID)
             #expect(await bootstrap.invalidateAndAwaitForAccountTransition())
-            // Test-only seeding of existing empty native drafts. Runtime creation
-            // remains closed until the acquisition/member-overlay port qualifies.
+            // Test-only seeding keeps metadata tests focused on existing drafts.
+            // Fresh drafts are created by the native acquisition owner.
             let context = context()
             context.insert(row(packageID, envelope: try PhotoPreparationPolicy.encodeDraft(contexts: [], presentation: []), phase: "draftOwned"))
             context.insert(SharedMediaPendingMembershipRecord(packageID: packageID, inventoryID: inventoryID,

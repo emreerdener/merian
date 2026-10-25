@@ -10,6 +10,80 @@ struct SharedMediaNativeAppReceivingTests {
     private static let recipe = SharedMediaNativePreparationRecipe(format: .stillImage, isPro: false,
         cropDisplaySize: nil, quarterTurns: 0, scale: 1, offsetX: 0, offsetY: 0)
 
+    @Test(arguments: [false, true])
+    func emptyProfileReachesHeldReceivingAndColdDiscovery(_ withText: Bool) async throws {
+        // Store.init creates only the disk-backed container and control parent.
+        // Do not call Store.open: that helper inserts synthetic existing drafts.
+        let h = try Store(), account = PhotoOriginalPreparationOwner.syntheticAccount(ownerID: h.ownerID, runtime: h.runtime)
+        let initial = h.context()
+        #expect(try initial.fetchCount(FetchDescriptor<PhotoPreparationRecord>()) == 0)
+        #expect(try initial.fetchCount(FetchDescriptor<SharedMediaPendingMembershipRecord>()) == 0)
+        #expect(try initial.fetchCount(FetchDescriptor<SharedMediaInventoryRecord>()) == 0)
+        let bootstrapDrain = SharedMediaNativeOriginalDrain()
+        let bootstrap = try SharedMediaNativeOriginalOwner.appInitialization(account: account, drain: bootstrapDrain)
+        _ = try await bootstrap.initializeApp(container: h.container, parent: h.parent, inventoryID: h.inventoryID)
+        try #require(await bootstrapDrain.shutdown())
+        let drain = SharedMediaNativeOriginalDrain()
+        let owner = try SharedMediaNativeOriginalOwner.appDispatch(account: account, drain: drain)
+        let empty = try await owner.openApp(container: h.container, parent: h.parent, inventoryID: h.inventoryID)
+        #expect(empty.pendingPackages == 0 && empty.consumers == 0 && empty.receipts == 0 && empty.allocations == 0)
+
+        let bytes = PhotoPreparationTestHarness.image()
+        var pairs: [UUID] = [], originalFiles: [URL] = []
+        for ordinal in 0..<2 {
+            let request = try await owner.prepareAppOriginal(packageID: h.packageID, draftGeneration: h.draft,
+                ordinal: Int64(ordinal), kind: .picker)
+            let acquired = try await owner.acquireAppOriginal(request) { bytes }
+            let original = PhotoOriginalReference(ownerID: h.ownerID, packageID: h.packageID,
+                referenceID: request.referenceID, assetID: request.assetID, assetGeneration: request.assetGeneration,
+                draftGeneration: h.draft, referenceRevision: acquired.referenceRevision)
+            originalFiles.append(h.parent.appendingPathComponent("photo/PhotoPreparation").appendingPathComponent(request.finalToken))
+            let ready = try await owner.prepareAndDeliverAppPhoto(original: original, recipe: Self.recipe)
+            pairs.append(try ready.intent().pairID)
+        }
+        let contexts: [ObservationContext] = withText ? [.init(freeText: "  Exact supporting text\nwith spacing.  ")] : []
+        let metadata = try await owner.prepareAppMetadata(packageID: h.packageID, draftGeneration: h.draft, contexts: contexts)
+        _ = try await owner.saveAppMetadata(metadata)
+        try SharedMediaNativeReceivingStagingTests().noReceivingRows(h)
+        let prepared = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: pairs)
+        let frozen = try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes)
+        #expect(try frozen.entries.map { try SharedMediaNativeDerivativeIntent.decode($0.intent.bytes).pairID } == pairs)
+        let supporting: SharedMediaNativeFrozenSupporting = try SharedMediaAcquisitionEncoding.decode(
+            frozen.supportingBytes, maximum: Int(PhotoPreparationPolicy.metadata))
+        #expect(supporting.contexts.map(\.freeText) == contexts.map(\.freeText))
+        let cohort = try await owner.receiveAppPrepared(prepared)
+        let before = try await owner.inspectApp()
+        #expect(before.pendingPackages == 1 && before.consumers == 1 && before.receipts == 2)
+        let saved = try #require(try await owner.discoverAppReceivingSlot(packageID: h.packageID))
+        let envelope = try h.package().supportingContextData
+        for file in originalFiles { #expect(try Data(contentsOf: file) == bytes) }
+        let rows = h.context()
+        #expect(try rows.fetch(FetchDescriptor<OfflineQueuedScan>()).map(\.queueNeedsAttention) == [true])
+        #expect(try rows.fetch(FetchDescriptor<OfflineJobRecord>()).map(\.status) == [.needsAttention])
+        try #require(await drain.shutdown())
+
+        // This helper constructs a distinct ModelContainer against the same store.
+        let cold = try await SharedMediaNativeReceivingStagingTests().reopen(h)
+        let coldSlot = try #require(try await cold.discoverAppReceivingSlot(packageID: h.packageID))
+        guard case .received(let recovered, _, let transaction) = try SharedMediaNativeReceivingSlot.decode(coldSlot, profile: prepared.profile) else {
+            Issue.record("Expected the exact received slot after cold reopen")
+            _ = await cold.invalidateAndAwaitForAccountTransition()
+            return
+        }
+        #expect(coldSlot == saved)
+        #expect(transaction.cohort == cohort)
+        // A received slot must never be presented as fresh prepared work.
+        await #expect(throws: (any Error).self) { _ = try await cold.discoverAppReceivingIntent(packageID: h.packageID) }
+        #expect(try recovered.encoded() == prepared.encoded())
+        try cold.setMetadataFault { if $0 == .beforeSave { throw SharedMediaStorageFailure.closed } }
+        #expect(try await cold.receiveAppPrepared(recovered) == cohort)
+        #expect(try await cold.discoverAppReceivingSlot(packageID: h.packageID) == saved)
+        #expect(try await cold.inspectApp() == before)
+        #expect(try h.package().supportingContextData == envelope)
+        for file in originalFiles { #expect(try Data(contentsOf: file) == bytes) }
+        try #require(await cold.invalidateAndAwaitForAccountTransition())
+    }
+
     @Test(arguments: [1, 2])
     func completeSetAndColdExactRecoveryNeverSaveTwice(_ count: Int) async throws {
         let (h, owner, r) = try await fixture(count: count, staged: true)

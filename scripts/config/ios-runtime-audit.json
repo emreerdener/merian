@@ -319,6 +319,14 @@
       "selector": "merianTests/ObservationVideoHistoryJourneyTests",
       "suite_names": ["ObservationVideoHistoryJourneyTests"],
       "owner": "apps/ios/MerianTests/Core/Data/AnalysisHistory/ObservationVideoHistoryJourneyTests.swift"
+    },
+    {
+      "selector": "merianTests/SharedMediaNativeAppReceivingTests",
+      "suite_names": [
+        "SharedMediaNativeAppReceivingTests",
+        "Atomic inactive native photo receiving"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/SharedMediaStorage/SharedMediaNativeAppReceivingTests.swift"
     }
   ],
   "ui": [

@@ -12996,3 +12996,22 @@ and shared-checkout limitations, are recorded in the
 [NCO-1 agreement](../rfcs/client-prepared-media-native-ownership-agreement-2026-10-15.md).
 Normal access remains nil; no hosted/provider calls are authorized by these
 local tests.
+
+### Empty-profile native photo receiving acceptance
+
+The runtime audit selects `SharedMediaNativeAppReceivingTests` through its
+existing `acceptance` manifest. Its empty-profile journey begins with a new
+disk-backed container and control parent, without fixture-seeded drafts or
+inventory rows. Existing native owners initialize the inventory, acquire two
+original photos, prepare derivatives, freeze the ordered cohort and optional
+supporting text, and create held receiving work. The two argument cases cover
+absent text and exact text including whitespace.
+
+After joined owner shutdown, a distinct ModelContainer opens the same store. The
+test decodes the saved received slot, verifies the original prepared identity
+and cohort, and checks that prepared-only discovery still refuses received work.
+Exact receiving replay succeeds with saves blocked, preserving the slot,
+accounting snapshot, supporting envelope and original bytes. This qualifies an
+inactive owner path only when its execution passes; it is not OS process
+relaunch, live Capture/Auth composition, audio/video or reanalysis acceptance.
+The complete native target and other outstanding acceptance remain separate.
