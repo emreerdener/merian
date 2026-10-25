@@ -48,7 +48,7 @@ struct SharedMediaNativeReceivingTestFixture {
     func metadata() throws -> Int64 {
         let membership = try SharedMediaMembership.decode(request.member.bytes)
         var bytes = Int64(request.package.envelope.count)
-        bytes += try SharedMediaNativeAcquisitionBudget.maximumMembershipBytes(membership, pending: [])
+        bytes += try membership.maximumAcquisitionBytes(pending: [])
         for (intent, result) in receipts { bytes += try SharedMediaAcquisitionReceipt.metadataCharge(request: intent, result: result) }
         for state in states { bytes += try SharedMediaNativePairClosure.maximumStateBytes(state) }
         return bytes

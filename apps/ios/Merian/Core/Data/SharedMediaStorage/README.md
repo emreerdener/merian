@@ -1,3 +1,82 @@
+## October 25 — profile discovery checkpoint locally qualified
+
+The inactive discovery and ownership-correction candidate passed the scoped
+178-method / 410-case plan across two finalized results: 172 methods / 403 cases
+in `c4457fdf776c4e4090ae7d32b045db52.xcresult`, followed by the missing six
+Capture methods / seven cases in `90ba511a87ba44a781444923f9bb7c26.xcresult`.
+The first packet mistakenly named those six methods under the other suite in the
+same source file; its incomplete-coverage record remains preserved. The
+supplemental run used the correct `CapturePhotoPreparationTests` selector
+without rebuilding or repeating passed tests. Exact disjoint method/case
+coverage, all 3,002 source and project pins, and 417 compiled-product pins were
+verified. There were no failures, skips or structured runtime warnings. Both
+architecture inventory assertions now pass under their unchanged limits.
+Retained evidence is under 10 MiB and the unchanged 20 GiB final free-space
+floor passed.
+
+Evidence and the corrected suite-identity mapping are recorded in
+`.artifacts/native-app-capture-handoff-20261020/app-profile-combined03-qualified.json`.
+Project generation, project/migration guardrails and changed-Markdown formatting
+passed. This qualifies only the local scoped checkpoint. Candidate02's separate
+startup/scoped/receiving-clean results remain attributed to that candidate;
+complete-target, isolated/matrix, actual App/Auth/Capture integration, initial
+and reanalysis journeys and final acceptance remain open. Discovery remains
+inactive. Activation disabled; PR116 frozen; deployment hold active; AWS
+unapproved.
+
+## October 25 — profile discovery validation and ownership correction
+
+The frozen discovery candidate completed 121 test methods / 265 argument cases:
+119 methods passed and two architecture inventory assertions failed. There were
+no skips, structured runtime warnings or source/project hash changes. This is a
+failed validation result, not complete acceptance. The failures identified two
+inherited oversized owners outside the discovery changes.
+
+The correction moves pure acquisition-successor membership size projection to
+`SharedMediaMembership.maximumAcquisitionBytes(pending:)`; the acquisition
+budget still owns aggregate charging and the same bounded successor states are
+counted. The budget owner is now 584 lines. Original-byte read/write/hash
+mechanics move behind the existing descriptor scope in
+`PhotoPreparationOriginalFiles`, while all locks and proof constructors stay
+with `PhotoPreparationLockedFiles`. The existing architecture inventories and
+limits remain unchanged. The scoped correction validation is recorded above.
+Earlier discovery results remain separately attributed to their exact candidate.
+
+Activation remains disabled; PR116 is frozen and the deployment hold remains.
+
+## Inactive startup profile discovery
+
+Startup-qualified discovery holds the original store fence and a canonical,
+existing, backup-excluded Application Support control-parent lock. It selects
+only a provisional saved inventory identity and database profile. A fresh UUID
+is selected only after both an empty control parent and an unassociated database
+are proved. Interrupted bootstrap preserves its original UUID and journal bytes.
+Malformed or conflicting evidence never becomes fresh absence.
+
+A one-use transfer passes those same held resources into the existing native
+file owner. The existing initialization/open constructor still validates every
+journal, root, marker and database association; discovery grants no write right.
+Transfer rechecks container, owner, store, parent, inventory, mode and exact
+control bytes. Failure consumes the attempt and closes its resources. A retained
+consumed discovery holds no locks, and abandoned discovery can be invalidated
+explicitly. Inactive owner entries release unused discovery on every exit.
+Discovery retains the observed SQLite UUID and an open store descriptor.
+Transfer requires the same logical identity and named device/inode, including
+the receiving file owner's descriptor, before bootstrap can write. Replacing the
+file at the same URL cannot substitute a different store, even with a copied
+UUID. The descriptor remains retained until the receiving owner holds its own.
+
+The V1 acquisition helper now owns its reserve/readback/load/write/complete
+sequence, with private I/O primitives. The registered owner still owns the
+loader/writer observations, account work, cancellation and uncertain settlement.
+The scoped audit owns app-header stability and diagnostic timing, while the
+repository supplies read validation and retains grants and file fences. Profile
+identity assertions remain with the profile value. These ownership corrections
+preserve the existing sealed-owner ceilings without widening capability access.
+
+Production parent selection, lifecycle installation and Capture remain disabled.
+This change has not yet been runtime-qualified.
+
 ## October 25 — inactive receiving terminal qualified locally
 
 The inactive implementation adds a dedicated all-removed receiving closure

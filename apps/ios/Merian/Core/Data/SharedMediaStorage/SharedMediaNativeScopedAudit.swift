@@ -48,6 +48,32 @@ struct SharedMediaNativeScopedAudit {
         self.check = check; self.betweenPages = betweenPages
     }
 
+    /// The audit owns header stability and diagnostic timing; the repository
+    /// supplies only read validation and retains every grant and file fence.
+    static func runApp(container: ModelContainer, profile: () throws -> SharedMediaNativeAppProfile,
+                       header: @escaping () throws -> SharedMediaNativeAppEligibility.Header,
+                       betweenPages: @escaping () async throws -> Void,
+                       configure: (inout Self) -> Void) async throws -> SharedMediaNativeScopedSnapshot {
+        let expected = try header(), profile = try profile()
+        #if DEBUG
+        var trace: SharedMediaNativeDebugHooks.InspectionTrace?
+        #endif
+        var audit = try Self(app: container, profile: profile, expected: expected.inventory, check: {
+            #if DEBUG
+            let started = trace == nil ? nil : ContinuousClock.now
+            defer { if let started { trace?.checkpoint(started.duration(to: .now)) } }
+            #endif
+            guard try header() == expected else { throw SharedMediaStorageFailure.conflict }
+        }, betweenPages: betweenPages)
+        configure(&audit)
+        #if DEBUG
+        trace = audit.inspectionTrace
+        #endif
+        let result = try await audit.run()
+        guard try header() == expected else { throw SharedMediaStorageFailure.conflict }
+        return result
+    }
+
     func run() async throws -> SharedMediaNativeScopedSnapshot {
         #if DEBUG
         inspectionTrace?.enter(.pending)

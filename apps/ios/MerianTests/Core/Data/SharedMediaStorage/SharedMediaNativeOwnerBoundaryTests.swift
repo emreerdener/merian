@@ -36,6 +36,9 @@ struct SharedMediaNativeOwnerBoundaryTests {
         let operations = try source("SharedMediaNativeQualificationOperations.swift")
         #expect(operations.contains("private let authority: SharedMediaNativeMutationAuthority"))
         #expect(operations.contains("private let checkDispatch: () throws -> Void"))
+        for primitive in ["reserveOriginal", "loadOriginal", "writeOriginal", "completeOriginal"] {
+            #expect(operations.contains("private func " + primitive + "("), "Acquisition primitive escaped its protocol: \(primitive)")
+        }
         #expect(repository.contains("checkDispatch: { try self.requireDispatch(grant) }"))
         let start = try #require(repository.range(of: "func settleOriginal("))
         let end = try #require(repository.range(of: "    private func metadataBoundary(", range: start.upperBound..<repository.endIndex))

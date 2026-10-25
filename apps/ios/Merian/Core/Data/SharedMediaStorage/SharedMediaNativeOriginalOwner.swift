@@ -71,7 +71,8 @@ final class SharedMediaNativeOriginalOwner {
     }
     func initializeApp(container: ModelContainer, parent: URL, inventoryID: UUID,
                        fault: ((SharedMediaNativeBootstrapBoundary) throws -> Void)? = nil,
-                       availableBytes: Int64? = nil) async throws -> SharedMediaStorageSnapshot {
+                       availableBytes: Int64? = nil, discovery: SharedMediaNativeBootstrapDiscovery? = nil) async throws -> SharedMediaStorageSnapshot {
+        defer { discovery?.invalidate() }
         guard openKind == .appInitialization, phase == .unopened,
               let registration, drain.isCurrent(registration) else { throw SharedMediaStorageFailure.closed }
         phase = .opening; debug.bootstrapFault = fault; debug.bootstrapAvailableBytes = availableBytes
@@ -80,7 +81,7 @@ final class SharedMediaNativeOriginalOwner {
                 let grant = SharedMediaNativeAppGrant(owner: self, identity: identity, lease: lease,
                     ownerID: account.ownerID, writerEpoch: writerEpoch)
                 let candidate = try SharedMediaNativeStorageRepository.initializeApp(container: container, parent: parent,
-                    inventoryID: inventoryID, grant: grant)
+                    inventoryID: inventoryID, grant: grant, discovery: discovery)
                 storage = candidate
                 let result = try candidate.appInitializationSnapshot(grant: grant)
                 try grant.validate(); phase = .ready; return result
@@ -96,7 +97,9 @@ final class SharedMediaNativeOriginalOwner {
         try .init(account: account, drain: drain, openKind: .appDispatch)
     }
     func openApp(container: ModelContainer, parent: URL, inventoryID: UUID, pause: (@Sendable () async -> Void)? = nil,
-                 inspectionTrace: SharedMediaNativeDebugHooks.InspectionTrace? = nil) async throws -> SharedMediaNativeScopedSnapshot {
+                 inspectionTrace: SharedMediaNativeDebugHooks.InspectionTrace? = nil,
+                 discovery: SharedMediaNativeBootstrapDiscovery? = nil) async throws -> SharedMediaNativeScopedSnapshot {
+        defer { discovery?.invalidate() }
         guard openKind == .appDispatch, phase == .unopened, let registration, drain.isCurrent(registration) else { throw SharedMediaStorageFailure.closed }
         phase = .opening; debug.scopedPagePause = pause; debug.inspectionTrace = inspectionTrace
         defer {
@@ -112,7 +115,7 @@ final class SharedMediaNativeOriginalOwner {
                     profile: profile, parent: parent, writerEpoch: writerEpoch)
                 inspectionTrace?.enter(.repository)
                 let candidate = try SharedMediaNativeStorageRepository.openApp(container: container, parent: parent,
-                    inventoryID: inventoryID, grant: grant)
+                    inventoryID: inventoryID, grant: grant, discovery: discovery)
                 storage = candidate
                 inspectionTrace?.enter(.inspect)
                 let result = try await candidate.inspectApp(grant: grant)
@@ -333,9 +336,6 @@ final class SharedMediaNativeOriginalOwner {
         debug.lifecycleAvailableBytes = availableBytes
     }
 
-    #endif
-
-    #if DEBUG
     func setPreparationFault(_ fault: ((SharedMediaNativePreparationBoundary) throws -> Void)?, availableBytes: Int64? = nil, focusFactory: ImageFocusWorkFactory = .init(), fileEpochObserved: ((UUID) -> Void)? = nil) throws {
         guard phase == .ready, cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }
         debug.preparationFault = fault; debug.preparationAvailableBytes = availableBytes; debug.preparationFocusFactory = focusFactory
@@ -374,29 +374,8 @@ final class SharedMediaNativeOriginalOwner {
             try grant.validate()
             var loaderStarted = false
             do {
-                do { try operations.reserveOriginal(request) } catch { /* Exact saved-state recovery below. */ }
-                guard case .reserved = try operations.originalReceipt(request) else { throw SharedMediaStorageFailure.conflict }
-                let reserved = try operations.reservedState(request)
-                try grant.validate()
-                // This is the sole loader invocation. Cold reservations never reach it.
-                loaderStarted = true
-                let data: Data
-                do {
-                    writerActive = true; defer { writerActive = false }
-                    data = try await operations.loadOriginal(load)
-                }
-                try grant.validate()
-                guard try operations.reservedState(request) == reserved else { throw SharedMediaStorageFailure.stale }
-                let proof: SharedMediaPhotoRetirementInspection
-                do {
-                    writerActive = true; defer { writerActive = false }
-                    proof = try await operations.writeOriginal(data, request: request)
-                }
-                try grant.validate()
-                guard try operations.reservedState(request) == reserved else { throw SharedMediaStorageFailure.stale }
-                do { try operations.completeOriginal(request, proof: proof) } catch { /* Exact saved-state recovery below. */ }
-                guard case .completed(_, let result) = try operations.originalReceipt(request) else { throw SharedMediaStorageFailure.conflict }
-                return result
+                return try await operations.acquireOriginal(request, load: load,
+                    writerState: { self.writerActive = $0 }, didStartLoader: { loaderStarted = true })
             } catch {
                 pendingSettlement = .init(request: request, loaderStarted: loaderStarted, writerReturned: !writerActive)
                 if let result = try? reconcileSettlement() { return result }

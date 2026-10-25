@@ -1,3 +1,45 @@
+## October 25 — profile discovery checkpoint locally qualified
+
+The inactive discovery and ownership-correction candidate passed the scoped
+178-method / 410-case plan across two finalized results: 172 methods / 403 cases
+in `c4457fdf776c4e4090ae7d32b045db52.xcresult`, followed by the missing six
+Capture methods / seven cases in `90ba511a87ba44a781444923f9bb7c26.xcresult`.
+The first packet mistakenly named those six methods under the other suite in the
+same source file; its incomplete-coverage record remains preserved. The
+supplemental run used the correct `CapturePhotoPreparationTests` selector
+without rebuilding or repeating passed tests. Exact disjoint method/case
+coverage, all 3,002 source and project pins, and 417 compiled-product pins were
+verified. There were no failures, skips or structured runtime warnings. Both
+architecture inventory assertions now pass under their unchanged limits.
+Retained evidence is under 10 MiB and the unchanged 20 GiB final free-space
+floor passed.
+
+Evidence and the corrected suite-identity mapping are recorded in
+`.artifacts/native-app-capture-handoff-20261020/app-profile-combined03-qualified.json`.
+Project generation, project/migration guardrails and changed-Markdown formatting
+passed. This qualifies only the local scoped checkpoint. Candidate02's separate
+startup/scoped/receiving-clean results remain attributed to that candidate;
+complete-target, isolated/matrix, actual App/Auth/Capture integration, initial
+and reanalysis journeys and final acceptance remain open. Discovery remains
+inactive. Activation disabled; PR116 frozen; deployment hold active; AWS
+unapproved.
+
+## October 25 — original-byte I/O ownership correction
+
+`PhotoPreparationOriginalFiles` now owns bounded original writes, hashing and
+reads through the existing scoped `SharedMediaInboxDestinationAccess`. The
+locked file owner retains root and namespace locks, directory selection, input
+image validation before directory creation, scope invalidation, shared binding
+and all fileprivate proof constructors. The I/O leaf revalidates the held
+directory scope before and after successful operations; it cannot open a root or
+mint retirement authority. Partial writes, exclusive rename, fsync, exact
+hash/identity checks, cancellation and Debug fault boundaries remain intact.
+
+This corrects an inherited architecture-gate failure without changing the
+600-line boundary: the locked file owner is 590 lines and its scoped I/O leaf is
+108 lines. No Capture composition or activation changes. The scoped runtime
+qualification is recorded above.
+
 ## October 18 — Capture position ownership locally verified
 
 Capture now leaves original-slot selection to the fenced preparation owner.

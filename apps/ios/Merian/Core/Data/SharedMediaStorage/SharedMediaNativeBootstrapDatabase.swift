@@ -27,6 +27,22 @@ enum SharedMediaNativeBootstrapDatabase {
         }
     }
 
+    /// Bounded persisted identity selection; filesystem validation remains with
+    /// the existing bootstrap/open path under the transferred descriptor locks.
+    static func discoveryProfile(_ container: ModelContainer, inventoryID: UUID, ownerID: UUID,
+                                 storeIdentity: String) throws -> SharedMediaNativeAppProfile? {
+        guard !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.conflict }
+        let context = ModelContext(container); context.autosaveEnabled = false
+        var query = FetchDescriptor<SharedMediaInventoryRecord>(); query.fetchLimit = 2
+        let rows = try context.fetch(query)
+        if rows.isEmpty { try requireUnassociated(container); return nil }
+        guard rows.count == 1, rows[0].id == inventoryID else { throw SharedMediaStorageFailure.conflict }
+        let profile = try SharedMediaNativeAppEligibility.identity(container: container, inventoryID: inventoryID, ownerID: ownerID)
+        try validate(container, inventoryID: inventoryID, ownerID: ownerID, storeIdentity: storeIdentity,
+                     existingProfile: profile, expectedProfile: profile)
+        return profile
+    }
+
     static func validate(_ container: ModelContainer, inventoryID: UUID, ownerID: UUID, storeIdentity: String,
                          existingProfile: SharedMediaNativeAppProfile?, expectedProfile: SharedMediaNativeAppProfile?) throws {
         guard !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.conflict }

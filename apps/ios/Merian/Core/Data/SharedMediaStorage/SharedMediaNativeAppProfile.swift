@@ -39,6 +39,16 @@ struct SharedMediaNativeAppProfile: Codable, Equatable, Sendable {
         self.physicalBindingFormat = physicalBindingFormat
     }
 
+    /// Validate the complete saved assertion against the currently held roots.
+    /// Matching values cannot mint authority or adopt a different physical root.
+    @MainActor
+    func requireMatch(_ expected: Self, generation: UUID, authority: String, sources: [String: URL]) throws {
+        guard self == expected, self.generation == generation,
+              physicalBinding == (try Self.rootBinding(format: physicalBindingFormat, authority: authority, sources: sources)) else {
+            throw SharedMediaStorageFailure.conflict
+        }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case ownerID, inventoryID, generation, storeIdentity, physicalBinding, receiptDigest, physicalBindingFormat
     }

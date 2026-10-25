@@ -167,12 +167,12 @@ final class SharedMediaNativeStorageRepository {
     }
 
     static func initializeApp(container: ModelContainer, parent: URL, inventoryID: UUID,
-                              grant: SharedMediaNativeAppGrant) throws -> SharedMediaNativeStorageRepository {
-        try grant.validate()
-        return try .init(app: container, parent: parent, inventoryID: inventoryID, grant: grant)
+                              grant: SharedMediaNativeAppGrant, discovery: SharedMediaNativeBootstrapDiscovery? = nil) throws -> SharedMediaNativeStorageRepository {
+        return try .init(app: container, parent: parent, inventoryID: inventoryID, grant: grant, discovery: discovery)
     }
 
-    private init(app container: ModelContainer, parent: URL, inventoryID: UUID, grant: SharedMediaNativeAppGrant) throws {
+    private init(app container: ModelContainer, parent: URL, inventoryID: UUID, grant: SharedMediaNativeAppGrant,
+                 discovery: SharedMediaNativeBootstrapDiscovery?) throws {
         try grant.validate()
         guard container.configurations.count == 1, let configuration = container.configurations.first,
               !configuration.isStoredInMemoryOnly, !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.conflict }
@@ -184,7 +184,7 @@ final class SharedMediaNativeStorageRepository {
         storeIdentity = try SharedMediaNativeEligibility.storeIdentity(at: configuration.url)
         let bootstrap = SharedMediaNativeBootstrapAuthority(parent: parent, inventoryID: inventoryID,
             storeIdentity: storeIdentity, container: container, grant: grant)
-        files = try SharedMediaStorageFileOwner(root: authorityRoot, storeURL: configuration.url, sources: sources, bootstrap: bootstrap)
+        files = try SharedMediaStorageFileOwner(root: authorityRoot, storeURL: configuration.url, sources: sources, bootstrap: bootstrap, discovery: discovery)
         let profile = try files.bootstrapProfile()
         generation = profile.generation; rootBinding = try profile.rootIdentity; binding = try profile.binding
         nativeBinding = .init(bytes: binding, initializing: false, epoch: UUID())
@@ -220,12 +220,13 @@ final class SharedMediaNativeStorageRepository {
     }
 
     static func openApp(container: ModelContainer, parent: URL, inventoryID: UUID,
-                        grant: SharedMediaNativeAppDispatchGrant) throws -> SharedMediaNativeStorageRepository {
+                        grant: SharedMediaNativeAppDispatchGrant, discovery: SharedMediaNativeBootstrapDiscovery? = nil) throws -> SharedMediaNativeStorageRepository {
         try grant.validate()
         guard parent == grant.parent, inventoryID == grant.profile.inventoryID else { throw SharedMediaStorageFailure.closed }
-        return try .init(existingApp: container, parent: parent, inventoryID: inventoryID, grant: grant)
+        return try .init(existingApp: container, parent: parent, inventoryID: inventoryID, grant: grant, discovery: discovery)
     }
-    private init(existingApp container: ModelContainer, parent: URL, inventoryID: UUID, grant: SharedMediaNativeAppDispatchGrant) throws {
+    private init(existingApp container: ModelContainer, parent: URL, inventoryID: UUID, grant: SharedMediaNativeAppDispatchGrant,
+                 discovery: SharedMediaNativeBootstrapDiscovery?) throws {
         try grant.validate()
         guard container.configurations.count == 1, let configuration = container.configurations.first,
               !configuration.isStoredInMemoryOnly, !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.conflict }
@@ -239,7 +240,7 @@ final class SharedMediaNativeStorageRepository {
         let control = SharedMediaNativeBootstrapAuthority(existingParent: parent, inventoryID: inventoryID,
             storeIdentity: storeIdentity, container: container, grant: grant)
         files = try SharedMediaStorageFileOwner(root: authorityRoot, storeURL: configuration.url, sources: sources,
-            requireExistingFence: true, bootstrap: control)
+            requireExistingFence: true, bootstrap: control, discovery: discovery)
         let profile = try files.bootstrapProfile()
         generation = profile.generation; rootBinding = try profile.rootIdentity; binding = try profile.binding
         scopedIdentity = .init(inventoryID: inventoryID, generation: generation, ownerID: grant.ownerID,
@@ -263,36 +264,22 @@ final class SharedMediaNativeStorageRepository {
               !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.closed }
         try SharedMediaNativeScopedEligibility.requireRoots(authority: roots.authority, photo: roots.photo, inbox: roots.inbox)
         try files.check(); try files.bindStore(binding, initializing: false); try photos.checkIdentity(); try inbox.check()
-        let persisted = try files.bootstrapProfile()
-        guard persisted == profile, profile.generation == generation,
-              profile.physicalBinding == (try SharedMediaNativeAppProfile.rootBinding(format: profile.physicalBindingFormat,
-                authority: files.identity, sources: sources)) else { throw SharedMediaStorageFailure.conflict }
+        try files.bootstrapProfile().requireMatch(profile, generation: generation, authority: files.identity, sources: sources)
     }
     private func appHeader() throws -> SharedMediaNativeAppEligibility.Header { try SharedMediaNativeRepositoryFacts.app(container, scope: scopedIdentity) }
     func inspectApp(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeScopedSnapshot {
-        try requireApp(grant)
-        let expected = try appHeader(), profile = try files.bootstrapProfile()
-        var audit = try SharedMediaNativeScopedAudit(app: container, profile: profile, expected: expected.inventory,
-            check: {
-                #if DEBUG
-                let started = self.debug?.inspectionTrace == nil ? nil : ContinuousClock.now
-                defer {
-                    if let started { self.debug?.inspectionTrace?.checkpoint(started.duration(to: .now)) }
-                }
-                #endif
-                try self.requireApp(grant)
-                guard try self.appHeader() == expected else { throw SharedMediaStorageFailure.conflict }
-            }, betweenPages: {
+        try await SharedMediaNativeScopedAudit.runApp(container: container,
+            profile: { try self.files.bootstrapProfile() },
+            header: { try self.requireApp(grant); return try self.appHeader() }, betweenPages: {
                 #if DEBUG
                 await self.debug?.scopedPagePause?()
                 #endif
                 await Task.yield()
+            }, configure: { audit in
+                #if DEBUG
+                audit.inspectionTrace = self.debug?.inspectionTrace
+                #endif
             })
-        #if DEBUG
-        audit.inspectionTrace = debug?.inspectionTrace
-        #endif
-        let result = try await audit.run()
-        try requireApp(grant); guard try appHeader() == expected else { throw SharedMediaStorageFailure.conflict }; return result
     }
     func appMetadata(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeAppMetadataOperations {
         try requireApp(grant)
@@ -550,6 +537,7 @@ final class SharedMediaNativeBootstrapAuthority {
     private let grant: SharedMediaNativeAppGrant?
     private let existingGrant: SharedMediaNativeAppDispatchGrant?
     var existingOnly: Bool { existingGrant != nil }
+    var containerIdentity: ObjectIdentifier { ObjectIdentifier(container) }
     fileprivate init(parent: URL, inventoryID: UUID, storeIdentity: String,
                      container: ModelContainer, grant: SharedMediaNativeAppGrant) {
         self.parent = parent; self.inventoryID = inventoryID; self.storeIdentity = storeIdentity

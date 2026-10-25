@@ -1,3 +1,4 @@
+import CoreData
 import Darwin
 import Foundation
 import SwiftData
@@ -8,6 +9,249 @@ import Testing
 @MainActor
 struct SharedMediaNativeAppBootstrapTests {
     private enum Interruption: Error { case injected }
+
+    @Test func discoveredAbsenceTransfersLocksOnceAndRetainedDiscoveryDoesNotBlockDrain() async throws {
+        let h = try Store(startupEligible: true), (container, startup) = try h.startup()
+        let discovery = try SharedMediaNativeBootstrapDiscovery.qualification(container: container,
+            startup: startup, parent: h.parent, ownerID: h.ownerID)
+        #expect(discovery.existingProfile == nil)
+        #expect(try h.controls().isEmpty)
+        #expect(throws: (any Error).self) { _ = try startup.acquireFence(container: container) }
+        let owner = try h.owner()
+        _ = try await owner.initializeApp(container: container, parent: h.parent,
+            inventoryID: discovery.inventoryID, discovery: discovery)
+        let intent = try SharedMediaNativeBootstrapCodec.decode(SharedMediaNativeBootstrapCodec.Intent.self,
+            Data(contentsOf: h.parent.appendingPathComponent(SharedMediaNativeBootstrapCodec.intentName)))
+        #expect(intent.inventoryID == discovery.inventoryID)
+        #expect(throws: (any Error).self) { _ = try startup.acquireFence(container: container) }
+        let duplicate = try h.owner()
+        await #expect(throws: (any Error).self) {
+            _ = try await duplicate.initializeApp(container: container, parent: h.parent,
+                inventoryID: discovery.inventoryID, discovery: discovery)
+        }
+        #expect(await duplicate.invalidateAndAwaitForAccountTransition())
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        // Keep discovery alive: ownership has moved, and drain releases both locks.
+        let next = try SharedMediaNativeBootstrapDiscovery.qualification(container: container,
+            startup: startup, parent: discovery.parent, ownerID: h.ownerID)
+        #expect(next.inventoryID == discovery.inventoryID)
+        next.invalidate()
+        let fence = try startup.acquireFence(container: container)
+        try startup.require(container: container, fence: fence)
+    }
+
+    @Test func discoveredExistingProfilePreservesArbitraryInventoryIdentity() async throws {
+        let h = try Store(startupEligible: true), first = try h.owner(), initial = try await h.open(first)
+        #expect(await first.invalidateAndAwaitForAccountTransition())
+        let before = try h.controls(), (container, startup) = try h.startup()
+        let discovery = try SharedMediaNativeBootstrapDiscovery.qualification(container: container,
+            startup: startup, parent: h.parent, ownerID: h.ownerID)
+        #expect(discovery.inventoryID == h.inventoryID)
+        #expect(discovery.existingProfile?.generation == initial.generation)
+        #expect(discovery.existingProfile?.storeIdentity != h.inventoryID.uuidString)
+        let owner = try h.dispatchOwner()
+        let result = try await owner.openApp(container: container, parent: h.parent,
+            inventoryID: discovery.inventoryID, discovery: discovery)
+        #expect(result.inventory == initial)
+        #expect(try h.controls() == before)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let next = try SharedMediaNativeBootstrapDiscovery.qualification(container: container,
+            startup: startup, parent: discovery.parent, ownerID: h.ownerID)
+        #expect(next.inventoryID == discovery.inventoryID); next.invalidate()
+    }
+
+    @Test(arguments: SharedMediaNativeBootstrapBoundary.allCases)
+    func discoveryPreservesInterruptedBootstrapIdentity(_ boundary: SharedMediaNativeBootstrapBoundary) async throws {
+        let h = try Store(startupEligible: true), first = try h.owner()
+        await #expect(throws: Interruption.self) {
+            _ = try await h.open(first, fault: { if $0 == boundary { throw Interruption.injected } })
+        }
+        #expect(await first.invalidateAndAwaitForAccountTransition())
+        let raw = try Data(contentsOf: h.parent.appendingPathComponent(SharedMediaNativeBootstrapCodec.intentName))
+        let intent = try SharedMediaNativeBootstrapCodec.decode(SharedMediaNativeBootstrapCodec.Intent.self, raw)
+        let (container, startup) = try h.startup()
+        let discovery = try SharedMediaNativeBootstrapDiscovery.qualification(container: container,
+            startup: startup, parent: h.parent, ownerID: h.ownerID)
+        #expect(discovery.inventoryID == intent.inventoryID)
+        let owner: SharedMediaNativeOriginalOwner
+        let result: SharedMediaStorageSnapshot
+        if discovery.existingProfile != nil {
+            owner = try h.dispatchOwner()
+            result = try await owner.openApp(container: container, parent: h.parent,
+                inventoryID: discovery.inventoryID, discovery: discovery).inventory
+        } else {
+            owner = try h.owner()
+            result = try await owner.initializeApp(container: container, parent: h.parent,
+                inventoryID: discovery.inventoryID, discovery: discovery)
+        }
+        #expect(result.generation == intent.generation)
+        #expect(try Data(contentsOf: h.parent.appendingPathComponent(SharedMediaNativeBootstrapCodec.intentName)) == raw)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func failedDiscoveryTransferBurnsAttemptWithoutWritingOrLeakingLocks() async throws {
+        let h = try Store(startupEligible: true), (container, startup) = try h.startup()
+        let discovery = try SharedMediaNativeBootstrapDiscovery.qualification(container: container,
+            startup: startup, parent: h.parent, ownerID: h.ownerID)
+        let owner = try h.owner()
+        await #expect(throws: (any Error).self) {
+            _ = try await owner.initializeApp(container: container, parent: h.parent,
+                inventoryID: UUID(), discovery: discovery)
+        }
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        #expect(try h.controls().isEmpty)
+        let duplicate = try h.owner()
+        await #expect(throws: (any Error).self) {
+            _ = try await duplicate.initializeApp(container: container, parent: h.parent,
+                inventoryID: discovery.inventoryID, discovery: discovery)
+        }
+        #expect(await duplicate.invalidateAndAwaitForAccountTransition())
+        let next = try SharedMediaNativeBootstrapDiscovery.qualification(container: container,
+            startup: startup, parent: h.parent, ownerID: h.ownerID)
+        next.invalidate()
+    }
+
+    @Test func changedDiscoveredControlBytesAreRejectedBeforeContinuation() async throws {
+        let h = try Store(startupEligible: true), first = try h.owner()
+        await #expect(throws: Interruption.self) {
+            _ = try await h.open(first, fault: { if $0 == .afterIntent { throw Interruption.injected } })
+        }
+        #expect(await first.invalidateAndAwaitForAccountTransition())
+        let (container, startup) = try h.startup()
+        let discovery = try SharedMediaNativeBootstrapDiscovery.qualification(container: container,
+            startup: startup, parent: h.parent, ownerID: h.ownerID)
+        let url = h.parent.appendingPathComponent(SharedMediaNativeBootstrapCodec.intentName)
+        try Data("{}".utf8).write(to: url)
+        let before = try h.controls(), owner = try h.owner()
+        await #expect(throws: (any Error).self) {
+            _ = try await owner.initializeApp(container: container, parent: h.parent,
+                inventoryID: discovery.inventoryID, discovery: discovery)
+        }
+        #expect(try h.controls() == before)
+        #expect(!FileManager.default.fileExists(atPath: h.parent.appendingPathComponent("authority").path))
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let fence = try startup.acquireFence(container: container)
+        try startup.require(container: container, fence: fence)
+    }
+
+    @Test(arguments: ["orphanRoot", "malformedIntent", "associatedDatabase", "wrongOwner"])
+    func discoveryNeverConvertsConflictingEvidenceToFreshAbsence(_ change: String) async throws {
+        let h = try Store(startupEligible: true)
+        if change == "wrongOwner" {
+            let owner = try h.owner(); _ = try await h.open(owner)
+            #expect(await owner.invalidateAndAwaitForAccountTransition())
+        } else if change == "orphanRoot" {
+            try FileManager.default.createDirectory(at: h.parent.appendingPathComponent("authority"), withIntermediateDirectories: false)
+        } else if change == "malformedIntent" {
+            try Data("{}".utf8).write(to: h.parent.appendingPathComponent(SharedMediaNativeBootstrapCodec.intentName))
+        } else {
+            let context = ModelContext(h.container); context.autosaveEnabled = false
+            context.insert(SharedMediaMembershipBootstrapRecord(inventoryID: h.inventoryID, inventoryGeneration: UUID()))
+            try context.save()
+        }
+        let (container, startup) = try h.startup(), before = try h.controls()
+        #expect(throws: (any Error).self) {
+            _ = try SharedMediaNativeBootstrapDiscovery.qualification(container: container,
+                startup: startup, parent: h.parent, ownerID: change == "wrongOwner" ? UUID() : h.ownerID)
+        }
+        #expect(try h.controls() == before)
+        let fence = try startup.acquireFence(container: container)
+        try startup.require(container: container, fence: fence)
+    }
+
+    @Test(arguments: ["uuid", "copy", "transferUUID"])
+    func changedDiscoveredStoreIdentityRefusesWithoutInitialization(_ change: String) async throws {
+        let h = try Store(startupEligible: true), (container, startup) = try h.startup()
+        let url = try #require(container.configurations.first).url
+        let retained = url.appendingPathExtension("retained")
+        let metadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(ofType: NSSQLiteStoreType, at: url)
+        let originalUUID = try SharedMediaNativeEligibility.storeIdentity(at: url)
+        var originalFile = stat(); #expect(lstat(url.path, &originalFile) == 0)
+        func changeUUID() throws {
+            var changed = metadata; changed[NSStoreUUIDKey] = UUID().uuidString
+            try NSPersistentStoreCoordinator.setMetadata(changed, forPersistentStoreOfType: NSSQLiteStoreType, at: url)
+            var current = stat(); #expect(lstat(url.path, &current) == 0)
+            #expect(current.st_dev == originalFile.st_dev && current.st_ino == originalFile.st_ino)
+            #expect(try SharedMediaNativeEligibility.storeIdentity(at: url) != originalUUID)
+        }
+        var lateMutation = false
+        let discovery = try SharedMediaNativeBootstrapDiscovery.qualification(container: container,
+            startup: startup, parent: h.parent, ownerID: h.ownerID,
+            beforeTransfer: change == "transferUUID" ? { try changeUUID(); lateMutation = true } : nil)
+        defer {
+            if change == "copy" {
+                try? FileManager.default.moveItem(at: url, to: url.appendingPathExtension("replacement"))
+                try? FileManager.default.moveItem(at: retained, to: url)
+            } else {
+                try? NSPersistentStoreCoordinator.setMetadata(metadata, forPersistentStoreOfType: NSSQLiteStoreType, at: url)
+            }
+        }
+        if change == "uuid" { try changeUUID() }
+        else if change == "copy" {
+            // Preserve the live vnode; the copy must keep its UUID but change inode.
+            try FileManager.default.moveItem(at: url, to: retained)
+            try FileManager.default.copyItem(at: retained, to: url)
+            var copied = stat(); #expect(lstat(url.path, &copied) == 0)
+            #expect(copied.st_dev != originalFile.st_dev || copied.st_ino != originalFile.st_ino)
+            #expect(try SharedMediaNativeEligibility.storeIdentity(at: url) == originalUUID)
+        }
+        let owner = try h.owner()
+        await #expect(throws: (any Error).self) {
+            _ = try await owner.initializeApp(container: container, parent: h.parent,
+                inventoryID: discovery.inventoryID, discovery: discovery)
+        }
+        #expect(lateMutation == (change == "transferUUID"))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: h.parent.path).isEmpty)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let fence = try startup.acquireFence(container: container)
+        try startup.require(container: container, fence: fence)
+    }
+
+    @Test func bootstrapRefusalAfterTransferReleasesHandedLocks() async throws {
+        let h = try Store(startupEligible: true), (container, startup) = try h.startup()
+        let discovery = try SharedMediaNativeBootstrapDiscovery.qualification(container: container,
+            startup: startup, parent: h.parent, ownerID: h.ownerID)
+        // Controls remain unchanged, so consume succeeds; bootstrap rejects the
+        // unexpected root before it can publish an intent or adopt the directory.
+        let root = h.parent.appendingPathComponent("authority")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        let owner = try h.owner()
+        await #expect(throws: (any Error).self) {
+            _ = try await owner.initializeApp(container: container, parent: h.parent,
+                inventoryID: discovery.inventoryID, discovery: discovery)
+        }
+        #expect(try h.controls().isEmpty)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        try FileManager.default.moveItem(at: root, to: h.parent.deletingLastPathComponent().appendingPathComponent("retained-root"))
+        let next = try SharedMediaNativeBootstrapDiscovery.qualification(container: container,
+            startup: startup, parent: h.parent, ownerID: h.ownerID)
+        next.invalidate()
+    }
+
+    @Test(arguments: [true, false])
+    func discoveredProfileCannotInvertInitializationAndDispatch(_ existing: Bool) async throws {
+        let h = try Store(startupEligible: true)
+        if existing {
+            let first = try h.owner(); _ = try await h.open(first)
+            #expect(await first.invalidateAndAwaitForAccountTransition())
+        }
+        let (container, startup) = try h.startup(), before = try h.controls()
+        let discovery = try SharedMediaNativeBootstrapDiscovery.qualification(container: container,
+            startup: startup, parent: h.parent, ownerID: h.ownerID)
+        let owner = existing ? try h.owner() : try h.dispatchOwner()
+        await #expect(throws: (any Error).self) {
+            if existing {
+                _ = try await owner.initializeApp(container: container, parent: h.parent, inventoryID: discovery.inventoryID, discovery: discovery)
+            } else {
+                _ = try await owner.openApp(container: container, parent: h.parent, inventoryID: discovery.inventoryID, discovery: discovery)
+            }
+        }
+        #expect(try h.controls() == before)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let next = try SharedMediaNativeBootstrapDiscovery.qualification(container: container,
+            startup: startup, parent: h.parent, ownerID: h.ownerID)
+        next.invalidate()
+    }
 
     @Test func exactReopenRetainsIdentityAndDoesNotEnableDispatch() async throws {
         let h = try Store(), owner = try h.owner()
@@ -308,10 +552,12 @@ struct SharedMediaNativeAppBootstrapTests {
     @MainActor struct Store {
         let parent: URL, container: ModelContainer
         let ownerID = UUID(), inventoryID = UUID(), runtime = AuthRuntimeState()
-        init() throws {
+        init(startupEligible: Bool = false) throws {
             let base = URL.applicationSupportDirectory.resolvingSymlinksInPath().appendingPathComponent("native-bootstrap-" + UUID().uuidString)
             parent = base.appendingPathComponent("control")
-            let database = base.appendingPathComponent("database")
+            let database = startupEligible
+                ? FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("native-startup-" + UUID().uuidString)
+                : base.appendingPathComponent("database")
             for directory in [parent, database] {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
                 var url = directory, values = URLResourceValues(); values.isExcludedFromBackup = true; try url.setResourceValues(values)
@@ -319,6 +565,14 @@ struct SharedMediaNativeAppBootstrapTests {
             let schema = Schema(versionedSchema: CurrentSchema.self)
             container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema,
                 url: database.appendingPathComponent("ledger.store"), cloudKitDatabase: .none)])
+        }
+        func startup() throws -> (ModelContainer, NativeReleaseStartupAdmission) {
+            let url = try #require(container.configurations.first).url
+            let outcome = ModelContainerBootstrapper.fixtureBootstrap {
+                try PersistentStoreBootstrapSession.fixture(schema: Schema(versionedSchema: CurrentSchema.self),
+                    storeURL: url, anchor: url.deletingLastPathComponent())
+            }
+            return (try #require(outcome.container), try #require(outcome.nativeReleaseAdmission))
         }
         func owner(ownerID: UUID? = nil) throws -> SharedMediaNativeOriginalOwner {
             try .appInitialization(account: PhotoOriginalPreparationOwner.syntheticAccount(ownerID: ownerID ?? self.ownerID, runtime: runtime), drain: .init())

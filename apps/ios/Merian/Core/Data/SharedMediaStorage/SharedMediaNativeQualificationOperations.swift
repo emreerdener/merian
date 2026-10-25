@@ -49,33 +49,62 @@ struct SharedMediaNativeQualificationOperations {
         return try originalReadback().reservedState(request)
     }
 
-    func reserveOriginal(_ request: SharedMediaAcquisitionIntent) throws {
+    private func reserveOriginal(_ request: SharedMediaAcquisitionIntent) throws {
         try checkDispatch(); try authority.validate()
         let transaction = try SharedMediaNativeAcquisitionMutation.reserve(container: container, request: request,
             authority: authority, availableBytes: availableBytes())
         try acquisitionBoundary(.beforeReservationSave); try transaction.save(); try acquisitionBoundary(.afterReservationSave)
     }
 
-    func writeOriginal(_ data: Data, request: SharedMediaAcquisitionIntent) async throws -> SharedMediaPhotoRetirementInspection {
+    private func writeOriginal(_ data: Data, request: SharedMediaAcquisitionIntent) async throws -> SharedMediaPhotoRetirementInspection {
         try checkDispatch()
         let proof = try await originalIO.write(data, request: request)
         try checkDispatch()
         try acquisitionBoundary(.afterOriginalWrite)
         return proof
     }
-    func loadOriginal(_ provider: @Sendable () async throws -> Data) async throws -> Data {
+    private func loadOriginal(_ provider: @Sendable () async throws -> Data) async throws -> Data {
         try checkDispatch()
         let data = try await originalIO.load(provider)
         try checkDispatch()
         return data
     }
 
-    func completeOriginal(_ request: SharedMediaAcquisitionIntent, proof: SharedMediaPhotoRetirementInspection) throws {
+    private func completeOriginal(_ request: SharedMediaAcquisitionIntent, proof: SharedMediaPhotoRetirementInspection) throws {
         try checkDispatch()
         let transaction = try SharedMediaNativeAcquisitionMutation.complete(container: container, request: request,
             authority: authority, proof: proof)
         try acquisitionBoundary(.beforeCompletionSave); try transaction.save(); try acquisitionBoundary(.afterCompletionSave)
     }
+    /// V1 acquisition protocol under the existing sealed dispatch check. The
+    /// registered owner retains writer observation and uncertain settlement.
+    func acquireOriginal(_ request: SharedMediaAcquisitionIntent, load: @escaping @Sendable () async throws -> Data,
+                         writerState: (Bool) -> Void, didStartLoader: () -> Void) async throws -> SharedMediaAcquisitionResult {
+        do { try reserveOriginal(request) } catch { /* Exact saved-state recovery below. */ }
+        guard case .reserved = try originalReceipt(request) else { throw SharedMediaStorageFailure.conflict }
+        let reserved = try reservedState(request)
+        try checkDispatch()
+        // This is the sole loader invocation. Cold reservations never reach it.
+        didStartLoader()
+        let data: Data
+        do {
+            writerState(true); defer { writerState(false) }
+            data = try await loadOriginal(load)
+        }
+        try checkDispatch()
+        guard try reservedState(request) == reserved else { throw SharedMediaStorageFailure.stale }
+        let proof: SharedMediaPhotoRetirementInspection
+        do {
+            writerState(true); defer { writerState(false) }
+            proof = try await writeOriginal(data, request: request)
+        }
+        try checkDispatch()
+        guard try reservedState(request) == reserved else { throw SharedMediaStorageFailure.stale }
+        do { try completeOriginal(request, proof: proof) } catch { /* Exact saved-state recovery below. */ }
+        guard case .completed(_, let result) = try originalReceipt(request) else { throw SharedMediaStorageFailure.conflict }
+        return result
+    }
+
     func metadata(packageID: UUID) throws -> SharedMediaNativeMetadataMutation {
         try checkDispatch()
         try metadataBoundary(.beforeReadback)

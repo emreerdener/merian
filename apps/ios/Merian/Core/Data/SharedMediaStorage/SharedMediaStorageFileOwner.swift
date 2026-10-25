@@ -18,7 +18,8 @@ final class SharedMediaStorageFileOwner {
     let identity: String
     private let nativeBootstrap: SharedMediaNativeBootstrapFiles?
 
-    init(root: URL, storeURL: URL, sources: [String: URL], requireExistingFence: Bool = false, bootstrap: SharedMediaNativeBootstrapAuthority? = nil) throws {
+    init(root: URL, storeURL: URL, sources: [String: URL], requireExistingFence: Bool = false, bootstrap: SharedMediaNativeBootstrapAuthority? = nil,
+         discovery: SharedMediaNativeBootstrapDiscovery? = nil) throws {
         self.root = root
         self.sources = sources
         func contains(_ directory: URL, _ item: URL) -> Bool {
@@ -36,7 +37,12 @@ final class SharedMediaStorageFileOwner {
             }
         }
         self.storeURL = storeURL
-        admissionFence = try SharedMediaStoreReadFence(store: storeURL, access: .sharedWriter, requireExisting: requireExistingFence)
+        let handoff: SharedMediaNativeBootstrapHandoff?
+        if let discovery {
+            guard let bootstrap else { throw SharedMediaStorageFailure.invalid }
+            handoff = try discovery.consume(authority: bootstrap, storeURL: storeURL)
+        } else { handoff = nil }
+        admissionFence = try handoff?.fence ?? SharedMediaStoreReadFence(store: storeURL, access: .sharedWriter, requireExisting: requireExistingFence)
         storeDirectoryURL = storeURL.deletingLastPathComponent()
         let parent = try Self.openDirectory(storeDirectoryURL)
         var retainedParent = false
@@ -53,13 +59,16 @@ final class SharedMediaStorageFileOwner {
         var storeInfo = stat()
         guard fstat(storeFD, &storeInfo) == 0, storeInfo.st_mode & S_IFMT == S_IFREG,
               storeInfo.st_nlink == 1 else { throw SharedMediaStorageFailure.conflict }
+        if let handoff {
+            guard Self.identity(storeInfo) == handoff.storeFileIdentity else { throw SharedMediaStorageFailure.conflict }
+        }
         let bootstrapFiles: SharedMediaNativeBootstrapFiles?
         if let bootstrap {
             guard requireExistingFence == bootstrap.existingOnly, root == bootstrap.parent.appendingPathComponent("authority", isDirectory: true),
                   sources[SharedMediaPhotoLedger.namespace] == bootstrap.parent.appendingPathComponent("photo", isDirectory: true),
                   sources[SharedMediaInboxFiles.namespace] == bootstrap.parent.appendingPathComponent("inbox", isDirectory: true),
                   sources.count == 2, bootstrap.parent != storeDirectoryURL else { throw SharedMediaStorageFailure.invalid }
-            bootstrapFiles = try SharedMediaNativeBootstrapFiles(authority: bootstrap, storeParentIdentity: Self.identity(parentInfo))
+            bootstrapFiles = try SharedMediaNativeBootstrapFiles(authority: bootstrap, storeParentIdentity: Self.identity(parentInfo), handoff: handoff)
         } else { bootstrapFiles = nil }
         nativeBootstrap = bootstrapFiles
         let fd: Int32

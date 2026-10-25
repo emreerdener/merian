@@ -441,7 +441,7 @@ enum SharedMediaNativeAcquisitionBudget {
             offset = next
         }
         let member = try graph.membership(packageID: id)
-        let projected = try maximumMembershipBytes(member, pending: pending)
+        let projected = try member.maximumAcquisitionBytes(pending: pending)
         let baseBytes = try PhotoPreparationPolicy.add([Int64(package.supportingContextData.count), projected, receiptBytes, planBytes, receivingBytes])
 
         var preparedBytes: Int64 = 0, receivingHeadroom: Int64 = 0
@@ -573,35 +573,6 @@ enum SharedMediaNativeAcquisitionBudget {
         }
         try totals.includePhotoPackage(id: id, bytes: logical)
         return metadata
-    }
-
-    /// Existing two-original limit bounds the power set to four states. A
-    /// partial completion can encode more than both-current or both-complete
-    /// membership, because empty groups disappear from canonical encoding.
-    static func maximumMembershipBytes(_ current: SharedMediaMembership,
-                                       pending: [SharedMediaAcquisitionIntent]) throws -> Int64 {
-        guard pending.count <= 2, Set(pending.map(\.operationID)).count == pending.count else {
-            throw SharedMediaStorageFailure.conflict
-        }
-        var maximum: Int64 = 0
-        for mask in 0..<(1 << pending.count) {
-            var groups = Dictionary(uniqueKeysWithValues: current.groups.map { ($0.kind, Set($0.ids)) })
-            for (index, request) in pending.enumerated() {
-                guard groups[.work]?.contains(request.operationID) == true,
-                      groups[.lease]?.contains(request.operationID) == true,
-                      groups[.allocation]?.contains(request.assetID) == true else { throw SharedMediaStorageFailure.conflict }
-                if mask & (1 << index) == 0 { continue }
-                groups[.work]?.remove(request.operationID)
-                guard groups[.asset, default: []].insert(request.assetID).inserted,
-                      groups[.reference, default: []].insert(request.referenceID).inserted,
-                      groups[.edge, default: []].insert(request.referenceID).inserted else { throw SharedMediaStorageFailure.conflict }
-            }
-            let value = try SharedMediaMembership(groups: groups.filter { !$0.value.isEmpty }.map { kind, ids in
-                .init(kind: kind, ids: ids.sorted { $0.uuidString < $1.uuidString })
-            }.sorted { $0.kind.rawValue < $1.kind.rawValue })
-            maximum = max(maximum, Int64(try value.encoded().count))
-        }
-        return maximum
     }
 
     private static func one<T: PersistentModel>(_ context: ModelContext, _ descriptor: FetchDescriptor<T>) throws -> T {

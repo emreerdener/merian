@@ -149,7 +149,7 @@ struct SharedMediaNativeAcquisitionGraphTests {
         try h.reserve(second); h.inventory.revision = 2; h.package.revision = 1; try h.save()
         try h.audit()
         let member = try SharedMediaPendingGraph.derive(in: h.context, inventory: h.inventory).membership(packageID: r.packageID)
-        let projection = try SharedMediaNativeAcquisitionBudget.maximumMembershipBytes(member, pending: [r, second])
+        let projection = try member.maximumAcquisitionBytes(pending: [r, second])
         #expect(projection > Int64(try member.encoded().count))
         let budget = try SharedMediaNativeAcquisitionBudget.evaluate(context: h.context, inventory: h.inventory)
         let expected = try PhotoPreparationPolicy.add([Int64(h.package.supportingContextData.count), projection,
