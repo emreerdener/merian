@@ -47,7 +47,7 @@ struct SharedMediaNativeAppOriginalDispositionOperations {
         } catch { c.rollback(); throw error }
     }
     private func mutate(_ a: SharedMediaNativeOriginalDispositionAttempt, context c: ModelContext) throws {
-        let source = a.before.plan.targets[0].original
+        let source = a.before.plan.targets[try a.before.selectedIndex(.pairGoneOriginalLive)].original
         let rows = try SharedMediaNativeAppOriginalRows(c, profile: a.before.plan.profile, source: source)
         let (ref, edge) = try SharedMediaNativeAppOriginalRows.reference(c, source: source, live: true)
         if let retirement = a.retirement {

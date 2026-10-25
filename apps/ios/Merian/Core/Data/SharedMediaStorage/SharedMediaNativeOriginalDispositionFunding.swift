@@ -48,7 +48,7 @@ enum SharedMediaNativeOriginalDispositionFunding {
         } else if old.physicalOriginID != a.before.plan.package.id {
             // Existing foreign-origin restriction: all surviving references must
             // already be fully retained nonqueue consumers, not merely counters.
-            let excluded = a.before.plan.targets[0].original.referenceID
+            let excluded = a.before.plan.targets[try a.before.selectedIndex(.pairGoneOriginalLive)].original.referenceID
             try Liability.requireRetainedSurvivors(assetID: id, excludingID: excluded,
                 expectedCount: a.original.liveCount - 1, context: context)
             entries.removeValue(forKey: id); retained.insert(id)

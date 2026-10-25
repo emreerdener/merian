@@ -22,18 +22,20 @@ final class SharedMediaNativeReleaseStartAdmission {
     }
 }
 
-/// One normal start acknowledgement authorizes only its first retained target.
-/// Saved Progress and recovery cannot construct this owner-local right.
+/// Initial acknowledgement or explicit audited continuation authorizes one target.
+/// Saved Progress and recovery alone cannot construct this owner-local right.
 @MainActor
 final class SharedMediaNativeReleasePairAdmission {
-    let request: SharedMediaNativeReleaseStartRequest
+    let request: SharedMediaNativeReleaseStartRequest?
     let row: SharedMediaNativeReceivingIntentGraph.Row
     let progress: SharedMediaNativeReceivingReleaseValues.Progress
+    let continuation: SharedMediaNativeReleaseContinuation?
     fileprivate var attempt: SharedMediaNativeReleasePairAttempt?
-    fileprivate init(_ request: SharedMediaNativeReleaseStartRequest,
+    fileprivate init(_ request: SharedMediaNativeReleaseStartRequest?,
                      row: SharedMediaNativeReceivingIntentGraph.Row,
-                     progress: SharedMediaNativeReceivingReleaseValues.Progress) {
-        self.request = request; self.row = row; self.progress = progress
+                     progress: SharedMediaNativeReceivingReleaseValues.Progress,
+                     continuation: SharedMediaNativeReleaseContinuation? = nil) {
+        self.request = request; self.row = row; self.progress = progress; self.continuation = continuation
     }
 }
 
@@ -52,13 +54,21 @@ final class SharedMediaNativeReleaseStageSettlement {
     private var fresh: [UUID: Entitlement] = [:]
     private var starts: [UUID: SharedMediaNativeReleaseStartAdmission] = [:]
     private var pairs: [UUID: SharedMediaNativeReleasePairAdmission] = [:]
+    private struct ContinuationRecord {
+        let identity: SharedMediaNativeReleaseContinuation
+        var admission: SharedMediaNativeReleasePairAdmission?
+    }
+    private var continuations: [String: ContinuationRecord] = [:]
+    private var pairMayHandBack = false
     private(set) var pendingPairDisposal: SharedMediaNativeReleasePairRemovalCapability?
     private var readPairDisposal: (() async throws -> Void)?
     private(set) var pendingOriginalDisposition: SharedMediaNativeOriginalDispositionAttempt?
     private var readOriginalDisposition: (() throws -> SharedMediaNativeReceivingReleaseValues.Progress)?
     private(set) var pendingOriginalDisposal: SharedMediaNativeOriginalRemovalCapability?
     private var readOriginalDisposal: (() async throws -> Void)?
-    var hasPending: Bool { request != nil || pendingPairDisposal != nil || pendingOriginalDisposition != nil || pendingOriginalDisposal != nil }
+    private var hasContinuationRight: Bool { continuations.values.contains { $0.admission != nil } }
+    var hasPending: Bool { hasPendingOperation || hasContinuationRight }
+    private var hasPendingOperation: Bool { request != nil || pairAttempt != nil || pendingPairDisposal != nil || pendingOriginalDisposition != nil || pendingOriginalDisposal != nil }
     private(set) var pairAttempt: SharedMediaNativeReleasePairAttempt?
     private var pendingStage: SharedMediaNativeReleaseStageAdmission?
     private(set) var startProgress: SharedMediaNativeReceivingReleaseValues.Progress?
@@ -69,7 +79,7 @@ final class SharedMediaNativeReleaseStageSettlement {
     /// Only called after an actual new receive save and exact fresh readback.
     /// Receipt replay deliberately has no callback and cannot replenish a right.
     func received(_ row: Row, profile: SharedMediaNativeAppProfile) throws {
-        guard !closed, !hasPending, fresh[row.id] == nil else { throw SharedMediaStorageFailure.closed }
+        guard !closed, !hasPendingOperation, !hasContinuationRight, fresh[row.id] == nil else { throw SharedMediaStorageFailure.closed }
         try row.requireNoReleaseStart()
         guard case .received = try SharedMediaNativeReceivingSlot.decode(row, profile: profile) else {
             throw SharedMediaStorageFailure.closed
@@ -77,7 +87,7 @@ final class SharedMediaNativeReleaseStageSettlement {
         fresh[row.id] = .init(row: row, profile: profile)
     }
     func issue(_ value: Request, row: Row) throws -> SharedMediaNativeReleaseStageAdmission {
-        guard !closed, !hasPending, var entitlement = fresh[value.packageID],
+        guard !closed, !hasPendingOperation, !hasContinuationRight, var entitlement = fresh[value.packageID],
               entitlement.row == row, entitlement.profile == value.profile else { throw SharedMediaStorageFailure.closed }
         if let admission = entitlement.admission {
             guard admission.request == value else { throw SharedMediaStorageFailure.closed }
@@ -88,7 +98,7 @@ final class SharedMediaNativeReleaseStageSettlement {
         return admission
     }
     func validate(_ admission: SharedMediaNativeReleaseStageAdmission, row: Row? = nil) throws {
-        guard !closed, !hasPending, let entitlement = fresh[admission.request.packageID],
+        guard !closed, !hasPendingOperation, !hasContinuationRight, let entitlement = fresh[admission.request.packageID],
               entitlement.admission === admission, entitlement.row == admission.row, row == nil || row == entitlement.row,
               entitlement.profile == admission.request.profile else { throw SharedMediaStorageFailure.closed }
     }
@@ -98,7 +108,7 @@ final class SharedMediaNativeReleaseStageSettlement {
         request = admission.request; pendingStage = admission; self.readSaved = readSaved
     }
     func resolved(_ value: Request) throws {
-        guard startProgress == nil, pairAttempt == nil, !hasPending || request == value else { throw SharedMediaStorageFailure.closed }
+        guard startProgress == nil, pairAttempt == nil, !hasPendingOperation || request == value else { throw SharedMediaStorageFailure.closed }
         request = nil; pendingStage = nil; readSaved = nil
     }
     /// Only the uninterrupted normal stage success path calls this. No await
@@ -114,7 +124,7 @@ final class SharedMediaNativeReleaseStageSettlement {
         request = nil; pendingStage = nil; readSaved = nil
     }
     func startAdmission(_ value: Request) throws -> SharedMediaNativeReleaseStartAdmission {
-        guard !closed, !hasPending, let admission = starts[value.packageID], admission.request == value else {
+        guard !closed, !hasPendingOperation, !hasContinuationRight, let admission = starts[value.packageID], admission.request == value else {
             throw SharedMediaStorageFailure.closed
         }
         return admission
@@ -152,8 +162,43 @@ final class SharedMediaNativeReleaseStageSettlement {
         pairs[row.id] = .init(request, row: row, progress: progress)
         startProgress = nil; self.request = nil; readSaved = nil
     }
+    func issueContinuation(_ identity: SharedMediaNativeReleaseContinuation) throws {
+        let packageID = identity.progress.plan.package.id
+        guard !closed, !hasPendingOperation, identity.index > 0,
+              identity.index == (try identity.progress.selectedIndex(.readyPair)),
+              identity.bytes == (try identity.progress.encoded()), identity.row.id == packageID else { throw SharedMediaStorageFailure.closed }
+        if let prior = continuations[identity.key] {
+            guard prior.identity == identity, let admission = prior.admission,
+                  pairs[packageID] === admission else { throw SharedMediaStorageFailure.closed }
+            return
+        }
+        guard starts.isEmpty, pairs.isEmpty, !fresh.values.contains(where: { $0.admission != nil }) else {
+            throw SharedMediaStorageFailure.closed
+        }
+        let admission = SharedMediaNativeReleasePairAdmission(nil, row: identity.row,
+            progress: identity.progress, continuation: identity)
+        continuations[identity.key] = .init(identity: identity, admission: admission)
+        pairs[packageID] = admission
+    }
+    func abandonContinuation(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) {
+        guard let bytes = try? progress.encoded() else { return }
+        let key = SharedMediaAcquisitionEncoding.digest(bytes)
+        guard var prior = continuations[key] else { return }
+        if let admission = prior.admission, pairs[progress.plan.package.id] === admission {
+            pairs.removeValue(forKey: progress.plan.package.id)
+        }
+        prior.admission = nil; continuations[key] = prior
+    }
+    func validatePair(_ admission: SharedMediaNativeReleasePairAdmission,
+                      attempt: SharedMediaNativeReleasePairAttempt?) throws {
+        if let attempt, admission.continuation != nil, pairAttempt === attempt {
+            guard !closed, request == admission.request, admission.attempt === attempt else { throw SharedMediaStorageFailure.closed }
+        } else {
+            guard try pairAdmission(admission.progress) === admission else { throw SharedMediaStorageFailure.closed }
+        }
+    }
     func pairAdmission(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) throws -> SharedMediaNativeReleasePairAdmission {
-        guard !closed, !hasPending, let admission = pairs[progress.plan.package.id],
+        guard !closed, !hasPendingOperation, let admission = pairs[progress.plan.package.id],
               admission.progress == progress else { throw SharedMediaStorageFailure.closed }
         return admission
     }
@@ -175,18 +220,36 @@ final class SharedMediaNativeReleaseStageSettlement {
     func beginPair(_ attempt: SharedMediaNativeReleasePairAttempt, readSaved: @escaping () throws -> Saved) throws {
         let admission = try pairAdmission(attempt.before)
         guard admission.attempt === attempt else { throw SharedMediaStorageFailure.closed }
+        pairMayHandBack = admission.continuation != nil
+        if let continuation = admission.continuation {
+            guard var record = continuations[continuation.key], record.admission === admission else { throw SharedMediaStorageFailure.closed }
+            record.admission = nil; continuations[continuation.key] = record
+        }
         pairs.removeValue(forKey: attempt.before.plan.package.id)
         request = admission.request; pairAttempt = attempt; self.readSaved = readSaved
     }
     func resolvedPair(_ value: SharedMediaNativeReceivingReleaseValues.Progress) throws {
-        guard pairAttempt?.after == value, request?.releaseID == value.plan.releaseID else {
+        guard pairAttempt?.after == value,
+              request == nil || request?.releaseID == value.plan.releaseID else {
             throw SharedMediaStorageFailure.closed
         }
-        pairAttempt = nil; request = nil; readSaved = nil
+        pairAttempt = nil; pairMayHandBack = false; request = nil; readSaved = nil
+    }
+    /// Reads only the frozen attempt's exact saved before/after state. A
+    /// continuation predecessor can settle uncertainty, never renew its right.
+    func recoverPair(_ expected: SharedMediaNativeReceivingReleaseValues.Progress) throws -> SharedMediaNativeReceivingReleaseValues.Progress {
+        guard !closed, let attempt = pairAttempt, let readSaved,
+              expected == attempt.after || (pairMayHandBack && expected == attempt.before),
+              case .releasing(let saved) = try readSaved(),
+              saved == attempt.after || (pairMayHandBack && saved == attempt.before) else {
+            throw SharedMediaStorageFailure.closed
+        }
+        try resolvedPair(attempt.after)
+        return saved
     }
     func beginPairDisposal(_ capability: SharedMediaNativeReleasePairRemovalCapability,
                            read: @escaping () async throws -> Void) throws {
-        guard !closed, request == nil, pendingOriginalDisposition == nil, pendingOriginalDisposal == nil else { throw SharedMediaStorageFailure.closed }
+        guard !closed, request == nil, pairAttempt == nil, !hasContinuationRight, pendingOriginalDisposition == nil, pendingOriginalDisposal == nil else { throw SharedMediaStorageFailure.closed }
         if let prior = pendingPairDisposal {
             try prior.requireSame(capability)
             prior.permit.revoke()
@@ -199,7 +262,7 @@ final class SharedMediaNativeReleaseStageSettlement {
     }
     func beginOriginalDisposition(_ attempt: SharedMediaNativeOriginalDispositionAttempt,
                                   read: @escaping () throws -> SharedMediaNativeReceivingReleaseValues.Progress) throws {
-        guard !closed, !hasPending else { throw SharedMediaStorageFailure.closed }
+        guard !closed, !hasPendingOperation, !hasContinuationRight else { throw SharedMediaStorageFailure.closed }
         pendingOriginalDisposition = attempt; readOriginalDisposition = read
     }
     func resolvedOriginalDisposition(_ attempt: SharedMediaNativeOriginalDispositionAttempt) throws {
@@ -208,7 +271,7 @@ final class SharedMediaNativeReleaseStageSettlement {
     }
     func beginOriginalDisposal(_ value: SharedMediaNativeOriginalRemovalCapability,
                                read: @escaping () async throws -> Void) throws {
-        guard !closed, !hasPending else { throw SharedMediaStorageFailure.closed }
+        guard !closed, !hasPendingOperation, !hasContinuationRight else { throw SharedMediaStorageFailure.closed }
         pendingOriginalDisposal = value; readOriginalDisposal = read
     }
     func resolvedOriginalDisposal(_ value: SharedMediaNativeOriginalRemovalCapability) throws {
@@ -217,6 +280,7 @@ final class SharedMediaNativeReleaseStageSettlement {
     }
     func closeAdmission() {
         closed = true; pendingPairDisposal?.permit.revoke(); pendingOriginalDisposal?.permit.revoke()
+        for key in Array(continuations.keys) { continuations[key]?.admission = nil }
         fresh.removeAll(); starts.removeAll(); pairs.removeAll()
     }
 
@@ -256,6 +320,20 @@ final class SharedMediaNativeReleaseStageSettlement {
                 await coordinator.releaseAll(scanIds: held)
             } catch { await coordinator.releaseAll(scanIds: held); throw error }
         }
+        if let attempt = pairAttempt {
+            guard closed, let readSaved else { throw SharedMediaStorageFailure.closed }
+            let coordinator = ScanInferencePersistenceCoordinator.shared, plan = attempt.before.plan
+            let held = await coordinator.acquireAll(scanIds: [plan.queueID.uuidString, plan.observationID.uuidString])
+            do {
+                try Task.checkCancellation()
+                let saved = try readSaved()
+                guard saved == .releasing(attempt.after) || (pairMayHandBack && saved == .releasing(attempt.before)) else {
+                    throw SharedMediaStorageFailure.closed
+                }
+                try resolvedPair(attempt.after)
+                await coordinator.releaseAll(scanIds: held)
+            } catch { await coordinator.releaseAll(scanIds: held); throw error }
+        }
         guard let request else { return }
         guard closed, let readSaved else { throw SharedMediaStorageFailure.closed }
         let coordinator = ScanInferencePersistenceCoordinator.shared
@@ -263,10 +341,7 @@ final class SharedMediaNativeReleaseStageSettlement {
         do {
             try Task.checkCancellation()
             let saved = try readSaved()
-            if let attempt = pairAttempt {
-                guard saved == .releasing(attempt.after) else { throw SharedMediaStorageFailure.closed }
-                try resolvedPair(attempt.after)
-            } else if let progress = startProgress {
+            if let progress = startProgress {
                 guard saved == .releasing(progress) else { throw SharedMediaStorageFailure.closed }
                 try resolvedStart(progress)
             } else {

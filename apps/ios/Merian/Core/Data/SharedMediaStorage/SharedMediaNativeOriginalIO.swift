@@ -41,6 +41,10 @@ actor SharedMediaNativeOriginalIO {
         try files.verifyNativePending(request, closure: closure, binding: binding)
     }
     func releasePending(_ disposal: SharedMediaNativePendingDisposal) throws -> SharedMediaNativePendingAbsence { try files.releaseNativePending(disposal) }
+    func verifyReleasePrefix(_ prefix: SharedMediaNativeReleasePrefix) throws {
+        try Task.checkCancellation()
+        try prefix.verify(files: files, binding: binding)
+    }
     func inspect(_ file: PhotoPreparationFile) throws -> SharedMediaPhotoRetirementInspection { try files.inspectSharedRetirement(file) }
     func inspectHeldOriginal(_ state: SharedMediaNativeRetirementState) async throws -> SharedMediaNativeHeldOriginalInspection {
         try Task.checkCancellation()

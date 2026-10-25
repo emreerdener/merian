@@ -20,8 +20,8 @@ struct SharedMediaNativeOriginalDispositionPoststate {
          successor: SharedMediaNativeReceivingReleaseState.Expected,
          original: SharedMediaNativeOriginalAccounting.Snapshot,
          retirement: SharedMediaNativeRetirementIdentity?, context: ModelContext) throws {
-        guard !context.hasChanges, let target = before.plan.targets.first,
-              before.targets.first?.stage == .pairGoneOriginalLive,
+        let target = before.plan.targets[try before.selectedIndex(.pairGoneOriginalLive)]
+        guard !context.hasChanges,
               original.liveCount > 0, original.retirement == nil,
               (retirement != nil) == (original.liveCount == 1) else { throw SharedMediaStorageFailure.conflict }
         contextID = ObjectIdentifier(context)

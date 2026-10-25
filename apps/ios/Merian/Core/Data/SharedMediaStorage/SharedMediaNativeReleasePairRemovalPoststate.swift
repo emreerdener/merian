@@ -18,8 +18,8 @@ struct SharedMediaNativeReleasePairRemovalPoststate {
     init(state: SharedMediaNativePairFileState, before: SharedMediaNativeReceivingReleaseValues.Progress,
          after: SharedMediaNativeReceivingReleaseValues.Progress,
          successor: SharedMediaNativeReceivingReleaseState.Expected, context: ModelContext) throws {
+        let first = before.targets[try before.selectedIndex(.retiringPair)]
         guard !context.hasChanges, state.phase == "retiring",
-              let first = before.targets.first, first.stage == .retiringPair,
               after == (try before.advancing(.init(pairID: first.pairID, stage: .pairGoneOriginalLive,
                 pair: first.pair, original: nil))), first.pairID == (try state.intent().pairID) else {
             throw SharedMediaStorageFailure.conflict

@@ -82,11 +82,23 @@ extension SharedMediaNativeOriginalOwner {
         }
     }
     #endif
+    /// Explicit later-target admission; recovery and copied progress alone
+    /// never replenish an owner's consumed right.
+    func continueAppRelease(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) async throws {
+        let plan = progress.plan
+        do {
+            try await withReceivingLocks(queueID: plan.queueID.uuidString, observationID: plan.observationID.uuidString) { lock in
+                try await self.appReleaseStageWorkflow(lock: lock) { try await $0.continueRelease(progress) }
+            }
+        } catch { abandonAppReleaseContinuation(progress); throw error }
+    }
     func retireAppReleasePair(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) async throws -> SharedMediaNativeReceivingReleaseValues.Progress {
         let plan = progress.plan
-        return try await withReceivingLocks(queueID: plan.queueID.uuidString, observationID: plan.observationID.uuidString) { lock in
-            try await self.appReleaseStageWorkflow(lock: lock) { try await $0.retirePair(progress) }
-        }
+        do {
+            return try await withReceivingLocks(queueID: plan.queueID.uuidString, observationID: plan.observationID.uuidString) { lock in
+                try await self.appReleaseStageWorkflow(lock: lock) { try await $0.retirePair(progress) }
+            }
+        } catch { abandonAppReleaseContinuation(progress); throw error }
     }
     func removeAppReleasePair(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) async throws -> SharedMediaNativeReceivingReleaseValues.Progress {
         let plan = progress.plan
@@ -94,7 +106,7 @@ extension SharedMediaNativeOriginalOwner {
             try await self.appReleaseStageWorkflow(lock: lock) { try await $0.removePair(progress) }
         }
     }
-    /// Inactive first-original metadata disposition; original bytes remain owned.
+    /// Inactive selected-original metadata disposition; original bytes remain owned.
     func disposeAppReleaseOriginal(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) async throws -> SharedMediaNativeReceivingReleaseValues.Progress {
         let plan = progress.plan
         return try await withReceivingLocks(queueID: plan.queueID.uuidString, observationID: plan.observationID.uuidString) { lock in

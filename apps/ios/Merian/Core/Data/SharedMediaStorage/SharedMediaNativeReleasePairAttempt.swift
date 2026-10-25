@@ -15,8 +15,8 @@ final class SharedMediaNativeReleasePairAttempt {
     init(snapshot: SharedMediaNativeReleaseMetadataSnapshot.Snapshot,
          proofs: [SharedMediaNativePairInspection], binding: SharedMediaNativeBinding) throws {
         let progress = snapshot.release.progress
-        guard progress == (try Values.Progress(plan: progress.plan)), let target = progress.targets.first,
-              let state = snapshot.pairs.first(where: { (try? $0.intent().pairID) == target.pairID }),
+        let target = progress.targets[try progress.selectedIndex(.readyPair)]
+        guard let state = snapshot.pairs.first(where: { (try? $0.intent().pairID) == target.pairID }),
               state.phase == "ready", proofs.count == 2,
               Set(proofs.map(\.workID)) == Set(state.work.map(\.id)) else { throw SharedMediaStorageFailure.closed }
         let cohort = try SharedMediaNativeFrozenCohort.decode(snapshot.release.origin.prepared.cohort.bytes)

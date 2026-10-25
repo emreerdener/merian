@@ -7,16 +7,17 @@ enum SharedMediaNativeOriginalDispositionRecovery {
     typealias Snapshot = SharedMediaNativeReleaseMetadataSnapshot.Snapshot
     static func isSuccessor(_ after: Values.Progress, of before: Values.Progress) throws -> Bool {
         try before.validate(); try after.validate()
-        guard let first = before.targets.first, first.stage == .pairGoneOriginalLive,
-              before.targets.dropFirst().allSatisfy({ $0.stage == .readyPair }),
-              let next = after.targets.first, next.pair == first.pair,
+        let index = try before.selectedIndex(.pairGoneOriginalLive)
+        guard after.targets.indices.contains(index) else { return false }
+        let first = before.targets[index], next = after.targets[index]
+        guard next.pair == first.pair,
               next.stage == .originalRetiring || (next.stage == .removed && next.original?.disposition == .shared) else { return false }
         return after == (try before.advancing(next))
     }
     static func snapshot(_ before: Values.Progress, context: ModelContext,
                          header: SharedMediaNativeAppEligibility.Header) throws -> Snapshot {
-        guard !context.hasChanges, before.targets.first?.stage == .pairGoneOriginalLive,
-              before.targets.dropFirst().allSatisfy({ $0.stage == .readyPair }) else { throw SharedMediaStorageFailure.closed }
+        _ = try before.selectedIndex(.pairGoneOriginalLive)
+        guard !context.hasChanges else { throw SharedMediaStorageFailure.closed }
         let plan = before.plan, id = plan.profile.inventoryID
         let inventory = try SharedMediaNativePairPlanGraph.one(context,
             FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))

@@ -35,9 +35,10 @@ final class SharedMediaNativePairUnlinkPermit: Sendable {
     func revoke() { lock.withLock { $0.revoked = true } }
     func withCurrent<T>(_ disposal: SharedMediaNativePairDisposal, workID: UUID, body: () throws -> T) throws -> T {
         try lock.withLock { state in
+            let target = progress.targets[try progress.selectedIndex(.retiringPair)]
             guard !state.revoked, state.activated, disposal.state == pair, disposal.binding == binding, disposal.epoch == epoch,
-                  progress.targets.first?.pair?.retirementID == closure.retirementID,
-                  progress.targets.first?.pair?.closureSHA256 == SharedMediaNativePairClosure.digest(Data(try closure.encoded().utf8)),
+                  target.pair?.retirementID == closure.retirementID,
+                  target.pair?.closureSHA256 == SharedMediaNativePairClosure.digest(Data(try closure.encoded().utf8)),
                   pair.work.allSatisfy({ $0.retirementID == closure.retirementID }),
                   state.remaining.remove(workID) != nil else { throw SharedMediaStorageFailure.closed }
             // Consume even on thrown unlink/fsync/fault. Repeating physical work
@@ -69,9 +70,8 @@ final class SharedMediaNativeReleasePairRemovalCapability {
                  authority: SharedMediaNativeAppOperationAuthority, binding: SharedMediaNativeBinding,
                  header: SharedMediaNativeAppEligibility.Header) throws {
         let before = snapshot.release.progress
-        guard let target = before.targets.first, target.stage == .retiringPair,
-              before.targets.dropFirst().allSatisfy({ $0.stage == .readyPair }),
-              let state = snapshot.pairs.first(where: { (try? $0.intent().pairID) == target.pairID }),
+        let target = before.targets[try before.selectedIndex(.retiringPair)]
+        guard let state = snapshot.pairs.first(where: { (try? $0.intent().pairID) == target.pairID }),
               state.phase == "retiring", let raw = state.work.first?.closure else { throw SharedMediaStorageFailure.closed }
         let closure = try SharedMediaNativePairClosure.decode(raw)
         _ = try SharedMediaNativeReleasePairHistory.validate(closure, progress: before,

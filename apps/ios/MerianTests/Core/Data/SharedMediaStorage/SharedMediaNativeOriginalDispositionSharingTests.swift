@@ -79,7 +79,7 @@ struct SharedMediaNativeOriginalDispositionSharingTests {
         } catch { /* The registered owner rejects the corrupted persisted graph. */ }
     }
 
-    func fixture(foreign: Bool) async throws -> (Store, SharedMediaNativeOriginalOwner, Values.Progress) {
+    func fixture(foreign: Bool, count: Int = 1) async throws -> (Store, SharedMediaNativeOriginalOwner, Values.Progress) {
         let h = try Store(receiving: true, fenceBootstrap: true), owner = try await h.open()
         let sourceID = foreign ? UUID() : h.packageID
         if foreign {
@@ -103,8 +103,18 @@ struct SharedMediaNativeOriginalDispositionSharingTests {
             try promoteHistoricalSource(h, prepared)
         }
         let ready = try await owner.prepareAndDeliverAppPhoto(original: foreign ? shared : source, recipe: Self.recipe)
+        var pairIDs = [try ready.intent().pairID]
+        if count == 2 {
+            let next = try await owner.prepareAppOriginal(packageID: h.packageID, draftGeneration: h.draft, ordinal: 1, kind: .picker)
+            let acquired = try await owner.acquireAppOriginal(next) { bytes }
+            let original = PhotoOriginalReference(ownerID: h.ownerID, packageID: h.packageID,
+                referenceID: next.referenceID, assetID: next.assetID, assetGeneration: next.assetGeneration,
+                draftGeneration: h.draft, referenceRevision: acquired.referenceRevision)
+            let pair = try await owner.prepareAndDeliverAppPhoto(original: original, recipe: Self.recipe)
+            pairIDs.append(try pair.intent().pairID)
+        }
         let prepared = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft,
-            pairIDs: [ready.intent().pairID])
+            pairIDs: pairIDs)
         _ = try await owner.receiveAppPrepared(prepared)
         let admission = try await owner.appReleaseStageRequest(prepared, releaseID: UUID())
         _ = try await owner.stageAppRelease(admission)

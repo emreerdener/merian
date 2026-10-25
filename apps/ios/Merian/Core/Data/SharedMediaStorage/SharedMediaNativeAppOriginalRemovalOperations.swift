@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// The first saved originalRetiring target only, behind existing owner locks.
+/// The selected saved originalRetiring target only, behind existing owner locks.
 @MainActor
 struct SharedMediaNativeAppOriginalRemovalOperations {
     typealias Values = SharedMediaNativeReceivingReleaseValues
@@ -49,8 +49,8 @@ struct SharedMediaNativeAppOriginalRemovalOperations {
               proof.retirement.epoch == binding.epoch else { throw SharedMediaStorageFailure.conflict }
         try requireAbsence(a.state)
         do {
-            let rows = try Rows(c, profile: before.plan.profile, source: before.plan.targets[0].original)
-            let (ref, edge) = try Rows.reference(c, source: before.plan.targets[0].original, live: false)
+            let rows = try Rows(c, profile: before.plan.profile, source: before.plan.targets[try before.selectedIndex(.originalRetiring)].original)
+            let (ref, edge) = try Rows.reference(c, source: before.plan.targets[try before.selectedIndex(.originalRetiring)].original, live: false)
             c.delete(ref); c.delete(edge); c.delete(rows.asset); c.delete(rows.allocation); c.delete(rows.count); c.delete(rows.lease)
             rows.receipt.phaseRaw = "terminal"; rows.receipt.revision = 2; rows.receipt.terminalOutcomeRaw = "released"
             rows.receipt.requestData = nil; rows.receipt.resultData = nil; rows.receipt.packageID = nil; rows.receipt.assetID = nil

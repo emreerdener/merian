@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// Inactive first held-pair metadata transaction. The existing owner supplies
+/// Inactive ordered held-pair metadata transaction. The existing owner supplies
 /// all locks and file access. There is deliberately no unlink or dispatch path.
 @MainActor
 struct SharedMediaNativeAppReleasePairOperations {
@@ -14,10 +14,15 @@ struct SharedMediaNativeAppReleasePairOperations {
     let io: SharedMediaNativeOriginalIO
     let binding: SharedMediaNativeBinding
     let verify: (SharedMediaNativePairInspection) throws -> Void
+    let verifyPrefix: (SharedMediaNativeReleasePrefix) throws -> Void
     let recoveryHeader: () throws -> SharedMediaNativeAppEligibility.Header
     let boundary: (SharedMediaNativeMetadataBoundary) throws -> Void
 
     func apply(_ progress: Values.Progress) async throws -> Values.Progress {
+        do { return try await perform(progress) }
+        catch { settlement.abandonContinuation(progress); throw error }
+    }
+    private func perform(_ progress: Values.Progress) async throws -> Values.Progress {
         try progress.validate(); try validate()
         let admission = try settlement.pairAdmission(progress)
         let attempt: SharedMediaNativeReleasePairAttempt
@@ -25,8 +30,8 @@ struct SharedMediaNativeAppReleasePairOperations {
         else {
             let context = fresh(), inventory = try inventory(context)
             let snapshot = try predecessor(admission, context: context, inventory: inventory)
-            guard let target = progress.targets.first,
-                  let state = snapshot.pairs.first(where: { (try? $0.intent().pairID) == target.pairID }) else { throw SharedMediaStorageFailure.closed }
+            let target = progress.targets[try progress.selectedIndex(.readyPair)]
+            guard let state = snapshot.pairs.first(where: { (try? $0.intent().pairID) == target.pairID }) else { throw SharedMediaStorageFailure.closed }
             var proofs: [SharedMediaNativePairInspection] = []
             for work in state.work { proofs.append(try await io.inspectPair(state, workID: work.id)); try validate() }
             attempt = try settlement.freezePair(.init(snapshot: snapshot, proofs: proofs, binding: binding), admission: admission)
@@ -41,6 +46,13 @@ struct SharedMediaNativeAppReleasePairOperations {
         let member = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == packageID }))
         let pair = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == pairID }))
         guard let row = try SharedMediaNativeReceivingPhaseGraph.row(packageID, in: context) else { throw SharedMediaStorageFailure.stale }
+        if admission.continuation != nil {
+            let container = container, header = recoveryHeader
+            try settlement.beginPair(attempt) {
+                .releasing(try SharedMediaNativeReleasePairRecovery.readContinuation(attempt,
+                    seal: seal, container: container, header: header))
+            }
+        }
         do {
             try SharedMediaNativePairRetirementRows.apply(context: context, package: package, pair: pair,
                 before: attempt.state, closure: attempt.closure)
@@ -56,9 +68,11 @@ struct SharedMediaNativeAppReleasePairOperations {
             try seal.validate(context); try validate()
             for proof in attempt.proofs { try verify(proof) }
             let container = container, header = recoveryHeader
-            try settlement.beginPair(attempt) {
-                .releasing(try SharedMediaNativeReleasePairRecovery.read(attempt.after, container: container,
-                    closure: attempt.closure, header: header))
+            if admission.continuation == nil {
+                try settlement.beginPair(attempt) {
+                    .releasing(try SharedMediaNativeReleasePairRecovery.read(attempt.after, container: container,
+                        closure: attempt.closure, header: header))
+                }
             }
             do { try context.save(); try boundary(.afterSave) }
             catch { context.rollback(); return try recover(attempt) }
@@ -68,10 +82,17 @@ struct SharedMediaNativeAppReleasePairOperations {
     private func predecessor(_ admission: SharedMediaNativeReleasePairAdmission, context: ModelContext,
                              inventory: SharedMediaInventoryRecord, attempt: SharedMediaNativeReleasePairAttempt? = nil) throws -> Snapshot {
         try validate()
-        guard try settlement.pairAdmission(admission.progress) === admission else { throw SharedMediaStorageFailure.closed }
+        try settlement.validatePair(admission, attempt: attempt)
         let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory, checkpoint: validate)
         guard case .releasing(let snapshot) = witnesses[admission.progress.plan.package.id],
               snapshot.release.progress == admission.progress, snapshot.release.slot == admission.row else { throw SharedMediaStorageFailure.stale }
+        if let continuation = admission.continuation {
+            guard continuation.header == expected, continuation.binding == binding.bytes, continuation.epoch == binding.epoch,
+                  continuation.bytes == (try admission.progress.encoded()),
+                  let row = try SharedMediaNativeReceivingPhaseGraph.row(admission.progress.plan.package.id, in: context),
+                  row.persistentModelID == continuation.persistentID else { throw SharedMediaStorageFailure.stale }
+            try verifyPrefix(SharedMediaNativeReleasePrefix(snapshot))
+        }
         let projection = try SharedMediaNativeReleaseSurvivorProjection.maximum(snapshot)
         try projection.requireMetadataCapacity()
         if let attempt {
@@ -97,10 +118,20 @@ struct SharedMediaNativeAppReleasePairOperations {
     }
     private func recover(_ attempt: SharedMediaNativeReleasePairAttempt) throws -> Values.Progress {
         try boundary(.beforeReadback)
-        let value = try SharedMediaNativeReleasePairRecovery.read(attempt.after, container: container,
-            closure: attempt.closure, exactRevision: SharedMediaStoragePolicy.add(expected.inventory.revision, 1),
-            header: { try authority.header(container) })
-        try settlement.resolvedPair(value); return value
+        if try attempt.before.selectedIndex(.readyPair) == 0 {
+            let value = try SharedMediaNativeReleasePairRecovery.read(attempt.after, container: container,
+                closure: attempt.closure, exactRevision: SharedMediaStoragePolicy.add(expected.inventory.revision, 1),
+                header: { try authority.header(container) })
+            try settlement.resolvedPair(value); return value
+        }
+        let revision = try authority.header(container).inventory.revision
+        let successorRevision = try SharedMediaStoragePolicy.add(expected.inventory.revision, 1)
+        guard revision == expected.inventory.revision || revision == successorRevision else {
+            throw SharedMediaStorageFailure.stale
+        }
+        // Recovery closures are pinned to this attempt's raw predecessor seal
+        // and retirement identity; they grant no subsequent admission.
+        return try settlement.recoverPair(attempt.after)
     }
     private func validate() throws {
         guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale }

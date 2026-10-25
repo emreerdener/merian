@@ -49,7 +49,7 @@ final class SharedMediaNativeOriginalUnlinkPermit: Sendable {
     }
 }
 
-/// Only the complete saved first-original retirement can mint this held-only
+/// Only the complete saved selected-original retirement can mint this held-only
 /// capability. Ordinary original lifecycle guards remain unchanged.
 @MainActor
 final class SharedMediaNativeOriginalRemovalCapability {
@@ -87,12 +87,13 @@ final class SharedMediaNativeOriginalRemovalCapability {
     static func audited(_ before: Values.Progress, header: SharedMediaNativeAppEligibility.Header,
                         binding: SharedMediaNativeBinding, context: ModelContext) throws -> SharedMediaNativeOriginalRemovalCapability {
         let snapshot = try SharedMediaNativeOriginalRemovalRecovery.snapshot(before, context: context, header: header)
-        guard snapshot.release.progress == before, let target = before.plan.targets.first else { throw SharedMediaStorageFailure.closed }
+        let index = try before.selectedIndex(.originalRetiring), target = before.plan.targets[index]
+        guard snapshot.release.progress == before else { throw SharedMediaStorageFailure.closed }
         let original = try SharedMediaNativeOriginalAccounting.audit(assetID: target.original.assetID,
             inventoryID: before.plan.profile.inventoryID, context: context)
         guard original.liveCount == 0, let identity = original.retirement,
-              before.targets.first?.original?.retirementID == identity.retirementID,
-              before.targets.first?.original?.closureSHA256 == SharedMediaAcquisitionEncoding.digest(Data(try identity.encoded().utf8)),
+              before.targets[index].original?.retirementID == identity.retirementID,
+              before.targets[index].original?.closureSHA256 == SharedMediaAcquisitionEncoding.digest(Data(try identity.encoded().utf8)),
               original.inventoryRevision == header.inventory.revision else { throw SharedMediaStorageFailure.conflict }
         let rows = try SharedMediaNativeAppOriginalRows(context, profile: before.plan.profile, source: target.original)
         _ = try SharedMediaNativeAppOriginalRows.reference(context, source: target.original, live: false)

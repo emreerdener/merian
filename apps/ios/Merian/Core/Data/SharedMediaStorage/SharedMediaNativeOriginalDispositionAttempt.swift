@@ -23,9 +23,8 @@ final class SharedMediaNativeOriginalDispositionAttempt {
                  retirement: SharedMediaNativeRetirementIdentity?, header: SharedMediaNativeAppEligibility.Header,
                  context: ModelContext) throws {
         let before = snapshot.release.progress
-        guard let first = before.targets.first, first.stage == .pairGoneOriginalLive,
-              before.targets.dropFirst().allSatisfy({ $0.stage == .readyPair }),
-              original.retirement == nil, original.liveCount > 0,
+        let index = try before.selectedIndex(.pairGoneOriginalLive), first = before.targets[index]
+        guard original.retirement == nil, original.liveCount > 0,
               (retirement != nil) == (original.liveCount == 1) else { throw SharedMediaStorageFailure.closed }
         func progress(_ digest: String) throws -> Values.Progress {
             try before.advancing(.init(pairID: first.pairID, stage: retirement == nil ? .removed : .originalRetiring,
@@ -44,7 +43,7 @@ final class SharedMediaNativeOriginalDispositionAttempt {
         self.retirement = retirement; self.header = header; successor = next
         referenceDigest = try SharedMediaNativeOriginalDispositionAttestation.referenceDigest(assetID: original.assetID, context: context)
         survivingReferenceDigest = try SharedMediaNativeOriginalDispositionAttestation.referenceDigest(assetID: original.assetID,
-            excludingID: before.plan.targets[0].original.referenceID, context: context)
+            excludingID: before.plan.targets[index].original.referenceID, context: context)
         liability = try SharedMediaNativeOriginalLiability.read(context: context, inventoryID: before.plan.profile.inventoryID)
         seal = try .init(before: before, after: after, successor: next, original: original, retirement: retirement, context: context)
         expectedLiability = try SharedMediaNativeOriginalDispositionFunding.liability(self, context: context)
@@ -53,7 +52,8 @@ final class SharedMediaNativeOriginalDispositionAttempt {
     static func audited(_ before: Values.Progress, retirementID: UUID, header: SharedMediaNativeAppEligibility.Header,
                         context: ModelContext) throws -> SharedMediaNativeOriginalDispositionAttempt {
         let snapshot = try SharedMediaNativeOriginalDispositionRecovery.snapshot(before, context: context, header: header)
-        guard snapshot.release.progress == before, let target = before.plan.targets.first else { throw SharedMediaStorageFailure.closed }
+        let target = before.plan.targets[try before.selectedIndex(.pairGoneOriginalLive)]
+        guard snapshot.release.progress == before else { throw SharedMediaStorageFailure.closed }
         let original = try SharedMediaNativeOriginalAccounting.audit(assetID: target.original.assetID,
             inventoryID: before.plan.profile.inventoryID, context: context)
         let rows = try SharedMediaNativeAppOriginalRows(context, profile: before.plan.profile, source: target.original)

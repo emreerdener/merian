@@ -209,6 +209,10 @@ final class SharedMediaNativeOriginalOwner {
             try lock.validate(); try grant.validate(); return try await body(operation)
         }
     }
+    /// An outer audit or lock failure must also spend an existing continuation.
+    func abandonAppReleaseContinuation(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) {
+        releaseStageSettlement.abandonContinuation(progress)
+    }
     func appReleaseStageWorkflow<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant,
         _ body: @escaping @MainActor (SharedMediaNativeAppReleaseStageOperations) async throws -> T) async throws -> T {
         try lock.validate()

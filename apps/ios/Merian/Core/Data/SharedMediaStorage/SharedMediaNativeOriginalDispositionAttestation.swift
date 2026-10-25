@@ -10,7 +10,8 @@ enum SharedMediaNativeOriginalDispositionAttestation {
     static func digest(before: SharedMediaNativeReceivingReleaseValues.Progress,
                        next: SharedMediaNativeReceivingReleaseState.Expected,
                        header: SharedMediaNativeAppEligibility.Header, context: ModelContext) throws -> String {
-        guard !context.hasChanges, let target = before.plan.targets.first else { throw SharedMediaStorageFailure.conflict }
+        let target = before.plan.targets[try before.selectedIndex(.pairGoneOriginalLive)]
+        guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         var hash = SHA256()
         func append(_ bytes: Data) { hash.update(data: Data("\(bytes.count):".utf8)); hash.update(data: bytes) }
         func row<T: PersistentModel>(_ value: T, _ fields: Raw.Fields) throws {

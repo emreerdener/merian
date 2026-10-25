@@ -1,3 +1,47 @@
+## October 24 — inactive ordered-target continuation qualified locally
+
+The inactive owner now has a separate explicit continuation entry for the next
+ready photo after a nonempty removed prefix. It audits complete saved progress,
+raw slot identity, owner binding, current header, survivor funding and remaining
+revision capacity. Frozen descriptors must prove absent final/partial leaves for
+removed originals and outputs, and present shared originals with retained
+owners. Physical and authoritative checks repeat without an intervening await
+before a one-use owner-local right is issued. Target zero still requires its
+initial start acknowledgement.
+
+An exact successful unused duplicate keeps the same right. Any failed admission
+or retirement call burns an existing right conservatively; repairing the failure
+does not restore it in that owner. Failure before any right was issued does not
+create a spent grant. The right is consumed before successor mutation. Unused
+rights and uncertain attempts fence unrelated native dispatch. Exact saved
+before/after recovery settles the frozen continuation attempt without reminting
+it; only a fresh registered owner after joined shutdown may explicitly admit the
+unchanged ready predecessor again. Shared reference ownership, immutable frozen
+media/text, historical operations and provider/accounting semantics are
+unchanged.
+
+Selected-target retirement, physical pair removal, original disposition and
+physical original removal preserve earlier closure evidence and later ready
+targets. Full-state funding replaces the selected obligation; it does not
+reserve another package or subtract surviving shared liability. All targets
+removed remains a releasing slot; terminal slot closure is a separate
+integration.
+
+Scoped local qualification passed on candidate04: focused 7 methods / 16 cases
+and affected regression 102 methods / 190 cases across 14 suites. Both managed
+runs finished with actual runner/command exits 0, exact structured coverage,
+zero skips or structured runtime warnings, and unchanged source/product pins.
+Evidence is retained under `.artifacts/native-app-capture-handoff-20261020/` in
+next-target-focused01 and next-target-regression01 records. The failed initial
+compile and all subsequent build evidence remain retained.
+
+This qualifies the inactive ordered-target continuation only. Full-target,
+isolated-source, integrated app journeys and abrupt-exit acceptance remain open;
+terminal receiving-slot closure is not implemented by this checkpoint. The prior
+physical-original checkpoint is `7892b597d`. No schema, wire, storage-limit, UI,
+provider or activation change. Activation disabled; PR116 frozen; deployment
+hold active; AWS unapproved; limits unchanged.
+
 ## October 24 — inactive held physical original cleanup qualified locally
 
 The next inactive owner step handles only the first saved `originalRetiring`

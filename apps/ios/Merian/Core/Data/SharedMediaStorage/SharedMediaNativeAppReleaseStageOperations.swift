@@ -25,6 +25,7 @@ final class SharedMediaNativeAppReleaseStageOperations {
     private let verifyAbsence: (SharedMediaNativePairAbsence) throws -> Void
     private let verifyOriginal: (SharedMediaNativeHeldOriginalInspection) throws -> SharedMediaNativeHeldOriginalInspection
     private let requireOriginalAbsence: (SharedMediaNativeRetirementState) throws -> Void
+    private let verifyPrefix: (SharedMediaNativeReleasePrefix) throws -> Void
     private var consumed = false
 
     private init(container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority,
@@ -33,12 +34,14 @@ final class SharedMediaNativeAppReleaseStageOperations {
                  verifyInspection: @escaping (SharedMediaNativePairInspection) throws -> Void, verifyAbsence: @escaping (SharedMediaNativePairAbsence) throws -> Void, verifyRetiring: @escaping (SharedMediaNativeRetiringPairInspection) throws -> Void,
                  verifyOriginal: @escaping (SharedMediaNativeHeldOriginalInspection) throws -> SharedMediaNativeHeldOriginalInspection,
                  requireOriginalAbsence: @escaping (SharedMediaNativeRetirementState) throws -> Void,
+                 verifyPrefix: @escaping (SharedMediaNativeReleasePrefix) throws -> Void,
                  recoveryHeader: @escaping () throws -> SharedMediaNativeAppEligibility.Header,
                  boundary: @escaping (SharedMediaNativeMetadataBoundary) throws -> Void) {
         self.container = container; self.authority = authority; self.expected = expected
         self.io = io; self.fileBinding = fileBinding; self.verifyInspection = verifyInspection; self.verifyAbsence = verifyAbsence; self.verifyRetiring = verifyRetiring
         self.settlement = settlement; self.boundary = boundary; self.recoveryHeader = recoveryHeader
         self.verifyOriginal = verifyOriginal; self.requireOriginalAbsence = requireOriginalAbsence
+        self.verifyPrefix = verifyPrefix
     }
     static func audited(container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority,
                         settlement: SharedMediaNativeReleaseStageSettlement,
@@ -46,6 +49,7 @@ final class SharedMediaNativeAppReleaseStageOperations {
                         verifyInspection: @escaping (SharedMediaNativePairInspection) throws -> Void, verifyAbsence: @escaping (SharedMediaNativePairAbsence) throws -> Void, verifyRetiring: @escaping (SharedMediaNativeRetiringPairInspection) throws -> Void,
                         verifyOriginal: @escaping (SharedMediaNativeHeldOriginalInspection) throws -> SharedMediaNativeHeldOriginalInspection,
                  requireOriginalAbsence: @escaping (SharedMediaNativeRetirementState) throws -> Void,
+                 verifyPrefix: @escaping (SharedMediaNativeReleasePrefix) throws -> Void,
                  recoveryHeader: @escaping () throws -> SharedMediaNativeAppEligibility.Header,
                         boundary: @escaping (SharedMediaNativeMetadataBoundary) throws -> Void) async throws -> SharedMediaNativeAppReleaseStageOperations {
         let expected = try authority.header(container)
@@ -54,7 +58,7 @@ final class SharedMediaNativeAppReleaseStageOperations {
             betweenPages: { await Task.yield() }).run()
         guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale }
         return .init(container: container, authority: authority, expected: expected, settlement: settlement, io: io, fileBinding: fileBinding,
-            verifyInspection: verifyInspection, verifyAbsence: verifyAbsence, verifyRetiring: verifyRetiring, verifyOriginal: verifyOriginal, requireOriginalAbsence: requireOriginalAbsence, recoveryHeader: recoveryHeader, boundary: boundary)
+            verifyInspection: verifyInspection, verifyAbsence: verifyAbsence, verifyRetiring: verifyRetiring, verifyOriginal: verifyOriginal, requireOriginalAbsence: requireOriginalAbsence, verifyPrefix: verifyPrefix, recoveryHeader: recoveryHeader, boundary: boundary)
     }
 
     private func discover(packageID: UUID) throws -> Saved? {
@@ -116,9 +120,13 @@ final class SharedMediaNativeAppReleaseStageOperations {
         return try settlement.frozenPair(settlement.pairAdmission(progress))
     }
     #endif
+    func continueRelease(_ progress: Values.Progress) async throws {
+        try await SharedMediaNativeAppReleaseContinuationOperations(container: container, authority: authority,
+            expected: expected, settlement: settlement, io: io, binding: fileBinding, verify: verifyPrefix).apply(progress)
+    }
     func retirePair(_ progress: Values.Progress) async throws -> Values.Progress {
         try await SharedMediaNativeAppReleasePairOperations(container: container, authority: authority,
-            expected: expected, settlement: settlement, io: io, binding: fileBinding, verify: verifyInspection,
+            expected: expected, settlement: settlement, io: io, binding: fileBinding, verify: verifyInspection, verifyPrefix: verifyPrefix,
             recoveryHeader: recoveryHeader, boundary: boundary).apply(progress)
     }
     func removePair(_ progress: Values.Progress) async throws -> Values.Progress {
@@ -138,6 +146,7 @@ final class SharedMediaNativeAppReleaseStageOperations {
     }
     func reconcilePair(_ progress: Values.Progress) throws -> Values.Progress {
         try progress.validate(); try validate()
+        if settlement.pairAttempt != nil { return try settlement.recoverPair(progress) }
         guard progress.plan.profile == authority.profile,
               settlement.request == nil || settlement.pairAttempt?.after == progress else { throw SharedMediaStorageFailure.closed }
         let value = try SharedMediaNativeReleasePairRecovery.read(progress, container: container,

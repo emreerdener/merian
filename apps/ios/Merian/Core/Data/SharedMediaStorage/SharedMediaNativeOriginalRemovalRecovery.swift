@@ -7,9 +7,8 @@ enum SharedMediaNativeOriginalRemovalRecovery {
     typealias Snapshot = SharedMediaNativeReleaseMetadataSnapshot.Snapshot
     static func successor(_ before: Values.Progress) throws -> Values.Progress {
         try before.validate()
-        guard let first = before.targets.first, first.stage == .originalRetiring,
-              first.original?.disposition == .removed, first.original?.retirementID != nil,
-              before.targets.dropFirst().allSatisfy({ $0.stage == .readyPair }) else { throw SharedMediaStorageFailure.closed }
+        let first = before.targets[try before.selectedIndex(.originalRetiring)]
+        guard first.original?.disposition == .removed, first.original?.retirementID != nil else { throw SharedMediaStorageFailure.closed }
         return try before.advancing(.init(pairID: first.pairID, stage: .removed, pair: first.pair, original: first.original))
     }
     static func snapshot(_ before: Values.Progress, context: ModelContext,
