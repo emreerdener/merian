@@ -1,3 +1,47 @@
+## October 25 — inactive receiving terminal qualified locally
+
+The inactive implementation adds a dedicated all-removed receiving closure
+owner: two row updates and deletion of the exact held package, membership and
+untouched consumer/queue/job/event quartet. It retains a canonical Released
+result and seals all changed/deleted fields and persistent identities. Frozen
+descriptors are checked before save; historical shared-original absence does not
+fabricate a retirement identity. Uncertain attempts remain owner-held and
+read-only until exact resolution or joined shutdown. Historical recovery reads
+database evidence.
+
+A separate paged terminal reader preserves raw orphan/foreign rejection, exact
+row/owner/bootstrap joins, role-aware historical identity checks and checked
+terminal consumption runway. Terminal payload bytes use the existing durable
+physical-metadata route with zero reservation and no pending-package entry. The
+final transaction compares a dedicated full successor accounting projection
+against clean post-save accounting; surviving original ownership is unchanged.
+Normal fresh receiving/staging and release identities consult terminal history.
+
+October 25 local correction: each streamed historical row compares with at most
+128 selected immutable values between full authority checks. Cancellation
+remains checked for every comparison. The closing check must succeed before a
+self-match contributes to the seen set. All deep row/live-root validation,
+expected-header checks and page/suspension fences remain unchanged. No I/O,
+mutation, suspension or authority issuance occurs inside the comparison batch.
+The failed diagnostic measured 210.1 of 214.7 seconds in authority callbacks in
+the first comparison phase. The corrected phase took 43.8 seconds, and the
+pagination case passed in 546.4 seconds within its unchanged 600-second limit.
+
+Local qualification on October 25 uses candidate06/build06: pagination03 and
+focused02 passed all 11 focused methods / 21 cases. Regression02's test command
+passed 146 methods / 292 cases across the 19 affected suites, with no failures,
+skips or structured runtime warnings. Its wrapper exited 1 because the expected
+inventory omitted six pre-existing extension methods (nine cases) in the
+selected receiving-staging suite. A separately reviewed offline reconciliation
+verifies the unchanged compiled extension and exact result set; it preserves
+that failed wrapper record and reuses the retained XCResult without another test
+run. All 3,001 source/project pins and 708 compiled products matched. These
+results qualify the inactive receiving-terminal change locally; they do not
+qualify performance or the complete app journey. Activation remains disabled,
+PR116 frozen, deployment hold active, AWS unapproved and limits unchanged.
+Full-target, isolated-source, integrated app and abrupt-exit acceptance remain
+open.
+
 ## October 24 — inactive ordered-target continuation qualified locally
 
 The inactive owner now has a separate explicit continuation entry for the next

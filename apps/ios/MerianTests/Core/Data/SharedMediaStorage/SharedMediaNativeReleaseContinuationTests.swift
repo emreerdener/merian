@@ -46,7 +46,7 @@ struct SharedMediaNativeReleaseContinuationTests {
         #expect(removed.plan == before.plan)
         for check in prefix.checks {
             switch check {
-            case .absent(let file, _): #expect(!FileManager.default.fileExists(atPath: path(h, file.token).path))
+            case .absent(let file, _), .historicalAbsence(let file, _): #expect(!FileManager.default.fileExists(atPath: path(h, file.token).path))
             case .shared(let file, _):
                 #expect(FileManager.default.fileExists(atPath: path(h, file.token).path))
                 #expect(try originals.accounting(h, file.assetID).liveCount == 1)

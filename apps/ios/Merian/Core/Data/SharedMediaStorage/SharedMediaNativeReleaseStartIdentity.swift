@@ -55,6 +55,9 @@ enum SharedMediaNativeReleaseStartIdentity {
             try SharedMediaNativeReleaseStageIdentity.requireAbsent(id, witnesses: other)
         }
         for witness in other { try sharedRoles(plan, other: witness, context: context) }
+        _ = try SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: plan.profile.inventoryID) {
+            try SharedMediaNativeTerminalIdentity.requireCompatible($0.value, plan: plan)
+        }
         try SharedMediaNativeReleaseStartDirectIdentity.check(snapshot, context: context)
     }
     static func requirePhysical(_ plan: Values.Plan, assetID: UUID, acquisitionID: UUID,
@@ -66,7 +69,7 @@ enum SharedMediaNativeReleaseStartIdentity {
             $0.original.assetGeneration == generation && $0.original.ownerID == ownerID && $0.originalIdentitySHA256 == digest
         }) else { throw SharedMediaStorageFailure.conflict }
     }
-    private static func sharedRoles(_ plan: Values.Plan, other: SharedMediaNativeReceivingCleanGraph.Witness, context: ModelContext) throws {
+    static func sharedRoles(_ plan: Values.Plan, other: SharedMediaNativeReceivingCleanGraph.Witness, context: ModelContext) throws {
         let shared = physical(plan)
         guard shared.isDisjoint(with: other.identities) else { throw SharedMediaStorageFailure.conflict }
         switch other {

@@ -272,8 +272,14 @@ final class SharedMediaNativeStorageRepository {
     func inspectApp(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeScopedSnapshot {
         try requireApp(grant)
         let expected = try appHeader(), profile = try files.bootstrapProfile()
-        let result = try await SharedMediaNativeScopedAudit(app: container, profile: profile, expected: expected.inventory,
+        var audit = try SharedMediaNativeScopedAudit(app: container, profile: profile, expected: expected.inventory,
             check: {
+                #if DEBUG
+                let started = self.debug?.inspectionTrace == nil ? nil : ContinuousClock.now
+                defer {
+                    if let started { self.debug?.inspectionTrace?.checkpoint(started.duration(to: .now)) }
+                }
+                #endif
                 try self.requireApp(grant)
                 guard try self.appHeader() == expected else { throw SharedMediaStorageFailure.conflict }
             }, betweenPages: {
@@ -281,7 +287,11 @@ final class SharedMediaNativeStorageRepository {
                 await self.debug?.scopedPagePause?()
                 #endif
                 await Task.yield()
-            }).run()
+            })
+        #if DEBUG
+        audit.inspectionTrace = debug?.inspectionTrace
+        #endif
+        let result = try await audit.run()
         try requireApp(grant); guard try appHeader() == expected else { throw SharedMediaStorageFailure.conflict }; return result
     }
     func appMetadata(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeAppMetadataOperations {

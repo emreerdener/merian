@@ -62,7 +62,8 @@ struct SharedMediaNativeAppReleaseStartOperations {
         try settlement.validateStart(admission, row: snapshot.origin.row)
         try SharedMediaNativeReleaseStartIdentity.direct(snapshot, witnesses: witnesses, context: context)
         let others = try witnesses.filter { $0.key != admission.request.packageID }.values.map { try $0.remainingAdvances }
-        let needed = try PhotoPreparationPolicy.add([1, snapshot.components.progress.remainingAdvances] + others)
+        let terminals = try SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id).consumptionAdvances
+        let needed = try PhotoPreparationPolicy.add([terminals, 1, snapshot.components.progress.remainingAdvances] + others)
         _ = try SharedMediaStoragePolicy.add(inventory.revision, needed)
         try snapshot.funding.release.requireExistingFunding()
         return snapshot

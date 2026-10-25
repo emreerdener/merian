@@ -52,6 +52,12 @@ enum SharedMediaNativeReceivingRows {
             observationID = abandoned.observationID.uuidString.lowercased()
             eventID = abandoned.eventID.uuidString.lowercased()
         }
+        init(_ plan: SharedMediaNativeReceivingReleaseValues.Plan) {
+            packageID = plan.package.id; bindingID = plan.bindingID
+            queueID = plan.queueID.uuidString.lowercased()
+            observationID = plan.observationID.uuidString.lowercased()
+            eventID = plan.eventID.uuidString.lowercased()
+        }
         fileprivate init(_ request: SharedMediaNativeReceivingIntent.Transaction) {
             packageID = request.package.id; bindingID = request.cohort.bindingID
             queueID = request.cohort.originQueueID; observationID = request.cohort.observationID

@@ -107,8 +107,39 @@ enum SharedMediaNativeAcquisitionBudget {
         return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, originalReleaseProof: proof)
     }
 
+    /// Complete successor accounting over the clean predecessor. A terminal
+    /// seal proves this exact projection is the entire dirty mutation; readback
+    /// repeats ordinary clean accounting and compares the full result vector.
+    static func terminalProjection(context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                   before: SharedMediaNativeReleaseMetadataSnapshot.Snapshot,
+                                   after: SharedMediaNativeReceivingReleaseValues.Released) throws -> Snapshot {
+        guard after == (try .init(progress: before.release.progress,
+            inventoryRevision: SharedMediaStoragePolicy.add(inventory.revision, 1))) else { throw SharedMediaStorageFailure.conflict }
+        let graph = try SharedMediaPendingGraph.terminalProjection(in: context, inventory: inventory, before: before)
+        var clean = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)
+        guard clean.removeValue(forKey: after.plan.package.id) != nil else { throw SharedMediaStorageFailure.conflict }
+        let old = try SharedMediaNativeOriginalLiability.read(context: context, inventoryID: inventory.id)
+        var selected = Set(graph.allocations.map(\.id)), retained = Set<UUID>()
+        for witness in clean.values {
+            if case .releasing(let release) = witness {
+                selected.formUnion(release.ownedOriginals.map(\.assetID))
+                for origin in release.targetOrigins where old.retainedTargets.contains(origin.assetID) { retained.insert(origin.assetID) }
+            }
+        }
+        for entry in old.entries.values where !selected.contains(entry.assetID) {
+            let original = try SharedMediaNativeOriginalAccounting.audit(assetID: entry.assetID, inventoryID: inventory.id, context: context)
+            guard original.retirement == nil else { throw SharedMediaStorageFailure.conflict }
+            try SharedMediaNativeOriginalLiability.requireRetainedSurvivors(assetID: entry.assetID,
+                expectedCount: original.liveCount, context: context)
+        }
+        let liability = SharedMediaNativeOriginalLiability.Snapshot(inventoryID: old.inventoryID, generation: old.generation,
+            revision: after.inventoryRevision, entries: old.entries.filter { selected.contains($0.key) }, retainedTargets: retained)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, clean: clean,
+            terminalProjection: after, terminalLiability: liability)
+    }
+
     private static func evaluate(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, clean: [UUID: SharedMediaNativeReceivingCleanGraph.Witness]? = nil, intentProof: SharedMediaNativeAppIntentPoststate? = nil, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, acquisitionProof: SharedMediaNativeAppAcquisitionPoststate? = nil, preparationProof: SharedMediaNativeAppPreparationPoststate? = nil, pairPlanProof: SharedMediaNativeAppPairPlanPoststate? = nil, pairClosureProof: SharedMediaNativeAppPairPlanClosurePoststate? = nil, pairFileProof: SharedMediaNativeAppPairPoststate? = nil, pairRetirementProof: SharedMediaNativeAppPairRetirementPoststate? = nil, stagingProof: SharedMediaNativeAppStagingPoststate? = nil, pendingCleanupProof: SharedMediaNativeAppPendingPoststate? = nil, originalProof: SharedMediaNativeAppOriginalPoststate? = nil, originalReleaseProof: SharedMediaNativeAppOriginalReleasePoststate? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, clean: [UUID: SharedMediaNativeReceivingCleanGraph.Witness]? = nil, intentProof: SharedMediaNativeAppIntentPoststate? = nil, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, acquisitionProof: SharedMediaNativeAppAcquisitionPoststate? = nil, preparationProof: SharedMediaNativeAppPreparationPoststate? = nil, pairPlanProof: SharedMediaNativeAppPairPlanPoststate? = nil, pairClosureProof: SharedMediaNativeAppPairPlanClosurePoststate? = nil, pairFileProof: SharedMediaNativeAppPairPoststate? = nil, pairRetirementProof: SharedMediaNativeAppPairRetirementPoststate? = nil, stagingProof: SharedMediaNativeAppStagingPoststate? = nil, pendingCleanupProof: SharedMediaNativeAppPendingPoststate? = nil, originalProof: SharedMediaNativeAppOriginalPoststate? = nil, originalReleaseProof: SharedMediaNativeAppOriginalReleasePoststate? = nil, terminalProjection: SharedMediaNativeReceivingReleaseValues.Released? = nil, terminalLiability: SharedMediaNativeOriginalLiability.Snapshot? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
         guard graph.sources.isEmpty, graph.handoffs.isEmpty else {
             throw SharedMediaStorageFailure.closed
         }
@@ -125,6 +156,13 @@ enum SharedMediaNativeAcquisitionBudget {
             intents = [:]
         }
         var totals = SharedMediaStoragePolicy.Totals(), metadata: [UUID: Int64] = [:], baseMetadata: [UUID: Int64] = [:]
+        if format == .appV2 {
+            let terminal = try SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id, checkpoint: checkpoint)
+            try totals.includePhotoPhysical(materialized: terminal.bytes, reserved: 0)
+            if let terminalProjection {
+                try totals.includePhotoPhysical(materialized: Int64(terminalProjection.encoded().count), reserved: 0)
+            }
+        }
         var receivedLiability: [UUID: MetadataLiability] = [:]
         var chargedOriginAllocations = Set<UUID>(), chargedPhysical = Set<UUID>()
         for allocation in graph.allocations {
@@ -274,7 +312,8 @@ enum SharedMediaNativeAcquisitionBudget {
             else if let originalProof { proof = .original(originalProof) }
             else if let originalReleaseProof { proof = .originalRelease(originalReleaseProof) }
             else { proof = nil }
-            if let proof {
+            if let terminalLiability { originalIdentity = terminalLiability }
+            else if let proof {
                 originalIdentity = try SharedMediaNativeOriginalLiabilityPoststate.read(context: context, inventory: inventory, proof: proof)
             } else {
                 originalIdentity = try SharedMediaNativeOriginalLiability.read(context: context, inventoryID: inventory.id, checkpoint: checkpoint)

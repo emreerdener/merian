@@ -95,18 +95,26 @@ final class SharedMediaNativeOriginalOwner {
                             drain: SharedMediaNativeOriginalDrain) throws -> SharedMediaNativeOriginalOwner {
         try .init(account: account, drain: drain, openKind: .appDispatch)
     }
-    func openApp(container: ModelContainer, parent: URL, inventoryID: UUID, pause: (@Sendable () async -> Void)? = nil) async throws -> SharedMediaNativeScopedSnapshot {
+    func openApp(container: ModelContainer, parent: URL, inventoryID: UUID, pause: (@Sendable () async -> Void)? = nil,
+                 inspectionTrace: SharedMediaNativeDebugHooks.InspectionTrace? = nil) async throws -> SharedMediaNativeScopedSnapshot {
         guard openKind == .appDispatch, phase == .unopened, let registration, drain.isCurrent(registration) else { throw SharedMediaStorageFailure.closed }
-        phase = .opening; debug.scopedPagePause = pause
+        phase = .opening; debug.scopedPagePause = pause; debug.inspectionTrace = inspectionTrace
+        defer {
+            inspectionTrace?.finish()
+            if debug.inspectionTrace === inspectionTrace { debug.inspectionTrace = nil }
+        }
         do {
             return try await performOperation { [self] lease, identity in
+                inspectionTrace?.enter(.identity)
                 let profile = try SharedMediaNativeAppEligibility.identity(container: container, inventoryID: inventoryID, ownerID: account.ownerID)
                 appProfile = profile; appParent = parent
                 let grant = SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
                     profile: profile, parent: parent, writerEpoch: writerEpoch)
+                inspectionTrace?.enter(.repository)
                 let candidate = try SharedMediaNativeStorageRepository.openApp(container: container, parent: parent,
                     inventoryID: inventoryID, grant: grant)
                 storage = candidate
+                inspectionTrace?.enter(.inspect)
                 let result = try await candidate.inspectApp(grant: grant)
                 try grant.validate(); phase = .ready; return result
             }
@@ -302,6 +310,7 @@ final class SharedMediaNativeOriginalOwner {
         await storage.setAcquisitionEntryPause(pause)
     }
     var inspectionAuditCount: Int { debug.inspectionAuditCount }
+    var hasInspectionTraceForTesting: Bool { debug.inspectionTrace != nil }
     func setMetadataFault(_ fault: ((SharedMediaNativeMetadataBoundary) throws -> Void)?, availableBytes: Int64? = nil) throws {
         guard phase == .ready, cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }
         debug.metadataFault = fault; debug.metadataAvailableBytes = availableBytes

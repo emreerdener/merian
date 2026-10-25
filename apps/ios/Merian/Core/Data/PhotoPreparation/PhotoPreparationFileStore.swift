@@ -528,6 +528,21 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
         }
     }
 
+    /// Historical shared disposition has no retirement UUID. The terminal
+    /// owner supplies the original frozen descriptor after full ledger absence
+    /// validation. This observes deterministic leaves; it grants no unlink.
+    func requireNativeDescriptorAbsence(_ file: PhotoPreparationFile, descriptor: SharedMediaPhotoRetirementIdentity,
+                                        binding: SharedMediaNativeBinding) throws {
+        guard sharedBinding?.bytes == binding.bytes, sharedBinding?.epoch == binding.epoch else {
+            throw PhotoPreparationFailure.unsupportedComposition
+        }
+        let (fd, name) = try directory(file.token, create: false)
+        defer { Darwin.close(fd) }
+        try inspection.requireNativeAbsence(parentFD: fd, namespaceFD: namespaceFD, name: name, proof: descriptor) {
+            try self.checkDirectoryIdentity(fd, token: file.token)
+        }
+    }
+
     /// Terminal verification preserves the locked namespace and create-only
     /// store binding. Even empty child directories prevent completion.
     func requireSharedEmptyNamespace() throws {

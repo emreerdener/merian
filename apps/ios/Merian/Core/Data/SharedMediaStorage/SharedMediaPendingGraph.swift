@@ -121,8 +121,20 @@ struct SharedMediaPendingGraph {
         return try scopedProjection(in: context, inventory: inventory, ownerID: proof.profile.ownerID, format: .appV2)
     }
 
+    /// Descriptive terminal projection from a complete clean all-removed release.
+    /// It cannot authorize mutation or hide an arbitrary live package.
+    static func terminalProjection(in context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                   before: SharedMediaNativeReleaseMetadataSnapshot.Snapshot) throws -> Self {
+        guard !context.hasChanges, before.inventoryRevision == inventory.revision,
+              before.release.progress.targets.allSatisfy({ $0.stage == .removed }),
+              try SharedMediaNativeReceivingReleaseLiveAudit.read(packageID: before.release.progress.plan.package.id,
+                inventoryID: inventory.id, context: context).slot == before.release.slot else { throw SharedMediaStorageFailure.conflict }
+        return try scopedProjection(in: context, inventory: inventory, ownerID: before.release.progress.plan.profile.ownerID,
+            format: .appV2, terminalPackageID: before.release.progress.plan.package.id)
+    }
+
     private static func scopedProjection(in context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                         ownerID: UUID, format: SharedMediaNativeScopedFormat, acquisition: SharedMediaNativeAppAcquisitionPoststate? = nil) throws -> Self {
+                                         ownerID: UUID, format: SharedMediaNativeScopedFormat, acquisition: SharedMediaNativeAppAcquisitionPoststate? = nil, terminalPackageID: UUID? = nil) throws -> Self {
         try format.requireProfile(inventory)
         let inventoryID = inventory.id
         let members = try fetch(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(
@@ -131,6 +143,7 @@ struct SharedMediaPendingGraph {
         var packages: [PhotoPreparationRecord] = []
         for member in members {
             try Task.checkCancellation()
+            if member.id == terminalPackageID { continue }
             let id = member.id
             let rows = try fetch(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == id }), maximum: 1)
             guard let package = rows.first, member.inventoryGeneration == inventory.generation,
@@ -150,6 +163,7 @@ struct SharedMediaPendingGraph {
         }
         let result = try builder.finish(packages: packages, sources: [])
         for member in members {
+            if member.id == terminalPackageID { continue }
             if let proof = acquisition, !proof.final, member.id == proof.packageID { continue }
             guard try SharedMediaMembership.decode(member.membersData) == result.membership(packageID: member.id),
                   let package = packages.first(where: { $0.id == member.id }) else { throw SharedMediaStorageFailure.conflict }

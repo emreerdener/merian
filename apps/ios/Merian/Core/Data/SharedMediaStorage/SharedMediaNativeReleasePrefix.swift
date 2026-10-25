@@ -6,6 +6,7 @@ struct SharedMediaNativeReleasePrefix: Equatable, Sendable {
     enum Check: Equatable, Sendable {
         case absent(PhotoPreparationFile, SharedMediaNativeRetirementIdentity)
         case shared(PhotoPreparationFile, SharedMediaPhotoRetirementIdentity)
+        case historicalAbsence(PhotoPreparationFile, SharedMediaPhotoRetirementIdentity)
     }
     let checks: [Check]
 
@@ -14,6 +15,18 @@ struct SharedMediaNativeReleasePrefix: Equatable, Sendable {
         let progress = snapshot.release.progress
         let index = try progress.selectedIndex(.readyPair)
         guard index > 0 else { throw SharedMediaStorageFailure.closed }
+        try self.init(snapshot, count: index)
+    }
+
+    @MainActor
+    init(terminal snapshot: SharedMediaNativeReleaseMetadataSnapshot.Snapshot) throws {
+        guard snapshot.release.progress.targets.allSatisfy({ $0.stage == .removed }) else { throw SharedMediaStorageFailure.closed }
+        try self.init(snapshot, count: snapshot.release.progress.targets.count)
+    }
+
+    @MainActor
+    private init(_ snapshot: SharedMediaNativeReleaseMetadataSnapshot.Snapshot, count index: Int) throws {
+        let progress = snapshot.release.progress
         let cohort = try SharedMediaNativeFrozenCohort.decode(snapshot.release.origin.prepared.cohort.bytes)
         guard cohort.entries.count == progress.targets.count else { throw SharedMediaStorageFailure.conflict }
         var checks: [Check] = []
@@ -48,7 +61,9 @@ struct SharedMediaNativeReleasePrefix: Equatable, Sendable {
                 }
                 checks.append(.absent(original.file, retirement))
             case .shared:
-                checks.append(.shared(original.file, original.descriptor))
+                if case .released = snapshot.targetOrigins[position].location {
+                    checks.append(.historicalAbsence(original.file, original.descriptor))
+                } else { checks.append(.shared(original.file, original.descriptor)) }
             }
         }
         self.checks = checks
@@ -59,6 +74,8 @@ struct SharedMediaNativeReleasePrefix: Equatable, Sendable {
             switch check {
             case .absent(let file, let retirement):
                 try files.requireNativeAbsence(file, retirement: retirement, binding: binding)
+            case .historicalAbsence(let file, let descriptor):
+                try files.requireNativeDescriptorAbsence(file, descriptor: descriptor, binding: binding)
             case .shared(let file, let descriptor):
                 let proof = try files.inspectSharedRetirement(file)
                 guard proof.identity == descriptor, proof.binding == binding.bytes, proof.epoch == binding.epoch else {

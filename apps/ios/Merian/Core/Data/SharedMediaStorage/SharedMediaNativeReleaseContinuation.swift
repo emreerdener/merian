@@ -38,7 +38,7 @@ enum SharedMediaNativeReleaseContinuationAudit {
         guard case .releasing(let snapshot) = witnesses[plan.package.id], snapshot.release.progress == progress,
               snapshot.inventoryRevision == header.inventory.revision else { throw SharedMediaStorageFailure.stale }
         try SharedMediaNativeReleaseSurvivorProjection.maximum(snapshot).requireMetadataCapacity()
-        _ = try SharedMediaStoragePolicy.add(inventory.revision, PhotoPreparationPolicy.add(witnesses.values.map { try $0.remainingAdvances }))
+        _ = try SharedMediaStoragePolicy.add(inventory.revision, PhotoPreparationPolicy.add([SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id).consumptionAdvances] + witnesses.values.map { try $0.remainingAdvances }))
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         return snapshot
     }

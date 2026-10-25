@@ -230,7 +230,7 @@ enum SharedMediaNativeReceivingReleaseLiveAudit {
         }
     }
 
-    private static func absentPair(_ target: Values.Target, context: ModelContext) throws {
+    static func absentPair(_ target: Values.Target, context: ModelContext) throws {
         let id = target.pairID, original = target.original.referenceID
         guard try context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate {
             $0.id == id || $0.originalReferenceID == original
@@ -256,7 +256,7 @@ enum SharedMediaNativeReceivingReleaseLiveAudit {
         }
     }
 
-    private static func absentOriginal(_ target: Values.Target, profile: SharedMediaNativeAppProfile,
+    static func absentOriginal(_ target: Values.Target, profile: SharedMediaNativeAppProfile,
                                        inventory: SharedMediaInventoryRecord, context: ModelContext) throws {
         let asset = target.original.assetID, id = target.acquisitionID
         let receipt = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.id == id }))

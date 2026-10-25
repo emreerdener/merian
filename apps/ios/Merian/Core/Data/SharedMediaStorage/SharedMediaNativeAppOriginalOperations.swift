@@ -173,21 +173,7 @@ final class SharedMediaNativeAppOriginalOperations {
         return false
     }
     private func retirementState(_ c: ModelContext, id: UUID) throws -> SharedMediaNativeRetirementState {
-        let original = try audit(c, id)
-        guard let retirement = original.retirement, original.liveCount == 0 else { throw SharedMediaStorageFailure.stale }
-        let ref = try Rows.one(c, FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.assetID == id }))
-        guard ref.revision > 0, let package = facts.packages[ref.packageID], facts.consumers[ref.packageID] == nil else { throw SharedMediaStorageFailure.closed }
-        let source = PhotoOriginalReference(ownerID: ref.ownerID, packageID: ref.packageID, referenceID: ref.id,
-            assetID: id, assetGeneration: original.assetGeneration, draftGeneration: package.generation, referenceRevision: ref.revision - 1)
-        let rows = try Rows(c, profile: facts.profile, source: source)
-        try rows.readyPackage(source, facts: facts); try Rows.noPair(c, source: source)
-        _ = try Rows.reference(c, source: source, live: false)
-        let (request, result) = try rows.completed()
-        guard result.descriptor == retirement.proof else { throw SharedMediaStorageFailure.conflict }
-        return .init(request: request, file: original.file, identity: retirement, reference: source,
-            inventoryRevision: header.inventory.revision, packageRevision: rows.package.revision,
-            membershipRevision: rows.member.revision, countRevision: original.countRevision,
-            membershipBytes: rows.member.membersData, envelope: rows.package.supportingContextData)
+        try Rows.retirementState(c, id: id, facts: facts, inventoryRevision: header.inventory.revision)
     }
     private func requireRetirement(_ state: SharedMediaNativeRetirementState) throws {
         try validate(); let c = fresh()

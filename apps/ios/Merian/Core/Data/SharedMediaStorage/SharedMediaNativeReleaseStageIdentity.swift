@@ -80,6 +80,7 @@ enum SharedMediaNativeReleaseStageIdentity {
         let inventory = try SharedMediaNativePairPlanGraph.one(context,
             FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
         let witnesses = Array(try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory).values)
+        try SharedMediaNativeTerminalScan.requireAbsent(ids, container: context.container, inventoryID: inventoryID)
         for id in ids {
             try requireAbsent(id, witnesses: witnesses)
             try direct(id, context: context)

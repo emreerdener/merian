@@ -123,6 +123,7 @@ final class SharedMediaNativeAppReceivingOperations {
         try boundary(.beforeSave); try validate(); try proof.validate(context: c, inventory: inventory)
         let current = fresh(), (oldInventory, oldPackage, oldMember) = try target(current, packageID)
         try requirePrestate(request, context: current, package: oldPackage, member: oldMember)
+        try requireFreshReceivingIdentity(prepared, context: current)
         guard try SharedMediaNativeFreezeFacts.request(context: current, inventory: oldInventory, package: oldPackage,
             member: oldMember, binding: binding, operationID: prepared.operationID, pairIDs: pairIDs, proofs: proofs) == request.freeze else {
             throw SharedMediaStorageFailure.stale
@@ -141,6 +142,13 @@ final class SharedMediaNativeAppReceivingOperations {
             let failure = error; c.rollback()
             do { return try stagedResult(prepared) } catch { throw failure }
         }
+    }
+    private func requireFreshReceivingIdentity(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                               context: ModelContext) throws {
+        guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
+        try SharedMediaNativeTerminalScan.requireAbsent([prepared.operationID, prepared.queueID,
+            prepared.observationID, prepared.bindingID, prepared.generation, prepared.eventID],
+            container: context.container, inventoryID: prepared.profile.inventoryID)
     }
     private func stagedResult(_ prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> SharedMediaNativeReceivingIntent.Prepared {
         try boundary(.beforeReadback)
@@ -573,6 +581,7 @@ extension SharedMediaNativeAppReceivingOperations {
         try boundary(.beforeSave); try validate(); try proof.validate(context: c, inventory: inventory)
         let current = fresh(), (oldInventory, oldPackage, oldMember) = try target(current, packageID)
         try requirePrestate(request, context: current, package: oldPackage, member: oldMember)
+        try requireFreshReceivingIdentity(prepared, context: current)
         guard try SharedMediaNativeFreezeFacts.request(context: current, inventory: oldInventory, package: oldPackage, member: oldMember,
             binding: binding, operationID: prepared.operationID, pairIDs: pairIDs, proofs: proofs) == request.freeze,
               try originalFacts(frozen, context: current) == originals else { throw SharedMediaStorageFailure.stale }

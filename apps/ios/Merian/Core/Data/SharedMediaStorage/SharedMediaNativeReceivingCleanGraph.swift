@@ -105,14 +105,15 @@ enum SharedMediaNativeReceivingCleanGraph {
         }
         try Task.checkCancellation(); try checkpoint()
         guard !context.hasChanges, inventory.revision == revision else { throw SharedMediaStorageFailure.stale }
-        try requireAggregateRunway(inventoryRevision: revision, witnesses: Array(result.values))
+        try requireAggregateRunway(inventoryRevision: revision, witnesses: Array(result.values),
+            terminalConsumptionAdvances: SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id, checkpoint: checkpoint).consumptionAdvances)
         return result
     }
 
     /// Complete pending-root arithmetic only; raw orphan/terminal enumeration
     /// remains the scoped audit's obligation. This grants no write permission.
-    static func requireAggregateRunway(inventoryRevision: Int64, witnesses: [Witness]) throws {
-        let remaining = try PhotoPreparationPolicy.add(witnesses.map { try $0.remainingAdvances })
+    static func requireAggregateRunway(inventoryRevision: Int64, witnesses: [Witness], terminalConsumptionAdvances: Int64 = 0) throws {
+        let remaining = try PhotoPreparationPolicy.add([terminalConsumptionAdvances] + witnesses.map { try $0.remainingAdvances })
         _ = try SharedMediaStoragePolicy.add(inventoryRevision, remaining)
     }
 }

@@ -23,6 +23,9 @@ struct SharedMediaNativeScopedAudit {
     let expected: SharedMediaStorageSnapshot
     let check: () throws -> Void
     let betweenPages: () async throws -> Void
+    #if DEBUG
+    var inspectionTrace: SharedMediaNativeDebugHooks.InspectionTrace?
+    #endif
 
     init(container: ModelContainer, scope: SharedMediaNativeScopeIdentity, expected: SharedMediaStorageSnapshot,
          check: @escaping () throws -> Void, betweenPages: @escaping () async throws -> Void) {
@@ -46,9 +49,15 @@ struct SharedMediaNativeScopedAudit {
     }
 
     func run() async throws -> SharedMediaNativeScopedSnapshot {
+        #if DEBUG
+        inspectionTrace?.enter(.pending)
+        #endif
         let count = try pending()
         let id = scope.inventoryID
         var futureReferences = Set<UUID>()
+        #if DEBUG
+        inspectionTrace?.enter(.receipts)
+        #endif
         let receipts = try await page(FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(
             predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory, projectionMemo in
             guard row.ownerID == scope.ownerID, row.inventoryGeneration == scope.generation else { throw SharedMediaStorageFailure.conflict }
@@ -62,23 +71,12 @@ struct SharedMediaNativeScopedAudit {
             }
         }
         if format == .appV2 {
-            // Intentionally no inventory predicate: every raw intent, including
-            // foreign/orphan rows, must either validate or close this scope.
-            _ = try await page(FetchDescriptor<SharedMediaReceivingIntentRecord>(sortBy: [SortDescriptor(\.cursorKey)])) { row, context, inventory, projectionMemo in
-                // Terminal enumeration/runway is not yet qualified. Never let
-                // a Released slot evade the root index by losing membership.
-                guard row.phaseRaw != "released" else { throw SharedMediaStorageFailure.closed }
-                let roots = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory, projectionMemo: projectionMemo, checkpoint: check)
-                guard let witness = roots[row.id] else { throw SharedMediaStorageFailure.conflict }
-                let saved: SharedMediaNativeReceivingIntentGraph.Row
-                switch witness {
-                case .generic(let value): saved = value.row
-                case .releasing(let value): saved = value.release.slot
-                case .staged(let value): saved = value.origin.row
-                }
-                guard saved == SharedMediaNativeReceivingIntentGraph.Row(row) else { throw SharedMediaStorageFailure.stale }
-            }
+            try await receivingPages()
         }
+
+        #if DEBUG
+        inspectionTrace?.enter(.consumers)
+        #endif
         let consumers = try await page(FetchDescriptor<SharedMediaConsumerRecord>(
             predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory, projectionMemo in
             guard row.ownerID == scope.ownerID, row.inventoryGeneration == scope.generation else { throw SharedMediaStorageFailure.conflict }
@@ -95,28 +93,103 @@ struct SharedMediaNativeScopedAudit {
                 _ = try SharedMediaNativeConsumerGraph.validateScoped(row, context: context, format: format, checkpoint: check)
             }
         }
+        #if DEBUG
+        inspectionTrace?.enter(.pairs)
+        #endif
         _ = try await page(FetchDescriptor<SharedMediaDerivativePairRecord>(
             predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory, projectionMemo in
             try pair(row, context: context, inventory: inventory, projectionMemo: projectionMemo)
         }
+        #if DEBUG
+        inspectionTrace?.enter(.allocations)
+        #endif
         let allocations = try await page(FetchDescriptor<SharedMediaAllocationRecord>(
             predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory, projectionMemo in
             guard row.accountID == scope.ownerID, row.namespaceRaw == SharedMediaPhotoLedger.namespace else { throw SharedMediaStorageFailure.conflict }
             try asset(row.id, context: context, inventory: inventory, projectionMemo: projectionMemo)
         }
+        #if DEBUG
+        inspectionTrace?.enter(.references)
+        #endif
         _ = try await page(FetchDescriptor<SharedMediaAssetReferenceCountRecord>(
             predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory, projectionMemo in
             guard row.ownerID == scope.ownerID, row.inventoryGeneration == scope.generation else { throw SharedMediaStorageFailure.conflict }
             try asset(row.id, context: context, inventory: inventory, projectionMemo: projectionMemo)
         }
         // Accountless inbox admission is not part of this exact native profile.
+        #if DEBUG
+        inspectionTrace?.enter(.inbox)
+        #endif
         _ = try await page(FetchDescriptor<SharedMediaInboxSourceRecord>(
             predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { _, _, _, _ in
             throw SharedMediaStorageFailure.closed
         }
+        #if DEBUG
+        inspectionTrace?.enter(.finalHeader)
+        #endif
         try check(); _ = try header(freshContext())
         return .init(inventory: expected, pendingPackages: count, consumers: consumers,
             receipts: receipts, allocations: allocations)
+    }
+
+    private func receivingPages() async throws {
+        var offset = 0
+        while true {
+            try Task.checkCancellation(); try check()
+            let count = try receivingPage(offset: offset)
+            // The synchronous page releases its context/models/snapshots first.
+            try await betweenPages(); try Task.checkCancellation(); try check()
+            _ = try header(freshContext())
+            if count < SharedMediaStoragePolicy.pageSize { return }
+            let (next, overflow) = offset.addingReportingOverflow(count)
+            guard !overflow else { throw SharedMediaStorageFailure.capacity }; offset = next
+        }
+    }
+
+    private func receivingPage(offset: Int) throws -> Int {
+        #if DEBUG
+        inspectionTrace?.enter(.receivingRoots)
+        #endif
+        let projectionMemo = ProjectionMemo()
+        let context = freshContext(), inventory = try header(context, projectionMemo: projectionMemo)
+        let roots = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory,
+            projectionMemo: projectionMemo, checkpoint: check)
+        // No inventory predicate: foreign/orphan raw rows must fail closed.
+        var query = FetchDescriptor<SharedMediaReceivingIntentRecord>(sortBy: [SortDescriptor(\.cursorKey)])
+        query.fetchOffset = offset; query.fetchLimit = SharedMediaStoragePolicy.pageSize
+        let rows = try context.fetch(query)
+        var terminals: [SharedMediaNativeReceivingTerminal.Snapshot] = []
+        #if DEBUG
+        inspectionTrace?.enter(.receivingLeaves)
+        #endif
+        for row in rows {
+            try Task.checkCancellation(); try check()
+            if row.phaseRaw == "released" {
+                terminals.append(try SharedMediaNativeReceivingTerminal.read(row, context: context,
+                    inventory: inventory, checkpoint: check))
+            } else {
+                guard let witness = roots[row.id] else { throw SharedMediaStorageFailure.conflict }
+                let saved: SharedMediaNativeReceivingIntentGraph.Row
+                switch witness {
+                case .generic(let value): saved = value.row
+                case .releasing(let value): saved = value.release.slot
+                case .staged(let value): saved = value.origin.row
+                }
+                guard saved == SharedMediaNativeReceivingIntentGraph.Row(row) else { throw SharedMediaStorageFailure.stale }
+            }
+        }
+        #if DEBUG
+        inspectionTrace?.enter(.receivingIdentities)
+        #endif
+        try SharedMediaNativeTerminalIdentity.auditPage(terminals, live: roots, context: context,
+            expectedHeader: appHeader, checkpoint: check)
+        // Fresh full pending-root/runway validation, not a header-only fence or
+        // reuse of the page's projection memo, before any page suspension.
+        #if DEBUG
+        inspectionTrace?.enter(.receivingBoundary)
+        #endif
+        try check(); _ = try header(freshContext())
+        return rows.count
     }
 
     private func pending() throws -> Int {

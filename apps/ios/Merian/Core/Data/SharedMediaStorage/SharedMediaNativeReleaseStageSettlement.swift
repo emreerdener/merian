@@ -66,9 +66,11 @@ final class SharedMediaNativeReleaseStageSettlement {
     private var readOriginalDisposition: (() throws -> SharedMediaNativeReceivingReleaseValues.Progress)?
     private(set) var pendingOriginalDisposal: SharedMediaNativeOriginalRemovalCapability?
     private var readOriginalDisposal: (() async throws -> Void)?
+    private(set) var pendingTerminal: SharedMediaNativeReceivingTerminalAttempt?
+    private var readTerminal: (() throws -> SharedMediaNativeReceivingTerminalRecovery.Saved)?
     private var hasContinuationRight: Bool { continuations.values.contains { $0.admission != nil } }
     var hasPending: Bool { hasPendingOperation || hasContinuationRight }
-    private var hasPendingOperation: Bool { request != nil || pairAttempt != nil || pendingPairDisposal != nil || pendingOriginalDisposition != nil || pendingOriginalDisposal != nil }
+    private var hasPendingOperation: Bool { pendingTerminal != nil || request != nil || pairAttempt != nil || pendingPairDisposal != nil || pendingOriginalDisposition != nil || pendingOriginalDisposal != nil }
     private(set) var pairAttempt: SharedMediaNativeReleasePairAttempt?
     private var pendingStage: SharedMediaNativeReleaseStageAdmission?
     private(set) var startProgress: SharedMediaNativeReceivingReleaseValues.Progress?
@@ -249,7 +251,7 @@ final class SharedMediaNativeReleaseStageSettlement {
     }
     func beginPairDisposal(_ capability: SharedMediaNativeReleasePairRemovalCapability,
                            read: @escaping () async throws -> Void) throws {
-        guard !closed, request == nil, pairAttempt == nil, !hasContinuationRight, pendingOriginalDisposition == nil, pendingOriginalDisposal == nil else { throw SharedMediaStorageFailure.closed }
+        guard !closed, pendingTerminal == nil, request == nil, pairAttempt == nil, !hasContinuationRight, pendingOriginalDisposition == nil, pendingOriginalDisposal == nil else { throw SharedMediaStorageFailure.closed }
         if let prior = pendingPairDisposal {
             try prior.requireSame(capability)
             prior.permit.revoke()
@@ -278,6 +280,15 @@ final class SharedMediaNativeReleaseStageSettlement {
         guard pendingOriginalDisposal === value else { throw SharedMediaStorageFailure.closed }
         value.permit.revoke(); pendingOriginalDisposal = nil; readOriginalDisposal = nil
     }
+    func beginTerminal(_ attempt: SharedMediaNativeReceivingTerminalAttempt,
+                       read: @escaping () throws -> SharedMediaNativeReceivingTerminalRecovery.Saved) throws {
+        guard !closed, !hasPending else { throw SharedMediaStorageFailure.closed }
+        pendingTerminal = attempt; readTerminal = read
+    }
+    func resolvedTerminal(_ attempt: SharedMediaNativeReceivingTerminalAttempt) throws {
+        guard pendingTerminal === attempt else { throw SharedMediaStorageFailure.closed }
+        pendingTerminal = nil; readTerminal = nil
+    }
     func closeAdmission() {
         closed = true; pendingPairDisposal?.permit.revoke(); pendingOriginalDisposal?.permit.revoke()
         for key in Array(continuations.keys) { continuations[key]?.admission = nil }
@@ -287,6 +298,17 @@ final class SharedMediaNativeReleaseStageSettlement {
     /// Called only after the owner's active work has terminated. Reacquire the
     /// original canonical locks; no save, authority minting, provider call or refund.
     func reconcileAfterTermination() async throws {
+        if let pending = pendingTerminal {
+            guard closed, let readTerminal else { throw SharedMediaStorageFailure.closed }
+            let coordinator = ScanInferencePersistenceCoordinator.shared, plan = pending.before.plan
+            let held = await coordinator.acquireAll(scanIds: [plan.queueID.uuidString, plan.observationID.uuidString])
+            do {
+                let saved = try readTerminal()
+                guard saved == .before || saved == .after(pending.after) else { throw SharedMediaStorageFailure.closed }
+                try resolvedTerminal(pending)
+                await coordinator.releaseAll(scanIds: held)
+            } catch { await coordinator.releaseAll(scanIds: held); throw error }
+        }
         if let pending = pendingOriginalDisposal {
             guard closed, let readOriginalDisposal else { throw SharedMediaStorageFailure.closed }
             let coordinator = ScanInferencePersistenceCoordinator.shared, plan = pending.before.plan

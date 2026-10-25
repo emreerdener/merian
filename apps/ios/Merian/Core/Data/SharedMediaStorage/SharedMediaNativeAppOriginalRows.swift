@@ -24,6 +24,26 @@ struct SharedMediaNativeAppOriginalRows {
         count = try Self.one(c, FetchDescriptor<SharedMediaAssetReferenceCountRecord>(predicate: #Predicate { $0.id == assetID }))
         receipt = try Self.one(c, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == assetID }))
     }
+    /// Pure retirement-row reader shared by recovery and historical validation.
+    /// Callers establish their own complete or scoped membership audit. No I/O.
+    static func retirementState(_ c: ModelContext, id: UUID, facts: SharedMediaNativeAppMetadataFacts,
+                                inventoryRevision: Int64) throws -> SharedMediaNativeRetirementState {
+        let original = try SharedMediaNativeOriginalAccounting.audit(assetID: id, inventoryID: facts.profile.inventoryID, context: c)
+        guard let retirement = original.retirement, original.liveCount == 0 else { throw SharedMediaStorageFailure.stale }
+        let ref = try Self.one(c, FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.assetID == id }))
+        guard ref.revision > 0, let package = facts.packages[ref.packageID], facts.consumers[ref.packageID] == nil else { throw SharedMediaStorageFailure.closed }
+        let source = PhotoOriginalReference(ownerID: ref.ownerID, packageID: ref.packageID, referenceID: ref.id,
+            assetID: id, assetGeneration: original.assetGeneration, draftGeneration: package.generation, referenceRevision: ref.revision - 1)
+        let rows = try Self(c, profile: facts.profile, source: source)
+        try rows.readyPackage(source, facts: facts); try Self.noPair(c, source: source)
+        _ = try Self.reference(c, source: source, live: false)
+        let (request, result) = try rows.completed()
+        guard result.descriptor == retirement.proof else { throw SharedMediaStorageFailure.conflict }
+        return .init(request: request, file: original.file, identity: retirement, reference: source,
+            inventoryRevision: inventoryRevision, packageRevision: rows.package.revision,
+            membershipRevision: rows.member.revision, countRevision: original.countRevision,
+            membershipBytes: rows.member.membersData, envelope: rows.package.supportingContextData)
+    }
     static func originalFacts(_ c: ModelContext, facts: SharedMediaNativeAppMetadataFacts) throws -> [UUID: SharedMediaNativeOriginalAccounting.Snapshot] {
         var ids = Set<UUID>(), result: [UUID: SharedMediaNativeOriginalAccounting.Snapshot] = [:]
         for member in facts.members.values {

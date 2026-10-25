@@ -144,6 +144,11 @@ final class SharedMediaNativeAppReleaseStageOperations {
             verify: verifyOriginal, requireAbsence: requireOriginalAbsence,
             recoveryHeader: recoveryHeader, boundary: boundary).apply(progress)
     }
+    func finishRelease(_ progress: Values.Progress) async throws -> Values.Released {
+        try await SharedMediaNativeAppReceivingTerminalOperations(container: container, authority: authority,
+            expected: expected, settlement: settlement, io: io, binding: fileBinding, verify: verifyPrefix,
+            recoveryHeader: recoveryHeader, boundary: boundary).apply(progress)
+    }
     func reconcilePair(_ progress: Values.Progress) throws -> Values.Progress {
         try progress.validate(); try validate()
         if settlement.pairAttempt != nil { return try settlement.recoverPair(progress) }
@@ -214,10 +219,12 @@ final class SharedMediaNativeAppReleaseStageOperations {
         try validate()
         let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory, checkpoint: validate)
         try SharedMediaNativeReleaseStageIdentity.requireAbsent(request.releaseID, witnesses: Array(witnesses.values))
+        try SharedMediaNativeTerminalScan.requireAbsent([request.releaseID], container: container, inventoryID: inventory.id)
         try SharedMediaNativeReleaseStageIdentity.direct(request.releaseID, context: context)
         let snapshot = try Reader.prospectiveStage(request, context: context, checkpoint: validate)
         let others = try PhotoPreparationPolicy.add(witnesses.values.map { try $0.remainingAdvances })
-        let needed = try PhotoPreparationPolicy.add([2, snapshot.predecessor.components.progress.remainingAdvances, others])
+        let terminals = try SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id).consumptionAdvances
+        let needed = try PhotoPreparationPolicy.add([terminals, 2, snapshot.predecessor.components.progress.remainingAdvances, others])
         _ = try SharedMediaStoragePolicy.add(inventory.revision, needed)
         return snapshot
     }
