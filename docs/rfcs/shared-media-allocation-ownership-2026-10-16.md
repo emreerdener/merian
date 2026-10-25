@@ -1,3 +1,51 @@
+## October 25 — fixed startup control-parent checkpoint locally qualified
+
+The source-only startup discovery entry selects the fixed app-private
+Application Support child `MerianNativeMedia`. It has no App/Auth/Capture
+caller. It retains the exact first-success startup fence, store descriptor and
+exclusive parent lock; Capture cannot provide a production path. A missing child
+is created exclusively relative to the held existing support anchor, only after
+proving the database unassociated and checking the existing
+free-space/control-overhead allowance.
+
+Only the successful creator establishes backup exclusion and writes the bounded
+canonical `parent-created-v1.json` receipt. That version-1 receipt binds the
+SQLite UUID, store-fence parent and control-parent physical identity. File,
+child and anchor synchronization precede handoff. Every fixed-path reopen
+requires the receipt; pre-existing empty, foreign, malformed, unexcluded or
+replaced parents hold unchanged. Creation without a valid receipt is preserved
+without repair. Once the receipt is durable, interruption can reopen only after
+exact proof validation. Associated storage at an unresolved path cannot
+initialize another profile.
+
+The existing bootstrap codec owns this receipt and its bounded encoding. It now
+lives in `SharedMediaNativeBootstrapCodec.swift`; private descriptors and
+mutation remain in the existing file/discovery owners. Exact receipt bytes
+survive bootstrap checks and one-shot transfer, and actual bytes replace their
+portion of the existing control-overhead bound. Existing arbitrary-parent
+qualification profiles retain their prior no-receipt representation. No account
+ownership or media authority is conferred by the receipt, and no limits are
+increased.
+
+Focused compiled/runtime evidence covers 49 methods / 115 argument cases across
+five suites: 48 methods / 114 cases from candidate02 and one corrected method
+from candidate03. The original run remains failed because its direct URL
+comparison treated a trailing slash as a different directory. Only that test
+assertion changed, to exact path plus physical directory identity; the retry
+passed. Exact source pins and assertion-only reversal prove that the remaining
+production and test source stayed unchanged. This is combined focused evidence,
+not a full candidate03 or app-journey acceptance run. There were no skips or
+structured runtime warnings. The separate combination receipt is
+`.artifacts/native-app-capture-handoff-20261020/app-startup-parent-combined04-qualified.json`.
+Source parse, generated-project/migration guards, Markdown and whitespace checks
+also passed. Abrupt-process-exit, full-target, isolated/matrix and actual
+App/Auth/Capture acceptance remain open.
+
+Actual App/Auth installation still requires account scope before filesystem
+work, retained cancellation and joined native shutdown before the general
+account-work drain, preserving existing photo-preparation drain ordering.
+Activation disabled; PR116 frozen; deployment hold active; AWS unapproved.
+
 ## October 25 — profile discovery checkpoint locally qualified
 
 The inactive discovery and ownership-correction candidate passed the scoped
