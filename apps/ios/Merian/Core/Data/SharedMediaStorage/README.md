@@ -1,3 +1,26 @@
+## October 26 — mutable prepared-photo readback qualified locally
+
+`currentAppMetadata` preserves the persisted metadata bytes without editing or
+saving. `readPreparedAppPhotos` uses the existing app-dispatch and preparation
+owners to return one or two exact ordered ready pairs, immutable original
+references and bounded AI/display bytes. It checks both complete cohort budgets
+before reading, seals each actual-byte read with the same physical completion
+proof, and rechecks the whole persisted selection and every completion after the
+final suspension. Cancellation, account changes, metadata drift, replacement
+files and Prepared/received slots refuse without returning a partial projection.
+
+No path or file capability escapes. Original decoding/cropping stays native;
+display bytes are never substitute originals. This read performs no processing,
+save, recovery, queue, funding or provider action. Capture's submit fixture now
+uses this producer. Camera/picker/editor binding, frozen restart reconstruction
+and full media journeys remain open; ordinary activation remains disabled. The
+readback, Capture submission and affected metadata, preparation, lifecycle,
+pending-cleanup and architecture checks passed the managed Debug qualification:
+50 methods / 103 cases, no failures or skips, no structured runtime warnings and
+no drift across 3017 source pins. The earlier two owner-inventory failures
+remain retained; consolidating identical dispatch validation in the same private
+owner corrected them without changing visibility or limits.
+
 ## October 26 — expected selection at native receiving
 
 `stageAppReceiving` accepts an optional exact metadata expectation from the

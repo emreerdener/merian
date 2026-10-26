@@ -225,7 +225,11 @@ final class SharedMediaNativePreparationMutation {
     }
 }
 
-enum SharedMediaNativePreparationBoundary: Equatable, Sendable { case beforeSave, afterSave, beforeReadback, beforePairSave, afterPairSave
+enum SharedMediaNativePreparationBoundary: Equatable, Sendable {
+    #if DEBUG
+    case afterPhotoReadbackSeal
+    #endif
+    case beforeSave, afterSave, beforeReadback, beforePairSave, afterPairSave
     case beforePlanClosureSave, afterPlanClosureSave
     case beforeFreezeSave, afterFreezeSave
     case beforeFileReserve, afterFileReserve, beforeFileIdentity, afterFileIdentity

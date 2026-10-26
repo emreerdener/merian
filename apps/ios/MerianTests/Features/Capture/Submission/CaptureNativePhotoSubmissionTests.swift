@@ -205,14 +205,13 @@ struct CaptureNativePhotoSubmissionTests {
             try owner.setPreparationFault(nil, focusFactory: .qualification(.qualification(worker: { .noCandidates }, drainRegistered: {})))
             let ready = try await owner.prepareAndDeliverAppPhoto(original: reference,
                 recipe: .init(format: .stillImage, isPro: false, cropDisplaySize: nil, quarterTurns: 0, scale: 1, offsetX: 0, offsetY: 0))
-            let intent = try ready.intent(), root = h.parent.appendingPathComponent("photo/PhotoPreparation")
-            let ai = try Data(contentsOf: root.appendingPathComponent(ready.file(intent.ai.id).token))
-            let display = try Data(contentsOf: root.appendingPathComponent(ready.file(intent.display.id).token))
-            capture.images[ordinal] = capture.images[ordinal].replacing(compressedData: ai, displayData: display)
             pairs.append(ready)
         }
-        let metadata = try await owner.prepareAppMetadata(packageID: h.packageID, draftGeneration: h.draft,
-            contexts: capture.observationContexts.map(\.context))
+        let metadata = try await owner.currentAppMetadata(packageID: h.packageID, draftGeneration: h.draft)
+        let projection = try await owner.readPreparedAppPhotos(expectedMetadata: metadata, pairIDs: pairs.map { try $0.intent().pairID })
+        for (index, photo) in projection.photos.enumerated() {
+            capture.images[index] = capture.images[index].replacing(compressedData: photo.ai, displayData: photo.display)
+        }
         let selection = try CaptureNativePhotoSubmissionSelection(metadata: metadata, pairs: pairs)
         try selection.validate(.init(capture))
         return .init(store: h, owner: owner, selection: selection, capture: capture)

@@ -150,6 +150,22 @@ actor SharedMediaNativeOriginalIO {
     func inspectCompletedPair(_ state: SharedMediaNativePairFileState, workID: UUID) throws -> SharedMediaNativePairCompletion {
         try withPair(state, workID: workID, create: false) { try $0.inspectCompleted() }
     }
+    /// The same completion proof seals inspection, actual-byte read and final
+    /// physical identity. No path or file capability is returned to Capture.
+    func readCompletedPair(_ state: SharedMediaNativePairFileState, workID: UUID) async throws -> (Data, SharedMediaNativePairCompletion) {
+        try Task.checkCancellation()
+        guard state.phase == "ready" else { throw SharedMediaStorageFailure.closed }
+        let (_, input) = try state.selected(workID)
+        try input.validate()
+        let proof = try inspectCompletedPair(state, workID: workID)
+        #if DEBUG
+        await acquisitionEntryPause?(.readPair)
+        #endif
+        try Task.checkCancellation()
+        let bytes = try files.read(proof.file)
+        try files.requireCurrentPairCompletion(proof, binding: binding)
+        return (bytes, proof)
+    }
     func recoverPair(_ state: SharedMediaNativePairFileState, workID: UUID) async throws -> SharedMediaNativePairCompletion? {
         try Task.checkCancellation()
         #if DEBUG
@@ -187,5 +203,5 @@ actor SharedMediaNativeOriginalIO {
 }
 
 #if DEBUG
-enum SharedMediaNativeOriginalIOEntry: Sendable { case load, write, beginPair, recoverPair, releasePair, releaseOriginal, inspectOriginal }
+enum SharedMediaNativeOriginalIOEntry: Sendable { case readPair, load, write, beginPair, recoverPair, releasePair, releaseOriginal, inspectOriginal }
 #endif

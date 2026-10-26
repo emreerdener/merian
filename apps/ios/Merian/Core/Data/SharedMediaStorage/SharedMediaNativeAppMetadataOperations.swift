@@ -67,6 +67,18 @@ final class SharedMediaNativeAppMetadataOperations {
         return .init(profile: authority.profile, header: expected, package: .init(package), member: member, envelope: envelope)
     }
 
+    /// Read-only expectation retains the persisted envelope verbatim. Editing
+    /// requests intentionally re-encode and are not a substitute for this read.
+    func current(packageID: UUID, draftGeneration: UUID) throws -> SharedMediaNativeAppMetadataRequest {
+        try validate(); try Task.checkCancellation()
+        let context = fresh(), facts = try SharedMediaNativeAppMetadataFacts.capture(context, profile: authority.profile)
+        try facts.requireMutable(packageID)
+        let package = try target(packageID, context: context)
+        guard package.draftGeneration == draftGeneration, let member = facts.members[packageID] else { throw SharedMediaStorageFailure.stale }
+        try validate()
+        return .init(profile: authority.profile, header: expected, package: .init(package), member: member, envelope: package.supportingContextData)
+    }
+
     func apply(_ request: SharedMediaNativeAppMetadataRequest) throws -> Int64 {
         try validate()
         guard request.profile == authority.profile else { throw SharedMediaStorageFailure.conflict }

@@ -287,6 +287,43 @@ final class SharedMediaNativeAppPreparationOperations {
         return try SharedMediaNativePairFileMutation(container: container, witness: witness).applyApp(availableBytes: availableBytes,
             beforeSave: { try self.boundary(action.boundaries.0) }, afterSave: { try self.boundary(action.boundaries.1) })
     }
+    /// A mutable-ready projection grants no write, recovery or execution authority.
+    func readPreparedPhotos(expectedMetadata metadata: SharedMediaNativeAppMetadataRequest, pairIDs: [UUID]) async throws -> SharedMediaNativePhotoReadback {
+        guard !consumed, (1...2).contains(pairIDs.count), Set(pairIDs).count == pairIDs.count else { throw SharedMediaStorageFailure.closed }
+        let packageID = metadata.package.id
+        try facts.requireMutable(packageID)
+        let witness = SharedMediaNativeAppPreparationWitness(authority: authority, expected: expected, facts: facts, action: .inspect)
+        func validate() throws -> [SharedMediaNativePairFileState] {
+            try Task.checkCancellation(); try boundary(.beforeReadback); try witness.validate(container)
+            guard metadata.profile == authority.profile, metadata.header == expected,
+                  facts.packages[packageID] == metadata.package, facts.members[packageID] == metadata.member,
+                  metadata.envelope == metadata.package.envelope else { throw SharedMediaStorageFailure.stale }
+            let states = try pairIDs.map { try recoveryState(packageID: packageID, pairID: $0) }
+            try SharedMediaNativePhotoReadback.validate(metadata: metadata, pairs: states)
+            return states
+        }
+        let states = try validate()
+        var photos: [SharedMediaNativePhotoReadback.Photo] = [], proofs: [SharedMediaNativePairCompletion] = []
+        for state in states {
+            let intent = try state.intent()
+            let (ai, aiProof) = try await io.readCompletedPair(state, workID: intent.ai.id)
+            guard try validate() == states else { throw SharedMediaStorageFailure.stale }
+            proofs.append(aiProof)
+            let (display, displayProof) = try await io.readCompletedPair(state, workID: intent.display.id)
+            guard try validate() == states else { throw SharedMediaStorageFailure.stale }
+            proofs.append(displayProof)
+            photos.append(.init(pair: state, original: intent.preparation.original.reference, ai: ai, display: display))
+        }
+        // Revalidate the complete cohort after the last actor hop, including
+        // earlier files that could have changed while later files were read.
+        guard try validate() == states else { throw SharedMediaStorageFailure.stale }
+        for proof in proofs { try verifyCompletion(proof) }
+        #if DEBUG
+        try boundary(.afterPhotoReadbackSeal)
+        #endif
+        guard try validate() == states else { throw SharedMediaStorageFailure.stale }
+        return .init(metadata: metadata, photos: photos)
+    }
     func savedPlan(packageID: UUID, pairID: UUID) throws -> SharedMediaNativePairPlan {
         guard !consumed, facts.packages[packageID] != nil, facts.consumers[packageID] == nil else { throw SharedMediaStorageFailure.closed }
         try boundary(.beforeReadback)

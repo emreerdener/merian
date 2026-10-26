@@ -162,30 +162,29 @@ final class SharedMediaNativeOriginalOwner {
                             presentation: [PhotoPreparationImagePresentation]? = nil) async throws -> SharedMediaNativeAppMetadataRequest {
         try await appMetadata { try $0.request(packageID: packageID, draftGeneration: draftGeneration, contexts: contexts, presentation: presentation) }
     }
+    func currentAppMetadata(packageID: UUID, draftGeneration: UUID) async throws -> SharedMediaNativeAppMetadataRequest {
+        try await appMetadata { try $0.current(packageID: packageID, draftGeneration: draftGeneration) }
+    }
     func saveAppMetadata(_ request: SharedMediaNativeAppMetadataRequest) async throws -> Int64 {
         try await appMetadata { try $0.apply(request) }
     }
     private func appMetadata<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppMetadataOperations) throws -> T) async throws -> T {
-        try await withAppDispatch(settled: false) { storage, grant in
-            let operation = try await storage.appMetadata(grant: grant)
-            try grant.validate(); return try body(operation)
-        }
+        try await appOperation(settled: false, open: { try await $0.appMetadata(grant: $1) }, body: body)
     }
     func appPreparationWorkflow<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppPreparationOperations) async throws -> T) async throws -> T {
-        try await withAppDispatch { storage, grant in
-            let operation = try await storage.appPreparation(grant: grant)
-            try grant.validate(); return try await body(operation)
-        }
+        try await appOperation(open: { try await $0.appPreparation(grant: $1) }, body: body)
     }
     func appOriginalLifecycle<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppOriginalOperations) async throws -> T) async throws -> T {
-        try await withAppDispatch { storage, grant in
-            let operation = try await storage.appOriginal(grant: grant)
-            try grant.validate(); return try await body(operation)
-        }
+        try await appOperation(open: { try await $0.appOriginal(grant: $1) }, body: body)
     }
     func appPendingWorkflow<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppPendingOperations) async throws -> T) async throws -> T {
-        try await withAppDispatch { storage, grant in
-            let operation = try await storage.appPending(grant: grant)
+        try await appOperation(open: { try await $0.appPending(grant: $1) }, body: body)
+    }
+    private func appOperation<Operation, T: Sendable>(settled: Bool = true,
+        open: @escaping @MainActor (SharedMediaNativeStorageRepository, SharedMediaNativeAppDispatchGrant) async throws -> Operation,
+        body: @escaping @MainActor (Operation) async throws -> T) async throws -> T {
+        try await withAppDispatch(settled: settled) { storage, grant in
+            let operation = try await open(storage, grant)
             try grant.validate(); return try await body(operation)
         }
     }

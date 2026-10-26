@@ -8,6 +8,9 @@ extension SharedMediaNativeOriginalOwner {
     func prepareAndDeliverAppPhoto(original: PhotoOriginalReference, recipe: SharedMediaNativePreparationRecipe) async throws -> SharedMediaNativePairFileState {
         try await appPreparationWorkflow { try await $0.prepareAndDeliver(original: original, recipe: recipe) }
     }
+    func readPreparedAppPhotos(expectedMetadata: SharedMediaNativeAppMetadataRequest, pairIDs: [UUID]) async throws -> SharedMediaNativePhotoReadback {
+        try await appPreparationWorkflow { try await $0.readPreparedPhotos(expectedMetadata: expectedMetadata, pairIDs: pairIDs) }
+    }
     func recoverAppPhotoPair(packageID: UUID, pairID: UUID) async throws -> SharedMediaNativePairFileState {
         try await appPreparationWorkflow { try await $0.recoverFiles(packageID: packageID, pairID: pairID) }
     }
