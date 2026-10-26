@@ -12,6 +12,14 @@ import SwiftData
     // Qualification-only pre-drain seam. Ordinary production composition is nil.
     @ObservationIgnored var photoPreparationAccountTransitionDrain: (@MainActor () async -> Bool)?
 
+    @ObservationIgnored private var nativeMediaAccountTransitionDrain: (@MainActor () async -> Bool)?
+
+    /// Bind once before discovery is reachable. A sealed lifetime is never replaced.
+    func installNativeMediaAccountTransitionDrain(_ drain: SharedMediaNativeOriginalDrain) throws {
+        guard nativeMediaAccountTransitionDrain == nil else { throw SharedMediaStorageFailure.closed }
+        nativeMediaAccountTransitionDrain = { await drain.shutdown() }
+    }
+
     // MARK: - Singleton Architecture
     static let shared = SupabaseManager()
 
@@ -610,8 +618,10 @@ import SwiftData
     /// drain completes. Kept separate so ordering is testable without a session.
     static func drainPhotoPreparationBeforeAccountWork(
         preparation: (@MainActor () async -> Bool)?,
+        native: (@MainActor () async -> Bool)? = nil,
         drain: @MainActor () async -> Void
     ) async -> Bool {
+        if let native, !(await native()) { return false }
         if let preparation, !(await preparation()) { return false }
         await drain()
         return true
@@ -642,6 +652,7 @@ import SwiftData
             .awaitRetainedSyncQuiescenceForAuthTransition()
         guard await Self.drainPhotoPreparationBeforeAccountWork(
             preparation: photoPreparationAccountTransitionDrain,
+            native: nativeMediaAccountTransitionDrain,
             drain: { await self.authRuntimeState.awaitAccountWorkDrain() }
         ) else { return false }
         if let transition = activeAuthTransition,

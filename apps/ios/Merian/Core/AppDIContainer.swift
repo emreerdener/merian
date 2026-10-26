@@ -104,6 +104,18 @@ import SwiftUI
     // MARK: - Dependencies (Network & Backend)
     var supabaseManager = SupabaseManager.shared
     
+    @ObservationIgnored private(set) var nativeMediaLifetime: SharedMediaNativeOriginalDrain?
+
+    /// Inert in ordinary builds. No account or filesystem work occurs at setup.
+    func configureNativeMediaLifetime(container: ModelContainer?, admission: NativeReleaseStartupAdmission?) throws {
+        guard PreparedHistoryReanalysisComposition.isAppInstallationQualified else { return }
+        guard nativeMediaLifetime == nil else { throw SharedMediaStorageFailure.closed }
+        guard let container, let admission else { return }
+        let lifetime = SharedMediaNativeOriginalDrain(container: container, admission: admission)
+        try supabaseManager.installNativeMediaAccountTransitionDrain(lifetime)
+        nativeMediaLifetime = lifetime
+    }
+
     // MARK: - Dependencies (Analytics & Security)
     var consentManager: ConsentManager = {
         #if DEBUG

@@ -167,7 +167,7 @@ struct SharedMediaNativeControlParentTests {
         #expect(try Data(contentsOf: h.receiptURL) == Data(contentsOf: old.appendingPathComponent(SharedMediaNativeBootstrapCodec.parentReceiptName)))
     }
 
-    @Test func liveNamespaceIsUnavailableToTestsAndHasNoInstalledCaller() throws {
+    @Test func liveNamespaceIsUnavailableToTestsAndOnlyLifetimeCanDiscover() throws {
         let h = try Fixture()
         #expect(throws: (any Error).self) {
             _ = try SharedMediaNativeBootstrapDiscovery.startup(container: h.container, admission: h.admission, ownerID: h.ownerID)
@@ -177,7 +177,8 @@ struct SharedMediaNativeControlParentTests {
                 admission: h.admission, support: URL.applicationSupportDirectory.resolvingSymlinksInPath().standardizedFileURL, ownerID: h.ownerID)
         }
         let files = try DatabaseActorTestSupport.swiftSources(below: "apps/ios/Merian")
-        #expect(!files.contains { $0.contents.contains("SharedMediaNativeBootstrapDiscovery.startup(") })
+        #expect(files.filter { $0.contents.contains("SharedMediaNativeBootstrapDiscovery.startup(") }.map(\.relativePath)
+            == ["Core/Data/SharedMediaStorage/SharedMediaNativeOriginalDrain.swift"])
         #expect(try SharedMediaNativeBootstrapCodec.maximumControlBytes < PhotoPreparationPolicy.metadata)
     }
 

@@ -140,6 +140,9 @@ struct MerianApp: App {
         let bootstrapOutcome = ModelContainerBootstrapper.bootstrap()
         container = bootstrapOutcome.container
         nativeReleaseStartupAdmission = bootstrapOutcome.nativeReleaseAdmission
+        // Failure leaves native composition unavailable; ordinary installation is gated off.
+        try? dependencies.configureNativeMediaLifetime(container: bootstrapOutcome.container,
+            admission: bootstrapOutcome.nativeReleaseAdmission)
         startupStoreState = bootstrapOutcome.startupStoreState
         startupRecoveryNotice = StartupRecoveryNoticePolicy.combined(
             storeNotice: bootstrapOutcome.startupNotice

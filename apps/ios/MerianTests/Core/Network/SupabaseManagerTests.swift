@@ -749,6 +749,17 @@ struct PhotoPreparationAuthDrainTests {
         #expect(order == ["prepare"])
     }
 
+    @Test(arguments: [false, true])
+    func nativeThenPhotoMustBothFinishBeforeAccountDrain(nativeSucceeds: Bool) async {
+        var order: [String] = []
+        #expect(!(await SupabaseManager.drainPhotoPreparationBeforeAccountWork(preparation: {
+            order.append("photo"); return false
+        }, native: {
+            order.append("native"); await Task.yield(); return nativeSucceeds
+        }, drain: { order.append("auth") })))
+        #expect(order == (nativeSucceeds ? ["native", "photo"] : ["native"]))
+    }
+
     @Test func successfulOwnerClosurePrecedesAccountDrain() async {
         var order: [String] = []
         #expect(await SupabaseManager.drainPhotoPreparationBeforeAccountWork(preparation: {

@@ -31,7 +31,7 @@ final class SharedMediaNativeOriginalOwner {
     private init(account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain,
                  openKind: SharedMediaNativeOriginalOpenKind = .qualification) throws {
         self.account = account; self.drain = drain; self.openKind = openKind
-        registration = try drain.register { [weak self] in
+        registration = try drain.register(account: account) { [weak self] in
             guard let self else { return true }; return await self.invalidateAndAwaitForAccountTransition()
         }
     }
@@ -44,7 +44,7 @@ final class SharedMediaNativeOriginalOwner {
 
     func open(container: ModelContainer, authorityRoot: URL, photoRoot: URL, inboxRoot: URL,
               inventoryID: UUID, pause: (@Sendable () async -> Void)? = nil) async throws -> SharedMediaNativeOriginalSnapshot {
-        guard openKind == .qualification, phase == .unopened, let registration, drain.isCurrent(registration) else { throw SharedMediaStorageFailure.closed }
+        guard openKind == .qualification, phase == .unopened, let registration, drain.isCurrent(registration, container: container) else { throw SharedMediaStorageFailure.closed }
         phase = .opening
         do {
             return try await perform { [self] grant in
@@ -74,7 +74,7 @@ final class SharedMediaNativeOriginalOwner {
                        availableBytes: Int64? = nil, discovery: SharedMediaNativeBootstrapDiscovery? = nil) async throws -> SharedMediaStorageSnapshot {
         defer { discovery?.invalidate() }
         guard openKind == .appInitialization, phase == .unopened,
-              let registration, drain.isCurrent(registration) else { throw SharedMediaStorageFailure.closed }
+              let registration, drain.isCurrent(registration, container: container, discovery: discovery) else { throw SharedMediaStorageFailure.closed }
         phase = .opening; debug.bootstrapFault = fault; debug.bootstrapAvailableBytes = availableBytes
         do {
             return try await performOperation { [self] lease, identity in
@@ -100,7 +100,7 @@ final class SharedMediaNativeOriginalOwner {
                  inspectionTrace: SharedMediaNativeDebugHooks.InspectionTrace? = nil,
                  discovery: SharedMediaNativeBootstrapDiscovery? = nil) async throws -> SharedMediaNativeScopedSnapshot {
         defer { discovery?.invalidate() }
-        guard openKind == .appDispatch, phase == .unopened, let registration, drain.isCurrent(registration) else { throw SharedMediaStorageFailure.closed }
+        guard openKind == .appDispatch, phase == .unopened, let registration, drain.isCurrent(registration, container: container, discovery: discovery) else { throw SharedMediaStorageFailure.closed }
         phase = .opening; debug.scopedPagePause = pause; debug.inspectionTrace = inspectionTrace
         defer {
             inspectionTrace?.finish()
@@ -134,7 +134,7 @@ final class SharedMediaNativeOriginalOwner {
     func openScoped(container: ModelContainer, authorityRoot: URL, photoRoot: URL, inboxRoot: URL,
                     inventoryID: UUID, pagePause: (@Sendable () async -> Void)? = nil) async throws -> SharedMediaNativeScopedSnapshot {
         guard openKind == .scopedInspection, phase == .unopened,
-              let registration, drain.isCurrent(registration) else { throw SharedMediaStorageFailure.closed }
+              let registration, drain.isCurrent(registration, container: container) else { throw SharedMediaStorageFailure.closed }
         phase = .opening; debug.scopedPagePause = pagePause
         do {
             return try await performOperation { [self] lease, identity in

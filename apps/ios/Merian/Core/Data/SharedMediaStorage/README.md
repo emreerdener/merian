@@ -1,3 +1,49 @@
+## October 25 — inactive App/Auth native lifetime integration
+
+AppDI now has a one-time native lifetime configuration called after the startup
+bootstrap result. The existing source-controlled installation gate remains
+false, so ordinary Debug/Release creates no lifetime and installs no hook.
+Configuration itself retains only the exact container/startup admission; it
+performs no account admission, filesystem work, profile opening or dispatch. The
+separate native Auth hook is installed before the lifetime becomes reachable.
+Duplicate binding refuses without replacing either hook.
+
+Explicit discovery first acquires and retains the original account lease, then
+selects the existing fixed control parent. Cancellation or account mismatch
+before/after discovery burns the attempt, releases provisional fences and
+finishes that exact lease once. Native-owner registration requires successful
+discovery and both account accesses to recognize the retained lease, including
+its runtime/session scope. Initial owner opening must use the exact configured
+container. Same-owner access from another runtime cannot adopt discovery.
+
+Auth joins native shutdown, then photo-preparation shutdown, then its existing
+account-work drain. Shutdown seals synchronously and invalidates unconsumed
+discovery before awaiting the owner. Success finishes the lifetime lease through
+its original account access; failure retains the callback/registration and lease
+for explicit retry while admission stays closed. Concurrent and cancelled
+waiters cannot cancel the shared teardown. A transition before discovery is
+intentionally terminal, including an initial Auth transition: there is no
+automatic reinstallation or post-transition discovery in this increment.
+
+No native owner is created or retained by this wiring. Subsequent integration
+must retain the actual owner in AppDI through successful shutdown (especially
+failed settlement recovery), rather than create an owner/drain retain cycle. It
+must also surface configuration failures before any future gate enablement.
+Focused local validation passed all 47 methods / 53 argument cases with zero
+failures, skips or structured runtime warnings. All 3,005 source/project pins
+remained unchanged; the 20 GiB final storage floor and 256 MiB evidence cap
+passed. The first attempt failed at compilation before executing any tests; the
+corrected attempt only unnested an async test assertion and retained its checks.
+Both attempts remain recorded. Evidence is
+`.artifacts/native-app-capture-handoff-20261020/app-account-lifetime-tests02-qualified.json`
+and XCResult `a6d8c89f96074f0b81659db2133f12c0`.
+
+This qualifies the focused shared-checkout component checks. Actual Capture
+installation and initial/reanalysis journeys, full-target, isolated/matrix,
+RUX-1–RUX-6 and abrupt-exit acceptance remain open. Prior results retain their
+original source attribution. PR116 frozen; deployment hold active; AWS
+unapproved; no activation or external action.
+
 ## October 25 — fixed startup control-parent checkpoint locally qualified
 
 The source-only startup discovery entry selects the fixed app-private

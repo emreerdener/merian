@@ -13,8 +13,11 @@ reusable infrastructure remains in `Core`.
   account-deletion recovery presentation, and remains the sole asynchronous
   caller for fallback Supabase authentication URLs. It retains the first-success
   native startup admission with the exact container for the inactive media
-  composition. Retention does not open a profile, register an Auth drain or
-  enable Capture; the
+  composition. The AppDI configuration call remains behind the hard-false
+  installation gate; ordinary launches install no native Auth hook. Explicit
+  future discovery must retain its account lease before filesystem work, and
+  native shutdown joins before photo preparation and the final Auth account
+  drain. Configuration alone does not open a profile or enable Capture; the
   [startup contract](../../../../docs/backend-and-data/08-startup-store-recovery.md)
   owns its fence and recovery-denial requirements.
 - `AppDelegate.swift` is the UIKit callback bridge for background URLSession
