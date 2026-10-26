@@ -6,6 +6,16 @@ import Foundation
 /// The Shell owns mutation of this value. Staging keeps the ephemeral draft
 /// coherent; Submission owns conversion into request and replay descriptors.
 struct StagedCapture {
+    struct NativePhotoDraft: Equatable, Sendable {
+        let ownerID: UUID
+        let packageID: UUID
+        let draftGeneration: UUID
+    }
+
+    /// Ownership survives UI clearing. Only an explicit durable release may
+    /// remove it; missing access must never select the legacy submit path.
+    var nativePhotoDraft: NativePhotoDraft?
+
     /// Staged photographs. Capped by the active capture policy.
     var images: [StagedImage] = []
 

@@ -1,3 +1,19 @@
+## October 26 — expected selection at native receiving
+
+`stageAppReceiving` accepts an optional exact metadata expectation from the
+inactive
+[Capture submit bridge](../../../Features/Capture/Submission/README.md). Fresh
+and recovered Prepared values must retain the expected profile, package,
+membership and persisted envelope. The existing audits, physical checks and
+pre-save seals still own authority; unrelated inventory progress does not rebase
+the target. Prepared owns the pure draft/pair selection assertion shared by
+staging and restaging. Received recovery compares the original submitted
+selection, never a mutable post-receive package. The bridge and affected
+receiving/recovery checks passed the 60-method / 81-case managed Debug
+checkpoint documented in the Submission contract. Ordinary app activation
+remains closed; upstream feature binding and complete media journeys remain
+unqualified.
+
 ## October 25 — deferred native owner admission runtime qualified
 
 The inactive AppDI composition now retains startup provenance until an explicit

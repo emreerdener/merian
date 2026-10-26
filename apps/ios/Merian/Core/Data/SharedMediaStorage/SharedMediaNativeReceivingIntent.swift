@@ -50,6 +50,13 @@ enum SharedMediaNativeReceivingIntent {
             self.eventID = eventID; timestampBits = timestamp.timeIntervalSinceReferenceDate.bitPattern
             try validate()
         }
+        func requireSelection(draftGeneration: UUID, pairIDs: [UUID]) throws {
+            let frozen = try SharedMediaNativeFrozenCohort.decode(cohort.bytes)
+            guard package.generation == draftGeneration,
+                  try frozen.entries.map({ try SharedMediaNativeDerivativeIntent.decode($0.intent.bytes).pairID }) == pairIDs else {
+                throw SharedMediaStorageFailure.stale
+            }
+        }
         func encoded() throws -> Data {
             try validate(); return try SharedMediaNativeDraftEnvelope.bytes(self)
         }

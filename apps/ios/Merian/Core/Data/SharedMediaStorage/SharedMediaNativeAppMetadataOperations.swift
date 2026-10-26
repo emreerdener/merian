@@ -12,6 +12,15 @@ struct SharedMediaNativeAppMetadataRequest: Sendable {
                      package: SharedMediaNativeAppMetadataFacts.Package, member: SharedMediaNativeAppMetadataFacts.Member, envelope: Data) {
         self.profile = profile; self.header = header; self.package = package; self.member = member; self.envelope = envelope
     }
+
+    /// Compare the original submitted target, including on recovery. Global
+    /// inventory progress and the received package's successor are not rebases.
+    func requireReceivingSelection(_ prepared: SharedMediaNativeReceivingIntent.Prepared) throws {
+        guard envelope == package.envelope, profile == prepared.profile,
+              package == prepared.package, member == prepared.member else {
+            throw SharedMediaStorageFailure.stale
+        }
+    }
 }
 
 /// One operation, one typed save attempt. The private audit witness is never

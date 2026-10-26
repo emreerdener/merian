@@ -1,3 +1,44 @@
+## October 26 — inactive native prepared-photo submit bridge
+
+The separately injected `CaptureNativePhotoSubmissionSession` connects the
+actual Capture submit caller to the retained native owner. Ordinary live
+dependencies leave it nil. `StagedCapture.nativePhotoDraft` independently marks
+native ownership and survives UI clearing: missing access refuses before legacy
+admission, enqueue or inference. The bridge accepts only an explicit manual
+submission of one or two already native-prepared photos, with optional persisted
+text. It does not acquire originals from preview bytes or substitute the legacy
+preparation owner.
+
+The selection validates exact ordered pair identities, original references,
+inference/display hashes, focus, presentation and supporting text before the
+first await. Native staging compares the expected package, membership and
+envelope under the existing save seals, so a changed persisted selection cannot
+silently replace the submitted input. Busy ownership lasts until the operation
+exits. Snapshot, admitted owner and acknowledged Prepared survive cancellation
+or an uncertain acknowledgement. Explicit retry discovers the existing raw slot
+first; a received slot returns its saved cohort read-only, an absent known
+intent or an abandoned/releasing slot refuses, and no automatic retry is
+scheduled.
+
+The actual caller checks account, draft generation, refinement and full visible
+snapshot after suspension. Late durable receipt remains held while stale UI gets
+no success callback or draft clearing. Success means local receipt only: queue
+attention remains set and funding/provider execution is not invoked. Camera and
+picker acquisition, native derivative preview/editor binding, reconstruction of
+feature selection after app restart, audio/video and full initial/reanalysis
+journeys remain unqualified integration work. The ordinary feature gate remains
+false; PR116 and the deployment hold remain unchanged.
+
+Focused source review is clear. The managed Debug run passed 60 methods / 81
+cases across this bridge and the affected receiving, recovery, capability and
+Capture architecture checks, with no failures, skips, structured runtime
+warnings or source drift. The original expected-count record omitted six
+existing extension methods; a separately reviewed strict inventory
+reconciliation qualified the same retained result without rerunning tests. The
+original inventory mismatch and earlier test-target compiler failure remain
+retained. Prior owner-checkpoint Release results do not qualify these new
+sources; this increment has no new Release or full-journey qualification.
+
 # Capture Submission
 
 The `Submission` directory owns admission and durable dispatch after a staged

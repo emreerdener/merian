@@ -23,6 +23,7 @@ struct CaptureSubmissionDependencies {
     let context: CaptureSubmissionContextDependencies
     let admission: CaptureSubmissionAdmissionDependencies
     let deferredContext: CaptureSubmissionDeferredContextService
+    var nativePhotoSubmission: CaptureNativePhotoSubmissionSession? = nil
 
     @MainActor
     static func live(diContainer: AppDIContainer) -> Self {

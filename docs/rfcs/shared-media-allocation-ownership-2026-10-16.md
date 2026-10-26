@@ -1,3 +1,18 @@
+## October 26 — inactive Capture submit adapter runtime qualified
+
+The next integration slice connects already native-prepared photos to the actual
+Capture submit caller, using the same native owner and receiving transaction.
+The
+[Submission ownership contract](../../apps/ios/Merian/Features/Capture/Submission/README.md)
+describes exact selection, immutable retry, missing-access refusal and stale UI
+handling. This does not qualify the upstream capture/editor journey, app-restart
+feature selection reconstruction, other media or provider execution. Source
+review is clear; the bridge and affected regressions passed 60 methods / 81
+cases in the managed Debug checkpoint. A reviewed strict reconciliation included
+six existing extension methods omitted from the original expected-count record,
+using the same retained result. The previous owner-checkpoint Release
+qualification below remains historical evidence for its exact source only.
+
 ## October 25 — deferred native owner admission runtime qualified
 
 The inactive AppDI composition now retains startup provenance until an explicit

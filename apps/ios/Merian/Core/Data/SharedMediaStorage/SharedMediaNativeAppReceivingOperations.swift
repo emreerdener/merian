@@ -77,7 +77,8 @@ final class SharedMediaNativeAppReceivingOperations {
         return saved
     }
     func stage(packageID: UUID, draftGeneration: UUID, pairIDs: [UUID],
-               identity: SharedMediaNativeReceivingStageIdentity) async throws -> SharedMediaNativeReceivingIntent.Prepared {
+               identity: SharedMediaNativeReceivingStageIdentity,
+               expectedMetadata: SharedMediaNativeAppMetadataRequest? = nil) async throws -> SharedMediaNativeReceivingIntent.Prepared {
         try validate()
         let initial = fresh(), (initialInventory, _, _) = try target(initial, packageID)
         let saved = try SharedMediaNativeReceivingPhaseGraph.pending(initial, inventory: initialInventory)[packageID]
@@ -85,7 +86,8 @@ final class SharedMediaNativeAppReceivingOperations {
             guard let saved, saved.row.preparedData == bytes, case .prepared(let prepared) = saved.slot else {
                 throw SharedMediaStorageFailure.stale
             }
-            try requireSelection(prepared, draftGeneration: draftGeneration, pairIDs: pairIDs)
+            try prepared.requireSelection(draftGeneration: draftGeneration, pairIDs: pairIDs)
+            try expectedMetadata?.requireReceivingSelection(prepared)
             consumed = true; return prepared
         }
         // A concurrent saved slot must be rediscovered with its own locks and IDs.
@@ -95,7 +97,8 @@ final class SharedMediaNativeAppReceivingOperations {
             bindingID: identity.bindingID, generation: identity.generation, eventID: identity.eventID, timestamp: identity.timestamp,
             intentRevision: 0)
         let prepared = try SharedMediaNativeReceivingIntent.Prepared(request)
-        try requireSelection(prepared, draftGeneration: draftGeneration, pairIDs: pairIDs)
+        try prepared.requireSelection(draftGeneration: draftGeneration, pairIDs: pairIDs)
+        try expectedMetadata?.requireReceivingSelection(prepared)
         let c = fresh(), (inventory, package, member) = try target(c, packageID)
         try requirePrestate(request, context: c, package: package, member: member)
         let states = try SharedMediaNativeReceivingIntentGraph.currentCohort(prepared, context: c, inventory: inventory)
@@ -162,14 +165,6 @@ final class SharedMediaNativeAppReceivingOperations {
         }
         try facts.validateStaging(c, adding: found.row)
         return saved
-    }
-    private func requireSelection(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
-                                  draftGeneration: UUID, pairIDs: [UUID]) throws {
-        let cohort = try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes)
-        guard prepared.package.generation == draftGeneration,
-              try cohort.entries.map({ try SharedMediaNativeDerivativeIntent.decode($0.intent.bytes).pairID }) == pairIDs else {
-            throw SharedMediaStorageFailure.stale
-        }
     }
     private func originalFacts(_ cohort: SharedMediaNativeFrozenCohort, context: ModelContext) throws -> [SharedMediaNativeOriginalAccounting.Snapshot] {
         try cohort.entries.map { entry in
@@ -542,7 +537,7 @@ extension SharedMediaNativeAppReceivingOperations {
             guard let witness = try SharedMediaNativeReceivingPhaseGraph.pending(c, inventory: inventory)[packageID],
                   witness.row == identity.observed, case .prepared(let prepared) = witness.slot,
                   try prepared.encoded() == saved.encoded() else { throw SharedMediaStorageFailure.stale }
-            try requireSelection(prepared, draftGeneration: draftGeneration, pairIDs: pairIDs)
+            try prepared.requireSelection(draftGeneration: draftGeneration, pairIDs: pairIDs)
             try validate(); consumed = true; return prepared
         }
         guard case .abandoned(let predecessor) = try SharedMediaNativeReceivingSlot.decode(identity.observed, profile: authority.profile),
@@ -554,7 +549,7 @@ extension SharedMediaNativeAppReceivingOperations {
             intentRevision: SharedMediaStoragePolicy.add(predecessor.revision, 1),
             restagedFromSHA256: SharedMediaAcquisitionEncoding.digest(predecessor.encoded()))
         let prepared = try SharedMediaNativeReceivingIntent.Prepared(request)
-        try requireSelection(prepared, draftGeneration: draftGeneration, pairIDs: pairIDs)
+        try prepared.requireSelection(draftGeneration: draftGeneration, pairIDs: pairIDs)
         let c = fresh(), (inventory, package, member) = try target(c, packageID)
         try requirePrestate(request, context: c, package: package, member: member)
         guard let slot = try SharedMediaNativeReceivingPhaseGraph.row(packageID, in: c),

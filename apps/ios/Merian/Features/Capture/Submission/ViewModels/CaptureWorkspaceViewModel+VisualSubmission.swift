@@ -34,6 +34,10 @@ extension CaptureWorkspaceViewModel {
             }
         }
 
+        if stagedCapture.nativePhotoDraft != nil || dependencies.submission.nativePhotoSubmission != nil {
+            await submitNativePhotoDraft()
+            return
+        }
         if let access = dependencies.photoOriginalPreparation {
             await submitPhotoPreparationDraft(access)
             return
