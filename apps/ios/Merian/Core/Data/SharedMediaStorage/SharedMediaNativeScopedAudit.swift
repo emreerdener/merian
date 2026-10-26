@@ -48,6 +48,20 @@ struct SharedMediaNativeScopedAudit {
         self.check = check; self.betweenPages = betweenPages
     }
 
+    /// V1 uses the same read-fence discipline as the app audit. The caller
+    /// retains capability/physical validation; this owner checks header stability.
+    static func runExisting(container: ModelContainer, scope: SharedMediaNativeScopeIdentity,
+                            header: @escaping () throws -> SharedMediaStorageSnapshot,
+                            betweenPages: @escaping () async throws -> Void) async throws -> SharedMediaNativeScopedSnapshot {
+        let expected = try header()
+        let audit = Self(container: container, scope: scope, expected: expected, check: {
+            guard try header() == expected else { throw SharedMediaStorageFailure.conflict }
+        }, betweenPages: betweenPages)
+        let result = try await audit.run()
+        guard try header() == expected else { throw SharedMediaStorageFailure.conflict }
+        return result
+    }
+
     /// The audit owns header stability and diagnostic timing; the repository
     /// supplies only read validation and retains every grant and file fence.
     static func runApp(container: ModelContainer, profile: () throws -> SharedMediaNativeAppProfile,

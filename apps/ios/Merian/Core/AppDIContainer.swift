@@ -105,16 +105,112 @@ import SwiftUI
     var supabaseManager = SupabaseManager.shared
     
     @ObservationIgnored private(set) var nativeMediaLifetime: SharedMediaNativeOriginalDrain?
+    @ObservationIgnored private(set) var nativeMediaOwner: SharedMediaNativeOriginalOwner?
+    @ObservationIgnored private var nativeMediaStartup: (container: ModelContainer, admission: NativeReleaseStartupAdmission)?
+    @ObservationIgnored private var nativeMediaOpening: Task<SharedMediaNativeOriginalOwner, Error>?
+    @ObservationIgnored private var nativeMediaAccountID: UUID?
 
     /// Inert in ordinary builds. No account or filesystem work occurs at setup.
     func configureNativeMediaLifetime(container: ModelContainer?, admission: NativeReleaseStartupAdmission?) throws {
         guard PreparedHistoryReanalysisComposition.isAppInstallationQualified else { return }
-        guard nativeMediaLifetime == nil else { throw SharedMediaStorageFailure.closed }
+        guard nativeMediaStartup == nil, nativeMediaLifetime == nil else { throw SharedMediaStorageFailure.closed }
         guard let container, let admission else { return }
-        let lifetime = SharedMediaNativeOriginalDrain(container: container, admission: admission)
-        try supabaseManager.installNativeMediaAccountTransitionDrain(lifetime)
-        nativeMediaLifetime = lifetime
+        nativeMediaStartup = (container, admission)
     }
+
+    /// Explicit feature admission only. Initial Auth transitions occur before
+    /// any lifetime/hook is installed; refusal here does not consume startup.
+    func nativeMediaOwnerForFeature() async throws -> SharedMediaNativeOriginalOwner {
+        guard PreparedHistoryReanalysisComposition.isAppInstallationQualified,
+              let ownerID = supabaseManager.currentUser?.id else { throw SharedMediaStorageFailure.closed }
+        let manager = supabaseManager
+        let account = PhotoOriginalPreparationOwner.AccountAccess(ownerID: ownerID,
+            begin: { try manager.beginUnownedAccountBoundWork(expectedUserID: ownerID) },
+            isCurrent: { manager.isAccountBoundWorkLeaseCurrent($0) },
+            finish: { manager.finishAccountBoundWork($0) })
+        let task = try admitNativeMedia(account: account,
+            install: { try manager.installNativeMediaAccountTransitionDrain($0) },
+            discover: { try $0.discover(account: account) })
+        let owner = try await task.value
+        try Task.checkCancellation()
+        guard owner === nativeMediaOwner, owner.isReadyForAppDispatch else { throw SharedMediaStorageFailure.closed }
+        return owner
+    }
+
+    /// Account admission, hook installation, discovery and task retention are a
+    /// single MainActor turn. The preliminary lease is always finished here.
+    private func admitNativeMedia(account: PhotoOriginalPreparationOwner.AccountAccess,
+        install: (SharedMediaNativeOriginalDrain) throws -> Void,
+        discover: (SharedMediaNativeOriginalDrain) throws -> SharedMediaNativeBootstrapDiscovery,
+        configure: (SharedMediaNativeOriginalOwner) throws -> Void = { _ in }) throws -> Task<SharedMediaNativeOriginalOwner, Error> {
+        try Task.checkCancellation()
+        let lease = try account.begin()
+        defer { account.finish(lease) }
+        guard lease.session.userID == account.ownerID, account.isCurrent(lease) else { throw PhotoPreparationFailure.accountChanged }
+        if let lifetime = nativeMediaLifetime {
+            guard nativeMediaAccountID == account.ownerID, lifetime.recognizes(account: account) else { throw PhotoPreparationFailure.accountChanged }
+            if let opening = nativeMediaOpening { return opening }
+            guard let owner = nativeMediaOwner, owner.isReadyForAppDispatch else { throw SharedMediaStorageFailure.closed }
+            // Keep the installed terminal lifetime; it is never replaced.
+            return Task { @MainActor in owner }
+        }
+        guard let startup = nativeMediaStartup else { throw SharedMediaStorageFailure.closed }
+        let lifetime = SharedMediaNativeOriginalDrain(container: startup.container, admission: startup.admission) { [weak self] completed in
+            guard let self, self.nativeMediaLifetime === completed else { return }
+            self.nativeMediaOwner = nil; self.nativeMediaStartup = nil
+        }
+        try install(lifetime)
+        nativeMediaLifetime = lifetime; nativeMediaAccountID = account.ownerID
+        do {
+            let discovery = try discover(lifetime)
+            let owner = try SharedMediaNativeOriginalOwner.app(account: account, drain: lifetime, discovery: discovery)
+            nativeMediaOwner = owner
+            try configure(owner)
+            let task = Task { @MainActor [self] in
+                defer { nativeMediaOpening = nil }
+                do {
+                    _ = try await owner.openApp(container: startup.container, discovery: discovery)
+                    guard nativeMediaLifetime === lifetime, nativeMediaOwner === owner,
+                          nativeMediaStartup?.container === startup.container, owner.isReadyForAppDispatch else {
+                        throw PhotoPreparationFailure.accountChanged
+                    }
+                    return owner
+                } catch {
+                    _ = await lifetime.shutdown()
+                    throw error
+                }
+            }
+            nativeMediaOpening = task
+            return task
+        } catch {
+            // Own cleanup even if the feature caller immediately disappears.
+            let task = Task<SharedMediaNativeOriginalOwner, Error> { @MainActor [self] in
+                defer { nativeMediaOpening = nil }
+                _ = await lifetime.shutdown()
+                throw error
+            }
+            nativeMediaOpening = task
+            return task
+        }
+    }
+
+    #if DEBUG
+    func configureNativeMediaForTesting(container: ModelContainer, admission: NativeReleaseStartupAdmission) throws {
+        guard TestExecutionCoordinator.isRunningTests, nativeMediaStartup == nil, nativeMediaLifetime == nil else { throw SharedMediaStorageFailure.closed }
+        nativeMediaStartup = (container, admission)
+    }
+    func nativeMediaOwnerForTesting(account: PhotoOriginalPreparationOwner.AccountAccess, support: URL,
+        install: (SharedMediaNativeOriginalDrain) throws -> Void,
+        configure: (SharedMediaNativeOriginalOwner) throws -> Void = { _ in }) async throws -> SharedMediaNativeOriginalOwner {
+        guard TestExecutionCoordinator.isRunningTests else { throw SharedMediaStorageFailure.closed }
+        let task = try admitNativeMedia(account: account, install: install,
+            discover: { try $0.qualificationDiscover(account: account, support: support) }, configure: configure)
+        let owner = try await task.value
+        try Task.checkCancellation()
+        guard owner === nativeMediaOwner, owner.isReadyForAppDispatch else { throw SharedMediaStorageFailure.closed }
+        return owner
+    }
+    #endif
 
     // MARK: - Dependencies (Analytics & Security)
     var consentManager: ConsentManager = {

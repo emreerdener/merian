@@ -17,6 +17,7 @@ final class SharedMediaNativeAppAcquisitionOperations {
     private var facts: SharedMediaNativeAppMetadataFacts
     private var consumed = false
     private var freshRequest: SharedMediaAcquisitionIntent?
+    private var reservationEnvelope: Data?
 
     private init(container: ModelContainer, authority: SharedMediaNativeAppAcquisitionAuthority,
                  io: SharedMediaNativeOriginalIO, expected: SharedMediaNativeAppEligibility.Header,
@@ -45,6 +46,7 @@ final class SharedMediaNativeAppAcquisitionOperations {
         if let request, try result.receipt(request) == nil {
             guard request.writerEpoch == authority.writerEpoch, request.expectedInventoryRevision == expected.inventory.revision else { throw SharedMediaStorageFailure.stale }
             try await SharedMediaNativeAppAcquisitionIdentity.audit(request, container: container, check: check)
+            result.reservationEnvelope = try facts.packages[request.packageID]?.envelope ?? PhotoPreparationPolicy.encodeDraft(contexts: [])
             result.freshRequest = request
         }
         try check(); return result
@@ -83,8 +85,8 @@ final class SharedMediaNativeAppAcquisitionOperations {
         return try SharedMediaNativeAcquisitionGraph.scopedReceipt(row, inventory: inventory, context: context, format: .appV2)
     }
     func settlement(_ request: SharedMediaAcquisitionIntent) throws -> SharedMediaNativeAppAcquisitionSettlement {
-        guard freshRequest == request else { throw SharedMediaStorageFailure.closed }
-        return .init(profile: authority.profile, request: request, entry: entry, facts: entryFacts, proof: copyProof)
+        guard freshRequest == request, let reservationEnvelope else { throw SharedMediaStorageFailure.closed }
+        return .init(profile: authority.profile, request: request, entry: entry, facts: entryFacts, envelope: reservationEnvelope, proof: copyProof)
     }
     func acquire(_ request: SharedMediaAcquisitionIntent, load: @escaping @Sendable () async throws -> Data,
                  writerState: (Bool) -> Void, didStartLoader: () -> Void) async throws -> SharedMediaAcquisitionResult {
@@ -117,7 +119,10 @@ final class SharedMediaNativeAppAcquisitionOperations {
         let witness = SharedMediaNativeAppAcquisitionWitness(authority: authority, expected: old, facts: before, request: request)
         let mutation: SharedMediaNativeAcquisitionMutation
         if let proof { mutation = try .complete(container: container, witness: witness, proof: proof) }
-        else { mutation = try .reserve(container: container, witness: witness, availableBytes: availableBytes()) }
+        else {
+            guard let reservationEnvelope else { throw SharedMediaStorageFailure.closed }
+            mutation = try .reserve(container: container, witness: witness, availableBytes: availableBytes(), envelope: reservationEnvelope)
+        }
         consumed = true
         do {
             try boundary(proof == nil ? .beforeReservationSave : .beforeCompletionSave)
@@ -142,7 +147,8 @@ final class SharedMediaNativeAppAcquisitionOperations {
     /// grant. No loader, file writer, reservation or completion is reachable.
     static func settle(container: ModelContainer, authority: SharedMediaNativeAppAcquisitionAuthority,
                        ticket: SharedMediaNativeAppAcquisitionSettlement, loaderStarted: Bool,
-                       boundary: (SharedMediaNativeAcquisitionBoundary) throws -> Void) throws -> SharedMediaAcquisitionResult? {
+                       boundary: (SharedMediaNativeAcquisitionBoundary) throws -> Void,
+                       observe: ((String) -> Void)? = nil) throws -> SharedMediaAcquisitionResult? {
         let request = ticket.request
         guard authority.settlementRequest == request, authority.profile == ticket.profile else { throw SharedMediaStorageFailure.closed }
         func fresh() -> ModelContext { let value = ModelContext(container); value.autosaveEnabled = false; return value }
@@ -152,9 +158,12 @@ final class SharedMediaNativeAppAcquisitionOperations {
             var query = FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.id == id }); query.fetchLimit = 2
             let rows = try context.fetch(query)
             guard rows.count <= 1 else { throw SharedMediaStorageFailure.conflict }; guard let row = rows.first else { return nil }
+            observe?("receiptFetched")
             _ = try SharedMediaAcquisitionReceipt.read(row, expected: request)
+            observe?("receiptDecoded")
             let inventory = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
-            return try SharedMediaNativeAcquisitionGraph.scopedReceipt(row, inventory: inventory, context: context, format: .appV2)
+            let result = try SharedMediaNativeAcquisitionGraph.scopedReceipt(row, inventory: inventory, context: context, format: .appV2)
+            observe?("scopedReceiptValidated"); return result
         }
         let reserved = try SharedMediaNativeAppMetadataFacts.successor(ticket.entry)
         let terminal = try SharedMediaNativeAppMetadataFacts.successor(reserved)
@@ -164,7 +173,7 @@ final class SharedMediaNativeAppAcquisitionOperations {
                   try SharedMediaNativeAppMetadataFacts.capture(fresh(), profile: ticket.profile) == ticket.facts else { throw SharedMediaStorageFailure.conflict }
             return nil
         }
-        try ticket.validateTarget(fresh(), saved: saved)
+        try ticket.validateTarget(fresh(), saved: saved, observe: observe)
         switch saved {
         case .completed(_, let result):
             guard header == terminal else { throw SharedMediaStorageFailure.stale }; return result
@@ -175,10 +184,11 @@ final class SharedMediaNativeAppAcquisitionOperations {
             let facts = try SharedMediaNativeAppMetadataFacts.capture(fresh(), profile: ticket.profile)
             let witness = SharedMediaNativeAppAcquisitionWitness(authority: authority, expected: reserved, facts: facts, request: request)
             let mutation = try SharedMediaNativeAcquisitionMutation.hold(container: container, witness: witness)
+            observe?("holdPrepared")
             do { try boundary(.beforeHeldSave); try mutation.save(); try boundary(.afterHeldSave) } catch { /* Exact acknowledgement only. */ }
             guard try authority.header(container) == terminal, case .held = try read() else { throw SharedMediaStorageFailure.conflict }
             _ = try mutation.acknowledgeApp()
-            try ticket.validateTarget(fresh(), saved: .held(request))
+            try ticket.validateTarget(fresh(), saved: .held(request), observe: observe)
             return nil
         case .released: throw SharedMediaStorageFailure.conflict
         }
@@ -219,13 +229,16 @@ struct SharedMediaNativeAppAcquisitionSettlement {
     let entry: SharedMediaNativeAppEligibility.Header
     let facts: SharedMediaNativeAppMetadataFacts
     private let proof: SharedMediaPhotoRetirementInspection?
+    private let envelope: Data
     fileprivate init(profile: SharedMediaNativeAppProfile, request: SharedMediaAcquisitionIntent,
-                     entry: SharedMediaNativeAppEligibility.Header, facts: SharedMediaNativeAppMetadataFacts, proof: SharedMediaPhotoRetirementInspection?) {
-        self.profile = profile; self.request = request; self.entry = entry; self.facts = facts; self.proof = proof
+                     entry: SharedMediaNativeAppEligibility.Header, facts: SharedMediaNativeAppMetadataFacts, envelope: Data, proof: SharedMediaPhotoRetirementInspection?) {
+        self.profile = profile; self.request = request; self.entry = entry; self.facts = facts; self.envelope = envelope; self.proof = proof
     }
-    @MainActor func validateTarget(_ context: ModelContext, saved: SharedMediaAcquisitionReceipt) throws {
+    @MainActor func validateTarget(_ context: ModelContext, saved: SharedMediaAcquisitionReceipt, observe: ((String) -> Void)? = nil) throws {
         try facts.validateAcquisition(context, packageID: request.packageID, hasMember: true)
+        observe?("targetFactsValidated")
         let current = try SharedMediaNativeAppMetadataFacts.capture(context, profile: profile)
+        observe?("targetCaptured")
         guard let package = current.packages[request.packageID], let member = current.members[request.packageID] else { throw SharedMediaStorageFailure.conflict }
         let old = facts.packages[request.packageID], oldMember = facts.members[request.packageID]
         let terminal: Bool, completed: Bool, bytes: Int64
@@ -243,7 +256,8 @@ struct SharedMediaNativeAppAcquisitionSettlement {
         }
         let baseRevision = try old.map { try SharedMediaStoragePolicy.add($0.revision, 1) } ?? 0
         let baseMember = try oldMember.map { try SharedMediaStoragePolicy.add($0.revision, 1) } ?? 0
-        let envelope = try old?.envelope ?? PhotoPreparationPolicy.encodeDraft(contexts: [])
+        // Preserve the exact bytes selected before the first save, including
+        // uncertain reservation readback; equivalent JSON is not byte identity.
         guard package.id == request.packageID, package.ownerID == request.ownerID, package.draftID == request.packageID,
               package.generation == request.draftGeneration, package.contract == PhotoPreparationPolicy.contract,
               package.tier == "pending", !package.retiring, package.envelope == envelope,
@@ -253,6 +267,7 @@ struct SharedMediaNativeAppAcquisitionSettlement {
               member.inventoryID == request.inventoryID, member.inventoryGeneration == request.inventoryGeneration,
               member.ownerID == request.ownerID, member.draftGeneration == request.draftGeneration,
               member.revision == (try SharedMediaStoragePolicy.add(baseMember, completed ? 1 : 0)) else { throw SharedMediaStorageFailure.conflict }
+        observe?("targetScalarsValidated")
         let prior = try oldMember.map { try SharedMediaMembership.decode($0.bytes) } ?? SharedMediaMembership(groups: [])
         var groups = Dictionary(uniqueKeysWithValues: prior.groups.map { ($0.kind, Set($0.ids)) })
         groups[.allocation, default: []].insert(request.assetID)
@@ -266,6 +281,7 @@ struct SharedMediaNativeAppAcquisitionSettlement {
             .init(kind: kind, ids: ids.sorted { $0.uuidString < $1.uuidString })
         }.sorted { $0.kind.rawValue < $1.kind.rawValue })
         guard member.bytes == (try expected.encoded()) else { throw SharedMediaStorageFailure.conflict }
+        observe?("targetMembershipValidated")
     }
 
 }

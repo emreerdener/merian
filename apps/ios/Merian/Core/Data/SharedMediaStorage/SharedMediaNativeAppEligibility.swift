@@ -62,13 +62,19 @@ enum SharedMediaNativeAppEligibility {
         guard try value.binding == bytes else { throw SharedMediaStorageFailure.conflict }; return value
     }
 
-    static func identity(container: ModelContainer, inventoryID: UUID, ownerID: UUID) throws -> SharedMediaNativeAppProfile {
+    static func storeIdentity(container: ModelContainer) throws -> String {
         guard container.configurations.count == 1, let configuration = container.configurations.first,
               !configuration.isStoredInMemoryOnly, !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.conflict }
+        return try SharedMediaNativeEligibility.storeIdentity(at: configuration.url)
+    }
+
+
+    static func identity(container: ModelContainer, inventoryID: UUID, ownerID: UUID) throws -> SharedMediaNativeAppProfile {
+        let currentStore = try storeIdentity(container: container)
         let context = ModelContext(container); context.autosaveEnabled = false
         let row = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
         let result = try profile(row)
-        guard result.ownerID == ownerID, result.storeIdentity == (try SharedMediaNativeEligibility.storeIdentity(at: configuration.url)) else { throw SharedMediaStorageFailure.conflict }
+        guard result.ownerID == ownerID, result.storeIdentity == currentStore else { throw SharedMediaStorageFailure.conflict }
         _ = try header(context: context, scope: .init(inventoryID: inventoryID, generation: result.generation,
             ownerID: ownerID, storeIdentity: result.storeIdentity, rootBinding: try result.rootIdentity))
         return result

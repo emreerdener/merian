@@ -185,6 +185,44 @@ struct SharedMediaNativeAppAcquisitionTests {
         #expect(await owner.invalidateAndAwaitForAccountTransition())
         #expect(try receipt(h, request) == .held(request))
     }
+    @Test(arguments: ["reservation", "completion", "envelopeDrift"])
+    func freshPackageSettlementRetainsExactReservationEnvelope(_ edge: String) async throws {
+        let h = try Store(), owner = try await h.open(), loader = Loader()
+        let request = try await owner.prepareAppOriginal(packageID: UUID(), draftGeneration: h.draft, ordinal: 0, kind: .picker)
+        var savedEnvelope: Data?, unavailable = false
+        try owner.setAcquisitionFault { point in
+            if point == .afterReservationSave {
+                savedEnvelope = try h.package(request.packageID).supportingContextData
+                if edge == "reservation" { unavailable = true }
+            }
+            if edge != "reservation" && point == .beforeCompletionSave { unavailable = true }
+            if unavailable && (point == .beforeReadback || point == .beforeCompletionSave) {
+                throw SharedMediaStorageFailure.unavailable
+            }
+        }
+        let bytes = PhotoPreparationTestHarness.image()
+        await #expect(throws: (any Error).self) { _ = try await owner.acquireAppOriginal(request) { await loader.load(bytes) } }
+        let exact = try #require(savedEnvelope)
+        #expect(!(await owner.invalidateAndAwaitForAccountTransition()))
+        #expect(try receipt(h, request) == .reserved(request))
+        try owner.setAcquisitionFault(nil)
+        if edge == "envelopeDrift" {
+            // Semantically identical JSON must still fail the exact byte fence.
+            let changed = Data([0x20]) + exact
+            _ = try PhotoPreparationPolicy.decodeDraft(changed)
+            let context = h.context()
+            try h.package(request.packageID, in: context).supportingContextData = changed
+            try context.save()
+            #expect(!(await owner.invalidateAndAwaitForAccountTransition()))
+            let restore = h.context()
+            try h.package(request.packageID, in: restore).supportingContextData = exact
+            try restore.save()
+        }
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        #expect(try receipt(h, request) == .held(request))
+        #expect(try h.package(request.packageID).supportingContextData == exact)
+        #expect(await loader.calls == (edge == "reservation" ? 0 : 1))
+    }
     @Test(arguments: [SharedMediaNativeOriginalIOEntry.load, .write])
     func cancellationAtActualIOEntryStartsNoNewWork(_ entry: SharedMediaNativeOriginalIOEntry) async throws {
         let h = try Store(), owner = try await h.open(), gate = Gate(), loader = Loader(), bytes = PhotoPreparationTestHarness.image()

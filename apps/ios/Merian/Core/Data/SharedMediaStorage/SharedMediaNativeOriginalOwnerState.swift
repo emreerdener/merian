@@ -11,3 +11,12 @@ struct SharedMediaNativeOriginalPendingSettlement {
     let writerReturned: Bool
     var appTicket: SharedMediaNativeAppAcquisitionSettlement? = nil
 }
+
+/// Value-only opening result; neither branch carries an operation capability.
+enum SharedMediaNativeAppOpenResult: Sendable {
+    #if DEBUG
+    case qualification(SharedMediaNativeOriginalSnapshot)
+    #endif
+    case initialization(SharedMediaStorageSnapshot)
+    case dispatch(SharedMediaNativeScopedSnapshot)
+}

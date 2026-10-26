@@ -19,12 +19,15 @@ final class SharedMediaNativeOriginalDrain {
     private var callback: (@MainActor () async -> Bool)?
     private var sealed = false
     private var shutdownTask: Task<Bool, Never>?
+    private var didShutdown: (@MainActor (SharedMediaNativeOriginalDrain) -> Void)?
 
     init() { configured = false }
 
-    init(container: ModelContainer, admission: NativeReleaseStartupAdmission) {
+    init(container: ModelContainer, admission: NativeReleaseStartupAdmission,
+         didShutdown: (@MainActor (SharedMediaNativeOriginalDrain) -> Void)? = nil) {
         configured = true
         startup = (container, admission)
+        self.didShutdown = didShutdown
     }
 
     func discover(account: PhotoOriginalPreparationOwner.AccountAccess) throws -> SharedMediaNativeBootstrapDiscovery {
@@ -77,6 +80,11 @@ final class SharedMediaNativeOriginalDrain {
         return value
     }
 
+    func recognizes(account: PhotoOriginalPreparationOwner.AccountAccess) -> Bool {
+        guard !sealed, let lifetime, account.ownerID == lifetime.account.ownerID else { return false }
+        return lifetime.account.isCurrent(lifetime.lease) && account.isCurrent(lifetime.lease)
+    }
+
     func isCurrent(_ value: Registration, container: ModelContainer? = nil, discovery: SharedMediaNativeBootstrapDiscovery? = nil) -> Bool {
         guard !sealed, registration == value else { return false }
         guard configured else { return true }
@@ -98,6 +106,8 @@ final class SharedMediaNativeOriginalDrain {
             if result {
                 callback = nil; registration = nil
                 finishLifetime()
+                let completed = didShutdown; didShutdown = nil
+                completed?(self)
             } else { shutdownTask = nil } // Explicit retry only; admission stays sealed.
             return result
         }

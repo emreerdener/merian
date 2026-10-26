@@ -24,6 +24,14 @@ struct SharedMediaNativeOwnerBoundaryTests {
         }
     }
 
+    @Test func debugOpeningFacadeCannotMintGrantsOrAccessOwnerState() throws {
+        let facade = try source("SharedMediaNativeOriginalOwner+DebugOpening.swift")
+        #expect(facade.hasPrefix("#if DEBUG"))
+        for forbidden in ["Grant(owner:", "storage =", "phase =", "writerEpoch", "ModelContext(", "withAppDispatch", "performOperation"] {
+            #expect(!facade.contains(forbidden), "Debug facade gained authority: \(forbidden)")
+        }
+    }
+
     @Test func repositoryOperationsRequireDispatchAndSettlementCannotDispatch() throws {
         let repository = try source("SharedMediaNativeStorageRepository.swift")
         let names = ["originalAdmission", "inspectOriginals", "qualificationOperations"]

@@ -41,7 +41,6 @@ struct IOSHygieneClosureArchitectureTests {
     ]
 
     private static let trackedOversizedOwners: Set<String> = [
-        "Core/Data/SharedMediaStorage/SharedMediaNativeOriginalOwner.swift",
         "Core/Data/SharedMediaStorage/SharedMediaNativeStorageRepository.swift",
         "App/UITesting/UITestSeedCoordinator.swift",
         // Versioned wire decoders are generator-owned and validated as one contract.

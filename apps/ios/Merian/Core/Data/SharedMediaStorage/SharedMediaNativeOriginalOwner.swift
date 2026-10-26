@@ -1,10 +1,9 @@
 import Foundation
 import SwiftData
-
 /// Registered acquisition/release settlement owner; production wiring stays disabled.
 @MainActor
 final class SharedMediaNativeOriginalOwner {
-    private let openKind: SharedMediaNativeOriginalOpenKind
+    private var openKind: SharedMediaNativeOriginalOpenKind
     private var scopedIdentity: SharedMediaNativeScopeIdentity?
     private var appProfile: SharedMediaNativeAppProfile?, appParent: URL?
     private let account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain
@@ -16,6 +15,8 @@ final class SharedMediaNativeOriginalOwner {
     #if DEBUG
     /// Read-only fault-test observation. No capability or mutation grant escapes.
     var heldOriginalAdmissionClosedForTesting: Bool { phase == .suspended }
+    var shutdownFailureForTesting: (any Error)? { debug.shutdownFailure }
+    var settlementTraceForTesting: [String] { debug.settlementTrace }
     var observedHeldOriginalAbsenceForTesting: Bool {
         releaseStageSettlement.pendingOriginalDisposal?.permit.hasObservedAbsence ?? false
     }
@@ -28,6 +29,11 @@ final class SharedMediaNativeOriginalOwner {
     private var storage: SharedMediaNativeStorageRepository?
     private var cancelActive: (() -> Void)?, awaitActive: (() async -> Void)?
 
+    var isReadyForAppDispatch: Bool {
+        guard openKind == .appDispatch, phase == .ready, let registration else { return false }
+        return drain.isCurrent(registration)
+    }
+
     private init(account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain,
                  openKind: SharedMediaNativeOriginalOpenKind = .qualification) throws {
         self.account = account; self.drain = drain; self.openKind = openKind
@@ -36,124 +42,105 @@ final class SharedMediaNativeOriginalOwner {
         }
     }
 
-    #if DEBUG
-    static func qualification(account: PhotoOriginalPreparationOwner.AccountAccess,
-                              drain: SharedMediaNativeOriginalDrain) throws -> SharedMediaNativeOriginalOwner {
-        try .init(account: account, drain: drain)
+    /// The inactive app entry consumes one discovered profile. Fresh bootstrap
+    /// and existing dispatch share this registration and never reopen storage.
+    static func app(account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain,
+                    discovery: SharedMediaNativeBootstrapDiscovery) throws -> SharedMediaNativeOriginalOwner {
+        try .init(account: account, drain: drain,
+            openKind: discovery.existingProfile == nil ? .appInitialization : .appDispatch)
     }
 
-    func open(container: ModelContainer, authorityRoot: URL, photoRoot: URL, inboxRoot: URL,
-              inventoryID: UUID, pause: (@Sendable () async -> Void)? = nil) async throws -> SharedMediaNativeOriginalSnapshot {
-        guard openKind == .qualification, phase == .unopened, let registration, drain.isCurrent(registration, container: container) else { throw SharedMediaStorageFailure.closed }
+    func openApp(container: ModelContainer, discovery: SharedMediaNativeBootstrapDiscovery) async throws -> SharedMediaNativeScopedSnapshot {
+        guard openKind == (discovery.existingProfile == nil ? .appInitialization : .appDispatch) else { throw SharedMediaStorageFailure.closed }
+        let result = try await openAppProfile(container: container, parent: discovery.parent,
+            inventoryID: discovery.inventoryID, discovery: discovery, initializationOnly: false)
+        guard case .dispatch(let snapshot) = result else { throw SharedMediaStorageFailure.closed }; return snapshot
+    }
+
+    /// All entry points retain the same grant minting and one discovery transfer.
+    private func openAppProfile(container: ModelContainer, parent: URL, inventoryID: UUID,
+        discovery: SharedMediaNativeBootstrapDiscovery?, initializationOnly: Bool) async throws -> SharedMediaNativeAppOpenResult {
+        defer { discovery?.invalidate() }
+        guard phase == .unopened, openKind == .appInitialization || openKind == .appDispatch,
+              let registration, drain.isCurrent(registration, container: container, discovery: discovery) else { throw SharedMediaStorageFailure.closed }
         phase = .opening
         do {
-            return try await perform { [self] grant in
-                let candidate = try SharedMediaNativeStorageRepository.originalAdmission(container: container,
-                    authorityRoot: authorityRoot, photoRoot: photoRoot, inboxRoot: inboxRoot, inventoryID: inventoryID, grant: grant, pause: pause)
-                storage = candidate
-                let result = try await candidate.inspectOriginals(grant: grant)
-                try grant.validate()
-                phase = .ready
-                return result
+            return try await performOperation { [self] lease, identity in
+                let initialization = openKind == .appInitialization ? SharedMediaNativeAppGrant(owner: self,
+                    identity: identity, lease: lease, ownerID: account.ownerID, writerEpoch: writerEpoch) : nil
+                #if DEBUG
+                debug.inspectionTrace?.enter(.identity)
+                #endif
+                let result = try await SharedMediaNativeAppOpeningOperations.open(container: container, parent: parent,
+                    inventoryID: inventoryID, ownerID: account.ownerID, discovery: discovery,
+                    initialization: initialization, initializationOnly: initializationOnly, retain: { storage = $0 }, dispatch: { profile in
+                        appProfile = profile; appParent = parent; openKind = .appDispatch
+                        return SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
+                            profile: profile, parent: parent, writerEpoch: writerEpoch)
+                    })
+                try check(lease); phase = .ready; return result
             }
         } catch {
             if phase != .suspended { phase = .failed }
-            storage = nil
+            // Inactive AppDI retains failed opening fences through joined shutdown.
             throw error
         }
     }
 
-    /// Inactive native initialization qualification. No installer or dispatch is
-    /// exposed; this uses the same registered owner and retained repository.
-    static func appInitialization(account: PhotoOriginalPreparationOwner.AccountAccess,
-                                  drain: SharedMediaNativeOriginalDrain) throws -> SharedMediaNativeOriginalOwner {
-        try .init(account: account, drain: drain, openKind: .appInitialization)
-    }
-    func initializeApp(container: ModelContainer, parent: URL, inventoryID: UUID,
-                       fault: ((SharedMediaNativeBootstrapBoundary) throws -> Void)? = nil,
-                       availableBytes: Int64? = nil, discovery: SharedMediaNativeBootstrapDiscovery? = nil) async throws -> SharedMediaStorageSnapshot {
-        defer { discovery?.invalidate() }
-        guard openKind == .appInitialization, phase == .unopened,
-              let registration, drain.isCurrent(registration, container: container, discovery: discovery) else { throw SharedMediaStorageFailure.closed }
-        phase = .opening; debug.bootstrapFault = fault; debug.bootstrapAvailableBytes = availableBytes
-        do {
-            return try await performOperation { [self] lease, identity in
-                let grant = SharedMediaNativeAppGrant(owner: self, identity: identity, lease: lease,
-                    ownerID: account.ownerID, writerEpoch: writerEpoch)
-                let candidate = try SharedMediaNativeStorageRepository.initializeApp(container: container, parent: parent,
-                    inventoryID: inventoryID, grant: grant, discovery: discovery)
-                storage = candidate
-                let result = try candidate.appInitializationSnapshot(grant: grant)
-                try grant.validate(); phase = .ready; return result
-            }
-        } catch {
-            if phase != .suspended { phase = .failed }; storage = nil; throw error
-        }
+    #if DEBUG
+    func configureAppOpeningForTesting(pause: (@Sendable () async -> Void)? = nil, trace: SharedMediaNativeDebugHooks.InspectionTrace? = nil,
+                                       fault: ((SharedMediaNativeBootstrapBoundary) throws -> Void)? = nil) throws {
+        guard phase == .unopened else { throw SharedMediaStorageFailure.closed }
+        debug.scopedPagePause = pause; debug.bootstrapFault = fault; debug.inspectionTrace = trace
     }
 
-    /// Inactive existing-profile entry. It cannot initialize or repair storage.
-    static func appDispatch(account: PhotoOriginalPreparationOwner.AccountAccess,
-                            drain: SharedMediaNativeOriginalDrain) throws -> SharedMediaNativeOriginalOwner {
-        try .init(account: account, drain: drain, openKind: .appDispatch)
+    static func debugOwner(account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain,
+                           kind: SharedMediaNativeOriginalOpenKind) throws -> SharedMediaNativeOriginalOwner {
+        try .init(account: account, drain: drain, openKind: kind)
     }
-    func openApp(container: ModelContainer, parent: URL, inventoryID: UUID, pause: (@Sendable () async -> Void)? = nil,
-                 inspectionTrace: SharedMediaNativeDebugHooks.InspectionTrace? = nil,
-                 discovery: SharedMediaNativeBootstrapDiscovery? = nil) async throws -> SharedMediaNativeScopedSnapshot {
-        defer { discovery?.invalidate() }
-        guard openKind == .appDispatch, phase == .unopened, let registration, drain.isCurrent(registration, container: container, discovery: discovery) else { throw SharedMediaStorageFailure.closed }
-        phase = .opening; debug.scopedPagePause = pause; debug.inspectionTrace = inspectionTrace
-        defer {
-            inspectionTrace?.finish()
-            if debug.inspectionTrace === inspectionTrace { debug.inspectionTrace = nil }
+    func debugOpen(container: ModelContainer, request: SharedMediaNativeDebugOpenRequest) async throws -> SharedMediaNativeAppOpenResult {
+        guard openKind == request.kind, phase == .unopened, let registration,
+              drain.isCurrent(registration, container: container, discovery: request.discovery) else {
+            request.discovery?.invalidate(); throw SharedMediaStorageFailure.closed
         }
         do {
-            return try await performOperation { [self] lease, identity in
-                inspectionTrace?.enter(.identity)
-                let profile = try SharedMediaNativeAppEligibility.identity(container: container, inventoryID: inventoryID, ownerID: account.ownerID)
-                appProfile = profile; appParent = parent
-                let grant = SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
-                    profile: profile, parent: parent, writerEpoch: writerEpoch)
-                inspectionTrace?.enter(.repository)
-                let candidate = try SharedMediaNativeStorageRepository.openApp(container: container, parent: parent,
-                    inventoryID: inventoryID, grant: grant, discovery: discovery)
-                storage = candidate
-                inspectionTrace?.enter(.inspect)
-                let result = try await candidate.inspectApp(grant: grant)
-                try grant.validate(); phase = .ready; return result
-            }
-        } catch { if phase != .suspended { phase = .failed }; storage = nil; appProfile = nil; appParent = nil; throw error }
-    }
-
-    /// Inactive qualification seam for the existing app-container profile. This
-    /// does not bootstrap a profile or install an owner in the running app.
-    static func scopedInspection(account: PhotoOriginalPreparationOwner.AccountAccess,
-                                 drain: SharedMediaNativeOriginalDrain) throws -> SharedMediaNativeOriginalOwner {
-        try .init(account: account, drain: drain, openKind: .scopedInspection)
-    }
-
-    func openScoped(container: ModelContainer, authorityRoot: URL, photoRoot: URL, inboxRoot: URL,
-                    inventoryID: UUID, pagePause: (@Sendable () async -> Void)? = nil) async throws -> SharedMediaNativeScopedSnapshot {
-        guard openKind == .scopedInspection, phase == .unopened,
-              let registration, drain.isCurrent(registration, container: container) else { throw SharedMediaStorageFailure.closed }
-        phase = .opening; debug.scopedPagePause = pagePause
-        do {
-            return try await performOperation { [self] lease, identity in
-                let scope = try SharedMediaNativeScopedEligibility.identity(container: container, inventoryID: inventoryID,
-                    ownerID: account.ownerID, authority: authorityRoot, photo: photoRoot, inbox: inboxRoot)
-                scopedIdentity = scope
-                let grant = SharedMediaNativeScopedReadGrant(owner: self, identity: identity, lease: lease,
-                    scope: scope, writerEpoch: writerEpoch)
-                let candidate = try SharedMediaNativeStorageRepository.scopedInspection(container: container,
-                    authorityRoot: authorityRoot, photoRoot: photoRoot, inboxRoot: inboxRoot, grant: grant)
-                storage = candidate
-                let result = try await candidate.inspectScoped(grant: grant)
-                try grant.validate(); phase = .ready
-                return result
+            switch request {
+            case .initialization(let parent, let inventoryID, let fault, let bytes, let discovery):
+                debug.bootstrapFault = fault; debug.bootstrapAvailableBytes = bytes
+                return try await openAppProfile(container: container, parent: parent, inventoryID: inventoryID,
+                    discovery: discovery, initializationOnly: true)
+            case .existing(let parent, let inventoryID, let pause, let trace, let discovery):
+                debug.scopedPagePause = pause; debug.inspectionTrace = trace
+                defer { trace?.finish(); if debug.inspectionTrace === trace { debug.inspectionTrace = nil } }
+                return try await openAppProfile(container: container, parent: parent, inventoryID: inventoryID,
+                    discovery: discovery, initializationOnly: false)
+            case .qualification(let authority, let photo, let inbox, let inventoryID, let pause):
+                phase = .opening
+                return try await perform { [self] grant in
+                    let candidate = try SharedMediaNativeStorageRepository.originalAdmission(container: container,
+                        authorityRoot: authority, photoRoot: photo, inboxRoot: inbox, inventoryID: inventoryID, grant: grant, pause: pause)
+                    storage = candidate
+                    let result = try await candidate.inspectOriginals(grant: grant)
+                    try grant.validate(); phase = .ready; return .qualification(result)
+                }
+            case .scoped(let authority, let photo, let inbox, let inventoryID, let pause):
+                phase = .opening; debug.scopedPagePause = pause
+                return try await performOperation { [self] lease, identity in
+                    let scope = try SharedMediaNativeScopedEligibility.identity(container: container, inventoryID: inventoryID,
+                        ownerID: account.ownerID, authority: authority, photo: photo, inbox: inbox)
+                    scopedIdentity = scope
+                    let grant = SharedMediaNativeScopedReadGrant(owner: self, identity: identity, lease: lease,
+                        scope: scope, writerEpoch: writerEpoch)
+                    let candidate = try SharedMediaNativeStorageRepository.scopedInspection(container: container,
+                        authorityRoot: authority, photoRoot: photo, inboxRoot: inbox, grant: grant)
+                    storage = candidate
+                    let result = try await candidate.inspectScoped(grant: grant)
+                    try grant.validate(); phase = .ready; return .dispatch(result)
+                }
             }
         } catch {
             if phase != .suspended { phase = .failed }
-            storage = nil; scopedIdentity = nil
-            throw error
+            storage = nil; scopedIdentity = nil; appProfile = nil; appParent = nil; throw error
         }
     }
     #endif
@@ -463,7 +450,12 @@ final class SharedMediaNativeOriginalOwner {
             if pendingSettlement?.appTicket != nil { _ = try await reconcileAppSettlement() }
             else { _ = try reconcileSettlement() }
             try await releaseStageSettlement.reconcileAfterTermination()
-        } catch { return false }
+        } catch {
+            #if DEBUG
+            debug.shutdownFailure = error
+            #endif
+            return false
+        }
         guard pendingSettlement == nil, !releaseStageSettlement.hasPending else { return false }
         storage = nil; scopedIdentity = nil; appProfile = nil; appParent = nil
         return true

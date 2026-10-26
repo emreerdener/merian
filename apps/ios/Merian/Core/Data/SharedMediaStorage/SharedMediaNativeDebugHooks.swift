@@ -16,6 +16,9 @@ final class SharedMediaNativeDebugHooks {
     var metadataAvailableBytes: Int64?
     var inspectionAuditCount = 0
     var acquisitionFault: ((SharedMediaNativeAcquisitionBoundary) throws -> Void)?
+    var shutdownFailure: (any Error)?
+    private(set) var settlementTrace: [String] = []
+    func recordSettlement(_ phase: String) { if settlementTrace.count < 64 { settlementTrace.append(phase) } }
     var bootstrapFault: ((SharedMediaNativeBootstrapBoundary) throws -> Void)?
     var bootstrapAvailableBytes: Int64?
     var scopedPagePause: (@Sendable () async -> Void)?

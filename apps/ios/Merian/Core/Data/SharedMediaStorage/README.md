@@ -1,3 +1,65 @@
+## October 25 — deferred native owner admission runtime qualified
+
+The inactive AppDI composition now retains startup provenance until an explicit
+feature request obtains stable account admission. Initial Auth transitions have
+no native hook to seal. Admission installs one hook and retains the lifetime,
+owner and shared opening task before suspension; concurrent requests coalesce
+only within the same account runtime. Every preliminary lease is finished.
+Signed-out or failed-hook refusal remains retryable before installation.
+
+Fresh bootstrap promotes the same owner and repository to dispatch after
+profile, database and physical-binding validation. Handles, epoch, discovery
+transfer and fences remain continuous. Initialization grants become invalid;
+readiness appears only after inspection and account/lifetime revalidation.
+Existing profiles open directly. A cancelled caller cannot abandon shared
+opening or cleanup. Failed shutdown retains the owner and repository for
+explicit reconciliation; successful shutdown clears AppDI ownership through an
+identity-checked callback, leaving the installed lifetime terminal.
+
+Grant creation and lifecycle state remain private to the native owner. The
+opening-operations helper orchestrates already-authorized repository work; the
+DEBUG extension supplies typed test commands without owner-state access or
+capability construction. The existing repository and scoped audit retain their
+mutation and validation responsibilities. No owner ceiling was increased.
+
+App acquisition now chooses the reservation envelope once before the first save
+and retains those exact bytes in its settlement ticket. An absent package uses
+that same envelope for reservation; an existing package retains its original
+bytes. Lost reservation acknowledgement cannot require a second JSON encoding,
+and semantically equivalent but changed bytes still refuse settlement. The
+initial focused run and diagnostic follow-ups failed shutdown recovery and the
+60-second media journey. After the envelope and directory-flush corrections, the
+focused eight-method / eighteen-case run and the broader 103-method / 237-case
+checkpoint both passed and qualified. The three exact-envelope cases passed in
+both runs. Prior failures remain retained; passing results do not establish a
+fix for the separately deferred historical timeout/performance investigation.
+
+Steady-state bootstrap checks retain every control-file read, byte/identity
+validation and file flush. They batch the shared parent-directory flush once at
+the end of a successful check, before returning authority to the caller. Initial
+bootstrap/discovery reads retain their original per-read directory flush.
+Dispatch binding still performs its complete pre- and post-read checks; no
+physical or account check is removed by this batching. The complete
+prepared-media journey passed at approximately 59.7 seconds in the focused run
+and 59.6 seconds in the broader run, against the unchanged 60-second limit. This
+is narrow timing margin, not robust performance headroom.
+
+Eight new admission methods cover nine cases, plus a new capability-boundary
+check. The broader checkpoint qualified 103 methods / 237 cases with zero
+failures, skips, structured runtime warnings or drift across 3,011 source pins.
+Release compilation passed and qualified on October 26 for the generic iOS
+Simulator destination, with all 3,011 source pins unchanged. Safe cache
+deduplication preceded the successful run after an earlier disk preflight block.
+Managed isolated cleanup left 25.3 GiB free and retained 9.6 MiB of evidence,
+satisfying the unchanged 20 GiB final-space and 256 MiB evidence limits. This
+was compilation only; no installation or activation occurred. Project generation
+and project validation passed. The ordinary installation gate remains hard
+false. Capture adapter, native execution bridge, actual photo/audio/video
+initial/reanalysis journeys, RUX-1–RUX-6 and full acceptance remain open. A
+local prepared-media receiving test does not qualify provider execution or
+funding. Prior dated entries below describe their original checkpoints. PR116
+remains frozen and the deployment hold remains active.
+
 ## October 25 — inactive App/Auth native lifetime integration
 
 AppDI now has a one-time native lifetime configuration called after the startup

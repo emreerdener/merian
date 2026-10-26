@@ -202,12 +202,12 @@ final class SharedMediaNativeBootstrapFiles {
     }
     func check() throws {
         guard try Self.names(parentFD) == expectedNames,
-              try Self.read(parentFD, SharedMediaNativeBootstrapCodec.parentReceiptName) == expectedParentReceipt,
+              try Self.read(parentFD, SharedMediaNativeBootstrapCodec.parentReceiptName, synchronizeParent: false) == expectedParentReceipt,
               try SharedMediaStorageFileOwner.directoryIdentity(parent) == parentIdentity,
-              try Self.read(parentFD, SharedMediaNativeBootstrapCodec.intentName) == expectedIntent,
-              try Self.read(parentFD, SharedMediaNativeBootstrapCodec.finalName) == expectedFinal else { throw SharedMediaStorageFailure.conflict }
+              try Self.read(parentFD, SharedMediaNativeBootstrapCodec.intentName, synchronizeParent: false) == expectedIntent,
+              try Self.read(parentFD, SharedMediaNativeBootstrapCodec.finalName, synchronizeParent: false) == expectedFinal else { throw SharedMediaStorageFailure.conflict }
         for (name, bytes) in zip(SharedMediaNativeBootstrapCodec.progressNames, expectedProgress) {
-            guard try Self.read(parentFD, name) == bytes else { throw SharedMediaStorageFailure.conflict }
+            guard try Self.read(parentFD, name, synchronizeParent: false) == bytes else { throw SharedMediaStorageFailure.conflict }
         }
         for (name, expected) in zip(SharedMediaNativeBootstrapCodec.names, expectedIdentities) {
             let url = parent.appendingPathComponent(name)
@@ -215,6 +215,9 @@ final class SharedMediaNativeBootstrapFiles {
             let values = try url.resourceValues(forKeys: [.isExcludedFromBackupKey])
             guard values.isExcludedFromBackup == true else { throw SharedMediaStorageFailure.conflict }
         }
+        // All accepted control bytes have been read and their files flushed.
+        // One directory flush commits their entries before this check returns.
+        guard fsync(parentFD) == 0 else { throw SharedMediaStorageFailure.unavailable }
     }
     private func requireSpace(materializedBytes: Int64) throws {
         var value = statfs(); guard fstatfs(parentFD, &value) == 0, value.f_bsize > 0 else { throw SharedMediaStorageFailure.unavailable }
@@ -268,7 +271,7 @@ final class SharedMediaNativeBootstrapFiles {
         }
         return result
     }
-    fileprivate static func read(_ parent: Int32, _ name: String) throws -> Data? {
+    fileprivate static func read(_ parent: Int32, _ name: String, synchronizeParent: Bool = true) throws -> Data? {
         let fd = openat(parent, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
         if fd < 0 { guard errno == ENOENT else { throw SharedMediaStorageFailure.conflict }; return nil }
         defer { Darwin.close(fd) }
@@ -286,7 +289,8 @@ final class SharedMediaNativeBootstrapFiles {
               before.st_size == after.st_size, before.st_size == named.st_size,
               before.st_mtimespec.tv_sec == after.st_mtimespec.tv_sec, before.st_mtimespec.tv_nsec == after.st_mtimespec.tv_nsec,
               before.st_ctimespec.tv_sec == after.st_ctimespec.tv_sec, before.st_ctimespec.tv_nsec == after.st_ctimespec.tv_nsec else { throw SharedMediaStorageFailure.conflict }
-        guard fsync(fd) == 0, fsync(parent) == 0 else { throw SharedMediaStorageFailure.unavailable }
+        guard fsync(fd) == 0 else { throw SharedMediaStorageFailure.unavailable }
+        if synchronizeParent { guard fsync(parent) == 0 else { throw SharedMediaStorageFailure.unavailable } }
         return Data(bytes)
     }
     fileprivate static func write(_ parent: Int32, _ name: String, _ bytes: Data) throws {

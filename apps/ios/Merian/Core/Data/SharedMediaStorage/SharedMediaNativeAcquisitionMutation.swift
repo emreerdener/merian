@@ -28,7 +28,7 @@ final class SharedMediaNativeAcquisitionMutation {
     private var prepared = false
     private var consumed = false
 
-    private init(container: ModelContainer, request: SharedMediaAcquisitionIntent, authority: Authority) throws {
+    private init(container: ModelContainer, request: SharedMediaAcquisitionIntent, authority: Authority, envelope: Data? = nil) throws {
         try authority.validate(container)
         try request.validate()
         guard request.ownerID == authority.ownerID, request.writerEpoch == authority.writerEpoch else { throw SharedMediaStorageFailure.conflict }
@@ -48,7 +48,7 @@ final class SharedMediaNativeAcquisitionMutation {
         case .app(let witness):
             guard witness.request == request, try SharedMediaNativeAppEligibility.profile(inventory) == witness.authority.profile else { throw SharedMediaStorageFailure.conflict }
         }
-        before = try Before(context: context, inventory: inventory, request: request)
+        before = try Before(context: context, inventory: inventory, request: request, envelope: envelope)
     }
 
     static func reserve(container: ModelContainer, request: SharedMediaAcquisitionIntent, authority: SharedMediaNativeMutationAuthority,
@@ -64,9 +64,9 @@ final class SharedMediaNativeAcquisitionMutation {
         try value.complete(proof: proof)
         return value
     }
-    static func reserve(container: ModelContainer, witness: SharedMediaNativeAppAcquisitionWitness, availableBytes: Int64) throws -> SharedMediaNativeAcquisitionMutation {
+    static func reserve(container: ModelContainer, witness: SharedMediaNativeAppAcquisitionWitness, availableBytes: Int64, envelope: Data) throws -> SharedMediaNativeAcquisitionMutation {
         guard witness.authority.settlementRequest == nil else { throw SharedMediaStorageFailure.closed }
-        let value = try Self(container: container, request: witness.request, authority: .app(witness))
+        let value = try Self(container: container, request: witness.request, authority: .app(witness), envelope: envelope)
         try value.reserve(availableBytes: availableBytes); return value
     }
     static func complete(container: ModelContainer, witness: SharedMediaNativeAppAcquisitionWitness, proof: SharedMediaPhotoRetirementInspection) throws -> SharedMediaNativeAcquisitionMutation {
@@ -319,13 +319,20 @@ final class SharedMediaNativeAcquisitionMutation {
         let contexts: Data
         let membershipRevision: Int64?
         let membershipBytes: Data?
-        init(context: ModelContext, inventory: SharedMediaInventoryRecord, request: SharedMediaAcquisitionIntent) throws {
+        init(context: ModelContext, inventory: SharedMediaInventoryRecord, request: SharedMediaAcquisitionIntent, envelope: Data?) throws {
             let id = request.packageID
             let package = try SharedMediaNativeAcquisitionMutation.optional(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == id }))
             let member = try SharedMediaNativeAcquisitionMutation.optional(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
             inventoryRevision = inventory.revision; packageRevision = package?.revision
             allocatedBytes = package?.allocatedByteCount ?? 0
-            contexts = try package?.supportingContextData ?? PhotoPreparationPolicy.encodeDraft(contexts: [])
+            contexts = try package?.supportingContextData ?? envelope ?? PhotoPreparationPolicy.encodeDraft(contexts: [])
+            if let envelope {
+                guard contexts == envelope else { throw SharedMediaStorageFailure.conflict }
+                if package == nil {
+                    let draft = try PhotoPreparationPolicy.decodeDraft(envelope)
+                    guard draft.contexts.isEmpty, draft.presentation.isEmpty else { throw SharedMediaStorageFailure.conflict }
+                }
+            }
             membershipRevision = member?.revision; membershipBytes = member?.membersData
         }
     }

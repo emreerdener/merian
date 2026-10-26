@@ -14,10 +14,15 @@ reusable infrastructure remains in `Core`.
   caller for fallback Supabase authentication URLs. It retains the first-success
   native startup admission with the exact container for the inactive media
   composition. The AppDI configuration call remains behind the hard-false
-  installation gate; ordinary launches install no native Auth hook. Explicit
-  future discovery must retain its account lease before filesystem work, and
-  native shutdown joins before photo preparation and the final Auth account
-  drain. Configuration alone does not open a profile or enable Capture; the
+  installation gate; ordinary launches install no native Auth hook. The explicit
+  feature admission now installs the lifetime/hook only after stable account
+  admission, retains the actual owner and shared opening task, and revalidates
+  readiness before returning it. Fresh bootstrap promotes the same repository
+  without releasing fences. Failed shutdown retains the owner; only successful
+  reconciliation clears it, while the lifetime stays terminal. Discovery retains
+  its account lease before filesystem work, and native shutdown joins before
+  photo preparation and the final Auth account drain. Configuration alone does
+  not open a profile or enable Capture; the
   [startup contract](../../../../docs/backend-and-data/08-startup-store-recovery.md)
   owns its fence and recovery-denial requirements.
 - `AppDelegate.swift` is the UIKit callback bridge for background URLSession
