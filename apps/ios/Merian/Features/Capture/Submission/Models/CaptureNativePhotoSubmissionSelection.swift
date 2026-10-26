@@ -68,7 +68,14 @@ struct CaptureNativePhotoSubmissionSnapshot: Equatable {
     let displayPayloads: [Data]
     let supportingBytes: Data
 
-    init(_ capture: StagedCapture) throws {
+    init(_ capture: StagedCapture, selection: CaptureNativePhotoSubmissionSelection? = nil) throws {
+        // Native processing derives inference focus after presentation was saved.
+        // Only that presentation field comes from the retained selection; all
+        // user-authored values below still come from the current visible draft.
+        let savedSupporting: SharedMediaNativeFrozenSupporting? = try selection.map {
+            try SharedMediaAcquisitionEncoding.decode($0.supportingBytes,
+                maximum: Int(PhotoPreparationPolicy.metadata))
+        }
         guard let identity = capture.nativePhotoDraft, (1...2).contains(capture.images.count),
               capture.audios.isEmpty, capture.videos.isEmpty else { throw SharedMediaStorageFailure.invalid }
         self.identity = identity
@@ -80,16 +87,25 @@ struct CaptureNativePhotoSubmissionSnapshot: Equatable {
         displayPayloads = capture.images.map(\.displayData)
         let presentation = try capture.images.map { image -> PhotoPreparationImagePresentation in
             guard let reference = image.photoOriginalReference else { throw SharedMediaStorageFailure.invalid }
+            let presentationFocus: NormalizedImageFocusRegion?
+            if let savedSupporting {
+                let matches = savedSupporting.presentation.filter { $0.referenceID == reference.referenceID }
+                guard matches.count == 1 else { throw SharedMediaStorageFailure.stale }
+                presentationFocus = matches[0].focus
+            } else { presentationFocus = image.focusRegion }
             let environment = image.original.environmentContext
             return .init(referenceID: reference.referenceID, addedAt: image.addedAt,
                 isFromGallery: image.original.isFromGallery, cropQuarterTurns: image.original.lastCropQuarterTurns,
                 cropScale: image.original.lastCropScale, cropOffsetX: image.original.lastCropOffset.width,
-                cropOffsetY: image.original.lastCropOffset.height, focus: image.focusRegion,
+                cropOffsetY: image.original.lastCropOffset.height, focus: presentationFocus,
                 latitude: environment?.location?.coordinate.latitude, longitude: environment?.location?.coordinate.longitude,
                 locationName: environment?.locationName, weatherCondition: environment?.weatherCondition,
                 weatherTemperature: environment?.weatherTemperature, captureDate: environment?.captureDate)
         }
         supportingBytes = try SharedMediaNativeFrozenSupporting(
             contexts: capture.observationContexts.map(\.context), presentation: presentation).encoded()
+        // This separately verifies current inference focus against each native
+        // intent, as well as exact media and every reconstructed supporting byte.
+        try selection?.validate(self)
     }
 }

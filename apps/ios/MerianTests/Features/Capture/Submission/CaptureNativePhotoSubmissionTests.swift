@@ -113,12 +113,15 @@ struct CaptureNativePhotoSubmissionTests {
         #expect(vm.stagedCapture.nativePhotoDraft == identity)
     }
 
-    @Test(arguments: ["unchanged", "account", "generation", "context", "refinement"])
-    func actualCallerWithholdsStalePresentation(_ change: String) async throws {
-        let f = try await fixture()
+    @Test(arguments: ["unchanged", "account", "generation", "context", "refinement", "focus"], [false, true])
+    func actualCallerWithholdsStalePresentation(_ change: String, admissionFails: Bool) async throws {
+        let f = try await fixture(detectedFocus: true)
+        _ = try #require(f.capture.images[0].focusRegion)
         let entered = ImageFocusEngineTests.Signal(), release = ImageFocusEngineTests.Signal()
         let session = CaptureNativePhotoSubmissionSession(selection: f.selection) {
-            await entered.open(); await release.wait(); return f.owner
+            await entered.open(); await release.wait()
+            if admissionFails { throw SharedMediaStorageFailure.unavailable }
+            return f.owner
         }
         var account: UUID? = f.store.ownerID
         let vm = viewModel(session: session, account: { account })
@@ -135,18 +138,20 @@ struct CaptureNativePhotoSubmissionTests {
         switch change {
         case "account": account = UUID()
         case "generation": vm.draftSession.reset()
+        case "focus": vm.stagedCapture.images[0] = vm.stagedCapture.images[0].replacingFocusRegion(nil)
         case "context": vm.stagedCapture.observationContexts[0].context = .init(freeText: "Later visible text")
         case "refinement": vm.baseRefinementContext = .init(record: .init(speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture"))
         default: break
         }
         let visible = try CaptureNativePhotoSubmissionSnapshot(vm.stagedCapture)
         await release.open(); await running.value
-        #expect(session.receipt != nil && !session.isBusy && !vm.isCheckingScanAdmission)
+        #expect((session.receipt != nil) == !admissionFails)
+        #expect(!session.isBusy && !vm.isCheckingScanAdmission)
         #expect((vm.offlineToastMessage != nil) == (change == "unchanged"))
         #expect(try CaptureNativePhotoSubmissionSnapshot(vm.stagedCapture) == visible)
         #expect(vm.pendingAnalyzeScanId == nil)
-        #expect(try f.store.context().fetch(FetchDescriptor<OfflineQueuedScan>()).map(\.queueNeedsAttention) == [true])
-        #expect(try f.store.context().fetch(FetchDescriptor<OfflineJobRecord>()).map(\.status) == [.needsAttention])
+        #expect(try f.store.context().fetch(FetchDescriptor<OfflineQueuedScan>()).map(\.queueNeedsAttention) == (admissionFails ? [] : [true]))
+        #expect(try f.store.context().fetch(FetchDescriptor<OfflineJobRecord>()).map(\.status) == (admissionFails ? [] : [.needsAttention]))
         #expect(await f.owner.invalidateAndAwaitForAccountTransition())
     }
 
@@ -183,7 +188,80 @@ struct CaptureNativePhotoSubmissionTests {
         #expect(await f.owner.invalidateAndAwaitForAccountTransition())
     }
 
-    private func fixture(count: Int = 1) async throws -> Fixture {
+    @Test(arguments: [false, true])
+    func derivedFocusPreservesFrozenPresentationAcrossAmbiguousRetry(_ hasPriorFocus: Bool) async throws {
+        let prior: NormalizedImageFocusRegion? = hasPriorFocus ? .init(x: 0.1, y: 0.2, width: 0.2, height: 0.2) : nil
+        let f = try await fixture(count: 2, detectedFocus: true, priorFocus: prior)
+        let region = try #require(f.capture.images[0].focusRegion)
+        #expect(region != prior)
+        // Reproduces the old conflation: current inference focus cannot replace
+        // immutable presentation focus in the supporting envelope.
+        #expect(throws: (any Error).self) { try f.selection.validate(.init(f.capture)) }
+        let snapshot = try CaptureNativePhotoSubmissionSnapshot(f.capture, selection: f.selection)
+        #expect(snapshot.supportingBytes == f.selection.supportingBytes)
+        #expect(snapshot.admission.imageFocusRegions == [region, region])
+        let saved: SharedMediaNativeFrozenSupporting = try SharedMediaAcquisitionEncoding.decode(
+            snapshot.supportingBytes, maximum: Int(PhotoPreparationPolicy.metadata))
+        #expect(saved.presentation.map(\.focus) == [prior, prior])
+        let session = CaptureNativePhotoSubmissionSession(selection: f.selection) { f.owner }
+        var savedOnce = false, saves = 0
+        try f.owner.setMetadataFault { boundary in
+            if boundary == .beforeSave { saves += 1 }
+            if boundary == .afterSave { savedOnce = true }
+            if boundary == .beforeReadback && savedOnce { throw SharedMediaStorageFailure.unavailable }
+        }
+        await #expect(throws: (any Error).self) { _ = try await session.submit(snapshot) }
+        #expect(saves == 1)
+        try f.owner.setMetadataFault(nil)
+        _ = try await session.submit(snapshot)
+        let prepared = try #require(session.prepared), receipt = try #require(session.receipt)
+        try f.owner.setMetadataFault { if $0 == .beforeSave { throw SharedMediaStorageFailure.closed } }
+        _ = try await session.submit(.init(f.capture, selection: f.selection))
+        #expect(try session.prepared?.encoded() == prepared.encoded())
+        #expect(session.receipt == receipt)
+        #expect(await f.owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test(arguments: ["focus", "context", "crop", "date", "gallery", "reference"])
+    func selectionAwareSnapshotStillRejectsVisibleChanges(_ field: String) async throws {
+        let f = try await fixture(detectedFocus: true)
+        _ = try #require(f.capture.images[0].focusRegion)
+        var changed = f.capture
+        switch field {
+        case "focus": changed.images[0] = changed.images[0].replacingFocusRegion(nil)
+        case "context": changed.observationContexts[0].context = .init(freeText: "Changed")
+        case "date": changed.images[0].addedAt = .distantPast
+        case "reference": changed.images.append(changed.images[0])
+        default:
+            var original = changed.images[0].original
+            if field == "crop" { original.lastCropScale = 2 }
+            else { original.isFromGallery.toggle() }
+            changed.images[0] = changed.images[0].replacing(original: original)
+        }
+        #expect(throws: (any Error).self) { _ = try CaptureNativePhotoSubmissionSnapshot(changed, selection: f.selection) }
+        #expect(try await f.owner.discoverAppReceivingSlot(packageID: f.store.packageID) == nil)
+        #expect(await f.owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func missingOrDuplicatePresentationCannotBeTreatedAsStoredNil() async throws {
+        let missing = try await fixture(includePresentation: false)
+        #expect(throws: (any Error).self) {
+            _ = try CaptureNativePhotoSubmissionSnapshot(missing.capture, selection: missing.selection)
+        }
+        #expect(await missing.owner.invalidateAndAwaitForAccountTransition())
+        let valid = try await fixture()
+        let supporting: SharedMediaNativeFrozenSupporting = try SharedMediaAcquisitionEncoding.decode(
+            valid.selection.supportingBytes, maximum: Int(PhotoPreparationPolicy.metadata))
+        let entry = try #require(supporting.presentation.first)
+        // The envelope codec rejects duplicates before a selection can exist.
+        #expect(throws: (any Error).self) {
+            _ = try SharedMediaNativeFrozenSupporting(contexts: supporting.contexts, presentation: [entry, entry]).encoded()
+        }
+        _ = try CaptureNativePhotoSubmissionSnapshot(valid.capture, selection: valid.selection)
+        #expect(await valid.owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    private func fixture(count: Int = 1, detectedFocus: Bool = false, priorFocus: NormalizedImageFocusRegion? = nil, includePresentation: Bool = true) async throws -> Fixture {
         let h = try SharedMediaNativeAppMetadataTests.Store(), owner = try await h.open()
         let bytes = PhotoPreparationTestHarness.image(), image = try #require(UIImage(data: bytes))
         let added = Date(timeIntervalSince1970: 1_700_000_000)
@@ -196,13 +274,15 @@ struct CaptureNativePhotoSubmissionTests {
             let reference = PhotoOriginalReference(ownerID: h.ownerID, packageID: h.packageID, referenceID: request.referenceID,
                 assetID: request.assetID, assetGeneration: request.assetGeneration, draftGeneration: h.draft, referenceRevision: acquired.referenceRevision)
             capture.images.append(.init(compressedData: bytes, displayData: bytes, uiImage: image,
-                original: IdentifiableImage(image: image, isFromGallery: true), addedAt: added.addingTimeInterval(Double(ordinal)), photoOriginalReference: reference))
+                original: IdentifiableImage(image: image, isFromGallery: true), focusRegion: priorFocus, addedAt: added.addingTimeInterval(Double(ordinal)), photoOriginalReference: reference))
             let initial = try CaptureNativePhotoSubmissionSnapshot(capture)
             let supporting: SharedMediaNativeFrozenSupporting = try SharedMediaAcquisitionEncoding.decode(initial.supportingBytes, maximum: Int(PhotoPreparationPolicy.metadata))
             let edit = try await owner.prepareAppMetadata(packageID: h.packageID, draftGeneration: h.draft,
-                contexts: supporting.contexts, presentation: supporting.presentation)
+                contexts: supporting.contexts, presentation: includePresentation ? supporting.presentation : [])
             _ = try await owner.saveAppMetadata(edit)
-            try owner.setPreparationFault(nil, focusFactory: .qualification(.qualification(worker: { .noCandidates }, drainRegistered: {})))
+            try owner.setPreparationFault(nil, focusFactory: .qualification(.qualification(worker: {
+                detectedFocus ? .candidates([.init(boundingBox: .init(x: 0.2, y: 0.1, width: 0.4, height: 0.3), confidence: 0.9)]) : .noCandidates
+            }, drainRegistered: {})))
             let ready = try await owner.prepareAndDeliverAppPhoto(original: reference,
                 recipe: .init(format: .stillImage, isPro: false, cropDisplaySize: nil, quarterTurns: 0, scale: 1, offsetX: 0, offsetY: 0))
             pairs.append(ready)
@@ -210,10 +290,10 @@ struct CaptureNativePhotoSubmissionTests {
         let metadata = try await owner.currentAppMetadata(packageID: h.packageID, draftGeneration: h.draft)
         let projection = try await owner.readPreparedAppPhotos(expectedMetadata: metadata, pairIDs: pairs.map { try $0.intent().pairID })
         for (index, photo) in projection.photos.enumerated() {
-            capture.images[index] = capture.images[index].replacing(compressedData: photo.ai, displayData: photo.display)
+            capture.images[index] = capture.images[index].replacing(compressedData: photo.ai, displayData: photo.display).replacingFocusRegion(try photo.pair.intent().focus)
         }
         let selection = try CaptureNativePhotoSubmissionSelection(metadata: metadata, pairs: pairs)
-        try selection.validate(.init(capture))
+        if includePresentation { try selection.validate(.init(capture, selection: selection)) }
         return .init(store: h, owner: owner, selection: selection, capture: capture)
     }
 }

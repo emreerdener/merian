@@ -1,5 +1,18 @@
 ## October 26 — mutable prepared-photo readback qualified locally
 
+Native selection-aware snapshots keep saved presentation focus separate from
+focus derived by native processing. Only presentation focus is read from the
+retained selection, uniquely matched by original reference; current inference
+focus is checked against the prepared intent. Every other presentation value and
+optional context still comes from the visible draft and must match exactly. The
+initial and post-await checks use the same selection, preserving immutable
+supporting bytes during recovery. Managed Debug qualification passed 19 methods
+/ 37 cases, including nonnil focus, exact ambiguous recovery, and rejection of
+stale caller presentation. The managed generic iOS Simulator Release build also
+passed, with no source drift across 3017 pins and no errors; its 358 build
+warnings remain recorded. Camera/picker integration and full native journeys
+remain open.
+
 `currentAppMetadata` preserves the persisted metadata bytes without editing or
 saving. `readPreparedAppPhotos` uses the existing app-dispatch and preparation
 owners to return one or two exact ordered ready pairs, immutable original
