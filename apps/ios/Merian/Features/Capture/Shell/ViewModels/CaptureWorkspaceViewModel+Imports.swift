@@ -16,6 +16,17 @@ extension CaptureWorkspaceViewModel {
     func handlePhotoPickerSelection(newItems: [PhotosPickerItem], modelContext _: ModelContext) {
         guard !newItems.isEmpty, !isDraftMutationLocked else { return }
 
+        if usesNativePhotoComposition {
+            importNativePhotoItems(newItems.map { item in
+                CaptureNativePhotoPickerInput(localIdentifier: item.itemIdentifier) {
+                    guard let transfer = try await item.loadTransferable(type: PhotoOriginalPickerTransfer.self) else {
+                        throw PhotoPreparationFailure.missingMedia
+                    }
+                    return transfer.bytes
+                }
+            })
+            return
+        }
         if let access = dependencies.photoOriginalPreparation {
             importPhotoPreparationItems(newItems, access: access)
             return
@@ -97,6 +108,7 @@ extension CaptureWorkspaceViewModel {
     }
 
     func importNextPendingExternalImage() async -> ExternalImageImportAttemptResult {
+        guard !usesNativePhotoComposition else { return .temporarilyBlocked }
         let importStore = dependencies.externalImageImports
         guard let pendingImport = await importStore.pendingImports().first else {
             return .noPendingImport

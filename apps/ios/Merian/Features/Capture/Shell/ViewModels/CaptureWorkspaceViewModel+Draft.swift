@@ -3,6 +3,8 @@ import Foundation
 extension CaptureWorkspaceViewModel {
     var isDraftMutationLocked: Bool {
         isQueueingStagedCapture || isCheckingScanAdmission || discardConfirmationGeneration != nil
+            || nativePhotoImportTask != nil || nativePhotoDispositionTask != nil
+            || (nativePhotoDraftSession.map { !$0.canEdit } ?? (stagedCapture.nativePhotoDraft != nil))
     }
 
     var isDraftAccountCurrent: Bool {
@@ -13,6 +15,13 @@ extension CaptureWorkspaceViewModel {
     /// fresh capture remains unowned; a same-account token refresh preserves it.
     func handleDraftAccountChange() {
         guard !isDraftAccountCurrent else { return }
+        if nativePhotoDraftSession != nil || stagedCapture.nativePhotoDraft != nil {
+            nativePhotoImportTask?.cancel()
+            nativePhotoDraftSession?.clearPrivatePreviews()
+            clearNativePhotoPresentation()
+            offlineToastMessage = .information("Your local photo draft is retained while account access is resolved.")
+            return
+        }
         if let access = dependencies.photoOriginalPreparation {
             Task { _ = await access.owner.invalidateAndAwaitForAccountTransition() }
             offlineToastMessage = .information("Your local photo draft is retained while account access is resolved.")
@@ -43,15 +52,18 @@ extension CaptureWorkspaceViewModel {
 
     var canSubmitDraft: Bool {
         isDraftReadyForSubmission && !isCheckingScanAdmission && !stagedCapture.isEmpty
+            && nativePhotoImportTask == nil && nativePhotoDispositionTask == nil
+            && (nativePhotoDraftSession.map { $0.canEdit || $0.prepared != nil } ?? true)
     }
 
     var photoPickerSelectionLimit: Int {
-        let freshAutomaticCapture = diContainer.appSettings.autoSubmitScans
+        let freshAutomaticCapture = !usesNativePhotoComposition && diContainer.appSettings.autoSubmitScans
             && stagedCapture.isEmpty && descriptionDraft.isEmpty && baseRefinementContext == nil
         return freshAutomaticCapture ? 1 : max(1, availableStagedCaptureSlots)
     }
 
-    func beginDraftOperation() -> CaptureDraftSession.Operation? {
+    func beginDraftOperation(nativePhoto: Bool = false) -> CaptureDraftSession.Operation? {
+        guard nativePhoto || !usesNativePhotoComposition else { return nil }
         guard !isDraftMutationLocked, !draftSession.hasUnresolvedWork else { return nil }
         if let access = dependencies.photoOriginalPreparation {
             guard dependencies.submission.admission.accountID() == access.owner.account.ownerID,
@@ -60,7 +72,7 @@ extension CaptureWorkspaceViewModel {
         guard bindDraftToCurrentAccount() else { return nil }
         automaticPreferenceRevision = diContainer.appSettings.autoSubmitRevision
         return draftSession.begin(
-            autoSubmit: diContainer.appSettings.autoSubmitScans,
+            autoSubmit: !usesNativePhotoComposition && diContainer.appSettings.autoSubmitScans,
             compositionIsEmpty: stagedCapture.isEmpty && descriptionDraft.isEmpty,
             isRefining: baseRefinementContext != nil
         )
@@ -157,6 +169,10 @@ extension CaptureWorkspaceViewModel {
 
     func requestDraftDiscard() {
         guard !isQueueingStagedCapture, !isCheckingScanAdmission else { return }
+        if nativePhotoDraftSession != nil || stagedCapture.nativePhotoDraft != nil {
+            guard nativePhotoDraftSession?.canDiscard == true, !draftSession.hasUnresolvedWork,
+                  nativePhotoImportTask == nil, nativePhotoDispositionTask == nil else { return }
+        }
         discardConfirmationGeneration = draftSession.generation
     }
 
@@ -164,6 +180,10 @@ extension CaptureWorkspaceViewModel {
     func confirmDraftDiscard(generation: UUID) -> Bool {
         guard generation == draftSession.generation,
               !isQueueingStagedCapture, !isCheckingScanAdmission else { return false }
+        if nativePhotoDraftSession != nil || stagedCapture.nativePhotoDraft != nil {
+            guard nativePhotoDraftSession?.canDiscard == true, !draftSession.hasUnresolvedWork,
+                  nativePhotoImportTask == nil, nativePhotoDispositionTask == nil else { return false }
+        }
         discardConfirmationGeneration = nil
         restoreRefinementInsightAfterCancellation()
         clearStagedCaptureAndCropState(discardStagedMediaFiles: true)

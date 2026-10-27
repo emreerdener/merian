@@ -15,7 +15,7 @@ extension CaptureWorkspaceViewModel {
         initialDescription: String? = nil,
         entryPoint: RefinementEntryPoint = .standard
     ) -> Bool {
-        guard !isDraftMutationLocked,
+        guard !usesNativePhotoComposition, !isDraftMutationLocked,
               !dependencies.submission.admission.isLibraryAccessBlocked() else { return false }
         guard diContainer.revenueCatManager.canStartProScan else {
             AppTelemetry.trackPaywallImpression()

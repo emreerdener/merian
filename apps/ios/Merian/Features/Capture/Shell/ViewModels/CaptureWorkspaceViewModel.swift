@@ -83,6 +83,10 @@ final class CaptureWorkspaceViewModel {
     var stagedCapture = StagedCapture()
     var automaticPreferenceRevision: UInt64 = 0
     var draftSession = CaptureDraftSession()
+    var nativePhotoDraftSession: CaptureNativePhotoDraftSession?
+    var nativePhotoPickerInputs: [CaptureNativePhotoPickerInput] = []
+    var nativePhotoImportTask: Task<Void, Never>?
+    var nativePhotoDispositionTask: Task<Void, Never>?
     var descriptionDraft = ObservationContext()
     var descriptionFocusRequest: UUID?
     var isReviewActive = false

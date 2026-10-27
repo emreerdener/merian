@@ -23,6 +23,7 @@ struct CaptureSubmissionDependencies {
     let context: CaptureSubmissionContextDependencies
     let admission: CaptureSubmissionAdmissionDependencies
     let deferredContext: CaptureSubmissionDeferredContextService
+    var nativePhotoDraftFactory: (@MainActor (UUID) -> CaptureNativePhotoDraftSession)? = nil
     var nativePhotoSubmission: CaptureNativePhotoSubmissionSession? = nil
 
     @MainActor

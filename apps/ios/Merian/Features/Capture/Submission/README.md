@@ -1,3 +1,37 @@
+## October 26 — native PhotosPicker integration qualified locally
+
+The optional `nativePhotoDraftFactory` routes the actual PhotosPicker caller
+through `CaptureNativePhotoDraftSession`. Ordinary live composition remains nil.
+The native marker precedes acquisition; ordered picker inputs and original
+requests remain retained through ambiguity. A bounded current-process preview
+supports crop editing, while inference and display payloads stay empty until
+explicit Identify freezes all ordered references, crop recipes, presentation and
+optional text. Existing native metadata, preparation and readback operations
+supply the immutable submission session. No preview bytes become evidence.
+
+Crop cancellation, explicit photo removal and draft discard await native
+acknowledgements. Concurrent import, editing and disposition are excluded. An
+error before acquisition is entered can remove purely provisional local state;
+after entry, uncertainty retains ownership and never reloads the picker item.
+Partial preparation remains held for remediation because the public owner API
+cannot discover a pair identity lost during preparation. No automatic processing
+retry, fake recovery action or fresh attempt bypass is offered. Account changes
+clear private presentation without claiming durable cancellation. Camera,
+external inbox, audio/video and reanalysis refuse in this bounded photo-only
+composition. Their full native journeys and restart reconstruction remain open.
+
+Independent and Engine source/execution review cleared this bounded candidate.
+Managed Debug qualification passed 92 methods / 120 cases with no failures,
+skips, structured runtime warnings or source drift across 3020 pins. The tests
+exercise injected picker inputs through the actual import/crop/submission caller
+and local receipt, including partial failures and account changes. They do not
+establish real PhotosPicker interaction, restart recovery or provider execution.
+The managed generic iOS Simulator Release build passed with zero errors and no
+drift across the same 3020 source pins. Its 362 warnings remain retained. The
+corrected run met the 25 GiB launch and 20 GiB final storage floors; the earlier
+below-floor compilation remains diagnostic only. PR116 is frozen, activation is
+false, and the deployment hold is unchanged.
+
 ## October 26 — mutable prepared-photo readback qualified locally
 
 Native selection-aware snapshots keep saved presentation focus separate from

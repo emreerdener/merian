@@ -59,7 +59,7 @@ extension CaptureWorkspaceViewModel {
         userPerceivedStart: CFAbsoluteTime? = nil,
         admissionRoute: CaptureScanAdmissionRoute? = nil
     ) async -> Bool {
-        guard !mediaTimeline.isEmpty, isDraftReadyForSubmission else { return false }
+        guard !usesNativePhotoComposition, !mediaTimeline.isEmpty, isDraftReadyForSubmission else { return false }
         let presentedRefinementScanId = baseRefinementContext?.scanId
         let refinementScanId = targetEradicationScanId ?? presentedRefinementScanId
         guard refinementScanId.map({ ObservationHistoryEnrollmentService.permitsLegacyMutation(

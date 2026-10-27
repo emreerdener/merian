@@ -32,7 +32,7 @@ extension CaptureWorkspaceViewModel {
     }
 
     var isAutomaticSubmissionArmed: Bool {
-        diContainer.appSettings.autoSubmitScans && draftSession.automaticAttempt != nil
+        !usesNativePhotoComposition && diContainer.appSettings.autoSubmitScans && draftSession.automaticAttempt != nil
             && !dependencies.submission.admission.isLibraryAccessBlocked()
             && draftSession.allowsAccount(dependencies.submission.admission.accountID())
             && automaticPreferenceRevision == diContainer.appSettings.autoSubmitRevision
@@ -88,6 +88,10 @@ extension CaptureWorkspaceViewModel {
     }
 
     func cancelRequiredGalleryCrop(for imageID: UUID) {
+        if stagedCapture.nativePhotoDraft != nil || nativePhotoDraftSession != nil {
+            removeNativePhoto(imageID: imageID)
+            return
+        }
         if dependencies.photoOriginalPreparation != nil,
            let index = stagedCapture.images.firstIndex(where: { $0.original.id == imageID }) {
             removePhotoPreparationImage(index)
@@ -110,6 +114,10 @@ extension CaptureWorkspaceViewModel {
         allowingPendingQueue: Bool = false
     ) {
         guard !isQueueingStagedCapture || allowingPendingQueue else { return }
+        if stagedCapture.nativePhotoDraft != nil || nativePhotoDraftSession != nil {
+            if discardStagedMediaFiles { discardNativePhotoDraft() }
+            return
+        }
         if let access = dependencies.photoOriginalPreparation {
             if discardStagedMediaFiles { discardPhotoPreparationDraft(access) }
             return
@@ -162,7 +170,7 @@ extension CaptureWorkspaceViewModel {
         text: String,
         pendingDraft: inout ObservationContext
     ) {
-        guard stagedCapture.observationContexts.indices.contains(index) else { return }
+        guard !isDraftMutationLocked, stagedCapture.observationContexts.indices.contains(index) else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             removeStagedDescription(at: index, pendingDraft: &pendingDraft)
@@ -177,7 +185,7 @@ extension CaptureWorkspaceViewModel {
     }
 
     func removeStagedDescription(at index: Int, pendingDraft: inout ObservationContext) {
-        guard stagedCapture.observationContexts.indices.contains(index) else { return }
+        guard !isDraftMutationLocked, stagedCapture.observationContexts.indices.contains(index) else { return }
         let removed = stagedCapture.observationContexts.remove(at: index)
         schedulePhotoPreparationPersistence()
         resetReviewIfEmpty()

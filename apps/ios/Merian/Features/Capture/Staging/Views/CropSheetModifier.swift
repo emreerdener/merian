@@ -15,6 +15,11 @@ struct CropSheetModifier: ViewModifier {
                     initialOffset: identItem.lastCropOffset,
                     initialQuarterTurns: identItem.lastCropQuarterTurns,
                     onCrop: { croppedData, finalScale, finalOffset, displaySize, finalQuarterTurns in
+                        if viewModel.stagedCapture.nativePhotoDraft != nil || viewModel.nativePhotoDraftSession != nil {
+                            viewModel.confirmNativePhotoCrop(imageID: identItem.id, thumbnailData: croppedData,
+                                scale: finalScale, offset: finalOffset, displaySize: displaySize, quarterTurns: finalQuarterTurns)
+                            return
+                        }
                         let targetId = identItem.id
                         let isRequiredGalleryCrop = viewModel.isRequiredGalleryCrop(targetId)
                         if let editIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
@@ -105,6 +110,10 @@ struct CropSheetModifier: ViewModifier {
                         }
                     },
                     onDelete: {
+                        if viewModel.stagedCapture.nativePhotoDraft != nil || viewModel.nativePhotoDraftSession != nil {
+                            viewModel.removeNativePhoto(imageID: identItem.id)
+                            return
+                        }
                         let targetId = identItem.id
                         if viewModel.isRequiredGalleryCrop(targetId) {
                             viewModel.cancelRequiredGalleryCrop(for: targetId)
