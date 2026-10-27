@@ -29,10 +29,10 @@ struct CameraArchitectureTests {
     }
 
     @Test func extractedOwnersStayBoundedAndDependencyFocused() throws {
-        let policy = try IOSSourceSizePolicy.load(root: repositoryRoot())
+        let sizePolicy = try IOSSourceSizePolicy.load(root: repositoryRoot())
         for owner in Self.extractedOwners {
             let contents = try source(owner.path)
-            let rule = try #require(policy.fileRules[owner.path])
+            let rule = try #require(sizePolicy.fileRules[owner.path])
             #expect(
                 rule.count(contents) <= rule.ceiling,
                 "\(owner.path) exceeds its \(rule.ceiling)-line ceiling"

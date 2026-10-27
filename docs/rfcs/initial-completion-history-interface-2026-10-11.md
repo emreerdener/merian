@@ -1,3 +1,16 @@
+## October 27 — frozen received-photo handoff implementation
+
+The [current roadmap](identification-history-alpha-readiness-2026-10-11.md)
+records the initial-photo input handoff. Readback preserves the exact saved
+operation, queue, observation, generation, ordered media and supporting input;
+it grants no execution or funding authority. The existing execution owner must
+separately authorize that identity and completion must retain its result/history
+association. IC-1 design review cleared this read-only boundary. Local focused
+Debug validation now covers 43 distinct methods / 104 cases across verified
+passing subsets; the roadmap records its scope and retained failed/incomplete
+attempts. Execution/result integration and explicit history enrollment remain
+open, as do full-target, isolated-source and complete app-journey qualification.
+
 ## October 27 — inactive Capture recovery host integration
 
 The [current roadmap](identification-history-alpha-readiness-2026-10-11.md)

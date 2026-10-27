@@ -37,6 +37,12 @@ extension SharedMediaNativeOriginalOwner {
             try await self.appReceivingWorkflow(lock: lock) { try await $0.receivePrepared(prepared) }
         }
     }
+    /// Read frozen received input without making its held queue executable.
+    func readReceivedAppPhotos(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeReceivedPhotoReadback {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appReceivingWorkflow(lock: lock) { try await $0.readReceivedPhotos(prepared) }
+        }
+    }
     func abandonAppReceiving(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeReceivingIntent.Abandoned {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
             try await self.appReceivingWorkflow(lock: lock) { try $0.abandonPrepared(prepared) }

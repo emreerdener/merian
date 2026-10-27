@@ -1,3 +1,18 @@
+## October 27 — frozen received-photo handoff implementation
+
+The next initial-photo integration step adds read-only input recovery from the
+exact received submission under the existing native owner. The
+[storage contract](../../apps/ios/Merian/Core/Data/SharedMediaStorage/README.md)
+defines bounded AI-byte reads and final cohort/physical seals. This cannot
+schedule inference, change funding or mutate the held queue. Execution through
+result/history and complete media/RUX acceptance remain open. Local focused
+Debug evidence covers 43 distinct methods / 104 cases across verified passing
+subsets, with 3,031 native/project inputs checked and only the corrected test
+file differing across runs. Failed and incomplete attempts remain retained; this
+is shared-checkout coding-checkpoint evidence, not full-target, isolated-source,
+new Release or end-to-end qualification. Ordinary activation and all
+external-operation holds are unchanged.
+
 ## October 27 — inactive Capture recovery host checkpoint
 
 Capture's existing workspace and sheet router now expose a dependency-gated

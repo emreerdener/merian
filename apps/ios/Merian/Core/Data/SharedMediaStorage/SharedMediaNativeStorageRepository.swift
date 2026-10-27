@@ -348,7 +348,7 @@ final class SharedMediaNativeStorageRepository {
         let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try lock.validate(); try self.requireApp(grant); return try self.appHeader() }
         return try await .audited(container: container, authority: authority, io: originalIO, binding: nativeBinding,
             availableBytes: { try self.files.availableBytes() }, boundary: metadataBoundary,
-            received: { try releaseStage.received($0, profile: $1) }, verify: { try self.photos.requireCurrentSharedInspection($0) })
+            received: { try releaseStage.received($0, profile: $1) }, verifyCompletion: { try self.photos.requireCurrentPairCompletion($0, binding: self.nativeBinding) }, verify: { try self.photos.requireCurrentSharedInspection($0) })
     }
     func appReleaseStage(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant,
                          settlement: SharedMediaNativeReleaseStageSettlement) async throws -> SharedMediaNativeAppReleaseStageOperations {

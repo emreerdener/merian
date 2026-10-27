@@ -14,6 +14,7 @@ final class SharedMediaNativeAppReceivingOperations {
     private let availableBytes: () throws -> Int64
     private let boundary: (SharedMediaNativeMetadataBoundary) throws -> Void
     private let verify: (SharedMediaPhotoRetirementInspection) throws -> Void
+    private let verifyCompletion: (SharedMediaNativePairCompletion) throws -> Void
     private let received: (SharedMediaNativeReceivingIntentGraph.Row, SharedMediaNativeAppProfile) throws -> Void
     private var consumed = false
     private init(container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority,
@@ -21,14 +22,17 @@ final class SharedMediaNativeAppReceivingOperations {
                  io: SharedMediaNativeOriginalIO, binding: SharedMediaNativeBinding, availableBytes: @escaping () throws -> Int64,
                  boundary: @escaping (SharedMediaNativeMetadataBoundary) throws -> Void,
                  received: @escaping (SharedMediaNativeReceivingIntentGraph.Row, SharedMediaNativeAppProfile) throws -> Void,
+                 verifyCompletion: @escaping (SharedMediaNativePairCompletion) throws -> Void,
                  verify: @escaping (SharedMediaPhotoRetirementInspection) throws -> Void) {
         self.container = container; self.authority = authority; self.expected = expected; self.facts = facts
         self.io = io; self.binding = binding; self.availableBytes = availableBytes; self.boundary = boundary; self.verify = verify; self.received = received
+        self.verifyCompletion = verifyCompletion
     }
     static func audited(container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority,
                         io: SharedMediaNativeOriginalIO, binding: SharedMediaNativeBinding, availableBytes: @escaping () throws -> Int64,
                         boundary: @escaping (SharedMediaNativeMetadataBoundary) throws -> Void,
                         received: @escaping (SharedMediaNativeReceivingIntentGraph.Row, SharedMediaNativeAppProfile) throws -> Void,
+                        verifyCompletion: @escaping (SharedMediaNativePairCompletion) throws -> Void,
                         verify: @escaping (SharedMediaPhotoRetirementInspection) throws -> Void) async throws -> SharedMediaNativeAppReceivingOperations {
         let expected = try authority.header(container)
         _ = try await SharedMediaNativeScopedAudit(app: container, profile: authority.profile, expected: expected.inventory,
@@ -38,7 +42,7 @@ final class SharedMediaNativeAppReceivingOperations {
         let context = ModelContext(container); context.autosaveEnabled = false
         return .init(container: container, authority: authority, expected: expected,
             facts: try SharedMediaNativeAppMetadataFacts.capture(context, profile: authority.profile), io: io,
-            binding: binding, availableBytes: availableBytes, boundary: boundary, received: received, verify: verify)
+            binding: binding, availableBytes: availableBytes, boundary: boundary, received: received, verifyCompletion: verifyCompletion, verify: verify)
     }
     func request(packageID: UUID, pairIDs: [UUID], operationID: UUID, queueID: UUID, observationID: UUID,
                  bindingID: UUID, generation: UUID, eventID: UUID, timestamp: Date) async throws -> SharedMediaNativeAppReceivingRequest {
@@ -174,16 +178,16 @@ final class SharedMediaNativeAppReceivingOperations {
         }
     }
     private func inspect(_ states: [SharedMediaNativePairFileState]) async throws -> [SharedMediaPhotoRetirementInspection] {
-        var proofs: [SharedMediaPhotoRetirementInspection] = []
-        for state in states {
-            let intent = try state.intent()
-            for file in [intent.preparation.original.file, try state.file(intent.ai.id), try state.file(intent.display.id)] {
-                try validate()
-                let proof = try await io.inspect(file)
-                try validate(); try verify(proof); proofs.append(proof)
+        try await SharedMediaNativeAppReceivingIO.inspect(states, io: io, check: validate, verify: verify)
+    }
+    func readReceivedPhotos(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeReceivedPhotoReadback {
+        try await SharedMediaNativeAppReceivingIO.read(prepared, container: container, io: io, verify: verifyCompletion) {
+            try self.boundary(.beforeReadback); try self.validate()
+            guard prepared.profile == self.authority.profile, let value = try self.exactReceived(prepared) else {
+                throw SharedMediaStorageFailure.stale
             }
+            return value
         }
-        return proofs
     }
     private func readResult(_ r: SharedMediaNativeAppReceivingRequest) throws -> SharedMediaNativeConsumerCohort {
         try boundary(.beforeReadback)

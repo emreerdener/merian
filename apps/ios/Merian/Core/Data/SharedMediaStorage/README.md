@@ -1,3 +1,32 @@
+## October 27 — received-photo input handoff implementation
+
+`readReceivedAppPhotos` reads bounded, ordered AI derivatives from the exact
+saved P2 received submission through the existing native owner and receiving
+locks. The scoped audit, held quartet, frozen cohort and live account/header
+checks remain mandatory. Descriptor-bound reads verify consumed lengths and
+hashes; all completion proofs are sealed after the final read. Missing, replaced
+or retired media and changed authority withhold the entire projection.
+
+The returned value preserves the original prepared identity, received cohort and
+frozen supporting bytes. It contains no original-media bytes or paths and
+confers no provider, retry, funding or mutation authority. The mutable prepared
+reader keeps its existing contract. Receiving inspection is factored into the
+same bounded I/O leaf without changing its checks. This implements the input
+handoff needed by the initial-photo execution bridge; queue execution, result
+persistence and history delivery are still separate integration work. Ordinary
+activation remains disabled.
+
+Local focused Debug validation covers 43 distinct methods / 104 cases across
+retained runs: 37 / 83 unchanged passing regression cases, 5 / 20 corrected
+received-photo cases, and 1 / 1 release-stage replay/reopen case. The combined
+evidence checks all 3,031 native/project inputs; only the corrected test file
+changed between the reused runs. Earlier compile, test-helper and incomplete
+selector outcomes remain retained failures or incomplete evidence. This is
+shared-checkout coding-checkpoint validation, not a single full-target run,
+isolated-source qualification, new Release build or complete app journey.
+Execution/result integration, explicit history enrollment, installed UI,
+photo/audio/video and recovery UX acceptance remain open.
+
 ## October 27 — received-identity discovery qualified locally
 
 The inactive native owner exposes bounded received-candidate discovery through
