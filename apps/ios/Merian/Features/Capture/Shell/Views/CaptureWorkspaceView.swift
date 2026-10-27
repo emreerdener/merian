@@ -307,6 +307,15 @@ struct CaptureWorkspaceView: View {
                                 }
                             )
 
+                            if viewModel.dependencies.submission.nativeRecoveryFactory != nil {
+                                Button("Pending submissions", systemImage: "clock.arrow.circlepath") {
+                                    viewModel.presentNativeRecovery()
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(!viewModel.canPresentNativeRecovery)
+                                .accessibilityIdentifier("CapturePendingSubmissions")
+                            }
+
                             if shouldShowCaptureGoalPresentation,
                                let presentation = activeCaptureGoalPresentation {
                                 CaptureGoalIndicator(

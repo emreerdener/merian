@@ -14,7 +14,8 @@ final class CaptureNativeRecoveryModel {
 
     private(set) var state: State = .closed
     private let ownerID: UUID
-    private let isCurrent: () -> Bool
+    private let current: () -> Bool
+    var isCurrent: Bool { current() }
     private let discover: () async throws -> [Candidate]
     private var presentation = UUID()
     private var profile: SharedMediaNativeAppProfile?
@@ -23,7 +24,7 @@ final class CaptureNativeRecoveryModel {
     /// The existing native owner independently checks its retained dispatch grant.
     init(ownerID: UUID, isCurrent: @escaping () -> Bool,
          discover: @escaping () async throws -> [Candidate]) {
-        self.ownerID = ownerID; self.isCurrent = isCurrent; self.discover = discover
+        self.ownerID = ownerID; self.current = isCurrent; self.discover = discover
     }
 
     func open() async { await read(selected: nil) }
@@ -48,13 +49,13 @@ final class CaptureNativeRecoveryModel {
 
     private func read(selected: Candidate?) async {
         guard state != .checking else { return }
-        guard isCurrent(), !Task.isCancelled else { state = .unavailable; return }
+        guard isCurrent, !Task.isCancelled else { state = .unavailable; return }
         let token = presentation
         state = .checking
         do {
             let candidates = try await discover()
             guard presentation == token else { return }
-            guard isCurrent(), !Task.isCancelled,
+            guard isCurrent, !Task.isCancelled,
                   candidates.count <= PhotoPreparationPolicy.maximumPackages,
                   Set(candidates.map(\.packageID)).count == candidates.count,
                   candidates.allSatisfy({ $0.profile.ownerID == ownerID }) else {

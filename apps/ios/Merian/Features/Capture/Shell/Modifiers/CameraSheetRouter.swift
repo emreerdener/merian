@@ -62,6 +62,10 @@ struct CameraSheetRouter: ViewModifier {
                             appSettings.hasUnseenScan = false
                             AppIconBadgeCoordinator.updateAppIconBadge()
                         }
+                    case .nativeRecovery:
+                        if let model = viewModel.nativeRecoveryModel {
+                            CaptureNativeRecoverySheet(model: model, close: viewModel.dismissNativeRecovery)
+                        }
                     case .reanalysis:
                         if let editor = viewModel.reanalysisEditor {
                             CaptureReanalysisSheet(editor: editor, close: { viewModel.dismissActivePresentation() })

@@ -142,6 +142,7 @@ extension CaptureWorkspaceViewModel {
     }
 
     func handleRouteAccountGenerationChanged() {
+        dismissNativeRecovery()
         reanalysisEditor?.invalidate()
         reanalysisEditor = nil
         operationState.clearPendingRoutes()
@@ -283,6 +284,10 @@ extension CaptureWorkspaceViewModel {
         if activePresentation.destination == .reanalysis {
             reanalysisEditor?.invalidate()
             reanalysisEditor = nil
+        }
+        if activePresentation.destination == .nativeRecovery {
+            nativeRecoveryModel?.close()
+            nativeRecoveryModel = nil
         }
         operationState.beginDismissing(activePresentation)
         self.activePresentation = nil

@@ -1,3 +1,21 @@
+## October 27 — inactive Capture recovery host checkpoint
+
+Capture's existing workspace and sheet router now expose a dependency-gated
+Pending submissions view. Exact local identity selection lazily resolves the
+existing native owner. Account, Auth generation, container, library and
+presentation invalidation close or refuse the view. Closing changes presentation
+only. The
+[Capture contract](../../apps/ios/Merian/Features/Capture/Submission/README.md)
+defines its status-only limits. The ordinary factory remains nil.
+
+Focused Debug checks passed 27 methods / 41 cases with zero structured runtime
+warnings and no drift across 3,031 source/project pins. The first compile
+failure is retained. Generic Simulator Release is reviewed but remains unrun
+pending the unchanged 25 GiB storage minimum. Full-target and isolated-source
+compilation, installed UI, actual process relaunch, accessibility, RUX-1–RUX-6
+and complete photo/audio/video initial/reanalysis journeys remain open. PR116
+and all release, activation and external-operation holds remain unchanged.
+
 ## October 27 — local received-identity recovery checkpoint
 
 Received-candidate discovery now reuses the inactive native owner, complete

@@ -25,10 +25,11 @@ struct CaptureSubmissionDependencies {
     let deferredContext: CaptureSubmissionDeferredContextService
     var nativePhotoDraftFactory: (@MainActor (UUID) -> CaptureNativePhotoDraftSession)? = nil
     var nativePhotoSubmission: CaptureNativePhotoSubmissionSession? = nil
+    var nativeRecoveryFactory: (@MainActor (UUID) -> CaptureNativeRecoveryModel?)? = nil
 
     @MainActor
     static func live(diContainer: AppDIContainer) -> Self {
-        Self(
+        var dependencies = Self(
             context: CaptureSubmissionContextDependencies(
                 lastKnownLocation: {
                     diContainer.environmentContextManager.lastKnownLocation
@@ -76,5 +77,11 @@ struct CaptureSubmissionDependencies {
                 offlineQueueManager: diContainer.offlineQueueManager
             )
         )
+        if PreparedHistoryReanalysisComposition.isAppInstallationQualified {
+            dependencies.nativeRecoveryFactory = { ownerID in
+                CaptureNativeRecoveryModel.app(ownerID: ownerID, diContainer: diContainer)
+            }
+        }
+        return dependencies
     }
 }

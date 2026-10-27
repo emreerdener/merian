@@ -14,6 +14,9 @@ extension CaptureWorkspaceViewModel {
     /// A real identity replacement retires old private staging. An unresolved
     /// fresh capture remains unowned; a same-account token refresh preserves it.
     func handleDraftAccountChange() {
+        if nativeRecoveryModel?.isCurrent == false || dependencies.submission.admission.isLibraryAccessBlocked() {
+            dismissNativeRecovery()
+        }
         guard !isDraftAccountCurrent else { return }
         if nativePhotoDraftSession != nil || stagedCapture.nativePhotoDraft != nil {
             nativePhotoImportTask?.cancel()

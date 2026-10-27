@@ -1,3 +1,33 @@
+## October 27 — inactive local recovery host integration
+
+Capture now has a dependency-gated Pending submissions entry in the existing
+workspace and sheet router. It presents the native received-candidate model,
+requires explicit exact selection and offers local-status refresh and Close.
+Ordinary composition keeps the factory nil under the existing installation
+qualification gate. This is functional status wiring, not the Capture visual
+redesign or activation.
+
+The app factory captures the current account, Auth generation and exact nonnil
+model-container identity without creating a lease or opening storage. Explicit
+reads resolve the existing AppDI native owner, with presentation checks before
+and after admission and the existing native grant/profile checks during audit.
+Same-account Auth changes, account/container replacement, library recovery,
+route invalidation, dismissal and disappearance refuse or close presentation.
+Close does not shut down the native lifetime or change durable work. Pending
+reads cannot restore a closed sheet; current draft text and identification stay
+unchanged.
+
+The sheet only reports local receipt status. It neither reconstructs an editable
+draft nor offers remote result checking, saved-media access, retry or
+replacement. Empty discovery cannot establish completion or permit another
+execution. Complete RUX-1–RUX-6 and photo/audio/video initial/reanalysis
+journeys remain open. Focused Debug qualification passed 27 methods / 41 cases,
+with zero structured runtime warnings and no drift across 3,031 source/project
+pins. The first compile failure remains retained; its corrected run passed.
+Generic Simulator Release is reviewed but unrun because storage remains below
+the unchanged 25 GiB launch minimum. Installed UI, VoiceOver/Dynamic Type and
+actual process-relaunch evidence remain open.
+
 ## October 27 — received-identity discovery qualified locally
 
 The inactive native owner exposes bounded received-candidate discovery through

@@ -1,3 +1,14 @@
+## October 27 — inactive local pending-submission route
+
+The existing Capture sheet router now owns the dependency-gated Pending
+submissions entry and CaptureNativeRecoverySheet. Presentation closes through
+the existing dismissal barrier and account/lifetime invalidation hooks; it does
+not cancel or delete durable work or shut down the native owner. Ordinary live
+composition remains disabled. The [Submission contract](../Submission/README.md)
+defines lazy admission, account/container fences, exact local identity selection
+and the limits of this status-only view. Focused Debug checks passed; Release,
+installed UI and complete RUX acceptance remain pending for this integration.
+
 # Capture Shell
 
 The `Shell` directory acts as the root container for the entire Capture feature.

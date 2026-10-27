@@ -120,6 +120,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
             }
         }
         .onDisappear {
+            viewModel.dismissNativeRecovery()
             viewModel.handleVisualCaptureInterruption()
             cameraManager.stopSession()
             audioCaptureManager.reset()

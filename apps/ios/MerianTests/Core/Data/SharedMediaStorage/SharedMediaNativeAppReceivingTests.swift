@@ -76,6 +76,10 @@ struct SharedMediaNativeAppReceivingTests {
         // the original selection, snapshot or submission-session handles.
         let recovery = CaptureNativeRecoveryModel(ownerID: h.ownerID,
             isCurrent: { true }, discover: { try await cold.discoverAppReceivedCandidates() })
+        let host = CaptureNativeRecoveryHostTests().viewModel(ownerID: h.ownerID) { _ in recovery }
+        host.descriptionDraft = .init(freeText: "Later user draft")
+        host.presentNativeRecovery()
+        #expect(host.nativeRecoveryModel === recovery && host.activeSheet == .nativeRecovery)
         try cold.setMetadataFault { if $0 == .beforeSave { throw SharedMediaStorageFailure.closed } }
         await recovery.open()
         guard case .unselected(let candidates) = recovery.state else {
@@ -90,7 +94,9 @@ struct SharedMediaNativeAppReceivingTests {
         #expect(recovery.state == .holding(candidate))
         await recovery.refresh()
         #expect(recovery.state == .holding(candidate))
-        recovery.close()
+        host.dismissNativeRecovery()
+        #expect(host.nativeRecoveryModel == nil && recovery.state == .closed)
+        #expect(host.descriptionDraft.freeText == "Later user draft" && cold.isReadyForAppDispatch)
         #expect(recovery.state == .closed)
         #expect(try await cold.discoverAppReceivingSlot(packageID: h.packageID) == saved)
         // A received slot must never be presented as fresh prepared work.
