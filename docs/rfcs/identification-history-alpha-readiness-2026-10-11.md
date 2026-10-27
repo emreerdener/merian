@@ -1,3 +1,16 @@
+## October 27 — CPM consuming-contract design checkpoint
+
+The
+[photo content contract](client-prepared-photo-content-contract-2026-10-27.md)
+now records Engine-reviewed composition and existing-owner lifecycle bindings,
+plus the 32 MiB transfer subpool and distinction between local task drainage and
+remote write closure. This is source/design agreement, not runtime or installed
+qualification. The next implementation joins inactive intent allocation with
+exact recovery, preserving original identity, deadlines and retirement fences;
+it issues no upload, funding or execution authority. Full photo result/explicit
+history and reanalysis journeys, audio/video, RUX and later milestones remain
+open. No release or activation controls change.
+
 ## October 27 — Swift photo declaration mapping checkpoint
 
 The inactive `SharedMediaNativePhotoContent` maps exact saved native V2 values

@@ -186,6 +186,165 @@ Hosted feasibility, device and installed UI, full initial-photo result/history,
 reanalysis, audio/video, RUX and final acceptance remain open. This proposal
 does not claim that the complete CPM admission contract is closed.
 
+## October 27 consuming-contract design checkpoint
+
+The Engine source trace in turn 01a17f61-3450-7790-9c6b-ff4a3daa6c0a identifies
+the existing owners below. Source/design review in turn
+01a17f67-60af-72f1-8626-40e4286fc3d7 cleared this checkpoint with the
+local-drain versus remote-write clarification below. This section proposes the
+consuming branch; it is not an implemented wire schema, expanded catalog audit,
+native transfer proof or permission to install an adapter. The content codec and
+Swift producer above remain the only qualified new implementations.
+
+### Frozen provider composition
+
+Use the separately versioned composition policy `cpm_photo_contexts_v1` in the
+immutable server assignment. Provider image evidence consists only of the AI
+derivatives, in frozen photo ordinal order. Original and display objects are
+retained evidence; they are not additional provider images. After those images,
+emit one supporting-context section containing a JSON array of the exact decoded
+context strings, in context order. Empty entries, whitespace, BOM, Unicode
+normalization distinctions and NUL survive JSON escaping. An empty contexts
+array emits `[]`; it cannot turn this into a text-only request. The section
+describes observation-wide supporting descriptions and conveys no photo
+association or interleaved chronology. Actual provider serialization and prompt
+policy must bind this version and be tested before dispatch.
+
+Client language, location and inference overrides are explicitly absent in this
+version. Never fill them from mutable UI, parent records, account/session
+preferences or legacy defaults during recovery. Where the provider requires an
+output language or other policy value, the server must select it through the
+existing configuration owner and freeze it in the assignment. Unsupported
+assignment/configuration combinations fail before allocation. Recipe `is_pro`
+does not select entitlement, funding, model or configuration.
+
+### Coordinated lifecycle branch
+
+Extend the existing initial-analysis lifecycle with an explicit CPM branch.
+Historical candidate/assignment/preparation/proof versions retain their exact
+semantics. A missing or unknown CPM discriminator cannot select fresh legacy
+admission. The following are required binding groups, not a new public DTO;
+their executable field names, types and closed response schemas must be added
+with the owning implementation and cross-language fixtures.
+
+| Boundary                  | Existing owner                                                                                                  | Required CPM binding and transition                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unfunded intent           | `create_initial_preparation_intent`, `lock_initial_preparation_scope`, `assert_initial_preparation_unfunded`    | Authenticated owner and saved native observation/scan ID, exact canonical content and recomputed domain digest, permanent operation fence, explicit branch version. Exact recovery precedes allocation; changed content conflicts.                                                                                                                                                                                                                             |
+| Assignment and allocation | `resolve_initial_media_preparation_assignment`, `create_initial_media_preparation`                              | One saved assignment binding content, resource/verifier/composition versions, frozen server configuration and consent/authority witnesses, original creation/admission deadline and the complete ordered role mapping. Each role binds logical reference, object identity/backend generation, expected length/hash/type and ordinal. No source-only mapping or hash deduplication. Capacity includes all fixed roles and potential physical/late-write copies. |
+| Verification              | `verifyAndRetainInitialMedia` and its claim/settlement/exact-read owners                                        | A new byte-verification receipt binds the same assignment/content, every exact original/AI/display generation and verified full-byte facts, verifier build/profile and original deadline. A partial cohort, client declaration or storage metadata is insufficient. It attests bytes/admissibility, never client recipe execution or server transformation.                                                                                                    |
+| Admission and funding     | `create_initial_admission_stage`, `materialize_initial_admission`, ledger/seal/finish and existing quota owners | One transaction compares exact expected owner/intent/assignment/receipt/role rows, checks live account/deletion/authority fences and original deadlines, retains all evidence, and invokes original funding once. It returns the existing operation's admitted identity. Rollback cannot leave partial capacity, reference or funding transitions.                                                                                                             |
+| Recovery and retirement   | Preparation status, admitted recovery, C1 cancellation and permanent object registries                          | Recover committed admission first. Otherwise return only exact saved intent/assignment/receipt state under the same identity. Retirement closes admission/writes and records every destination and outstanding write; cancellation does not erase its cleanup authority. Unknown outcomes stay held.                                                                                                                                                           |
+
+The current stage expects assignment v3 and coherent server preparation/outcome;
+it cannot consume CPM by relabeling M1/M2. The public
+`finalize_initial_preparation` also has a media-source denial; an adapter must
+not bypass it by calling internal stage helpers. Add the CPM branch coherently
+through the authenticated service boundary, transaction guards and recovery
+projection. Keep canonical contexts as base64 in PostgreSQL JSON/private
+declaration storage: decoded NUL cannot enter PostgreSQL TEXT or be laundered
+through a pretend legacy scalar input.
+
+Freeze the new branch's nonrenewable 30-minute admission deadline once, at
+intent allocation. This does not modify the historical 300-second branch.
+Assignment/consent/configuration authority must remain valid at admission; the
+intent lifetime cannot extend their validity. Write tickets expire no later than
+that deadline and are at most ten minutes; each native object transfer has at
+most five minutes. A refreshed ticket requires positive closure of the preceding
+write and uses the same fixed object/generation. Local task termination proves
+local drainage only. Ticket refresh, verification and admission separately
+require remote closure: no outstanding write capability or accepted late write
+may alter a verified generation. Verification seals that generation against
+further writes; no ticket refresh may reopen it. Unknown remote writes keep
+their cleanup liability even after the local task has drained.
+Verification/admission cannot extend staging. Existing downstream provider
+grant/execution/completion clocks remain enforced by their owners after
+admission. Status and cleanup may continue after expiry; expiry is not proof of
+write completion, absent liability, refund or permission to dispatch again.
+
+Recovery replies need closed, versioned alternatives for saved-unfunded,
+saved-verification, admitted and terminal-held states, with exact immutable
+identity comparisons. A status-not-found response is not a replacement permit.
+Lost allocation, PUT, verification or admission acknowledgements never mint a
+new scan, assignment, object generation or funding reservation. Privileged
+owner/registry facts stay server-side; client receipts contain only their
+necessary bounded opaque identities, versions and exact binding digests.
+
+### Native transfer lifetime and accounting
+
+`SharedMediaNativeOriginalOwner.readReceivedAppPhotos` already owns the queue
+and observation locks and scoped receiving workflow. Its current readback
+returns AI bytes only. `SharedMediaNativeOriginalIO.preparePhoto` checks the
+original's descriptor/binding/epoch before and after its private URL use;
+`readCompletedPair` seals derivative reads with completion proofs. Reuse these
+owners and their current account/store/received-state/physical checks for
+transfer. No caller receives an unowned URL or all-originals Data array.
+
+The unchanged 192 MiB temporary limit is subdivided into 96 MiB acquisition, 64
+MiB preparation and **32 MiB transfer/export**, enforced in
+`SharedMediaStoragePolicy.Totals.includeBudget`. One 32 MiB original therefore
+does not leave space for a second full staging copy in the transfer subpool.
+Existing durable original bytes remain charged once; every additional physical
+copy and unmaterialized allocation is separately reserved. Memory buffers also
+need an explicit peak bound; copy-on-write is not a proof of absent copies. Do
+not borrow another subpool or lower supported input limits to fit an upload.
+
+The consuming transport must serialize one role at a time, reserve through the
+existing common allocation authority before reading/dispatch, and retain the
+reservation and original reference until task termination and exact cleanup are
+positively known. A descriptor-bound stream or file-backed transfer must prove
+its actual staging/copy behavior fits the existing subpool at the maximum legal
+original size; selecting such an API alone is not that proof. Native source
+validation repeats after awaited boundaries and before acknowledging a role.
+Reuse the same assignment/object after uncertainty; do not start the next role
+or release unknown transfer liability just because a client await ended.
+
+`PinnedNetworkDataTaskState.cancel`/`finish` deliberately resume the caller
+before URLSession necessarily acknowledges cancellation. They are appropriate
+deadline behavior, but not a transfer-drained receipt. The CPM path needs a
+separate task-termination/drain witness within the existing transport owner,
+without weakening prompt cancellation for other requests. Account transition,
+deletion and native shutdown must join that drain before releasing media or
+capacity. Restart must reconstruct unresolved transfer/cleanup liability; no
+saved reservation authorizes automatic reupload. The current native owner has no
+qualified original-upload capability, and mixed-owner allocator acceptance
+remains open under the native ownership agreement.
+
+### Required acceptance before consumption
+
+1. Executable CPM request/assignment/verification/recovery schemas and SQL
+   parity, private-field rejection, byte-exact text/provider composition and
+   explicit option absence; existing legacy replay vectors remain passing.
+2. Lost replies at allocation, write, verification and admission; exact saved
+   recovery and changed-content/role/order/generation denial on both sides of
+   admission, without renewed clocks, allocation or funding.
+3. Full maximum-size cohort verification, immutable destinations, bounded
+   ingress/retention including oversize and late writes, and no invented
+   transformation proof. Existing `mediaBinding.ts` budgets do not cover this
+   cohort; use branch-specific limits without changing legacy constants.
+4. Atomic original-funding rollback, both cancellation/deletion race orders,
+   irreversible retirement and exact late-write cleanup inventory. Review
+   expanded effective SQL functions/triggers, then run disposable catalog,
+   privilege and deterministic concurrency gates for the candidate.
+5. Native reservation/drain/restart tests, maximum-original transfer budget,
+   account/deletion/physical identity races, exact saved request replay and
+   preservation of later user selections. URLSession timeout is not cleanup.
+
+These are direct submission requirements. They add no new scheduler, queue,
+funding system or lifecycle owner. Passing source review does not qualify hosted
+storage behavior, native memory/disk lifetime, installed app journeys, result
+persistence/history handoff or reanalysis. External-operation holds and the
+approved media/RUX/later-feature sequence remain unchanged.
+
+The first implementation increment is inactive CPM intent allocation **and exact
+recovery together**. Add their closed candidate/assignment/recovery schemas with
+SQL/Deno parity; atomically freeze the complete assignment and ordered role
+mapping under the existing intent owner and register every destination with its
+retirement authority. Exact replay returns saved identities even after current
+configuration changes, and cannot renew the original deadline. Include expiry,
+terminal fences, cancellation/deletion races and rollback tests. This increment
+issues no upload, verification, funding or provider authority. Native original
+transfer follows under the separately required lifetime proof.
+
 ## Revision 2 review clarification
 
 Physical original asset IDs may be shared behind distinct logical references.
