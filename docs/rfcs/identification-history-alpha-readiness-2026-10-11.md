@@ -1,3 +1,21 @@
+## October 27 — local received-identity recovery checkpoint
+
+Received-candidate discovery now reuses the inactive native owner, complete
+scoped audit and fresh CleanGraph facts. Explicit exact selection yields a
+noneditable holding identity; absence never authorizes resubmission. The
+[storage contract](../../apps/ios/Merian/Core/Data/SharedMediaStorage/README.md)
+and
+[Capture contract](../../apps/ios/Merian/Features/Capture/Submission/README.md)
+record the boundaries and retained validation.
+
+Local Debug coverage is 56 unique methods / 101 cases, using a reviewed
+corrected retry plus unchanged passing results. Generic Simulator Release passed
+with zero errors, 365 warnings and no source drift. Both earlier failed attempts
+remain retained. No production Capture recovery caller is wired yet. Actual
+restart UI, RUX-1–RUX-6, complete photo/audio/video initial/reanalysis,
+full-target and isolated-source acceptance remain open. Ordinary factory nil,
+PR116 freeze and all external-operation/deployment holds are unchanged.
+
 ## October 25 — inactive receiving terminal qualified locally
 
 The inactive implementation adds a dedicated all-removed receiving closure

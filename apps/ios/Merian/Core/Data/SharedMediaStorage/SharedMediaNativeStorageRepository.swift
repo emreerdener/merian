@@ -334,15 +334,14 @@ final class SharedMediaNativeStorageRepository {
         return prepared
     }
     func appReceivingSlot(grant: SharedMediaNativeAppDispatchGrant, packageID: UUID) async throws -> SharedMediaNativeReceivingIntentGraph.Row? {
-        try requireApp(grant)
-        let expected = try appHeader()
-        _ = try await inspectApp(grant: grant)
-        try requireApp(grant)
-        guard try appHeader() == expected else { throw SharedMediaStorageFailure.stale }
-        let result = try SharedMediaNativeRepositoryFacts.receivingSlot(container, inventoryID: grant.profile.inventoryID, packageID: packageID)
-        try requireApp(grant)
-        guard try appHeader() == expected else { throw SharedMediaStorageFailure.stale }
-        return result
+        try await readAppReceiving(grant: grant) { try SharedMediaNativeRepositoryFacts.receivingSlot(self.container, inventoryID: grant.profile.inventoryID, packageID: packageID) }
+    }
+    func appReceivedCandidates(grant: SharedMediaNativeAppDispatchGrant) async throws -> [SharedMediaNativeReceivedCandidate] {
+        try await readAppReceiving(grant: grant) { try SharedMediaNativeRepositoryFacts.receivedCandidates(self.container, profile: grant.profile) }
+    }
+    private func readAppReceiving<T: Sendable>(grant: SharedMediaNativeAppDispatchGrant, facts: () throws -> T) async throws -> T {
+        try await SharedMediaNativeReceivingDiscovery.read(check: { try self.requireApp(grant); return try self.appHeader() },
+            inspect: { _ = try await self.inspectApp(grant: grant) }, facts: facts)
     }
     func appReceiving(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant, releaseStage: SharedMediaNativeReleaseStageSettlement) async throws -> SharedMediaNativeAppReceivingOperations {
         try lock.validate(); try requireApp(grant)

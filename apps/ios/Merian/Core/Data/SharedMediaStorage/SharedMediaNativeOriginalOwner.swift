@@ -189,14 +189,13 @@ final class SharedMediaNativeOriginalOwner {
         }
     }
     func discoverAppReceivingIntent(packageID: UUID) async throws -> SharedMediaNativeReceivingIntent.Prepared? {
-        try await withAppDispatch { storage, grant in
-            try await storage.appReceivingIntent(grant: grant, packageID: packageID)
-        }
+        try await appOperation(open: { try await $0.appReceivingIntent(grant: $1, packageID: packageID) }, body: { $0 })
     }
     func discoverAppReceivingSlot(packageID: UUID) async throws -> SharedMediaNativeReceivingIntentGraph.Row? {
-        try await withAppDispatch { storage, grant in
-            try await storage.appReceivingSlot(grant: grant, packageID: packageID)
-        }
+        try await appOperation(open: { try await $0.appReceivingSlot(grant: $1, packageID: packageID) }, body: { $0 })
+    }
+    func discoverAppReceivedCandidates() async throws -> [SharedMediaNativeReceivedCandidate] {
+        try await appOperation(open: { try await $0.appReceivedCandidates(grant: $1) }, body: { $0 })
     }
     func appReceivingWorkflow<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant, _ body: @escaping @MainActor (SharedMediaNativeAppReceivingOperations) async throws -> T) async throws -> T {
         try lock.validate()

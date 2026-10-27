@@ -1,3 +1,33 @@
+## October 27 — received-identity discovery qualified locally
+
+The inactive native owner exposes bounded received-candidate discovery through
+its existing dispatch operation. It runs the complete scoped audit before fresh
+release-aware CleanGraph reads and retains grant/profile/header checks. Only
+generic received identities are projected; prepared, staged, releasing and
+historical released work is excluded. An empty result does not prove that
+durable work is absent or authorize resubmission. No schema, execution owner,
+funding rule or provider authority changes.
+
+CaptureNativeRecoveryModel presents noneditable local holding identities. All
+candidates remain unselected until explicit exact selection and a fresh read.
+Changed identities and late account/container/presentation results refuse; Close
+changes presentation only. The model neither reconstructs an editable submission
+nor proves original-media availability. No production Capture caller is wired to
+this model yet: host/current-scope binding, actual process-relaunch UI, remote
+Check status, RUX recovery presentation and complete photo/audio/video initial
+and reanalysis journeys remain open. Ordinary composition stays inactive.
+
+Local qualification covers 56 unique methods / 101 cases: corrected tests03
+passed 24 methods / 28 cases, composed with 32 unchanged methods / 73 cases
+independently reviewed from retained passing results. The first focused run's
+pause-hook/selector failure and regression01's owner-size failure remain failed
+and retained. The correction reuses the existing private operation wrapper and
+keeps the 600-line boundary unchanged. Generic Simulator Release passed with
+zero errors and 365 warnings; all 3,027 source/project pins matched. These are
+local discovery/replay and architecture results, not full-target,
+isolated-source, installed UI, device or provider acceptance. Release and
+deployment holds remain.
+
 ## October 26 — mutable prepared-photo readback qualified locally
 
 `currentAppMetadata` preserves the persisted metadata bytes without editing or

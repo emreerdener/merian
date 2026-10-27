@@ -72,6 +72,27 @@ struct SharedMediaNativeAppReceivingTests {
         }
         #expect(coldSlot == saved)
         #expect(transaction.cohort == cohort)
+        // A genuinely fresh presentation discovers identity without retaining
+        // the original selection, snapshot or submission-session handles.
+        let recovery = CaptureNativeRecoveryModel(ownerID: h.ownerID,
+            isCurrent: { true }, discover: { try await cold.discoverAppReceivedCandidates() })
+        try cold.setMetadataFault { if $0 == .beforeSave { throw SharedMediaStorageFailure.closed } }
+        await recovery.open()
+        guard case .unselected(let candidates) = recovery.state else {
+            Issue.record("Expected local received identity after restart")
+            _ = await cold.invalidateAndAwaitForAccountTransition(); return
+        }
+        let candidate = try #require(candidates.first)
+        #expect(candidates.count == 1 && candidate.packageID == saved.id)
+        #expect(candidate.operationID == saved.operationID && candidate.draftGeneration == saved.draftGeneration)
+        #expect(candidate.preparedSHA256 == saved.preparedSHA256 && candidate.receivedSHA256 == saved.resultSHA256)
+        await recovery.select(candidate)
+        #expect(recovery.state == .holding(candidate))
+        await recovery.refresh()
+        #expect(recovery.state == .holding(candidate))
+        recovery.close()
+        #expect(recovery.state == .closed)
+        #expect(try await cold.discoverAppReceivingSlot(packageID: h.packageID) == saved)
         // A received slot must never be presented as fresh prepared work.
         await #expect(throws: (any Error).self) { _ = try await cold.discoverAppReceivingIntent(packageID: h.packageID) }
         #expect(try recovered.encoded() == prepared.encoded())

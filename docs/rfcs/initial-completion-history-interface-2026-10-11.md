@@ -1,3 +1,13 @@
+## October 27 — received-identity discovery checkpoint
+
+The
+[current roadmap status](identification-history-alpha-readiness-2026-10-11.md)
+records locally qualified, read-only native received-identity discovery and its
+explicit-selection Capture model. This does not change IC-1 funding, immutable
+submission, deletion or exact-operation contracts. Production Capture binding,
+actual restart UI, RUX and full media journeys remain open; ordinary activation
+and external operations remain held.
+
 ## October 25 — inactive receiving terminal qualified locally
 
 The inactive implementation adds a dedicated all-removed receiving closure

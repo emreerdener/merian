@@ -33,6 +33,7 @@ struct SharedMediaNativeReceivingTerminalOwnerTests {
         #expect(await owner.invalidateAndAwaitForAccountTransition())
         let cold = try await SharedMediaNativeReceivingStagingTests().reopen(h)
         #expect(try await cold.finishAppRelease(before) == released)
+        #expect(try await cold.discoverAppReceivedCandidates().isEmpty)
         #expect(await cold.invalidateAndAwaitForAccountTransition())
         // Historical recovery tolerates an unrelated inventory advance only.
         let later = h.context(); try inventory(h, later).revision += 1; try later.save()
