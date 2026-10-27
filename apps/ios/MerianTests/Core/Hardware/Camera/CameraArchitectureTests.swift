@@ -29,11 +29,13 @@ struct CameraArchitectureTests {
     }
 
     @Test func extractedOwnersStayBoundedAndDependencyFocused() throws {
+        let policy = try IOSSourceSizePolicy.load(root: repositoryRoot())
         for owner in Self.extractedOwners {
             let contents = try source(owner.path)
+            let rule = try #require(policy.fileRules[owner.path])
             #expect(
-                lineCount(of: contents) <= owner.lineCeiling,
-                "\(owner.path) exceeds its \(owner.lineCeiling)-line ceiling"
+                rule.count(contents) <= rule.ceiling,
+                "\(owner.path) exceeds its \(rule.ceiling)-line ceiling"
             )
             #expect(
                 imports(in: contents) == owner.imports,
@@ -129,11 +131,13 @@ struct CameraArchitectureTests {
     }
 
     @Test func liveAVFoundationAndRequestOwnersStaySeparated() throws {
+        let policy = try IOSSourceSizePolicy.load(root: repositoryRoot())
+        let rule = try #require(policy.fileRules[Self.managerPath])
         let manager = try source(Self.managerPath)
         let sessionController = try source(Self.sessionControllerPath)
         let videoService = try source(Self.videoServicePath)
 
-        #expect(lineCount(of: manager) <= 600)
+        #expect(rule.count(manager) <= rule.ceiling)
         for declaration in [
             "AVCaptureVideoDataOutputSampleBufferDelegate",
             "AVCaptureDepthDataOutputDelegate",
@@ -339,10 +343,6 @@ struct CameraArchitectureTests {
         throw CocoaError(.fileNoSuchFile)
     }
 
-    private func lineCount(of source: String) -> Int {
-        source.split(separator: "\n", omittingEmptySubsequences: false).count
-    }
-
     private func imports(in source: String) -> Set<String> {
         Set(source.split(separator: "\n").compactMap { line in
             let value = line.trimmingCharacters(in: .whitespaces)
@@ -479,12 +479,10 @@ struct CameraArchitectureTests {
     private static let extractedOwners = [
         (
             path: modelsPath,
-            lineCeiling: 100,
             imports: Set(["import Foundation"])
         ),
         (
             path: policyPath,
-            lineCeiling: 100,
             imports: Set([
                 "@preconcurrency import AVFoundation",
                 "import Foundation"
@@ -492,7 +490,6 @@ struct CameraArchitectureTests {
         ),
         (
             path: sessionPolicyPath,
-            lineCeiling: 100,
             imports: Set([
                 "@preconcurrency import AVFoundation",
                 "import Foundation"
@@ -500,12 +497,10 @@ struct CameraArchitectureTests {
         ),
         (
             path: debouncerPath,
-            lineCeiling: 100,
             imports: Set(["import Foundation"])
         ),
         (
             path: photoCoordinatorPath,
-            lineCeiling: 220,
             imports: Set([
                 "import Foundation",
                 "import os"
@@ -513,7 +508,6 @@ struct CameraArchitectureTests {
         ),
         (
             path: videoCoordinatorPath,
-            lineCeiling: 380,
             imports: Set([
                 "import Foundation",
                 "import os"
@@ -521,7 +515,6 @@ struct CameraArchitectureTests {
         ),
         (
             path: sessionControllerPath,
-            lineCeiling: 600,
             imports: Set([
                 "@preconcurrency import AVFoundation",
                 "import Foundation",
@@ -530,7 +523,6 @@ struct CameraArchitectureTests {
         ),
         (
             path: videoAudioPath,
-            lineCeiling: 150,
             imports: Set([
                 "@preconcurrency import AVFoundation",
                 "import Foundation"
@@ -538,7 +530,6 @@ struct CameraArchitectureTests {
         ),
         (
             path: videoServicePath,
-            lineCeiling: 600,
             imports: Set([
                 "@preconcurrency import AVFoundation",
                 "import Foundation",

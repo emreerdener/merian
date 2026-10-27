@@ -2,7 +2,7 @@
 
 SUPABASE_WORKDIR := services
 
-.PHONY: ios-local-build ios-build-storage ios-clean-build-cache test-ios-local-build
+.PHONY: ios-local-build ios-build-storage ios-clean-build-cache test-ios-local-build ios-fast-preflight test-ios-fast-preflight
 
 help:
 	@printf "Available targets:\n"
@@ -46,6 +46,12 @@ help:
 	@printf "  make grant-account-access ARGS='...'  Plan or apply account-owned access through the private ledger\n"
 	@printf "  make db-push                          Push Supabase database migrations\n"
 	@printf "  make functions-deploy                 Deploy all Supabase Edge Functions\n"
+
+ios-fast-preflight:
+	python3 -B scripts/check-ios-fast-preflight.py $(ARGS)
+
+test-ios-fast-preflight:
+	python3 -B scripts/test-ios-fast-preflight.py --swift-parity
 
 ios-local-build:
 	python3 scripts/local-ios-build.py $(if $(filter audit,$(firstword $(ARGS))),,run) $(ARGS)
@@ -150,6 +156,7 @@ test-ios-xcode-release-workflow:
 	bash scripts/test-ios-xcode-release-workflow.sh
 
 test-ios-ci-tooling:
+	python3 -B scripts/test-ios-fast-preflight.py
 	python3 -B scripts/test-ios-device-review-schemes.py
 	python3 -B scripts/test-ios-runtime-audit.py
 	python3 -B scripts/test-local-ios-build.py

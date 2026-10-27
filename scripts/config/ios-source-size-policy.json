@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "productionRoot": "apps/ios/Merian",
+  "globalCeiling": 600,
+  "oversizedOwners": [
+    "Core/Data/SharedMediaStorage/SharedMediaNativeStorageRepository.swift",
+    "App/UITesting/UITestSeedCoordinator.swift",
+    "Core/AI/InferenceEdgeDTOs.swift",
+    "Core/Network/SupabaseManager.swift",
+    "Models/SchemaVersions.swift",
+    "Models/Schema/SchemaV51Snapshots.swift"
+  ],
+  "sealedOwnerCeilings": {
+    "Core/Data/SharedMediaStorage/SharedMediaNativeOriginalOwner.swift": 610,
+    "Core/Data/SharedMediaStorage/SharedMediaNativeStorageRepository.swift": 622
+  },
+  "directoryRules": {
+    "apps/ios/Merian/Features/Capture/Shell": {
+      "counter": "segments",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Features/Capture/Describe": {
+      "counter": "segments",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Features/Capture/Record": {
+      "counter": "segments",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Features/Capture/Scan": {
+      "counter": "segments",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Features/Capture/Staging": {
+      "counter": "segments",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Features/Capture/Submission": {
+      "counter": "segments",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Features/Capture/Shared": {
+      "counter": "physical",
+      "ceiling": 600
+    }
+  },
+  "fileRules": {
+    "apps/ios/Merian/Core/Hardware/Camera/Models/CameraVideoRecordingModels.swift": {
+      "counter": "segments",
+      "ceiling": 100
+    },
+    "apps/ios/Merian/Core/Hardware/Camera/Policies/CameraVideoRecordingPolicy.swift": {
+      "counter": "segments",
+      "ceiling": 100
+    },
+    "apps/ios/Merian/Core/Hardware/Camera/Policies/CameraSessionPolicy.swift": {
+      "counter": "segments",
+      "ceiling": 100
+    },
+    "apps/ios/Merian/Core/Hardware/Camera/Coordination/CameraTargetFPSDebouncer.swift": {
+      "counter": "segments",
+      "ceiling": 100
+    },
+    "apps/ios/Merian/Core/Hardware/Camera/Coordination/CameraPhotoCaptureCoordinator.swift": {
+      "counter": "segments",
+      "ceiling": 220
+    },
+    "apps/ios/Merian/Core/Hardware/Camera/Coordination/CameraVideoRecordingCoordinator.swift": {
+      "counter": "segments",
+      "ceiling": 380
+    },
+    "apps/ios/Merian/Core/Hardware/Camera/Services/CameraSessionController.swift": {
+      "counter": "segments",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Hardware/Camera/Services/CameraVideoAudioSession.swift": {
+      "counter": "segments",
+      "ceiling": 150
+    },
+    "apps/ios/Merian/Core/Hardware/Camera/Services/CameraVideoRecordingService.swift": {
+      "counter": "segments",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Hardware/CameraManager.swift": {
+      "counter": "segments",
+      "ceiling": 600
+    }
+  },
+  "globalOnlyDirectories": [
+    "apps/ios/Merian/Core/Data/SharedMediaStorage",
+    "apps/ios/Merian/Core/Data/PhotoPreparation"
+  ]
+}

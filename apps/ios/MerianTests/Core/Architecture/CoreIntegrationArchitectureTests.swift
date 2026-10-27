@@ -37,16 +37,20 @@ struct CoreIntegrationArchitectureTests {
     }
 
     @Test func oversizedOwnersRemainAnExplicitResidualInventory() throws {
+        let policy = try IOSSourceSizePolicy.load(root: DatabaseActorTestSupport.repositoryRoot())
         let sources = try coreSources()
         let oversized = Set(sources.compactMap { source in
-            DatabaseActorTestSupport.lineCount(of: source.contents) > 600
+            DatabaseActorTestSupport.lineCount(of: source.contents) > policy.globalCeiling
                 ? source.relativePath
                 : nil
         })
 
-        #expect(oversized == Self.trackedOversizedOwners)
-        for (path, ceiling) in Self.sealedOwnerCeilings {
-            let source = try #require(sources.first { $0.relativePath == path })
+        let trackedCoreOwners = Set(policy.oversizedOwners
+            .filter { $0.hasPrefix("Core/") }
+            .map { String($0.dropFirst(5)) })
+        #expect(oversized == trackedCoreOwners)
+        for (path, ceiling) in policy.sealedOwnerCeilings.filter { $0.key.hasPrefix("Core/") } {
+            let source = try #require(sources.first { "Core/" + $0.relativePath == path })
             #expect(
                 DatabaseActorTestSupport.lineCount(of: source.contents) <= ceiling,
                 "\(path) exceeds its reviewed sealed-owner ceiling"
@@ -235,17 +239,7 @@ struct CoreIntegrationArchitectureTests {
     ]
 
     // Keep capability minting and private fences together; no growth allowance.
-    private static let sealedOwnerCeilings: [String: Int] = [
-        "Data/SharedMediaStorage/SharedMediaNativeOriginalOwner.swift": 610,
-        "Data/SharedMediaStorage/SharedMediaNativeStorageRepository.swift": 622
-    ]
 
-    private static let trackedOversizedOwners: Set<String> = [
-        "Data/SharedMediaStorage/SharedMediaNativeStorageRepository.swift",
-        // Versioned wire decoders are generator-owned and validated as one contract.
-        "AI/InferenceEdgeDTOs.swift",
-        "Network/SupabaseManager.swift"
-    ]
 
     private static let liveEffectTokens = [
         "@Observable",

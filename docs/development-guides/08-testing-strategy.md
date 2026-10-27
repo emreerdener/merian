@@ -1,5 +1,75 @@
 # Merian Testing & Quality Assurance Strategy
 
+## Local coding checkpoints and validation milestones
+
+A small internal commit is a coding checkpoint, not an automatic request for
+another full Release build and complete review cycle. During implementation, run
+cheap structural checks after editing batches, compile changed code where
+necessary, and run focused tests for changed behavior. At a meaningful
+integration milestone, run every required affected-surface gate, the Release
+build, independent review and documentation synchronization against the exact
+candidate. Explicitly required intermediate gates still apply. Reuse evidence
+only while its source inputs, dependencies and environment remain applicable;
+record its exact scope and never count an unrun check as passed.
+
+Use the bounded fast preflight after editing batches and before expensive
+validation, with explicit candidate paths so unrelated work is not selected:
+
+```bash
+make ios-fast-preflight ARGS='--report .artifacts/preflight-edit01.json apps/ios/Merian/Features/Capture/Submission/ViewModels/CaptureNativeRecoveryModel.swift'
+make ios-fast-preflight ARGS='--before-build --report .artifacts/preflight-build01.json apps/ios/Merian/Features/Capture/Submission/ViewModels/CaptureNativeRecoveryModel.swift'
+make test-ios-fast-preflight
+```
+
+Candidate paths must use canonical repository-relative file spelling; aliases,
+symlinks and directory arguments are rejected. Policy-only changes enter native
+CI through the iOS build scope detector.
+
+Every receipt path must be new. The preflight reuses the managed build lock and
+process check, existing source-membership/resource validators, Swift frontend
+syntax parsing, Markdown formatting and staged/working diff checks. It checks
+storage last; the managed build must repeat its own admission checks at launch.
+The before-build mode requires 25 GiB free, while an editing check retains the
+managed 20 GiB minimum. Candidate-specific stricter requirements still apply;
+this command never changes final-space or retained-evidence limits. It performs
+no cleanup, package resolution, simulator action or native application build.
+
+`scripts/config/ios-source-size-policy.json` is the shared numeric source for
+the global production oversized inventory/sealed ceilings, seven Capture roots
+and the ten existing Camera owners. Selected native architecture tests read it
+through `IOSSourceSizePolicy`; their ownership, imports, effects and other
+assertions remain in place. The approved oversized set is exact, not an
+unbounded permission for another file to grow. Sealed ceilings intersect the
+global rule. The 610-line original-owner seal does not exempt that owner from
+the global 600-line inventory rule. Each matching domain rule is also checked;
+physical-line and newline-segment counters are deliberately distinct.
+
+The Python counter preserves Swift Character behavior, including CRLF as one
+Character rather than a standalone newline delimiter. The macOS
+`test-ios-fast-preflight` target compiles the Foundation-only Swift helper in
+disposable temporary storage and compares empty, trailing-newline, CRLF, Unicode
+and every configured boundary fixture against Python. The portable
+`test-ios-ci-tooling` target runs the Python failure fixtures; it does not claim
+Swift parity. Neither is native test-target or runtime qualification.
+
+Domain coverage is deliberately bounded to Capture, the listed Camera files, and
+the globally bounded SharedMediaStorage/PhotoPreparation directories. Other
+production candidates fail with an unsupported-domain diagnostic rather than
+silently using only 600 lines. Test-file and other domains' stricter or
+aggregate limits remain in their owning architecture tests; the preflight does
+not replace them. Extend shared coverage with parity fixtures when a new domain
+enters the candidate. Keep the policy file available in the repository for
+native source-inspection tests, just like the source files those tests read.
+
+For the next identification-history integration trial, track implementation,
+build/test, review and blocked time separately, plus cheap failures found before
+a native build. Unknown historical durations stay unknown. The planned photo
+milestones are initial submission through result/history, reanalysis through a
+second preserved version and recovery, then full photo qualification. Reconcile
+each against existing completed work; these milestones do not remove audio,
+video, RUX-1–RUX-6, final acceptance or the approved later deletion/export and
+redesign sequence. Activation and all external-operation holds remain separate.
+
 ## BI-1 capture lifecycle selector
 
 The required capture critical selector is

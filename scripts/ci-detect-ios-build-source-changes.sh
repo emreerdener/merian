@@ -85,6 +85,7 @@ is_ios_build_input() {
     scripts/*ios*.sh | \
     scripts/*ios*.py | \
     scripts/config/ios-*.txt | \
+    scripts/config/ios-source-size-policy.json | \
     scripts/select-ios-*.sh)
       return 0
       ;;

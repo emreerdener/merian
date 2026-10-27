@@ -5,18 +5,19 @@ import XCTest
 
 final class CaptureSubmissionArchitectureTests: XCTestCase {
     func testProductionSubmissionFilesStayBelowSixHundredLines() throws {
+        let policy = try IOSSourceSizePolicy.load(root: repositoryRoot())
+        let rule = try XCTUnwrap(policy.directoryRules[
+            "apps/ios/Merian/Features/Capture/Submission"
+        ])
         let files = try swiftFiles(in: submissionSourceRoot())
 
         XCTAssertFalse(files.isEmpty)
         for file in files {
             let contents = try String(contentsOf: file, encoding: .utf8)
-            let lineCount = contents.split(
-                separator: "\n",
-                omittingEmptySubsequences: false
-            ).count
+            let lineCount = rule.count(contents)
             XCTAssertLessThanOrEqual(
                 lineCount,
-                600,
+                rule.ceiling,
                 "\(file.lastPathComponent) has \(lineCount) lines"
             )
         }

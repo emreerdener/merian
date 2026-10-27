@@ -64,6 +64,8 @@ struct CaptureSharedArchitectureTests {
     }
 
     @Test func captureSharedProductionFilesStayBounded() throws {
+        let policy = try IOSSourceSizePolicy.load(root: DatabaseActorTestSupport.repositoryRoot())
+        let rule = try #require(policy.directoryRules["apps/ios/Merian/Features/Capture/Shared"])
         let sources = try DatabaseActorTestSupport.swiftSources(
             below: "apps/ios/Merian/Features/Capture/Shared"
         )
@@ -71,7 +73,7 @@ struct CaptureSharedArchitectureTests {
         #expect(!sources.isEmpty)
         for source in sources {
             #expect(
-                DatabaseActorTestSupport.lineCount(of: source.contents) <= 600,
+                rule.count(source.contents) <= rule.ceiling,
                 "\(source.relativePath) exceeds the 600-line review ceiling"
             )
         }
