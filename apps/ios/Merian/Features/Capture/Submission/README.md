@@ -24,9 +24,12 @@ execution. Complete RUX-1–RUX-6 and photo/audio/video initial/reanalysis
 journeys remain open. Focused Debug qualification passed 27 methods / 41 cases,
 with zero structured runtime warnings and no drift across 3,031 source/project
 pins. The first compile failure remains retained; its corrected run passed.
-Generic Simulator Release is reviewed but unrun because storage remains below
-the unchanged 25 GiB launch minimum. Installed UI, VoiceOver/Dynamic Type and
-actual process-relaunch evidence remain open.
+Generic Simulator Release passed after Journal's separate rollback: zero errors,
+366 warnings and no drift across 3,028 source/project pins. The Debug result
+belongs to the preserved pre-rollback tree. Safe generated-cache cleanup met the
+unchanged storage limits; all diagnostics and test evidence remain retained.
+Installed UI, VoiceOver/Dynamic Type and actual process-relaunch evidence remain
+open.
 
 ## October 27 — received-identity discovery qualified locally
 

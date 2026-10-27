@@ -6,8 +6,9 @@ qualification. This host reuses the existing native owner and sheet lifecycle;
 it does not change IC-1 immutable submissions, exact-operation recovery,
 funding, account or deletion contracts. Remote result checks, editable
 reconstruction, retry/replacement and complete RUX/media acceptance remain
-unavailable or open. Release compilation awaits storage; ordinary activation
-remains held.
+unavailable or open. Generic Simulator Release passed after safe generated-cache
+cleanup and the separate Journal rollback; earlier Debug evidence remains scoped
+to its preserved candidate. Ordinary activation remains held.
 
 ## October 27 — received-identity discovery checkpoint
 

@@ -10,11 +10,14 @@ defines its status-only limits. The ordinary factory remains nil.
 
 Focused Debug checks passed 27 methods / 41 cases with zero structured runtime
 warnings and no drift across 3,031 source/project pins. The first compile
-failure is retained. Generic Simulator Release is reviewed but remains unrun
-pending the unchanged 25 GiB storage minimum. Full-target and isolated-source
-compilation, installed UI, actual process relaunch, accessibility, RUX-1–RUX-6
-and complete photo/audio/video initial/reanalysis journeys remain open. PR116
-and all release, activation and external-operation holds remain unchanged.
+failure is retained. Generic Simulator Release passed after Journal's separate
+rollback with zero errors, 366 warnings and no drift across 3,028 source/project
+pins. The Debug result qualifies the preserved pre-rollback candidate only. Safe
+generated-cache cleanup met the unchanged 25 GiB launch, 20 GiB final and 256
+MiB evidence controls. Full-target and isolated-source compilation, installed
+UI, actual process relaunch, accessibility, RUX-1–RUX-6 and complete
+photo/audio/video initial/reanalysis journeys remain open. PR116 and all
+release, activation and external-operation holds remain unchanged.
 
 ## October 27 — local received-identity recovery checkpoint
 

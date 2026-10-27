@@ -6,8 +6,9 @@ the existing dismissal barrier and account/lifetime invalidation hooks; it does
 not cancel or delete durable work or shut down the native owner. Ordinary live
 composition remains disabled. The [Submission contract](../Submission/README.md)
 defines lazy admission, account/container fences, exact local identity selection
-and the limits of this status-only view. Focused Debug checks passed; Release,
-installed UI and complete RUX acceptance remain pending for this integration.
+and the limits of this status-only view. Focused Debug checks passed on the
+preserved candidate; generic Simulator Release passed after the separate Journal
+rollback. Installed UI and complete RUX acceptance remain open.
 
 # Capture Shell
 
