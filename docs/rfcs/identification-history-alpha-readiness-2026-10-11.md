@@ -1,3 +1,20 @@
+## October 27 — Swift photo declaration mapping checkpoint
+
+The inactive `SharedMediaNativePhotoContent` maps exact saved native V2 values
+to the reviewed
+[content contract](client-prepared-photo-content-contract-2026-10-27.md). It
+neither reads media nor authorizes admission or dispatch. Source review and
+focused native compilation/parity validation passed: seven methods / twenty
+cases, with no source drift across 3,033 native/project pins and no structured
+runtime warnings. This is shared-checkout Debug validation, not a new Release or
+full app-journey qualification. A review caught two overflow test vectors
+targeting the wrong role; they were corrected before native compilation.
+Existing backend gates remain scoped to the unchanged codec. Initial submission
+through execution/result and explicit history enrollment, preserved
+reanalysis/recovery, audio/video, RUX-1–RUX-6 and final acceptance remain open.
+No activation, replacement follow-up or release control changes follow from this
+coding checkpoint.
+
 ## October 27 — photo CPM declaration implementation checkpoint
 
 The [content contract](client-prepared-photo-content-contract-2026-10-27.md)

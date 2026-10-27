@@ -1,3 +1,17 @@
+## October 27 — saved native photo declaration mapping
+
+The inactive Swift mapper described in the
+[content contract](client-prepared-photo-content-contract-2026-10-27.md)
+preserves exact saved V2 photo and context claims. Encoding does not
+authenticate a Prepared value against current storage or replace the receiving
+owner's fences. It adds no funding, execution, completion or history ownership.
+Source review and focused native compilation/parity validation passed: seven
+methods / twenty cases, with no source drift across 3,033 native/project pins
+and no structured runtime warnings. This is shared-checkout Debug validation,
+not a new Release or full app-journey qualification. Initial completion and
+subsequent explicit history enrollment remain separate under section 6; full app
+integration and qualification are still open.
+
 ## October 27 — photo CPM declaration boundary
 
 The [content contract](client-prepared-photo-content-contract-2026-10-27.md)

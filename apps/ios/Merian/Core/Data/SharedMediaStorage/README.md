@@ -1,3 +1,21 @@
+## October 27 — inactive photo content mapping
+
+`SharedMediaNativePhotoContent` projects a validated saved V2 Prepared value
+into the closed photo content declaration defined by the
+[content contract](../../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md).
+It uses frozen cohort positions, logical role references, exact contexts and
+binary64 recipe bits. It stores immutable canonical bytes and an explicitly
+unverified digest. It performs no media read, storage write or current receiving
+check; successful encoding supplies no account, byte, funding or dispatch
+authority. A future consuming operation must use the existing receiving owner
+and its exact persisted/current fences. No runtime caller is installed.
+
+Source review and focused native compilation/parity validation passed: seven
+methods / twenty cases, with no source drift across 3,033 native/project pins
+and no structured runtime warnings. This is shared-checkout Debug validation,
+not a new Release or full app-journey qualification. Legacy V1 decoding and all
+ordinary activation controls are unchanged.
+
 ## October 27 — received-photo input handoff implementation
 
 `readReceivedAppPhotos` reads bounded, ordered AI derivatives from the exact

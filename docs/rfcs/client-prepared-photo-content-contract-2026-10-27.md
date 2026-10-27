@@ -1,3 +1,28 @@
+## October 27 — inactive Swift producer checkpoint
+
+`SharedMediaNativePhotoContent` now implements the saved-value projection under
+Core/Data/SharedMediaStorage. Its Prepared initializer validates the complete
+saved envelope and explicitly requires preparedV2/version 2; it derives the
+cohort and supporting values from that same envelope. A typed claim initializer
+shares the same closed validation and private schema-specific canonical writer.
+It has no wire decoder, live route, current-state authority, media I/O or
+production caller. Immutable canonical Data and an unverified domain digest are
+its only outputs. The receiving owner remains responsible for current account,
+held-state, original-retention and exact persisted-identity checks at
+consumption.
+
+Source review and focused native compilation/parity validation passed: seven
+methods / twenty cases, with no source drift across 3,033 native/project pins
+and no structured runtime warnings. This is shared-checkout Debug validation,
+not a new Release or full app-journey qualification. Independent host checks
+bind both the existing Deno golden fixture and a scalar-escaping vector to the
+Swift expected digests. The passing native tests cover exact byte/digest parity,
+text order and normalization distinctions, recipe bits, bounds and role
+uniqueness, plus actual saved Prepared mapping, reordered frozen positions,
+inconsistent identities and otherwise-valid V1 rejection. These claims concern
+declaration construction only; complete CPM consumption and all app-journey
+acceptance remain open.
+
 # Initial photo CPM content declaration v1
 
 Status: October 27, 2026. The pure inactive content-codec design was reviewed by
