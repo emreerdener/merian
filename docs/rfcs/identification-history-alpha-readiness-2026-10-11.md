@@ -1,3 +1,17 @@
+## October 27 — photo CPM declaration implementation checkpoint
+
+The [content contract](client-prepared-photo-content-contract-2026-10-27.md)
+closes the proposed pure declaration slice needed before native initial-photo
+integration. The inactive codec preserves exact text, saved recipe bits and
+ordered logical original/AI/display references. Source review and local checks
+are complete for the pure codec: 10 focused tests, 3416 Edge tests/598 steps
+(532 ignored), static checks and composed tooling coverage. Earlier tooling
+failures remain retained; the content contract records their corrections and
+validation limits. Actual admission, byte verification, upload lifetime,
+result/history, photo/text composition and absent inference-option semantics
+remain open. No runtime authority or activation is added; media/RUX and all
+final acceptance requirements remain.
+
 ## October 27 — frozen received-photo handoff implementation
 
 The next initial-photo integration step adds read-only input recovery from the

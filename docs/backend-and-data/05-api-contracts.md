@@ -1,3 +1,15 @@
+## October 27 — private photo CPM content declaration candidate
+
+The
+[photo content contract](../rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+defines the inactive initialAnalysis declaration schema, separate canonical
+domain, exact text/recipe encoding and logical media-reference mapping. This is
+a local codec candidate; no endpoint or generated public DTO changes. A content
+digest is an unverified claim, not a byte-verification, admission or execution
+receipt. Legacy server-preparation and exact recovery remain unchanged. Full
+consuming allocation, verification, admission and recovery contracts remain
+open.
+
 # API Contracts and Network Mappings
 
 > **Beta policy update — September 18, 2026:** The owner authorized the existing

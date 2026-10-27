@@ -1,0 +1,191 @@
+{
+  "type": "object",
+  "properties": {
+    "contract": {
+      "type": "string",
+      "max_bytes": 24,
+      "enum": [
+        "client_prepared_media_v1"
+      ]
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "kind": {
+      "type": "string",
+      "max_bytes": 13,
+      "enum": [
+        "initial_photo"
+      ]
+    },
+    "resource_profile": {
+      "type": "string",
+      "max_bytes": 5,
+      "enum": [
+        "P1-L1"
+      ]
+    },
+    "scan_id": {
+      "type": "string",
+      "max_bytes": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "package_id": {
+      "type": "string",
+      "max_bytes": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "photos": {
+      "type": "array",
+      "max_items": 2,
+      "items": {
+        "type": "object",
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "reference_id": {
+                "type": "string",
+                "max_bytes": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "byte_count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 33554432
+              },
+              "sha256": {
+                "type": "string",
+                "max_bytes": 64,
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "declared_content_type": {
+                "type": "string",
+                "max_bytes": 128,
+                "pattern": "^[\\s\\S]+$"
+              }
+            }
+          },
+          "ai": {
+            "type": "object",
+            "properties": {
+              "reference_id": {
+                "type": "string",
+                "max_bytes": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "byte_count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5242880
+              },
+              "sha256": {
+                "type": "string",
+                "max_bytes": 64,
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "declared_content_type": {
+                "type": "string",
+                "max_bytes": 128,
+                "pattern": "^[\\s\\S]+$"
+              }
+            }
+          },
+          "display": {
+            "type": "object",
+            "properties": {
+              "reference_id": {
+                "type": "string",
+                "max_bytes": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "byte_count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4194304
+              },
+              "sha256": {
+                "type": "string",
+                "max_bytes": 64,
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "declared_content_type": {
+                "type": "string",
+                "max_bytes": 128,
+                "pattern": "^[\\s\\S]+$"
+              }
+            }
+          },
+          "recipe": {
+            "type": "object",
+            "properties": {
+              "format": {
+                "type": "string",
+                "max_bytes": 32,
+                "enum": [
+                  "nativeStillImageV1",
+                  "nativeCameraStillV1"
+                ]
+              },
+              "is_pro": {
+                "type": "boolean"
+              },
+              "crop_display_size_bits": {
+                "type": "string",
+                "max_bytes": 16,
+                "pattern": "^[0-9a-f]{16}$",
+                "nullable": true
+              },
+              "quarter_turns": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              },
+              "scale_bits": {
+                "type": "string",
+                "max_bytes": 16,
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "offset_x_bits": {
+                "type": "string",
+                "max_bytes": 16,
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "offset_y_bits": {
+                "type": "string",
+                "max_bytes": 16,
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "camera_vertical_center_bits": {
+                "type": "string",
+                "max_bytes": 16,
+                "pattern": "^[0-9a-f]{16}$",
+                "nullable": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "contexts": {
+      "type": "array",
+      "max_items": 64,
+      "items": {
+        "type": "object",
+        "properties": {
+          "text_utf8_base64": {
+            "type": "string",
+            "max_bytes": 43692
+          }
+        }
+      }
+    }
+  }
+}

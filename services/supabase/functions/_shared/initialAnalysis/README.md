@@ -1,3 +1,19 @@
+## October 27 — inactive photo CPM content declaration candidate
+
+`cpmPhotoContent.ts` validates a closed, bounded photo declaration and hashes a
+private canonical snapshot in its own versioned domain. It preserves logical
+reference order, exact text and finite native recipe bit patterns under P1-L1.
+It consumes claims, not trusted byte-verification or server-transform proof. No
+live route imports it; legacy admission and generated Identify DTOs remain
+unchanged. The
+[content contract](../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+records the native mapping and remaining consuming-adapter agreement. Source
+review cleared the pure codec. Ten focused tests, the full Edge suite and static
+checks passed; tooling coverage completed across retained runs after correcting
+stale recovery documentation and rerunning a terminal-dependent synthetic test.
+The contract records exact counts, skipped tests and the retained failures. No
+allocation, upload, funding, dispatch, completion or activation is enabled.
+
 # Prepared initial-analysis admission
 
 This inactive IC-1 boundary belongs to the initial engine. No live route or

@@ -962,8 +962,8 @@ persistence.
 - It resolves the store URL from the same automatic SwiftData configuration used
   by the production container, then reads actual metadata before container
   creation. This keeps App Group-backed stores aligned with migration,
-  diagnostics, quarantine, and rescue. Fresh and V59 stores open as current;
-  known V42...V58 sources use finite, source-isolated plans; only unknown older
+  diagnostics, quarantine, and rescue. Fresh and V66 stores open as current;
+  known V42...V65 sources use finite, source-isolated plans; only unknown older
   stores use the full historical plan.
 - The current automatic App Group location is a shipped-store compatibility
   constraint, not an extension data-sharing contract. Extensions never open the
@@ -974,13 +974,13 @@ persistence.
   `MerianRecentV50MigrationPlan` for the original frozen graph or
   `MerianReleasedActiveV50MigrationPlan` for the processed release's
   `isPendingDeletion` graph. Both apply a source-exact custom V50→V51
-  account-partition stage and the shared lightweight tail through V59; unknown
+  account-partition stage and the shared lightweight tail through V66; unknown
   V50 signatures are preserved through rescue instead of guessed. Released V49
-  stores prepend V49→V50. V58 stores use only the immediate V58→V59 stage;
-  V51...V57 retain their source-isolated forward stages. The full historical
-  plan remains linear through V42→V49→V50→V51 and onward to V59; V43...V48 use
+  stores prepend V49→V50. V65 stores use only the immediate V65→V66 stage;
+  V51...V64 retain their source-isolated forward stages. The full historical
+  plan remains linear through V42→V49→V50→V51 and onward to V66; V43...V48 use
   their source-isolated plans. The duplicate-checksum retry ladder is ordered
-  current store, V58 through V51, both V50 graphs, then V49 down through V42.
+  current store, V65 through V51, both V50 graphs, then V49 down through V42.
 - Only confirmed corruption may quarantine `default.store`, `default.store-shm`,
   and `default.store-wal`.
 - Non-corrupt failures on legacy migration strategies may archive those same

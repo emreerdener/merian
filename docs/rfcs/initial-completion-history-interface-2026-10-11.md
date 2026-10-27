@@ -1,3 +1,13 @@
+## October 27 — photo CPM declaration boundary
+
+The [content contract](client-prepared-photo-content-contract-2026-10-27.md)
+records the separately versioned inactive content codec. Native logical role
+references, frozen cohort order and exact context/recipe values remain claims
+until the existing owners consume trusted byte and assignment evidence. This
+slice does not replace M1/M2, allocate funding or admit a request. Initial
+completion and explicit history enrollment remain separate. Complete runtime
+consumption, source/DTO parity and app-journey acceptance are still open.
+
 ## October 27 — frozen received-photo handoff implementation
 
 The [current roadmap](identification-history-alpha-readiness-2026-10-11.md)
