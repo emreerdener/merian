@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ImageCropperView: View {
     let image: UIImage
+    let initialVerticalCenter: CGFloat?
+    @State private var didInitializeFrame = false
     let onCrop: (Data, CGFloat, CGSize, CGFloat, Int) -> Void
     let onCancel: () -> Void
     let onDelete: (() -> Void)?
@@ -22,12 +24,14 @@ struct ImageCropperView: View {
         initialScale: CGFloat = 1.0,
         initialOffset: CGSize = .zero,
         initialQuarterTurns: Int = 0,
+        initialVerticalCenter: CGFloat? = nil,
         onCrop: @escaping (Data, CGFloat, CGSize, CGFloat, Int) -> Void,
         onCancel: @escaping () -> Void,
         onDelete: (() -> Void)? = nil,
         onConfirmFeedback: @escaping () -> Void = {}
     ) {
         self.image = image
+        self.initialVerticalCenter = initialVerticalCenter
         self.onCrop = onCrop
         self.onCancel = onCancel
         self.onDelete = onDelete
@@ -144,6 +148,14 @@ struct ImageCropperView: View {
                         .padding(.horizontal, 24)
                         .padding(.bottom, 32)
                     }
+                }
+                .disabled(initialVerticalCenter != nil && !didInitializeFrame)
+                .onChange(of: displaySize, initial: true) { _, size in
+                    guard !didInitializeFrame, let center = initialVerticalCenter,
+                          let initial = ImageCropProcessor.initialSquareCropOffset(
+                            imageSize: image.size, displaySize: size, verticalCenterFraction: center) else { return }
+                    offset = initial
+                    didInitializeFrame = true
                 }
             }
             .navigationBarTitleDisplayMode(.inline)

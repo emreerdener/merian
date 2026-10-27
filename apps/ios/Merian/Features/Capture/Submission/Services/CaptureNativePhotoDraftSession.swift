@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import UIKit
 
-/// Current-process PhotosPicker state before immutable native submission.
+/// Current-process original-photo state before immutable native submission.
 /// Ordinary composition supplies no session. Originals always belong to the
 /// registered native owner; previews are transient and never evidence inputs.
 @Observable @MainActor
@@ -56,7 +56,7 @@ final class CaptureNativePhotoDraftSession {
 
     /// The caller retains the whole ordered picker selection; no prefix or
     /// failed-item substitution is permitted. Request identity precedes loading.
-    func acquire(itemID: UUID, load: @escaping @Sendable () async throws -> Data) async throws -> (PhotoOriginalReference, UIImage) {
+    func acquire(itemID: UUID, kind: SharedMediaAcquisitionIntent.Kind = .picker, load: @escaping @Sendable () async throws -> Data) async throws -> (PhotoOriginalReference, UIImage) {
         guard canEdit, !items.contains(where: { $0.id == itemID }), items.count < 2 else {
             throw SharedMediaStorageFailure.closed
         }
@@ -70,7 +70,7 @@ final class CaptureNativePhotoDraftSession {
             try Task.checkCancellation()
             guard !previewsInvalidated else { throw SharedMediaStorageFailure.closed }
             let request = try await admitted.prepareAppOriginal(packageID: identity.packageID,
-                draftGeneration: identity.draftGeneration, ordinal: Int64(index), kind: .picker)
+                draftGeneration: identity.draftGeneration, ordinal: Int64(index), kind: kind)
             guard request.ownerID == identity.ownerID else { throw SharedMediaStorageFailure.stale }
             items[index].request = request
             guard !previewsInvalidated else { throw SharedMediaStorageFailure.closed }
@@ -112,7 +112,7 @@ final class CaptureNativePhotoDraftSession {
             throw SharedMediaStorageFailure.closed
         }
         try recipe.validate()
-        guard recipe.cropDisplaySize != nil else { throw SharedMediaStorageFailure.invalid }
+        guard recipe.cropDisplaySize != nil || recipe.format == .cameraStill else { throw SharedMediaStorageFailure.invalid }
         items[index].recipe = recipe
     }
 

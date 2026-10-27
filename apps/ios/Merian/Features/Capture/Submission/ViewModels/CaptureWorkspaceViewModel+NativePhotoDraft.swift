@@ -100,6 +100,7 @@ extension CaptureWorkspaceViewModel {
             try session.setRecipe(recipe, for: reference)
             let existing = stagedCapture.images[index]
             var original = existing.original
+            original.initialCameraVerticalCenter = nil // only explicit confirmation replaces shutter framing
             original.lastCropScale = scale; original.lastCropOffset = offset; original.lastCropQuarterTurns = quarterTurns
             let thumbnail = ImageDownsampler.downsampledUIImage(data: thumbnailData, maxSize: 512) ?? existing.uiImage
             stagedCapture.images[index] = existing.replacing(uiImage: thumbnail, original: original)

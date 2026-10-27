@@ -1,3 +1,45 @@
+## Inactive native camera-photo composition
+
+The optional native photo draft factory now routes the actual shutter through
+`CaptureNativePhotoDraftSession.acquire(kind: .camera)` and the registered
+native original owner. Its exact acquisition request precedes the single
+hardware call. The shutter-time composing center and preparation tier are
+retained in a local `nativeCameraStillV1` recipe. Verified original bytes
+produce both bounded, orientation-normalized square crops; previews never supply
+evidence. Existing `nativeStillImageV1` recipes omit the new optional center
+field and keep their canonical encoding. Mixed editor/camera recipes and unknown
+formats refuse.
+
+A camera photo stages with its original reference, bounded presentation and
+empty derivative payloads. Context enrichment remains inside the retained
+capture operation before staging, with account/generation checks after awaits;
+its snapshot preserves the shutter date and locked location. Photo-library save
+uses the existing client only after current-account/generation checks. Opening
+or cancelling recrop preserves initial framing; explicit confirmation replaces
+the camera recipe with editor geometry. Explicit Identify freezes all media,
+context and optional text through the existing native preparation/receiving
+owners. Cancellation or uncertain acquisition retains the request and prevents
+automatic repeat shutter or legacy fallback.
+
+Capture capacity and preparation tier use the same injected Pro-eligibility
+closure; its live implementation retains the existing RevenueCat funding
+predicate. Free capture keeps its one-media limit, while eligible multi-media
+drafts retain ordered camera/picker combinations without global entitlement
+mutation.
+
+October 27 local qualification covers 57 methods / 99 cases: the corrected
+camera/dependency/architecture retry passed 22 methods / 34 cases, with 35
+methods / 65 unchanged passing cases retained from the prior attempt. That prior
+attempt remains failed because its multi-camera fixture incorrectly expected two
+captures under free one-slot eligibility. The corrected retry has no failures,
+skips, structured runtime warnings, or source drift. The managed generic iOS
+Simulator Release build passed with zero errors and no source drift; its 365
+warnings and simulator console diagnostics remain retained, including three new
+capture/style warnings. This is local source qualification. Ordinary factory
+remains nil; physical camera, installed UI, restart reconstruction and full
+photo/audio/video initial-analysis and reanalysis journeys remain unqualified.
+PR116 and deployment holds remain unchanged.
+
 ## October 26 — native PhotosPicker integration qualified locally
 
 The optional `nativePhotoDraftFactory` routes the actual PhotosPicker caller

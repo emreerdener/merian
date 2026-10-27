@@ -19,6 +19,10 @@ extension CaptureWorkspaceViewModel {
               hasAvailableStagedCaptureSlot,
               imageToCrop == nil else { return }
 
+        if usesNativePhotoComposition {
+            captureNativeCameraPhoto(emitHaptic: emitHaptic)
+            return
+        }
         if let access = dependencies.photoOriginalPreparation {
             capturePhotoPreparation(access)
             return
@@ -121,7 +125,7 @@ extension CaptureWorkspaceViewModel {
         return true
     }
 
-    private func requireCurrentStillCapture(
+    func requireCurrentStillCapture(
         _ generation: CaptureScanStillGeneration
     ) throws {
         guard !Task.isCancelled,
@@ -130,7 +134,7 @@ extension CaptureWorkspaceViewModel {
         }
     }
 
-    private func finishStillCaptureUI(
+    func finishStillCaptureUI(
         for generation: CaptureScanStillGeneration
     ) {
         guard scanOperationState.finishStillCapture(generation) else {

@@ -143,7 +143,7 @@ final class CaptureWorkspaceViewModel {
     }
 
     var isMultiCaptureFunctionallyEnabled: Bool {
-        diContainer.revenueCatManager.canStartProScan
+        dependencies.scan.canStartProScan()
     }
 
     var stagedCaptureLimit: Int {

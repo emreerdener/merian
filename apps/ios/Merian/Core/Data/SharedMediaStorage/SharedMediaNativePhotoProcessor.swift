@@ -17,7 +17,13 @@ enum SharedMediaNativePhotoProcessor {
         try attempt.validate(); try Task.checkCancellation()
         let recipe = attempt.recipe
         let ai: Data, display: Data
-        if let size = recipe.cropDisplaySize {
+        if recipe.format == .cameraStill {
+            guard let center = recipe.cameraVerticalCenter else { throw SharedMediaStorageFailure.invalid }
+            ai = try cameraCrop(url: url, center: center,
+                maximum: ImagePreparationPolicy.inferenceMaxDimension(isProActive: recipe.isPro))
+            try Task.checkCancellation()
+            display = try cameraCrop(url: url, center: center, maximum: ImagePreparationPolicy.displayMaxDimension)
+        } else if let size = recipe.cropDisplaySize {
             guard let image = UIImage(contentsOfFile: url.path) else { throw MediaPreparationError.unreadableImage }
             ai = await ImageCropProcessor.generateCrop(image: image, displaySize: size, scale: recipe.scale,
                 currentScale: 1, offset: .init(width: recipe.offsetX, height: recipe.offsetY), currentOffset: .zero,
@@ -41,5 +47,19 @@ enum SharedMediaNativePhotoProcessor {
             pairID: UUID(), nonce: UUID(), previousPairID: nil, ai: aiInput, display: displayInput, focus: focus.region)
         _ = try intent.encoded()
         return .init(attempt: attempt, intent: intent, ai: ai, display: display)
+    }
+
+    /// Runs inside the admitted file worker. Both outputs use orientation-normalized
+    /// bounded decoding of the verified original, never a presentation preview.
+    private static func cameraCrop(url: URL, center: Double, maximum: CGFloat) throws -> Data {
+        try Task.checkCancellation()
+        return try autoreleasepool {
+            guard let image = ImageDownsampler.downsample(url: url, maxSize: maximum),
+                  let crop = ImageCropProcessor.squareCrop(image, verticalCenterFraction: center),
+                  let bytes = ImageCropProcessor.encode(crop), !bytes.isEmpty else {
+                throw MediaPreparationError.unreadableImage
+            }
+            return bytes
+        }
     }
 }

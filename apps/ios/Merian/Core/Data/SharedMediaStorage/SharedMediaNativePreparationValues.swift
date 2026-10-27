@@ -32,7 +32,10 @@ struct SharedMediaNativeOriginalIdentity: Codable, Equatable, Sendable {
 }
 
 struct SharedMediaNativePreparationRecipe: Codable, Equatable, Sendable {
-    enum Format: String, Codable, Sendable { case stillImage = "nativeStillImageV1" }
+    enum Format: String, Codable, Sendable {
+        case stillImage = "nativeStillImageV1"
+        case cameraStill = "nativeCameraStillV1"
+    }
     let format: Format
     let isPro: Bool
     let cropDisplaySize: Double?
@@ -40,8 +43,27 @@ struct SharedMediaNativePreparationRecipe: Codable, Equatable, Sendable {
     let scale: Double
     let offsetX: Double
     let offsetY: Double
+    /// Absent in all legacy recipes, preserving their canonical encoded bytes.
+    let cameraVerticalCenter: Double?
+
+    init(format: Format, isPro: Bool, cropDisplaySize: Double?, quarterTurns: Int,
+         scale: Double, offsetX: Double, offsetY: Double, cameraVerticalCenter: Double? = nil) {
+        self.format = format; self.isPro = isPro; self.cropDisplaySize = cropDisplaySize
+        self.quarterTurns = quarterTurns; self.scale = scale
+        self.offsetX = offsetX; self.offsetY = offsetY; self.cameraVerticalCenter = cameraVerticalCenter
+    }
 
     func validate() throws {
+        switch format {
+        case .cameraStill:
+            guard let center = cameraVerticalCenter, center.isFinite, (0...1).contains(center),
+                  cropDisplaySize == nil, quarterTurns == 0, scale == 1, offsetX == 0, offsetY == 0 else {
+                throw SharedMediaStorageFailure.invalid
+            }
+        case .stillImage:
+            guard cameraVerticalCenter == nil else { throw SharedMediaStorageFailure.invalid }
+        }
+
         guard (0...3).contains(quarterTurns), scale.isFinite, scale >= 1,
               offsetX.isFinite, offsetY.isFinite else { throw SharedMediaStorageFailure.invalid }
         if let cropDisplaySize {

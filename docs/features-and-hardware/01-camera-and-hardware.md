@@ -38,6 +38,23 @@ Capture-specific source/crop metadata stays in `Capture/Shared`, and Profile
 owns its own avatar-crop presentation value. `Capture/Scan/README.md` is the
 local ownership index.
 
+## Inactive native camera-photo integration
+
+The optional native Capture composition retains the original encoded shutter
+bytes through the registered shared-media owner before derivative preparation.
+Its camera recipe fixes composing-center framing before the hardware call;
+AI/display outputs independently use bounded orientation-normalized original
+decoding and the same square-crop rule. Reopening the editor preserves this
+framing until explicit crop confirmation. Context enrichment completes within
+the retained capture operation before staging and preserves shutter
+date/location. Every suspension is account/generation-fenced; uncertain
+acquisition never repeats the shutter automatically. The ordinary factory
+remains nil. Capture capacity uses the same injected eligibility predicate as
+preparation, preserving the live funding rules. October 27 focused local
+qualification and the generic Simulator Release build passed; physical hardware
+and complete native journeys remain unqualified. See the
+[Capture Submission contract](../../apps/ios/Merian/Features/Capture/Submission/README.md#inactive-native-camera-photo-composition).
+
 ## The Core Pipeline
 
 ### `CameraManager` and `CameraSessionController`

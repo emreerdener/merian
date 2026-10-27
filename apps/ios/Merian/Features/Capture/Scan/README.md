@@ -1,5 +1,13 @@
 # Capture Scan
 
+The optional native camera-photo branch and its retained shutter framing are
+documented in
+[Submission](../Submission/README.md#inactive-native-camera-photo-composition).
+It reuses the injected camera and native original owners; ordinary live
+composition remains inactive. The October 27 focused qualification and generic
+Simulator Release build passed; the Submission contract records the retained
+failure, evidence reuse, warnings, and remaining journey acceptance.
+
 ## Pending video startup interruption
 
 The critical lifecycle test is

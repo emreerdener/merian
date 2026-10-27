@@ -14,6 +14,7 @@ struct CropSheetModifier: ViewModifier {
                     initialScale: identItem.lastCropScale,
                     initialOffset: identItem.lastCropOffset,
                     initialQuarterTurns: identItem.lastCropQuarterTurns,
+                    initialVerticalCenter: identItem.initialCameraVerticalCenter,
                     onCrop: { croppedData, finalScale, finalOffset, displaySize, finalQuarterTurns in
                         if viewModel.stagedCapture.nativePhotoDraft != nil || viewModel.nativePhotoDraftSession != nil {
                             viewModel.confirmNativePhotoCrop(imageID: identItem.id, thumbnailData: croppedData,

@@ -261,6 +261,21 @@ struct ImageCropProcessor {
         return processedBytes ?? Data()
     }
 
+    /// Convert immutable normalized shutter framing to the crop editor's current
+    /// point geometry. Opening/cancelling the editor does not change that recipe.
+    nonisolated static func initialSquareCropOffset(imageSize: CGSize, displaySize: CGFloat,
+                                                   verticalCenterFraction: CGFloat) -> CGSize? {
+        let width = imageSize.width, height = imageSize.height
+        guard width.isFinite, height.isFinite, width > 0, height > 0,
+              displaySize.isFinite, displaySize > 0, verticalCenterFraction.isFinite,
+              (0...1).contains(verticalCenterFraction) else { return nil }
+        let side = min(width, height)
+        let cropY = max(0, min(height * verticalCenterFraction - side / 2, height - side))
+        let y = ((height - side) / 2 - cropY) / side * displaySize
+        guard y.isFinite else { return nil }
+        return CGSize(width: 0, height: y)
+    }
+
     /// Crops a downsampled CGImage to the largest centered square, biasing the vertical
     /// center toward `verticalCenterFraction` (0 = top, 0.5 = geometric center, 1 = bottom).
     /// Pass the fraction measured from the on-screen composing zone so the crop reflects
