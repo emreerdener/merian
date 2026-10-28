@@ -1,3 +1,20 @@
+## Retained photo admission — locally qualified checkpoint
+
+The inactive `stageAppReceivingWithAdmission` entry keeps discovery, fresh
+preflight and immutable staging inside the original owner's single retained
+operation. Fresh preflight occurs before receiving locks; account shutdown still
+cancels and drains it. Saved Prepared slots, including legacy nil expectations,
+skip recipient discovery. Metadata and ordered selected intents are checked
+before preflight and the existing staging fences recheck them before save. The
+current authorization validator runs synchronously at the immutable save
+boundary.
+
+This reuses the existing grant, lock, identity and persistence owners. It grants
+no upload, funding or execution rights. Focused local Debug qualification passed
+36 methods / 62 cases with no source drift or structured runtime warnings. Live
+consent synchronization and endpoint composition remain unconnected; see the
+[photo content contract](../../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md).
+
 ## October 28 — inactive saved CPM admission candidate
 
 `SharedMediaNativePhotoAdmission` snapshots protocol 3, identification protocol

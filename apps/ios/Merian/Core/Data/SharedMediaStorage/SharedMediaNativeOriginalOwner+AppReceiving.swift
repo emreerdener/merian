@@ -33,6 +33,41 @@ extension SharedMediaNativeOriginalOwner {
             }
         }
     }
+    /// Called only inside the existing retained dispatch operation. Preflight is
+    /// outside receiving locks, but account shutdown still cancels and drains it.
+    func stageAppReceivingWithAdmission(metadata: SharedMediaNativeAppMetadataRequest, pairIDs: [UUID],
+        authorize: @escaping @MainActor (UUID) async throws -> IdentificationDispatchAuthorization,
+        storage: SharedMediaNativeStorageRepository, grant: SharedMediaNativeAppDispatchGrant,
+        releaseStage: SharedMediaNativeReleaseStageSettlement) async throws -> SharedMediaNativeReceivingIntent.Prepared {
+        let packageID = metadata.package.id, draft = metadata.package.generation
+        let saved = try await storage.appReceivingIntent(grant: grant, packageID: packageID)
+        let identity = try SharedMediaNativeReceivingStageIdentity(saved: saved)
+        var authorization: IdentificationDispatchAuthorization?
+        var admission: SharedMediaNativePhotoAdmission?
+        if saved == nil {
+            let current = try await storage.appMetadata(grant: grant).current(packageID: packageID, draftGeneration: draft)
+            guard current.profile == metadata.profile, current.package == metadata.package,
+                  current.member == metadata.member, current.envelope == metadata.envelope,
+                  metadata.envelope == metadata.package.envelope else { throw SharedMediaStorageFailure.stale }
+            let envelope = try SharedMediaNativeDraftEnvelope.decode(metadata.envelope)
+            let selected = try envelope.intents.map { try SharedMediaNativeDerivativeIntent.decode($0.bytes).pairID }
+            guard (1...2).contains(pairIDs.count), pairIDs == selected else { throw SharedMediaStorageFailure.stale }
+            try grant.validate()
+            let value = try await authorize(identity.observationID)
+            try grant.validate()
+            admission = try SharedMediaNativePhotoAdmission(authorization: value)
+            authorization = value
+        }
+        // Saved slots, including legacy nil expectations, never rediscover a recipient.
+        return try await withReceivingLocks(queueID: identity.queueID.uuidString, observationID: identity.observationID.uuidString) { lock in
+            try grant.validate(); try authorization?.validate()
+            let operation = try await storage.appReceiving(grant: grant, lock: lock, releaseStage: releaseStage)
+            try lock.validate(); try grant.validate(); try authorization?.validate()
+            return try await operation.stage(packageID: packageID, draftGeneration: draft, pairIDs: pairIDs,
+                identity: identity, expectedMetadata: metadata, photoAdmission: admission,
+                beforeImmutableSave: { try authorization?.validate() })
+        }
+    }
     func receiveAppPrepared(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeConsumerCohort {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
             try await self.appReceivingWorkflow(lock: lock) { try await $0.receivePrepared(prepared) }

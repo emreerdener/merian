@@ -199,11 +199,12 @@ final class SharedMediaNativeOriginalOwner {
     }
     func appReceivingWorkflow<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant, _ body: @escaping @MainActor (SharedMediaNativeAppReceivingOperations) async throws -> T) async throws -> T {
         try lock.validate()
-        return try await withAppDispatch { storage, grant in
-            try lock.validate()
-            let operation = try await storage.appReceiving(grant: grant, lock: lock, releaseStage: self.releaseStageSettlement)
-            try lock.validate(); try grant.validate(); return try await body(operation)
-        }
+        return try await appOperation(open: { try lock.validate(); return try await $0.appReceiving(grant: $1, lock: lock, releaseStage: self.releaseStageSettlement) },
+            body: { try lock.validate(); return try await body($0) })
+    }
+    func stageAppReceivingWithAdmission(metadata: SharedMediaNativeAppMetadataRequest, pairIDs: [UUID],
+        authorize: @escaping @MainActor (UUID) async throws -> IdentificationDispatchAuthorization) async throws -> SharedMediaNativeReceivingIntent.Prepared {
+        try await withAppDispatch { try await self.stageAppReceivingWithAdmission(metadata: metadata, pairIDs: pairIDs, authorize: authorize, storage: $0, grant: $1, releaseStage: self.releaseStageSettlement) }
     }
     /// An outer audit or lock failure must also spend an existing continuation.
     func abandonAppReleaseContinuation(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) {

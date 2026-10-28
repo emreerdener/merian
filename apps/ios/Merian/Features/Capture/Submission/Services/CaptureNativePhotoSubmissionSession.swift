@@ -6,6 +6,7 @@ import Foundation
 final class CaptureNativePhotoSubmissionSession {
     let selection: CaptureNativePhotoSubmissionSelection
     private let resolveOwner: () async throws -> SharedMediaNativeOriginalOwner
+    private let preflight: (@MainActor (IdentificationPreflightInput, UUID) async throws -> IdentificationDispatchAuthorization)?
     private var owner: SharedMediaNativeOriginalOwner?
     private var frozen: CaptureNativePhotoSubmissionSnapshot?
     private(set) var prepared: SharedMediaNativeReceivingIntent.Prepared?
@@ -14,8 +15,9 @@ final class CaptureNativePhotoSubmissionSession {
     private(set) var attemptID: UUID?
 
     init(selection: CaptureNativePhotoSubmissionSelection,
+         preflight: (@MainActor (IdentificationPreflightInput, UUID) async throws -> IdentificationDispatchAuthorization)? = nil,
          resolveOwner: @escaping () async throws -> SharedMediaNativeOriginalOwner) {
-        self.selection = selection; self.resolveOwner = resolveOwner
+        self.selection = selection; self.preflight = preflight; self.resolveOwner = resolveOwner
     }
 
     static func app(selection: CaptureNativePhotoSubmissionSelection, diContainer: AppDIContainer) -> CaptureNativePhotoSubmissionSession {
@@ -50,15 +52,36 @@ final class CaptureNativePhotoSubmissionSession {
         } else {
             guard prepared == nil, receipt == nil else { throw SharedMediaStorageFailure.stale }
             try Task.checkCancellation()
-            selected = try await admitted.stageAppReceiving(packageID: selection.identity.packageID,
-                draftGeneration: selection.identity.draftGeneration, pairIDs: selection.pairIDs,
-                expectedMetadata: selection.metadata)
+            selected = try await stage(admitted, snapshot: snapshot)
         }
         try requireExact(selected)
         prepared = selected
         try Task.checkCancellation()
         receipt = try await admitted.receiveAppPrepared(selected)
         return attempt
+    }
+
+    private func stage(_ owner: SharedMediaNativeOriginalOwner,
+                       snapshot: CaptureNativePhotoSubmissionSnapshot) async throws -> SharedMediaNativeReceivingIntent.Prepared {
+        guard let preflight else {
+            return try await owner.stageAppReceiving(packageID: selection.identity.packageID,
+                draftGeneration: selection.identity.draftGeneration, pairIDs: selection.pairIDs,
+                expectedMetadata: selection.metadata)
+        }
+        let supporting: SharedMediaNativeFrozenSupporting = try SharedMediaAcquisitionEncoding.decode(
+            selection.supportingBytes, maximum: Int(PhotoPreparationPolicy.metadata))
+        return try await owner.stageAppReceivingWithAdmission(metadata: selection.metadata, pairIDs: selection.pairIDs) { [self] observationID in
+            try selection.validate(snapshot)
+            let input = try IdentificationPreflightInput(nativePhotoObservationID: observationID,
+                photoCount: selection.pairIDs.count, contexts: supporting.contexts)
+            let authorization = try await preflight(input, selection.identity.ownerID)
+            try selection.validate(snapshot)
+            guard frozen == snapshot else { throw SharedMediaStorageFailure.stale }
+            return IdentificationDispatchAuthorization(recipient: authorization.recipient) {
+                try authorization.validate(); try self.selection.validate(snapshot)
+                guard self.frozen == snapshot else { throw SharedMediaStorageFailure.stale }
+            }
+        }
     }
 
     private func requireExact(_ value: SharedMediaNativeReceivingIntent.Prepared) throws {

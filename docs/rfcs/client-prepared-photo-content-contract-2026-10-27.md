@@ -1,3 +1,28 @@
+## Retained preflight-to-save integration — locally qualified checkpoint
+
+The native original owner now retains the preflight await within the same
+account cancellation/drain operation as discovery and staging. Fresh metadata
+and ordered pair intents are checked before the read; receiving locks are
+acquired afterward. Existing stage validation rejects changed metadata or a
+concurrent saved slot, and the injected current authorization is checked again
+synchronously immediately before the immutable save. Saved slots, including
+legacy nil expectations, bypass fresh recipient discovery and preserve their
+identity and bytes.
+
+Capture's submission session supplies the typed shape using its exact frozen
+selection and the owner-minted observation ID. This is an injected local
+integration seam: ordinary app composition still installs no preflight
+dependency. Live consent synchronization/endpoint wiring, allocation, execution,
+results and history remain open. New tests target identity binding, saved/legacy
+replay, ambiguous save recovery, account shutdown drainage, stale selection and
+revoked or recovery-only authorization. Engine source review found no blocking
+production issue. The corrected local Debug run passed 36 methods / 62 cases,
+with all 3,035 native/project pins unchanged and no structured runtime warnings.
+An omitted extension inventory was corrected before launch; an initial test
+assertion compile failure and its test-only repair remain retained. This is
+focused shared-checkout validation, not a new Release, full photo journey or
+feature activation.
+
 ## Native photo preflight integration — current working increment
 
 A typed `IdentificationPreflightInput` initializer now derives the existing

@@ -1,3 +1,19 @@
+## Retained photo preflight — locally qualified checkpoint
+
+`CaptureNativePhotoSubmissionSession` accepts a narrow injected preflight for
+native photo submissions. It derives shape from the frozen selection using the
+receiving owner's observation identity, retains exact supporting/media values
+across the await, and supplies current authorization validation through the
+immutable staging save. Saved prepared/received work bypasses fresh discovery.
+
+Ordinary app composition still supplies no preflight and remains inactive. The
+live dependency must synchronize current required consent before recipient
+discovery; this increment does not install a network caller. Focused local Debug
+qualification passed 36 methods / 62 cases. Full initial
+execution/result/history and reanalysis/recovery remain open. The
+[photo content contract](../../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+owns the cross-surface rules.
+
 ## October 27 — inactive local recovery host integration
 
 Capture now has a dependency-gated Pending submissions entry in the existing

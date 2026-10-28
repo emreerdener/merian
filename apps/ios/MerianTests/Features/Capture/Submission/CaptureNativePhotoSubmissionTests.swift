@@ -261,6 +261,137 @@ struct CaptureNativePhotoSubmissionTests {
         #expect(await valid.owner.invalidateAndAwaitForAccountTransition())
     }
 
+    @Test(arguments: [IdentificationRecipientExpectation.gemini, .openAI])
+    func preflightBindsSavedIdentityAndColdRecoverySkipsDiscovery(_ recipient: IdentificationRecipientExpectation) async throws {
+        let f = try await fixture(count: 2)
+        var inputs: [IdentificationPreflightInput] = []
+        let session = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { input, account in
+            #expect(account == f.store.ownerID && input.inputProfile == .photo && !input.flashFallbackEligible)
+            inputs.append(input)
+            // Preflight must not hold the receiving observation lock.
+            let locks = await ScanInferencePersistenceCoordinator.shared.acquireAll(scanIds: [input.originalAnalysisID.uuidString])
+            await ScanInferencePersistenceCoordinator.shared.releaseAll(scanIds: locks)
+            return .init(recipient: recipient, validate: {})
+        }, resolveOwner: { f.owner })
+        let snapshot = try CaptureNativePhotoSubmissionSnapshot(f.capture)
+        _ = try await session.submit(snapshot)
+        let prepared = try #require(session.prepared)
+        #expect(inputs.count == 1 && inputs.first?.originalAnalysisID == prepared.observationID)
+        #expect(prepared.photoAdmission?.expectedProcessorPermission == recipient)
+        try f.selection.validate(prepared)
+        _ = try await session.submit(snapshot)
+        #expect(inputs.count == 1)
+        #expect(await f.owner.invalidateAndAwaitForAccountTransition())
+        let cold = try await SharedMediaNativeReceivingStagingTests().reopen(f.store)
+        let recovered = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { _, _ in
+            Issue.record("Saved receipt rediscovered recipient"); throw SharedMediaStorageFailure.closed
+        }, resolveOwner: { cold })
+        _ = try await recovered.submit(snapshot)
+        #expect(try recovered.prepared?.encoded() == prepared.encoded())
+        #expect(await cold.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func legacyPreparedSlotBypassesNewRecipientDiscovery() async throws {
+        let f = try await fixture()
+        let saved = try await f.owner.stageAppReceiving(packageID: f.store.packageID,
+            draftGeneration: f.store.draft, pairIDs: f.selection.pairIDs, expectedMetadata: f.selection.metadata)
+        let recovered = try await f.owner.stageAppReceivingWithAdmission(metadata: f.selection.metadata,
+            pairIDs: f.selection.pairIDs) { _ in
+                Issue.record("Legacy prepared slot rediscovered recipient"); throw SharedMediaStorageFailure.closed
+            }
+        #expect(recovered.photoAdmission == nil)
+        #expect(try recovered.encoded() == saved.encoded())
+        #expect(await f.owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test(arguments: ["recoveryOnly", "revokedBeforeSave"])
+    func freshPreflightCannotSaveWithoutCurrentAuthorization(_ mode: String) async throws {
+        let f = try await fixture()
+        var valid = true
+        try f.owner.setMetadataFault { if $0 == .beforeSave { valid = false } }
+        let session = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { _, _ in
+            .init(recipient: mode == "recoveryOnly" ? .recoveryOnly : .gemini, validate: {
+                guard valid else { throw MerianError.aiConsentRequired }
+            })
+        }, resolveOwner: { f.owner })
+        await #expect(throws: (any Error).self) { _ = try await session.submit(.init(f.capture)) }
+        #expect(session.prepared == nil && session.receipt == nil)
+        #expect(try f.store.context().fetchCount(FetchDescriptor<SharedMediaReceivingIntentRecord>()) == 0)
+        #expect(try f.store.context().fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
+        #expect(await f.owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func accountShutdownDrainsSuspendedPreflightBeforeClosingStorage() async throws {
+        let f = try await fixture()
+        let entered = ImageFocusEngineTests.Signal(), release = ImageFocusEngineTests.Signal()
+        var didShutdown = false
+        let session = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { _, _ in
+            await entered.open(); await release.wait()
+            return .init(recipient: .gemini, validate: {})
+        }, resolveOwner: { f.owner })
+        let submission = Task { try await session.submit(.init(f.capture)) }
+        await entered.wait()
+        let shutdown = Task { let result = await f.owner.invalidateAndAwaitForAccountTransition(); didShutdown = true; return result }
+        while !f.owner.heldOriginalAdmissionClosedForTesting { await Task.yield() }
+        #expect(!didShutdown && session.isBusy)
+        await release.open()
+        await #expect(throws: (any Error).self) { _ = try await submission.value }
+        #expect(await shutdown.value)
+        #expect(try f.store.context().fetchCount(FetchDescriptor<SharedMediaReceivingIntentRecord>()) == 0)
+        #expect(!session.isBusy && session.prepared == nil)
+    }
+
+    @Test func persistedSelectionChangeDuringPreflightRefusesSave() async throws {
+        let f = try await fixture()
+        let session = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { _, _ in
+            // Simulate an external persistence owner changing the frozen target
+            // while the read-only recipient request is suspended.
+            let context = f.store.context(), package = try f.store.package(in: context)
+            package.revision += 1; try context.save()
+            return .init(recipient: .gemini, validate: {})
+        }, resolveOwner: { f.owner })
+        await #expect(throws: (any Error).self) { _ = try await session.submit(.init(f.capture)) }
+        #expect(try f.store.context().fetchCount(FetchDescriptor<SharedMediaReceivingIntentRecord>()) == 0)
+        #expect(try f.store.context().fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
+        #expect(await f.owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func ambiguousSaveRecoversSavedAdmissionWithoutNewPreflight() async throws {
+        let f = try await fixture()
+        var saved = false, discoveries = 0
+        try f.owner.setMetadataFault {
+            if $0 == .afterSave { saved = true }
+            if $0 == .beforeReadback && saved { throw SharedMediaStorageFailure.unavailable }
+        }
+        let session = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { _, _ in
+            discoveries += 1; return .init(recipient: .openAI, validate: {})
+        }, resolveOwner: { f.owner })
+        let snapshot = try CaptureNativePhotoSubmissionSnapshot(f.capture)
+        await #expect(throws: (any Error).self) { _ = try await session.submit(snapshot) }
+        #expect(discoveries == 1 && session.prepared == nil)
+        try f.owner.setMetadataFault(nil)
+        let staged = try #require(try await f.owner.discoverAppReceivingIntent(packageID: f.store.packageID))
+        _ = try await session.submit(snapshot)
+        #expect(discoveries == 1 && session.receipt != nil)
+        #expect(try session.prepared?.encoded() == staged.encoded())
+        #expect(await f.owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func staleMetadataRefusesBeforePreflight() async throws {
+        let f = try await fixture()
+        let edit = try await f.owner.prepareAppMetadata(packageID: f.store.packageID,
+            draftGeneration: f.store.draft, contexts: [.init(freeText: "Later persisted selection")])
+        _ = try await f.owner.saveAppMetadata(edit)
+        await #expect(throws: (any Error).self) {
+            _ = try await f.owner.stageAppReceivingWithAdmission(metadata: f.selection.metadata,
+                pairIDs: f.selection.pairIDs) { _ in
+                    Issue.record("Stale metadata reached preflight"); throw SharedMediaStorageFailure.closed
+                }
+        }
+        #expect(try f.store.context().fetchCount(FetchDescriptor<SharedMediaReceivingIntentRecord>()) == 0)
+        #expect(await f.owner.invalidateAndAwaitForAccountTransition())
+    }
+
     private func fixture(count: Int = 1, detectedFocus: Bool = false, priorFocus: NormalizedImageFocusRegion? = nil, includePresentation: Bool = true) async throws -> Fixture {
         let h = try SharedMediaNativeAppMetadataTests.Store(), owner = try await h.open()
         let bytes = PhotoPreparationTestHarness.image(), image = try #require(UIImage(data: bytes))

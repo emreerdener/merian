@@ -82,7 +82,8 @@ final class SharedMediaNativeAppReceivingOperations {
     }
     func stage(packageID: UUID, draftGeneration: UUID, pairIDs: [UUID],
                identity: SharedMediaNativeReceivingStageIdentity,
-               expectedMetadata: SharedMediaNativeAppMetadataRequest? = nil, photoAdmission: SharedMediaNativePhotoAdmission? = nil) async throws -> SharedMediaNativeReceivingIntent.Prepared {
+               expectedMetadata: SharedMediaNativeAppMetadataRequest? = nil, photoAdmission: SharedMediaNativePhotoAdmission? = nil,
+               beforeImmutableSave: () throws -> Void = {}) async throws -> SharedMediaNativeReceivingIntent.Prepared {
         try validate()
         let initial = fresh(), (initialInventory, _, _) = try target(initial, packageID)
         let saved = try SharedMediaNativeReceivingPhaseGraph.pending(initial, inventory: initialInventory)[packageID]
@@ -141,8 +142,8 @@ final class SharedMediaNativeAppReceivingOperations {
         guard try originalFacts(frozen, context: current) == originals else { throw SharedMediaStorageFailure.stale }
         try after.totals.checkAvailable(availableBytes(), additionalReservation: added)
         for observation in proofs { try verify(observation) }
-        // The final physical seals and save are synchronous under retained locks.
-        consumed = true
+        // The final physical seals, current authorization and save are synchronous under retained locks.
+        try beforeImmutableSave(); consumed = true
         do {
             try c.save(); try boundary(.afterSave)
             return try stagedResult(prepared)
