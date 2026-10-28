@@ -340,6 +340,7 @@ request-community-identification
 request-observation-publication
 get-observation-publication-status
 get-observation-publication-target
+initial-photo-allocation
 prepare-observation-publication-consent
 upload-observation-audio
 upload-observation-video
@@ -549,3 +550,14 @@ One-time dispatch and known-result-only recovery retain separate fences. All
 activation gates stay disabled. This source addition is not hosted route or
 customer smoke qualification; see the
 [current API contract](05-api-contracts.md#gated-video-edge-execution).
+
+### October 28 initial photo allocation source addendum
+
+`initial-photo-allocation` adds the local verified-session CPM create/status
+facade. The exact saved candidate drives both actions; status cannot create or
+renew. Private assignments are validated before minimal receipt projection.
+Terminal holds never authorize replacement or release, and expiry status can
+perform existing SQL cancellation. No native allocation caller or durable claim
+is installed yet. No deployment, activation or hosted qualification is implied;
+see the
+[current API contract](05-api-contracts.md#october-28--initial-photo-allocation-http-candidate).

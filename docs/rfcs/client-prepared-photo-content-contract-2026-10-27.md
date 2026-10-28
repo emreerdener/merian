@@ -1,3 +1,21 @@
+## October 28 — allocation facade integration candidate
+
+The local authenticated `initial-photo-allocation` facade now connects the
+closed app request to the existing service-only CPM create/status owners.
+[API contracts](../backend-and-data/05-api-contracts.md#october-28--initial-photo-allocation-http-candidate)
+is the canonical home for the minimal receipt, exact-candidate recovery, privacy
+and terminal-hold semantics. Engine agreed that the full assignment stays
+server-private and both actions carry the exact saved candidate so the existing
+assignment validator can run without another privileged lookup.
+
+The receiving slot is the native durable lifecycle owner. Allocation attempt
+state needs an additive SwiftData migration and must not mutate Prepared or
+reuse the release-start sidecar. Persist-before-send, status-only uncertainty
+recovery and release/abandon fences remain unimplemented. No app caller,
+activation, deployment, upload, funding, execution, result or history
+qualification is implied by this facade. Earlier no-route notes describe the
+historical checkpoints below.
+
 ## October 28 — initial photo live preflight composition checkpoint
 
 The inactive draft factory carries the existing network preflight dependency

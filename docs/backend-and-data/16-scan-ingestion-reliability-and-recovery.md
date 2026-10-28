@@ -1,5 +1,74 @@
 # Scan Ingestion Reliability and Recovery Contract
 
+## Current initial-photo integration entry point — October 28
+
+This section traces the **inactive local initial-photo candidate**. The older
+runtime contract and its dated evidence below remain applicable to their legacy
+paths; they do not qualify this new journey. Photo consent/preflight through
+immutable local receipt is locally qualified. The authenticated allocation
+facade is implemented and source-reviewed; native durable allocation
+integration, transfer, execution, result/history and full journey acceptance
+remain open. Nothing here implies deployment or feature activation.
+
+```mermaid
+flowchart LR
+    A[Capture selection and optional text] --> B[Original ownership and photo preparation]
+    B --> C[Frozen Prepared and local Received]
+    C -. pending native allocation claim .-> D[Authenticated create or status]
+    D --> E[Private CPM assignment and minimal receipt]
+    E -. pending integration .-> F[Transfer and byte verification]
+    F -. pending integration .-> G[Admission and execution]
+    G -. pending integration .-> H[Result then explicit history enrollment]
+    H -. pending qualification .-> I[Reanalysis and preserved versions]
+```
+
+Start in
+[`CaptureNativePhotoDraftSession`](../../apps/ios/Merian/Features/Capture/Submission/Services/CaptureNativePhotoDraftSession.swift)
+for the frozen selection, then
+[`CaptureNativePhotoSubmissionSession`](../../apps/ios/Merian/Features/Capture/Submission/Services/CaptureNativePhotoSubmissionSession.swift)
+for consent/preflight and retained staging.
+[`SharedMediaNativeOriginalOwner+AppReceiving`](../../apps/ios/Merian/Core/Data/SharedMediaStorage/SharedMediaNativeOriginalOwner+AppReceiving.swift)
+owns the account-scoped operation and receiving locks;
+[`SharedMediaNativeReceivingIntent`](../../apps/ios/Merian/Core/Data/SharedMediaStorage/SharedMediaNativeReceivingIntent.swift)
+defines immutable Prepared/Received association. A package owns the local media
+cohort, the observation ID becomes the initial scan identity, and account and
+operation identities fence asynchronous completion. A local receipt proves local
+ownership/readback, not remote analysis completion.
+
+[`SharedMediaNativePhotoCandidate`](../../apps/ios/Merian/Core/Data/SharedMediaStorage/SharedMediaNativePhotoCandidate.swift)
+binds the saved source/AI/display declarations, photo order, recipe, exact text
+and protocol/processor expectation. Digests are association claims until bytes
+are verified. The
+[photo content contract](../rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+owns those rules;
+[API contracts](./05-api-contracts.md#october-28--initial-photo-allocation-http-candidate)
+owns the create/status request and opaque receipt. The
+[authenticated facade](../../services/supabase/functions/initial-photo-allocation/README.md)
+reuses the existing service-only allocation/status SQL owners without exposing
+provider configuration or adding funding/execution authority.
+
+For a stalled local submission, inspect the exact receiving slot and current
+account/selection fences before retrying local recovery. Never edit Prepared,
+replace the original operation ID, or infer remote absence from a lost reply.
+The next native allocation owner must durably claim before sending and recover
+uncertainty through status only. Neither an allocated nor terminal receipt
+permits source cleanup; release requires the separately validated lifecycle
+closure. Missing media must fail closed rather than silently recomputing a
+different submitted artifact. Preserve retained failure evidence and use the
+[managed local validation procedure](../development-guides/08-testing-strategy.md#local-coding-checkpoints-and-validation-milestones).
+
+Photo is the current integration step. Audio/video and video reanalysis remain
+required under the
+[canonical roadmap](../rfcs/identification-history-alpha-readiness-2026-10-11.md);
+they are not covered by this photo endpoint. The
+[IC-1 agreement](../rfcs/initial-completion-history-interface-2026-10-11.md)
+keeps initial completion separate from explicit history enrollment. RUX1–6,
+restart/cancellation/deletion races, second-version recovery, and final
+cross-system documentation reconciliation remain acceptance work. Existing
+funding rules and later user selections must survive every integration step.
+
+## Historical runtime baseline and retained evidence
+
 **Last reviewed:** 2026-08-09\
 **Scope:** Capture, foreground analysis, offline queue replay, durable scan
 persistence, Field Chat readiness, Explore publication, and owned-media repair\

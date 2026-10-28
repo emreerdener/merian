@@ -814,3 +814,7 @@ verify_jwt = false
 
 [functions.recover-observation-video-analyses]
 verify_jwt = false
+
+# Candidate-only authenticated CPM allocation/status; deployment hold remains.
+[functions.initial-photo-allocation]
+verify_jwt = false

@@ -1,3 +1,51 @@
+## October 28 — initial photo allocation HTTP candidate
+
+`initial-photo-allocation` is an implemented local authenticated facade for the
+existing service-only CPM create/status owners. It is not deployed or called by
+the app. Native durable allocation claims, release fences and response mapping
+remain required before app integration; this checkpoint does not qualify the
+complete photo journey. No Identify generated DTO, public web or admin payload
+changes. Earlier “no HTTP route” statements below describe prior checkpoints.
+
+The closed
+[executable schema](../../services/supabase/functions/initial-photo-allocation/schema-v1.json)
+owns these version-1 requests:
+
+- Create: `version`, `action: "create"`, exact saved `candidate_canonical`.
+- Recover: `version`, `action: "status"`, the same `candidate_canonical`, and
+  `saved_assignment_digest` (explicit null only before a receipt is saved).
+
+The candidate is strictly canonical and at most 1 MiB. The bounded JSON wrapper
+allows twice that size plus 4 KiB for JSON escaping and fixed fields. The
+verified session supplies the owner; scan/package and digests derive from the
+candidate. No client owner, destination, configuration or authority is accepted.
+Status invokes only `get_initial_preparation_status`; it does not allocate or
+renew, although that SQL owner can cancel expired operations. Create invokes
+only `create_initial_preparation_intent`. Service RPC grants are unchanged.
+
+The private assignment is validated against the exact candidate before a minimal
+receipt is returned: version, variant, outcome, `authority: "none"`,
+scan/package, candidate/content digests, assignment digest and original
+creation/expiry clocks. A saved assignment digest must match. The future native
+owner must also compare saved identities, digests and original clocks; it must
+persist a claim before I/O and recover uncertain outcomes through status only.
+Full provider, model, policy, installation, role mapping and destination data
+remain server-private.
+
+Terminal receipts contain the request association and a closed `not_found`,
+`expired` or `cancelled` reason. Association is not proof that the candidate
+matched a saved operation. Missing, foreign and deleted operations share the
+same opaque hold. Neither terminal nor allocated receipts permit replacement,
+local-media release, upload, admission, funding or execution. Existing server
+lifecycle/funding/consent gates remain authoritative.
+
+The fixed transport has one attempt, a five-second deadline, bounded streaming
+response reads, no redirect or authentication retry, and no route fallback.
+Malformed/lost/late responses remain unavailable and require recovery of the
+original operation. Request bodies and private replies are neither logged nor
+cached; responses use `private, no-store`. See the
+[local owner and focused tests](../../services/supabase/functions/initial-photo-allocation/README.md).
+
 ## October 27 — inactive CPM allocation/recovery candidate
 
 The existing service-only `create_initial_preparation_intent` and

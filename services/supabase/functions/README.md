@@ -278,3 +278,10 @@ user submission through the separate strict V4 worker.
 owns service-only saved-result recovery, without provider preparation or fresh
 execution. Both use the prepared video RPCs; gates remain false and no schedule
 or deployment is supplied. Generic execution continues denying V4.
+
+## Inactive initial photo integration candidate
+
+[initial-photo-allocation](./initial-photo-allocation/README.md) adds the local
+authenticated create/status facade over the existing CPM preparation owner.
+Native durable allocation/release integration remains pending; this entry does
+not indicate deployment or activation.
