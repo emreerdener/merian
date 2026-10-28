@@ -63,6 +63,21 @@ DO $tripwire$ DECLARE definition TEXT; needle TEXT:='    -- Fresh mutations only
 END $tripwire$;
 """
         for index, (name, args, column, table) in enumerate(OPERATIONS):
+            if index == 5:
+                q.execute('legacy_transfer_accounts_for_empty_cpm_child',
+                          'BEGIN;UPDATE internal.initial_analysis_rollout SET initial_analysis_lifecycle_enabled=TRUE;' + prefix + """
+DECLARE plan JSONB; BEGIN
+ IF EXISTS(SELECT 1 FROM internal.initial_cpm_photo_role_mapping WHERE scan_id=r.scan_id) THEN
+  RAISE EXCEPTION USING ERRCODE='ZX749'; END IF;
+ plan:=internal.plan_initial_media_handoff_mutation(r.owner_id,r.scan_id,'transfer',r.receipt_digest,NULL,NULL,
+  (SELECT receipt_digest FROM internal.initial_media_verification_receipts_v2 WHERE scan_id=r.scan_id));
+ IF plan#>'{snapshot,internal.initial_cpm_photo_role_mapping}' IS DISTINCT FROM '[]'::JSONB
+  OR (SELECT count(*) FROM jsonb_array_elements(plan->'frames') f
+   WHERE f->>'relation'='internal.initial_cpm_photo_role_mapping' AND f->>'operation'='DELETE'
+    AND f->'events'='[]'::JSONB AND f->>'parent' IS NOT NULL)<>1 THEN
+  RAISE EXCEPTION USING ERRCODE='ZX749'; END IF;
+END; END $$;ROLLBACK;
+""")
             call = 'SELECT * INTO STRICT answer FROM internal.' + name + '(r.owner_id,r.scan_id,r.receipt_digest' + args + ');'
             assertion = stable + 'IF to_jsonb(answer."' + column + '") IS DISTINCT FROM (SELECT to_jsonb(t) FROM internal.' + table + " t WHERE t.scan_id=r.scan_id) OR answer.response->>'outcome' IS DISTINCT FROM '" + ('transferred' if index == 5 else 'admitted') + "' THEN RAISE EXCEPTION USING ERRCODE='ZX742';END IF;"
             # A committed mutation seals its transaction. Restore the fixture's

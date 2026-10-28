@@ -1245,6 +1245,35 @@ SELECT extensions.throws_ok('SELECT pg_temp.ledger_preflight_overflow()','55000'
 SELECT extensions.throws_ok($q$SELECT internal.initial_admission_ledger_snapshot('00000000-0000-4000-8000-000000009999')$q$,
  '55000','initial_analysis_admission_incomplete','ledger rejects empty snapshot');
 
+-- Cleanup/seal faults are independent operations. Give this subgroup a fresh
+-- server-created identity and original window rather than spending the earlier
+-- stage's lifetime on unrelated corruption tests. Never renew the old stage.
+-- Use an independent owner so this fixture cannot spend later cases' allowance.
+CREATE TEMP TABLE before_cleanup_subgroup_identity AS
+ SELECT to_jsonb(p) preparation,to_jsonb(s) stage
+ FROM internal.initial_analysis_preparation_intents p
+ JOIN internal.initial_preparation_admission_staging s USING(scan_id)
+ WHERE p.scan_id='00000000-0000-4000-8000-000000005544';
+SELECT set_config('merian.initial_admission_stage','',TRUE);
+SELECT set_config('merian.initial_preparation_funding','',TRUE);
+SELECT set_config('merian.initial_analysis_admission','',TRUE);
+SELECT pg_temp.admission_owner('00000000-0000-4000-8000-00000000f003');
+SELECT extensions.lives_ok($q$SELECT public.create_initial_preparation_intent(
+ '00000000-0000-4000-8000-00000000f003','00000000-0000-4000-8000-000000005556',
+ (SELECT internal.initial_canonical(v->'candidate') FROM media_vectors WHERE i=1))$q$,'fresh cleanup subgroup preparation');
+SELECT extensions.lives_ok($q$SELECT pg_temp.execution_advance('00000000-0000-4000-8000-000000005556',4)$q$,'fresh cleanup subgroup prepared outcome');
+SELECT internal.create_initial_admission_stage('00000000-0000-4000-8000-00000000f003','00000000-0000-4000-8000-000000005556');
+SELECT set_config('merian.initial_admission_stage',(SELECT stage_token::TEXT FROM internal.initial_preparation_admission_staging WHERE scan_id='00000000-0000-4000-8000-000000005556'),TRUE);
+SELECT set_config('merian.initial_preparation_funding','00000000-0000-4000-8000-00000000f003:00000000-0000-4000-8000-000000005556',TRUE);
+SELECT set_config('merian.initial_analysis_admission','00000000-0000-4000-8000-00000000f003:00000000-0000-4000-8000-000000005556',TRUE);
+SELECT set_config('merian.test_atomic_scan','00000000-0000-4000-8000-000000005556',TRUE);
+SELECT extensions.lives_ok($q$SELECT * FROM public.reserve_identification_quota(
+ '00000000-0000-4000-8000-00000000f003','scan_identification','00000000-0000-4000-8000-000000005556',
+ repeat('a',64),'00000000-0000-4000-8000-000000005556',FALSE,3,FALSE,'vision_compat_v1','google_gemini',6)$q$,
+ 'fresh cleanup subgroup uses original funding owner');
+SELECT extensions.is((SELECT (phase_window::JSONB#>>'{cutoffs,admission}')::BIGINT-(phase_window::JSONB->>'anchor_ms')::BIGINT
+ FROM internal.initial_preparation_admission_staging WHERE scan_id='00000000-0000-4000-8000-000000005556'),60000::BIGINT,'cleanup subgroup retains original sixty-second phase');
+
 CREATE FUNCTION pg_temp.cleanup_state(scan UUID) RETURNS JSONB LANGUAGE SQL AS $$
  SELECT jsonb_build_object('stage',(SELECT to_jsonb(s) FROM internal.initial_preparation_admission_staging s WHERE scan_id=scan),
   'writes',(SELECT COALESCE(jsonb_agg(to_jsonb(w) ORDER BY statement_key COLLATE "C"),'[]') FROM internal.initial_preparation_admission_writes w WHERE scan_id=scan))
@@ -1252,7 +1281,7 @@ $$;
 \if :{?seal_lock_peer}
 \else
 CREATE FUNCTION pg_temp.cleanup_probe() RETURNS BOOLEAN LANGUAGE PLPGSQL AS $$
-DECLARE s internal.initial_preparation_admission_staging; before_state JSONB; scan UUID:='00000000-0000-4000-8000-000000005544'; valid BOOLEAN;
+DECLARE s internal.initial_preparation_admission_staging; before_state JSONB; scan UUID:='00000000-0000-4000-8000-000000005556'; valid BOOLEAN;
 BEGIN
  before_state:=pg_temp.cleanup_state(scan);
  BEGIN
@@ -1298,7 +1327,7 @@ BEGIN
 END; $$;
 CREATE TRIGGER nested_cleanup_delete BEFORE INSERT ON nested_cleanup_probe FOR EACH ROW EXECUTE FUNCTION pg_temp.nested_cleanup_delete();
 CREATE FUNCTION pg_temp.cleanup_fault(fault TEXT) RETURNS TEXT LANGUAGE PLPGSQL AS $$
-DECLARE s internal.initial_preparation_admission_staging; scan UUID:='00000000-0000-4000-8000-000000005544'; before_state JSONB; failure TEXT;
+DECLARE s internal.initial_preparation_admission_staging; scan UUID:='00000000-0000-4000-8000-000000005556'; before_state JSONB; failure TEXT;
 BEGIN
  before_state:=pg_temp.cleanup_state(scan);
  BEGIN
@@ -1368,7 +1397,7 @@ SELECT extensions.is(pg_temp.seal_role_write('authenticated','UPDATE public.scan
 SELECT extensions.is(pg_temp.seal_role_write('authenticated','UPDATE public.users SET marketing_opt_in=marketing_opt_in WHERE FALSE'),'allowed',
  'unsealed authenticated user writes keep existing access without private helper grants');
 CREATE FUNCTION pg_temp.seal_matrix() RETURNS JSONB LANGUAGE PLPGSQL AS $$
-DECLARE scan UUID:='00000000-0000-4000-8000-000000005544'; before_state JSONB;
+DECLARE scan UUID:='00000000-0000-4000-8000-000000005556'; before_state JSONB;
  results JSONB:='[]'; rel TEXT; verb TEXT; command TEXT; failure TEXT; first_column TEXT; valid BOOLEAN; token TEXT;
 BEGIN
  before_state:=pg_temp.cleanup_state(scan);
@@ -1404,7 +1433,7 @@ BEGIN
     'pass',failure IS NOT DISTINCT FROM '55000:initial_analysis_admission_sealed','failure',failure));
   END LOOP;
   FOREACH command IN ARRAY ARRAY[
-   'UPDATE internal.initial_preparation_admission_staging SET cleanup_cursor=1 WHERE scan_id=''00000000-0000-4000-8000-000000005544''',
+   'UPDATE internal.initial_preparation_admission_staging SET cleanup_cursor=1 WHERE scan_id=''00000000-0000-4000-8000-000000005556''',
    'UPDATE internal.initial_preparation_admission_writes SET consumed=consumed',
    'INSERT INTO internal.initial_preparation_admission_writes SELECT * FROM internal.initial_preparation_admission_writes LIMIT 1',
    'INSERT INTO internal.initial_preparation_admission_staging SELECT * FROM internal.initial_preparation_admission_staging LIMIT 1'
@@ -1463,7 +1492,7 @@ EXCEPTION WHEN OTHERS THEN
 END; $$;
 \if :{?seal_lock_peer}
 CREATE FUNCTION pg_temp.seal_peer_conflict() RETURNS TEXT LANGUAGE PLPGSQL AS $$
-DECLARE scan UUID:='00000000-0000-4000-8000-000000005544'; before_state JSONB; failure TEXT;
+DECLARE scan UUID:='00000000-0000-4000-8000-000000005556'; before_state JSONB; failure TEXT;
 BEGIN
  before_state:=pg_temp.cleanup_state(scan);
  BEGIN
@@ -1506,6 +1535,7 @@ SELECT extensions.is((SELECT array_agg(n.nspname||'.'||c.relname ORDER BY n.nspn
  'internal.initial_analysis_preparation_intents',
  'internal.initial_analysis_results',
  'internal.initial_analysis_submissions',
+ 'internal.initial_cpm_photo_role_mapping',
  'internal.initial_media_copy_progress',
  'internal.initial_media_handoff_staging',
  'internal.initial_media_handoff_writes',
@@ -1530,7 +1560,7 @@ SELECT extensions.is((SELECT array_agg(n.nspname||'.'||c.relname ORDER BY n.nspn
  'public.scan_ingestion_jobs',
  'public.scans',
  'public.users']::TEXT[],
- 'seal inventory exactly covers original roots plus four durable and two transient handoff relations');
+ 'seal inventory exactly covers original roots, CPM role mappings, four durable and two transient handoff relations');
 SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='a00_initial_admission_seal'
  AND (tgtype<>62 OR tgenabled<>'O')),'all seal guards are BEFORE STATEMENT INSERT UPDATE DELETE TRUNCATE');
 CREATE TEMP TABLE seal_matrix_results AS SELECT e FROM jsonb_array_elements(pg_temp.seal_matrix()) e;
@@ -1553,7 +1583,7 @@ BEGIN
 END $$;
 CREATE TRIGGER nested_entry_update BEFORE INSERT ON nested_entry_probe FOR EACH ROW EXECUTE FUNCTION pg_temp.nested_entry_update();
 CREATE FUNCTION pg_temp.entry_seal_fault(fault TEXT) RETURNS TEXT LANGUAGE PLPGSQL AS $$
-DECLARE scan UUID:='00000000-0000-4000-8000-000000005544'; before_state JSONB; failure TEXT;
+DECLARE scan UUID:='00000000-0000-4000-8000-000000005556'; before_state JSONB; failure TEXT;
 BEGIN
  before_state:=pg_temp.cleanup_state(scan);
  BEGIN
@@ -1604,30 +1634,30 @@ DROP TRIGGER zz_test_entry_failure ON internal.initial_preparation_admission_sta
 -- Real SQL savepoint/release boundaries supplement PL/pgSQL exception rollback.
 -- Assertions inside rolled-back savepoints use DO, preserving pgTAP numbering.
 SAVEPOINT before_terminal_phase;
-SELECT internal.materialize_initial_admission('00000000-0000-4000-8000-000000005544');
-SELECT internal.freeze_initial_admission_ledger('00000000-0000-4000-8000-000000005544');
+SELECT internal.materialize_initial_admission('00000000-0000-4000-8000-000000005556');
+SELECT internal.freeze_initial_admission_ledger('00000000-0000-4000-8000-000000005556');
 SAVEPOINT before_terminal_entry;
-SELECT internal.begin_initial_admission_consumption('00000000-0000-4000-8000-000000005544');
+SELECT internal.begin_initial_admission_consumption('00000000-0000-4000-8000-000000005556');
 SAVEPOINT after_terminal_seal;
-SELECT internal.consume_initial_admission_writes('00000000-0000-4000-8000-000000005544');
+SELECT internal.consume_initial_admission_writes('00000000-0000-4000-8000-000000005556');
 ROLLBACK TO after_terminal_seal;
 DO $$ BEGIN
  IF NOT internal.initial_admission_sealed() OR NOT EXISTS(SELECT 1 FROM internal.initial_preparation_admission_staging
-  WHERE scan_id='00000000-0000-4000-8000-000000005544' AND cleanup_cursor=0) THEN RAISE EXCEPTION 'after-seal savepoint rollback lost seal or cursor'; END IF;
+  WHERE scan_id='00000000-0000-4000-8000-000000005556' AND cleanup_cursor=0) THEN RAISE EXCEPTION 'after-seal savepoint rollback lost seal or cursor'; END IF;
 END $$;
 RELEASE SAVEPOINT after_terminal_seal;
 ROLLBACK TO before_terminal_entry;
 DO $$ BEGIN
  IF internal.initial_admission_sealed() OR NOT EXISTS(SELECT 1 FROM internal.initial_preparation_admission_staging
-  WHERE scan_id='00000000-0000-4000-8000-000000005544' AND phase='allocated' AND cleanup_cursor=0) THEN RAISE EXCEPTION 'before-entry rollback mismatch'; END IF;
+  WHERE scan_id='00000000-0000-4000-8000-000000005556' AND phase='allocated' AND cleanup_cursor=0) THEN RAISE EXCEPTION 'before-entry rollback mismatch'; END IF;
 END $$;
-SELECT internal.begin_initial_admission_consumption('00000000-0000-4000-8000-000000005544');
+SELECT internal.begin_initial_admission_consumption('00000000-0000-4000-8000-000000005556');
 RELEASE SAVEPOINT before_terminal_entry;
 DO $$ BEGIN IF NOT internal.initial_admission_sealed() THEN RAISE EXCEPTION 'release lost seal'; END IF; END $$;
 ROLLBACK TO before_terminal_phase;
 RELEASE SAVEPOINT before_terminal_phase;
 SELECT extensions.ok(NOT internal.initial_admission_sealed() AND EXISTS(SELECT 1 FROM internal.initial_preparation_admission_staging
- WHERE scan_id='00000000-0000-4000-8000-000000005544' AND phase='compared' AND completion_ledger IS NULL),
+ WHERE scan_id='00000000-0000-4000-8000-000000005556' AND phase='compared' AND completion_ledger IS NULL),
  'savepoint rollback/release retains or removes seal with associated cleanup progress');
 
 CREATE FUNCTION pg_temp.seal_lock_filters() RETURNS BOOLEAN LANGUAGE PLPGSQL AS $$
@@ -1659,9 +1689,9 @@ CREATE FUNCTION pg_temp.cross_registry_collision(reverse_order BOOLEAN) RETURNS 
 DECLARE source_value internal.initial_preparation_source_registry; destination_value internal.initial_analysis_media_registry;
 BEGIN
  BEGIN
-  PERFORM internal.materialize_initial_admission('00000000-0000-4000-8000-000000005544');
-  SELECT * INTO STRICT source_value FROM internal.initial_preparation_source_registry WHERE scan_id='00000000-0000-4000-8000-000000005544' ORDER BY object_id LIMIT 1;
-  SELECT * INTO STRICT destination_value FROM internal.initial_analysis_media_registry WHERE scan_id='00000000-0000-4000-8000-000000005544' ORDER BY object_id LIMIT 1;
+  PERFORM internal.materialize_initial_admission('00000000-0000-4000-8000-000000005556');
+  SELECT * INTO STRICT source_value FROM internal.initial_preparation_source_registry WHERE scan_id='00000000-0000-4000-8000-000000005556' ORDER BY object_id LIMIT 1;
+  SELECT * INTO STRICT destination_value FROM internal.initial_analysis_media_registry WHERE scan_id='00000000-0000-4000-8000-000000005556' ORDER BY object_id LIMIT 1;
   IF reverse_order THEN
    source_value.object_id:=destination_value.object_id;
    INSERT INTO internal.initial_preparation_source_registry SELECT source_value.*;
@@ -1675,6 +1705,13 @@ BEGIN
 END; $$;
 SELECT extensions.is(pg_temp.cross_registry_collision(FALSE),'22023:initial_analysis_identity_conflict','destination insertion cannot reuse source/output UUID');
 SELECT extensions.is(pg_temp.cross_registry_collision(TRUE),'22023:initial_analysis_identity_conflict','source insertion cannot reuse destination UUID');
+
+SELECT extensions.ok(EXISTS(
+ SELECT 1 FROM before_cleanup_subgroup_identity b
+ JOIN internal.initial_analysis_preparation_intents p ON p.scan_id='00000000-0000-4000-8000-000000005544'
+ JOIN internal.initial_preparation_admission_staging s USING(scan_id)
+ WHERE to_jsonb(p)=b.preparation AND to_jsonb(s)=b.stage),
+ 'cleanup subgroup never renews or rewrites the earlier operation');
 
 -- The runner can hold this exact namespace in a second local database
 -- transaction. Raw malformed insert shape intentionally proves the namespace
@@ -2365,6 +2402,7 @@ SELECT extensions.is((SELECT array_agg(relation_name||':'||root_name||':'||row_l
  'internal.initial_analysis_preparation_intents:intent:1',
  'internal.initial_analysis_results:submission:1',
  'internal.initial_analysis_submissions:submission:1',
+ 'internal.initial_cpm_photo_role_mapping:intent:6',
  'internal.initial_media_copy_progress:submission:1',
  'internal.initial_media_verification_claims_v2:submission:1',
  'internal.initial_media_verification_receipts_v2:submission:1',
@@ -2376,7 +2414,7 @@ SELECT extensions.is((SELECT array_agg(relation_name||':'||root_name||':'||row_l
  'internal.initial_preparation_source_mapping:intent:8',
  'internal.initial_preparation_source_verifications:intent:1',
  'internal.initial_preparation_transfer_receipts:submission:1']::TEXT[],
- 'C1 private catalog exactly binds all nineteen private relations, roots and row limits');
+ 'C1 private catalog exactly binds all twenty private relations, roots and row limits');
 SELECT extensions.ok(position('initial_preparation_source_mapping WHERE scan_id=p_scan ORDER BY ordinal FOR UPDATE' IN definition)
  <position('''erasure_images'',internal.capture_initial_cancellation_private_images(p_scan)' IN definition),
  'C1 captures source mapping under original lock scope before private-image aggregation')
@@ -2472,6 +2510,7 @@ SELECT extensions.is((SELECT array_agg(relation_name ORDER BY relation_name) FRO
  'internal.initial_cancellation_receipt_witness',
  'internal.initial_cancellation_retirement_witness',
  'internal.initial_cancellation_terminal_snapshot',
+ 'internal.initial_cpm_photo_role_mapping',
  'internal.initial_media_copy_progress',
  'internal.initial_media_handoff_staging',
  'internal.initial_media_handoff_writes',

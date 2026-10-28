@@ -1,3 +1,23 @@
+## October 28 — inactive CPM allocation and recovery checkpoint
+
+The
+[photo content contract](client-prepared-photo-content-contract-2026-10-27.md)
+now has an inactive SQL owner implementation for fixed assignment recovery,
+distinct original/AI/display registrations, pending capacity, cancellation and
+retirement. Independent source review and 61 focused SQL assertions plus
+three-session capacity contention passed. No installed profile, byte IO,
+verification, funding, execution or application caller is enabled.
+
+The complete 175-file catalog gate passed with 6921 reported assertions on the
+exact 494-migration local replay. Catalog validation caught and led to reviewed
+repairs for owner indexing, identity-merge classification, C1/handoff child
+integration, exact seal inventory and isolated test fixture lifetime/allowance;
+earlier failures remain retained. The legacy 1MiB boundary still has unresolved
+timing sensitivity under its unchanged limit. Full initial photo
+execution/result/explicit history enrollment and reanalysis/recovery,
+audio/video, RUX and the approved later milestones remain open. Release controls
+are unchanged.
+
 ## October 27 — CPM consuming-contract design checkpoint
 
 The

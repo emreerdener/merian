@@ -1,0 +1,83 @@
+{
+  "synthetic_only": true,
+  "assignment": {
+    "version": 1,
+    "variant": "client_prepared_photo",
+    "candidate_digest": "d6386c57a8e3d67c5cb8566fc46dfa59378613ccd0494c85669905df25b2d57a",
+    "content_digest": "d75caa6fdc3c9f374149c666cb2bb3b153934bc6dc4040589fa418ee7e41c806",
+    "scan_id": "00000000-0000-4000-8000-000000000001",
+    "package_id": "00000000-0000-4000-8000-000000000002",
+    "created_at_ms": 1793140000000,
+    "expires_at_ms": 1793141800000,
+    "configuration": {
+      "route": "identify",
+      "operation": "scan_identification",
+      "effective_plan": "pro_complimentary",
+      "effective_tier": "pro",
+      "flash_fallback_used": false,
+      "quota_model": "synthetic-cpm-model",
+      "policy_version": 1,
+      "provider": "gemini",
+      "binding": "synthetic_cpm_binding_v1",
+      "processor_permission": "google_gemini",
+      "input_profile": "vision_compat_v1",
+      "provider_model": null,
+      "effective_model": "synthetic-cpm-model",
+      "minimum_client_protocol": 0,
+      "accepted_client_protocol": 3,
+      "minimum_identification_protocol": 0,
+      "accepted_identification_protocol": 6,
+      "asset_manifest_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "retention_owner": "initial_engine_release_archive",
+      "resolver_id": "git_blob_sha256_v1",
+      "output_language": "en"
+    },
+    "preparation": {
+      "resource_profile": "P1-L1",
+      "composition_policy": "cpm_photo_contexts_v1",
+      "profile_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "installation_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "selector_generation": "00000000-0000-4000-8000-000000000100",
+      "backend_generation": "00000000-0000-4000-8000-000000000101",
+      "backend_installation_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "verifier_build_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "role_mapping": [
+        {
+          "photo_ordinal": 0,
+          "role": "source",
+          "object_id": "00000000-0000-4000-8000-000000000200",
+          "declaration": {
+            "byte_count": 1,
+            "declared_content_type": "image/jpeg",
+            "reference_id": "00000000-0000-4000-8000-000000000003",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        {
+          "photo_ordinal": 0,
+          "role": "ai",
+          "object_id": "00000000-0000-4000-8000-000000000201",
+          "declaration": {
+            "byte_count": 1,
+            "declared_content_type": "image/jpeg",
+            "reference_id": "00000000-0000-4000-8000-000000000004",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        {
+          "photo_ordinal": 0,
+          "role": "display",
+          "object_id": "00000000-0000-4000-8000-000000000202",
+          "declaration": {
+            "byte_count": 1,
+            "declared_content_type": "image/jpeg",
+            "reference_id": "00000000-0000-4000-8000-000000000005",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        }
+      ]
+    }
+  },
+  "canonical": "{\"candidate_digest\":\"d6386c57a8e3d67c5cb8566fc46dfa59378613ccd0494c85669905df25b2d57a\",\"configuration\":{\"accepted_client_protocol\":3,\"accepted_identification_protocol\":6,\"asset_manifest_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"binding\":\"synthetic_cpm_binding_v1\",\"effective_model\":\"synthetic-cpm-model\",\"effective_plan\":\"pro_complimentary\",\"effective_tier\":\"pro\",\"flash_fallback_used\":false,\"input_profile\":\"vision_compat_v1\",\"minimum_client_protocol\":0,\"minimum_identification_protocol\":0,\"operation\":\"scan_identification\",\"output_language\":\"en\",\"policy_version\":1,\"processor_permission\":\"google_gemini\",\"provider\":\"gemini\",\"provider_model\":null,\"quota_model\":\"synthetic-cpm-model\",\"resolver_id\":\"git_blob_sha256_v1\",\"retention_owner\":\"initial_engine_release_archive\",\"route\":\"identify\"},\"content_digest\":\"d75caa6fdc3c9f374149c666cb2bb3b153934bc6dc4040589fa418ee7e41c806\",\"created_at_ms\":1793140000000,\"expires_at_ms\":1793141800000,\"package_id\":\"00000000-0000-4000-8000-000000000002\",\"preparation\":{\"backend_generation\":\"00000000-0000-4000-8000-000000000101\",\"backend_installation_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"composition_policy\":\"cpm_photo_contexts_v1\",\"installation_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"profile_digest\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"resource_profile\":\"P1-L1\",\"role_mapping\":[{\"declaration\":{\"byte_count\":1,\"declared_content_type\":\"image/jpeg\",\"reference_id\":\"00000000-0000-4000-8000-000000000003\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"object_id\":\"00000000-0000-4000-8000-000000000200\",\"photo_ordinal\":0,\"role\":\"source\"},{\"declaration\":{\"byte_count\":1,\"declared_content_type\":\"image/jpeg\",\"reference_id\":\"00000000-0000-4000-8000-000000000004\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"object_id\":\"00000000-0000-4000-8000-000000000201\",\"photo_ordinal\":0,\"role\":\"ai\"},{\"declaration\":{\"byte_count\":1,\"declared_content_type\":\"image/jpeg\",\"reference_id\":\"00000000-0000-4000-8000-000000000005\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"object_id\":\"00000000-0000-4000-8000-000000000202\",\"photo_ordinal\":0,\"role\":\"display\"}],\"selector_generation\":\"00000000-0000-4000-8000-000000000100\",\"verifier_build_digest\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\"},\"scan_id\":\"00000000-0000-4000-8000-000000000001\",\"variant\":\"client_prepared_photo\",\"version\":1}",
+  "digest": "eb616665a5a98638d564ef78f6aa08899551c0f09b4284fe36bf4c1afa0f7886"
+}

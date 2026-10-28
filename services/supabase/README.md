@@ -1,3 +1,31 @@
+## Inactive initial-photo CPM allocation checkpoint
+
+The October 27 SQL candidate extends existing preparation/recovery and
+cancellation/erasure owners for closed `client_prepared_photo` metadata. All
+profile/selection catalogs remain unseeded and private; allocation grants no
+upload, verification, funding or execution authority. See the
+[canonical contract](../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+for exact role mapping, fixed deadline, capacity and never-issued release rules.
+Local tests are synthetic and do not qualify native journeys or installed IO.
+
+`tests/initial_cpm_photo_intents.sql` covers allocation, exact recovery,
+capacity rollback, service-role deferred checks, expiry and erasure. The
+separate `test_initial_cpm_photo_capacity.py` runner requires a fresh owned
+disposable replay and proves cross-owner last-slot contention. It never
+provisions or resets a database; dispose its named database after success or
+failure while retaining evidence. It does not replace the complete catalog or
+legacy concurrency gates. Its failure cleanup attempts every owned connection
+closure and bounded gate restoration while preserving the original error;
+`python3 -B services/supabase/scripts/test_initial_cpm_photo_capacity_cleanup.py`
+runs the three local fault-injection cases without a database.
+
+The legacy atomic-admission catalog gives its cleanup/seal subgroup a distinct
+fresh operation and synthetic owner, preserving the earlier operation, its
+allowance and unchanged deadlines. Historical artifact-only `seal_lock_peer`
+runners must target fixture scan `00000000-0000-4000-8000-000000005556`; the
+namespace peer remains `…005566`. Old peer evidence does not qualify the changed
+fixture. See the retained candidate receipts before reusing a historical runner.
+
 # Merian Supabase Backend
 
 > **Beta policy update — September 18, 2026:** The owner authorized the existing

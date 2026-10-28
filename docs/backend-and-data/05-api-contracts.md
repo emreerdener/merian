@@ -1,3 +1,21 @@
+## October 27 — inactive CPM allocation/recovery candidate
+
+The existing service-only `create_initial_preparation_intent` and
+`get_initial_preparation_status` owners gain a closed `client_prepared_photo`
+branch in the local SQL candidate. Its field authority is the
+[photo content contract](../rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+and executable candidate/assignment/recovery schemas. This adds no HTTP route,
+application caller or generated public Identify DTO change.
+
+The candidate binds exact content and saved protocol/processor expectation.
+Allocation returns the original canonical assignment and digest with
+`authority: none`; retries preserve its original deadline, destinations and
+configuration. Expiry returns `terminal_held` after cancellation/retirement.
+Deleted, cancelled or unavailable owners retain existing closed errors; those
+errors never grant replacement or fresh execution. Legacy funding, media
+verification and execution owners refuse this branch. Future byte verification,
+upload/admission and native response mapping remain unimplemented.
+
 ## October 27 — private photo CPM content declaration candidate
 
 The

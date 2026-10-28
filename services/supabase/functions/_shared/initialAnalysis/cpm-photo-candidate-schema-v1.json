@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "properties": {
+    "version": { "type": "integer", "minimum": 1, "maximum": 1 },
+    "variant": {
+      "type": "string",
+      "max_bytes": 24,
+      "enum": ["client_prepared_photo"]
+    },
+    "content_canonical": { "type": "string", "max_bytes": 1048576 },
+    "admission": {
+      "type": "object",
+      "properties": {
+        "client_protocol": { "type": "integer", "minimum": 3, "maximum": 3 },
+        "identification_protocol": {
+          "type": "integer",
+          "minimum": 6,
+          "maximum": 6
+        },
+        "expected_processor_permission": {
+          "type": "string",
+          "max_bytes": 32,
+          "enum": ["google_gemini", "openai"]
+        }
+      }
+    }
+  }
+}

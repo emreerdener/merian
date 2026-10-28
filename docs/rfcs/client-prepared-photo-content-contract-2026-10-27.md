@@ -1,3 +1,115 @@
+## October 28 — inactive SQL owner integration checkpoint
+
+The local `20261027230332_prepare_initial_cpm_photo_intents.sql` now extends the
+existing create/status, cancellation and erasure owners with a separate CPM
+branch. Independent codec, runtime and follow-up source reviews are complete.
+Fresh local replay of 494 migrations, 61 focused allocation assertions and
+three-session capacity contention passed. The complete 175-file catalog gate
+passed with 6921 reported assertions after the reviewed index, merge-policy and
+fixture repairs. The fixture uses a distinct cleanup operation and synthetic
+account; original deadlines and allowances remain unchanged. No application
+caller or installed profile is added.
+
+The candidate uses a distinct immutable CPM profile, installation target and
+selection, while reusing retained assets, policy/provider resolution, consent,
+entitlement projection and the permanent source registry. Allocation binds all
+three roles for each photo, a millisecond-aligned original clock and a fixed
+30-minute deadline. Recovery reads the saved assignment before current
+configuration or eligibility, so it cannot silently renew that deadline.
+
+Private capacity reservations serialize the two-per-owner and sixteen-global
+pending limits and reserve the sum of every declared role occurrence. The
+allocation-only state admits no write capability or retained completion. It may
+release a reservation only after terminal cancellation/deletion and permanent
+retirement of every role, with no execution grant or admission and durable
+`never_issued` evidence. Owner erasure detaches the private account reference.
+An indexed owner reference participates in the existing identity-merge preserve
+policy. Pending and released rows retain their original owner and hold that
+owner's merge until account erasure detaches the reference; unrelated merges are
+not globally blocked. Future write issuance, uncertain remote closure and
+retained-completion accounting require a coordinated extension before any such
+path is enabled; this candidate does not qualify those states or substitute
+local drainage for remote closure.
+
+Legacy finalization/execution/proof and media admission paths remain closed to
+CPM. The existing generic upload signer does not target this registry or issue
+CPM capabilities. Focused local tests cover exact replay, capacity
+rollback/contention, raw-write denial and synthetic erasure. Cross-owner erasure
+ordering, legacy concurrency and complete app journeys remain open. The first
+aggregate catalog run caught a missing full owner index and merge-reference
+classification; both were repaired and reviewed. A later complete run exposed
+the missing C1 private-child registration. The candidate now registers all six
+possible role mappings with the existing cancellation inventory, deterministic
+image ordering, prestate/merge locks and admission/cancellation/handoff guards.
+Capacity remains a surviving accounting record, outside private erasure. This
+repair passed fresh replay, independent source review and 89 handoff-owner
+checks, including committed transfer and transferred C1 cleanup. The complete
+catalog gate also passed on the corrected exact seal inventory. Legacy handoff
+now accounts for the empty FK child statement and snapshot without expanding
+event, frame or byte limits. Nonempty CPM mappings remain explicitly denied from
+handoff. The catalog also exposed a legacy exact-1MiB admission timing failure.
+A later diagnostic passed all three encoding cases under the unchanged deadline,
+with most time in final admission checks; that passing run is not a fix or full
+timing qualification. Ordinary activation, PR116 and the deployment hold remain
+unchanged.
+
+## October 27 — prior codec-only implementation checkpoint
+
+The unfinished allocation increment now has separate closed candidate,
+assignment and recovery metadata schemas under `initialAnalysis`. These helpers
+have no production caller. They do not allocate an intent, reserve capacity,
+select a profile, issue a write ticket, verify bytes or fund execution. The SQL
+migration remains an uncommitted implementation candidate; passing its codec
+tests does not finish the coordinated allocation/recovery increment below.
+
+The candidate wraps exact `content_canonical` plus the saved client protocol
+`3`, identification protocol `6` and expected processor permission. Its separate
+`cpm-photo-candidate.v1` digest binds all of those fields. Native integration
+must persist the expectation before allocation I/O; retry cannot obtain a
+replacement expectation from current UI state. The original content schema and
+digest remain independent and unchanged.
+
+The assignment schema binds candidate and content digests, scan/package
+identity, millisecond creation and expiry clocks separated by exactly 30
+minutes, frozen server configuration, and a complete role mapping. The mapping
+is in photo ordinal order, with source, AI and display in that order for each
+photo. Every entry contains its exact declared logical reference, length, digest
+and type, plus a distinct server object identity. Equal bytes never collapse
+occurrences. The preparation metadata binds separate CPM profile/installation
+and verifier build digests, selector/backend generations, the existing backend
+installation, `P1-L1` and `cpm_photo_contexts_v1`. These are bounded saved
+claims until the owning SQL transaction compares them with the actual immutable
+catalogs and current eligibility. They cannot borrow legacy transformation
+qualification.
+
+Server configuration includes an explicit output language; there is no client
+language field or decoder default. The resolver must obtain it from the selected
+server profile. The schema preserves existing policy/provider/protocol field
+semantics and restricts this branch to photo input profiles. Structural decoding
+does not prove live consent, entitlement, eligibility, ownership or object
+bytes.
+
+Recovery metadata currently has two closed outcomes: `allocated`, containing the
+exact canonical assignment and its digest, and `terminal_held`, containing the
+scan identity and a bounded `not_found`, `expired` or `cancelled` reason. Both
+carry `authority: none`. The decoder requires an explicit saved assignment
+argument: `null` only when no first allocation acknowledgement was saved, or the
+exact original canonical string otherwise. Once saved, a different valid clock,
+configuration, destination or backend generation is rejected. When that first
+acknowledgement is missing, only server recovery can establish the original
+assignment. A terminal/not-found reply never permits replacement or fresh
+execution. Verification and admitted outcomes are rejected until their own
+coordinated implementation exists.
+
+The new assignment digest uses
+`merian.initial-analysis.cpm-photo-assignment.v1\n` followed by exact canonical
+UTF-8 bytes. Callers must strictly parse before using the SQL digest helper; it
+does not validate its input. Legacy digest domains and stored branches remain
+unchanged. The executable JSON schemas are the field authority. These private
+metadata additions do not change the generated public Identify DTO block or
+introduce Swift, web or admin consumers. Native saved-candidate persistence and
+response mapping remain required before app integration.
+
 ## October 27 — inactive Swift producer checkpoint
 
 `SharedMediaNativePhotoContent` now implements the saved-value projection under

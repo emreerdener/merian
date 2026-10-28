@@ -1,3 +1,34 @@
+## Inactive initial-photo CPM allocation candidate
+
+The October 27 candidate migrations add private CPM profile, eligibility,
+selection, role-mapping and capacity-reservation catalogs. They extend existing
+initial preparation, cancellation and erasure owners; no additional queue or
+funding owner is introduced. No profile, installation or active selection is
+seeded. The executable schemas and complete scope are in the
+[photo content contract](../rfcs/client-prepared-photo-content-contract-2026-10-27.md).
+
+Every photo registers separate source, AI and display destinations in the
+existing permanent source registry. The original assignment and 30-minute clock
+are immutable; metadata recovery does not re-resolve current configuration.
+Serialized pending limits are two per owner and sixteen globally. The
+allocation-only reservation can be released only after terminal retirement with
+proved never-issued state. Private owner detachment does not by itself release
+global liability. Remote write issuance, uncertain closure, retained completion,
+verification and funding remain unavailable and require coordinated extensions.
+The full owner index covers pending and released reservations for account
+erasure. The existing identity-merge reference policy preserves original owner
+binding: either pending or released rows with a surviving owner reference hold
+that owner's merge; unrelated owners remain eligible. No reservation is
+reparented. Legacy five-minute assignments and their exact recovery are
+preserved. The private role mapping belongs to the existing C1 intent-erasure
+inventory with a six-row bound, deterministic photo/role capture and existing
+mutation guards. Capacity survives erasure and does not become a private cascade
+child.
+
+Source review, focused allocation/capacity tests and the complete local catalog
+gate cover this inactive branch. Legacy timing/concurrency and full app-journey
+qualification remain open. No deployment or activation is implied.
+
 # Database Schema & Data Models
 
 This document maps the expected shape of our persistence layers. AI Agents

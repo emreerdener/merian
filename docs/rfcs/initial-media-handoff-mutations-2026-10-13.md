@@ -1,6 +1,25 @@
 # Private handoff mutation mechanics candidate 3
 
-## Current qualification status
+## October 28 — inactive CPM compatibility update
+
+The local
+[CPM allocation candidate](client-prepared-photo-content-contract-2026-10-27.md)
+adds `initial_cpm_photo_role_mapping` as the twentieth C1 private member and
+sixth direct intent child, bounded to six rows. Ordered capture, member locks
+and the existing cancellation, admission and handoff guards cover that child.
+Legacy transfer snapshots include its empty array and plans include its empty FK
+DELETE statement. Nonempty CPM mappings remain explicitly denied from handoff.
+The existing 39-event, 32-frame and byte limits are unchanged; the surviving
+capacity reservation is outside private erasure and handoff frames.
+
+Fresh 494-migration replay, 61 focused CPM assertions and 89 handoff-owner
+checks passed, including the empty-child regression, committed legacy transfer
+and transferred C1 cleanup. Full aggregate qualification is recorded in the CPM
+contract. The earlier measurements below remain evidence for their original
+candidate; they do not qualify the changed full handoff family or CPM byte IO.
+No activation or release authorization changes.
+
+## Prior qualification before the CPM compatibility update
 
 The inactive runtime copy/M2 v2/transfer candidate passes its complete affected
 local gates and five current-source focused suites. Full-family v6 covers a

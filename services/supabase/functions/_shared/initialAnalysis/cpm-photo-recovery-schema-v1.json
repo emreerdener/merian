@@ -1,0 +1,87 @@
+{
+  "allocated": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1
+      },
+      "variant": {
+        "type": "string",
+        "max_bytes": 24,
+        "enum": [
+          "client_prepared_photo"
+        ]
+      },
+      "outcome": {
+        "type": "string",
+        "max_bytes": 24,
+        "enum": [
+          "allocated"
+        ]
+      },
+      "authority": {
+        "type": "string",
+        "max_bytes": 4,
+        "enum": [
+          "none"
+        ]
+      },
+      "assignment_canonical": {
+        "type": "string",
+        "max_bytes": 65536
+      },
+      "assignment_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    }
+  },
+  "terminal_held": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1
+      },
+      "variant": {
+        "type": "string",
+        "max_bytes": 24,
+        "enum": [
+          "client_prepared_photo"
+        ]
+      },
+      "outcome": {
+        "type": "string",
+        "max_bytes": 24,
+        "enum": [
+          "terminal_held"
+        ]
+      },
+      "authority": {
+        "type": "string",
+        "max_bytes": 4,
+        "enum": [
+          "none"
+        ]
+      },
+      "scan_id": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "reason": {
+        "type": "string",
+        "max_bytes": 16,
+        "enum": [
+          "not_found",
+          "expired",
+          "cancelled"
+        ]
+      }
+    }
+  }
+}
