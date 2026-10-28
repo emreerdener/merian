@@ -280,6 +280,11 @@ final class PinnedNetworkTransport: @unchecked Sendable {
             .response(using: activeSession, request: request, timeout: 5)
     }
 
+    func initialPhotoAllocationData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await PinnedBoundedJSONDataTask(maximumBytes: InitialPhotoAllocationReply.maximumBytes)
+            .response(using: activeSession, request: request, timeout: 5)
+    }
+
     /// Fixed retirement response budget on the existing pinned session.
     func analysisRetirementData(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await PinnedBoundedJSONDataTask(maximumBytes: 4096).response(using: activeSession, request: request, timeout: 5)

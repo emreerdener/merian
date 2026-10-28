@@ -93,7 +93,6 @@ final class SharedMediaNativeStorageRepository {
         try grant.validate()
         return try .init(scoped: container, authorityRoot: authorityRoot, photoRoot: photoRoot, inboxRoot: inboxRoot, grant: grant)
     }
-
     /// Exact existing profile only. No bootstrap, marker creation, source scan,
     /// media processing or mutation capability is available from this branch.
     private init(scoped container: ModelContainer, authorityRoot: URL, photoRoot: URL, inboxRoot: URL,
@@ -344,15 +343,17 @@ final class SharedMediaNativeStorageRepository {
             inspect: { _ = try await self.inspectApp(grant: grant) }, facts: facts)
     }
     func appReceiving(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant, releaseStage: SharedMediaNativeReleaseStageSettlement) async throws -> SharedMediaNativeAppReceivingOperations {
-        try lock.validate(); try requireApp(grant)
         let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try lock.validate(); try self.requireApp(grant); return try self.appHeader() }
         return try await .audited(container: container, authority: authority, io: originalIO, binding: nativeBinding,
             availableBytes: { try self.files.availableBytes() }, boundary: metadataBoundary,
             received: { try releaseStage.received($0, profile: $1) }, verifyCompletion: { try self.photos.requireCurrentPairCompletion($0, binding: self.nativeBinding) }, verify: { try self.photos.requireCurrentSharedInspection($0) })
     }
+    func appPhotoAllocation(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant) async throws -> SharedMediaNativeAppPhotoAllocationOperations {
+        let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try lock.validate(); try self.requireApp(grant); return try self.appHeader() }
+        return try await .audited(container: container, authority: authority, availableBytes: { try self.files.availableBytes() }, boundary: metadataBoundary)
+    }
     func appReleaseStage(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant,
                          settlement: SharedMediaNativeReleaseStageSettlement) async throws -> SharedMediaNativeAppReleaseStageOperations {
-        try lock.validate(); try requireApp(grant)
         let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try lock.validate(); try self.requireApp(grant); return try self.appHeader() }
         let profile = grant.profile, epoch = grant.writerEpoch
         return try await .audited(container: container, authority: authority, settlement: settlement,

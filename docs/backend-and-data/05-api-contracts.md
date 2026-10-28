@@ -2,10 +2,12 @@
 
 `initial-photo-allocation` is an implemented local authenticated facade for the
 existing service-only CPM create/status owners. It is not deployed or called by
-the app. Native durable allocation claims, release fences and response mapping
-remain required before app integration; this checkpoint does not qualify the
-complete photo journey. No Identify generated DTO, public web or admin payload
-changes. Earlier “no HTTP route” statements below describe prior checkpoints.
+the Capture UI. Native durable allocation claims, release fences and response
+mapping are implemented in an inactive candidate with focused runtime evidence;
+full qualification and app integration remain open. This checkpoint does not
+qualify the complete photo journey. No Identify generated DTO, public web or
+admin payload changes. Earlier “no HTTP route” statements below describe prior
+checkpoints.
 
 The closed
 [executable schema](../../services/supabase/functions/initial-photo-allocation/schema-v1.json)
@@ -26,11 +28,13 @@ only `create_initial_preparation_intent`. Service RPC grants are unchanged.
 The private assignment is validated against the exact candidate before a minimal
 receipt is returned: version, variant, outcome, `authority: "none"`,
 scan/package, candidate/content digests, assignment digest and original
-creation/expiry clocks. A saved assignment digest must match. The future native
-owner must also compare saved identities, digests and original clocks; it must
-persist a claim before I/O and recover uncertain outcomes through status only.
-Full provider, model, policy, installation, role mapping and destination data
-remain server-private.
+creation/expiry clocks. A saved assignment digest must match. The native
+`InitialPhotoAllocationReply` mapper compares saved identities, digests and
+original clocks. The existing receiving owner persists a claim before I/O and
+recovers uncertain outcomes through status only; see the
+[native allocation lifecycle](16-scan-ingestion-reliability-and-recovery.md#current-initial-photo-integration-entry-point--october-28)
+for implementation and qualification status. Full provider, model, policy,
+installation, role mapping and destination data remain server-private.
 
 Terminal receipts contain the request association and a closed `not_found`,
 `expired` or `cancelled` reason. Association is not proof that the candidate

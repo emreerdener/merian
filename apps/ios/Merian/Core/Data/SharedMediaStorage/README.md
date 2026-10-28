@@ -1,3 +1,24 @@
+## October 28 — allocation consuming integration candidate
+
+The inactive `allocateAppPhoto` entry now joins the retained receiving owner,
+exact claim/receipt writer and bounded authenticated create/status adapter. This
+batch has passed focused runtime validation; **integration acceptance remains
+open**. The V67 checkpoint below remains historical evidence for dormant
+storage, not qualification of this writer. The canonical
+[scan-ingestion entry point](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md)
+owns lifecycle, limits and recovery rules. The existing owner permits one active
+operation; overlapping requests fail busy rather than starting another request.
+No Capture UI caller, upload, execution or release authority is enabled.
+
+`SharedMediaNativePhotoAllocationPeer` carries clean immutable peer evidence
+through existing facts and writer poststates so a held allocation can coexist
+with independent drafts. Compilation, independent source review and the first
+focused run (4 methods / 7 cases) passed. The next affected-surface batch passed
+71 methods / 177 cases, including six peer-corruption cases and the complete
+allocation, foundation, metadata, acquisition, preparation, pair-plan, clean
+graph and consumer suites. Remaining writer/release gates and Release are
+pending; generic mutation of the allocated target remains closed.
+
 ## October 28 — dormant native allocation storage qualified locally
 
 The V67 receiving-side allocation fields and conservative release/recovery holds
@@ -10,12 +31,12 @@ The
 [scan-ingestion entry point](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md)
 traces the current journey and owners.
 
-Next is the existing-owner durable allocation claim, authenticated create/status
-adapter and exact status-only recovery. No allocation writer or app caller is
-installed. Initial photo result/history, reanalysis with preserved versions,
-full photo qualification, audio/video and RUX acceptance remain open, followed
-by the approved deletion/export/redesign sequence. Activation, deployment and
-PR116 holds are unchanged.
+The allocation consuming implementation above supersedes the pending-writer
+status of this dormant-storage checkpoint. App wiring and runtime qualification
+remain pending. Initial photo result/history, reanalysis with preserved
+versions, full photo qualification, audio/video and RUX acceptance remain open,
+followed by the approved deletion/export/redesign sequence. Activation,
+deployment and PR116 holds are unchanged.
 
 ## Retained photo admission — locally qualified checkpoint
 

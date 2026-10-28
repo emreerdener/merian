@@ -234,6 +234,7 @@ final class SharedMediaNativeAppReceivingOperations {
 /// Only the receiving file can prove this one-insert/one-update transition.
 @MainActor
 struct SharedMediaNativeAppStagingPoststate {
+    var allocationPeers: [UUID: SharedMediaNativePhotoAllocationPeer] { facts.allocationPeers }
     var predecessorRevision: Int64 { header.inventory.revision }
     let profile: SharedMediaNativeAppProfile
     private let facts: SharedMediaNativeAppMetadataFacts
@@ -256,15 +257,14 @@ struct SharedMediaNativeAppStagingPoststate {
         }
         try facts.validateStaging(context, adding: row)
     }
-    func receivingBytes(_ consumer: SharedMediaConsumerRecord) throws -> Int64 {
-        try facts.receivingBytes(consumer)
-    }
+    func receivingBytes(_ consumer: SharedMediaConsumerRecord) throws -> Int64 { try facts.receivingBytes(consumer) }
 }
 
 /// Three distinct exact transitions. Only this owner file can construct one;
 /// there is no caller-selected generic dirty-context exemption.
 @MainActor
 struct SharedMediaNativeAppIntentPoststate {
+    var allocationPeers: [UUID: SharedMediaNativePhotoAllocationPeer] { facts.allocationPeers }
     var predecessorRevision: Int64 { header.inventory.revision }
     fileprivate enum Transition {
         case receive(SharedMediaNativeAppReceivingRequest)

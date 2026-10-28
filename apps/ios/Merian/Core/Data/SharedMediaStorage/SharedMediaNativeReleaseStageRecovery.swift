@@ -39,7 +39,7 @@ enum SharedMediaNativeReleaseStageRecovery {
                   actual.bootstrapRevision == minimum.bootstrapRevision else { throw SharedMediaStorageFailure.closed }
             // Progress retains the immutable association, not historical stagePreHeader bytes.
             result = .releasing(release.progress)
-        case .generic: throw SharedMediaStorageFailure.closed
+        case .allocating, .generic: throw SharedMediaStorageFailure.closed
         }
         guard try header() == before else { throw SharedMediaStorageFailure.stale }
         return result

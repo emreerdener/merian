@@ -514,6 +514,7 @@ struct SharedMediaNativeReservedState: Equatable {
 /// first-package overlay is exact and cannot become a general root-repair API.
 @MainActor
 struct SharedMediaNativeAppAcquisitionPoststate {
+    var allocationPeers: [UUID: SharedMediaNativePhotoAllocationPeer] { facts.allocationPeers }
     let profile: SharedMediaNativeAppProfile
     let packageID: UUID
     let overlay: Bool

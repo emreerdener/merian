@@ -8,12 +8,16 @@ import SwiftData
 enum SharedMediaNativeReceivingCleanGraph {
     typealias Row = SharedMediaNativeReceivingIntentGraph.Row
     enum Witness {
+        case allocating(SharedMediaNativePhotoAllocationSnapshot)
         case generic(SharedMediaNativeReceivingPhaseGraph.Witness)
         case releasing(SharedMediaNativeReleaseMetadataSnapshot.Snapshot)
         case staged(SharedMediaNativeReceivedReleaseSnapshot.StagedSnapshot)
 
         var identities: [UUID] {
             switch self {
+            case .allocating(let snapshot):
+                let p = snapshot.prepared
+                return [p.operationID, p.queueID, p.observationID, p.bindingID, p.generation, p.eventID]
             case .generic(let witness):
                 switch witness.slot {
                 case .prepared(let p), .received(let p, _, _):
@@ -33,6 +37,7 @@ enum SharedMediaNativeReceivingCleanGraph {
         var remainingAdvances: Int64 {
             get throws {
                 switch self {
+                case .allocating(let snapshot): return snapshot.allocation.remainingAdvances
                 case .generic: return 0
                 case .releasing(let snapshot): return try snapshot.release.progress.remainingAdvances
                 case .staged(let snapshot):
@@ -45,14 +50,16 @@ enum SharedMediaNativeReceivingCleanGraph {
     static func validate(_ row: Row, context: ModelContext, inventory: SharedMediaInventoryRecord,
                          projectionMemo: SharedMediaNativeReleaseSurvivorProjection.Memo? = nil,
                          checkpoint: () throws -> Void = {}) throws -> Witness {
-        try row.requireNoAllocation()
         try Task.checkCancellation(); try checkpoint()
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         guard let saved = try SharedMediaNativeReceivingPhaseGraph.row(row.id, in: context),
               Row(saved) == row else { throw SharedMediaStorageFailure.stale }
         let revision = inventory.revision
         let result: Witness
-        if row.releaseStartData != nil || row.releaseStartSHA256 != nil {
+        if row.allocationData != nil || row.allocationSHA256 != nil {
+            result = .allocating(try SharedMediaNativePhotoAllocationSnapshot.read(row,
+                inventory: inventory, context: context, checkpoint: checkpoint))
+        } else if row.releaseStartData != nil || row.releaseStartSHA256 != nil {
             let origin = try SharedMediaNativeStagedReleaseOrigin.read(row, inventory: inventory,
                 context: context, checkpoint: checkpoint)
             result = .staged(try SharedMediaNativeReceivedReleaseSnapshot.readStaged(origin,

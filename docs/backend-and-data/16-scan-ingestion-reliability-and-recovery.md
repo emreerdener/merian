@@ -7,20 +7,73 @@ runtime contract and its dated evidence below remain applicable to their legacy
 paths; they do not qualify this new journey. Photo consent/preflight through
 immutable local receipt is locally qualified. The authenticated allocation
 facade is implemented and source-reviewed; native durable allocation
-integration, transfer, execution, result/history and full journey acceptance
+qualification, transfer, execution, result/history and full journey acceptance
 remain open. Nothing here implies deployment or feature activation. The
 [existing receiving record](../../apps/ios/Merian/Models/ActiveSchema/SharedMediaReceivingIntentRecord.swift)
 now has a dormant V67 allocation sidecar candidate; its migration and
 failure-closed release/recovery contract is owned by the
 [database schema guide](04-database-schema.md). Its dormant storage/migration
-checkpoint is locally qualified; the claim-before-send owner and app caller
-remain pending. This qualification does not enable allocation or analysis.
+checkpoint is locally qualified. The claim-before-send owner/adapter candidate
+passed focused runtime validation; full integration acceptance and the Capture
+UI caller remain pending. This qualification does not enable allocation or
+analysis.
+
+The allocation owner saves an immutable unresolved claim before sending. Only an
+unambiguous save in that same retained operation permits one create request;
+uncertain acknowledgement, cancellation, lost response and cold restart permit
+status only. Status can cancel expired preparation remotely. Negative
+observations (`not_found`, `expired`, `cancelled`) never erase the claim or an
+existing receipt. A later matching allocated response may settle an unresolved
+claim once. Assignment digest and the original 1,800,000 ms interval never
+renew. Saved allocation is historical evidence, not proof of current remote
+usability.
+
+`SharedMediaNativeAppPhotoAllocationOperations` permits only the allocation
+sidecar and inventory revision to change. Prepared/Received bytes and receiving
+revision stay fixed. Admission reserves two inventory advances, plus all other
+pending and terminal obligations. The unresolved witness reserves one remaining
+advance; the allocated witness reserves none. Exact receipt replays and negative
+observations do not write. Clean consumer/audit/budget readers use
+`SharedMediaNativePhotoAllocationSnapshot`; generic receiving and release remain
+closed. Charge existing metadata plus the larger canonical unresolved/positive
+sidecar and its SHA within the unchanged 1 MiB package metadata cap, including
+escaped candidate duplication. The positive projection is reserved before send.
+
+An unresolved allocation must not freeze independent drafts. The current repair
+carries a clean `SharedMediaNativePhotoAllocationPeer` through each existing
+writer's exact poststate: its raw sidecar, package, membership and consumer stay
+unchanged while the actual successor graph retains the allocation's byte and
+revision reservations. Generic receiving and cleanup decoders remain closed to
+allocation targets. Focused tests caught an earlier blanket peer rejection; the
+repair passed compilation, independent source review, its first focused run (4
+methods / 7 cases), and an affected-surface batch (71 methods / 177 cases). That
+batch covers the complete allocation/foundation, metadata, acquisition,
+preparation, pair-plan, clean-graph and consumer suites, including six peer
+corruption cases. Evidence is retained in
+`.artifacts/native-app-capture-handoff-20261020/photo-allocation-consuming-tests06-coverage.json`
+and XCResult `681c60fbc3264a97bcb258023483b35b`: no source drift or structured
+runtime warnings. Remaining writer/release gates, Release and the unrelated Auth
+size-gate failure remain open. This is a local coding checkpoint, not full
+allocation integration acceptance.
+
+`InitialPhotoAllocationTransport` uses the existing pinned authenticated
+transport with a five-second deadline, a streamed 2 KiB response cap, exact
+request association and closed receipt fields. It never retries, refreshes auth,
+follows redirects or calls inference. Receiving locks surround save and fresh
+settlement, while the outer account/store operation remains retained during I/O.
+The existing single-active-operation gate rejects overlapping requests as busy;
+shared-result status coalescing is not implemented. Tests for this candidate
+live in `SharedMediaNativePhotoAllocationTests`; their results must be qualified
+before calling this integration accepted. Do not manually clear sidecars to
+recover a stalled allocation: preserve the exact saved candidate and inspect
+status under the original account. Hosted operations and deployment need
+separate authorization.
 
 ```mermaid
 flowchart LR
     A[Capture selection and optional text] --> B[Original ownership and photo preparation]
     B --> C[Frozen Prepared and local Received]
-    C -. pending native allocation claim .-> D[Authenticated create or status]
+    C -. unqualified allocation owner .-> D[Authenticated create or status]
     D --> E[Private CPM assignment and minimal receipt]
     E -. pending integration .-> F[Transfer and byte verification]
     F -. pending integration .-> G[Admission and execution]
@@ -56,7 +109,7 @@ provider configuration or adding funding/execution authority.
 For a stalled local submission, inspect the exact receiving slot and current
 account/selection fences before retrying local recovery. Never edit Prepared,
 replace the original operation ID, or infer remote absence from a lost reply.
-The next native allocation owner must durably claim before sending and recover
+The native allocation owner durably claims before sending and recovers
 uncertainty through status only. Neither an allocated nor terminal receipt
 permits source cleanup; release requires the separately validated lifecycle
 closure. Missing media must fail closed rather than silently recomputing a

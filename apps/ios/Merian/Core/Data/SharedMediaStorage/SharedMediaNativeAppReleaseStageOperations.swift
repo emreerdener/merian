@@ -66,6 +66,7 @@ final class SharedMediaNativeAppReleaseStageOperations {
         let c = fresh(), inventory = try inventory(c)
         guard let witness = try SharedMediaNativeReceivingCleanGraph.pending(c, inventory: inventory)[packageID] else { return nil }
         switch witness {
+        case .allocating: throw SharedMediaStorageFailure.closed
         case .generic: return nil
         case .staged(let value): return .staged(value.origin.request)
         case .releasing(let value): return .releasing(value.release.progress)

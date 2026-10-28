@@ -79,6 +79,42 @@ extension SharedMediaNativeOriginalOwner {
             try await self.appReceivingWorkflow(lock: lock) { try await $0.readReceivedPhotos(prepared) }
         }
     }
+    func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                          transport: InitialPhotoAllocationTransport) async throws -> SharedMediaNativePhotoAllocation {
+        try await allocateAppPhoto(prepared, send: { request, validate in
+            try await transport.perform(request, validateAttempt: validate, validateResponse: validate)
+        })
+    }
+    /// One retained account/store operation spans both persistence boundaries.
+    /// Only coordinator locks are released during the bounded network request.
+    func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+        storage: SharedMediaNativeStorageRepository, grant: SharedMediaNativeAppDispatchGrant,
+        releaseStage: SharedMediaNativeReleaseStageSettlement,
+        send: @escaping @MainActor (InitialPhotoAllocationRequest, @escaping @MainActor @Sendable () throws -> Void) async throws -> InitialPhotoAllocationReply) async throws -> SharedMediaNativePhotoAllocation {
+        let dispatch = try await withReceivingLocks(queueID: prepared.queueID.uuidString,
+            observationID: prepared.observationID.uuidString) { lock in
+            try grant.validate()
+            var operation = try await storage.appPhotoAllocation(grant: grant, lock: lock)
+            if try operation.saved(prepared) == nil {
+                // First allocation requires the actual immutable received media.
+                let receiving = try await storage.appReceiving(grant: grant, lock: lock, releaseStage: releaseStage)
+                _ = try await receiving.readReceivedPhotos(prepared)
+                operation = try await storage.appPhotoAllocation(grant: grant, lock: lock)
+            }
+            try grant.validate(); try lock.validate()
+            return try operation.claim(prepared, attemptID: UUID())
+        }
+        try grant.validate()
+        let request = try dispatch.consume() // Spend before dispatch, including synchronous transport failures.
+        let reply = try await send(request, { try grant.validate() })
+        try grant.validate()
+        return try await withReceivingLocks(queueID: prepared.queueID.uuidString,
+            observationID: prepared.observationID.uuidString) { lock in
+            let operation = try await storage.appPhotoAllocation(grant: grant, lock: lock)
+            try grant.validate(); try lock.validate()
+            return try operation.settle(reply, request: request.allocation, prepared: prepared)
+        }
+    }
     func abandonAppReceiving(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeReceivingIntent.Abandoned {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
             try await self.appReceivingWorkflow(lock: lock) { try $0.abandonPrepared(prepared) }

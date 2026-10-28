@@ -1,3 +1,22 @@
+## October 28 — native allocation transport candidate
+
+`MerianNetworkClient.initialPhotoAllocationTransport()` composes the fixed
+`InitialPhotoAllocationTransport` through the existing authenticated dispatcher
+and pinned bounded collector. `InitialPhotoAllocationRequest` and its closed
+reply mapper preserve the saved candidate, association and original assignment
+clocks. The receiving owner supplies the retained account validator and durable
+claim; the adapter adds no retry, auth refresh or execution authority. Its
+five-second deadline and streamed 2 KiB reply cap are separate from the larger
+canonical request bound.
+
+The
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#october-28--initial-photo-allocation-http-candidate)
+owns wire fields; the
+[scan-ingestion guide](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#current-initial-photo-integration-entry-point--october-28)
+owns recovery and accounting. Source review and the focused allocation suite
+passed; remaining integration gates are recorded there. Capture integration and
+activation remain pending.
+
 ## October 28 — native photo consent/preflight composition checkpoint
 
 `prepareNativePhotoAdmissionAuthorization` accepts photo shape only and reuses

@@ -73,9 +73,19 @@ enum SharedMediaNativeReleaseStartIdentity {
         let shared = physical(plan)
         guard shared.isDisjoint(with: other.identities) else { throw SharedMediaStorageFailure.conflict }
         switch other {
+        case .allocating(let value): try sharedPrepared(plan, prepared: value.prepared, context: context)
         case .generic(let witness):
             switch witness.slot {
             case .prepared(let p), .received(let p, _, _):
+                try sharedPrepared(plan, prepared: p, context: context)
+            case .abandoned: break
+            }
+        case .staged(let snapshot): try sharedPlan(plan, other: snapshot.components.progress)
+        case .releasing(let snapshot): try sharedPlan(plan, other: snapshot.release.progress)
+        }
+    }
+    private static func sharedPrepared(_ plan: Values.Plan, prepared p: SharedMediaNativeReceivingIntent.Prepared, context: ModelContext) throws {
+        let shared = physical(plan)
                 for entry in try SharedMediaNativeFrozenCohort.decode(p.cohort.bytes).entries {
                     let intent = try SharedMediaNativeDerivativeIntent.decode(entry.intent.bytes), original = intent.preparation.original
                     let unique = [intent.pairID, original.reference.referenceID] + [intent.ai, intent.display].flatMap { [$0.id, $0.assetID, $0.referenceID, $0.leaseID] }
@@ -89,11 +99,6 @@ enum SharedMediaNativeReleaseStartIdentity {
                         generation: original.reference.assetGeneration, ownerID: original.reference.ownerID,
                         digest: SharedMediaAcquisitionEncoding.digest(Data(try original.descriptor.encoded().utf8)))
                 }
-            case .abandoned: break
-            }
-        case .staged(let snapshot): try sharedPlan(plan, other: snapshot.components.progress)
-        case .releasing(let snapshot): try sharedPlan(plan, other: snapshot.release.progress)
-        }
     }
     private static func sharedPlan(_ plan: Values.Plan, other: Values.Progress) throws {
         let shared = physical(plan)

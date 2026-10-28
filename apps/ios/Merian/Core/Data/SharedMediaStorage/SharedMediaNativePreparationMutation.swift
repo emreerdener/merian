@@ -241,6 +241,7 @@ enum SharedMediaNativePreparationBoundary: Equatable, Sendable {
 /// Membership, originals, consumers and sibling packages must remain unchanged.
 @MainActor
 struct SharedMediaNativeAppPreparationPoststate {
+    var allocationPeers: [UUID: SharedMediaNativePhotoAllocationPeer] { facts.allocationPeers }
     var predecessorRevision: Int64 { expected.inventory.revision - 1 }
     let profile: SharedMediaNativeAppProfile
     private let contextID: ObjectIdentifier

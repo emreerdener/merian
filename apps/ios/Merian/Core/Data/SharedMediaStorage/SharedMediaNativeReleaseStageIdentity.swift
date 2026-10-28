@@ -44,9 +44,20 @@ enum SharedMediaNativeReleaseStageIdentity {
         for witness in witnesses {
             guard !witness.identities.contains(id) else { throw SharedMediaStorageFailure.conflict }
             switch witness {
+            case .allocating(let value): try requireAbsent(id, prepared: value.prepared)
             case .generic(let value):
                 switch value.slot {
                 case .prepared(let p), .received(let p, _, _):
+                    try requireAbsent(id, prepared: p)
+                case .abandoned: break
+                }
+            case .staged(let value): try requireAbsent(id, progress: value.components.progress)
+            case .releasing(let value): try requireAbsent(id, progress: value.release.progress)
+            }
+        }
+    }
+
+    private static func requireAbsent(_ id: UUID, prepared p: SharedMediaNativeReceivingIntent.Prepared) throws {
                     let cohort = try SharedMediaNativeFrozenCohort.decode(p.cohort.bytes)
                     for entry in cohort.entries {
                         let intent = try SharedMediaNativeDerivativeIntent.decode(entry.intent.bytes)
@@ -55,12 +66,6 @@ enum SharedMediaNativeReleaseStageIdentity {
                             + [intent.ai, intent.display].flatMap { [$0.id, $0.assetID, $0.referenceID, $0.leaseID] }
                         guard !ids.contains(id) else { throw SharedMediaStorageFailure.conflict }
                     }
-                case .abandoned: break
-                }
-            case .staged(let value): try requireAbsent(id, progress: value.components.progress)
-            case .releasing(let value): try requireAbsent(id, progress: value.release.progress)
-            }
-        }
     }
 
     static func requireAbsent(_ id: UUID, progress: Values.Progress) throws {

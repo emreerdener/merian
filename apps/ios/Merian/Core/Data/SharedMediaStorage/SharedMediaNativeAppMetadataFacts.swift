@@ -83,6 +83,7 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
     let members: [UUID: Member]
     let consumers: [UUID: Consumer]
     let intents: [UUID: SharedMediaNativeReceivingIntentGraph.Row]
+    let allocationPeers: [UUID: SharedMediaNativePhotoAllocationPeer]
 
     func requireMutable(_ packageID: UUID) throws {
         guard let row = intents[packageID] else { return }
@@ -102,16 +103,16 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
     @MainActor static func acquisitionPoststate(_ context: ModelContext, inventory: SharedMediaInventoryRecord,
                                                 proof: SharedMediaNativeAppAcquisitionPoststate) throws -> Self {
         try proof.validate(context: context, inventory: inventory)
-        return try read(context, profile: proof.profile)
+        return try read(context, profile: proof.profile, preserving: proof.allocationPeers)
     }
     @MainActor static func preparationPoststate(_ context: ModelContext, inventory: SharedMediaInventoryRecord,
                                                 proof: SharedMediaNativeAppPreparationPoststate) throws -> Self {
         try proof.validate(context: context, inventory: inventory)
-        return try read(context, profile: proof.profile)
+        return try read(context, profile: proof.profile, preserving: proof.allocationPeers)
     }
     @MainActor func validatePreparation(_ context: ModelContext, package: Package) throws {
         try requireMutable(package.id)
-        let current = try Self.read(context, profile: profile)
+        let current = try Self.read(context, profile: profile, preserving: allocationPeers)
         guard current.intents == intents else { throw SharedMediaStorageFailure.conflict }
         var expected = packages
         guard expected[package.id] != nil, consumers[package.id] == nil else { throw SharedMediaStorageFailure.closed }
@@ -122,11 +123,11 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
     @MainActor static func pairPlanPoststate(_ context: ModelContext, inventory: SharedMediaInventoryRecord,
                                             proof: SharedMediaNativeAppPairPlanPoststate) throws -> Self {
         try proof.validate(context: context, inventory: inventory)
-        return try read(context, profile: proof.profile)
+        return try read(context, profile: proof.profile, preserving: proof.allocationPeers)
     }
     @MainActor func validatePairPlan(_ context: ModelContext, package: Package, member: Member) throws {
         try requireMutable(package.id)
-        let current = try Self.read(context, profile: profile)
+        let current = try Self.read(context, profile: profile, preserving: allocationPeers)
         guard current.intents == intents else { throw SharedMediaStorageFailure.conflict }
         var nextPackages = packages, nextMembers = members
         guard packages[package.id] != nil, members[package.id] != nil, member.id == package.id,
@@ -135,7 +136,7 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
         guard current.bootstrapRevision == bootstrapRevision, current.consumers == consumers,
               current.packages == nextPackages, current.members == nextMembers else { throw SharedMediaStorageFailure.conflict }
     }
-    @MainActor private static func read(_ context: ModelContext, profile: SharedMediaNativeAppProfile) throws -> Self {
+    @MainActor private static func read(_ context: ModelContext, profile: SharedMediaNativeAppProfile, preserving: [UUID: SharedMediaNativePhotoAllocationPeer]? = nil) throws -> Self {
         let inventoryID = profile.inventoryID
         var query = FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.inventoryID == inventoryID })
         query.fetchLimit = PhotoPreparationPolicy.maximumPackages + 1; query.includePendingChanges = true
@@ -160,12 +161,13 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
                 consumers[id] = Consumer(consumer)
             }
         }
+        let receiving = try SharedMediaNativePhotoAllocationPeer.rows(context, profile: profile, preserving: preserving)
         return .init(profile: profile, bootstrapRevision: bootstrap.revision, packages: packages, members: members, consumers: consumers,
-            intents: try SharedMediaNativeReceivingPhaseGraph.snapshots(context, profile: profile))
+            intents: receiving.rows, allocationPeers: receiving.peers)
     }
     @MainActor func validate(_ context: ModelContext, replacing request: SharedMediaNativeAppMetadataRequest) throws {
         try requireMutable(request.package.id)
-        let current = try Self.read(context, profile: profile)
+        let current = try Self.read(context, profile: profile, preserving: allocationPeers)
         guard current.intents == intents else { throw SharedMediaStorageFailure.conflict }
         var expectedPackages = packages
         guard request.profile == profile, packages[request.package.id] == request.package,
@@ -178,7 +180,7 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
     /// row and every receiving consumer remains byte-for-byte equal.
     @MainActor func validateAcquisition(_ context: ModelContext, packageID: UUID, hasMember: Bool) throws {
         try requireMutable(packageID)
-        let current = try Self.read(context, profile: profile)
+        let current = try Self.read(context, profile: profile, preserving: allocationPeers)
         guard current.intents == intents else { throw SharedMediaStorageFailure.conflict }
         guard current.bootstrapRevision == bootstrapRevision, current.consumers == consumers,
               consumers[packageID] == nil,
@@ -188,7 +190,7 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
     }
     @MainActor func validateStaging(_ context: ModelContext, adding row: SharedMediaNativeReceivingIntentGraph.Row) throws {
         try requireNoIntent(row.id)
-        let current = try Self.read(context, profile: profile)
+        let current = try Self.read(context, profile: profile, preserving: allocationPeers)
         var expected = intents
         expected[row.id] = row
         guard current.profile == profile, current.bootstrapRevision == bootstrapRevision,
@@ -200,7 +202,7 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
     @MainActor func validateIntentTransition(_ context: ModelContext,
         row: SharedMediaNativeReceivingIntentGraph.Row, package: Package,
         consumer: SharedMediaConsumerRecord?) throws {
-        let current = try Self.read(context, profile: profile)
+        let current = try Self.read(context, profile: profile, preserving: allocationPeers)
         var expectedIntents = intents, expectedPackages = packages, expectedConsumers = consumers
         guard intents[row.id] != nil, packages[row.id] != nil, members[row.id] != nil,
               package.id == row.id else { throw SharedMediaStorageFailure.conflict }

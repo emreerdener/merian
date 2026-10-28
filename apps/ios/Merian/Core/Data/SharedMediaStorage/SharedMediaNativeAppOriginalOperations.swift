@@ -297,6 +297,7 @@ struct SharedMediaNativeAppOriginalDisposalWitness: Sendable {
 /// Closed typed write set. This proof cannot grant a generic dirty-context audit.
 @MainActor
 struct SharedMediaNativeAppOriginalPoststate {
+    var allocationPeers: [UUID: SharedMediaNativePhotoAllocationPeer] { facts.allocationPeers }
     var predecessorRevision: Int64 { header.inventory.revision - 1 }
     typealias Rows = SharedMediaNativeAppOriginalRows
     let profile: SharedMediaNativeAppProfile
@@ -463,6 +464,7 @@ struct SharedMediaNativeAppOriginalPoststate {
 /// updates. A stripped acquisition receipt is never removal-replay authority.
 @MainActor
 struct SharedMediaNativeAppOriginalReleasePoststate {
+    var allocationPeers: [UUID: SharedMediaNativePhotoAllocationPeer] { facts.allocationPeers }
     var predecessorRevision: Int64 { state.inventoryRevision }
     typealias Rows = SharedMediaNativeAppOriginalRows
     let profile: SharedMediaNativeAppProfile

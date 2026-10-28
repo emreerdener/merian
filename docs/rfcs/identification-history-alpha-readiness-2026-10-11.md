@@ -1,3 +1,20 @@
+## October 28 — native allocation consuming integration candidate
+
+The existing receiving owner now implements a durable allocation claim, bounded
+authenticated create/status transport and exact positive-receipt settlement. The
+[scan-ingestion contract](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md)
+is the canonical home for its finite transitions, accounting, recovery and
+limitations. Engine source review found no production blocker; the first
+affected-surface batch passed 71 methods / 177 cases. Remaining writer/release
+gates, Release and full integration acceptance are open. This local coding
+checkpoint supersedes the earlier checkpoint's planned allocation-writer status,
+while preserving its accepted V67 evidence below.
+
+The candidate has no Capture caller, media transfer or execution activation.
+Initial photo result/history, preserved reanalysis/recovery, full photo,
+audio/video and RUX acceptance remain open. The later deletion/export/redesign
+sequence, separately gated replacement follow-up and all release holds remain.
+
 ## October 28 — dormant native allocation storage qualified locally
 
 The V67 receiving-side allocation fields and conservative release/recovery holds

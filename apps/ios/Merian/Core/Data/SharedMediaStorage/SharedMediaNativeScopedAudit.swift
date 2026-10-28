@@ -126,6 +126,9 @@ struct SharedMediaNativeScopedAudit {
                 guard origin.rows.consumer.persistentModelID == row.persistentModelID else {
                     throw SharedMediaStorageFailure.conflict
                 }
+            } else if row.kindRaw == "queue", let allocation = try allocating(row.packageID, context: context, inventory: inventory) {
+                _ = try SharedMediaNativeConsumerGraph.validateAllocatedReceived(row, allocation: allocation,
+                    context: context, checkpoint: check)
             } else if row.kindRaw == "queue", let staged = try staged(row.packageID, context: context, inventory: inventory, projectionMemo: projectionMemo) {
                 _ = try SharedMediaNativeConsumerGraph.validateStagedReceived(row, origin: staged.origin,
                     context: context, checkpoint: check)
@@ -211,6 +214,7 @@ struct SharedMediaNativeScopedAudit {
                 guard let witness = roots[row.id] else { throw SharedMediaStorageFailure.conflict }
                 let saved: SharedMediaNativeReceivingIntentGraph.Row
                 switch witness {
+                case .allocating(let value): saved = value.row
                 case .generic(let value): saved = value.row
                 case .releasing(let value): saved = value.release.slot
                 case .staged(let value): saved = value.origin.row
@@ -266,6 +270,10 @@ struct SharedMediaNativeScopedAudit {
                 throw SharedMediaStorageFailure.stale
             }
             return row
+        }
+        if row.accountingTierRaw == "pending", let allocation = try allocating(id, context: context, inventory: inventory) {
+            try allocation.requireCurrent(context: context)
+            return row // Exact frozen member, consumer and quartet validated by allocation reader.
         }
         if row.accountingTierRaw == "pending", let staged = try staged(id, context: context, inventory: inventory, projectionMemo: projectionMemo) {
             guard SharedMediaNativeAppMetadataFacts.Package(row) == staged.components.package else {
@@ -362,6 +370,15 @@ struct SharedMediaNativeScopedAudit {
             throw SharedMediaStorageFailure.conflict
         }
         return snapshot
+    }
+
+    private func allocating(_ packageID: UUID, context: ModelContext,
+                            inventory: SharedMediaInventoryRecord) throws -> SharedMediaNativePhotoAllocationSnapshot? {
+        guard format == .appV2,
+              let row = try SharedMediaNativeReceivingPhaseGraph.row(packageID, in: context),
+              row.allocationData != nil || row.allocationSHA256 != nil else { return nil }
+        return try SharedMediaNativePhotoAllocationSnapshot.read(.init(row), inventory: inventory,
+            context: context, checkpoint: check)
     }
 
     private func staged(_ packageID: UUID, context: ModelContext,

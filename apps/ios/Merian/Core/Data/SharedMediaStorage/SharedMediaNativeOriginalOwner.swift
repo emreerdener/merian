@@ -28,12 +28,10 @@ final class SharedMediaNativeOriginalOwner {
     #endif
     private var storage: SharedMediaNativeStorageRepository?
     private var cancelActive: (() -> Void)?, awaitActive: (() async -> Void)?
-
     var isReadyForAppDispatch: Bool {
         guard openKind == .appDispatch, phase == .ready, let registration else { return false }
         return drain.isCurrent(registration)
     }
-
     private init(account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain,
                  openKind: SharedMediaNativeOriginalOpenKind = .qualification) throws {
         self.account = account; self.drain = drain; self.openKind = openKind
@@ -41,7 +39,6 @@ final class SharedMediaNativeOriginalOwner {
             guard let self else { return true }; return await self.invalidateAndAwaitForAccountTransition()
         }
     }
-
     /// The inactive app entry consumes one discovered profile. Fresh bootstrap
     /// and existing dispatch share this registration and never reopen storage.
     static func app(account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain,
@@ -49,14 +46,12 @@ final class SharedMediaNativeOriginalOwner {
         try .init(account: account, drain: drain,
             openKind: discovery.existingProfile == nil ? .appInitialization : .appDispatch)
     }
-
     func openApp(container: ModelContainer, discovery: SharedMediaNativeBootstrapDiscovery) async throws -> SharedMediaNativeScopedSnapshot {
         guard openKind == (discovery.existingProfile == nil ? .appInitialization : .appDispatch) else { throw SharedMediaStorageFailure.closed }
         let result = try await openAppProfile(container: container, parent: discovery.parent,
             inventoryID: discovery.inventoryID, discovery: discovery, initializationOnly: false)
         guard case .dispatch(let snapshot) = result else { throw SharedMediaStorageFailure.closed }; return snapshot
     }
-
     /// All entry points retain the same grant minting and one discovery transfer.
     private func openAppProfile(container: ModelContainer, parent: URL, inventoryID: UUID,
         discovery: SharedMediaNativeBootstrapDiscovery?, initializationOnly: Bool) async throws -> SharedMediaNativeAppOpenResult {
@@ -86,14 +81,12 @@ final class SharedMediaNativeOriginalOwner {
             throw error
         }
     }
-
     #if DEBUG
     func configureAppOpeningForTesting(pause: (@Sendable () async -> Void)? = nil, trace: SharedMediaNativeDebugHooks.InspectionTrace? = nil,
                                        fault: ((SharedMediaNativeBootstrapBoundary) throws -> Void)? = nil) throws {
         guard phase == .unopened else { throw SharedMediaStorageFailure.closed }
         debug.scopedPagePause = pause; debug.bootstrapFault = fault; debug.inspectionTrace = trace
     }
-
     static func debugOwner(account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain,
                            kind: SharedMediaNativeOriginalOpenKind) throws -> SharedMediaNativeOriginalOwner {
         try .init(account: account, drain: drain, openKind: kind)
@@ -144,7 +137,6 @@ final class SharedMediaNativeOriginalOwner {
         }
     }
     #endif
-
     func inspectScoped() async throws -> SharedMediaNativeScopedSnapshot {
         guard openKind == .scopedInspection, phase == .ready, let scope = scopedIdentity else { throw SharedMediaStorageFailure.closed }
         return try await performOperation { [self] lease, identity in
@@ -205,6 +197,14 @@ final class SharedMediaNativeOriginalOwner {
     func stageAppReceivingWithAdmission(metadata: SharedMediaNativeAppMetadataRequest, pairIDs: [UUID],
         authorize: @escaping @MainActor (UUID) async throws -> IdentificationDispatchAuthorization) async throws -> SharedMediaNativeReceivingIntent.Prepared {
         try await withAppDispatch { try await self.stageAppReceivingWithAdmission(metadata: metadata, pairIDs: pairIDs, authorize: authorize, storage: $0, grant: $1, releaseStage: self.releaseStageSettlement) }
+    }
+    /// One retained account operation also bounds overlapping status attempts.
+    func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+        send: @escaping @MainActor (InitialPhotoAllocationRequest, @escaping @MainActor @Sendable () throws -> Void) async throws -> InitialPhotoAllocationReply) async throws -> SharedMediaNativePhotoAllocation {
+        try await withAppDispatch { storage, grant in
+            try await self.allocateAppPhoto(prepared, storage: storage, grant: grant,
+                releaseStage: self.releaseStageSettlement, send: send)
+        }
     }
     /// An outer audit or lock failure must also spend an existing continuation.
     func abandonAppReleaseContinuation(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) {

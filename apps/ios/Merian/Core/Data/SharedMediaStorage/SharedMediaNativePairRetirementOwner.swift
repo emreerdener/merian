@@ -244,6 +244,7 @@ struct SharedMediaNativePairDisposal: Sendable {
 /// unscoped accounting bypass is exposed to retirement callers.
 @MainActor
 struct SharedMediaNativeAppPairRetirementPoststate {
+    var allocationPeers: [UUID: SharedMediaNativePhotoAllocationPeer] { witness.preparation.facts.allocationPeers }
     var predecessorRevision: Int64 { witness.state.plan.inventoryRevision }
     let profile: SharedMediaNativeAppProfile
     let expected: SharedMediaNativePairFileState?

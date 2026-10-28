@@ -110,9 +110,18 @@ enum SharedMediaNativeTerminalIdentity {
             switch witness {
             case .releasing(let r): try requireCompatible(value, plan: r.release.progress.plan)
             case .staged(let r): try requireCompatible(value, plan: r.components.progress.plan)
+            case .allocating(let r): try requireCompatible(value, prepared: r.prepared, context: context)
             case .generic(let generic):
                 switch generic.slot {
                 case .prepared(let p), .received(let p, _, _):
+                    try requireCompatible(value, prepared: p, context: context)
+                case .abandoned(let a):
+                    guard !all(value).contains(a.package.id) else { throw SharedMediaStorageFailure.conflict }
+                }
+            }
+        }
+    }
+    private static func requireCompatible(_ value: Values.Released, prepared p: SharedMediaNativeReceivingIntent.Prepared, context: ModelContext) throws {
                     guard !all(value).contains(p.package.id) else { throw SharedMediaStorageFailure.conflict }
                     for entry in try SharedMediaNativeFrozenCohort.decode(p.cohort.bytes).entries {
                         let assetID = try SharedMediaNativeDerivativeIntent.decode(entry.intent.bytes).preparation.original.reference.assetID
@@ -120,10 +129,6 @@ enum SharedMediaNativeTerminalIdentity {
                             FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == assetID }))
                         guard !exclusive(value).contains(receipt.id) else { throw SharedMediaStorageFailure.conflict }
                     }
-                case .abandoned(let a):
-                    guard !all(value).contains(a.package.id) else { throw SharedMediaStorageFailure.conflict }
-                }
-            }
-        }
     }
+
 }

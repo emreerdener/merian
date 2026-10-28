@@ -27,6 +27,16 @@ enum SharedMediaNativeConsumerGraph {
         return result
     }
 
+    static func validateAllocatedReceived(_ consumer: SharedMediaConsumerRecord,
+                                         allocation: SharedMediaNativePhotoAllocationSnapshot,
+                                         context: ModelContext,
+                                         checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
+        try allocation.requireCurrent(context: context)
+        let result = try facts(consumer, context: context, format: .appV2, allocation: allocation, checkpoint: checkpoint)
+        try allocation.requireCurrent(context: context)
+        return result
+    }
+
     static func validateIntentPoststate(_ consumer: SharedMediaConsumerRecord, context: ModelContext,
                                        inventory: SharedMediaInventoryRecord, proof: SharedMediaNativeAppIntentPoststate) throws -> SharedMediaNativeConsumerCohort {
         try proof.validate(context: context, inventory: inventory)
@@ -34,7 +44,7 @@ enum SharedMediaNativeConsumerGraph {
     }
 
     private static func facts(_ consumer: SharedMediaConsumerRecord, context: ModelContext,
-                              format: SharedMediaNativeScopedFormat?, intentProof: SharedMediaNativeAppIntentPoststate? = nil, stagedOrigin: SharedMediaNativeStagedReleaseOrigin? = nil, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
+                              format: SharedMediaNativeScopedFormat?, intentProof: SharedMediaNativeAppIntentPoststate? = nil, stagedOrigin: SharedMediaNativeStagedReleaseOrigin? = nil, allocation: SharedMediaNativePhotoAllocationSnapshot? = nil, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
         guard !context.hasChanges || intentProof != nil else { throw SharedMediaStorageFailure.conflict }
         let value = try SharedMediaNativeConsumerCohort.decode(consumer.cohortData)
         let commit = try SharedMediaNativeFreezeCommit.decode(value.freeze.bytes)
@@ -72,7 +82,10 @@ enum SharedMediaNativeConsumerGraph {
               package.accountingTierRaw == (consumer.kindRaw == "queue" ? "pending" : "retained"),
               case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData),
               envelope.frozen == value.freeze else { throw SharedMediaStorageFailure.conflict }
-        if let stagedOrigin {
+        if let allocation {
+            guard intentProof == nil, stagedOrigin == nil else { throw SharedMediaStorageFailure.closed }
+            try allocation.requireConsumerLink(consumer, value: value, context: context)
+        } else if let stagedOrigin {
             guard intentProof == nil else { throw SharedMediaStorageFailure.closed }
             try stagedOrigin.requireConsumerLink(consumer, value: value, context: context)
         } else {

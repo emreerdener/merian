@@ -38,73 +38,73 @@ enum SharedMediaNativeAcquisitionBudget {
     static func evaluateMetadataPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
                                           proof: SharedMediaNativeAppMetadataPoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.deriveMetadataPoststate(in: context, inventory: inventory, proof: proof)
-        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, metadataProof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, metadataProof: proof)
     }
 
     static func evaluateAcquisitionPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
                                              proof: SharedMediaNativeAppAcquisitionPoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.deriveAcquisitionPoststate(in: context, inventory: inventory, proof: proof)
-        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, acquisitionProof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, acquisitionProof: proof)
     }
 
     static func evaluatePreparationPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
                                              proof: SharedMediaNativeAppPreparationPoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.derivePreparationPoststate(in: context, inventory: inventory, proof: proof)
-        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, preparationProof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, preparationProof: proof)
     }
 
     static func evaluatePairPlanPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
                                           proof: SharedMediaNativeAppPairPlanPoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.derivePairPlanPoststate(in: context, inventory: inventory, proof: proof)
-        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, pairPlanProof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, pairPlanProof: proof)
     }
 
     static func evaluatePairClosurePoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
                                              proof: SharedMediaNativeAppPairPlanClosurePoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.derivePairClosurePoststate(in: context, inventory: inventory, proof: proof)
-        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, pairClosureProof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, pairClosureProof: proof)
     }
 
     static func evaluatePairFilePoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
                                          proof: SharedMediaNativeAppPairPoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.derivePairFilePoststate(in: context, inventory: inventory, proof: proof)
-        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, pairFileProof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, pairFileProof: proof)
     }
 
     static func evaluatePairRetirementPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
                                                proof: SharedMediaNativeAppPairRetirementPoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.derivePairRetirementPoststate(in: context, inventory: inventory, proof: proof)
-        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, pairRetirementProof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, pairRetirementProof: proof)
     }
 
     static func evaluateIntentPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
                                        proof: SharedMediaNativeAppIntentPoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.deriveIntentPoststate(in: context, inventory: inventory, proof: proof)
-        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, intentProof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, intentProof: proof)
     }
 
     static func evaluateStagingPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
                                          proof: SharedMediaNativeAppStagingPoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.deriveStagingPoststate(in: context, inventory: inventory, proof: proof)
-        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, stagingProof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, stagingProof: proof)
     }
 
     static func evaluatePendingCleanupPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
                                                 proof: SharedMediaNativeAppPendingPoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.derivePendingCleanupPoststate(in: context, inventory: inventory, proof: proof)
-        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, pendingCleanupProof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, pendingCleanupProof: proof)
     }
 
     static func evaluateOriginalPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
                                          proof: SharedMediaNativeAppOriginalPoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.deriveOriginalPoststate(in: context, inventory: inventory, proof: proof)
-        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, originalProof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, originalProof: proof)
     }
 
     static func evaluateOriginalReleasePoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
                                          proof: SharedMediaNativeAppOriginalReleasePoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.deriveOriginalReleasePoststate(in: context, inventory: inventory, proof: proof)
-        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, originalReleaseProof: proof)
+        return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, originalReleaseProof: proof)
     }
 
     /// Complete successor accounting over the clean predecessor. A terminal
@@ -139,7 +139,7 @@ enum SharedMediaNativeAcquisitionBudget {
     }
 
     private static func evaluate(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, clean: [UUID: SharedMediaNativeReceivingCleanGraph.Witness]? = nil, intentProof: SharedMediaNativeAppIntentPoststate? = nil, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, acquisitionProof: SharedMediaNativeAppAcquisitionPoststate? = nil, preparationProof: SharedMediaNativeAppPreparationPoststate? = nil, pairPlanProof: SharedMediaNativeAppPairPlanPoststate? = nil, pairClosureProof: SharedMediaNativeAppPairPlanClosurePoststate? = nil, pairFileProof: SharedMediaNativeAppPairPoststate? = nil, pairRetirementProof: SharedMediaNativeAppPairRetirementPoststate? = nil, stagingProof: SharedMediaNativeAppStagingPoststate? = nil, pendingCleanupProof: SharedMediaNativeAppPendingPoststate? = nil, originalProof: SharedMediaNativeAppOriginalPoststate? = nil, originalReleaseProof: SharedMediaNativeAppOriginalReleasePoststate? = nil, terminalProjection: SharedMediaNativeReceivingReleaseValues.Released? = nil, terminalLiability: SharedMediaNativeOriginalLiability.Snapshot? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+                                 graph: SharedMediaPendingGraph, format: SharedMediaNativeScopedFormat?, clean: [UUID: SharedMediaNativeReceivingCleanGraph.Witness]? = nil, allocationPeers: [UUID: SharedMediaNativePhotoAllocationPeer]? = nil, intentProof: SharedMediaNativeAppIntentPoststate? = nil, metadataProof: SharedMediaNativeAppMetadataPoststate? = nil, acquisitionProof: SharedMediaNativeAppAcquisitionPoststate? = nil, preparationProof: SharedMediaNativeAppPreparationPoststate? = nil, pairPlanProof: SharedMediaNativeAppPairPlanPoststate? = nil, pairClosureProof: SharedMediaNativeAppPairPlanClosurePoststate? = nil, pairFileProof: SharedMediaNativeAppPairPoststate? = nil, pairRetirementProof: SharedMediaNativeAppPairRetirementPoststate? = nil, stagingProof: SharedMediaNativeAppStagingPoststate? = nil, pendingCleanupProof: SharedMediaNativeAppPendingPoststate? = nil, originalProof: SharedMediaNativeAppOriginalPoststate? = nil, originalReleaseProof: SharedMediaNativeAppOriginalReleasePoststate? = nil, terminalProjection: SharedMediaNativeReceivingReleaseValues.Released? = nil, terminalLiability: SharedMediaNativeOriginalLiability.Snapshot? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
         guard graph.sources.isEmpty, graph.handoffs.isEmpty else {
             throw SharedMediaStorageFailure.closed
         }
@@ -148,6 +148,8 @@ enum SharedMediaNativeAcquisitionBudget {
             if let clean {
                 guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
                 intents = clean.compactMapValues { if case .generic(let value) = $0 { return value }; return nil }
+            } else if let allocationPeers {
+                intents = try SharedMediaNativePhotoAllocationPeer.pending(context, inventory: inventory, preserving: allocationPeers)
             } else {
                 intents = try SharedMediaNativeReceivingPhaseGraph.pending(context, inventory: inventory)
             }
@@ -181,8 +183,13 @@ enum SharedMediaNativeAcquisitionBudget {
             }
             let staged: SharedMediaNativeReceivedReleaseSnapshot.StagedSnapshot?
             if case .staged(let value) = clean?[id] { staged = value } else { staged = nil }
-            let input: PackageInput
-            if let staged {
+            let input: PackageInput; var allocation = allocationPeers?[id]
+            if case .allocating(let snapshot) = clean?[id] { allocation = try .init(snapshot, context: context) }
+            if let allocation {
+                input = .init(consumerBytes: allocation.consumerBytes,
+                    intent: .init(row: allocation.row, slot: .received(allocation.prepared, allocation.received, allocation.transaction), states: []),
+                    allocation: allocation)
+            } else if let staged {
                 input = try stagedInput(staged.origin, context: context, checkpoint: checkpoint)
             } else {
                 var receivingBytes: Int64 = 0
@@ -333,6 +340,7 @@ enum SharedMediaNativeAcquisitionBudget {
     private struct PackageInput {
         let consumerBytes: Int64
         let intent: SharedMediaNativeReceivingPhaseGraph.Witness?
+        var allocation: SharedMediaNativePhotoAllocationPeer? = nil
     }
 
     private struct PackageBreakdown {
@@ -446,7 +454,10 @@ enum SharedMediaNativeAcquisitionBudget {
 
         var preparedBytes: Int64 = 0, receivingHeadroom: Int64 = 0
         if let intent = input.intent {
-            try intent.row.requireNoAllocation()
+            if let allocation = input.allocation {
+                try allocation.requireUnchanged(context)
+                guard allocation.row == intent.row else { throw SharedMediaStorageFailure.stale }
+            } else { try intent.row.requireNoAllocation() }
             switch intent.slot {
             case .prepared(let prepared):
                 guard attempt == nil, active.isEmpty, receivingBytes == 0 else { throw SharedMediaStorageFailure.closed }
@@ -466,7 +477,11 @@ enum SharedMediaNativeAcquisitionBudget {
                 preparedBytes = Int64(result.count)
             }
         }
-        let bytes = try PhotoPreparationPolicy.add([baseBytes, preparedBytes, receivingHeadroom])
+        let allocationCharge = try input.allocation?.allocation.storageCharge ?? 0
+        let allocationCurrent = try input.allocation.map {
+            try PhotoPreparationPolicy.add([Int64($0.allocation.encoded().count), 64])
+        } ?? 0
+        let bytes = try PhotoPreparationPolicy.add([baseBytes, preparedBytes, receivingHeadroom, allocationCharge])
         guard bytes <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
         // Reserve the entire remaining existing metadata allowance before
         // processing. Later pair/result/member encodings must fit it.
@@ -477,7 +492,7 @@ enum SharedMediaNativeAcquisitionBudget {
         guard closureBytes <= resultHeadroom else { throw SharedMediaStorageFailure.conflict }
         // The bounded closure projection is future liability, not bytes already on disk.
         let outstandingMetadata = try PhotoPreparationPolicy.add([
-            resultHeadroom - closureBytes, membershipGrowth, planBytes, receivingHeadroom])
+            resultHeadroom - closureBytes, membershipGrowth, planBytes, receivingHeadroom, allocationCharge - allocationCurrent])
         guard outstandingMetadata <= bytes else { throw SharedMediaStorageFailure.conflict }
         if let intent = input.intent, case .received = intent.slot {
             guard preparationMetadata == 0 else { throw SharedMediaStorageFailure.conflict }
