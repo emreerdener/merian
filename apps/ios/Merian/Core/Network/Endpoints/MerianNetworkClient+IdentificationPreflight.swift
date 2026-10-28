@@ -15,6 +15,17 @@ extension MerianNetworkClient {
             }, decode: { try IdentificationPreflightResponse.recipient(from: $0, for: input) })
     }
 
+    /// Fresh native photo submission only. Saved slots bypass this read at the receiving owner.
+    func prepareNativePhotoAdmissionAuthorization(
+        input: IdentificationPreflightInput, expectedAuthUserID: UUID,
+        validateAttempt: @escaping @MainActor @Sendable () throws -> Void
+    ) async throws -> IdentificationDispatchAuthorization {
+        guard input.inputProfile == .photo else { throw MerianError.invalidResponse }
+        try await synchronizeIdentificationConsent(expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
+        return try await prepareIdentificationAuthorization(input: input,
+            expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
+    }
+
     /// The child already has a durable identity. This read neither starts work nor selects a result.
     func prepareIdentificationAuthorization(
         input: ObservationReanalysisPreflightRequest,
@@ -38,7 +49,7 @@ extension MerianNetworkClient {
         validateAttempt: @escaping @MainActor @Sendable () throws -> Void
     ) async throws -> IdentificationDispatchAuthorization {
         guard processor != .recoveryOnly else { throw MerianError.invalidResponse }
-        try await synchronizeReanalysisConsent(expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
+        try await synchronizeIdentificationConsent(expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
         return try await identificationDispatchAuthorization(recipient: processor,
             expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
     }
@@ -48,11 +59,11 @@ extension MerianNetworkClient {
         input: ObservationReanalysisPreflightRequest, expectedAuthUserID: UUID,
         validateAttempt: @escaping @MainActor @Sendable () throws -> Void
     ) async throws -> IdentificationDispatchAuthorization {
-        try await synchronizeReanalysisConsent(expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
+        try await synchronizeIdentificationConsent(expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
         return try await prepareIdentificationAuthorization(input: input, expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
     }
 
-    private func synchronizeReanalysisConsent(expectedAuthUserID: UUID,
+    private func synchronizeIdentificationConsent(expectedAuthUserID: UUID,
                                               validateAttempt: @escaping @MainActor @Sendable () throws -> Void) async throws {
         try Task.checkCancellation()
         guard try await authenticatedUserIDForInferenceRequest() == expectedAuthUserID else {

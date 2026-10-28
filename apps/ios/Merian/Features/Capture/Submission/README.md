@@ -1,3 +1,21 @@
+## October 28 — live preflight wiring qualified, activation still held
+
+The inactive native draft factory now carries the existing network preflight
+dependency into the submission session created after preparation. The separate
+submission factory uses the same composition. Fresh submission synchronizes
+required consent and checks the initiating account before shape-only recipient
+discovery, retaining the original owner across the await. The session supplies
+its frozen-selection validator through consent, discovery and immutable save.
+Saved submissions, including legacy nil expectations, skip fresh discovery.
+
+Engine source review and focused Debug validation passed: 23 methods / 46 cases
+with all 3,035 native/project pins unchanged and no structured runtime warnings.
+The preceding qualified injected seam remains historical evidence; full initial
+result/history, reanalysis and recovery qualification remain open. The
+installation gate stays closed, and local receipt still does not request
+identification. Current cross-system status is in the
+[photo content contract](../../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md).
+
 ## Retained photo preflight — locally qualified checkpoint
 
 `CaptureNativePhotoSubmissionSession` accepts a narrow injected preflight for

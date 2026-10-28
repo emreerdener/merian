@@ -34,6 +34,7 @@ final class CaptureNativePhotoDraftSession {
     private var uncertainDisposition = false
     private var acquisitionEntered = false
     private var owner: SharedMediaNativeOriginalOwner?
+    private let preflight: CaptureNativePhotoSubmissionSession.Preflight?
     private let resolveOwner: () async throws -> SharedMediaNativeOriginalOwner
 
     var canEdit: Bool { !isBusy && !isFrozen && !needsAttention && !isDiscarded && !previewsInvalidated }
@@ -45,12 +46,14 @@ final class CaptureNativePhotoDraftSession {
     var references: [PhotoOriginalReference] { items.filter { !$0.removed }.compactMap(\.reference) }
 
     init(identity: StagedCapture.NativePhotoDraft,
+         preflight: CaptureNativePhotoSubmissionSession.Preflight? = nil,
          resolveOwner: @escaping () async throws -> SharedMediaNativeOriginalOwner) {
-        self.identity = identity; self.resolveOwner = resolveOwner
+        self.identity = identity; self.preflight = preflight; self.resolveOwner = resolveOwner
     }
 
     static func app(ownerID: UUID, diContainer: AppDIContainer) -> CaptureNativePhotoDraftSession {
         .init(identity: .init(ownerID: ownerID, packageID: UUID(), draftGeneration: UUID()),
+              preflight: CaptureNativePhotoSubmissionSession.appPreflight,
               resolveOwner: { try await diContainer.nativeMediaOwnerForFeature() })
     }
 
@@ -174,7 +177,7 @@ final class CaptureNativePhotoDraftSession {
                     uiImage: UIImage(cgImage: thumbnail)).replacingFocusRegion(try photo.pair.intent().focus)
             }
             _ = try CaptureNativePhotoSubmissionSnapshot(projected, selection: selection)
-            let value = Prepared(capture: projected, submission: .init(selection: selection, resolveOwner: { admitted }))
+            let value = Prepared(capture: projected, submission: .init(selection: selection, preflight: preflight, resolveOwner: { admitted }))
             guard !previewsInvalidated else { throw SharedMediaStorageFailure.closed }
             prepared = value
             try Task.checkCancellation()

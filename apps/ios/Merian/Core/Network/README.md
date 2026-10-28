@@ -1,3 +1,19 @@
+## October 28 — native photo consent/preflight composition checkpoint
+
+`prepareNativePhotoAdmissionAuthorization` accepts photo shape only and reuses
+the existing identification consent synchronization, account checks and owned
+recipient read. It checks the supplied frozen-attempt validator around consent,
+after discovery and through the returned authorization. The private consent
+helper now serves native initial photos and reanalysis without changing the
+latter's behavior. RPC keys, retry policy and funding rules are unchanged.
+
+The inactive Capture draft/submission factories supply this dependency; saved
+slots bypass it. See the
+[photo content contract](../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+for status and acceptance. Engine source review and focused Debug validation
+passed (23 methods / 46 cases, no source drift or structured runtime warnings).
+No feature activation or hosted call was performed.
+
 # Core Network
 
 ## BI-1 Auth integration

@@ -125,26 +125,30 @@ class PolicyTests(unittest.TestCase):
         self.assertTrue(any('Missing bounded owner' in f for f in failures))
         self.assertTrue(any('Empty or missing policy directory' in f for f in failures))
 
-    def test_native_photo_preflight_coverage_is_one_bounded_network_owner(self):
-        path = 'apps/ios/Merian/Core/Network/Inference/IdentificationPreflight.swift'
-        actual = preflight.load_policy(ROOT)
-        # Preserve the existing Core Network physical-line review ceiling.
-        self.assertEqual(actual['fileRules'][path], dict(counter='physical', ceiling=600))
-        self.assertFalse(any(preflight.within(path, directory) for directory in
-                             [*actual['directoryRules'], *actual['globalOnlyDirectories']]))
+    def test_native_photo_preflight_coverage_has_exact_bounded_network_owners(self):
         root, policy, _ = self.fixture()
-        source = root / path
-        source.parent.mkdir(parents=True)
-        policy['fileRules'][path] = dict(counter='physical', ceiling=2)
-        source.write_bytes(b'x\nx\n')
-        self.assertEqual(preflight.size_failures(root, policy, [path]), [])
-        source.write_bytes(b'x\nx\nx\n')
-        self.assertTrue(any('3 physical > 2' in failure
-                            for failure in preflight.size_failures(root, policy, [path])))
-        sibling = source.with_name('Other.swift')
-        sibling.write_bytes(b'x')
-        self.assertTrue(any('Unsupported domain' in failure for failure in
-                            preflight.size_failures(root, policy, [sibling.relative_to(root).as_posix()])))
+        for path in [
+            'apps/ios/Merian/Core/Network/Inference/IdentificationPreflight.swift',
+            'apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+IdentificationPreflight.swift',
+        ]:
+            actual = preflight.load_policy(ROOT)
+            # Preserve the existing Core Network physical-line review ceiling.
+            self.assertEqual(actual['fileRules'][path], dict(counter='physical', ceiling=600))
+            self.assertFalse(any(preflight.within(path, directory) for directory in
+                                 [*actual['directoryRules'], *actual['globalOnlyDirectories']]))
+            source = root / path
+            source.parent.mkdir(parents=True)
+            policy['fileRules'][path] = dict(counter='physical', ceiling=2)
+            source.write_bytes(b'x\nx\n')
+            self.assertEqual(preflight.size_failures(root, policy, [path]), [])
+            source.write_bytes(b'x\nx\nx\n')
+            self.assertTrue(any('3 physical > 2' in failure
+                                for failure in preflight.size_failures(root, policy, [path])))
+            source.write_bytes(b'x\nx\n')
+            sibling = source.with_name('Other.swift')
+            sibling.write_bytes(b'x')
+            self.assertTrue(any('Unsupported domain' in failure for failure in
+                                preflight.size_failures(root, policy, [sibling.relative_to(root).as_posix()])))
 
     def test_unknown_counter_and_escaping_paths_fail(self):
         with self.assertRaises(ValueError):

@@ -88,6 +88,10 @@
     "apps/ios/Merian/Core/Hardware/CameraManager.swift": {
       "counter": "segments",
       "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+IdentificationPreflight.swift": {
+      "counter": "physical",
+      "ceiling": 600
     }
   },
   "globalOnlyDirectories": [

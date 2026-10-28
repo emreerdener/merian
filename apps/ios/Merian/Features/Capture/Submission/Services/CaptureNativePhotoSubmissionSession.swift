@@ -4,9 +4,11 @@ import Foundation
 /// composition provides no session. Receipt is local and leaves work held.
 @MainActor
 final class CaptureNativePhotoSubmissionSession {
+    typealias Validator = @MainActor @Sendable () throws -> Void
+    typealias Preflight = @MainActor (IdentificationPreflightInput, UUID, @escaping Validator) async throws -> IdentificationDispatchAuthorization
     let selection: CaptureNativePhotoSubmissionSelection
     private let resolveOwner: () async throws -> SharedMediaNativeOriginalOwner
-    private let preflight: (@MainActor (IdentificationPreflightInput, UUID) async throws -> IdentificationDispatchAuthorization)?
+    private let preflight: Preflight?
     private var owner: SharedMediaNativeOriginalOwner?
     private var frozen: CaptureNativePhotoSubmissionSnapshot?
     private(set) var prepared: SharedMediaNativeReceivingIntent.Prepared?
@@ -15,13 +17,21 @@ final class CaptureNativePhotoSubmissionSession {
     private(set) var attemptID: UUID?
 
     init(selection: CaptureNativePhotoSubmissionSelection,
-         preflight: (@MainActor (IdentificationPreflightInput, UUID) async throws -> IdentificationDispatchAuthorization)? = nil,
+         preflight: Preflight? = nil,
          resolveOwner: @escaping () async throws -> SharedMediaNativeOriginalOwner) {
         self.selection = selection; self.preflight = preflight; self.resolveOwner = resolveOwner
     }
 
     static func app(selection: CaptureNativePhotoSubmissionSelection, diContainer: AppDIContainer) -> CaptureNativePhotoSubmissionSession {
-        .init(selection: selection, resolveOwner: { try await diContainer.nativeMediaOwnerForFeature() })
+        .init(selection: selection, preflight: appPreflight,
+              resolveOwner: { try await diContainer.nativeMediaOwnerForFeature() })
+    }
+
+    static var appPreflight: Preflight {
+        { input, ownerID, validate in
+            try await MerianNetworkClient.shared.prepareNativePhotoAdmissionAuthorization(
+                input: input, expectedAuthUserID: ownerID, validateAttempt: validate)
+        }
     }
 
     /// No automatic retry. A second explicit call discovers before staging and
@@ -74,12 +84,15 @@ final class CaptureNativePhotoSubmissionSession {
             try selection.validate(snapshot)
             let input = try IdentificationPreflightInput(nativePhotoObservationID: observationID,
                 photoCount: selection.pairIDs.count, contexts: supporting.contexts)
-            let authorization = try await preflight(input, selection.identity.ownerID)
-            try selection.validate(snapshot)
-            guard frozen == snapshot else { throw SharedMediaStorageFailure.stale }
-            return IdentificationDispatchAuthorization(recipient: authorization.recipient) {
-                try authorization.validate(); try self.selection.validate(snapshot)
+            let validate: Validator = {
+                try Task.checkCancellation()
+                try self.selection.validate(snapshot)
                 guard self.frozen == snapshot else { throw SharedMediaStorageFailure.stale }
+            }
+            let authorization = try await preflight(input, selection.identity.ownerID, validate)
+            try validate()
+            return IdentificationDispatchAuthorization(recipient: authorization.recipient) {
+                try authorization.validate(); try validate()
             }
         }
     }

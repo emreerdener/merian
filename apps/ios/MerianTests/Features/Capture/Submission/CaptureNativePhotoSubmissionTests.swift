@@ -265,7 +265,8 @@ struct CaptureNativePhotoSubmissionTests {
     func preflightBindsSavedIdentityAndColdRecoverySkipsDiscovery(_ recipient: IdentificationRecipientExpectation) async throws {
         let f = try await fixture(count: 2)
         var inputs: [IdentificationPreflightInput] = []
-        let session = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { input, account in
+        let session = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { input, account, validate in
+            try validate()
             #expect(account == f.store.ownerID && input.inputProfile == .photo && !input.flashFallbackEligible)
             inputs.append(input)
             // Preflight must not hold the receiving observation lock.
@@ -283,7 +284,7 @@ struct CaptureNativePhotoSubmissionTests {
         #expect(inputs.count == 1)
         #expect(await f.owner.invalidateAndAwaitForAccountTransition())
         let cold = try await SharedMediaNativeReceivingStagingTests().reopen(f.store)
-        let recovered = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { _, _ in
+        let recovered = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { _, _, _ in
             Issue.record("Saved receipt rediscovered recipient"); throw SharedMediaStorageFailure.closed
         }, resolveOwner: { cold })
         _ = try await recovered.submit(snapshot)
@@ -309,7 +310,7 @@ struct CaptureNativePhotoSubmissionTests {
         let f = try await fixture()
         var valid = true
         try f.owner.setMetadataFault { if $0 == .beforeSave { valid = false } }
-        let session = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { _, _ in
+        let session = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { _, _, _ in
             .init(recipient: mode == "recoveryOnly" ? .recoveryOnly : .gemini, validate: {
                 guard valid else { throw MerianError.aiConsentRequired }
             })
@@ -325,7 +326,7 @@ struct CaptureNativePhotoSubmissionTests {
         let f = try await fixture()
         let entered = ImageFocusEngineTests.Signal(), release = ImageFocusEngineTests.Signal()
         var didShutdown = false
-        let session = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { _, _ in
+        let session = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { _, _, _ in
             await entered.open(); await release.wait()
             return .init(recipient: .gemini, validate: {})
         }, resolveOwner: { f.owner })
@@ -343,7 +344,7 @@ struct CaptureNativePhotoSubmissionTests {
 
     @Test func persistedSelectionChangeDuringPreflightRefusesSave() async throws {
         let f = try await fixture()
-        let session = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { _, _ in
+        let session = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { _, _, _ in
             // Simulate an external persistence owner changing the frozen target
             // while the read-only recipient request is suspended.
             let context = f.store.context(), package = try f.store.package(in: context)
@@ -363,7 +364,7 @@ struct CaptureNativePhotoSubmissionTests {
             if $0 == .afterSave { saved = true }
             if $0 == .beforeReadback && saved { throw SharedMediaStorageFailure.unavailable }
         }
-        let session = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { _, _ in
+        let session = CaptureNativePhotoSubmissionSession(selection: f.selection, preflight: { _, _, _ in
             discoveries += 1; return .init(recipient: .openAI, validate: {})
         }, resolveOwner: { f.owner })
         let snapshot = try CaptureNativePhotoSubmissionSnapshot(f.capture)

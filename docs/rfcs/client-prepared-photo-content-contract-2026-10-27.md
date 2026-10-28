@@ -1,3 +1,27 @@
+## October 28 — initial photo live preflight composition checkpoint
+
+The inactive draft factory carries the existing network preflight dependency
+through preparation into the retained submission session. The direct submission
+factory shares that dependency. Fresh photo admission uses the existing required
+consent synchronization and account-bound read, with the session's frozen
+selection validator checked around consent/discovery and again at immutable
+save. Saved slots bypass both fresh consent synchronization and recipient
+discovery; this local recovery does not authorize execution. The existing
+reanalysis paths reuse the same private consent helper with unchanged checks.
+
+This supersedes the earlier injected-seam notes below that describe live
+consent/endpoint composition as unimplemented. Those notes retain the earlier
+candidate's validation evidence. Engine source review found no blocking
+production issue; its mock server-minimum finding was corrected before native
+execution. Focused Debug validation passed 23 methods / 46 cases, with all 3,035
+native/project pins unchanged and no structured runtime warnings. Swift/Python
+size-policy parity, full iOS tooling and changed-Markdown checks also passed.
+Earlier failed static attempts and the unexecuted mock fixture remain retained.
+This is local checkpoint evidence, not a new Release or full-journey pass. No
+wire shape, funding rule, automatic retry, activation or deployment changes.
+Allocation, execution/result, explicit history enrollment and the complete
+photo/reanalysis journey remain open.
+
 ## Retained preflight-to-save integration — locally qualified checkpoint
 
 The native original owner now retains the preflight await within the same

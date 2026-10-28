@@ -9,7 +9,12 @@ import UIKit
 struct CaptureNativePhotoDraftTests {
     @Test(arguments: [1, 2], [false, true])
     func actualPickerCropDetailsAndExplicitLocalReceipt(_ count: Int, text: Bool) async throws {
-        let f = try await fixture()
+        var preflights = 0
+        let f = try await fixture(preflight: { input, _, validate in
+            try validate(); preflights += 1
+            #expect(input.inputProfile == .photo)
+            return IdentificationDispatchAuthorization(recipient: .gemini, validate: validate)
+        })
         await importPhotos(f, count: count)
         #expect(f.session.references.count == count && f.vm.stagedCapture.images.count == count)
         #expect(f.session.metadataRequest == nil && f.session.prepared == nil)
@@ -21,6 +26,7 @@ struct CaptureNativePhotoDraftTests {
         await f.vm.submitStagedCapture(modelContext: f.store.context())
         let prepared = try #require(f.session.prepared), receipt = try #require(prepared.submission.receipt)
         #expect(prepared.submission.selection.supportingBytes == before.supportingBytes)
+        #expect(preflights == 1 && prepared.submission.prepared?.photoAdmission?.expectedProcessorPermission == .gemini)
         #expect(f.session.isFrozen && !f.session.canEdit && f.vm.isDraftMutationLocked)
         #expect(f.vm.stagedCapture.images.allSatisfy { !$0.compressedData.isEmpty && !$0.displayData.isEmpty })
         #expect(try f.store.context().fetch(FetchDescriptor<OfflineQueuedScan>()).map(\.queueNeedsAttention) == [true])
@@ -36,6 +42,7 @@ struct CaptureNativePhotoDraftTests {
         try f.owner.setMetadataFault { if $0 == .beforeSave { throw SharedMediaStorageFailure.closed } }
         await f.vm.submitStagedCapture(modelContext: f.store.context())
         #expect(prepared.submission.receipt == receipt && f.vm.pendingAnalyzeScanId == nil)
+        #expect(preflights == 1)
         #expect(await f.owner.invalidateAndAwaitForAccountTransition())
     }
 
@@ -223,10 +230,10 @@ struct CaptureNativePhotoDraftTests {
         let session: CaptureNativePhotoDraftSession
         let vm: CaptureWorkspaceViewModel
     }
-    private func fixture() async throws -> Fixture {
+    private func fixture(preflight: CaptureNativePhotoSubmissionSession.Preflight? = nil) async throws -> Fixture {
         let store = try SharedMediaNativeAppMetadataTests.Store(), owner = try await store.open()
         try owner.setPreparationFault(nil, focusFactory: .qualification(.qualification(worker: { .noCandidates }, drainRegistered: {})))
-        let session = CaptureNativePhotoDraftSession(identity: .init(ownerID: store.ownerID, packageID: store.packageID, draftGeneration: store.draft)) { owner }
+        let session = CaptureNativePhotoDraftSession(identity: .init(ownerID: store.ownerID, packageID: store.packageID, draftGeneration: store.draft), preflight: preflight) { owner }
         return .init(store: store, owner: owner, session: session, vm: viewModel(session: session, account: { store.ownerID }))
     }
     private func importPhotos(_ f: Fixture, count: Int) async {
