@@ -1,3 +1,21 @@
+## Native photo preflight integration — current working increment
+
+A typed `IdentificationPreflightInput` initializer now derives the existing
+photo-profile shape from the receiving observation ID, selected-photo count and
+bounded frozen contexts. It does not synthesize a legacy Identify body or send
+context text. Existing description eligibility rules are evaluated without
+rewriting the saved text. Zero-photo and out-of-profile counts are rejected;
+this adds no fresh text-only path or changes to the RPC payload.
+
+This increment has no production caller. Focused native tests passed 11 methods
+/ 11 cases with no source drift or structured runtime warnings, and the full iOS
+tooling gate passed. Engine scoped review found no blocking defect.
+Owner/session integration and full-journey qualification remain open. The next
+integration must keep preflight inside retained account cancellation/drain
+ownership and outside receiving locks, revalidate exact selection and consent
+through save, and bypass fresh recipient discovery for saved slots. No
+admission, upload, funding, execution or activation is enabled.
+
 ## October 28 — native admission persistence candidate
 
 The inactive native candidate now stores the validated protocol 3/protocol 6/

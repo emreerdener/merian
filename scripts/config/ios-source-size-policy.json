@@ -45,6 +45,10 @@
     }
   },
   "fileRules": {
+    "apps/ios/Merian/Core/Network/Inference/IdentificationPreflight.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
     "apps/ios/Merian/Core/Hardware/Camera/Models/CameraVideoRecordingModels.swift": {
       "counter": "segments",
       "ceiling": 100

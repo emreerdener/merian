@@ -52,8 +52,11 @@ and every configured boundary fixture against Python. The portable
 `test-ios-ci-tooling` target runs the Python failure fixtures; it does not claim
 Swift parity. Neither is native test-target or runtime qualification.
 
-Domain coverage is deliberately bounded to Capture, the listed Camera files, and
-the globally bounded SharedMediaStorage/PhotoPreparation directories. Other
+Domain coverage is deliberately bounded to Capture, the listed Camera files, the
+globally bounded SharedMediaStorage/PhotoPreparation directories, and the single
+`Core/Network/Inference/IdentificationPreflight.swift` owner. That Network file
+retains the existing Core Network 600 physical-line ceiling; this does not cover
+sibling Network files or replace the owning architecture checks. Other
 production candidates fail with an unsupported-domain diagnostic rather than
 silently using only 600 lines. Test-file and other domains' stricter or
 aggregate limits remain in their owning architecture tests; the preflight does
