@@ -27,7 +27,7 @@ struct SharedMediaNativeStagedReleaseOrigin {
 
     static func read(_ row: Row, inventory: SharedMediaInventoryRecord,
                      context: ModelContext, checkpoint: () throws -> Void = {}) throws -> Self {
-        try checkpoint()
+        try checkpoint(); try row.requireNoAllocation()
         guard !context.hasChanges, row.version == 2, row.phase == "received",
               let data = row.releaseStartData, let digest = row.releaseStartSHA256 else {
             throw SharedMediaStorageFailure.closed

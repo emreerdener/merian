@@ -106,7 +106,7 @@ enum SharedMediaStageExitProbeState {
         Record(fields: [row.id.uuidString, row.inventoryID.uuidString, row.inventoryGeneration.uuidString,
             row.ownerID.uuidString, row.draftGeneration.uuidString, row.operationID.uuidString,
             row.cursor, row.phase, row.preparedSHA256, String(row.version), String(row.revision),
-            row.resultSHA256, row.releaseStartSHA256],
-            payloads: [row.preparedData, row.resultData, row.releaseStartData])
+            row.resultSHA256, row.releaseStartSHA256, row.allocationSHA256],
+            payloads: [row.preparedData, row.resultData, row.releaseStartData, row.allocationData])
     }
 }

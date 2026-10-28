@@ -83,6 +83,7 @@ final class SharedMediaNativeReleaseStageSettlement {
     func received(_ row: Row, profile: SharedMediaNativeAppProfile) throws {
         guard !closed, !hasPendingOperation, !hasContinuationRight, fresh[row.id] == nil else { throw SharedMediaStorageFailure.closed }
         try row.requireNoReleaseStart()
+        try row.requireNoAllocation()
         guard case .received = try SharedMediaNativeReceivingSlot.decode(row, profile: profile) else {
             throw SharedMediaStorageFailure.closed
         }

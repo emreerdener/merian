@@ -27,6 +27,7 @@ struct IOSSourceSizePolicy: Decodable {
     let directoryRules: [String: Rule]
     let fileRules: [String: Rule]
     let globalOnlyDirectories: [String]
+    let globalOnlyFiles: [String]
 
     static func load(root: URL) throws -> Self {
         let url = root.appendingPathComponent("scripts/config/ios-source-size-policy.json")

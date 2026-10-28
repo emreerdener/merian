@@ -29,9 +29,12 @@ struct SharedMediaNativeReleaseStartFoundationTests {
                 #expect(throws: SharedMediaStorageFailure.closed) { _ = try SharedMediaNativeReceivingSlot.decode(blocked, profile: prepared.profile) }
                 #expect(throws: SharedMediaStorageFailure.closed) { _ = try SharedMediaNativeReceivingIntentGraph.snapshots(c) }
                 let inventory = try Fixture.one(c, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
-                #expect(throws: SharedMediaStorageFailure.closed) { _ = try SharedMediaNativeReceivingCleanGraph.pending(c, inventory: inventory) }
+                // A complete pair on a received row reaches the typed request
+                // digest check; incomplete pairs and prepared rows close earlier.
+                let routedFailure: SharedMediaStorageFailure = received && data != nil && hash != nil ? .conflict : .closed
+                #expect(throws: routedFailure) { _ = try SharedMediaNativeReceivingCleanGraph.pending(c, inventory: inventory) }
                 #expect(throws: SharedMediaStorageFailure.closed) { _ = try SharedMediaNativeReceivingPhaseGraph.pending(c, inventory: inventory) }
-                #expect(throws: SharedMediaStorageFailure.closed) {
+                #expect(throws: routedFailure) {
                     _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: c, inventory: inventory, ownerID: store.ownerID, format: .appV2)
                 }
                 if received {
@@ -39,7 +42,7 @@ struct SharedMediaNativeReleaseStartFoundationTests {
                         _ = try SharedMediaNativeReceivedReleaseSnapshot.read(packageID: id, inventoryID: inventoryID, releaseID: UUID(), context: c)
                     }
                 }
-                await #expect(throws: SharedMediaStorageFailure.closed) { _ = try await owner.receiveAppPrepared(prepared) }
+                await #expect(throws: routedFailure) { _ = try await owner.receiveAppPrepared(prepared) }
                 let fresh = store.context()
                 let saved = try Fixture.one(fresh, FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == id }))
                 #expect(Row(saved) == blocked && !fresh.hasChanges && !c.hasChanges)
@@ -81,7 +84,9 @@ struct SharedMediaNativeReleaseStartFoundationTests {
                         _ = try SharedMediaNativeReleaseMetadataSnapshot.read(packageID: id, inventoryID: inventoryID, context: f.store.context())
                     }
                 }
-                await #expect(throws: SharedMediaStorageFailure.closed) { try await audit() }
+                // An orphan is rejected at root membership before sidecar decoding.
+                let auditFailure: SharedMediaStorageFailure = foreign ? .conflict : .closed
+                await #expect(throws: auditFailure) { try await audit() }
                 #expect(Row(slot) == blocked && !c.hasChanges)
                 #expect(try SharedMediaStorageRepository.hasLiabilities(in: c))
                 #expect(throws: SharedMediaStorageFailure.inUse) { try SharedMediaPurgeState.requireEmptyGraph(c) }

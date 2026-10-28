@@ -11,6 +11,7 @@ enum SharedMediaNativeReceivingSlot {
     static func decode(_ row: SharedMediaNativeReceivingIntentGraph.Row,
                        profile: SharedMediaNativeAppProfile) throws -> Self {
         try row.requireNoReleaseStart()
+        try row.requireNoAllocation()
         guard row.cursor == row.id.uuidString.lowercased(),
               row.inventoryID == profile.inventoryID, row.inventoryGeneration == profile.generation,
               row.ownerID == profile.ownerID, row.revision >= 0,

@@ -1,3 +1,22 @@
+## October 28 — dormant native allocation storage qualified locally
+
+The V67 receiving-side allocation fields and conservative release/recovery holds
+are implemented and locally qualified. Combined focused Debug evidence covers
+189 methods / 223 cases; the original failed run and four-method repair rerun
+remain retained. Engine review and the full iOS tooling gate passed. The
+canonical schema contract records exact scope and limitations:
+[V67 storage and validation](../../../../../../docs/backend-and-data/04-database-schema.md).
+The
+[scan-ingestion entry point](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md)
+traces the current journey and owners.
+
+Next is the existing-owner durable allocation claim, authenticated create/status
+adapter and exact status-only recovery. No allocation writer or app caller is
+installed. Initial photo result/history, reanalysis with preserved versions,
+full photo qualification, audio/video and RUX acceptance remain open, followed
+by the approved deletion/export/redesign sequence. Activation, deployment and
+PR116 holds are unchanged.
+
 ## Retained photo admission — locally qualified checkpoint
 
 The inactive `stageAppReceivingWithAdmission` entry keeps discovery, fresh

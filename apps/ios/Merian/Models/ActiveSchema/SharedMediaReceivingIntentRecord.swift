@@ -24,6 +24,9 @@ final class SharedMediaReceivingIntentRecord {
     /// Any present or partial sidecar remains closed in this storage foundation.
     var releaseStartData: Data?
     var releaseStartSHA256: String?
+    /// Durable allocation state belongs to the receiving owner; dormant until qualified.
+    var allocationData: Data?
+    var allocationSHA256: String?
 
     init(packageID: UUID, inventoryID: UUID, inventoryGeneration: UUID,
          ownerID: UUID, draftGeneration: UUID, operationID: UUID,
@@ -44,5 +47,7 @@ final class SharedMediaReceivingIntentRecord {
         resultSHA256 = nil
         releaseStartData = nil
         releaseStartSHA256 = nil
+        allocationData = nil
+        allocationSHA256 = nil
     }
 }

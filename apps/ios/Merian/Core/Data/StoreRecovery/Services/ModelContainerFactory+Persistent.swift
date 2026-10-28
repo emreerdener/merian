@@ -127,6 +127,10 @@ extension ModelContainerFactory {
                 )
             }
 
+            if let recovered = try optionalRecovery({ try makePersistentContainer(
+                migrationPlan: MerianRecentV66MigrationPlan.self, named: "checksum-recent-v66", diagnostic: &diagnostic
+            ) }) { return recovered }
+
             // The named helper records each failure in the startup diagnostic.
             // A failed recent source advances to the next exact representative.
             if let recovered = try optionalRecovery({ try makePersistentContainer(
@@ -428,6 +432,8 @@ extension ModelContainerFactory {
             diagnostic: inout StartupStoreDiagnostic
         ) throws -> ModelContainer {
             switch source {
+            case .v66:
+                return try makePersistentContainer(migrationPlan: MerianRecentV66MigrationPlan.self, named: "recent-v66", diagnostic: &diagnostic)
             case .v65:
                 return try makePersistentContainer(migrationPlan: MerianRecentV65MigrationPlan.self, named: "recent-v65", diagnostic: &diagnostic)
             case .v64:

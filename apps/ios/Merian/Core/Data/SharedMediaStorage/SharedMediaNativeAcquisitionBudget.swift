@@ -446,6 +446,7 @@ enum SharedMediaNativeAcquisitionBudget {
 
         var preparedBytes: Int64 = 0, receivingHeadroom: Int64 = 0
         if let intent = input.intent {
+            try intent.row.requireNoAllocation()
             switch intent.slot {
             case .prepared(let prepared):
                 guard attempt == nil, active.isEmpty, receivingBytes == 0 else { throw SharedMediaStorageFailure.closed }

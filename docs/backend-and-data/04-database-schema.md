@@ -5716,7 +5716,45 @@ hashes. Evidence: `staged-funding-composite01.json` under
 a pre-refactor oracle; exhaustive dirty-poststate parity and complete affected
 gates remain open. This is not routing, writer or feature acceptance.
 
-`MerianSchemaV66` owns the active global models. Its lightweight V65→V66 stage
+`MerianSchemaV67` now owns the active global models. The additive V66→V67 stage
+adds nullable `allocationData` and `allocationSHA256` to the existing
+package-keyed receiving record. It preserves every historical prepared, result
+and release-start byte and digest; migration leaves the new fields nil and
+creates no remote operation. V66 was frozen and compiled before active model
+edits, retaining the closed V64 graph for unchanged models.
+
+Allocation state is currently dormant: there is no installed writer or network
+caller. Any populated or partial pair fails closed in receiving, abandonment,
+whole-store audits, release staging/start/recovery and terminal readers. Raw
+projections and transaction seals include both fields. This conservative hold
+prevents local source disposal while remote allocation ownership is unresolved.
+A later typed owner must bind exact immutable candidate/attempt identities,
+persist before sending and use status-only recovery for uncertain outcomes. No
+new queue, retention limit, funding or execution authority is introduced.
+
+Every forward plan appends V66→V67, and V66 has a source-isolated startup plan.
+Current stores still open plan-free; rescue/quarantine eligibility is unchanged.
+V67 disk migration, startup and rejection coverage is locally qualified through
+combined focused Debug evidence: 189 methods / 223 cases, comprising 185
+unchanged passing methods and four repaired tests that passed their focused
+rerun. All 3,037 native/project inputs were checked; only the two reviewed test
+files changed between runs, and no structured runtime warnings were reported.
+The first run's four failures remain retained: a cold-owner fixture lifetime
+error and stale exact rejection-error expectations. Production behavior did not
+change for the rerun. Engine review, complete iOS tooling, migration guardrails,
+project and bounded preflight checks passed. Evidence is
+`.artifacts/native-app-capture-handoff-20261020/photo-allocation-v67-combined01.json`.
+This is shared-checkout checkpoint evidence, not a new Release, full-target run
+or complete photo journey. The earlier V66 snapshot remains compile-only
+evidence. See the
+[scan-ingestion guide](16-scan-ingestion-reliability-and-recovery.md) for the
+separate server boundary and remaining end-to-end integration.
+
+**Historical V66 foundation (October 22):** the following paragraphs retain that
+checkpoint's contract and evidence; the current schema is V67 and typed
+release-stage/start owners have since been integrated separately.
+
+`MerianSchemaV66` owned the active global models. Its lightweight V65→V66 stage
 adds optional `releaseStartData` and `releaseStartSHA256` to the existing
 package-keyed `SharedMediaReceivingIntentRecord`. Historical rows preserve their
 identity, phase/revision and exact prepared/result bytes and digests; both new
@@ -5828,37 +5866,38 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current source schema is `MerianSchemaV66`. V66 adds nil-default optional
-release-request columns through lightweight V65→V66, with populated values
-closed to existing owners. V65 added an empty receiving intent table through
-lightweight V64→V65. Canonical codec and reservation validation are separate
-from typed staging/receiving and Capture acceptance; the schema does not
-activate those paths. V64 added an empty acquisition receipt table through
-lightweight V63→V64. V63 added explicit native consumer authority and
-pending/retained accounting through lightweight V62→V63. All existing rows
-retain their legacy semantics. V62 added `SharedMediaDerivativePairRecord` and
-`SharedMediaDerivativeWorkRecord` through lightweight V61→V62. Pair rows bind an
-exact original, revision and AI/display membership; work rows retain prepared
-identities, writer state and explicit retirement facts. Existing data is never
-reinterpreted as derivative ownership. The schema prerequisite rejects nonempty
-derivative rows until the paired owner is implemented and qualified. V60 added
-scalar `SharedMediaInventoryRecord`, `SharedMediaAllocationRecord`,
-`SharedMediaReferenceRecord` and `SharedMediaLeaseRecord` through lightweight
-V59→V60. V61 adds `SharedMediaInboxSourceRecord` and
-`SharedMediaInboxHandoffRecord` through lightweight V60→V61, retaining typed
-source identity, writer state, fixed destinations and exact handoff ownership.
-These rows grant no live capture or deletion authority. Migration starts these
-tables empty and does not inventory files. The inactive repository requires
-explicit qualification roots and persists root/store binding,
-generation/revision, reservations and logical holds. Legacy observations never
-grant completeness, admission or deletion authority. Any new row blocks identity
-replacement and library purge before existing callbacks; only future reviewed
-owner adapters can release that barrier. The isolated `p1Qualification` adapter
-uses existing fields for joint P1/shared reservation and completion, with
-explicit asset/reference/lease identities and held interruption states. Its
-logical acquisition and metadata budgets do not add a second physical-file
-reservation. It exposes no deletion or barrier release. No live producer uses
-the new allocator. See the
+The current source schema is `MerianSchemaV67`. V67 adds nil-default allocation
+columns through lightweight V66→V67; these remain closed to existing owners
+until the dedicated allocation lifecycle is qualified. V66 added optional
+release-request columns through lightweight V65→V66. V65 added an empty
+receiving intent table through lightweight V64→V65. Canonical codec and
+reservation validation are separate from typed staging/receiving and Capture
+acceptance; the schema does not activate those paths. V64 added an empty
+acquisition receipt table through lightweight V63→V64. V63 added explicit native
+consumer authority and pending/retained accounting through lightweight V62→V63.
+All existing rows retain their legacy semantics. V62 added
+`SharedMediaDerivativePairRecord` and `SharedMediaDerivativeWorkRecord` through
+lightweight V61→V62. Pair rows bind an exact original, revision and AI/display
+membership; work rows retain prepared identities, writer state and explicit
+retirement facts. Existing data is never reinterpreted as derivative ownership.
+The schema prerequisite rejects nonempty derivative rows until the paired owner
+is implemented and qualified. V60 added scalar `SharedMediaInventoryRecord`,
+`SharedMediaAllocationRecord`, `SharedMediaReferenceRecord` and
+`SharedMediaLeaseRecord` through lightweight V59→V60. V61 adds
+`SharedMediaInboxSourceRecord` and `SharedMediaInboxHandoffRecord` through
+lightweight V60→V61, retaining typed source identity, writer state, fixed
+destinations and exact handoff ownership. These rows grant no live capture or
+deletion authority. Migration starts these tables empty and does not inventory
+files. The inactive repository requires explicit qualification roots and
+persists root/store binding, generation/revision, reservations and logical
+holds. Legacy observations never grant completeness, admission or deletion
+authority. Any new row blocks identity replacement and library purge before
+existing callbacks; only future reviewed owner adapters can release that
+barrier. The isolated `p1Qualification` adapter uses existing fields for joint
+P1/shared reservation and completion, with explicit asset/reference/lease
+identities and held interruption states. Its logical acquisition and metadata
+budgets do not add a second physical-file reservation. It exposes no deletion or
+barrier release. No live producer uses the new allocator. See the
 [owner README](../../apps/ios/Merian/Core/Data/SharedMediaStorage/README.md).
 
 V59 adds `PhotoPreparationRecord`, `PhotoPreparationAsset`,
@@ -5912,12 +5951,12 @@ Ordinary Capture access remains nil. Recent milestones:
   directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
-  `ModelContainer`: fresh/current V66 stores open without a migration plan,
+  `ModelContainer`: fresh/current V67 stores open without a migration plan,
   known recent stores use the source-isolated
-  V65/V64/V63/V62/V61/V60/V59/V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42
-  plans, and only unknown older stores use the full historical plan. V65 needs
-  only lightweight V65→V66; earlier plans retain their previous stages and
-  append V65→V66. Each V50 plan contains its custom V50→V51 preference-ownership
+  V66/V65/V64/V63/V62/V61/V60/V59/V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42
+  plans, and only unknown older stores use the full historical plan. V66 needs
+  only lightweight V66→V67; earlier plans retain their previous stages and
+  append V66→V67. Each V50 plan contains its custom V50→V51 preference-ownership
   stage followed by
   V51→V52→V53→V54→V55→V56→V57→V58→V59→V60→V61→V62→V63→V64→V65→V66; the V49 plan
   prepends the required lightweight V49→V50 hop. Immediate predecessors

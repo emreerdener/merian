@@ -60,7 +60,7 @@ def load_policy(root):
     policy = json.loads((root / 'scripts/config/ios-source-size-policy.json').read_text(),
                         object_pairs_hook=unique_object)
     expected = {'version', 'productionRoot', 'globalCeiling', 'oversizedOwners',
-                'sealedOwnerCeilings', 'directoryRules', 'fileRules', 'globalOnlyDirectories'}
+                'sealedOwnerCeilings', 'directoryRules', 'fileRules', 'globalOnlyDirectories', 'globalOnlyFiles'}
     if set(policy) != expected or policy['version'] != 1:
         raise ValueError('Unsupported source-size policy shape/version')
     if policy['productionRoot'] != 'apps/ios/Merian':
@@ -72,11 +72,11 @@ def load_policy(root):
         limits.append(rule['ceiling'])
     if any(type(n) is not int or n <= 0 for n in limits):
         raise ValueError('Source ceilings must be positive integers')
-    for group in ('oversizedOwners', 'globalOnlyDirectories'):
+    for group in ('oversizedOwners', 'globalOnlyDirectories', 'globalOnlyFiles'):
         if len(set(policy[group])) != len(policy[group]):
             raise ValueError(f'Duplicate policy entries: {group}')
     for path in [policy['productionRoot'], *policy['directoryRules'], *policy['fileRules'],
-                 *policy['globalOnlyDirectories'], *policy['oversizedOwners'],
+                 *policy['globalOnlyDirectories'], *policy['globalOnlyFiles'], *policy['oversizedOwners'],
                  *policy['sealedOwnerCeilings']]:
         repository_path(root, path)
     return policy
@@ -132,6 +132,9 @@ def size_failures(root, policy, candidates):
     for path in policy['fileRules']:
         if path not in sources:
             failures.append(f'Missing bounded owner: {path}')
+    for path in policy['globalOnlyFiles']:
+        if path not in sources:
+            failures.append(f'Missing global owner: {path}')
     for path, source in sources.items():
         rules = [rule for directory, rule in policy['directoryRules'].items()
                  if within(path, directory)]
@@ -143,7 +146,7 @@ def size_failures(root, policy, candidates):
                 failures.append(f"{path}: {count} {rule['counter']} > {rule['ceiling']}")
     for path in candidates:
         if path.endswith('.swift') and within(path, production):
-            covered = path in policy['fileRules'] or any(
+            covered = path in policy['fileRules'] or path in policy['globalOnlyFiles'] or any(
                 within(path, directory) for directory in
                 [*policy['directoryRules'], *policy['globalOnlyDirectories']])
             if not covered:

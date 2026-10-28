@@ -177,10 +177,16 @@ final class PersistentStoreBootstrapSessionTests: XCTestCase {
     }
 
     func testLegacyRescueReplacementHoldsFenceAndKeepsAdmissionDenied() throws {
+        try legacyRescueReplacement(schema: MerianSchemaV65.self, source: .v65)
+        try legacyRescueReplacement(schema: MerianSchemaV66.self, source: .v66)
+    }
+
+    private func legacyRescueReplacement(schema: any VersionedSchema.Type,
+                                        source: ModelStoreRecoveryCoordinator.RecentSourceSchema) throws {
         let root = try temporaryRoot()
         let store = root.appendingPathComponent("default.store")
         try autoreleasepool {
-            let legacy = Schema(versionedSchema: MerianSchemaV65.self)
+            let legacy = Schema(versionedSchema: schema)
             _ = try ModelContainerFactory.makeContainerCatchingObjectiveCExceptions {
                 try ModelContainer(for: legacy, configurations: [
                     ModelConfiguration(schema: legacy, url: store, cloudKitDatabase: .none)
@@ -190,7 +196,7 @@ final class PersistentStoreBootstrapSessionTests: XCTestCase {
         let decision = ModelStoreRecoveryCoordinator.migrationDecision(
             at: store, currentSchemaMajor: CurrentSchema.versionIdentifier.major
         )
-        XCTAssertEqual(decision.hint, .recentSource(.v65))
+        XCTAssertEqual(decision.hint, .recentSource(source))
         let original = try Data(contentsOf: store)
         var attempts = [Int]()
         let session = try fixture(root) { attempt in

@@ -36,6 +36,7 @@ let result: [String: Any] = [
     "counts": sources.map { [IOSSourceSizePolicy.physicalLines($0), IOSSourceSizePolicy.newlineSegments($0)] },
     "oversizedOwners": policy.oversizedOwners.sorted(),
     "globalCeiling": policy.globalCeiling,
+    "globalOnlyFiles": policy.globalOnlyFiles,
     "sealedOwnerCeilings": policy.sealedOwnerCeilings,
     "directories": policy.directoryRules.mapValues { rule in sources.map { rule.count($0) <= rule.ceiling } },
     "files": policy.fileRules.mapValues { rule in sources.map { rule.count($0) <= rule.ceiling } }
@@ -64,6 +65,7 @@ FileHandle.standardOutput.write(try JSONSerialization.data(withJSONObject: resul
         self.assertEqual(swift['oversizedOwners'], sorted(policy['oversizedOwners']))
         self.assertEqual(swift['sealedOwnerCeilings'], policy['sealedOwnerCeilings'])
         self.assertEqual(swift['globalCeiling'], policy['globalCeiling'])
+        self.assertEqual(swift['globalOnlyFiles'], policy['globalOnlyFiles'])
         for swift_key, policy_key in [('directories', 'directoryRules'), ('files', 'fileRules')]:
             self.assertEqual(swift[swift_key], {
                 path: [preflight.count_lines(s, rule['counter']) <= rule['ceiling'] for s in sources]
@@ -84,7 +86,7 @@ class PolicyTests(unittest.TestCase):
                       oversizedOwners=['Large.swift'], sealedOwnerCeilings={'Large.swift': 4},
                       directoryRules={'apps/ios/Merian/Features/Capture/Scan': dict(counter='segments', ceiling=3)},
                       fileRules={'apps/ios/Merian/Camera.swift': dict(counter='segments', ceiling=2)},
-                      globalOnlyDirectories=['apps/ios/Merian/Core/Data/SharedMediaStorage'])
+                      globalOnlyDirectories=['apps/ios/Merian/Core/Data/SharedMediaStorage'], globalOnlyFiles=[])
         (production / 'Large.swift').write_bytes(b'x\nx\nx\nx')
         (production / 'Camera.swift').write_bytes(b'x\nx')
         scan = production / 'Features/Capture/Scan/A.swift'
@@ -149,6 +151,39 @@ class PolicyTests(unittest.TestCase):
             sibling.write_bytes(b'x')
             self.assertTrue(any('Unsupported domain' in failure for failure in
                                 preflight.size_failures(root, policy, [sibling.relative_to(root).as_posix()])))
+
+    def test_outgoing_receiving_schema_has_exact_global_ceiling_coverage(self):
+        path = 'apps/ios/Merian/Models/Schema/SchemaV66.swift'
+        actual = preflight.load_policy(ROOT)
+        self.assertEqual(actual['fileRules'][path], dict(counter='physical', ceiling=600))
+        root, policy, _ = self.fixture()
+        policy['fileRules'][path] = dict(counter='physical', ceiling=2)
+        source = root / path
+        source.parent.mkdir(parents=True)
+        source.write_text('x\nx\n')
+        self.assertEqual(preflight.size_failures(root, policy, [path]), [])
+        source.write_text('x\nx\nx\n')
+        self.assertTrue(any('3 physical > 2' in error for error in preflight.size_failures(root, policy, [path])))
+        source.write_text('x\nx\n')
+        sibling = source.with_name('UncoveredSchema.swift')
+        sibling.write_text('x')
+        self.assertTrue(any('Unsupported domain' in error for error in
+                            preflight.size_failures(root, policy, [sibling.relative_to(root).as_posix()])))
+
+    def test_exact_global_owner_does_not_cover_siblings(self):
+        root, policy, source = self.fixture()
+        path = source.relative_to(root).as_posix()
+        policy['directoryRules'] = {}
+        policy['globalOnlyDirectories'] = []
+        policy['globalOnlyFiles'] = [path]
+        self.assertEqual(preflight.size_failures(root, policy, [path]), [])
+        sibling = source.with_name('Unsupported.swift')
+        sibling.write_text('x')
+        self.assertTrue(any('Unsupported domain' in failure for failure in
+                            preflight.size_failures(root, policy, [sibling.relative_to(root).as_posix()])))
+        source.unlink()
+        self.assertTrue(any('Missing global owner' in failure for failure in
+                            preflight.size_failures(root, policy, [])))
 
     def test_unknown_counter_and_escaping_paths_fail(self):
         with self.assertRaises(ValueError):

@@ -45,6 +45,10 @@
     }
   },
   "fileRules": {
+    "apps/ios/Merian/Models/Schema/SchemaV66.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
     "apps/ios/Merian/Core/Network/Inference/IdentificationPreflight.swift": {
       "counter": "physical",
       "ceiling": 600
@@ -92,10 +96,33 @@
     "apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+IdentificationPreflight.swift": {
       "counter": "physical",
       "ceiling": 600
+    },
+    "apps/ios/Merian/Models/Schema/SchemaV67.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Models/ActiveSchema/SharedMediaReceivingIntentRecord.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Models/Aliases.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/StoreRecovery/Models/StoreMigrationModels.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/StoreRecovery/Services/ModelContainerFactory+Persistent.swift": {
+      "counter": "physical",
+      "ceiling": 600
     }
   },
   "globalOnlyDirectories": [
     "apps/ios/Merian/Core/Data/SharedMediaStorage",
     "apps/ios/Merian/Core/Data/PhotoPreparation"
+  ],
+  "globalOnlyFiles": [
+    "apps/ios/Merian/Models/SchemaVersions.swift"
   ]
 }

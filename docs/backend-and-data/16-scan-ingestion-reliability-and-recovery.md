@@ -8,7 +8,13 @@ paths; they do not qualify this new journey. Photo consent/preflight through
 immutable local receipt is locally qualified. The authenticated allocation
 facade is implemented and source-reviewed; native durable allocation
 integration, transfer, execution, result/history and full journey acceptance
-remain open. Nothing here implies deployment or feature activation.
+remain open. Nothing here implies deployment or feature activation. The
+[existing receiving record](../../apps/ios/Merian/Models/ActiveSchema/SharedMediaReceivingIntentRecord.swift)
+now has a dormant V67 allocation sidecar candidate; its migration and
+failure-closed release/recovery contract is owned by the
+[database schema guide](04-database-schema.md). Its dormant storage/migration
+checkpoint is locally qualified; the claim-before-send owner and app caller
+remain pending. This qualification does not enable allocation or analysis.
 
 ```mermaid
 flowchart LR

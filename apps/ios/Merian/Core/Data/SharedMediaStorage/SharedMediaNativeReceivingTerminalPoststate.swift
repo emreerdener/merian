@@ -21,6 +21,7 @@ struct SharedMediaNativeReceivingTerminalPoststate {
               after == (try .init(progress: before.release.progress, inventoryRevision: SharedMediaStoragePolicy.add(before.inventoryRevision, 1))) else {
             throw SharedMediaStorageFailure.conflict
         }
+        try before.release.slot.requireNoAllocation()
         contextID = ObjectIdentifier(context)
         let plan = after.plan, inventoryID = plan.profile.inventoryID, packageID = plan.package.id
         let bindingID = plan.bindingID, queueID = plan.queueID.uuidString.lowercased(), jobID = plan.jobID, eventID = plan.eventID.uuidString.lowercased()

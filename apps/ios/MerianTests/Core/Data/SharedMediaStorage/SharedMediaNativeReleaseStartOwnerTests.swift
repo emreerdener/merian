@@ -235,7 +235,7 @@ struct SharedMediaNativeReleaseStartOwnerTests {
     @Test func exactDirtySealRejectsExtraWritesAndImmutableDrift() async throws {
         let (h, owner, _, admission) = try await fixture()
         _ = try await owner.stageAppRelease(admission)
-        for fault in ["valid", "slot", "inventory", "package", "delete"] {
+        for fault in ["valid", "allocationData", "allocationDigest", "slot", "inventory", "package", "delete"] {
             let c = h.context(), i = try inventory(h, c), r = try record(h, c)
             let snapshot = try staged(h, c), progress = snapshot.components.progress
             let seal = try SharedMediaNativeReleaseStartPoststate(snapshot: snapshot, context: c, row: r, inventory: i)
@@ -243,6 +243,8 @@ struct SharedMediaNativeReleaseStartOwnerTests {
             r.preparedData = nil; r.resultData = try progress.encoded(); r.resultSHA256 = SharedMediaAcquisitionEncoding.digest(r.resultData!)
             r.releaseStartData = nil; r.releaseStartSHA256 = nil; i.revision += 1
             switch fault {
+            case "allocationData": r.allocationData = Data()
+            case "allocationDigest": r.allocationSHA256 = "x"
             case "slot": r.preparedSHA256 = String(repeating: "b", count: 64)
             case "inventory": i.rootIdentity += "changed"
             case "package": try h.package(in: c).allocatedByteCount += 1

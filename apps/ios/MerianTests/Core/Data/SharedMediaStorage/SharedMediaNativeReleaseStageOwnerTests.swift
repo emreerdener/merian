@@ -101,7 +101,7 @@ struct SharedMediaNativeReleaseStageOwnerTests {
     @Test func sealRejectsExtraWritesAndAllImmutableInventoryFields() async throws {
         let (h, owner, _, admission) = try await fixture()
         let request = admission.request
-        for fault in ["valid", "slot", "root", "store", "mode", "phase", "cursor", "generation", "package", "delete"] {
+        for fault in ["valid", "allocationData", "allocationDigest", "slot", "root", "store", "mode", "phase", "cursor", "generation", "package", "delete"] {
             let c = h.context(), i = try inventory(c, h)
             let r = try #require(try SharedMediaNativeReceivingPhaseGraph.row(h.packageID, in: c))
             let snapshot = try SharedMediaNativeReceivedReleaseSnapshot.prospectiveStage(request, context: c)
@@ -109,6 +109,8 @@ struct SharedMediaNativeReleaseStageOwnerTests {
             r.releaseStartData = try request.encoded(); r.releaseStartSHA256 = SharedMediaAcquisitionEncoding.digest(r.releaseStartData!)
             i.revision += 1
             switch fault {
+            case "allocationData": r.allocationData = Data()
+            case "allocationDigest": r.allocationSHA256 = "x"
             case "slot": r.resultSHA256 = String(repeating: "b", count: 64)
             case "root": i.rootIdentity += "changed"
             case "store": i.storeIdentity = UUID().uuidString

@@ -24,6 +24,7 @@ enum SharedMediaNativeReceivingTerminal {
         try Task.checkCancellation(); try checkpoint()
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         let saved = Row(row), profile = try SharedMediaNativeAppEligibility.profile(inventory)
+        try saved.requireNoAllocation()
         let scope = SharedMediaNativeScopeIdentity(inventoryID: profile.inventoryID, generation: profile.generation,
             ownerID: profile.ownerID, storeIdentity: profile.storeIdentity, rootBinding: try profile.rootIdentity)
         let header = try SharedMediaNativeAppEligibility.snapshot(context: context, scope: scope)

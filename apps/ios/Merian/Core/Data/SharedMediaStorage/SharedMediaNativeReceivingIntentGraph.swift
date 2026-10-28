@@ -14,6 +14,15 @@ enum SharedMediaNativeReceivingIntentGraph {
         let resultSHA256: String?
         let releaseStartData: Data?
         let releaseStartSHA256: String?
+        let allocationData: Data?
+        let allocationSHA256: String?
+
+        /// A remote allocation liability cannot enter local release or receiving.
+        func requireNoAllocation() throws {
+            guard allocationData == nil, allocationSHA256 == nil else {
+                throw SharedMediaStorageFailure.closed
+            }
+        }
 
         /// The V66 storage foundation grants no sidecar-aware mutation or read.
         /// Keep raw projection/equality complete for a future dedicated owner.
@@ -30,6 +39,7 @@ enum SharedMediaNativeReceivingIntentGraph {
             version = row.schemaVersion; revision = row.revision; preparedData = row.preparedData
             resultData = row.resultData; resultSHA256 = row.resultSHA256
             releaseStartData = row.releaseStartData; releaseStartSHA256 = row.releaseStartSHA256
+            allocationData = row.allocationData; allocationSHA256 = row.allocationSHA256
         }
     }
     struct Witness: Sendable {
@@ -50,6 +60,7 @@ enum SharedMediaNativeReceivingIntentGraph {
         var result: [UUID: Row] = [:]
         for row in rows {
             try Row(row).requireNoReleaseStart()
+            try Row(row).requireNoAllocation()
             guard result.updateValue(Row(row), forKey: row.id) == nil else { throw SharedMediaStorageFailure.conflict }
         }
         return result
@@ -62,6 +73,7 @@ enum SharedMediaNativeReceivingIntentGraph {
         var result: [UUID: Witness] = [:], identities = Set<UUID>()
         for row in try snapshots(context).values {
             try row.requireNoReleaseStart()
+            try row.requireNoAllocation()
             guard row.version == 1, row.phase == "prepared", row.revision == 0,
                   row.cursor == row.id.uuidString.lowercased(), row.resultData == nil, row.resultSHA256 == nil,
                   row.inventoryID == profile.inventoryID, row.inventoryGeneration == profile.generation,

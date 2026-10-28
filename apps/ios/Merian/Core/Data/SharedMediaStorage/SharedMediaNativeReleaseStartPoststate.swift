@@ -17,6 +17,7 @@ struct SharedMediaNativeReleaseStartPoststate {
         guard !context.hasChanges, snapshot.origin.row == .init(row),
               inventory.revision == snapshot.origin.header.inventory.revision else { throw SharedMediaStorageFailure.stale }
         slot = .init(row); self.inventory = .init(inventory)
+        try slot.requireNoAllocation()
         slotID = row.persistentModelID; inventoryID = inventory.persistentModelID
         progress = snapshot.components.progress; bytes = try progress.encoded()
         digest = SharedMediaAcquisitionEncoding.digest(bytes)
@@ -31,6 +32,7 @@ struct SharedMediaNativeReleaseStartPoststate {
         }
         try self.inventory.requireSuccessor(inventory)
         let after = SharedMediaNativeReceivingIntentGraph.Row(row)
+        try after.requireNoAllocation()
         guard after.id == slot.id, after.inventoryID == slot.inventoryID,
               after.inventoryGeneration == slot.inventoryGeneration, after.ownerID == slot.ownerID,
               after.draftGeneration == slot.draftGeneration, after.operationID == slot.operationID,

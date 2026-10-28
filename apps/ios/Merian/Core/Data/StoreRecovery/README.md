@@ -1,3 +1,20 @@
+## October 28 — V67 allocation storage checkpoint
+
+Current schema V67 adds nullable allocation bytes/digest on the existing
+receiving slot. V66 was frozen and compiled first. Every forward plan appends
+V66→V67; startup recognizes V66 with a source-isolated plan. Current-store
+plan-free construction and rescue/quarantine signatures are unchanged. Migration
+and startup coverage passed within the combined focused Debug checkpoint
+recorded in the canonical schema contract below. Full journey and Release
+qualification remain separate. No allocation writer or feature activation is
+installed.
+
+The
+[database schema contract](../../../../../../docs/backend-and-data/04-database-schema.md)
+owns the field semantics and failure-closed behavior. Earlier dated sections
+below preserve historical contracts and accepted evidence; they do not identify
+the current schema or current release-owner installation.
+
 ## October 23 — startup ownership integration (focused qualification)
 
 Production startup now builds one explicit non-CloudKit configuration with

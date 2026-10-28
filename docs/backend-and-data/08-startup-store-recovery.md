@@ -76,14 +76,14 @@ of that coverage.
    and after construction and archive/replacement. Legitimate SQLite/WAL/SHM
    evolution is allowed; this is cooperative writer exclusion, not an
    adversarial filesystem or private framework-drain guarantee.
-3. Choose the narrowest startup strategy: no artifacts or current V66 opens
-   without a plan; known recent V42 through V65 selects its source-isolated
+3. Choose the narrowest startup strategy: no artifacts or current V67 opens
+   without a plan; known recent V42 through V66 selects its source-isolated
    forward plan; unknown older state uses the full historical plan. V50 requires
    its allowlisted source checksum, and the two V48 source graphs retain their
-   existing separate paths. Every applicable plan ends at V66; historical
+   existing separate paths. Every applicable plan ends at V67; historical
    schemas and stages remain immutable.
 4. Known duplicate-checksum Swift failures retain the ordered retry ladder:
-   current store, V65 down through V51, both distinct V50 graphs, then V49
+   current store, V66 down through V51, both distinct V50 graphs, then V49
    through V42 (with the existing V48 alternatives). Every attempt uses the same
    held configuration. The factory reports first-success versus retried
    separately from the user-facing `.normal` state. Typed configuration/fence
@@ -431,14 +431,14 @@ exposing app data.
 
 `make validate-ios-migration-guardrails` checks the SwiftData migration source
 contract before Xcode compiles anything. The full path runs through V42→V49,
-frozen V50 through V65, then current V66. V43...V48 representatives stay out of
+frozen V50 through V66, then current V67. V43...V48 representatives stay out of
 that full path; their dedicated source-isolated plans and both V48 source
-variants remain explicit. Every recent source through V65 has its own forward
+variants remain explicit. Every recent source through V66 has its own forward
 plan, including both checksum-distinct V50 graphs. Frozen snapshots remain
 pinned, and historical preference/deletion mapping checks remain intact.
 
-The guard requires current-store V66 routing and ordered checksum fallback:
-current store, V65 down through V51, both V50 graphs, then V49 through V42. The
+The guard requires current-store V67 routing and ordered checksum fallback:
+current store, V66 down through V51, both V50 graphs, then V49 through V42. The
 persistent factory extension must use the session's exact configuration and must
 not suppress boundary errors with optional `try?` recovery. Production
 configuration explicitly disables CloudKit while preserving automatic App Group

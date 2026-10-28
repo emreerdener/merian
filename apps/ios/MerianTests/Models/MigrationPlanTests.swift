@@ -2414,35 +2414,95 @@ struct MigrationPlanTests {
         }
     }
 
-    @Test func allForwardPlansEndWithReleaseStartStorageStage() throws {
+    @Test(arguments: [false, true])
+    func v66MigrationPreservesReceivingBytesAndAddsNoAllocationRequests(_ fullPlan: Bool) throws {
+        let url = migrationStoreURL(named: fullPlan ? "v66-allocation-full" : "v66-allocation-recent")
+        let ids = (0..<3).map { _ in UUID() }, operations = (0..<3).map { _ in UUID() }
+        let inventory = UUID(), generation = UUID(), owner = UUID(), draft = UUID()
+        let phases = ["prepared", "received", "abandoned"], versions = [1, 2, 2]
+        let revisions: [Int64] = [0, 8, 9]
+        let prepared = Data([0, 1, 127, 128, 255]), result = Data([255, 128, 1, 0])
+        let preparedHash = String(repeating: "a", count: 64), resultHash = String(repeating: "b", count: 64)
+        do {
+            let schema = Schema(versionedSchema: MerianSchemaV66.self)
+            let container = try makeModelContainer(for: schema,
+                configurations: [ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)])
+            let context = ModelContext(container); context.autosaveEnabled = false
+            for index in ids.indices {
+                let row = MerianSchemaV66.SharedMediaReceivingIntentRecord(packageID: ids[index],
+                    inventoryID: inventory, inventoryGeneration: generation, ownerID: owner,
+                    draftGeneration: draft, operationID: operations[index],
+                    preparedData: prepared, preparedSHA256: preparedHash)
+                row.schemaVersion = versions[index]; row.phaseRaw = phases[index]; row.revision = revisions[index]
+                if index == 2 { row.preparedData = nil }
+                if index > 0 { row.resultData = result; row.resultSHA256 = resultHash }
+                if index > 0 { row.releaseStartData = result; row.releaseStartSHA256 = resultHash }
+                context.insert(row)
+            }
+            try context.save()
+        }
+        #expect(ModelStoreRecoveryCoordinator.migrationDecision(at: url,
+            currentSchemaMajor: CurrentSchema.versionIdentifier.major).hint == .recentSource(.v66))
+        for migrate in [true, false] {
+            let schema = Schema(versionedSchema: CurrentSchema.self)
+            let config = ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
+            let container: ModelContainer
+            if migrate && fullPlan {
+                container = try makeModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
+            } else if migrate {
+                container = try makeModelContainer(for: schema, migrationPlan: MerianRecentV66MigrationPlan.self, configurations: [config])
+            } else {
+                container = try makeModelContainer(for: schema, configurations: [config])
+            }
+            let context = ModelContext(container); context.autosaveEnabled = false
+            let rows = try context.fetch(FetchDescriptor<SharedMediaReceivingIntentRecord>())
+            #expect(rows.count == ids.count)
+            for index in ids.indices {
+                let row = try #require(rows.first { $0.id == ids[index] })
+                #expect(row.cursorKey == ids[index].uuidString.lowercased())
+                #expect(row.inventoryID == inventory && row.inventoryGeneration == generation && row.ownerID == owner)
+                #expect(row.draftGeneration == draft && row.operationID == operations[index])
+                #expect(row.schemaVersion == versions[index] && row.phaseRaw == phases[index] && row.revision == revisions[index])
+                #expect(row.preparedData == (index == 2 ? nil : prepared) && row.preparedSHA256 == preparedHash)
+                #expect(row.resultData == (index == 0 ? nil : result) && row.resultSHA256 == (index == 0 ? nil : resultHash))
+                #expect(row.releaseStartData == (index == 0 ? nil : result) && row.releaseStartSHA256 == (index == 0 ? nil : resultHash))
+                #expect(row.allocationData == nil && row.allocationSHA256 == nil)
+            }
+            #expect(!context.hasChanges)
+            #expect(ModelStoreRecoveryCoordinator.migrationDecision(at: url,
+                currentSchemaMajor: CurrentSchema.versionIdentifier.major).hint == .currentStore)
+        }
+    }
+
+    @Test func allForwardPlansEndWithAllocationStorageStage() throws {
         let plans: [any SchemaMigrationPlan.Type] = [MerianMigrationPlan.self,
             MerianRecentV42MigrationPlan.self, MerianRecentV43MigrationPlan.self,
             MerianRecentV44MigrationPlan.self, MerianRecentV45MigrationPlan.self,
             MerianRecentV46MigrationPlan.self, MerianRecentV47MigrationPlan.self,
             MerianRecentV48MigrationPlan.self, MerianOptionalQueueV48RecoveryPlan.self,
             MerianRecentV49MigrationPlan.self, MerianRecentV50MigrationPlan.self,
-            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self, MerianRecentV53MigrationPlan.self, MerianRecentV54MigrationPlan.self, MerianRecentV55MigrationPlan.self, MerianRecentV56MigrationPlan.self, MerianRecentV57MigrationPlan.self, MerianRecentV58MigrationPlan.self, MerianRecentV59MigrationPlan.self, MerianRecentV60MigrationPlan.self, MerianRecentV61MigrationPlan.self, MerianRecentV62MigrationPlan.self, MerianRecentV63MigrationPlan.self, MerianRecentV64MigrationPlan.self, MerianRecentV65MigrationPlan.self]
+            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self, MerianRecentV53MigrationPlan.self, MerianRecentV54MigrationPlan.self, MerianRecentV55MigrationPlan.self, MerianRecentV56MigrationPlan.self, MerianRecentV57MigrationPlan.self, MerianRecentV58MigrationPlan.self, MerianRecentV59MigrationPlan.self, MerianRecentV60MigrationPlan.self, MerianRecentV61MigrationPlan.self, MerianRecentV62MigrationPlan.self, MerianRecentV63MigrationPlan.self, MerianRecentV64MigrationPlan.self, MerianRecentV65MigrationPlan.self, MerianRecentV66MigrationPlan.self]
         for plan in plans {
-            if plan.schemas.first?.versionIdentifier.major != 65 {
+            if plan.schemas.first?.versionIdentifier.major != 66 {
                 switch plan.stages[plan.stages.count - 2] {
                 case let .lightweight(fromVersion, toVersion):
-                    #expect(fromVersion.versionIdentifier.major == 64 && toVersion.versionIdentifier.major == 65)
-                default: Issue.record("Historical V64 to V65 receiving stage changed.")
+                    #expect(fromVersion.versionIdentifier.major == 65 && toVersion.versionIdentifier.major == 66)
+                default: Issue.record("Historical V65 to V66 release stage changed.")
                 }
             }
-            #expect(plan.schemas.last?.versionIdentifier.major == 66)
+            #expect(plan.schemas.last?.versionIdentifier.major == 67)
             switch try #require(plan.stages.last) {
             case let .lightweight(fromVersion, toVersion):
-                #expect(fromVersion.versionIdentifier.major == 65)
-                #expect(toVersion.versionIdentifier.major == 66)
+                #expect(fromVersion.versionIdentifier.major == 66)
+                #expect(toVersion.versionIdentifier.major == 67)
             default:
-                Issue.record("Release-start storage requires the additive V65 to V66 stage.")
+                Issue.record("Allocation storage requires the additive V66 to V67 stage.")
             }
         }
-        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66])
-        #expect(MerianRecentV51MigrationPlan.stages.count == 15)
-        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66])
-        #expect(MerianRecentV52MigrationPlan.stages.count == 14)
+        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67])
+        #expect(MerianRecentV51MigrationPlan.stages.count == 16)
+        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67])
+        #expect(MerianRecentV52MigrationPlan.stages.count == 15)
     }
 
     @Test func outgoingV51ModelsAndRelationshipsAreFrozen() throws {
@@ -2469,7 +2529,7 @@ struct MigrationPlanTests {
     @Test func activeCollectionTombstoneUsesSourceOnlyV50RenameMapping() throws {
         let source = try currentScanCollectionSource()
 
-        #expect(CurrentSchema.versionIdentifier.major == 66)
+        #expect(CurrentSchema.versionIdentifier.major == 67)
         #expect(source.contains("@Attribute(originalName: \"isDeleted\")"))
         #expect(source.contains("public var isPendingDeletion: Bool = false"))
         #expect(source.contains("isPendingDeletion: Bool = false"))
@@ -2930,10 +2990,10 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV49MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66])
+        #expect(schemaMajors == [49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67])
 
         let stages = MerianRecentV49MigrationPlan.stages
-        #expect(stages.count == 17)
+        #expect(stages.count == 18)
         switch try #require(stages.first) {
         case let .lightweight(fromVersion, toVersion):
             #expect(fromVersion.versionIdentifier.major == 49)
@@ -2959,8 +3019,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66])
-        #expect(MerianRecentV50MigrationPlan.stages.count == 16)
+        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67])
+        #expect(MerianRecentV50MigrationPlan.stages.count == 17)
 
         switch try #require(MerianRecentV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):
@@ -2977,8 +3037,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianReleasedActiveV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66])
-        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 16)
+        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67])
+        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 17)
 
         switch try #require(MerianReleasedActiveV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):

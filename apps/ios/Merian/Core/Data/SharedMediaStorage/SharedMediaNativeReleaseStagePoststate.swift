@@ -35,6 +35,7 @@ struct SharedMediaNativeReleaseStagePoststate {
               request.profile == (try SharedMediaNativeAppEligibility.profile(inventory)),
               inventory.revision == request.stagePreHeader.inventory.revision else { throw SharedMediaStorageFailure.stale }
         slot = .init(row); try slot.requireNoReleaseStart()
+        try slot.requireNoAllocation()
         self.inventory = .init(inventory); slotID = row.persistentModelID; inventoryID = inventory.persistentModelID
         data = try request.encoded(); digest = SharedMediaAcquisitionEncoding.digest(data)
     }
@@ -47,6 +48,7 @@ struct SharedMediaNativeReleaseStagePoststate {
         }
         try self.inventory.requireSuccessor(inventory)
         let after = SharedMediaNativeReceivingIntentGraph.Row(row)
+        try after.requireNoAllocation()
         guard after.id == slot.id, after.inventoryID == slot.inventoryID,
               after.inventoryGeneration == slot.inventoryGeneration, after.ownerID == slot.ownerID,
               after.draftGeneration == slot.draftGeneration, after.operationID == slot.operationID,

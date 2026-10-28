@@ -1,3 +1,13 @@
+### V67 receiving allocation checkpoint coverage
+
+The fast preflight also covers the exact active receiving record, aliases, V67
+schema and touched startup model/factory files at their existing 600-line
+physical ceiling. `Models/SchemaVersions.swift` is an exact `globalOnlyFiles`
+entry: it remains in the existing oversized-owner inventory and requires the
+migration guardrails and complete migration/startup tests. This does not extend
+coverage to sibling files or replace their architecture checks. Swift/Python
+policy parity includes the exact-file list and missing/sibling rejection.
+
 # Merian Testing & Quality Assurance Strategy
 
 ## Local coding checkpoints and validation milestones
@@ -62,9 +72,12 @@ architecture checks. Other production candidates fail with an unsupported-domain
 diagnostic rather than silently using only 600 lines. Test-file and other
 domains' stricter or aggregate limits remain in their owning architecture tests;
 the preflight does not replace them. Extend shared coverage with parity fixtures
-when a new domain enters the candidate. Keep the policy file available in the
-repository for native source-inspection tests, just like the source files those
-tests read.
+when a new domain enters the candidate. The exact outgoing
+`Models/Schema/SchemaV66.swift` snapshot also has explicit coverage at the
+unchanged global 600 physical-line ceiling; sibling schemas and migration
+registry/recovery rules remain outside this size check. Keep the policy file
+available in the repository for native source-inspection tests, just like the
+source files those tests read.
 
 For the next identification-history integration trial, track implementation,
 build/test, review and blocked time separately, plus cheap failures found before

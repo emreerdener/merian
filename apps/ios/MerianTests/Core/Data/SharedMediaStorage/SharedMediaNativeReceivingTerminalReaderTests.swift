@@ -18,7 +18,7 @@ struct SharedMediaNativeReceivingTerminalReaderTests {
             { $0.ownerID = UUID() }, { $0.draftGeneration = UUID() }, { $0.operationID = UUID() },
             { $0.phaseRaw = "releasing" }, { $0.revision += 1 }, { $0.preparedData = Data() },
             { $0.preparedSHA256 = String(repeating: "0", count: 64) }, { $0.resultData = Data() },
-            { $0.resultSHA256 = nil }, { $0.releaseStartData = Data() }, { $0.releaseStartSHA256 = "x" }
+            { $0.resultSHA256 = nil }, { $0.releaseStartData = Data() }, { $0.releaseStartSHA256 = "x" }, { $0.allocationData = Data() }, { $0.allocationSHA256 = "x" }
         ]
         for mutate in mutations {
             let c = h.context(), row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(h.packageID, in: c))
@@ -327,6 +327,7 @@ struct SharedMediaNativeReceivingTerminalReaderTests {
         row.preparedData = nil; row.preparedSHA256 = p.preparedSHA256; row.resultData = try value.encoded()
         row.resultSHA256 = SharedMediaAcquisitionEncoding.digest(row.resultData!)
         row.releaseStartData = nil; row.releaseStartSHA256 = nil
+        row.allocationData = nil; row.allocationSHA256 = nil
     }
     private func clone(_ source: Values.Released, preserveID: UUID? = nil) throws -> Values.Released {
         let ids = SharedMediaNativeTerminalIdentity.exclusive(source).subtracting(preserveID.map { [$0] } ?? [])
