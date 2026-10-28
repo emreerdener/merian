@@ -44,7 +44,7 @@ enum SharedMediaNativeReleaseOrigin {
             cohort: commit.cohort, operationID: plan.operationID, queueID: plan.queueID,
             observationID: plan.observationID, bindingID: plan.bindingID, generation: plan.generation,
             eventID: plan.eventID, timestamp: timestamp, intentRevision: origin.preparedRevision,
-            restagedFromSHA256: origin.restagedFromSHA256)
+            restagedFromSHA256: origin.restagedFromSHA256, photoAdmission: origin.photoAdmission)
         // Recover the saved receipt header, not today's revision or wall clock.
         let header = SharedMediaNativeAppEligibility.Header(inventory: .init(generation: plan.profile.generation,
             revision: commit.beforeInventoryRevision, phase: SharedMediaNativeAppProfile.phase, cursor: ""),

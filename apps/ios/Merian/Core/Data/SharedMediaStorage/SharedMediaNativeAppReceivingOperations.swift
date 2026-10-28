@@ -51,7 +51,7 @@ final class SharedMediaNativeAppReceivingOperations {
     }
     private func prepareRequest(packageID: UUID, pairIDs: [UUID], operationID: UUID, queueID: UUID, observationID: UUID,
                                 bindingID: UUID, generation: UUID, eventID: UUID, timestamp: Date,
-                                intentRevision: Int64? = nil, restagedFromSHA256: String? = nil) async throws
+                                intentRevision: Int64? = nil, restagedFromSHA256: String? = nil, photoAdmission: SharedMediaNativePhotoAdmission? = nil) async throws
         -> (SharedMediaNativeAppReceivingRequest, [SharedMediaPhotoRetirementInspection]) {
         try validate(); try facts.requireMutable(packageID)
         let c = fresh(), (inventory, package, member) = try target(c, packageID)
@@ -63,7 +63,7 @@ final class SharedMediaNativeAppReceivingOperations {
             package: .init(package), member: .init(member), cohort: freeze.commit.cohort,
             operationID: operationID, queueID: queueID, observationID: observationID, bindingID: bindingID,
             generation: generation, eventID: eventID, timestamp: timestamp,
-            intentRevision: intentRevision, restagedFromSHA256: restagedFromSHA256)
+            intentRevision: intentRevision, restagedFromSHA256: restagedFromSHA256, photoAdmission: photoAdmission)
         let request = SharedMediaNativeAppReceivingRequest(try prepared.descriptorForTransaction(header: expected))
         _ = try SharedMediaNativeReceivingRows.read(request, in: fresh(), absent: true)
         try validate(); return (request, proofs)
@@ -82,7 +82,7 @@ final class SharedMediaNativeAppReceivingOperations {
     }
     func stage(packageID: UUID, draftGeneration: UUID, pairIDs: [UUID],
                identity: SharedMediaNativeReceivingStageIdentity,
-               expectedMetadata: SharedMediaNativeAppMetadataRequest? = nil) async throws -> SharedMediaNativeReceivingIntent.Prepared {
+               expectedMetadata: SharedMediaNativeAppMetadataRequest? = nil, photoAdmission: SharedMediaNativePhotoAdmission? = nil) async throws -> SharedMediaNativeReceivingIntent.Prepared {
         try validate()
         let initial = fresh(), (initialInventory, _, _) = try target(initial, packageID)
         let saved = try SharedMediaNativeReceivingPhaseGraph.pending(initial, inventory: initialInventory)[packageID]
@@ -92,6 +92,7 @@ final class SharedMediaNativeAppReceivingOperations {
             }
             try prepared.requireSelection(draftGeneration: draftGeneration, pairIDs: pairIDs)
             try expectedMetadata?.requireReceivingSelection(prepared)
+            try photoAdmission?.requireSaved(prepared.photoAdmission)
             consumed = true; return prepared
         }
         // A concurrent saved slot must be rediscovered with its own locks and IDs.
@@ -99,7 +100,7 @@ final class SharedMediaNativeAppReceivingOperations {
         let (request, proofs) = try await prepareRequest(packageID: packageID, pairIDs: pairIDs,
             operationID: identity.operationID, queueID: identity.queueID, observationID: identity.observationID,
             bindingID: identity.bindingID, generation: identity.generation, eventID: identity.eventID, timestamp: identity.timestamp,
-            intentRevision: 0)
+            intentRevision: 0, photoAdmission: photoAdmission)
         let prepared = try SharedMediaNativeReceivingIntent.Prepared(request)
         try prepared.requireSelection(draftGeneration: draftGeneration, pairIDs: pairIDs)
         try expectedMetadata?.requireReceivingSelection(prepared)

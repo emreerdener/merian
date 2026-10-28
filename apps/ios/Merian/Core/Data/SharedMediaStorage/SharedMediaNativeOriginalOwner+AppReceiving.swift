@@ -22,13 +22,14 @@ extension SharedMediaNativeOriginalOwner {
     /// Discovery precedes fresh ID generation. A saved slot is immutable even
     /// when its source files are currently unavailable.
     func stageAppReceiving(packageID: UUID, draftGeneration: UUID, pairIDs: [UUID],
-                           expectedMetadata: SharedMediaNativeAppMetadataRequest? = nil) async throws -> SharedMediaNativeReceivingIntent.Prepared {
+                           expectedMetadata: SharedMediaNativeAppMetadataRequest? = nil,
+                           photoAdmission: SharedMediaNativePhotoAdmission? = nil) async throws -> SharedMediaNativeReceivingIntent.Prepared {
         let saved = try await discoverAppReceivingIntent(packageID: packageID)
         let identity = try SharedMediaNativeReceivingStageIdentity(saved: saved)
         return try await withReceivingLocks(queueID: identity.queueID.uuidString, observationID: identity.observationID.uuidString) { lock in
             try await self.appReceivingWorkflow(lock: lock) {
                 try await $0.stage(packageID: packageID, draftGeneration: draftGeneration, pairIDs: pairIDs,
-                                   identity: identity, expectedMetadata: expectedMetadata)
+                                   identity: identity, expectedMetadata: expectedMetadata, photoAdmission: photoAdmission)
             }
         }
     }

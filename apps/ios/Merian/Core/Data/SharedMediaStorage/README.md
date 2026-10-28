@@ -1,3 +1,36 @@
+## October 28 — inactive saved CPM admission candidate
+
+`SharedMediaNativePhotoAdmission` snapshots protocol 3, identification protocol
+6 and the expected processor from a validated dispatch authorization. The
+existing V2 Prepared envelope and consumer intent binding retain this optional
+value. Supplied retry expectations must match; an omitted expectation recovers
+the original saved value. Legacy values without this field keep their encoding.
+V1 cannot carry the new value. Older canonical readers reject new bytes rather
+than silently dropping the expectation.
+
+`SharedMediaNativePhotoCandidate` wraps the exact saved photo content and
+admission expectation using the separate candidate digest defined in the
+[content contract](../../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md).
+Release-origin reconstruction preserves the field, and existing accounting
+measures the enlarged encoded values. Neither the snapshot nor candidate grants
+network, storage, funding or execution authority. Live integration still must
+bind preflight to the saved logical identity before allocation I/O and
+revalidate current authorization independently.
+
+Independent Engine source and test-delta review found no blocking defect.
+Combined focused Debug evidence qualifies 26 methods / 45 cases, with no drift
+across 3035 native/project pins and no structured runtime warnings. The first
+run retained one test lifecycle failure; a test-only correction passed its
+focused rerun, with unchanged passing cases reused under an explicit
+applicability check. An intermediate filter selected zero tests and was
+rejected; the corrected exact selector used unchanged built products. Coverage
+includes independent wire bytes, malformed expectations, fixed historical V2
+codec bytes (non-admissible nested placeholders), and actual one-photo
+receiving/release recovery through terminal settlement with funding assertions.
+This does not qualify a complete historical V2 graph fixture, two-photo cleanup,
+fault injection, full app journeys or a new Release. No application caller or
+profile is enabled.
+
 ## October 27 — inactive photo content mapping
 
 `SharedMediaNativePhotoContent` projects a validated saved V2 Prepared value

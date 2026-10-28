@@ -99,7 +99,7 @@ struct SharedMediaNativePhotoContent: Sendable {
             + ",\"scale_bits\":" + bits(r.scale) + "}"
     }
     /// JSON.stringify scalar spelling: slash and non-control Unicode remain exact.
-    private static func quote(_ text: String) -> String {
+    static func quote(_ text: String) -> String {
         var result = "\""
         for scalar in text.unicodeScalars {
             switch scalar.value {

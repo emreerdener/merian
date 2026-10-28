@@ -21,6 +21,7 @@ enum SharedMediaNativeReceivingIntent {
         let timestampBits: UInt64
         let intentRevision: Int64?
         let restagedFromSHA256: String?
+        let photoAdmission: SharedMediaNativePhotoAdmission?
 
         init(_ request: SharedMediaNativeAppReceivingRequest) throws { try self.init(Transaction(request)) }
         init(_ request: Transaction) throws {
@@ -33,17 +34,20 @@ enum SharedMediaNativeReceivingIntent {
                 queueID: queue, observationID: observation, bindingID: request.cohort.bindingID,
                 generation: generation, eventID: event, timestamp: request.timestamp,
                 intentRevision: request.cohort.intentBinding?.preparedRevision,
-                restagedFromSHA256: request.cohort.intentBinding?.restagedFromSHA256)
+                restagedFromSHA256: request.cohort.intentBinding?.restagedFromSHA256,
+                photoAdmission: request.cohort.intentBinding?.photoAdmission)
             let rebuilt = try descriptorForTransaction(header: request.header)
             guard try canonicalRequest(rebuilt) == canonicalRequest(request) else { throw SharedMediaStorageFailure.conflict }
         }
         init(profile: SharedMediaNativeAppProfile, package: SharedMediaNativeAppMetadataFacts.Package,
              member: SharedMediaNativeAppMetadataFacts.Member, cohort: SharedMediaNativePreparationBlob,
              operationID: UUID, queueID: UUID, observationID: UUID, bindingID: UUID, generation: UUID,
-             eventID: UUID, timestamp: Date, intentRevision: Int64? = nil, restagedFromSHA256: String? = nil) throws {
+             eventID: UUID, timestamp: Date, intentRevision: Int64? = nil, restagedFromSHA256: String? = nil,
+             photoAdmission: SharedMediaNativePhotoAdmission? = nil) throws {
             format = intentRevision == nil ? .prepared : .preparedV2
             version = intentRevision == nil ? 1 : 2
             self.intentRevision = intentRevision; self.restagedFromSHA256 = restagedFromSHA256
+            self.photoAdmission = photoAdmission
             self.profile = profile; self.package = package; self.member = member
             self.cohort = cohort; self.operationID = operationID; self.queueID = queueID
             self.observationID = observationID; self.bindingID = bindingID; self.generation = generation
@@ -82,7 +86,7 @@ enum SharedMediaNativeReceivingIntent {
             let binding = try intentRevision.map {
                 SharedMediaNativeConsumerCohort.IntentBinding(packageID: package.id, operationID: operationID,
                     preparedRevision: $0, preparedSHA256: SharedMediaAcquisitionEncoding.digest(try encoded()),
-                    restagedFromSHA256: restagedFromSHA256)
+                    restagedFromSHA256: restagedFromSHA256, photoAdmission: photoAdmission)
             }
             return try .init(profile: profile, header: header, package: package, member: member, freeze: freeze,
                 queueID: queueID, observationID: observationID, bindingID: bindingID, generation: generation,
@@ -95,6 +99,10 @@ enum SharedMediaNativeReceivingIntent {
             case (.prepared, 1, nil): break
             case (.preparedV2, 2, .some(let revision)) where revision >= 0 && revision < Int64.max: break
             default: throw SharedMediaStorageFailure.conflict
+            }
+            if let photoAdmission {
+                guard version == 2 else { throw SharedMediaStorageFailure.conflict }
+                try photoAdmission.validate()
             }
             if let predecessor = restagedFromSHA256 {
                 guard version == 2, let intentRevision, intentRevision > 0,

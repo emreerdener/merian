@@ -1,3 +1,28 @@
+## October 28 — native admission persistence candidate
+
+The inactive native candidate now stores the validated protocol 3/protocol 6/
+processor expectation in the existing V2 receiving envelope and consumer intent
+binding. Omitted fields preserve historical bytes; V1 rejects a present field.
+Retries with a supplied different expectation fail, while omission recovers the
+saved expectation unchanged. Release-origin reconstruction preserves it and
+existing reservation calculations include the encoded payload. The native
+candidate digest binds this saved value and exact content bytes independently of
+the existing content-only digest.
+
+Engine source and test-delta reviews found no blocking defect. Focused native
+Debug evidence, combining unchanged passing cases with the corrected test rerun,
+qualifies 26 methods / 45 cases without source drift or structured runtime
+warnings. The original test lifecycle failure and inventory correction remain
+retained. The added persisted test extends through one-photo release cleanup and
+cold terminal recovery, with funding assertions. Fixed historical V2 codec
+coverage uses explicitly non-admissible placeholder blobs; it is not historical
+full-graph acceptance. Two-photo cleanup, fault injection, full app journeys and
+new Release qualification remain open. There is no live allocation caller:
+future integration must bind preflight to the saved logical identity before
+allocation I/O, revalidate current authorization, and preserve all existing
+lifecycle and account fences. This local snapshot is descriptive and cannot
+authorize I/O.
+
 ## October 28 — inactive SQL owner integration checkpoint
 
 The local `20261027230332_prepare_initial_cpm_photo_intents.sql` now extends the

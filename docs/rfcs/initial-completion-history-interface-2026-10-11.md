@@ -1,3 +1,18 @@
+## October 28 — native CPM expectation persistence candidate
+
+The
+[photo content contract](client-prepared-photo-content-contract-2026-10-27.md)
+has an inactive native persistence/encoding increment for the saved admission
+expectation. It reuses Prepared, consumer binding and release reconstruction; it
+adds no SwiftData schema field, allocation caller or execution authority. Engine
+review and combined focused Debug validation passed (26 methods / 45 cases).
+This qualifies the bounded persistence checkpoint, including one-photo
+successful release recovery; broader historical graph, two-photo and
+fault-injection acceptance remain open. Initial submission through
+result/history, reanalysis through a second preserved version and recovery, full
+photo qualification, audio/video and RUX remain open. The approved later
+deletion/export/redesign sequence and release holds are unchanged.
+
 ## October 28 — inactive CPM allocation and recovery checkpoint
 
 The
