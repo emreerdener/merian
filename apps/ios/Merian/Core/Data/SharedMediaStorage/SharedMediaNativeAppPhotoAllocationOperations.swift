@@ -52,7 +52,10 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
     }
 
     func claim(_ prepared: SharedMediaNativeReceivingIntent.Prepared, attemptID: UUID, reserveRoleMapping: Bool = false, beforeClaimSave: () throws -> Void = {}) throws -> SharedMediaNativePhotoAllocationDispatch {
-        if let saved = try saved(prepared) { return .init(allocation: saved, create: false) }
+        if let saved = try saved(prepared) {
+            let allocation = try reserveRoleMapping ? reserveRoles(prepared) : saved
+            return .init(allocation: allocation, create: false)
+        }
         let context = fresh(), inventory = try inventory(context)
         let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)
         guard case .generic(let value) = witnesses[prepared.package.id],
@@ -228,9 +231,9 @@ final class SharedMediaNativePhotoAllocationDispatch {
     fileprivate init(allocation: SharedMediaNativePhotoAllocation, create: Bool) {
         self.allocation = allocation; self.create = create
     }
-    func consume() throws -> InitialPhotoAllocationRequest {
+    func consume(projection: InitialPhotoAllocationRequest.Projection = .legacy) throws -> InitialPhotoAllocationRequest {
         guard !consumed else { throw SharedMediaStorageFailure.closed }
         consumed = true
-        return try .init(allocation: allocation, action: create ? .create : .status)
+        return try .init(allocation: allocation, action: create ? .create : .status, projection: projection)
     }
 }

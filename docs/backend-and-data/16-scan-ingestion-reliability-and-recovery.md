@@ -1,3 +1,38 @@
+## October 29 — native v2 transport integration candidate
+
+The inactive `allocateAppPhotoRoles` entry now consumes the existing retained
+allocation workflow and authenticated transport. Explicit request projection
+selects v2; ordinary requests still default to v1. Fresh v2 claims reserve the
+complete receipt/mapping successor before the single-use acknowledged create
+permission is consumed. Existing v1 claims or receipts reserve any additional
+metadata/revision capacity under coordinator locks and always use status.
+Ambiguous claim acknowledgement and lost replies cannot restore create.
+
+`InitialPhotoAllocationTransport.performRoles` shares the existing fixed-origin,
+five-second authenticated exchange and 2,048-byte response ceiling. It compares
+any saved receipt/mapping before returning; the retained owner revalidates and
+persists atomically under fresh locks. Both typed adapters reject the wrong
+projection before sending. Account/attempt/response fences, no automatic
+retry/refresh/redirect and immutable submission rules remain unchanged.
+
+Focused native qualification passed 17 methods / 49 cases using local mock
+transport and durable stores. All 3,055 source/project pins were unchanged;
+structured runtime warnings were empty. Managed run01 took 1,798.010 seconds;
+evidence is retained in
+`.artifacts/native-app-capture-handoff-20261020/role-transport-native-qualified01.json`.
+Engine source review found no blocker. The complete iOS CI tooling gate, 26
+documentation contracts, formatting and scoped links passed. The initial sandbox
+process-visibility preflight failure remains recorded; the subsequent
+process-visible preflight passed unchanged storage and evidence limits.
+
+The ordinary Capture allocation caller still uses v1 and its factory remains
+disabled. Next, connect the consuming Capture session and independently reserved
+single-role transfer. No new Release, complete native gate, full journey or
+external qualification is claimed; the known unrelated Auth architecture size
+failure remains open. No provider request, upload, remote closure, execution or
+release authority is enabled. Full photo initial/reanalysis journeys and all
+later acceptance requirements remain open.
+
 ## October 29 — inactive role projection checkpoint
 
 The

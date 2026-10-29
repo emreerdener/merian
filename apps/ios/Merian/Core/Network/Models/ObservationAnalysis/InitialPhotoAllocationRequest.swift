@@ -4,19 +4,22 @@ import Foundation
 /// right to create; only its live, acknowledged claim transition can do that.
 struct InitialPhotoAllocationRequest: Sendable {
     enum Action: String, Sendable { case create, status }
+    enum Projection: Int, Sendable { case legacy = 1, roles = 2 }
     let allocation: SharedMediaNativePhotoAllocation
     let action: Action
+    let projection: Projection
     let body: Data
 
-    init(allocation: SharedMediaNativePhotoAllocation, action: Action) throws {
+    init(allocation: SharedMediaNativePhotoAllocation, action: Action, projection: Projection = .legacy) throws {
         _ = try allocation.encoded()
+        guard projection != .roles || allocation.version == 2 else { throw SharedMediaStorageFailure.closed }
         guard action != .create || allocation.receipt == nil else { throw SharedMediaStorageFailure.closed }
-        var fields: [String: Any] = ["version": 1, "action": action.rawValue,
+        var fields: [String: Any] = ["version": projection.rawValue, "action": action.rawValue,
             "candidate_canonical": allocation.claim.candidateCanonical]
         if action == .status { fields["saved_assignment_digest"] = (allocation.receipt?.assignmentDigest as Any?) ?? NSNull() }
         let body = try JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys, .withoutEscapingSlashes])
         guard body.count <= 2 * 1_048_576 + 4096 else { throw SharedMediaStorageFailure.capacity }
-        self.allocation = allocation; self.action = action; self.body = body
+        self.allocation = allocation; self.action = action; self.projection = projection; self.body = body
     }
 }
 

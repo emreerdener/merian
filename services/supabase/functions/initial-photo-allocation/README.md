@@ -1,3 +1,12 @@
+## October 29 — native v2 transport candidate
+
+The inactive native owner and authenticated adapter now support explicitly
+reserved v2 create/status. Engine source review and focused native qualification
+passed: 17 methods / 49 cases. The ordinary Capture caller remains v1 and
+disabled. The
+[scan transport contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--native-v2-transport-integration-candidate)
+owns dispatch, durable reservation, exact recovery and remaining integration.
+
 ## Native enrichment status — October 29
 
 An explicit inactive native reservation/persistence candidate passed focused

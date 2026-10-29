@@ -195,10 +195,12 @@ final class SharedMediaNativeOriginalOwner {
     func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared, reserveRoleMapping: Bool = false,
                           authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
                           send: @escaping SharedMediaNativePhotoAllocationAccess.Send) async throws -> SharedMediaNativePhotoAllocation {
-        try await withAppDispatch { storage, grant in
-            try await self.allocateAppPhoto(prepared, storage: storage, grant: grant,
-                releaseStage: self.releaseStageSettlement, reserveRoleMapping: reserveRoleMapping, authorizeCreate: authorizeCreate, send: send)
-        }
+        try await withAppDispatch { try await self.allocateAppPhoto(prepared, storage: $0, grant: $1, releaseStage: self.releaseStageSettlement, reserveRoleMapping: reserveRoleMapping, authorizeCreate: authorizeCreate, transport: .legacy(send)) }
+    }
+    func allocateAppPhotoRoles(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                              authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
+                              send: @escaping SharedMediaNativePhotoAllocationTransportAccess.RolesSend) async throws -> SharedMediaNativePhotoAllocation {
+        try await withAppDispatch { try await self.allocateAppPhoto(prepared, storage: $0, grant: $1, releaseStage: self.releaseStageSettlement, authorizeCreate: authorizeCreate, transport: .roles(send)) }
     }
     func enrichAppPhotoAllocation(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                   send: @escaping SharedMediaNativePhotoEnrichmentAccess.Send) async throws -> SharedMediaNativePhotoAllocation {

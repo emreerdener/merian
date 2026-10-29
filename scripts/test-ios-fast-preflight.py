@@ -134,6 +134,7 @@ class PolicyTests(unittest.TestCase):
             'apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+IdentificationPreflight.swift',
             'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRequest.swift',
             'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRoleReply.swift',
+            'apps/ios/Merian/Core/Network/Transport/InitialPhotoAllocationTransport.swift',
         ]:
             actual = preflight.load_policy(ROOT)
             # Preserve the existing Core Network physical-line review ceiling.

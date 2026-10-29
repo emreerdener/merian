@@ -92,7 +92,7 @@ extension SharedMediaNativeOriginalOwner {
         storage: SharedMediaNativeStorageRepository, grant: SharedMediaNativeAppDispatchGrant,
         releaseStage: SharedMediaNativeReleaseStageSettlement, reserveRoleMapping: Bool = false,
         authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
-        send: @escaping SharedMediaNativePhotoAllocationAccess.Send) async throws -> SharedMediaNativePhotoAllocation {
+        transport: SharedMediaNativePhotoAllocationTransportAccess) async throws -> SharedMediaNativePhotoAllocation {
         let saved = try await withReceivingLocks(queueID: prepared.queueID.uuidString,
             observationID: prepared.observationID.uuidString) { lock in
             try await storage.appPhotoAllocation(grant: grant, lock: lock).saved(prepared)
@@ -116,23 +116,26 @@ extension SharedMediaNativeOriginalOwner {
                 operation = try await storage.appPhotoAllocation(grant: grant, lock: lock)
             }
             try grant.validate(); try lock.validate()
-            return try operation.claim(prepared, attemptID: UUID(), reserveRoleMapping: reserveRoleMapping, beforeClaimSave: {
+            return try operation.claim(prepared, attemptID: UUID(), reserveRoleMapping: reserveRoleMapping || transport.projection == .roles, beforeClaimSave: {
                 guard let authorization else { throw SharedMediaStorageFailure.stale }
                 try authorization.validate()
             })
         }
         try grant.validate()
-        let request = try dispatch.consume()
+        let request = try dispatch.consume(projection: transport.projection)
         let createAuthorization = request.action == .create ? authorization : nil
-        let reply = try await send(request, {
+        let reply = try await transport.send(request, validate: {
             try grant.validate(); try createAuthorization?.validate()
-        }, { try grant.validate() })
+        }, settle: { try grant.validate() })
         try grant.validate()
         return try await withReceivingLocks(queueID: prepared.queueID.uuidString,
             observationID: prepared.observationID.uuidString) { lock in
             let operation = try await storage.appPhotoAllocation(grant: grant, lock: lock)
             try grant.validate(); try lock.validate()
-            return try operation.settle(reply, request: request.allocation, prepared: prepared)
+            switch reply {
+            case .legacy(let value): return try operation.settle(value, request: request.allocation, prepared: prepared)
+            case .roles(let value): return try operation.enrich(value, request: request.allocation, prepared: prepared)
+            }
         }
     }
     /// Inactive metadata-only enrichment seam. The retained owner survives the
