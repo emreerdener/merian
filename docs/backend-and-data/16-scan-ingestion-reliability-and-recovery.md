@@ -79,6 +79,21 @@ URLSession, sustained device-memory or full-journey qualification follows. The
 [benchmarking guide](../development-guides/18-ios-runtime-quality-and-benchmarking.md#performance-measurements)
 owns the workload and metric interpretation.
 
+The native lifetime candidate forwards the existing Debug fault seam only into
+the selected role's synchronous hash scope. It is installed while the owner is
+idle and cleared before I/O returns; earlier MainActor audits cannot enter the
+blocking hook. A source/AI/display test pauses after a real hashed chunk, starts
+account shutdown, checks that shutdown remains pending and no result escapes,
+then releases and joins the read. The saved reservation must remain unchanged
+and verify again after cold reopening. Focused native qualification passed one
+parameterized method / three role cases in 648.775 seconds, with all 3,061
+pinned inputs unchanged and no structured runtime warnings. Evidence is
+`.artifacts/native-app-capture-handoff-20261020/role-drain-native-qualified01.json`.
+This covers direct owner shutdown; complete Auth/drain integration remains
+unqualified. This prerequisite precedes byte consumption; signer/PUT integration
+still requires coordinated issuance authority and positive remote write closure
+under the existing backend contract.
+
 ## October 29 — inactive single-role transfer reservation candidate
 
 `SharedMediaNativeOriginalOwner.reserveAppPhotoTransfer` now proposes one local

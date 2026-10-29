@@ -293,9 +293,9 @@ final class SharedMediaNativeOriginalOwner {
         guard (phase == .ready || phase == .suspended), cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }
         debug.acquisitionFault = fault
     }
-    func setAcquisitionEntryPause(_ pause: (@Sendable (SharedMediaNativeOriginalIOEntry) async -> Void)?) async throws {
+    func setAcquisitionEntryPause(_ pause: (@Sendable (SharedMediaNativeOriginalIOEntry) async -> Void)?, transferReadFault: (@Sendable (Int64) throws -> Void)? = nil) async throws {
         guard phase == .ready, cancelActive == nil, let storage else { throw SharedMediaStorageFailure.closed }
-        await storage.setAcquisitionEntryPause(pause)
+        await storage.setAcquisitionEntryPause(pause, transferReadFault: transferReadFault)
     }
     var inspectionAuditCount: Int { debug.inspectionAuditCount }
     var hasInspectionTraceForTesting: Bool { debug.inspectionTrace != nil }

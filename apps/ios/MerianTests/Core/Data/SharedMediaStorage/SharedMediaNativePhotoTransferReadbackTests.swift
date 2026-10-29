@@ -1,4 +1,5 @@
 import Foundation
+import os
 import SwiftData
 import Testing
 @testable import Merian
@@ -111,4 +112,51 @@ struct SharedMediaNativePhotoTransferReadbackTests {
         if let transition { #expect(await transition.value) }
         else { #expect(await owner.invalidateAndAwaitForAccountTransition()) }
     }
+    @Test(arguments: Mapping.Role.allCases)
+    func accountShutdownJoinsSynchronousRoleRead(_ role: Mapping.Role) async throws {
+        let (h, owner, p, held) = try await fixture(role), before = try row(h)
+        let entered = ImageFocusEngineTests.Signal(), release = DispatchSemaphore(value: 0)
+        let calls = OSAllocatedUnfairLock(initialState: 0)
+        let timedOut = OSAllocatedUnfairLock(initialState: false)
+        try await owner.setAcquisitionEntryPause(nil, transferReadFault: { total in
+            let first = calls.withLock { $0 += 1; return $0 == 1 }
+            guard first else { return }
+            #expect(total > 0)
+            Task.detached(priority: .userInitiated) { await entered.open() }
+            guard release.wait(timeout: .now() + 5) == .success else {
+                timedOut.withLock { $0 = true }; throw SharedMediaStorageFailure.unavailable
+            }
+        })
+        var resultEscaped = false, drainFinished = false
+        let operation = Task {
+            do {
+                let value = try await owner.verifyAppPhotoTransfer(p, allocation: held)
+                resultEscaped = true; await entered.open(); return value
+            } catch { await entered.open(); throw error }
+        }
+        // Async signal keeps MainActor free; the synchronous wait is on the I/O actor.
+        await entered.wait()
+        let didEnter = calls.withLock { $0 } == 1
+        #expect(didEnter)
+        guard didEnter else {
+            release.signal(); _ = try? await operation.value
+            #expect(await owner.invalidateAndAwaitForAccountTransition()); return
+        }
+        let drain = Task { let value = await owner.invalidateAndAwaitForAccountTransition(); drainFinished = true; return value }
+        while !owner.heldOriginalAdmissionClosedForTesting && !drainFinished { await Task.yield() }
+        #expect(!drainFinished && !resultEscaped)
+        #expect(try row(h) == before)
+        await #expect(throws: (any Error).self) { try await owner.setAcquisitionEntryPause(nil) }
+        release.signal()
+        await #expect(throws: (any Error).self) { _ = try await operation.value }
+        #expect(await drain.value)
+        #expect(!resultEscaped && !timedOut.withLock { $0 })
+        #expect(try row(h) == before)
+        let cold = try await SharedMediaNativeReceivingStagingTests().reopen(h)
+        let verified = try await cold.verifyAppPhotoTransfer(p, allocation: held)
+        #expect(verified.selection == held.transferReservation?.selection)
+        #expect(try row(h) == before)
+        #expect(await cold.invalidateAndAwaitForAccountTransition())
+    }
+
 }

@@ -10,7 +10,11 @@ Report-only reader memory measurements are retained in the scan guide; they do
 not qualify whole-owner retention. Upload consumption, staging-copy ownership
 and remote closure remain absent. The
 [current scan guide](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--local-reserved-role-byte-verification-candidate)
-owns the lifetime contract and remaining acceptance.
+owns the lifetime contract and remaining acceptance. A new Debug-only owner
+drain test candidate covers shutdown during the actual role hash loop; its
+source/AI/display runtime qualification passed one method / three cases with
+unchanged pinned inputs and no structured runtime warnings. Complete Auth/drain
+integration remains unqualified.
 
 ## Current single-role transfer reservation — October 29
 

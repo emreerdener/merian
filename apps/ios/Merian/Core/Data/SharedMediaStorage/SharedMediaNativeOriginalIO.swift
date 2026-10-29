@@ -69,7 +69,8 @@ actor SharedMediaNativeOriginalIO {
     #endif
     #if DEBUG
     private var acquisitionEntryPause: (@Sendable (SharedMediaNativeOriginalIOEntry) async -> Void)?
-    func setAcquisitionEntryPause(_ pause: (@Sendable (SharedMediaNativeOriginalIOEntry) async -> Void)?) { acquisitionEntryPause = pause }
+    private var transferReadFault: (@Sendable (Int64) throws -> Void)?
+    func setAcquisitionEntryPause(_ pause: (@Sendable (SharedMediaNativeOriginalIOEntry) async -> Void)?, transferReadFault: (@Sendable (Int64) throws -> Void)?) { acquisitionEntryPause = pause; self.transferReadFault = transferReadFault }
     #endif
     func load(_ provider: @Sendable () async throws -> Data) async throws -> Data {
         try Task.checkCancellation()
@@ -192,6 +193,11 @@ actor SharedMediaNativeOriginalIO {
         // The hash reader also compares its opened and named descriptors after I/O.
         try files.requireSharedIdentity(file, identity: reservation.descriptor, binding: binding)
         let completion = try workID.map { try inspectCompletedPair(state, workID: $0) }
+        #if DEBUG
+        // Install only around this role read, never an earlier MainActor audit.
+        files.sharedReadFault = transferReadFault
+        defer { files.sharedReadFault = nil }
+        #endif
         let proof = try files.inspectSharedRetirement(file)
         guard proof.identity == reservation.descriptor, proof.binding == binding.bytes,
               proof.epoch == binding.epoch else { throw SharedMediaStorageFailure.conflict }

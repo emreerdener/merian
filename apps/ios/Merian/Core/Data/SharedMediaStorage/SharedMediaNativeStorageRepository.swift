@@ -461,7 +461,7 @@ final class SharedMediaNativeStorageRepository {
         }
     }
     #if DEBUG
-    func setAcquisitionEntryPause(_ pause: (@Sendable (SharedMediaNativeOriginalIOEntry) async -> Void)?) async { await originalIO.setAcquisitionEntryPause(pause) }
+    func setAcquisitionEntryPause(_ pause: (@Sendable (SharedMediaNativeOriginalIOEntry) async -> Void)?, transferReadFault: (@Sendable (Int64) throws -> Void)?) async { await originalIO.setAcquisitionEntryPause(pause, transferReadFault: transferReadFault) }
     #endif
     private func acquisitionBoundary(_ boundary: SharedMediaNativeAcquisitionBoundary) throws {
         #if DEBUG
