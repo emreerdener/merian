@@ -200,6 +200,49 @@ UPDATE internal.initial_cpm_photo_write_policies SET state='revoked';
 SELECT extensions.throws_ok($$SELECT pg_temp.close_source()$$,'55000','initial_analysis_preparation_unavailable','revocation before settlement keeps hold');
 SELECT extensions.throws_ok($$SELECT pg_temp.observation_snapshot()$$,'55000','initial_analysis_preparation_unavailable','revocation prevents fresh observation');
 ROLLBACK TO revoke_after_issue;
+-- Actual role boundary and exact microsecond transport; synthetic and rolled back.
+SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM unnest(ARRAY['anon','authenticated']) r
+ CROSS JOIN unnest(ARRAY['public.read_initial_cpm_photo_write_closure(uuid,text)',
+ 'public.read_initial_cpm_photo_observation(uuid,text,uuid,jsonb)',
+ 'public.settle_initial_cpm_photo_write_closure(uuid,text,text,text,uuid)']) f
+ WHERE has_function_privilege(r,f,'EXECUTE')),'closure service facades deny user API roles');
+SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM unnest(ARRAY[
+ 'public.read_initial_cpm_photo_write_closure(uuid,text)',
+ 'public.read_initial_cpm_photo_observation(uuid,text,uuid,jsonb)',
+ 'public.settle_initial_cpm_photo_write_closure(uuid,text,text,text,uuid)']) f
+ WHERE NOT has_function_privilege('service_role',f,'EXECUTE')),'closure service facades grant only reviewed service access');
+SET LOCAL ROLE anon;
+SELECT extensions.throws_ok($$SELECT public.read_initial_cpm_photo_write_closure(gen_random_uuid(),'live_object')$$,'42501',NULL,'anon cannot read closure');
+SELECT extensions.throws_ok($$SELECT public.read_initial_cpm_photo_observation(gen_random_uuid(),'live_object',NULL,NULL)$$,'42501',NULL,'anon cannot read snapshot');
+SELECT extensions.throws_ok($$SELECT public.settle_initial_cpm_photo_write_closure(gen_random_uuid(),repeat('a',64),'live_object','2026-01-01T00:00:00.000000Z',NULL)$$,'42501',NULL,'anon cannot settle');
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT extensions.throws_ok($$SELECT public.read_initial_cpm_photo_write_closure(gen_random_uuid(),'live_object')$$,'42501',NULL,'authenticated cannot read closure');
+SELECT extensions.throws_ok($$SELECT public.read_initial_cpm_photo_observation(gen_random_uuid(),'live_object',NULL,NULL)$$,'42501',NULL,'authenticated cannot read snapshot');
+SELECT extensions.throws_ok($$SELECT public.settle_initial_cpm_photo_write_closure(gen_random_uuid(),repeat('a',64),'live_object','2026-01-01T00:00:00.000000Z',NULL)$$,'42501',NULL,'authenticated cannot settle');
+RESET ROLE;
+SAVEPOINT closure_service_projection;
+CREATE TEMP TABLE closure_service_args AS SELECT attempt_id,write_policy_digest policy,
+ to_char((issued_at+INTERVAL '123 microseconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') observed
+ FROM internal.initial_cpm_photo_write_attempts WHERE attempt_id=(SELECT attempt_id FROM closure_attempt);
+GRANT SELECT ON closure_service_args,observation_saved TO service_role;
+SELECT set_config('request.jwt.claim.role','',TRUE);
+SET LOCAL ROLE service_role;
+SELECT extensions.is(public.read_initial_cpm_photo_write_closure(attempt_id,'live_object'),NULL::JSONB,'service reads missing receipt as null') FROM closure_service_args;
+SELECT extensions.is(public.read_initial_cpm_photo_observation(attempt_id,'live_object',NULL,NULL),(SELECT value FROM observation_saved),'opaque service role reads authoritative snapshot') FROM closure_service_args;
+SELECT extensions.is(public.read_initial_cpm_photo_observation(attempt_id,'live_object',NULL,(SELECT value FROM observation_saved)),(SELECT value FROM observation_saved),'service exact current recheck') FROM closure_service_args;
+SELECT extensions.throws_ok($$SELECT public.read_initial_cpm_photo_observation(attempt_id,'live_object',NULL,(SELECT value||'{"extra":true}'::JSONB FROM observation_saved)) FROM closure_service_args$$,'22023','initial_analysis_identity_conflict','service recheck rejects changed snapshot');
+SELECT extensions.throws_ok($$SELECT public.read_initial_cpm_photo_observation(attempt_id,'live_object',NULL,'[]'::JSONB) FROM closure_service_args$$,'22023','initial_analysis_input_invalid','service expected snapshot must be object');
+SELECT extensions.throws_ok($$SELECT public.settle_initial_cpm_photo_write_closure(attempt_id,policy,'live_object','2026-01-01T00:00:00.000Z',NULL) FROM closure_service_args$$,'22023','initial_analysis_input_invalid','settlement refuses ambiguous timestamp precision');
+SELECT extensions.is(public.settle_initial_cpm_photo_write_closure(attempt_id,policy,'live_object',observed,NULL)->>'observed_at',observed,'service preserves six-digit microsecond settlement') FROM closure_service_args;
+SELECT extensions.is(public.read_initial_cpm_photo_write_closure(attempt_id,'live_object')->>'observed_at',observed,'receipt read preserves original microseconds') FROM closure_service_args;
+SELECT extensions.is(public.settle_initial_cpm_photo_write_closure(attempt_id,policy,'live_object',observed,NULL),public.read_initial_cpm_photo_write_closure(attempt_id,'live_object'),'service exact settlement replay') FROM closure_service_args;
+SELECT extensions.throws_ok($$SELECT public.settle_initial_cpm_photo_write_closure(attempt_id,policy,'live_object',left(observed,23)||'000Z',NULL) FROM closure_service_args$$,'22023','initial_analysis_identity_conflict','flooring historical microseconds cannot replace receipt');
+RESET ROLE;
+SELECT set_config('request.jwt.claim.role','service_role',TRUE);
+UPDATE internal.initial_cpm_photo_write_policies SET state='revoked';
+SELECT extensions.is(public.read_initial_cpm_photo_write_closure(attempt_id,'live_object')->>'observed_at',observed,'historical service read survives revocation') FROM closure_service_args;
+ROLLBACK TO closure_service_projection;
 CREATE TEMP TABLE closure_saved AS SELECT (pg_temp.close_source()).*;
 SELECT extensions.ok((SELECT write_closed FROM internal.initial_cpm_photo_write_attempts WHERE attempt_id=(SELECT attempt_id FROM closure_attempt)),'live closure closes exact role');
 SELECT extensions.is(to_jsonb(pg_temp.close_source()),to_jsonb(s),'closure replay exact') FROM closure_saved s;
@@ -217,6 +260,8 @@ CREATE TEMP TABLE closure_display AS SELECT m.object_id,s.assignment_digest FROM
 SELECT public.cancel_initial_analysis('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101')->>'dispatch';
 SELECT extensions.is(to_jsonb(pg_temp.close_source()),to_jsonb(s),'historical live receipt replays after erasure without reviving it') FROM closure_saved s;
 SELECT extensions.ok(internal.initial_cpm_photo_retired_write_hold('00000000-0000-4000-8000-00000000f101'),'retirement keeps exact issued graph');
+SELECT extensions.is(public.read_initial_cpm_photo_write_closure(attempt_id,'live_object')->>'observed_at',to_char(observed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),'service historical read survives private erasure') FROM closure_saved;
+
 DO $$ BEGIN
  PERFORM public.claim_initial_preparation_source_erasure(); PERFORM public.claim_initial_preparation_source_erasure(); PERFORM public.claim_initial_preparation_source_erasure();
 END; $$;
@@ -232,6 +277,18 @@ SELECT extensions.ok((value#>>'{erasure_claim,issued_at_ms}')::NUMERIC>=extract(
  AND (value#>>'{erasure_claim,expires_at_ms}')::NUMERIC>extract(epoch FROM r.claim_expires_at)*1000-1,
  'microsecond projection only shortens original claim interval') FROM marker_snapshot CROSS JOIN internal.initial_preparation_source_registry r JOIN closure_attempt a USING(object_id);
 SELECT extensions.is(pg_temp.observation_snapshot('retired_marker',(SELECT claim_token FROM closure_claim),value),value,'marker current check preserves exact captured snapshot') FROM marker_snapshot;
+
+SAVEPOINT marker_service_projection;
+GRANT SELECT ON closure_attempt,closure_claim,marker_snapshot TO service_role;
+SELECT set_config('request.jwt.claim.role','',TRUE);
+SET LOCAL ROLE service_role;
+SELECT extensions.is(public.read_initial_cpm_photo_observation(a.attempt_id,'retired_marker',c.claim_token,NULL),m.value,'opaque service reads original marker snapshot') FROM closure_attempt a CROSS JOIN closure_claim c CROSS JOIN marker_snapshot m;
+SELECT extensions.is(public.read_initial_cpm_photo_observation(a.attempt_id,'retired_marker',c.claim_token,m.value),m.value,'service marker recheck preserves captured token and snapshot') FROM closure_attempt a CROSS JOIN closure_claim c CROSS JOIN marker_snapshot m;
+SELECT extensions.throws_ok($$SELECT public.read_initial_cpm_photo_observation(attempt_id,'retired_marker',gen_random_uuid(),NULL) FROM closure_attempt$$,'55000','initial_analysis_preparation_required','service cannot substitute original marker claim');
+SELECT extensions.is(public.settle_initial_cpm_photo_write_closure(a.attempt_id,(SELECT value#>>'{binding,verification_policy_digest}' FROM marker_snapshot),'retired_marker',to_char(c.observed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),c.claim_token)->>'outcome','retired_marker','opaque service settles marker through existing owner') FROM closure_attempt a CROSS JOIN closure_claim c;
+SELECT extensions.is(public.read_initial_cpm_photo_write_closure(a.attempt_id,'retired_marker')->>'observed_at',to_char(c.observed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),'service recovers exact marker receipt') FROM closure_attempt a CROSS JOIN closure_claim c;
+RESET ROLE;
+ROLLBACK TO marker_service_projection;
 
 SELECT extensions.throws_ok($$SELECT pg_temp.close_source('retired_marker',NULL,gen_random_uuid())$$,'55000','initial_analysis_preparation_required','replacement token cannot settle original observation');
 SELECT extensions.lives_ok($$SELECT pg_temp.close_source('retired_marker',(SELECT observed_at FROM closure_claim),(SELECT claim_token FROM closure_claim))$$,'original live erasure claim permits marker closure');

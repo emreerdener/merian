@@ -1,4 +1,4 @@
-/** Inactive server coordinator. No production bridge, route, grant or issuer.
+/** Inactive server coordinator. No installed bridge, route or issuer.
  * Only authoritative database facts enter observation; client proof is never an
  * argument. SQL remains the durable lifecycle and policy authority. */
 import {
@@ -6,6 +6,8 @@ import {
   type CpmWriteObservationDependencies,
   type CpmWriteObservationTarget,
   observeInitialCpmPhotoWrite,
+  snapshotCpmWriteObservationBinding,
+  snapshotCpmWriteObservationTarget,
 } from "./cpmPhotoWriteObservation.ts";
 import {
   initialMediaHash,
@@ -27,7 +29,7 @@ export interface CpmWriteClosureReceipt {
   attempt_id: string;
   outcome: Outcome;
   policy_digest: string;
-  observed_at_ms: number;
+  observed_at: string;
   claim_digest: string | null;
 }
 export interface CpmWriteClosureInput {
@@ -73,13 +75,37 @@ export interface CpmWriteClosureDependencies {
   bridge: CpmWriteClosureBridge;
   storage: Pick<CpmWriteObservationDependencies, "sign" | "fetch">;
 }
-function receipt(value: unknown, attempt: string, outcome: Outcome) {
+/** Exact SQL microsecond identity, separate from conservative scheduling ms.
+ * Date is used only to reject impossible dates; the original string is returned. */
+export function cpmClosureTimestamp(value: unknown): string {
+  if (
+    typeof value !== "string" ||
+    !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6}Z$/.test(
+      value,
+    ) || value.startsWith("0000")
+  ) {
+    throw initialMediaUnavailable();
+  }
+  const milliseconds = value.slice(0, 23) + "Z";
+  const parsed = Date.parse(milliseconds);
+  if (
+    !Number.isFinite(parsed) || new Date(parsed).toISOString() !== milliseconds
+  ) {
+    throw initialMediaUnavailable();
+  }
+  return value;
+}
+export function decodeCpmWriteClosureReceipt(
+  value: unknown,
+  attempt: string,
+  outcome: Outcome,
+) {
   const r = {
     ...mediaRecord(value, [
       "attempt_id",
       "outcome",
       "policy_digest",
-      "observed_at_ms",
+      "observed_at",
       "claim_digest",
     ]),
   };
@@ -87,43 +113,47 @@ function receipt(value: unknown, attempt: string, outcome: Outcome) {
     throw initialMediaUnavailable();
   }
   mediaDigest(r.policy_digest);
-  mediaTime(r.observed_at_ms);
+  cpmClosureTimestamp(r.observed_at);
   if (outcome === "retired_marker") mediaDigest(r.claim_digest);
   else if (r.claim_digest !== null) throw initialMediaUnavailable();
   return Object.freeze(r) as unknown as Readonly<CpmWriteClosureReceipt>;
 }
 function exact(value: unknown, expected: Readonly<CpmWriteClosureReceipt>) {
-  const saved = receipt(value, expected.attempt_id, expected.outcome);
+  const saved = decodeCpmWriteClosureReceipt(
+    value,
+    expected.attempt_id,
+    expected.outcome,
+  );
   if (
     saved.policy_digest !== expected.policy_digest ||
-    saved.observed_at_ms !== expected.observed_at_ms ||
+    saved.observed_at !== expected.observed_at ||
     saved.claim_digest !== expected.claim_digest
   ) throw initialMediaUnavailable();
   return saved;
 }
-function snapshot(
-  value: CpmWriteClosureInput,
+export function snapshotCpmWriteClosureInput(
+  value: unknown,
   attempt: string,
   outcome: Outcome,
 ): Readonly<CpmWriteClosureInput> {
-  mediaRecord(value, [
+  const r = mediaRecord(value, [
     "binding",
     "target",
     "backend",
     "admission_expires_at_ms",
     "erasure_claim",
   ]);
-  const binding = Object.freeze({ ...value.binding }),
-    target = Object.freeze({ ...value.target });
+  const binding = snapshotCpmWriteObservationBinding(r.binding),
+    target = snapshotCpmWriteObservationTarget(r.target);
   if (mediaUUID(binding.attempt_id) !== attempt || target.outcome !== outcome) {
     throw initialMediaUnavailable();
   }
   mediaDigest(binding.verification_policy_digest);
   mediaTime(binding.issued_at_ms);
-  const admission = mediaTime(value.admission_expires_at_ms);
+  const admission = mediaTime(r.admission_expires_at_ms);
   if (admission <= binding.issued_at_ms) throw initialMediaUnavailable();
   const backend = Object.freeze({
-    ...mediaRecord(value.backend, [
+    ...mediaRecord(r.backend, [
       "generation",
       "configuration_digest",
       "provider",
@@ -136,7 +166,7 @@ function snapshot(
   });
   let claim = null;
   if (outcome === "retired_marker") {
-    const c = mediaRecord(value.erasure_claim, [
+    const c = mediaRecord(r.erasure_claim, [
       "token",
       "issued_at_ms",
       "expires_at_ms",
@@ -150,7 +180,7 @@ function snapshot(
       claim.expires_at_ms <= claim.issued_at_ms ||
       claim.expires_at_ms - claim.issued_at_ms > 60_000
     ) throw initialMediaUnavailable();
-  } else if (value.erasure_claim !== null) throw initialMediaUnavailable();
+  } else if (r.erasure_claim !== null) throw initialMediaUnavailable();
   return Object.freeze({
     binding,
     target,
@@ -189,11 +219,11 @@ export async function closeInitialCpmPhotoWrite(
       if (saved !== null) {
         return Object.freeze({
           outcome: "replay" as const,
-          receipt: receipt(saved, attempt, outcome),
+          receipt: decodeCpmWriteClosureReceipt(saved, attempt, outcome),
         });
       }
       const loadStarted = performance.now();
-      const input = snapshot(
+      const input = snapshotCpmWriteClosureInput(
         await initialAbortable(
           signal,
           () => deps.bridge.load(attempt, outcome, signal),
@@ -252,7 +282,7 @@ export async function closeInitialCpmPhotoWrite(
           attempt_id: attempt,
           outcome,
           policy_digest: input.binding.verification_policy_digest,
-          observed_at_ms: observed,
+          observed_at: new Date(observed).toISOString().replace("Z", "000Z"),
           claim_digest: claimDigest,
         });
         try {

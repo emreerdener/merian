@@ -55,7 +55,7 @@ export interface CpmWriteObservationDependencies {
   fetch: typeof fetch;
 }
 
-function snapshotBinding(value: CpmWriteObservationBinding) {
+export function snapshotCpmWriteObservationBinding(value: unknown) {
   const b = {
     ...mediaRecord(value, [
       "attempt_id",
@@ -85,11 +85,12 @@ function snapshotBinding(value: CpmWriteObservationBinding) {
   mediaTime(b.issued_at_ms);
   return Object.freeze(b) as unknown as Readonly<CpmWriteObservationBinding>;
 }
-function snapshotTarget(value: CpmWriteObservationTarget) {
+export function snapshotCpmWriteObservationTarget(value: unknown) {
   const t = {
     ...mediaRecord(
       value,
-      value?.outcome === "retired_marker"
+      value && typeof value === "object" && "outcome" in value &&
+        value.outcome === "retired_marker"
         ? ["outcome"]
         : ["outcome", "role", "byte_count", "sha256", "content_type"],
     ),
@@ -130,7 +131,8 @@ export async function observeInitialCpmPhotoWrite(
     target: Readonly<CpmWriteObservationTarget>;
   }>
 > {
-  const binding = snapshotBinding(value), target = snapshotTarget(expected);
+  const binding = snapshotCpmWriteObservationBinding(value),
+    target = snapshotCpmWriteObservationTarget(expected);
   const backendSnapshot = {
     ...mediaRecord(backendValue, [
       "generation",

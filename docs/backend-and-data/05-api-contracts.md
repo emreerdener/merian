@@ -1,3 +1,19 @@
+## October 29 — dormant service-only CPM closure RPCs
+
+The
+[database closure service contract](04-database-schema.md#dormant-cpm-closure-service-boundary--october-29)
+owns three narrowly granted service RPCs for exact historical receipt reads,
+authoritative snapshot/current checks and existing-owner settlement. These are
+server-only interfaces with no mobile/web caller or new Edge route. No Identify
+DTO changes or generated Swift contract changes are required.
+
+The inactive coordinator's receipt time is now `observed_at`, a strict UTC
+six-fraction text value. This preserves exact accepted SQL microseconds through
+read and settlement recovery; snapshot scheduling fields retain integer-ms
+bounds. The linked contract names executable decoder, adapter, authorization,
+limits and candidate qualification status. This implementation does not activate
+CPM or install a signer.
+
 ## October 29 — native v2 transport candidate
 
 The inactive native owner and authenticated adapter now support explicitly

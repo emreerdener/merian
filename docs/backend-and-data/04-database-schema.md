@@ -1,3 +1,58 @@
+## Dormant CPM closure service boundary — October 29
+
+The
+[service migration](../../services/supabase/migrations/20261029203758_prepare_initial_cpm_photo_closure_service.sql)
+adds three exact-signature, service-only RPCs:
+`read_initial_cpm_photo_write_closure`, `read_initial_cpm_photo_observation`,
+and `settle_initial_cpm_photo_write_closure`. Each has a fixed empty search
+path, a five-second statement limit, the existing in-function service
+authorization guard, and its exact privileged-routine grant record. User API
+roles receive no execute privilege or direct table access. No policies,
+installations, signer, route or rollout activation are added.
+
+Receipt reads return only the permanent `(attempt_id, outcome)` closure or null.
+They deliberately precede fresh eligibility, lifecycle and private-state reads,
+so accepted receipts remain recoverable after retirement, revocation or erasure.
+A receipt grants no fresh I/O. The snapshot RPC delegates to the qualified
+internal reader below, retaining the original caller-owned cleanup token and
+optional whole captured snapshot. It cannot acquire, discover or renew a claim.
+The settlement RPC delegates once to the existing SQL owner and adds no capacity
+release or funding authority.
+
+The receipt wire fields are `attempt_id`, `outcome`, `policy_digest`,
+`observed_at` and nullable `claim_digest`. `observed_at` is canonical UTC text
+with exactly six fractional digits (`YYYY-MM-DDTHH:MM:SS.ffffffZ`), validated
+before conversion and returned with all stored PostgreSQL microseconds.
+Historical equality must never floor this value to milliseconds. Fresh
+coordinator observations append three zero digits to their millisecond clock.
+Snapshot scheduling bounds remain the separately conservative integer-ms
+projection below. No persisted SQL receipt is rewritten.
+
+The executable Edge decoder is
+[`cpmPhotoWriteClosure.ts`](../../services/supabase/functions/_shared/initialAnalysis/cpmPhotoWriteClosure.ts).
+The dormant database adapter is
+[`cpmPhotoClosureDb.ts`](../../services/supabase/functions/_shared/initialAnalysis/cpmPhotoClosureDb.ts).
+Its fixed environment-owned origin and credentials, bounded one-shot POSTs,
+strict snapshot/backend validation and exact reply equality are tested beside
+it. The candidate passed fresh local replay of 499 migrations, 175 focused CPM
+assertions, 393 initial-analysis tests / 164 steps, the complete Edge suite
+(3,500 tests / 648 steps; 532 explicitly ignored), and Engine source review.
+These establish local SQL and synthetic adapter behavior, not hosted RPC or
+storage qualification.
+
+The complete 176-catalog invocation failed only the unchanged maximum-input
+atomic-admission fixture at its enforced preparation deadline while other
+validation was running. Its 175 other catalogs passed 6,283 assertions; the
+remaining catalog subsequently passed all 922 assertions in isolation with
+unchanged limits. Every catalog has passing evidence across these runs, but the
+failed aggregate invocation remains retained and its timing sensitivity is an
+open qualification gap, not a production fix. Repository tooling likewise
+completed across a passing prefix and ten-shell-test suffix after the synthetic
+PTY launcher required host terminal access. Evidence is under
+`.artifacts/native-app-capture-handoff-20261020/cpm-bridge-*`. Earlier snapshot
+concurrency evidence remains applicable to the unchanged internal lock owners.
+No signer, route or external deployment is qualified or enabled.
+
 ## Inactive CPM observation snapshot candidate — October 29
 
 The

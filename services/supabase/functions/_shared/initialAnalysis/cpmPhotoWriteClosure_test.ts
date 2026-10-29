@@ -173,7 +173,7 @@ Deno.test("CPM saved closure recovers without loading private state or storage I
     attempt_id: f.id(1),
     outcome: "retired_marker" as const,
     policy_digest: "c".repeat(64),
-    observed_at_ms: 1000,
+    observed_at: "1970-01-01T00:00:01.123456Z",
     claim_digest: "d".repeat(64),
   };
   f.save(saved);
@@ -197,7 +197,7 @@ Deno.test("CPM unknown settlement cannot adopt changed policy time claim or outc
     const mutation of [
       { attempt_id: "00000000-0000-4000-8000-000000000099" },
       { policy_digest: "e".repeat(64) },
-      { observed_at_ms: 1 },
+      { observed_at: "1970-01-01T00:00:00.000001Z" },
       { claim_digest: "f".repeat(64) },
       { outcome: "live_object" },
     ]
@@ -360,7 +360,7 @@ Deno.test("CPM malformed historical receipt never falls through to fresh IO", as
       attempt_id: f.id(9),
       outcome: "live_object",
       policy_digest: "b".repeat(64),
-      observed_at_ms: 1000,
+      observed_at: "1970-01-01T00:00:01.123456Z",
       claim_digest: null,
     });
   };

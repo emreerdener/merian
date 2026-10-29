@@ -18,6 +18,14 @@ Tests live beside it in `cpmPhotoWriteClosure_test.ts`. The bridge and signer
 remain uninstalled; the linked scan contract owns their obligations and local
 validation/review status.
 
+`cpmPhotoClosureDb.ts:createCpmPhotoClosureDb` provides the dormant service
+adapter using environment-owned credentials and a fixed origin. It consumes an
+already-owned marker token, never claims one, and preserves exact six-fraction
+UTC receipt timestamps through `cpmPhotoWriteClosure.ts` decoding. The
+[database service contract](../../../../../docs/backend-and-data/04-database-schema.md#dormant-cpm-closure-service-boundary--october-29)
+owns the RPC signatures, limits and qualification status. Tests are in
+`cpmPhotoClosureDb_test.ts`; no live route or signer is installed.
+
 ## October 27 — inactive photo CPM content declaration candidate
 
 `cpmPhotoContent.ts` validates a closed, bounded photo declaration and hashes a

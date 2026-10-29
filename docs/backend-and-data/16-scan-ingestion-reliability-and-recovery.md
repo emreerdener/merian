@@ -148,19 +148,31 @@ assertions and Engine source review; five subsequent local concurrency schedules
 qualified retirement, claim-replacement and revocation checks. The linked
 database contract owns the runner and qualification scope. Historical receipts
 must still be recovered before calling this fresh-state reader; rechecks must
-retain the captured snapshot and original claim unchanged. The service adapter,
-receipt conversion and signer remain unimplemented and unqualified. The
+retain the captured snapshot and original claim unchanged. The
+[dormant service boundary](04-database-schema.md#dormant-cpm-closure-service-boundary--october-29)
+and `cpmPhotoClosureDb.ts` implement those database calls with Engine source
+review, local SQL and synthetic adapter evidence. The linked service contract
+records the retained aggregate admission-deadline failure, isolated pass and
+remaining timing qualification gap. Receipt identity uses canonical UTC
+six-fraction text instead of flooring SQL microseconds. The adapter captures its
+destination and credential from server configuration, sends bounded one-shot
+requests and requires the caller's already-owned original marker token. It
+validates the saved backend and compares complete recheck/settlement replies,
+without retries or claim discovery. No live route imports it; signer
+installation and storage, retention, memory and native journey qualification
+remain open. The
 [coordinator tests](../../services/supabase/functions/_shared/initialAnalysis/cpmPhotoWriteClosure_test.ts)
 cover source/AI/display reads, immutable claims, exact recovery, mismatches,
 late completion, lifecycle denial and shorter parent deadlines. Local evidence
 is retained under
-`.artifacts/native-app-capture-handoff-20261020/cpm-coordinator-*`. The exact
-candidate passed 19 focused tests and 382 initial-analysis domain tests / 164
-steps, including the inherited-deadline correction. Engine independently
-reviewed all three source hashes and found no remaining blocker. Recursive
-Edge/script formatting and lint, 26 documentation contracts and changed-Markdown
-checks passed. This qualifies the local inactive coordinator, not its absent
-production adapters or hosted storage behavior.
+`.artifacts/native-app-capture-handoff-20261020/cpm-coordinator-*`. That earlier
+coordinator checkpoint passed 19 focused tests and 382 initial-analysis domain
+tests / 164 steps, including the inherited-deadline correction. Engine
+independently reviewed all three source hashes and found no remaining blocker.
+Recursive Edge/script formatting and lint, 26 documentation contracts and
+changed-Markdown checks passed. That evidence qualified the local inactive
+coordinator; the subsequent database adapter evidence is recorded above. Signer
+integration and hosted storage behavior remain unqualified.
 
 Full-buffer hashing still requires CPM-specific server memory qualification. The
 existing backend protocol uses conditional creation and permanent same-key
