@@ -1,3 +1,35 @@
+## Private canonical encoder optimization — October 29
+
+The forward
+[scalar-child optimization](../../services/supabase/migrations/20261029042120_optimize_initial_canonical_scalar_children.sql)
+keeps `internal.initial_canonical_parts` as the single canonical encoder owner.
+It encodes scalar children directly within array/object loops and recurses for
+containers. Encoding, node accounting, depth, safe-integer and byte limits,
+object key validation/order, SQLSTATE/message behavior, volatility and private
+privileges are unchanged. Receipt callbacks, snapshots and admission deadlines
+are unchanged; this is not a new wire format or admission policy.
+
+The
+[differential catalog](../../services/supabase/tests/initial_canonical_scalar_inlining.sql)
+retains an independent copy of the original recursive implementation, including
+its recursive self-calls. It compares encoded bytes/node counts or error
+SQLSTATE/message for scalar, mixed-container, Unicode, numeric, depth, key,
+element, node and byte boundaries. All 170 assertions passed on a fresh local
+496-migration replay; Engine found no exact-source blocker and 536 static
+migration checks passed. A rolled-back escaped maximum-input diagnostic retained
+all 58 callbacks and measured finalization at 111.231 seconds versus the prior
+127.878 seconds; canonical calls fell from 1,156,774 to 241,990 and canonical
+self time from 71.790 to 61.072 seconds. These are single local diagnostic
+samples, not a performance guarantee. The original deadline and checks remain
+intact. The exact candidate subsequently passed all 176 catalogs / 7,130
+assertions, including the unchanged maximum-input admission cases, plus five
+write-hold concurrency schedules / 37 session commands. The complete catalog run
+took 749.942 seconds. This qualifies the local database increment; it does not
+qualify app journeys, hosted storage, deployment or activation. Retained
+receipts and the comparison are under
+`.artifacts/native-app-capture-handoff-20261020/canonical-scalar-runtime01` and
+`canonical-scalar-comparison01.json`. Earlier failed attempts remain evidence.
+
 ## Inactive initial-photo CPM allocation candidate
 
 The October 27 candidate migrations add private CPM profile, eligibility,
@@ -42,18 +74,20 @@ retirement race found by review was reproduced, repaired and covered by the
 concurrency regression. Evidence is retained under
 `.artifacts/native-app-capture-handoff-20261020/cpm-write-holds-focused-qualification04.json`.
 
-Complete catalog qualification remains open. Two 175-file runs observed 6,038
-passing assertions but aborted the existing maximum-input
+At write-hold checkpoint `42b81c722`, complete catalog qualification remained
+open. The encoder optimization above subsequently passed the complete gate on
+the new exact candidate. The two earlier 175-file runs observed 6,038 passing
+assertions but aborted the existing maximum-input
 `initial_atomic_admission_stage.sql` fixture with
 `initial_analysis_preparation_expired`; the CPM catalog passed. The failed logs
 remain in `cpm-write-holds-runtime03` and `cpm-write-holds-runtime05` under the
 same artifact root. A rolled-back escaped-text diagnostic measured 24 ledger
 entries, 58 deferred callbacks taking 91.365 seconds and a 107.456-second
 constraint flush. Function profiling attributed 71.790 seconds to 1,156,774
-calls to `initial_canonical_parts`. This identifies an optimization target; no
-timing fix or broad acceptance is claimed. The later diagnostic pass near the
-unchanged deadline does not repair the failed runs. All callback, snapshot, size
-and deadline requirements remain enforced.
+calls to `initial_canonical_parts`. That diagnostic identified the optimization
+target; its near-deadline pass alone did not repair the failed runs or establish
+broad acceptance. The subsequent encoder change and qualification are recorded
+above. All callback, snapshot, size and deadline requirements remain enforced.
 
 `initial_cpm_photo_write_attempts` permanently binds one attempt per object to
 its scan, exact assignment digest, backend generation/configuration and original

@@ -5,11 +5,14 @@ The
 now owns CPM attempt identity, exact metadata recovery and conservative storage
 holds through cancellation/deletion. This is a database-owner-only candidate;
 source review, 100 focused assertions and five concurrency schedules passed. The
-full catalog gate remains open on the legacy maximum-input admission expiry
-detailed in that contract. There is no signer, remote closure proof or API
-authority. Existing marker acknowledgements and native task termination cannot
-release an uncertain write. Original/AI/display transfer, verification,
-admission/execution/result/history and full journey acceptance remain open.
+subsequent canonical encoder optimization passed the complete local gate (176
+files / 7,130 assertions), including the unchanged maximum-input cases, and the
+five write-hold concurrency schedules. That contract retains the prior expiry
+failures, independent equivalence tests and measured cost reduction. There is no
+signer, remote closure proof or API authority. Existing marker acknowledgements
+and native task termination cannot release an uncertain write.
+Original/AI/display transfer, verification, admission/execution/result/history
+and full journey acceptance remain open.
 
 ## October 29 — local network termination witness qualified
 

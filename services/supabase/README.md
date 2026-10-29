@@ -5,8 +5,10 @@ The
 owns the new database-owner-only role attempts and capacity retained through
 cancellation/deletion. No signer, API grant, closure settlement or activation is
 installed. Source review, 100 focused assertions and five concurrency schedules
-passed; complete catalogs remain open on the legacy maximum-input admission
-expiry documented in the canonical contract.
+passed. The subsequent private canonical encoder optimization passed all 176
+catalogs / 7,130 assertions and the five write-hold concurrency schedules on its
+exact local replay. The canonical contract retains the earlier expiry failures,
+170 differential assertions and unchanged-deadline cost comparison.
 `test_initial_cpm_photo_write_holds.py` accepts `--container`,
 `--evidence-directory` and `--replay-manifest` for an exact fresh owned local
 replay. Run catalogs first, then this committing concurrency suite; always

@@ -6,12 +6,15 @@ records the new permanent attempt and conservative capacity hold through
 cancellation/private erasure/account deletion. Exact recovery never renews a
 clock. This database-owner-only increment has no signer, API grant or closure
 settlement. Engine source review, 100 focused assertions and five concurrency
-schedules passed. Full catalog qualification remains open on the measured legacy
-maximum-input admission expiry; the canonical contract retains both failed runs
-and the diagnostic evidence. Earlier allocation-only restrictions remain
-historical. Transfer, byte verification, admission/execution/result/history,
-reanalysis, audio/video, RUX and final acceptance remain open. PR116, deployment
-and later-sequence controls are unchanged.
+schedules passed. The subsequent private canonical encoder optimization passed
+all 176 catalogs / 7,130 assertions and the five write-hold concurrency
+schedules on its exact replay, with 170 differential assertions and measured
+finalization cost reduction. The canonical contract retains both earlier expiry
+failures and the unchanged-deadline evidence. Earlier allocation-only
+restrictions remain historical. Transfer, byte verification,
+admission/execution/result/history, reanalysis, audio/video, RUX and final
+acceptance remain open. PR116, deployment and later-sequence controls are
+unchanged.
 
 ## October 29 — Capture allocation caller qualified locally
 
