@@ -1,3 +1,15 @@
+## October 29 — inactive v2 allocation composition
+
+The existing app composition now selects v2 through the qualified durable
+allocation owner and authenticated adapter. Shared access preserves the same
+exact-selection/attempt fences for both legacy and role projections. This
+composition passed focused native qualification: 9 methods / 22 cases. Engine
+cleared production; the corrected test-macro failure remains retained. The
+ordinary factory remains disabled. The
+[scan transport contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--native-v2-transport-integration-candidate)
+owns current implementation, qualification and remaining transfer work. The
+earlier caller checkpoint below records its original v1 qualification.
+
 ## October 29 — inactive Capture allocation caller candidate
 
 The native submission session keeps `submit` as the local receipt boundary and

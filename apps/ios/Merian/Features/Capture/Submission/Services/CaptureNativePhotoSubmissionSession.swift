@@ -34,8 +34,8 @@ final class CaptureNativePhotoSubmissionSession {
         .init(authorize: { prepared, validate in
             try await MerianNetworkClient.shared.prepareBoundNativePhotoAllocationAuthorization(
                 prepared: prepared, validateAttempt: validate)
-        }, send: { request, validate, settle in
-            try await MerianNetworkClient.shared.initialPhotoAllocationTransport().perform(
+        }, sendRoles: { request, validate, settle in
+            try await MerianNetworkClient.shared.initialPhotoAllocationTransport().performRoles(
                 request, validateAttempt: validate, validateResponse: settle)
         })
     }
@@ -56,13 +56,7 @@ final class CaptureNativePhotoSubmissionSession {
             guard frozen == snapshot, attemptID == attempt else { throw SharedMediaStorageFailure.stale }
         }
         try validate()
-        allocation = try await owner.allocateAppPhoto(prepared, authorizeCreate: { value, check in
-            try validate(); try check()
-            return try await allocationAccess.authorize(value, { try check(); try validate() })
-        }, send: { request, check, settle in
-            try validate()
-            return try await allocationAccess.send(request, { try check(); try validate() }, { try settle(); try validate() })
-        })
+        allocation = try await allocationAccess.allocate(owner: owner, prepared: prepared, validate: validate)
         return attempt
     }
 

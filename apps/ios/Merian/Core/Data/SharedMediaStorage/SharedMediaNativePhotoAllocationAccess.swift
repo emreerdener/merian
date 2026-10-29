@@ -7,7 +7,36 @@ struct SharedMediaNativePhotoAllocationAccess {
     typealias Authorize = @MainActor (SharedMediaNativeReceivingIntent.Prepared, @escaping Validator) async throws -> IdentificationDispatchAuthorization
     typealias Send = @MainActor (InitialPhotoAllocationRequest, @escaping Validator, @escaping Validator) async throws -> InitialPhotoAllocationReply
     let authorize: Authorize
-    let send: Send
+    private let transport: SharedMediaNativePhotoAllocationTransportAccess
+    init(authorize: @escaping Authorize, send: @escaping Send) {
+        self.authorize = authorize; transport = .legacy(send)
+    }
+    init(authorize: @escaping Authorize, sendRoles: @escaping SharedMediaNativePhotoAllocationTransportAccess.RolesSend) {
+        self.authorize = authorize; transport = .roles(sendRoles)
+    }
+
+    /// Preserve the caller's immutable selection/attempt fence around both
+    /// projections. Only the retained owner decides durable create versus status.
+    @MainActor func allocate(owner: SharedMediaNativeOriginalOwner,
+                             prepared: SharedMediaNativeReceivingIntent.Prepared,
+                             validate: @escaping Validator) async throws -> SharedMediaNativePhotoAllocation {
+        let authorizeCreate: Authorize = { value, check in
+            try validate(); try check()
+            return try await authorize(value, { try check(); try validate() })
+        }
+        switch transport {
+        case .legacy(let send):
+            return try await owner.allocateAppPhoto(prepared, authorizeCreate: authorizeCreate) { request, check, settle in
+                try validate()
+                return try await send(request, { try check(); try validate() }, { try settle(); try validate() })
+            }
+        case .roles(let send):
+            return try await owner.allocateAppPhotoRoles(prepared, authorizeCreate: authorizeCreate) { request, check, settle in
+                try validate()
+                return try await send(request, { try check(); try validate() }, { try settle(); try validate() })
+            }
+        }
+    }
 }
 
 /// Selects a typed projection without changing the retained owner's lifecycle.

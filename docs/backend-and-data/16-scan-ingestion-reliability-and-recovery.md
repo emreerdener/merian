@@ -15,23 +15,41 @@ persists atomically under fresh locks. Both typed adapters reject the wrong
 projection before sending. Account/attempt/response fences, no automatic
 retry/refresh/redirect and immutable submission rules remain unchanged.
 
-Focused native qualification passed 17 methods / 49 cases using local mock
-transport and durable stores. All 3,055 source/project pins were unchanged;
-structured runtime warnings were empty. Managed run01 took 1,798.010 seconds;
-evidence is retained in
+The preceding owner/transport checkpoint (`271fa5a1e`) passed focused native
+qualification: 17 methods / 49 cases using local mock transport and durable
+stores. All 3,055 source/project pins were unchanged; structured runtime
+warnings were empty. Managed run01 took 1,798.010 seconds; evidence is retained
+in
 `.artifacts/native-app-capture-handoff-20261020/role-transport-native-qualified01.json`.
 Engine source review found no blocker. The complete iOS CI tooling gate, 26
 documentation contracts, formatting and scoped links passed. The initial sandbox
 process-visibility preflight failure remains recorded; the subsequent
 process-visible preflight passed unchanged storage and evidence limits.
 
-The ordinary Capture allocation caller still uses v1 and its factory remains
-disabled. Next, connect the consuming Capture session and independently reserved
-single-role transfer. No new Release, complete native gate, full journey or
-external qualification is claimed; the known unrelated Auth architecture size
-failure remains open. No provider request, upload, remote closure, execution or
-release authority is enabled. Full photo initial/reanalysis journeys and all
-later acceptance requirements remain open.
+The inactive Capture submission factory now composes `performRoles` through
+`SharedMediaNativePhotoAllocationAccess`. That composition keeps the exact
+selection/attempt validator around authorization, outbound validation and
+response settlement for both typed projections. Existing injected legacy
+composition remains supported. `submit` still establishes the local receipt;
+only its explicit `allocate` phase requests allocation. Cold discovery retains
+the immutable submission and mapping. The ordinary factory remains disabled.
+
+This Capture composition passed focused native qualification: 9 methods / 22
+cases, with 3,056 unchanged source/project pins and no structured runtime
+warnings. Managed run02 took 2,440.268 seconds; exact evidence is retained in
+`.artifacts/native-app-capture-handoff-20261020/capture-roles-native-qualified02.json`.
+Engine cleared the production delta. Run01 failed test compilation after 246.822
+seconds and executed no runtime tests; that evidence remains retained. Only the
+mutating assertion was corrected before a new preflight and successful run.
+Coverage includes two-photo/six-role delivery, lost-reply cold recovery through
+the real adapter with local mocks, the actual Capture caller preserving later
+visible selections, and the complete existing caller regression suite. The
+preceding owner/transport qualification above remains separately scoped.
+Independently reserved single-role transfer is next. No new Release, complete
+native gate, full journey or external qualification is claimed; the known
+unrelated Auth architecture size failure remains open. No provider request,
+upload, remote closure, execution or release authority is enabled. Full photo
+initial/reanalysis journeys and all later acceptance requirements remain open.
 
 ## October 29 — inactive role projection checkpoint
 
