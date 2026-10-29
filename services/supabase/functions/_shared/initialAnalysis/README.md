@@ -26,6 +26,15 @@ UTC receipt timestamps through `cpmPhotoWriteClosure.ts` decoding. The
 owns the RPC signatures, limits and qualification status. Tests are in
 `cpmPhotoClosureDb_test.ts`; no live route or signer is installed.
 
+`cpmPhotoUploadSpecification.ts:prepareCpmPhotoUploadSpecification` prepares a
+frozen conditional-create specification from saved facts and an injected host
+profile allowlist. It uses the existing v2 backend and role decoders, preserves
+the original expiry and rejects operation/header/metadata overrides. It has no
+credentials, signer, network I/O or issuance authority. Its required payload
+digest explicitly remains unqualified by the provider. Tests are in
+`cpmPhotoUploadSpecification_test.ts`; the linked scan contract owns the
+remaining issuance, payload-enforcement and separate marker-writer obligations.
+
 ## October 27 — inactive photo CPM content declaration candidate
 
 `cpmPhotoContent.ts` validates a closed, bounded photo declaration and hashes a

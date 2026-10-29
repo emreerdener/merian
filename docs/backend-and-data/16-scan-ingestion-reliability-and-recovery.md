@@ -184,6 +184,31 @@ can be replayed until expiry. Exact payload enforcement, concurrent ingress and
 all alternate writer/lifecycle routes therefore remain qualification
 requirements. No hosted behavior is established by these local tests.
 
+`cpmPhotoUploadSpecification.ts:prepareCpmPhotoUploadSpecification` is an
+inactive local request planner for the next transfer integration. It reuses the
+v2 backend decoder and role declaration limits, pins the saved generation and
+configuration digest to an injected host profile allowlist, and snapshots all
+facts before asynchronous digest verification. It derives one exact key and
+fixed conditional single-object PUT requirements, including content type, length
+and the original capability expiry. It accepts no caller method, URL, query,
+headers, body or metadata overrides. The returned frozen specification contains
+a required SHA256 digest with provider enforcement explicitly unqualified; it
+chooses no signing/checksum mechanism and issues no access. Seven synthetic
+tests / 18 steps cover closed inputs, profile/backend changes, expiry
+preservation, role limits and mutation during suspension. This is local
+request-planning evidence only.
+
+The planner is not a fresh lifecycle check or an issuance permit. Its historical
+clocks do not become a new expiry, and `may_have_issued` recovery cannot
+authorize another signature. The eventual issuer still needs a distinct fresh
+authority boundary and durable possible-issuance acknowledgement before
+exposure. Marker replacement remains a separate original-claim operation:
+conditional creation cannot overwrite a live object, and DELETE cannot stand in
+for a permanent marker. Neither generic R2 helpers nor the existing v1
+retained-media writers are a qualified v2 writer. No signer, credential
+resolver, route or marker executor is installed by this planner; alternate
+hosted writers and lifecycle rules remain unqualified.
+
 ## October 29 — inactive single-role transfer reservation candidate
 
 `SharedMediaNativeOriginalOwner.reserveAppPhotoTransfer` now proposes one local
