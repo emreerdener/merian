@@ -1,3 +1,13 @@
+## October 29 — native enrichment implementation candidate
+
+The inactive reservation and receipt-enrichment writer passed focused native
+qualification: 13 methods / 38 cases. The
+[canonical transition contract](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#native-allocation-enrichment-inactive-candidate)
+owns legacy byte preservation, whole-graph accounting, exact recovery and
+remaining transport integration. Earlier “enrichment is next” statements below
+record the preceding checkpoint. Ordinary HTTP requests remain v1; transfer and
+full journey acceptance remain open. Release holds are unchanged.
+
 ## October 29 — inactive role projection checkpoint
 
 The

@@ -23,15 +23,16 @@ this reduced projection. The authenticated mapping must be frozen when
 persisted; a later response changing it is rejected. An opaque terminal hold
 cannot clear that saved evidence, prove remote closure or authorize replacement.
 
-The native request builder, caller and durable receipt remain v1. Persisting v2
-requires a separate monotonic enrichment transition: reserve worst-case metadata
-and revision capacity before the request, recover only the original candidate
-and saved assignment digest through status, require both original clocks, and
-atomically save the complete mapping. Fresh allocation must likewise reserve its
-complete successor before create. This checkpoint supplies neither that
-transition nor upload/signing, byte verification, admission or execution
-authority. There are no Identify generated DTO, public web, admin, SQL schema or
-RPC changes. The
+The ordinary native request builder and caller remain v1. The inactive
+[native enrichment candidate](16-scan-ingestion-reliability-and-recovery.md#native-allocation-enrichment-inactive-candidate)
+now implements explicit metadata/revision reservation and monotonic persistence
+while retaining legacy canonical bytes and both clocks. Focused native
+qualification passed 13 methods / 38 cases. Authenticated v2 request integration
+remains open and must consume that durable reservation. Existing claims use
+status with their original candidate and saved assignment digest. Fresh create
+must reserve the complete successor first. No upload/signing, verification,
+admission or execution authority follows. There are no Identify generated DTO,
+public web, admin, SQL schema or RPC changes. The
 [scan entry point](16-scan-ingestion-reliability-and-recovery.md#current-initial-photo-integration-entry-point--october-28)
 tracks integration and remaining acceptance. No deployment or activation is
 implied.

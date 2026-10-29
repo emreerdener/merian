@@ -192,13 +192,17 @@ final class SharedMediaNativeOriginalOwner {
         try await withAppDispatch { try await self.stageAppReceivingWithAdmission(metadata: metadata, pairIDs: pairIDs, authorize: authorize, storage: $0, grant: $1, releaseStage: self.releaseStageSettlement) }
     }
     /// One retained account operation also bounds overlapping status attempts.
-    func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
-        authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
-        send: @escaping SharedMediaNativePhotoAllocationAccess.Send) async throws -> SharedMediaNativePhotoAllocation {
+    func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared, reserveRoleMapping: Bool = false,
+                          authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
+                          send: @escaping SharedMediaNativePhotoAllocationAccess.Send) async throws -> SharedMediaNativePhotoAllocation {
         try await withAppDispatch { storage, grant in
             try await self.allocateAppPhoto(prepared, storage: storage, grant: grant,
-                releaseStage: self.releaseStageSettlement, authorizeCreate: authorizeCreate, send: send)
+                releaseStage: self.releaseStageSettlement, reserveRoleMapping: reserveRoleMapping, authorizeCreate: authorizeCreate, send: send)
         }
+    }
+    func enrichAppPhotoAllocation(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                  send: @escaping SharedMediaNativePhotoEnrichmentAccess.Send) async throws -> SharedMediaNativePhotoAllocation {
+        try await withAppDispatch { try await self.enrichAppPhotoAllocation(prepared, storage: $0, grant: $1, send: send) }
     }
     /// An outer audit or lock failure must also spend an existing continuation.
     func abandonAppReleaseContinuation(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) {

@@ -4,13 +4,8 @@ import Foundation
 /// authority follows from this projection. The receiving owner must reserve
 /// metadata/revision runway before requesting or saving an enriched receipt.
 enum InitialPhotoAllocationRoleReply: Equatable, Sendable {
-    enum Role: String, Equatable, Sendable, CaseIterable { case source, ai, display }
-    struct Entry: Equatable, Sendable {
-        let photoOrdinal: Int
-        let role: Role
-        let referenceID: UUID
-        let objectID: UUID
-    }
+    typealias Role = SharedMediaNativePhotoRoleMapping.Role
+    typealias Entry = SharedMediaNativePhotoRoleMapping.Entry
     struct Projection: Equatable, Sendable {
         let receipt: SharedMediaNativePhotoAllocation.Receipt
         let entries: [Entry]
@@ -37,7 +32,7 @@ enum InitialPhotoAllocationRoleReply: Equatable, Sendable {
                   let digest = row["assignment_digest"] as? String,
                   let mapping = row["role_mapping"] as? [[String: Any]] else { throw MerianError.invalidResponse }
             let receipt = try InitialPhotoAllocationReply.receipt(row, digest: digest, request: request)
-            let references = try Self.references(request)
+            let references = try SharedMediaNativePhotoRoleMapping.references(request.allocation.claim)
             guard mapping.count == references.count else { throw MerianError.invalidResponse }
             var objects = Set<UUID>(), entries: [Entry] = []
             for (index, value) in mapping.enumerated() {
@@ -56,27 +51,4 @@ enum InitialPhotoAllocationRoleReply: Equatable, Sendable {
         }
     }
 
-    private static func references(_ request: InitialPhotoAllocationRequest) throws -> [UUID] {
-        let claim = request.allocation.claim, bytes = Data(claim.candidateCanonical.utf8)
-        guard bytes.count <= 1_048_576,
-              SharedMediaAcquisitionEncoding.digest(Data("merian.initial-analysis.cpm-photo-candidate.v1\n".utf8) + bytes) == claim.candidateDigest,
-              let candidate = try JSONSerialization.jsonObject(with: bytes) as? [String: Any],
-              let contentText = candidate["content_canonical"] as? String else { throw MerianError.invalidResponse }
-        let contentBytes = Data(contentText.utf8)
-        guard SharedMediaAcquisitionEncoding.digest(Data("merian.initial-analysis.cpm-photo-content.v1\n".utf8) + contentBytes) == claim.contentDigest,
-              let content = try JSONSerialization.jsonObject(with: contentBytes) as? [String: Any],
-              try ObservationHistoryPage.uuid(content["scan_id"]) == claim.observationID,
-              try ObservationHistoryPage.uuid(content["package_id"]) == claim.packageID,
-              let photos = content["photos"] as? [[String: Any]], (1...2).contains(photos.count) else { throw MerianError.invalidResponse }
-        var references: [UUID] = []
-        for (index, photo) in photos.enumerated() {
-            guard try ObservationHistoryPage.integer(photo["ordinal"], maximum: 1) == index else { throw MerianError.invalidResponse }
-            for role in Role.allCases {
-                guard let declaration = photo[role.rawValue] as? [String: Any] else { throw MerianError.invalidResponse }
-                references.append(try ObservationHistoryPage.uuid(declaration["reference_id"]))
-            }
-        }
-        guard Set(references).count == references.count else { throw MerianError.invalidResponse }
-        return references
-    }
 }

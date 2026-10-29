@@ -16,7 +16,7 @@ struct InitialPhotoAllocationRoleReplyTests {
         SharedMediaAcquisitionEncoding.digest(Data((domain + "\n" + text).utf8))
     }
     // Value-only fixture. This does not create an admitted native graph or grant.
-    private func request(candidate: String = Self.candidate, receipt: Allocation.Receipt? = nil) throws -> InitialPhotoAllocationRequest {
+    func request(candidate: String = Self.candidate, receipt: Allocation.Receipt? = nil) throws -> InitialPhotoAllocationRequest {
         let content = try #require(try object(candidate)["content_canonical"] as? String)
         let c = try object(content), id = "00000000-0000-4000-8000-000000000001"
         let fields: [String: Any] = ["profile": ["ownerID": id, "inventoryID": id, "generation": id,
@@ -30,7 +30,7 @@ struct InitialPhotoAllocationRoleReplyTests {
         if let receipt { allocation = try allocation.settling(receipt) }
         return try .init(allocation: allocation, action: .status)
     }
-    private func projection() throws -> Reply.Projection {
+    func projection() throws -> Reply.Projection {
         guard case .allocated(let value) = try Reply(data: Data(Self.golden.utf8), request: request()) else { throw MerianError.invalidResponse }
         return value
     }
@@ -120,6 +120,10 @@ struct InitialPhotoAllocationRoleReplyTests {
         #expect(value.entries.count == 6 && Set(value.entries.map(\.objectID)).count == 6)
         #expect(value.entries.map(\.photoOrdinal) == [0, 0, 0, 1, 1, 1])
         #expect(value.entries.map(\.role) == [.source, .ai, .display, .source, .ai, .display])
+        let reserved = try request.allocation.reservingRoleMapping()
+        let enriched = try reserved.enriching(value.receipt, mapping: .init(entries: value.entries))
+        #expect(try reserved.storageCharge == Int64(enriched.encoded().count) + 64)
+        #expect(enriched.roleMapping?.entries.count == 6)
     }
     private static let candidate = #"{"admission":{"client_protocol":3,"expected_processor_permission":"google_gemini","identification_protocol":6},"content_canonical":"{\"contexts\":[{\"text_utf8_base64\":\"IO+7v2EAZcyB8J+mrQo=\"}],\"contract\":\"client_prepared_media_v1\",\"kind\":\"initial_photo\",\"package_id\":\"00000000-0000-4000-8000-000000000002\",\"photos\":[{\"ai\":{\"byte_count\":1,\"declared_content_type\":\"image/jpeg\",\"reference_id\":\"00000000-0000-4000-8000-000000000004\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"display\":{\"byte_count\":1,\"declared_content_type\":\"image/jpeg\",\"reference_id\":\"00000000-0000-4000-8000-000000000005\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"ordinal\":0,\"recipe\":{\"camera_vertical_center_bits\":null,\"crop_display_size_bits\":null,\"format\":\"nativeStillImageV1\",\"is_pro\":false,\"offset_x_bits\":\"8000000000000000\",\"offset_y_bits\":\"0000000000000000\",\"quarter_turns\":0,\"scale_bits\":\"3ff0000000000000\"},\"source\":{\"byte_count\":1,\"declared_content_type\":\"image/jpeg\",\"reference_id\":\"00000000-0000-4000-8000-000000000003\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}],\"resource_profile\":\"P1-L1\",\"scan_id\":\"00000000-0000-4000-8000-000000000001\",\"version\":1}","variant":"client_prepared_photo","version":1}"#
     private static let golden = #"{"version":2,"variant":"client_prepared_photo","authority":"none","scan_id":"00000000-0000-4000-8000-000000000001","package_id":"00000000-0000-4000-8000-000000000002","candidate_digest":"d6386c57a8e3d67c5cb8566fc46dfa59378613ccd0494c85669905df25b2d57a","content_digest":"d75caa6fdc3c9f374149c666cb2bb3b153934bc6dc4040589fa418ee7e41c806","outcome":"allocated","assignment_digest":"eb616665a5a98638d564ef78f6aa08899551c0f09b4284fe36bf4c1afa0f7886","created_at_ms":1793140000000,"expires_at_ms":1793141800000,"role_mapping":[{"photo_ordinal":0,"role":"source","reference_id":"00000000-0000-4000-8000-000000000003","object_id":"00000000-0000-4000-8000-000000000200"},{"photo_ordinal":0,"role":"ai","reference_id":"00000000-0000-4000-8000-000000000004","object_id":"00000000-0000-4000-8000-000000000201"},{"photo_ordinal":0,"role":"display","reference_id":"00000000-0000-4000-8000-000000000005","object_id":"00000000-0000-4000-8000-000000000202"}]}"#

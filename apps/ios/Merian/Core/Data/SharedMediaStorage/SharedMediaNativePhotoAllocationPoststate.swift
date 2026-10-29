@@ -21,11 +21,10 @@ struct SharedMediaNativePhotoAllocationPoststate {
               after.claim.receivedSHA256 == before.resultSHA256 else { throw SharedMediaStorageFailure.conflict }
         if let old = before.allocationData, let sha = before.allocationSHA256 {
             let predecessor = try SharedMediaNativePhotoAllocation.decode(old, sha256: sha)
-            guard predecessor.receipt == nil, let receipt = after.receipt,
-                  try predecessor.settling(receipt) == after else { throw SharedMediaStorageFailure.closed }
+            try predecessor.requireSuccessor(after)
         } else {
             try before.requireNoAllocation()
-            guard after.receipt == nil else { throw SharedMediaStorageFailure.closed }
+            guard after.receipt == nil, after.roleMapping == nil else { throw SharedMediaStorageFailure.closed }
         }
         self.inventory = .init(inventory); rowID = row.persistentModelID; inventoryID = inventory.persistentModelID
         bytes = try after.encoded(); digest = SharedMediaAcquisitionEncoding.digest(bytes)

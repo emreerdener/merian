@@ -1,3 +1,12 @@
+## Native enrichment status — October 29
+
+An explicit inactive native reservation/persistence candidate passed focused
+native qualification: 13 methods / 38 cases. The
+[transition contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#native-allocation-enrichment-inactive-candidate)
+owns its accounting and recovery rules. Ordinary HTTP requests remain v1; older
+notes below describe the projection-only checkpoint. No transfer or execution
+capability is enabled.
+
 # Initial photo allocation
 
 Local candidate only: authenticated photo create/status facade, not deployed,

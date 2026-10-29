@@ -6,9 +6,12 @@ caller statements in the dated checkpoints below. The
 [scan entry point](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md)
 owns current qualification and remaining journey work. The new
 [v2 role projection](../../../../../../docs/backend-and-data/05-api-contracts.md#october-29--versioned-photo-allocation-role-projection-inactive)
-and native decoder do not change this owner's v1 persisted receipts. Monotonic
-enrichment must reserve metadata/revision capacity before request and save;
-transfer, remote closure and admission remain pending.
+and native decoder are joined by an inactive explicit reservation/enrichment
+writer, locally qualified across 13 methods / 38 cases. Ordinary callers retain
+v1. The
+[canonical transition contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#native-allocation-enrichment-inactive-candidate)
+owns byte preservation, metadata/revision accounting and recovery. Authenticated
+v2 request integration, transfer, remote closure and admission remain pending.
 
 ## October 28 — allocation consuming integration candidate
 

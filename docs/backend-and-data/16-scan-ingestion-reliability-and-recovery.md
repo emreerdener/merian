@@ -4,12 +4,12 @@ The
 [v2 allocation contract](05-api-contracts.md#october-29--versioned-photo-allocation-role-projection-inactive)
 adds an ordered, bounded source/AI/display reference-to-object mapping on the
 same authenticated create/status endpoint and an inactive native decoder. This
-is a transfer prerequisite, not a transfer capability. Existing native requests
-and persisted receipts remain v1. Durable monotonic enrichment with
-metadata/revision reservation is next; original candidate, assignment digest and
-both clocks must survive status recovery unchanged. Upload/signing, remote
-closure, verification, admission/execution/result/history and full journey
-acceptance remain open.
+is a transfer prerequisite, not a transfer capability. Ordinary native requests
+and persisted receipts remain v1. An explicit inactive native reservation and
+enrichment candidate is now locally qualified as described below. Original
+candidate, assignment digest and both clocks remain immutable. Upload/signing,
+remote closure, verification, admission/execution/result/history and full
+journey acceptance remain open.
 
 The local coding checkpoint passed the new decoder and existing allocation
 regressions: 20 methods / 46 cases. The broader selected native run accounted
@@ -25,6 +25,56 @@ and `cpm-role-static-evidence01.json`. Native run01 failed test compilation
 passed in run02 (3,227.549 seconds). The stale Core Data version documentation
 and sandbox PTY failures remain retained with their corrective validation. No
 Release, deployed capability or full journey acceptance is claimed.
+
+## Native allocation enrichment (inactive candidate)
+
+`SharedMediaNativePhotoAllocation` retains exact v1 canonical decoding and
+encoding. Explicit reservation changes the envelope to v2 while preserving its
+claim and receipt; reconstructing that predecessor as v1 must reproduce its
+exact bytes. A v2 envelope without `roleMapping` records the reservation. A
+complete mapping requires its matching receipt.
+`SharedMediaNativePhotoRoleMapping` validates three roles per photo in
+source/AI/display order against the frozen candidate and content digests, with
+distinct object identities. A mapping, receipt or candidate can never be
+replaced by a later response.
+
+The existing `SharedMediaNativeAppPhotoAllocationOperations` writer reserves the
+largest canonical successor, including optional field names, mapping, receipt
+clocks and the stored SHA. Its whole-graph metadata, package and physical
+budgets charge only the additional bytes over any legacy allocation reservation.
+The reservation save consumes one inventory revision and reserves two further
+advances for an unresolved v2 claim, one for a v2 receipt awaiting its mapping,
+and zero after enrichment. Other pending packages and terminal consumption
+retain their own runway. Fresh locked predecessor and capacity checks repeat
+immediately before saving the exact two-row allocation/inventory write set;
+submitted bytes and the receiving revision remain unchanged.
+
+`enrichAppPhotoAllocation` is an inactive injected status seam on the retained
+native owner. It first saves and reads back reservation, awaits outside
+coordinator locks while retaining account/store ownership, then rebuilds a fresh
+locked view to atomically save the full mapping. An ambiguous save recovers only
+the exact durable state. Reservation of an existing unresolved claim cannot
+restore create permission. Delayed v1 replies may settle its original receipt
+while preserving v2 and any mapping. Holds and exact replays perform no save or
+cleanup. New fresh allocation reservation is explicit and defaults off. The
+ordinary HTTP adapter still sends v1; no v2 request is authorized by merely
+decoding a version number.
+
+The focused native candidate passed 13 methods / 38 cases, including legacy byte
+preservation, malformed stored mappings, capacity and revision refusal,
+ambiguous reservation recovery, cold mapping recovery, delayed v1 settlement,
+peer accounting and unchanged account/cancellation/write-set regressions. All
+3,053 source/project pins were unchanged; structured runtime warnings were
+empty. Managed run05 took 1,810.998 seconds; the exact receipt is
+`.artifacts/native-app-capture-handoff-20261020/enrichment-native-qualified05.json`.
+Engine cleared the source candidate and final delta. Earlier compile failures
+and the cheap sealed-size preflight failure remain retained; no limit changed.
+This qualifies the inactive writer, not the complete journey or a new Release
+build. The preceding unrelated Auth architecture gate failure remains open.
+Connecting authenticated v2 status/create under the consuming owner is next,
+followed by independently reserved single-role transfer. Neither enrichment nor
+local network termination establishes remote write closure, verification,
+execution or release authority.
 
 ## October 29 — inactive outstanding-write hold candidate
 
@@ -221,11 +271,12 @@ exposes only the complete ordered logical-reference/opaque-object mapping. Its
 [`InitialPhotoAllocationRoleReply`](../../apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRoleReply.swift)
 decoder and
 [`focused native tests`](../../apps/ios/MerianTests/Core/Network/Transport/InitialPhotoAllocationRoleReplyTests.swift)
-are the contributor entry points. Native request/persistence remains v1. Before
-connecting this decoder, implement the explicit reservation/enrichment
-transition; the current settled v1 receipt has no remaining revision allowance.
-Preserve its historical bytes and exact claim, assignment digest and clocks
-through recovery.
+are the contributor entry points. Ordinary native requests remain v1. The
+[inactive reservation/enrichment writer](#native-allocation-enrichment-inactive-candidate)
+is locally qualified; a settled v1 receipt must first reserve its additional
+metadata and revision allowance before v2 transport can consume it. Recovery
+preserves the exact claim, assignment digest, clocks and reconstructed legacy
+canonical bytes.
 
 For a stalled local submission, inspect the exact receiving slot and current
 account/selection fences before retrying local recovery. Never edit Prepared,

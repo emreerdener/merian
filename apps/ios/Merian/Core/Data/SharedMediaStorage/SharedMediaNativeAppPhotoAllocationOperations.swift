@@ -51,35 +51,60 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         }
     }
 
-    func claim(_ prepared: SharedMediaNativeReceivingIntent.Prepared, attemptID: UUID, beforeClaimSave: () throws -> Void = {}) throws -> SharedMediaNativePhotoAllocationDispatch {
+    func claim(_ prepared: SharedMediaNativeReceivingIntent.Prepared, attemptID: UUID, reserveRoleMapping: Bool = false, beforeClaimSave: () throws -> Void = {}) throws -> SharedMediaNativePhotoAllocationDispatch {
         if let saved = try saved(prepared) { return .init(allocation: saved, create: false) }
         let context = fresh(), inventory = try inventory(context)
         let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)
         guard case .generic(let value) = witnesses[prepared.package.id],
               case .received(let p, let received, _) = value.slot, try p.encoded() == prepared.encoded() else { throw SharedMediaStorageFailure.stale }
-        let allocation = Allocation(claim: try .init(prepared: p, received: received, attemptID: attemptID))
-        let charge = try allocation.storageCharge
-        let budget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: context,
-            inventory: inventory, ownerID: authority.profile.ownerID, format: .appV2)
-        guard let old = budget.metadataByPackage[p.package.id],
-              try PhotoPreparationPolicy.add([old, charge]) <= PhotoPreparationPolicy.metadata else {
-            throw SharedMediaStorageFailure.capacity
-        }
-        let packageID = p.package.id
-        let package = try SharedMediaNativePairPlanGraph.one(context,
-            FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == packageID }))
-        guard try PhotoPreparationPolicy.add([package.allocatedByteCount, old, charge]) <= PhotoPreparationPolicy.package else {
-            throw SharedMediaStorageFailure.capacity
-        }
-        var totals = budget.totals
-        try totals.includePhotoPhysical(materialized: 0, reserved: charge)
-        try totals.checkAvailable(availableBytes())
-        let terminal = try SharedMediaNativeTerminalScan.read(container: container, inventoryID: inventory.id).consumptionAdvances
-        let remaining = try PhotoPreparationPolicy.add([2, terminal] + witnesses.values.map { try $0.remainingAdvances })
-        _ = try SharedMediaStoragePolicy.add(inventory.revision, remaining)
+        let legacy = Allocation(claim: try .init(prepared: p, received: received, attemptID: attemptID))
+        let allocation = try reserveRoleMapping ? legacy.reservingRoleMapping() : legacy
+        try requireReservation(allocation, replacing: nil, context: context, inventory: inventory, witnesses: witnesses)
         let acknowledged = try persist(allocation, prepared: prepared, context: context, inventory: inventory, beforeSave: beforeClaimSave)
         // Exact readback of an uncertain acknowledgement deliberately mints no create authority.
         return .init(allocation: allocation, create: acknowledged)
+    }
+
+    /// Upgrade an existing claim only. Even an unresolved legacy claim can never
+    /// regain create authority through reservation or acknowledgement recovery.
+    func reserveRoles(_ prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> Allocation {
+        guard let current = try saved(prepared) else { throw SharedMediaStorageFailure.closed }
+        let after = try current.reservingRoleMapping()
+        guard after != current else { return current }
+        let context = fresh(), inventory = try inventory(context)
+        let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)
+        guard case .allocating(let snapshot) = witnesses[prepared.package.id], snapshot.allocation == current else {
+            throw SharedMediaStorageFailure.stale
+        }
+        try requireReservation(after, replacing: current, context: context, inventory: inventory, witnesses: witnesses)
+        _ = try persist(after, prepared: prepared, context: context, inventory: inventory)
+        return after
+    }
+
+    private func requireReservation(_ allocation: Allocation, replacing oldAllocation: Allocation?,
+        context: ModelContext, inventory: SharedMediaInventoryRecord,
+        witnesses: [UUID: SharedMediaNativeReceivingCleanGraph.Witness]) throws {
+        let charge = try allocation.storageCharge, oldCharge = try oldAllocation?.storageCharge ?? 0
+        guard charge >= oldCharge else { throw SharedMediaStorageFailure.conflict }
+        let packageID = allocation.claim.packageID
+        let budget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: context,
+            inventory: inventory, ownerID: authority.profile.ownerID, format: .appV2)
+        guard let old = budget.metadataByPackage[packageID], old >= oldCharge,
+              try PhotoPreparationPolicy.add([old - oldCharge, charge]) <= PhotoPreparationPolicy.metadata else {
+            throw SharedMediaStorageFailure.capacity
+        }
+        let package = try SharedMediaNativePairPlanGraph.one(context,
+            FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == packageID }))
+        guard try PhotoPreparationPolicy.add([package.allocatedByteCount, old - oldCharge, charge]) <= PhotoPreparationPolicy.package else {
+            throw SharedMediaStorageFailure.capacity
+        }
+        var totals = budget.totals
+        try totals.includePhotoPhysical(materialized: 0, reserved: charge - oldCharge)
+        try totals.checkAvailable(availableBytes())
+        let terminal = try SharedMediaNativeTerminalScan.read(container: container, inventoryID: inventory.id).consumptionAdvances
+        let peers = witnesses.filter { $0.key != packageID }.values
+        let remaining = try PhotoPreparationPolicy.add([1, allocation.remainingAdvances, terminal] + peers.map { try $0.remainingAdvances })
+        _ = try SharedMediaStoragePolicy.add(inventory.revision, remaining)
     }
 
     func settle(_ reply: InitialPhotoAllocationReply, request: Allocation,
@@ -103,6 +128,27 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         }
     }
 
+    /// Persist the complete mapping atomically, only against a durably reserved
+    /// request. Holds and exact replays do not save or release any liability.
+    func enrich(_ reply: InitialPhotoAllocationRoleReply, request: Allocation,
+                prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> Allocation {
+        guard request.version == 2, let current = try saved(prepared), current.version == 2,
+              current.claim == request.claim else { throw SharedMediaStorageFailure.stale }
+        if let receipt = request.receipt, receipt != current.receipt { throw SharedMediaStorageFailure.conflict }
+        if let mapping = request.roleMapping, mapping != current.roleMapping { throw SharedMediaStorageFailure.conflict }
+        guard case .allocated(let projection) = reply else { return current }
+        let after = try current.enriching(projection.receipt, mapping: .init(entries: projection.entries))
+        guard after != current else { return current }
+        let context = fresh(), inventory = try inventory(context)
+        guard let row = try SharedMediaNativeReceivingPhaseGraph.row(prepared.package.id, in: context),
+              try Snapshot.read(.init(row), inventory: inventory, context: context).allocation == current else {
+            throw SharedMediaStorageFailure.stale
+        }
+        guard try after.storageCharge <= current.storageCharge else { throw SharedMediaStorageFailure.capacity }
+        _ = try persist(after, prepared: prepared, context: context, inventory: inventory)
+        return after
+    }
+
     /// Returns true only for a successful save acknowledgement and exact fresh
     /// readback. Any ambiguity permanently spends this operation's create right.
     private func persist(_ allocation: Allocation, prepared: SharedMediaNativeReceivingIntent.Prepared,
@@ -124,7 +170,15 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
             }
             try seal.requirePredecessor(row: currentRow, inventory: currentInventory)
             // Recheck whole pending runway immediately before save, without an await.
-            _ = try SharedMediaNativeReceivingCleanGraph.pending(check, inventory: currentInventory)
+            let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(check, inventory: currentInventory)
+            let predecessor: Allocation?
+            if let data = currentRow.allocationData, let sha = currentRow.allocationSHA256 {
+                predecessor = try Allocation.decode(data, sha256: sha)
+            } else { predecessor = nil }
+            if predecessor == nil || predecessor?.version != allocation.version {
+                try requireReservation(allocation, replacing: predecessor, context: check,
+                    inventory: currentInventory, witnesses: witnesses)
+            }
             try seal.validate(context, row: row, inventory: inventory); try validate()
             try beforeSave()
             consumed = true

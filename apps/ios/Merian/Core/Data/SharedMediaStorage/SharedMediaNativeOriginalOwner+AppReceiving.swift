@@ -90,7 +90,7 @@ extension SharedMediaNativeOriginalOwner {
     /// Only coordinator locks are released during bounded network requests.
     func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
         storage: SharedMediaNativeStorageRepository, grant: SharedMediaNativeAppDispatchGrant,
-        releaseStage: SharedMediaNativeReleaseStageSettlement,
+        releaseStage: SharedMediaNativeReleaseStageSettlement, reserveRoleMapping: Bool = false,
         authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
         send: @escaping SharedMediaNativePhotoAllocationAccess.Send) async throws -> SharedMediaNativePhotoAllocation {
         let saved = try await withReceivingLocks(queueID: prepared.queueID.uuidString,
@@ -116,7 +116,7 @@ extension SharedMediaNativeOriginalOwner {
                 operation = try await storage.appPhotoAllocation(grant: grant, lock: lock)
             }
             try grant.validate(); try lock.validate()
-            return try operation.claim(prepared, attemptID: UUID(), beforeClaimSave: {
+            return try operation.claim(prepared, attemptID: UUID(), reserveRoleMapping: reserveRoleMapping, beforeClaimSave: {
                 guard let authorization else { throw SharedMediaStorageFailure.stale }
                 try authorization.validate()
             })
@@ -133,6 +133,28 @@ extension SharedMediaNativeOriginalOwner {
             let operation = try await storage.appPhotoAllocation(grant: grant, lock: lock)
             try grant.validate(); try lock.validate()
             return try operation.settle(reply, request: request.allocation, prepared: prepared)
+        }
+    }
+    /// Inactive metadata-only enrichment seam. The retained owner survives the
+    /// await; fresh coordinator locks protect each durable transition. There is
+    /// no v2 HTTP adapter or create permission at this seam.
+    func enrichAppPhotoAllocation(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+        storage: SharedMediaNativeStorageRepository, grant: SharedMediaNativeAppDispatchGrant,
+        send: @escaping SharedMediaNativePhotoEnrichmentAccess.Send) async throws -> SharedMediaNativePhotoAllocation {
+        let reserved = try await withReceivingLocks(queueID: prepared.queueID.uuidString,
+            observationID: prepared.observationID.uuidString) { lock in
+            let operation = try await storage.appPhotoAllocation(grant: grant, lock: lock)
+            try grant.validate(); try lock.validate()
+            return try operation.reserveRoles(prepared)
+        }
+        try grant.validate()
+        let reply = try await send(reserved, { try grant.validate() })
+        try grant.validate()
+        return try await withReceivingLocks(queueID: prepared.queueID.uuidString,
+            observationID: prepared.observationID.uuidString) { lock in
+            let operation = try await storage.appPhotoAllocation(grant: grant, lock: lock)
+            try grant.validate(); try lock.validate()
+            return try operation.enrich(reply, request: reserved, prepared: prepared)
         }
     }
     func abandonAppReceiving(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeReceivingIntent.Abandoned {
@@ -336,4 +358,10 @@ extension SharedMediaNativeOriginalOwner {
             }
         }
     }
+}
+
+/// Inactive injected status seam; no transport or dispatch token is supplied by
+/// decoding a v2 allocation. Only the retained owner calls this after readback.
+enum SharedMediaNativePhotoEnrichmentAccess {
+    typealias Send = @MainActor (SharedMediaNativePhotoAllocation, @escaping @MainActor () throws -> Void) async throws -> InitialPhotoAllocationRoleReply
 }

@@ -349,7 +349,7 @@ final class SharedMediaNativeStorageRepository {
     }
     func appPhotoAllocation(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant) async throws -> SharedMediaNativeAppPhotoAllocationOperations {
         let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try lock.validate(); try self.requireApp(grant); return try self.appHeader() }
-        return try await .audited(container: container, authority: authority, availableBytes: { try self.files.availableBytes() }, boundary: metadataBoundary)
+        return try await .audited(container: container, authority: authority, availableBytes: { try grant.limitingAllocationAvailableBytes(self.files.availableBytes()) }, boundary: metadataBoundary)
     }
     func appReleaseStage(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant,
                          settlement: SharedMediaNativeReleaseStageSettlement) async throws -> SharedMediaNativeAppReleaseStageOperations {

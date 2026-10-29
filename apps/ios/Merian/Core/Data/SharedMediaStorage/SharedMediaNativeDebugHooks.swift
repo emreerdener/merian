@@ -86,3 +86,15 @@ final class SharedMediaNativeDebugHooks {
 enum SharedMediaNativeInitializationBoundary: Sendable {
     case afterPhotoBinding, afterInboxBinding, afterAuthorityBinding, beforeSave, afterSave
 }
+
+@MainActor
+extension SharedMediaNativeAppDispatchGrant {
+    /// Test-only capacity clamp supplied through the already registered grant.
+    /// Release builds return real availability without an override or extra authority.
+    func limitingAllocationAvailableBytes(_ actual: Int64) -> Int64 {
+        #if DEBUG
+        if let limit = debug.metadataAvailableBytes { return min(actual, limit) }
+        #endif
+        return actual
+    }
+}
