@@ -23,8 +23,7 @@ struct PinnedNetworkTaskTerminationTests {
         switch await call.result {
         case .success: Issue.record("A hanging request unexpectedly succeeded")
         case .failure(let error):
-            if timeout { #expect((error as? URLError)?.code == .timedOut) }
-            else { #expect(error is CancellationError) }
+            if timeout { #expect((error as? URLError)?.code == .timedOut) } else { #expect(error is CancellationError) }
         }
         #expect(start.duration(to: .now) < .seconds(1))
         try await waitUntil { pause.entered }
@@ -145,4 +144,202 @@ private final class TerminationHangingProtocol: URLProtocol {
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {}
     override func stopLoading() {}
+}
+
+@Suite("Pinned photo upload local task termination", .serialized)
+struct PinnedPhotoUploadTaskTests {
+    private func request() -> URLRequest {
+        var request = URLRequest(url: URL(string: "https://example.supabase.co/photo-upload")!)
+        request.httpMethod = "PUT"
+        return request
+    }
+    private func file() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data([1, 2, 3]).write(to: url)
+        return url
+    }
+    private func hangingSession() -> URLSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [TerminationHangingProtocol.self]
+        return URLSession(configuration: config)
+    }
+    private func waitUntil(_ predicate: () async -> Bool) async throws {
+        let end = ContinuousClock.now + .seconds(3)
+        while !(await predicate()) {
+            guard ContinuousClock.now < end else { throw URLError(.timedOut) }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func cancelledOrTimedOutFilePUTStillRequiresCompletion(timeout: Bool) async throws {
+        let pause = CompletionPause(), session = hangingSession(), file = try file()
+        let state = PinnedPhotoUploadTask(session: session, completionPause: { pause.wait() })
+        defer { pause.release(); session.invalidateAndCancel(); try? FileManager.default.removeItem(at: file) }
+        let call = Task { try await state.response(for: request(), fromFile: file, timeout: timeout ? 0.2 : 10) }
+        try await waitUntil { !(await session.allTasks).isEmpty }
+        let tasks = await session.allTasks
+        #expect(tasks.count == 1 && tasks.first is URLSessionUploadTask)
+        if !timeout { call.cancel() }
+        let start = ContinuousClock.now
+        switch await call.result {
+        case .success: Issue.record("Hanging upload succeeded")
+        case .failure(let error):
+            if timeout { #expect((error as? URLError)?.code == .timedOut) } else { #expect(error is CancellationError) }
+        }
+        #expect(start.duration(to: .now) < .seconds(1))
+        try await waitUntil { pause.entered }
+        await #expect(throws: (any Error).self) {
+            try await state.response(for: request(), fromFile: file, timeout: 1)
+        }
+        let joined = OSAllocatedUnfairLock(initialState: 0)
+        let joins = (0..<3).map { _ in Task {
+            await state.waitForLocalTermination(); joined.withLock { $0 += 1 }
+        } }
+        joins[0].cancel()
+        try await Task.sleep(for: .milliseconds(30))
+        #expect(joined.withLock { $0 } == 0)
+        #expect(try Data(contentsOf: file) == Data([1, 2, 3]))
+        pause.release()
+        for join in joins { await join.value }
+        #expect(joined.withLock { $0 } == 3)
+        await state.waitForLocalTermination()
+    }
+
+    @Test(arguments: ["cancel", "timeout", "ceiling", "remoteFile", "body", "method"])
+    func rejectedStartCreatesNoTask(reason: String) async throws {
+        let session = hangingSession()
+        let upload = PinnedPhotoUploadTask(session: session), file = try file(), gate = StartGate()
+        defer { session.invalidateAndCancel(); try? FileManager.default.removeItem(at: file) }
+        var input = request()
+        if reason == "body" { input.httpBody = Data([9]) }
+        if reason == "method" { input.httpMethod = "POST" }
+        let captured = input
+        let call = Task {
+            await gate.wait()
+            return try await upload.response(for: captured,
+                fromFile: reason == "remoteFile" ? URL(string: "https://example.invalid/file")! : file,
+                timeout: reason == "timeout" ? 0 : reason == "ceiling" ? 301 : 1)
+        }
+        if reason == "cancel" { call.cancel() }
+        await gate.open()
+        if case .success = await call.result { Issue.record("Rejected upload started") }
+        await upload.waitForLocalTermination()
+        #expect(await session.allTasks.isEmpty)
+    }
+
+    @Test(arguments: [200, 201, 500])
+    func actualUploadReturnsStatusWithoutInferringRemoteClosure(status: Int) async throws {
+        let mock = ScopedMockTransport(), session = mock.makeSession(), file = try file()
+        let transport = PinnedNetworkTransport(); transport.overridingSession = session
+        let upload = transport.photoUploadTask()
+        defer { session.invalidateAndCancel(); try? FileManager.default.removeItem(at: file) }
+        mock.register(path: "/photo-upload") { request in
+            #expect(request.httpMethod == "PUT")
+            return (HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!, Data([7]))
+        }
+        let response = try await upload.response(for: request(), fromFile: file, timeout: 1)
+        #expect(response.statusCode == status)
+        await upload.waitForLocalTermination()
+        await #expect(throws: (any Error).self) { try await upload.response(for: request(), fromFile: file, timeout: 1) }
+        await upload.waitForLocalTermination()
+    }
+
+    @Test(arguments: [false, true])
+    func responseOverflowIsRejectedBeforeDrain(advertised: Bool) async throws {
+        let mock = ScopedMockTransport(), session = mock.makeSession(), file = try file(), pause = CompletionPause()
+        let upload = PinnedPhotoUploadTask(session: session, completionPause: { pause.wait() })
+        defer { pause.release(); session.invalidateAndCancel(); try? FileManager.default.removeItem(at: file) }
+        mock.register(path: "/photo-upload") { request in
+            (HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil,
+                headerFields: advertised ? ["Content-Length": "4097"] : nil)!, Data(repeating: 1, count: 4097))
+        }
+        await #expect(throws: (any Error).self) { try await upload.response(for: request(), fromFile: file, timeout: 1) }
+        try await waitUntil { pause.entered }
+        let joined = OSAllocatedUnfairLock(initialState: false)
+        let join = Task { await upload.waitForLocalTermination(); joined.withLock { $0 = true } }
+        try await Task.sleep(for: .milliseconds(30))
+        #expect(!joined.withLock { $0 })
+        pause.release(); await join.value
+        #expect(joined.withLock { $0 })
+    }
+
+    @Test func redirectCannotResendFileAndStillJoinsCompletion() async throws {
+        let session = hangingSession(), file = try file(), pause = CompletionPause()
+        let upload = PinnedPhotoUploadTask(session: session, completionPause: { pause.wait() })
+        defer { pause.release(); session.invalidateAndCancel(); try? FileManager.default.removeItem(at: file) }
+        let call = Task { try await upload.response(for: request(), fromFile: file, timeout: 10) }
+        try await waitUntil { !(await session.allTasks).isEmpty }
+        let task = try #require(await session.allTasks.first)
+        let response = HTTPURLResponse(url: request().url!, statusCode: 307, httpVersion: nil, headerFields: nil)!
+        upload.urlSession(session, task: task, willPerformHTTPRedirection: response, newRequest: request()) { redirected in
+            #expect(redirected == nil)
+        }
+        if case .success = await call.result { Issue.record("Redirect accepted") }
+        try await waitUntil { pause.entered }
+        pause.release(); await upload.waitForLocalTermination()
+    }
+
+    @Test(arguments: [NSURLAuthenticationMethodHTTPBasic, NSURLAuthenticationMethodHTTPDigest,
+                      NSURLAuthenticationMethodClientCertificate])
+    func nonTLSChallengeRejectsCredentialsButStillWaitsForCompletion(method: String) async throws {
+        let session = hangingSession(), file = try file(), pause = CompletionPause()
+        let upload = PinnedPhotoUploadTask(session: session, completionPause: { pause.wait() })
+        defer { pause.release(); session.invalidateAndCancel(); try? FileManager.default.removeItem(at: file) }
+        let call = Task { try await upload.response(for: request(), fromFile: file, timeout: 10) }
+        try await waitUntil { !(await session.allTasks).isEmpty }
+        let task = try #require(await session.allTasks.first)
+        upload.urlSession(session, task: task, didReceive: challenge(method)) { disposition, credential in
+            #expect(disposition == .cancelAuthenticationChallenge && credential == nil)
+        }
+        switch await call.result {
+        case .success: Issue.record("Credential challenge accepted")
+        case .failure(let error): #expect((error as? URLError)?.code == .userAuthenticationRequired)
+        }
+        try await waitUntil { pause.entered }
+        let done = OSAllocatedUnfairLock(initialState: false)
+        let join = Task { await upload.waitForLocalTermination(); done.withLock { $0 = true } }
+        join.cancel()
+        try await Task.sleep(for: .milliseconds(30)); #expect(!done.withLock { $0 })
+        pause.release(); await join.value; #expect(done.withLock { $0 })
+    }
+
+    @Test func serverTrustUsesExistingDebugTLSPolicy() async throws {
+        let session = hangingSession(), file = try file()
+        let state = PinnedPhotoUploadTask(session: session)
+        defer { session.invalidateAndCancel(); try? FileManager.default.removeItem(at: file) }
+        let call = Task { try await state.response(for: request(), fromFile: file, timeout: 10) }
+        try await waitUntil { !(await session.allTasks).isEmpty }
+        let task = try #require(await session.allTasks.first)
+        state.urlSession(session, task: task, didReceive: challenge(NSURLAuthenticationMethodServerTrust)) { disposition, credential in
+            #expect(disposition == .performDefaultHandling && credential == nil)
+        }
+        call.cancel(); _ = await call.result; await state.waitForLocalTermination()
+    }
+
+    private func challenge(_ method: String) -> URLAuthenticationChallenge {
+        let space = URLProtectionSpace(host: "example.supabase.co", port: 443, protocol: "https", realm: nil,
+            authenticationMethod: method)
+        return URLAuthenticationChallenge(protectionSpace: space, proposedCredential: nil, previousFailureCount: 0,
+            failureResponse: nil, error: nil, sender: UploadChallengeSender())
+    }
+
+    @Test func taskRetainsOwnerUntilCallbackAfterCallerDropsHandle() async throws {
+        let session = hangingSession(), file = try file(), pause = CompletionPause()
+        var upload: PinnedPhotoUploadTask? = .init(session: session, completionPause: { pause.wait() })
+        weak var weakUpload = upload
+        defer { pause.release(); session.invalidateAndCancel(); try? FileManager.default.removeItem(at: file) }
+        let call = Task { [upload = upload!] in try await upload.response(for: request(), fromFile: file, timeout: 0.03) }
+        _ = await call.result
+        try await waitUntil { pause.entered }
+        upload = nil; #expect(weakUpload != nil)
+        pause.release()
+        try await waitUntil { weakUpload == nil }
+    }
+}
+
+private final class UploadChallengeSender: NSObject, URLAuthenticationChallengeSender {
+    func use(_ credential: URLCredential, for challenge: URLAuthenticationChallenge) {}
+    func continueWithoutCredential(for challenge: URLAuthenticationChallenge) {}
+    func cancel(_ challenge: URLAuthenticationChallenge) {}
 }

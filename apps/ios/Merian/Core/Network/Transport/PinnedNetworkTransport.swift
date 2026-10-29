@@ -183,6 +183,10 @@ final class PinnedNetworkTransport: @unchecked Sendable {
         try await activeSession.upload(for: request, fromFile: fileURL)
     }
 
+    /// Inactive CPM transport prerequisite. The media owner must retain this
+    /// handle and join its local termination before releasing a file or lease.
+    func photoUploadTask() -> PinnedPhotoUploadTask { .init(session: activeSession) }
+
     private var activeSession: URLSession {
         withSessionLock {
             #if DEBUG
@@ -398,6 +402,147 @@ final class PinnedBoundedJSONDataTask: NSObject, URLSessionDataDelegate, Sendabl
                 result = .success((value.data, response))
             } else { result = .failure(MerianError.invalidResponse) }
             defer { value.continuation = nil; value.task = nil; value.response = nil; value.data = Data() }
+            return Completion(continuation: value.continuation, task: value.task, result: result)
+        }
+        guard let pending else { return }
+        if error != nil { pending.task?.cancel() }
+        pending.continuation?.resume(with: pending.result)
+    }
+}
+
+/// One file PUT, a bounded response wait, and an independently joined task lifetime.
+/// No ticket validation, retry, remote closure or staging-copy proof is implied.
+/// The caller must own the file until waitForLocalTermination() completes.
+final class PinnedPhotoUploadTask: NSObject, URLSessionDataDelegate, Sendable {
+    private typealias Reply = HTTPURLResponse
+    private struct State {
+        var started = false, callerFinished = false, terminated = false
+        var continuation: CheckedContinuation<Reply, Error>?
+        var task: URLSessionUploadTask?
+        var response: HTTPURLResponse?
+        var receivedBytes = 0
+        var waiters: [CheckedContinuation<Void, Never>] = []
+    }
+    private struct Completion {
+        let continuation: CheckedContinuation<Reply, Error>?
+        let task: URLSessionUploadTask?
+        let result: Result<Reply, Error>
+    }
+    private let state = OSAllocatedUnfairLock(initialState: State())
+    private let session: URLSession
+    private let tlsDelegate = MerianTLSDelegate()
+    private static let deadlineQueue = DispatchQueue(label: "com.merian.photo-upload-deadline")
+    private static let responseLimit = 4096
+    #if DEBUG
+    private let completionPause: (@Sendable () -> Void)?
+    init(session: URLSession, completionPause: (@Sendable () -> Void)? = nil) {
+        self.session = session; self.completionPause = completionPause; super.init()
+    }
+    #else
+    init(session: URLSession) { self.session = session; super.init() }
+    #endif
+
+    func response(for request: URLRequest, fromFile file: URL, timeout: TimeInterval) async throws -> HTTPURLResponse {
+        guard state.withLock({ value in
+            guard !value.started else { return false }; value.started = true; return true
+        }) else { throw URLError(.badURL) }
+        defer { resolveNoTask() }
+        guard timeout.isFinite, timeout > 0, timeout <= 300 else { throw URLError(.timedOut) }
+        guard file.isFileURL, request.httpMethod == "PUT", request.httpBody == nil, request.httpBodyStream == nil,
+              let url = request.url, url.scheme?.lowercased() == "https", url.host != nil,
+              url.user == nil, url.password == nil, url.fragment == nil else { throw URLError(.badURL) }
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                // Task creation/registration is atomic with cancellation. Even
+                // a cancelled suspended task remains retained until its callback.
+                let task = state.withLock { value -> URLSessionUploadTask? in
+                    guard !value.callerFinished else { return nil }
+                    let task = session.uploadTask(with: request, fromFile: file)
+                    task.delegate = self; value.task = task; value.continuation = continuation
+                    return task
+                }
+                guard let task else { continuation.resume(throwing: CancellationError()); return }
+                task.resume()
+                Self.deadlineQueue.asyncAfter(deadline: .now() + timeout) { [weak self] in
+                    self?.finish(error: URLError(.timedOut))
+                }
+            }
+        } onCancel: { self.finish(error: CancellationError()) }
+    }
+
+    /// Cancellation of the joiner never manufactures a drain acknowledgement.
+    /// Call after response has started, including after it throws.
+    func waitForLocalTermination() async {
+        await withCheckedContinuation { continuation in
+            let done = state.withLock { value in
+                if value.terminated { return true }; value.waiters.append(continuation); return false
+            }
+            if done { continuation.resume() }
+        }
+    }
+    private func resolveNoTask() {
+        let waiters = state.withLock { value -> [CheckedContinuation<Void, Never>] in
+            guard value.task == nil, !value.terminated else { return [] }
+            value.terminated = true; defer { value.waiters.removeAll() }; return value.waiters
+        }
+        waiters.forEach { $0.resume() }
+    }
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
+                    completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        guard let response = response as? HTTPURLResponse,
+              response.expectedContentLength <= Int64(Self.responseLimit) else {
+            finish(error: URLError(.dataLengthExceedsMaximum)); completionHandler(.cancel); return
+        }
+        let accepted = state.withLock { value in
+            guard !value.callerFinished else { return false }; value.response = response; return true
+        }
+        completionHandler(accepted ? .allow : .cancel)
+    }
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        let overflow = state.withLock { value in
+            guard !value.callerFinished else { return false }
+            guard data.count <= Self.responseLimit - value.receivedBytes else { return true }
+            value.receivedBytes += data.count; return false
+        }
+        // Count and discard; never accumulate arbitrary storage error bodies.
+        if overflow { finish(error: URLError(.dataLengthExceedsMaximum)) }
+    }
+    func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        // A presigned request must never negotiate another credential or let
+        // Foundation resend the body to answer an authentication challenge.
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust else {
+            finish(error: URLError(.userAuthenticationRequired))
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+        tlsDelegate.urlSession(session, didReceive: challenge, completionHandler: completionHandler)
+    }
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        finish(error: URLError(.redirectToNonExistentLocation)); completionHandler(nil)
+    }
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        #if DEBUG
+        completionPause?()
+        #endif
+        finish(error: error)
+        let waiters = state.withLock { value in
+            value.terminated = true; value.task = nil; value.response = nil
+            defer { value.waiters.removeAll() }; return value.waiters
+        }
+        waiters.forEach { $0.resume() }
+    }
+    private func finish(error: Error?) {
+        let pending = state.withLock { value -> Completion? in
+            guard !value.callerFinished else { return nil }
+            value.callerFinished = true
+            let result: Result<Reply, Error>
+            if let error { result = .failure(error) } else if let response = value.response {
+                result = .success(response)
+            } else { result = .failure(URLError(.badServerResponse)) }
+            defer { value.continuation = nil }
             return Completion(continuation: value.continuation, task: value.task, result: result)
         }
         guard let pending else { return }

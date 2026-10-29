@@ -1,3 +1,17 @@
+## File upload task lifetime candidate — October 29
+
+`PinnedNetworkTransport.photoUploadTask()` creates a single-use file PUT owner
+on the existing pinned session. `PinnedPhotoUploadTask` keeps prompt caller
+cancellation separate from URLSession completion; a cancelled join still waits
+for completion. Response bodies are counted and discarded under a 4 KiB ceiling,
+and redirects and non-TLS authentication challenges are refused. The repaired
+upload suite passed eight methods / 19 cases; combined applicable evidence is 26
+methods / 39 cases with unchanged transport and architecture checks reused.
+Engine cleared the repair. The
+[scan guide](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--file-upload-task-lifetime-candidate)
+owns the exact scope and remaining integration. This does not install a CPM
+caller or prove ticket validity, physical staging bounds or remote closure.
+
 ## October 29 — native v2 transport candidate
 
 The inactive native owner and authenticated adapter now support explicitly

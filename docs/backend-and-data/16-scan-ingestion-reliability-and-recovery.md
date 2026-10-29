@@ -1,3 +1,48 @@
+## October 29 — file upload task lifetime candidate
+
+The existing pinned transport now has an inactive `photoUploadTask()` entry that
+creates one concrete `URLSessionUploadTask` from an owner-supplied file.
+`PinnedPhotoUploadTask`, colocated with the session and TLS owners, permits one
+upload task per handle and enforces a positive deadline of at most five minutes.
+The shared session's existing 90-second resource ceiling also applies; the
+argument does not extend it. Only server-trust authentication challenges reach
+the existing TLS handler. Other challenges fail without credentials, while
+retaining the task until completion. The task refuses redirects, bounds response
+collection to 4,096 bytes and discards body chunks. HTTP status is returned
+without treating any status as positive remote closure. Ordinary request and
+legacy upload cancellation behavior is unchanged.
+
+Cancellation, deadline and response rejection end the caller's await promptly.
+The task and delegate remain retained until `didCompleteWithError` acknowledges
+termination; `waitForLocalTermination()` joins that callback even if the joiner
+is cancelled. Rejection before task creation resolves the no-task lifetime. A
+second call cannot dispatch or manufacture termination of a previous task. The
+caller must retain the source file and media lease through this join.
+
+The first candidate passed 24 methods / 35 cases. Engine review then required
+explicit rejection of non-TLS authentication challenges. The repaired upload
+suite passed eight methods / 19 cases, with all 3,061 native input hashes
+unchanged and no runtime warnings. Engine cleared the repair; final test-only
+whitespace cleanup did not change production behavior. The combined applicable
+coverage is 26 methods / 39 cases, reusing the unchanged ordinary transport and
+architecture checks from the first run. Complete iOS tooling, preflight counter
+parity, final scoped preflight and focused lint passed. Earlier sandbox/cache
+access failures and lint warnings remain retained. Evidence:
+`.artifacts/native-app-capture-handoff-20261020/photo-upload-task-checkpoint01.json`.
+No new Release or complete journey qualification is claimed. Redirect and
+challenge tests invoke delegate callbacks directly; they do not prove a real
+redirect or authentication exchange.
+
+This is a locally qualified transport prerequisite. It is not the closed CPM
+consuming adapter: the private issuer result has no public/native contract yet.
+The V3 allocation sidecar remains byte-identical, reserved and not started. A
+future closed ticket/status contract must precede its durable remote attempt
+binding and fresh-acknowledgement dispatch transition. Owner-private payload
+staging, maximum-original copy/memory measurement, account/deletion drain
+integration and positive remote closure remain required. No credentials, route,
+upload caller or feature activation is installed. Synthetic URLProtocol coverage
+cannot qualify hosted storage behavior or real file staging.
+
 ## October 29 — dormant concrete upload issuer candidate
 
 `cpmPhotoUploadIssuer.ts:issueInitialCpmPhotoUpload` now joins the fresh-only
