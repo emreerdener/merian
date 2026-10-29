@@ -170,6 +170,7 @@
 		0ED9A99A946016D8C133B0E3 /* SharedMediaNativePhotoCandidate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A3FFEB82E07BE799C554DAE /* SharedMediaNativePhotoCandidate.swift */; };
 		0EEC9E2C4EFBBE57F01EC994 /* PhotoPreparationNativeNamespaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F3E78CF1D9806F73035E10D /* PhotoPreparationNativeNamespaceTests.swift */; };
 		0EFB158AE01A141B6AA65C66 /* AuthSessionBootstrapLiveService+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADEEB156BB1D60A567ADF2B5 /* AuthSessionBootstrapLiveService+Live.swift */; };
+		0F402AFA02B93145CB7D3A66 /* SharedMediaNativePhotoTransferReservationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 826F8CA8F064841579F7321D /* SharedMediaNativePhotoTransferReservationTests.swift */; };
 		0F57A7E07CACDD2A3790F127 /* CaptureWorkspaceOperationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FBA6FCB74AD7599E0155595 /* CaptureWorkspaceOperationState.swift */; };
 		0F72444B0699956EE3FDB2DB /* NativePageCarousel+Coordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D109CC56959ABCEE7058D7DD /* NativePageCarousel+Coordinator.swift */; };
 		0FAF6E1D204CCA6564AEA543 /* PrivateScanMapViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 053BD7530CE250DA49F8607E /* PrivateScanMapViewModel.swift */; };
@@ -418,6 +419,7 @@
 		232BB15FE01C0E032E8FB96D /* FieldChatEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 154F942EFE1106AA95C9C9CA /* FieldChatEmptyState.swift */; };
 		2341838B3D2B7A2D9FFCF855 /* ObservationVideoUploadLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F99E41281D892C34E4CB4F72 /* ObservationVideoUploadLifecycle.swift */; };
 		236D1C199B7EB0A5147EC9B2 /* ObservationConfirmationUndoEligibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F1762423DEF7735780FCB3 /* ObservationConfirmationUndoEligibilityTests.swift */; };
+		236E3F0A80A0C836976B5DBD /* SharedMediaNativePhotoTransferReservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72FBA65E83D7824EA6562A6 /* SharedMediaNativePhotoTransferReservation.swift */; };
 		236EBF56FD1B2658DC508572 /* MediaStorageEndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F38AAD22086B52BEADCF37FB /* MediaStorageEndpointTests.swift */; };
 		238A52F2234E886A252C3BAF /* ObservationHistoryEnrollmentIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FEDB019CC2E131E046E35B /* ObservationHistoryEnrollmentIntent.swift */; };
 		23942A1AF25D6D0A77A299F4 /* MainOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBDC717366E4642F53B31CEE /* MainOverlayView.swift */; };
@@ -4732,6 +4734,7 @@
 		82437625885E78FCBAF22C46 /* AccountDeletionBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDeletionBoundaryTests.swift; sourceTree = "<group>"; };
 		824631B62756059124E86CC5 /* CaptureScanTemporaryFileLeaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureScanTemporaryFileLeaseTests.swift; sourceTree = "<group>"; };
 		8261E6BACE5D327737FF9D28 /* CaptureWorkspaceViewModel+VideoCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CaptureWorkspaceViewModel+VideoCapture.swift"; sourceTree = "<group>"; };
+		826F8CA8F064841579F7321D /* SharedMediaNativePhotoTransferReservationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativePhotoTransferReservationTests.swift; sourceTree = "<group>"; };
 		8290974CB46488B1FAFB73D2 /* OfflineQueueManager+Funding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OfflineQueueManager+Funding.swift"; sourceTree = "<group>"; };
 		82BC0A2D8BB5C430F7F87A6D /* ScanInformationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanInformationCard.swift; sourceTree = "<group>"; };
 		82D2AB072BE8BE3E4748D724 /* AppleOAuthAuthorizationLiveProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleOAuthAuthorizationLiveProvider.swift; sourceTree = "<group>"; };
@@ -5909,6 +5912,7 @@
 		E6F9819BBDA3050D151859E7 /* CaptureWorkspaceViewModel+Draft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CaptureWorkspaceViewModel+Draft.swift"; sourceTree = "<group>"; };
 		E70E2D1C4C38B1FB667A8ED5 /* ObservationReanalysisPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationReanalysisPersistenceTests.swift; sourceTree = "<group>"; };
 		E72CB7863A1D358DAC817C2C /* CollectionMutationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionMutationService.swift; sourceTree = "<group>"; };
+		E72FBA65E83D7824EA6562A6 /* SharedMediaNativePhotoTransferReservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativePhotoTransferReservation.swift; sourceTree = "<group>"; };
 		E7303ECD6090FEF8BF588D88 /* FieldTripProfileAPIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldTripProfileAPIModels.swift; sourceTree = "<group>"; };
 		E7396BFC7CD8EA93695E6546 /* ProfilePublicationSharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilePublicationSharedViews.swift; sourceTree = "<group>"; };
 		E7695BEFF296B73FD585CFB8 /* PrivateScanMapWaypoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivateScanMapWaypoint.swift; sourceTree = "<group>"; };
@@ -7448,6 +7452,7 @@
 				B2981E5B6D1E166F87DF948A /* SharedMediaNativePhotoEnrichmentTests.swift */,
 				E46FF1483791147839A57244 /* SharedMediaNativePhotoReadbackTests.swift */,
 				6A510169412385F63DE53064 /* SharedMediaNativePhotoRoleTransportTests.swift */,
+				826F8CA8F064841579F7321D /* SharedMediaNativePhotoTransferReservationTests.swift */,
 				1E9CFF2E102A6CC309975C2F /* SharedMediaNativePreparationCodecTests.swift */,
 				606E17DE88933D6E805BDF78 /* SharedMediaNativePreparationTests.swift */,
 				4381C5CF1BE111DAE41E30A2 /* SharedMediaNativeReceivedPhotoReadbackTests.swift */,
@@ -9795,6 +9800,7 @@
 				D6F79C663EF708CFB0B14539 /* SharedMediaNativePhotoProcessor.swift */,
 				27C6EA8F96730357C0ECBE55 /* SharedMediaNativePhotoReadback.swift */,
 				E1441F19FFB87C7D456DC5FF /* SharedMediaNativePhotoRoleMapping.swift */,
+				E72FBA65E83D7824EA6562A6 /* SharedMediaNativePhotoTransferReservation.swift */,
 				3E72C703FD9F959ABFD73E77 /* SharedMediaNativePreparationGraph.swift */,
 				B9EC4072934B043590CE19BD /* SharedMediaNativePreparationMutation.swift */,
 				1B966FEAA9A965A538322265 /* SharedMediaNativePreparationOperations.swift */,
@@ -16104,6 +16110,7 @@
 				6F0D31768D4B66A69F9C5561 /* SharedMediaNativePhotoEnrichmentTests.swift in Sources */,
 				16675209268827ABF5539ADB /* SharedMediaNativePhotoReadbackTests.swift in Sources */,
 				E9C0B50E5E868E0F9B0FC41E /* SharedMediaNativePhotoRoleTransportTests.swift in Sources */,
+				0F402AFA02B93145CB7D3A66 /* SharedMediaNativePhotoTransferReservationTests.swift in Sources */,
 				F4255CABAA4A26592B77A4A9 /* SharedMediaNativePreparationCodecTests.swift in Sources */,
 				6F7D4EDB5CBD3D63FCAF3BCD /* SharedMediaNativePreparationTests.swift in Sources */,
 				CFB05BB604BB325FE4BC4011 /* SharedMediaNativeReceivedPhotoReadbackTests.swift in Sources */,
@@ -18045,6 +18052,7 @@
 				20D45D67B39A06B132EA9945 /* SharedMediaNativePhotoProcessor.swift in Sources */,
 				46DCA83E352DEDCC3EEC02A0 /* SharedMediaNativePhotoReadback.swift in Sources */,
 				6A6E1EB27A20076D3F7DC4B6 /* SharedMediaNativePhotoRoleMapping.swift in Sources */,
+				236E3F0A80A0C836976B5DBD /* SharedMediaNativePhotoTransferReservation.swift in Sources */,
 				483945606978A70D62214F71 /* SharedMediaNativePreparationGraph.swift in Sources */,
 				B69C0E6ECCEC0C09362540BA /* SharedMediaNativePreparationMutation.swift in Sources */,
 				9B9205DBE19850BA67EAD154 /* SharedMediaNativePreparationOperations.swift in Sources */,

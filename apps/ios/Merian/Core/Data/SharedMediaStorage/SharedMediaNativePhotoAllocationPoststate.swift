@@ -24,7 +24,7 @@ struct SharedMediaNativePhotoAllocationPoststate {
             try predecessor.requireSuccessor(after)
         } else {
             try before.requireNoAllocation()
-            guard after.receipt == nil, after.roleMapping == nil else { throw SharedMediaStorageFailure.closed }
+            guard after.receipt == nil, after.roleMapping == nil, after.transferReservation == nil else { throw SharedMediaStorageFailure.closed }
         }
         self.inventory = .init(inventory); rowID = row.persistentModelID; inventoryID = inventory.persistentModelID
         bytes = try after.encoded(); digest = SharedMediaAcquisitionEncoding.digest(bytes)

@@ -1,3 +1,15 @@
+## Current single-role transfer reservation — October 29
+
+The inactive native allocation owner now persists one exact reserved,
+not-started role and reconstructs its 32 MiB additional-copy liability on
+restart. It has no source-access, upload or retirement capability. Focused
+native qualification passed (28 methods / 67 cases reconciled across retained
+runs), alongside Engine source review and corrected preflight. The
+[scan-ingestion contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--inactive-single-role-transfer-reservation-candidate)
+owns the transition, accounting, recovery and remaining integration. Earlier
+dated sections below retain their historical scope; v2 transport and Capture
+composition are qualified as recorded there.
+
 ## October 29 — native v2 transport candidate
 
 The inactive native owner and authenticated adapter now support explicitly
@@ -22,7 +34,8 @@ writer, locally qualified across 13 methods / 38 cases. Ordinary callers retain
 v1. The
 [canonical transition contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#native-allocation-enrichment-inactive-candidate)
 owns byte preservation, metadata/revision accounting and recovery. Authenticated
-v2 request integration, transfer, remote closure and admission remain pending.
+v2 transport and Capture composition are qualified above; transfer, remote
+closure and admission remain pending.
 
 ## October 28 — allocation consuming integration candidate
 

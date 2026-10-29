@@ -53,18 +53,20 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
     let claim: Claim
     let receipt: Receipt?
     let roleMapping: SharedMediaNativePhotoRoleMapping?
+    let transferReservation: SharedMediaNativePhotoTransferReservation?
     var remainingAdvances: Int64 { (receipt == nil ? 1 : 0) + (version == 2 && roleMapping == nil ? 1 : 0) }
 
     init(claim: Claim) { self.init(version: 1, claim: claim, receipt: nil, roleMapping: nil) }
-    private init(version: Int, claim: Claim, receipt: Receipt?, roleMapping: SharedMediaNativePhotoRoleMapping?) {
+    private init(version: Int, claim: Claim, receipt: Receipt?, roleMapping: SharedMediaNativePhotoRoleMapping?, transferReservation: SharedMediaNativePhotoTransferReservation? = nil) {
         self.version = version; self.claim = claim; self.receipt = receipt; self.roleMapping = roleMapping
+        self.transferReservation = transferReservation
     }
 
     /// Explicit metadata/revision reservation proposal. Only a fresh audited
     /// persistence owner can make it durable; this value grants no dispatch.
     func reservingRoleMapping() throws -> Self {
         _ = try encoded()
-        if version == 2 { return self }
+        if version >= 2 { return self }
         let after = Self(version: 2, claim: claim, receipt: receipt, roleMapping: nil)
         guard try after.legacyEncoded() == encoded() else { throw SharedMediaStorageFailure.conflict }
         _ = try after.storageCharge
@@ -76,7 +78,7 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
     }
 
     func enriching(_ value: Receipt, mapping: SharedMediaNativePhotoRoleMapping) throws -> Self {
-        guard version == 2 else { throw SharedMediaStorageFailure.closed }
+        guard version >= 2 else { throw SharedMediaStorageFailure.closed }
         try mapping.validate(claim)
         let settled = try settling(value)
         if let roleMapping {
@@ -86,10 +88,25 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
         return Self(version: 2, claim: claim, receipt: settled.receipt, roleMapping: mapping)
     }
 
+    func reservingTransfer(_ value: SharedMediaNativePhotoTransferReservation) throws -> Self {
+        _ = try encoded()
+        guard version >= 2, let receipt, let roleMapping else { throw SharedMediaStorageFailure.closed }
+        try value.validate(claim: claim, mapping: roleMapping)
+        if let transferReservation {
+            guard transferReservation == value else { throw SharedMediaStorageFailure.inUse }
+            return self
+        }
+        return Self(version: 3, claim: claim, receipt: receipt, roleMapping: roleMapping, transferReservation: value)
+    }
+
     /// Exact permitted one-save transitions. No downgrade, replacement or
     /// enrichment before reservation can enter the sidecar write set.
     func requireSuccessor(_ after: Self) throws {
         _ = try encoded(); _ = try after.encoded()
+        if version == 2, after.version == 3, let value = after.transferReservation {
+            guard try reservingTransfer(value) == after else { throw SharedMediaStorageFailure.conflict }
+            return
+        }
         guard after != self else { throw SharedMediaStorageFailure.closed }
         if version == 1, after.version == 2 {
             guard try reservingRoleMapping() == after, try after.legacyEncoded() == encoded() else {
@@ -108,20 +125,22 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
             guard receipt == value else { throw SharedMediaStorageFailure.conflict }
             return self
         }
-        return .init(version: version, claim: claim, receipt: value, roleMapping: roleMapping)
+        return .init(version: version, claim: claim, receipt: value, roleMapping: roleMapping, transferReservation: transferReservation)
     }
 
     func encoded() throws -> Data {
-        guard (version == 1 || version == 2), !claim.candidateCanonical.isEmpty,
+        guard (1...3).contains(version), !claim.candidateCanonical.isEmpty,
               claim.candidateCanonical.utf8.count <= 1_048_576,
               [claim.preparedSHA256, claim.receivedSHA256, claim.candidateDigest, claim.contentDigest]
                 .allSatisfy(SharedMediaAcquisitionEncoding.isHash) else { throw SharedMediaStorageFailure.conflict }
-        guard version == 2 || roleMapping == nil, roleMapping == nil || receipt != nil else {
+        guard version >= 2 || roleMapping == nil, roleMapping == nil || receipt != nil,
+              (version == 3) == (transferReservation != nil), version != 3 || (receipt != nil && roleMapping != nil) else {
             throw SharedMediaStorageFailure.conflict
         }
         try receipt?.validate()
-        if version == 2 { _ = try SharedMediaNativePhotoRoleMapping.references(claim) }
+        if version >= 2 { _ = try SharedMediaNativePhotoRoleMapping.references(claim) }
         try roleMapping?.validate(claim)
+        if let transferReservation, let roleMapping { try transferReservation.validate(claim: claim, mapping: roleMapping) }
         return try SharedMediaAcquisitionEncoding.encode(self, maximum: Self.maximumBytes)
     }
 

@@ -84,6 +84,22 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         return after
     }
 
+    func reserveTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                         selection: SharedMediaNativePhotoRoleMapping.Entry) throws -> Allocation {
+        guard let current = try saved(prepared) else { throw SharedMediaStorageFailure.closed }
+        let value = try SharedMediaNativePhotoTransferReservation(prepared: prepared, selection: selection)
+        let after = try current.reservingTransfer(value)
+        guard after != current else { return current }
+        let context = fresh(), inventory = try inventory(context)
+        let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)
+        guard case .allocating(let snapshot) = witnesses[prepared.package.id], snapshot.allocation == current else {
+            throw SharedMediaStorageFailure.stale
+        }
+        try requireReservation(after, replacing: current, context: context, inventory: inventory, witnesses: witnesses)
+        _ = try persist(after, prepared: prepared, context: context, inventory: inventory)
+        return after
+    }
+
     private func requireReservation(_ allocation: Allocation, replacing oldAllocation: Allocation?,
         context: ModelContext, inventory: SharedMediaInventoryRecord,
         witnesses: [UUID: SharedMediaNativeReceivingCleanGraph.Witness]) throws {
@@ -103,6 +119,10 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         }
         var totals = budget.totals
         try totals.includePhotoPhysical(materialized: 0, reserved: charge - oldCharge)
+        if allocation.transferReservation != nil, oldAllocation?.transferReservation == nil {
+            try totals.include(.init(packageID: packageID, pool: .transfer, materialized: 0,
+                reserved: SharedMediaNativePhotoTransferReservation.copyAllowance))
+        }
         try totals.checkAvailable(availableBytes())
         let terminal = try SharedMediaNativeTerminalScan.read(container: container, inventoryID: inventory.id).consumptionAdvances
         let peers = witnesses.filter { $0.key != packageID }.values

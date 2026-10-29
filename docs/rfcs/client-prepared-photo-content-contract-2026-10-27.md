@@ -1,3 +1,15 @@
+## October 29 — native pre-transfer reservation candidate
+
+The inactive native owner now persists one exact reserved, not-started role with
+aggregate transfer-copy accounting and held restart recovery. Engine source
+review, corrected cheap preflight and focused native qualification passed (28
+methods / 67 cases reconciled across the retained runs). The
+[current scan contract](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--inactive-single-role-transfer-reservation-candidate)
+owns this transition and supersedes earlier statements that reservation is
+wholly unimplemented. Source access, transfer lifetime, backend
+capability/closure and full journeys remain unqualified. This adds no external
+or release authority and does not change the approved milestone sequence.
+
 ## October 29 — native v2 transport candidate
 
 The inactive native owner and authenticated adapter now support explicitly

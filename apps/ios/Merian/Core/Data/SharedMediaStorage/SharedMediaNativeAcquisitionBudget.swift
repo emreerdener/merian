@@ -260,7 +260,7 @@ enum SharedMediaNativeAcquisitionBudget {
                 logical = try SharedMediaStoragePolicy.add(logical, plannedOutput)
                 try totals.includePhotoPhysical(materialized: 0, reserved: plannedOutput)
             }
-            try totals.includePhotoPackage(id: id, bytes: logical)
+            try totals.includePhotoPackage(id: id, bytes: logical, transferReserved: allocation?.allocation.transferReservation != nil)
             if let pairState, pairState.phase == "retiring" {
                 // Retirement cannot resume preparation. Keep unfinished output
                 // reservations until both absence proofs release the rows, but

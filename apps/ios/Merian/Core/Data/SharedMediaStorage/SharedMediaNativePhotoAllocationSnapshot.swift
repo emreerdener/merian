@@ -43,6 +43,11 @@ struct SharedMediaNativePhotoAllocationSnapshot {
             throw SharedMediaStorageFailure.closed
         }
         try allocation.claim.requireMatch(prepared: prepared, received: received)
+        if let transfer = allocation.transferReservation {
+            guard try transfer == SharedMediaNativePhotoTransferReservation(prepared: prepared, selection: transfer.selection) else {
+                throw SharedMediaStorageFailure.conflict
+            }
+        }
         guard prepared.version == 2, prepared.profile == profile, prepared.package.id == row.id,
               prepared.package.generation == row.draftGeneration, prepared.operationID == row.operationID,
               row.revision == (try SharedMediaStoragePolicy.add(prepared.intentRevision ?? 0, 1)) else {

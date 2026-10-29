@@ -1,3 +1,73 @@
+# Scan Ingestion Reliability and Recovery Contract
+
+Start with the
+[initial-photo journey](#current-initial-photo-integration-entry-point--october-28)
+for current code ownership, identities, recovery and contributor entry points.
+The dated qualification records below preserve the scope and failures of each
+checkpoint. The [legacy joined flow](#joined-flow) remains separate from the
+inactive CPM journey; local qualification does not imply deployment or
+activation.
+
+## October 29 — inactive single-role transfer reservation candidate
+
+`SharedMediaNativeOriginalOwner.reserveAppPhotoTransfer` now proposes one local
+`reservedNotStarted` role under the retained account operation and receiving
+locks. It requires a complete saved v2 allocation and mapping. The v3 allocation
+sidecar keeps the exact claim, receipt and original assignment clocks, adding
+only the selected ordinal/role/reference/object and the frozen pair, asset,
+generation, descriptor and byte/hash/type declaration. This changes the sidecar
+codec, not the V67 SwiftData schema. Legacy v1/v2 bytes remain exact.
+
+The existing allocation writer persists before any future source access or
+external I/O. Its two-row seal changes only allocation bytes/digest and
+inventory revision. It reserves metadata and one revision plus a fixed 32 MiB
+maximum additional-copy allowance in the existing transfer pool. Durable
+original bytes remain charged separately and are not counted again as transfer
+materialization. Clean reads and captured-peer mutation audits use the same
+package accounting; free space, package metadata and aggregate revision checks
+repeat before save. The singular role forbids another role in the same package,
+and the common pool excludes another package. No limit, grant visibility or
+ordinary factory changed.
+
+Cold reads recompute the physical binding from immutable Prepared before
+accounting the reservation. Exact replay performs no save; ambiguous persistence
+recovers only the exact stored state. Existing allocation fences continue to
+block generic abandonment/release, and account shutdown leaves the durable hold
+for restart. This candidate deliberately has **no retirement transition**.
+Cancellation, expiry, missing replies and local shutdown cannot clear it.
+
+This inactive reservation passed focused native qualification. Engine reviewed
+the source and the focused structural correction. The first cheap preflight
+caught two source-size violations before compilation; the correction
+consolidated the typed allocation wrappers under their existing retained entry
+and placed the transfer contribution in common package accounting. Preflight02
+passed with unchanged limits. The retained candidate is
+`.artifacts/native-app-capture-handoff-20261020/transfer-hold-candidate02.json`;
+managed run01 completed all 28 methods / 67 cases in 6,254.424 seconds. It
+passed 64 cases and failed the same free-space assertion in all three roles. All
+3,058 native/project pins were unchanged; structured runtime warnings were
+empty. The test incorrectly added already-materialized sidecar metadata to
+future free-space headroom. Candidate03 corrects only that assertion, separately
+checking materialized metadata and exactly 32 MiB of additional headroom.
+Production is unchanged. Run02 exited successfully but selected zero tests
+because its selector omitted the parameterized suffix; exact coverage checks
+rejected it. Run03 used the exact identifier and passed all three corrected
+cases in 488.201 seconds. All 3,058 pins were unchanged during each run; only
+this test changed between candidates. The reconciled checkpoint covers 28
+methods / 67 cases, reusing run01's 64 unchanged passing cases. Failed and empty
+attempts remain retained in
+`.artifacts/native-app-capture-handoff-20261020/transfer-hold-native-reconciled03.json`.
+No full native gate, Release or end-to-end journey qualification is claimed.
+
+Next is owner-contained single-role byte access with demonstrated copy bounds
+and joined task termination. The current AI-only readback remains unchanged. No
+reservation grants a stream, URL, server write attempt, ticket, upload, remote
+closure, verification, admission or release capability. The backend signer still
+needs its coordinated capability/closure contract; `may_have_issued` bookkeeping
+and expiry cannot establish closure. Full initial/reanalysis photo journeys,
+audio/video, RUX1–6 and final acceptance remain open. PR116 and all deployment,
+activation and external-operation holds remain unchanged.
+
 ## October 29 — native v2 transport integration candidate
 
 The inactive `allocateAppPhotoRoles` entry now consumes the existing retained
@@ -165,8 +235,6 @@ original/AI/display transfer, durable reservation/restart state, maximum-size
 qualification and CPM write/verification/admission remain open under the
 [photo contract](../rfcs/client-prepared-photo-content-contract-2026-10-27.md#native-transfer-lifetime-and-accounting).
 
-# Scan Ingestion Reliability and Recovery Contract
-
 ## October 29 — inactive caller and recovery integration candidate
 
 The existing `CaptureNativePhotoSubmissionSession` now separates local `submit`
@@ -216,8 +284,8 @@ runtime/Release evidence. Transfer, execution, result/history and full journey
 acceptance remain open. Nothing here implies deployment or feature activation.
 The
 [existing receiving record](../../apps/ios/Merian/Models/ActiveSchema/SharedMediaReceivingIntentRecord.swift)
-now has a dormant V67 allocation sidecar candidate; its migration and
-failure-closed release/recovery contract is owned by the
+owns the V67 allocation sidecar; its migration and failure-closed
+release/recovery contract is owned by the
 [database schema guide](04-database-schema.md). Its dormant storage/migration
 checkpoint is locally qualified. The claim-before-send owner/adapter candidate
 passed focused runtime validation; the Capture caller is locally qualified as
@@ -234,16 +302,21 @@ claim once. Assignment digest and the original 1,800,000 ms interval never
 renew. Saved allocation is historical evidence, not proof of current remote
 usability.
 
-The current v1 `SharedMediaNativeAppPhotoAllocationOperations` permits only the
-allocation sidecar and inventory revision to change. Prepared/Received bytes and
-receiving revision stay fixed. Admission reserves two inventory advances, plus
-all other pending and terminal obligations. The unresolved witness reserves one
-remaining advance; the allocated witness reserves none. Exact receipt replays
-and negative observations do not write. Clean consumer/audit/budget readers use
+`SharedMediaNativeAppPhotoAllocationOperations` permits only the allocation
+sidecar and inventory revision to change. Prepared/Received bytes and receiving
+revision stay fixed. V1 claim creation reserves its receipt successor; explicit
+v2 also reserves the complete ordered role mapping. Metadata, package and
+aggregate revision accounting preserve every pending peer and terminal
+obligation. The
+[enrichment contract](#native-allocation-enrichment-inactive-candidate) owns
+those exact successor rules. Exact receipt replays and negative observations do
+not write. Clean consumer/audit/budget readers use
 `SharedMediaNativePhotoAllocationSnapshot`; generic receiving and release remain
-closed. Charge existing metadata plus the larger canonical unresolved/positive
-sidecar and its SHA within the unchanged 1 MiB package metadata cap, including
-escaped candidate duplication. The positive projection is reserved before send.
+closed. Explicit
+[v3 transfer reservation](#october-29--inactive-single-role-transfer-reservation-candidate)
+adds one held role and its maximum additional-copy allowance after v2 mapping.
+It is implemented, with native qualification pending. No transfer or retirement
+is authorized by any of these metadata states.
 
 An unresolved allocation must not freeze independent drafts. The current repair
 carries a clean `SharedMediaNativePhotoAllocationPeer` through each existing
@@ -287,7 +360,8 @@ flowchart LR
     B --> C[Frozen Prepared and local Received]
     C --> D[Inactive authenticated create or status]
     D --> E[Private CPM assignment and minimal receipt]
-    E -. pending integration .-> F[Transfer and byte verification]
+    E --> R[One role reserved locally - qualification pending]
+    R -. pending integration .-> F[Transfer and byte verification]
     F -. pending integration .-> G[Admission and execution]
     G -. pending integration .-> H[Result then explicit history enrollment]
     H -. pending qualification .-> I[Reanalysis and preserved versions]
@@ -324,12 +398,22 @@ exposes only the complete ordered logical-reference/opaque-object mapping. Its
 [`InitialPhotoAllocationRoleReply`](../../apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRoleReply.swift)
 decoder and
 [`focused native tests`](../../apps/ios/MerianTests/Core/Network/Transport/InitialPhotoAllocationRoleReplyTests.swift)
-are the contributor entry points. Ordinary native requests remain v1. The
+are the contributor entry points. Legacy requests default to v1; the inactive
+Capture composition now explicitly selects v2 and is locally qualified. The
 [inactive reservation/enrichment writer](#native-allocation-enrichment-inactive-candidate)
 is locally qualified; a settled v1 receipt must first reserve its additional
 metadata and revision allowance before v2 transport can consume it. Recovery
 preserves the exact claim, assignment digest, clocks and reconstructed legacy
 canonical bytes.
+
+For transfer accounting, begin with
+[`SharedMediaNativePhotoTransferReservation`](../../apps/ios/Merian/Core/Data/SharedMediaStorage/SharedMediaNativePhotoTransferReservation.swift),
+the existing allocation writer and
+[`reservation tests`](../../apps/ios/MerianTests/Core/Data/SharedMediaStorage/SharedMediaNativePhotoTransferReservationTests.swift).
+The current v3 state is always reserved and not started; another role and
+generic release are refused. Never manually clear it to unblock a transfer.
+Future source access must remain inside the retained original/derivative owner
+and separately prove its lifetime and copy bounds.
 
 For a stalled local submission, inspect the exact receiving slot and current
 account/selection fences before retrying local recovery. Never edit Prepared,

@@ -79,10 +79,16 @@ enum SharedMediaStoragePolicy {
             guard pools[.durable, default: 0] <= PhotoPreparationPolicy.durable else { throw SharedMediaStorageFailure.capacity }
         }
 
-        mutating func includePhotoPackage(id: UUID, bytes: Int64) throws {
+        mutating func includePhotoPackage(id: UUID, bytes: Int64, transferReserved: Bool = false) throws {
             guard bytes >= 0, packages[id] == nil, bytes <= PhotoPreparationPolicy.package else { throw SharedMediaStorageFailure.capacity }
             packages[id] = bytes
             guard packages.count <= PhotoPreparationPolicy.maximumPackages else { throw SharedMediaStorageFailure.capacity }
+            // Original bytes remain in their durable allocation. This is the
+            // single additional-copy allowance, shared by clean and peer audits.
+            if transferReserved {
+                try include(.init(packageID: id, pool: .transfer, materialized: 0,
+                    reserved: SharedMediaNativePhotoTransferReservation.copyAllowance))
+            }
         }
 
         /// Accountless source bytes and reserved copy headroom are temporary,

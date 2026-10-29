@@ -194,17 +194,16 @@ final class SharedMediaNativeOriginalOwner {
     /// One retained account operation also bounds overlapping status attempts.
     func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared, reserveRoleMapping: Bool = false,
                           authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
-                          send: @escaping SharedMediaNativePhotoAllocationAccess.Send) async throws -> SharedMediaNativePhotoAllocation {
-        try await withAppDispatch { try await self.allocateAppPhoto(prepared, storage: $0, grant: $1, releaseStage: self.releaseStageSettlement, reserveRoleMapping: reserveRoleMapping, authorizeCreate: authorizeCreate, transport: .legacy(send)) }
-    }
-    func allocateAppPhotoRoles(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
-                              authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
-                              send: @escaping SharedMediaNativePhotoAllocationTransportAccess.RolesSend) async throws -> SharedMediaNativePhotoAllocation {
-        try await withAppDispatch { try await self.allocateAppPhoto(prepared, storage: $0, grant: $1, releaseStage: self.releaseStageSettlement, authorizeCreate: authorizeCreate, transport: .roles(send)) }
+                          transport: SharedMediaNativePhotoAllocationTransportAccess) async throws -> SharedMediaNativePhotoAllocation {
+        try await withAppDispatch { try await self.allocateAppPhoto(prepared, storage: $0, grant: $1, releaseStage: self.releaseStageSettlement, reserveRoleMapping: reserveRoleMapping, authorizeCreate: authorizeCreate, transport: transport) }
     }
     func enrichAppPhotoAllocation(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                   send: @escaping SharedMediaNativePhotoEnrichmentAccess.Send) async throws -> SharedMediaNativePhotoAllocation {
         try await withAppDispatch { try await self.enrichAppPhotoAllocation(prepared, storage: $0, grant: $1, send: send) }
+    }
+    func reserveAppPhotoTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                selection: SharedMediaNativePhotoRoleMapping.Entry) async throws -> SharedMediaNativePhotoAllocation {
+        try await withAppDispatch { try await self.reserveAppPhotoTransfer(prepared, selection: selection, storage: $0, grant: $1) }
     }
     /// An outer audit or lock failure must also spend an existing continuation.
     func abandonAppReleaseContinuation(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) {

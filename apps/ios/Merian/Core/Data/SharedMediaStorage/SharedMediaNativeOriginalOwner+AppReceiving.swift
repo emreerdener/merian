@@ -79,6 +79,16 @@ extension SharedMediaNativeOriginalOwner {
             try await self.appReceivingWorkflow(lock: lock) { try await $0.readReceivedPhotos(prepared) }
         }
     }
+    func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared, reserveRoleMapping: Bool = false,
+                          authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
+                          send: @escaping SharedMediaNativePhotoAllocationAccess.Send) async throws -> SharedMediaNativePhotoAllocation {
+        try await allocateAppPhoto(prepared, reserveRoleMapping: reserveRoleMapping, authorizeCreate: authorizeCreate, transport: .legacy(send))
+    }
+    func allocateAppPhotoRoles(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                              authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
+                              send: @escaping SharedMediaNativePhotoAllocationTransportAccess.RolesSend) async throws -> SharedMediaNativePhotoAllocation {
+        try await allocateAppPhoto(prepared, authorizeCreate: authorizeCreate, transport: .roles(send))
+    }
     func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                           authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
                           transport: InitialPhotoAllocationTransport) async throws -> SharedMediaNativePhotoAllocation {
@@ -158,6 +168,17 @@ extension SharedMediaNativeOriginalOwner {
             let operation = try await storage.appPhotoAllocation(grant: grant, lock: lock)
             try grant.validate(); try lock.validate()
             return try operation.enrich(reply, request: reserved, prepared: prepared)
+        }
+    }
+    /// Inactive local accounting only. No byte read, network callback or release
+    /// transition exists here. Exact restart recovery keeps the same held role.
+    func reserveAppPhotoTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+        selection: SharedMediaNativePhotoRoleMapping.Entry,
+        storage: SharedMediaNativeStorageRepository, grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativePhotoAllocation {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            let operation = try await storage.appPhotoAllocation(grant: grant, lock: lock)
+            try grant.validate(); try lock.validate()
+            return try operation.reserveTransfer(prepared, selection: selection)
         }
     }
     func abandonAppReceiving(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeReceivingIntent.Abandoned {

@@ -1,3 +1,14 @@
+## October 29 — native transfer reservation sidecar candidate
+
+The existing V67 allocation columns now admit an explicit v3 sidecar for one
+reserved, not-started photo role. No entity, persisted column or migration
+changes. The
+[scan-ingestion contract](16-scan-ingestion-reliability-and-recovery.md#october-29--inactive-single-role-transfer-reservation-candidate)
+owns exact identity, metadata/copy accounting, held recovery and qualification
+status. V1/v2 canonical bytes remain unchanged. This is not a backend write
+attempt or release proof; the permanent backend accounting below remains
+separate.
+
 ## Private canonical encoder optimization — October 29
 
 The forward
