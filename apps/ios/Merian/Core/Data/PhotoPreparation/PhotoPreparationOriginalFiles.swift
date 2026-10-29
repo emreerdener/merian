@@ -9,6 +9,7 @@ struct PhotoPreparationOriginalFiles {
     init(access: SharedMediaInboxDestinationAccess) { self.access = access }
     #if DEBUG
     var writeFault: (@Sendable (Int) throws -> Void)?
+    var readFault: (@Sendable (Int64) throws -> Void)?
     #endif
 
     func write(_ data: Data, intent: PhotoPreparationIntent, contentType: String) throws -> PhotoPreparationFile {
@@ -72,6 +73,9 @@ struct PhotoPreparationOriginalFiles {
                 total = try PhotoPreparationPolicy.add([total, Int64(count)])
                 guard total <= file.byteCount else { throw PhotoPreparationFailure.inconsistentOwnership }
                 buffer.withUnsafeBytes { hash.update(bufferPointer: UnsafeRawBufferPointer(rebasing: $0[..<count])) }
+                #if DEBUG
+                try readFault?(total)
+                #endif
             }
             guard fstat(fd, &after) == 0,
                   fstatat(directoryFD, name, &named, AT_SYMLINK_NOFOLLOW) == 0,

@@ -4,9 +4,10 @@ The existing retained owner now exposes exact-reservation local hash/count
 verification for source, AI and display, returning only a bounded summary. It
 reuses the sealed 64 KiB reader and keeps the durable hold on every outcome.
 Focused native qualification passed 8 methods / 34 cases with unchanged inputs
-and no structured runtime warnings. Maximum-size memory and in-loop faults
-remain unqualified. Upload consumption, staging-copy ownership and remote
-closure remain absent. The
+and no structured runtime warnings. The follow-up hash-loop suite passed 4
+methods / 10 cases, including 32 MiB chunk bounds and in-loop faults.
+Retained-memory measurement remains open. Upload consumption, staging-copy
+ownership and remote closure remain absent. The
 [current scan guide](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--local-reserved-role-byte-verification-candidate)
 owns the lifetime contract and remaining acceptance.
 

@@ -1,3 +1,13 @@
+## October 29 — hash-loop qualification candidate
+
+A Debug-only count callback exercises mutation and cancellation inside the
+existing 64 KiB reader. It returns no file or byte capability and is absent from
+Release. Maximum-size chunk-bound and interruption tests passed 4 methods / 10
+cases with unchanged inputs and no structured runtime warnings. Retained-memory
+measurement and full owner/upload integration remain open. The
+[scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--local-reserved-role-byte-verification-candidate)
+owns current evidence and remaining memory/integration acceptance.
+
 ## October 25 — profile discovery checkpoint locally qualified
 
 The inactive discovery and ownership-correction candidate passed the scoped

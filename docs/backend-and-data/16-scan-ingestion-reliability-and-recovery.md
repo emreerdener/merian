@@ -39,11 +39,24 @@ cases exercise reservation regressions. Evidence is retained in
 and result bundle `94349a1e437a411397341a2c1b325b34.xcresult`. Focused tests
 cover each role and cold repeat, substituted saved identities, physical file
 corruption before reading, cancellation, account drain and changed saved state.
-Maximum-size buffering and mutation/cancellation inside the synchronous chunk
-loop still require dedicated acceptance evidence; this passing checkpoint does
-not qualify those cases. This is local verification, not upload consumption,
-URLSession copy behavior or remote closure. Full journeys and all release holds
-remain.
+The subsequent hash-loop qualification below covers maximum-size chunk bounds
+and in-loop faults; retained-memory measurement remains open. This is local
+verification, not upload consumption, URLSession copy behavior or remote
+closure. Full journeys and all release holds remain.
+
+The subsequent local qualification adds a Debug-only per-chunk fault seam to the
+existing hash reader. It exposes only cumulative byte count, never bytes, paths
+or descriptors, and is absent from Release. Dedicated tests exercise a 32 MiB
+synthetic file with 64 KiB reads, repeat verification, mutation after the first
+hashed chunk, and cancellation before reading, after the first chunk and after
+the final chunk. Engine source review found no blocking issue. Managed native
+run01 passed all 4 methods / 10 cases in 348.025 seconds, with all 3,061
+source/project inputs unchanged and no structured runtime warnings. Evidence is
+retained in
+`.artifacts/native-app-capture-handoff-20261020/read-loop-native-qualified01.json`
+and result bundle `04b746ceb3a949808a6fbd5b4487dc30.xcresult`. Chunk-count
+assertions do not measure retained memory; a report-only memory benchmark and
+full owner/upload integration remain required.
 
 ## October 29 — inactive single-role transfer reservation candidate
 

@@ -10,6 +10,7 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
     private var rootFD: Int32 = -1
     private var namespaceFD: Int32 = -1
     #if DEBUG
+    var sharedReadFault: (@Sendable (Int64) throws -> Void)?
     var sharedWriteFault: (@Sendable (Int) throws -> Void)?
     var sharedReleaseFault: (@Sendable (SharedMediaPhotoReleaseBoundary) throws -> Void)?
     #endif
@@ -196,7 +197,11 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
 
     func verifiedIdentity(_ file: PhotoPreparationFile) throws -> String {
         try withSharedDestination(file.token, create: false) {
-            try PhotoPreparationOriginalFiles(access: $0).verifiedIdentity(file)
+            var original = PhotoPreparationOriginalFiles(access: $0)
+            #if DEBUG
+            original.readFault = sharedReadFault
+            #endif
+            return try original.verifiedIdentity(file)
         }
     }
 
