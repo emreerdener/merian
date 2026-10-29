@@ -1,3 +1,18 @@
+## October 29 — inactive outstanding-write hold candidate
+
+The
+[database schema contract](../backend-and-data/04-database-schema.md#inactive-cpm-outstanding-write-accounting--october-29)
+records the new permanent attempt and conservative capacity hold through
+cancellation/private erasure/account deletion. Exact recovery never renews a
+clock. This database-owner-only increment has no signer, API grant or closure
+settlement. Engine source review, 100 focused assertions and five concurrency
+schedules passed. Full catalog qualification remains open on the measured legacy
+maximum-input admission expiry; the canonical contract retains both failed runs
+and the diagnostic evidence. Earlier allocation-only restrictions remain
+historical. Transfer, byte verification, admission/execution/result/history,
+reanalysis, audio/video, RUX and final acceptance remain open. PR116, deployment
+and later-sequence controls are unchanged.
+
 ## October 29 — Capture allocation caller qualified locally
 
 Local checkpoint `2685d18b2` connects the inactive Capture submission caller to

@@ -125,6 +125,78 @@ SET CONSTRAINTS ALL DEFERRED;
 SELECT extensions.ok(internal.initial_cpm_photo_cohort_complete('00000000-0000-4000-8000-00000000f102'),'service-role second slot and deferred validation');
 SELECT extensions.throws_ok($$SELECT pg_temp.cpm_create('00000000-0000-4000-8000-00000000f103')$$,'55000','initial_analysis_capacity_unavailable','third owner slot denied');
 SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM internal.initial_analysis_operation_fences WHERE scan_id='00000000-0000-4000-8000-00000000f103'),'capacity rejection rolls back identity claim');
+-- Outstanding-write bookkeeping is database-owner-only and grants no IO.
+SAVEPOINT write_hold_cases;
+SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM unnest(ARRAY['anon','authenticated','service_role']) role_name
+ CROSS JOIN unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE']) privilege
+ WHERE has_table_privilege(role_name,'internal.initial_cpm_photo_write_attempts',privilege)),
+ 'write attempts deny every API role');
+SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM unnest(ARRAY['anon','authenticated','service_role']) role_name
+ WHERE has_function_privilege(role_name,'internal.initial_cpm_photo_write_action(text,uuid,uuid,text,uuid)','EXECUTE')),
+ 'write action has no API grant');
+SET LOCAL ROLE service_role;
+SELECT extensions.throws_ok($$SELECT internal.initial_cpm_photo_write_action('bind',NULL,NULL,NULL,NULL)$$,
+ '42501',NULL,'real service role cannot enter bookkeeping');
+RESET ROLE;
+CREATE FUNCTION pg_temp.cpm_write(action TEXT,role_name TEXT DEFAULT 'source')
+ RETURNS internal.initial_cpm_photo_write_attempts LANGUAGE SQL AS $$
+ SELECT internal.initial_cpm_photo_write_action(action,'00000000-0000-4000-8000-00000000f001',
+ '00000000-0000-4000-8000-00000000f101',s.assignment_digest,m.object_id)
+ FROM internal.initial_analysis_preparation_intents s JOIN internal.initial_cpm_photo_role_mapping m USING(scan_id)
+ WHERE s.scan_id='00000000-0000-4000-8000-00000000f101' AND m.role=role_name;
+$$;
+SELECT extensions.ok((pg_temp.cpm_write('status')).attempt_id IS NULL,'status never creates attempt');
+CREATE TEMP TABLE write_before AS SELECT (pg_temp.cpm_write('bind')).*;
+SELECT extensions.is(to_jsonb(pg_temp.cpm_write('bind')),to_jsonb(w),'binding replay is exact without renewed clocks') FROM write_before w;
+SELECT extensions.is((SELECT count(*) FROM internal.initial_cpm_photo_write_attempts),1::BIGINT,'replay keeps one attempt');
+SELECT extensions.is((SELECT capability_expires_at-created_at FROM write_before),INTERVAL '10 minutes','attempt clock is bounded');
+SELECT extensions.is((SELECT admission_expires_at FROM write_before),(SELECT expires_at FROM internal.initial_analysis_preparation_intents WHERE scan_id='00000000-0000-4000-8000-00000000f101'),'original admission deadline retained');
+SELECT extensions.throws_ok($$UPDATE internal.initial_cpm_photo_write_attempts SET capability_expires_at=capability_expires_at+INTERVAL '1 minute'$$,'22023',NULL,'attempt expiry cannot renew');
+SELECT extensions.throws_ok($$UPDATE internal.initial_cpm_photo_write_attempts SET object_id=gen_random_uuid()$$,'55000',NULL,'attempt cannot move destination');
+SELECT extensions.throws_ok($$SELECT internal.initial_cpm_photo_write_action('bind','00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101',repeat('0',64),(SELECT object_id FROM write_before))$$,'22023','initial_analysis_identity_conflict','changed assignment rejected');
+SELECT extensions.lives_ok($$SELECT pg_temp.cpm_write('bind','ai')$$,'second role can be bound before issuance');
+SELECT extensions.throws_ok($$SELECT pg_temp.cpm_write('close')$$,'22023','initial_analysis_input_invalid','no fabricated closure action');
+SELECT extensions.throws_ok($$SELECT pg_temp.cpm_write('refresh')$$,'22023','initial_analysis_input_invalid','no refresh action');
+SAVEPOINT write_revoked;
+UPDATE internal.initial_preparation_backend_eligibility SET state='revoked';
+SELECT extensions.is(to_jsonb(pg_temp.cpm_write('status')),to_jsonb(w),'revoked backend preserves exact status') FROM write_before w;
+SELECT extensions.throws_ok($$SELECT pg_temp.cpm_write('may_have_issued')$$,'55000','initial_analysis_preparation_unavailable','revocation prevents new issuance bookkeeping');
+ROLLBACK TO write_revoked;
+CREATE TEMP TABLE write_issued AS SELECT (pg_temp.cpm_write('may_have_issued')).*;
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+SELECT extensions.is((SELECT state FROM write_issued),'may_have_issued','uncertain signer outcome recorded before IO');
+SELECT extensions.ok(internal.initial_cpm_photo_cohort_complete('00000000-0000-4000-8000-00000000f101'),'outstanding write keeps structurally complete cohort');
+SELECT extensions.is((SELECT write_capability_state FROM internal.initial_cpm_photo_capacity_reservations WHERE scan_id='00000000-0000-4000-8000-00000000f101'),'may_have_issued','capacity records conservative liability');
+SELECT extensions.is(to_jsonb(pg_temp.cpm_write('may_have_issued')),to_jsonb(w),'lost signer acknowledgement returns exact original state') FROM write_issued w;
+SELECT extensions.throws_ok($$SELECT pg_temp.cpm_write('may_have_issued','ai')$$,'55000','initial_analysis_cpm_write_outstanding','a second outstanding role is forbidden');
+SELECT extensions.throws_ok($$SELECT pg_temp.cpm_write('bind','display')$$,'55000','initial_analysis_cpm_write_outstanding','cannot bind a new role while write is outstanding');
+SELECT extensions.throws_ok($$UPDATE internal.initial_cpm_photo_write_attempts SET state='bound',issued_at=NULL WHERE state='may_have_issued'$$,'22023','initial_analysis_storage_immutable','unknown issuance cannot reset');
+SELECT extensions.throws_ok($$DELETE FROM internal.initial_cpm_photo_write_attempts$$,'22023','initial_analysis_storage_immutable','attempt identity survives deletion');
+SELECT extensions.throws_ok($$TRUNCATE internal.initial_cpm_photo_write_attempts$$,'22023','initial_analysis_storage_immutable','attempt identity survives truncate');
+SELECT extensions.is(public.get_initial_preparation_status('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101'),response,'preparation recovery remains exact while outstanding') FROM cpm_saved;
+SELECT extensions.is(public.cancel_initial_analysis('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101')->>'dispatch','dispatch_prevented','provider dispatch prevention does not claim storage closure');
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+SELECT extensions.ok(internal.initial_cpm_photo_retired_write_hold('00000000-0000-4000-8000-00000000f101'),'private erasure leaves exact retired outstanding graph');
+SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM internal.initial_cpm_photo_write_attempts WHERE NOT retired),'retirement reaches bound and issued attempts');
+SELECT extensions.throws_ok($$UPDATE internal.initial_cpm_photo_capacity_reservations SET state='released' WHERE scan_id='00000000-0000-4000-8000-00000000f101'$$,'22023','initial_analysis_storage_immutable','retirement cannot release outstanding capacity');
+SELECT extensions.throws_ok($$UPDATE internal.initial_cpm_photo_write_attempts SET retired=FALSE$$,'55000',NULL,'retired attempt cannot resurrect');
+CREATE TEMP TABLE write_marker AS SELECT public.claim_initial_preparation_source_erasure() value;
+SELECT extensions.is(public.finish_initial_preparation_source_erasure((value#>>'{object,object_id}')::UUID,(value#>>'{object,claim_token}')::UUID,TRUE)->>'outcome','acknowledged','existing marker acknowledgement remains independent') FROM write_marker;
+SELECT extensions.is((SELECT state FROM internal.initial_cpm_photo_capacity_reservations WHERE scan_id='00000000-0000-4000-8000-00000000f101'),'pending','marker acknowledgement does not close uncertain writes');
+SELECT extensions.throws_ok($$SELECT pg_temp.cpm_create('00000000-0000-4000-8000-00000000f103')$$,'55000','initial_analysis_capacity_unavailable','outstanding cancellation does not free the owner slot');
+DELETE FROM public.users WHERE id='00000000-0000-4000-8000-00000000f001';
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+SELECT extensions.ok(internal.initial_cpm_photo_retired_write_hold('00000000-0000-4000-8000-00000000f101'),'account deletion preserves outstanding global liability');
+SELECT extensions.ok((SELECT owner_id IS NULL AND state='pending' FROM internal.initial_cpm_photo_capacity_reservations WHERE scan_id='00000000-0000-4000-8000-00000000f101'),'account deletion detaches owner without releasing capacity');
+SELECT extensions.lives_ok($$SELECT internal.assert_ghost_profile_merge_reference_policy_coverage()$$,'permanent attempt adds no unclassified account reference');
+SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM internal.initial_analysis_preparation_intents) AND NOT EXISTS(SELECT 1 FROM internal.initial_cpm_photo_role_mapping),'account erasure removes private declarations');
+SELECT extensions.is((SELECT count(*) FROM internal.ai_quota_reservations),0::BIGINT,'write bookkeeping never funds');
+ROLLBACK TO write_hold_cases;
+-- Original never-issued cancellation and account-erasure cases continue below.
+
 SAVEPOINT eligibility_change;
 UPDATE internal.initial_cpm_photo_profile_eligibility SET state='revoked';
 DELETE FROM internal.initial_cpm_photo_current_selection;

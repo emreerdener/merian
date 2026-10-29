@@ -1,3 +1,18 @@
+## Inactive CPM outstanding-write hold candidate
+
+The
+[database schema contract](../../docs/backend-and-data/04-database-schema.md#inactive-cpm-outstanding-write-accounting--october-29)
+owns the new database-owner-only role attempts and capacity retained through
+cancellation/deletion. No signer, API grant, closure settlement or activation is
+installed. Source review, 100 focused assertions and five concurrency schedules
+passed; complete catalogs remain open on the legacy maximum-input admission
+expiry documented in the canonical contract.
+`test_initial_cpm_photo_write_holds.py` accepts `--container`,
+`--evidence-directory` and `--replay-manifest` for an exact fresh owned local
+replay. Run catalogs first, then this committing concurrency suite; always
+dispose its database and retain evidence. This does not qualify storage IO or
+native app journeys.
+
 ## Inactive initial-photo CPM allocation checkpoint
 
 The October 27 SQL candidate extends existing preparation/recovery and

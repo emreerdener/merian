@@ -1,3 +1,16 @@
+## October 29 — inactive outstanding-write hold candidate
+
+The
+[database schema contract](04-database-schema.md#inactive-cpm-outstanding-write-accounting--october-29)
+now owns CPM attempt identity, exact metadata recovery and conservative storage
+holds through cancellation/deletion. This is a database-owner-only candidate;
+source review, 100 focused assertions and five concurrency schedules passed. The
+full catalog gate remains open on the legacy maximum-input admission expiry
+detailed in that contract. There is no signer, remote closure proof or API
+authority. Existing marker acknowledgements and native task termination cannot
+release an uncertain write. Original/AI/display transfer, verification,
+admission/execution/result/history and full journey acceptance remain open.
+
 ## October 29 — local network termination witness qualified
 
 `PinnedNetworkDataTaskState` now distinguishes the bounded request await from
@@ -73,9 +86,9 @@ now has a dormant V67 allocation sidecar candidate; its migration and
 failure-closed release/recovery contract is owned by the
 [database schema guide](04-database-schema.md). Its dormant storage/migration
 checkpoint is locally qualified. The claim-before-send owner/adapter candidate
-passed focused runtime validation; full integration acceptance and the Capture
-UI caller remain pending. This qualification does not enable allocation or
-analysis.
+passed focused runtime validation; the Capture caller is locally qualified as
+recorded above. Full integration acceptance remains pending. This qualification
+does not enable allocation or analysis.
 
 The allocation owner saves an immutable unresolved claim before sending. Only an
 unambiguous save in that same retained operation permits one create request;

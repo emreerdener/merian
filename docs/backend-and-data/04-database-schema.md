@@ -29,6 +29,82 @@ Source review, focused allocation/capacity tests and the complete local catalog
 gate cover this inactive branch. Legacy timing/concurrency and full app-journey
 qualification remain open. No deployment or activation is implied.
 
+## Inactive CPM outstanding-write accounting — October 29
+
+The forward
+[write-hold migration](../../services/supabase/migrations/20261029031705_prepare_initial_cpm_photo_write_holds.sql)
+adds database-owner-only bookkeeping under the existing preparation, source
+registry and capacity owners. It installs no API privilege, profile, signer,
+write ticket, closure capability or feature activation. Engine source review,
+100 focused catalog assertions, five deterministic transaction schedules and 534
+static migration checks passed on the repaired candidate. A raw-insert /
+retirement race found by review was reproduced, repaired and covered by the
+concurrency regression. Evidence is retained under
+`.artifacts/native-app-capture-handoff-20261020/cpm-write-holds-focused-qualification04.json`.
+
+Complete catalog qualification remains open. Two 175-file runs observed 6,038
+passing assertions but aborted the existing maximum-input
+`initial_atomic_admission_stage.sql` fixture with
+`initial_analysis_preparation_expired`; the CPM catalog passed. The failed logs
+remain in `cpm-write-holds-runtime03` and `cpm-write-holds-runtime05` under the
+same artifact root. A rolled-back escaped-text diagnostic measured 24 ledger
+entries, 58 deferred callbacks taking 91.365 seconds and a 107.456-second
+constraint flush. Function profiling attributed 71.790 seconds to 1,156,774
+calls to `initial_canonical_parts`. This identifies an optimization target; no
+timing fix or broad acceptance is claimed. The later diagnostic pass near the
+unchanged deadline does not repair the failed runs. All callback, snapshot, size
+and deadline requirements remain enforced.
+
+`initial_cpm_photo_write_attempts` permanently binds one attempt per object to
+its scan, exact assignment digest, backend generation/configuration and original
+admission deadline. Private text, byte declarations and owner identity are not
+copied into it. The fixed capability deadline is the earlier of ten minutes from
+binding and the original thirty-minute admission deadline. A native transfer's
+separate five-minute bound is unchanged.
+
+The internal `initial_cpm_photo_write_action` supports `bind`, `status` and
+`may_have_issued`. It serializes owner/scan, fail-fast global capacity, registry
+and attempt access in that order. Exact replay returns the same identity and
+clocks before checking fresh-transition eligibility. Fresh transitions require
+the saved, unfunded cohort and current backend/profile eligibility; that
+eligibility alone does not qualify a signer. There is at most one outstanding
+role per scan. Raw inserts/advances also acquire the fail-fast capacity lock
+before revalidating the registry; they never acquire an outer owner lock from a
+row trigger. Deferred validation rejects unretired attempts after private
+erasure even when capacity is released. This closes the reproduced
+cancellation-first raw-insert race. A future qualified issuer must commit
+`may_have_issued` before signer IO. A lost signer acknowledgement leaves that
+state charged even if no ticket reaches the client. There is no close, refresh,
+verification or release transition for an outstanding attempt in this increment.
+
+Retirement is independent and irreversible. Existing C1 cancellation/deletion
+retires every destination and attempt, erases private assignment/role mappings,
+and releases capacity only when writes were never issued. An outstanding
+reservation survives as `pending`; account deletion detaches its owner while
+preserving global liability. The existing source-erasure marker acknowledgement
+is not a remote write-revocation/drain witness and cannot release this hold.
+Provider `dispatch_prevented` does not assert storage closure. Structural cohort
+validity accepts this conservative state without granting IO or funding.
+
+Future closure requires independently qualified adapter/profile/build evidence
+bound to the exact attempt, object, backend generation/configuration, issuance
+epoch and every capability that could still write. Clock expiry, client receipt,
+local URLSession termination and marker acknowledgement are insufficient.
+Closure, full-byte verification and physical cleanup are separate proofs. The
+[photo contract](../rfcs/client-prepared-photo-content-contract-2026-10-27.md#coordinated-lifecycle-branch)
+owns the complete transfer/admission requirements. Do not repair a stalled hold
+by deleting rows, renewing clocks or minting another scan identity.
+
+The [catalog](../../services/supabase/tests/initial_cpm_photo_intents.sql)
+covers exact replay, API-role denial, monotonic attempts, cancellation, account
+erasure and marker independence. The
+[concurrency runner](../../services/supabase/scripts/test_initial_cpm_photo_write_holds.py)
+requires an exact fresh owned disposable replay and covers issuance/cancellation
+commit orders, rollback, account deletion and cross-owner fail-fast capacity.
+Run the complete catalog gate before that committing suite, then dispose only
+its owned database, preserving evidence on every outcome. These checks do not
+qualify actual storage IO, physical retention, native transfers or app journeys.
+
 # Database Schema & Data Models
 
 This document maps the expected shape of our persistence layers. AI Agents
