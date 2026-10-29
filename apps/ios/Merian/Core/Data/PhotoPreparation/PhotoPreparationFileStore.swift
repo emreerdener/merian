@@ -275,6 +275,11 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
             binding: sharedBinding.bytes, epoch: sharedBinding.epoch)
     }
 
+    /// Check a saved declaration before I/O without minting a hashed inspection.
+    func requireSharedIdentity(_ file: PhotoPreparationFile, identity: SharedMediaPhotoRetirementIdentity, binding: SharedMediaNativeBinding) throws {
+        try requireCurrentSharedInspection(.init(file: file, identity: identity, binding: binding.bytes, epoch: binding.epoch))
+    }
+
     /// Seal an already hashed inspection immediately before a synchronous save.
     /// No content read or decoding occurs here; the exclusive owner remains held.
     func requireCurrentSharedInspection(_ proof: SharedMediaPhotoRetirementInspection) throws {

@@ -1,3 +1,15 @@
+## Local reserved-role verification candidate — October 29
+
+The existing retained owner now exposes exact-reservation local hash/count
+verification for source, AI and display, returning only a bounded summary. It
+reuses the sealed 64 KiB reader and keeps the durable hold on every outcome.
+Focused native qualification passed 8 methods / 34 cases with unchanged inputs
+and no structured runtime warnings. Maximum-size memory and in-loop faults
+remain unqualified. Upload consumption, staging-copy ownership and remote
+closure remain absent. The
+[current scan guide](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--local-reserved-role-byte-verification-candidate)
+owns the lifetime contract and remaining acceptance.
+
 ## Current single-role transfer reservation — October 29
 
 The inactive native allocation owner now persists one exact reserved,

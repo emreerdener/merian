@@ -173,12 +173,17 @@ extension SharedMediaNativeOriginalOwner {
     /// Inactive local accounting only. No byte read, network callback or release
     /// transition exists here. Exact restart recovery keeps the same held role.
     func reserveAppPhotoTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
-        selection: SharedMediaNativePhotoRoleMapping.Entry,
-        storage: SharedMediaNativeStorageRepository, grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativePhotoAllocation {
+        selection: SharedMediaNativePhotoRoleMapping.Entry) async throws -> SharedMediaNativePhotoAllocation {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
-            let operation = try await storage.appPhotoAllocation(grant: grant, lock: lock)
-            try grant.validate(); try lock.validate()
-            return try operation.reserveTransfer(prepared, selection: selection)
+            try await self.appPhotoAllocationWorkflow(lock: lock) { try $0.reserveTransfer(prepared, selection: selection) }
+        }
+    }
+    /// Local hash/count verification only. The saved hold survives success,
+    /// cancellation and failure; no bytes or file capability leave the owner.
+    func verifyAppPhotoTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+        allocation: SharedMediaNativePhotoAllocation) async throws -> SharedMediaNativePhotoTransferReadback {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0.verifyTransfer(prepared, allocation: allocation) }
         }
     }
     func abandonAppReceiving(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeReceivingIntent.Abandoned {

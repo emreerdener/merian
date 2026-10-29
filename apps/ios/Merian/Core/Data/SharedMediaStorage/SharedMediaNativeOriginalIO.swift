@@ -166,6 +166,39 @@ actor SharedMediaNativeOriginalIO {
         try files.requireCurrentPairCompletion(proof, binding: binding)
         return (bytes, proof)
     }
+    /// Reuses the sealed 64 KiB hash/count reader. No whole-file Data, staging
+    /// copy, path, descriptor or caller-controlled chunk consumer can escape.
+    func verifyTransfer(_ state: SharedMediaNativePairFileState,
+                        reservation: SharedMediaNativePhotoTransferReservation) async throws -> (SharedMediaPhotoRetirementInspection, SharedMediaNativePairCompletion?) {
+        try Task.checkCancellation()
+        #if DEBUG
+        await acquisitionEntryPause?(.readTransfer)
+        #endif
+        try Task.checkCancellation()
+        let intent = try state.intent()
+        let file: PhotoPreparationFile
+        let workID: UUID?
+        if reservation.selection.role == .source {
+            file = intent.preparation.original.file; workID = nil
+        } else {
+            let selected = reservation.selection.role == .ai ? intent.ai.id : intent.display.id
+            file = try state.file(selected); workID = selected
+        }
+        guard state.phase == "ready", intent.pairID == reservation.pairID,
+              file.assetID == reservation.assetID, file.generation == reservation.assetGeneration,
+              file.byteCount == reservation.byteCount, file.sha256 == reservation.sha256,
+              file.contentType == reservation.contentType else { throw SharedMediaStorageFailure.stale }
+        // Reject a different named inode/generation before reading its bytes.
+        // The hash reader also compares its opened and named descriptors after I/O.
+        try files.requireSharedIdentity(file, identity: reservation.descriptor, binding: binding)
+        let completion = try workID.map { try inspectCompletedPair(state, workID: $0) }
+        let proof = try files.inspectSharedRetirement(file)
+        guard proof.identity == reservation.descriptor, proof.binding == binding.bytes,
+              proof.epoch == binding.epoch else { throw SharedMediaStorageFailure.conflict }
+        if let completion { try files.requireCurrentPairCompletion(completion, binding: binding) }
+        try Task.checkCancellation()
+        return (proof, completion)
+    }
     func recoverPair(_ state: SharedMediaNativePairFileState, workID: UUID) async throws -> SharedMediaNativePairCompletion? {
         try Task.checkCancellation()
         #if DEBUG
@@ -203,5 +236,5 @@ actor SharedMediaNativeOriginalIO {
 }
 
 #if DEBUG
-enum SharedMediaNativeOriginalIOEntry: Sendable { case readPair, load, write, beginPair, recoverPair, releasePair, releaseOriginal, inspectOriginal }
+enum SharedMediaNativeOriginalIOEntry: Sendable { case readPair, readTransfer, load, write, beginPair, recoverPair, releasePair, releaseOriginal, inspectOriginal }
 #endif

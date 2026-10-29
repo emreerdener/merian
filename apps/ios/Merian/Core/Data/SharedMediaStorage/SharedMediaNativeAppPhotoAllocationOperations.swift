@@ -9,19 +9,24 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
     typealias Snapshot = SharedMediaNativePhotoAllocationSnapshot
     private let container: ModelContainer
     private let authority: SharedMediaNativeAppOperationAuthority
+    private let io: SharedMediaNativeOriginalIO
+    private let sealTransfer: (SharedMediaPhotoRetirementInspection, SharedMediaNativePairCompletion?) throws -> Void
     private let expected: SharedMediaNativeAppEligibility.Header
     private let availableBytes: () throws -> Int64
     private let boundary: (SharedMediaNativeMetadataBoundary) throws -> Void
     private var consumed = false
 
     private init(container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority,
+                 io: SharedMediaNativeOriginalIO, sealTransfer: @escaping (SharedMediaPhotoRetirementInspection, SharedMediaNativePairCompletion?) throws -> Void,
                  expected: SharedMediaNativeAppEligibility.Header, availableBytes: @escaping () throws -> Int64,
                  boundary: @escaping (SharedMediaNativeMetadataBoundary) throws -> Void) {
+        self.io = io; self.sealTransfer = sealTransfer
         self.container = container; self.authority = authority; self.expected = expected
         self.availableBytes = availableBytes; self.boundary = boundary
     }
 
     static func audited(container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority,
+                        io: SharedMediaNativeOriginalIO, sealTransfer: @escaping (SharedMediaPhotoRetirementInspection, SharedMediaNativePairCompletion?) throws -> Void,
                         availableBytes: @escaping () throws -> Int64,
                         boundary: @escaping (SharedMediaNativeMetadataBoundary) throws -> Void) async throws -> Self {
         let expected = try authority.header(container)
@@ -29,7 +34,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
             check: { guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale } },
             betweenPages: { await Task.yield() }).run()
         guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale }
-        return Self(container: container, authority: authority, expected: expected,
+        return Self(container: container, authority: authority, io: io, sealTransfer: sealTransfer, expected: expected,
             availableBytes: availableBytes, boundary: boundary)
     }
 
@@ -98,6 +103,23 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         try requireReservation(after, replacing: current, context: context, inventory: inventory, witnesses: witnesses)
         _ = try persist(after, prepared: prepared, context: context, inventory: inventory)
         return after
+    }
+
+    func verifyTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                        allocation: Allocation) async throws -> SharedMediaNativePhotoTransferReadback {
+        guard try saved(prepared) == allocation, allocation.version == 3,
+              let reservation = allocation.transferReservation else { throw SharedMediaStorageFailure.stale }
+        let state = try SharedMediaNativePhotoTransferReadback.state(prepared, reservation: reservation, context: fresh())
+        let (inspection, completion) = try await io.verifyTransfer(state, reservation: reservation)
+        // The actor has returned only after its synchronous descriptor scopes
+        // close. Recheck authority and exact saved state before publishing facts.
+        guard try saved(prepared) == allocation,
+              try SharedMediaNativePhotoTransferReadback.state(prepared, reservation: reservation, context: fresh()) == state else {
+            throw SharedMediaStorageFailure.stale
+        }
+        try sealTransfer(inspection, completion)
+        try validate()
+        return .init(selection: reservation.selection, byteCount: inspection.file.byteCount, sha256: inspection.file.sha256)
     }
 
     private func requireReservation(_ allocation: Allocation, replacing oldAllocation: Allocation?,

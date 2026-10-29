@@ -8,6 +8,43 @@ checkpoint. The [legacy joined flow](#joined-flow) remains separate from the
 inactive CPM journey; local qualification does not imply deployment or
 activation.
 
+## October 29 — local reserved-role byte verification candidate
+
+`SharedMediaNativeOriginalOwner.verifyAppPhotoTransfer` accepts the exact saved
+v3 allocation and immutable Prepared input. The existing retained account
+operation and receiving locks span the audit, actor work, final saved-state
+comparison and physical seal. The allocation owner resolves the frozen role;
+`SharedMediaNativeOriginalIO` reuses the existing descriptor-scoped
+`PhotoPreparationOriginalFiles.verifiedIdentity` hash/count loop with a 64 KiB
+buffer. The locked file owner checks the saved descriptor identity before any
+role hash read, without minting a reusable inspection proof. Source identity and
+AI/display completion provenance are checked without returning file bytes,
+paths, descriptors, readers or upload grants. The result contains only selected
+role, verified byte count and SHA-256.
+
+Cancellation requests stop through the retained task. Account teardown joins
+that task before releasing ownership; a cancelled await does not abandon the
+worker. The synchronous file scopes close before the actor returns. A fresh
+saved-allocation/state comparison and synchronous physical seal precede success.
+Reading never changes or retires the 32 MiB reservation, renews assignment
+clocks or enables another role. No staging file or additional whole-file copy is
+made.
+
+This candidate passed narrow Engine source review and focused native
+qualification: 8 methods / 34 cases in 3,679.947 seconds, with all 3,060
+native/project inputs unchanged and no structured runtime warnings. The new
+readback suite contributes 3 methods / 16 cases; the remaining 5 methods / 18
+cases exercise reservation regressions. Evidence is retained in
+`.artifacts/native-app-capture-handoff-20261020/role-read-native-qualified01.json`
+and result bundle `94349a1e437a411397341a2c1b325b34.xcresult`. Focused tests
+cover each role and cold repeat, substituted saved identities, physical file
+corruption before reading, cancellation, account drain and changed saved state.
+Maximum-size buffering and mutation/cancellation inside the synchronous chunk
+loop still require dedicated acceptance evidence; this passing checkpoint does
+not qualify those cases. This is local verification, not upload consumption,
+URLSession copy behavior or remote closure. Full journeys and all release holds
+remain.
+
 ## October 29 — inactive single-role transfer reservation candidate
 
 `SharedMediaNativeOriginalOwner.reserveAppPhotoTransfer` now proposes one local
@@ -59,8 +96,9 @@ attempts remain retained in
 `.artifacts/native-app-capture-handoff-20261020/transfer-hold-native-reconciled03.json`.
 No full native gate, Release or end-to-end journey qualification is claimed.
 
-Next is owner-contained single-role byte access with demonstrated copy bounds
-and joined task termination. The current AI-only readback remains unchanged. No
+The local reserved-role verification candidate above begins owner-contained byte
+access; demonstrated maximum-size copy bounds and joined task termination
+acceptance remain required. The current AI-only readback remains unchanged. No
 reservation grants a stream, URL, server write attempt, ticket, upload, remote
 closure, verification, admission or release capability. The backend signer still
 needs its coordinated capability/closure contract; `may_have_issued` bookkeeping
