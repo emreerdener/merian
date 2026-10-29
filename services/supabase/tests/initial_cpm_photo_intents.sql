@@ -178,6 +178,19 @@ SELECT extensions.throws_ok($$SELECT pg_temp.closure_write('may_have_issued')$$,
 SELECT extensions.throws_ok($$UPDATE internal.initial_cpm_photo_write_policies SET state='eligible'$$,'22023','initial_analysis_storage_immutable','policy revocation irreversible');
 ROLLBACK TO revoked_policy;
 SELECT (pg_temp.closure_write('may_have_issued')).state;
+CREATE FUNCTION pg_temp.observation_snapshot(outcome TEXT DEFAULT 'live_object',claim UUID DEFAULT NULL,expected JSONB DEFAULT NULL)
+ RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT internal.read_initial_cpm_photo_observation((SELECT attempt_id FROM closure_attempt),outcome,claim,expected);
+$$;
+SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM unnest(ARRAY['anon','authenticated','service_role']) role_name
+ WHERE has_function_privilege(role_name,'internal.read_initial_cpm_photo_observation(uuid,text,uuid,jsonb)','EXECUTE')),'observation snapshot denies every API role');
+CREATE TEMP TABLE observation_saved AS SELECT pg_temp.observation_snapshot() value;
+SELECT extensions.is(value#>>'{target,role}','source','snapshot reads original mapped source role') FROM observation_saved;
+SELECT extensions.is(value#>>'{target,sha256}',(SELECT canonical_assignment::JSONB#>>'{preparation,role_mapping,0,declaration,sha256}' FROM internal.initial_analysis_preparation_intents WHERE scan_id='00000000-0000-4000-8000-00000000f101'),'snapshot hash comes from saved declaration') FROM observation_saved;
+SELECT extensions.is(pg_temp.observation_snapshot('live_object',NULL,value),value,'unchanged current snapshot matches original') FROM observation_saved;
+SELECT extensions.throws_ok($$SELECT pg_temp.observation_snapshot('live_object',NULL,(SELECT value||'{"extra":true}'::JSONB FROM observation_saved))$$,'22023','initial_analysis_identity_conflict','current check rejects changed original facts');
+SELECT extensions.throws_ok($$SELECT pg_temp.observation_snapshot('live_object',gen_random_uuid())$$,'22023','initial_analysis_input_invalid','live observation refuses cleanup token');
+SELECT extensions.throws_ok($$SELECT pg_temp.observation_snapshot('retired_marker',gen_random_uuid())$$,'55000','initial_analysis_preparation_required','marker observation refuses live registry');
 SELECT extensions.throws_ok($$SELECT pg_temp.close_source('live_object','2000-01-01')$$,'55000','initial_analysis_preparation_required','observation cannot precede issuance');
 SELECT extensions.throws_ok($$SELECT pg_temp.close_source('live_object',clock_timestamp()+INTERVAL '1 hour')$$,'55000','initial_analysis_preparation_required','future observation denied');
 SELECT extensions.throws_ok($$SELECT pg_temp.close_source('retired_marker',NULL,gen_random_uuid())$$,'55000','initial_analysis_preparation_required','live registry denies marker closure');
@@ -185,6 +198,7 @@ SELECT extensions.throws_ok($$UPDATE internal.initial_cpm_photo_write_attempts S
 SAVEPOINT revoke_after_issue;
 UPDATE internal.initial_cpm_photo_write_policies SET state='revoked';
 SELECT extensions.throws_ok($$SELECT pg_temp.close_source()$$,'55000','initial_analysis_preparation_unavailable','revocation before settlement keeps hold');
+SELECT extensions.throws_ok($$SELECT pg_temp.observation_snapshot()$$,'55000','initial_analysis_preparation_unavailable','revocation prevents fresh observation');
 ROLLBACK TO revoke_after_issue;
 CREATE TEMP TABLE closure_saved AS SELECT (pg_temp.close_source()).*;
 SELECT extensions.ok((SELECT write_closed FROM internal.initial_cpm_photo_write_attempts WHERE attempt_id=(SELECT attempt_id FROM closure_attempt)),'live closure closes exact role');
@@ -207,6 +221,18 @@ DO $$ BEGIN
  PERFORM public.claim_initial_preparation_source_erasure(); PERFORM public.claim_initial_preparation_source_erasure(); PERFORM public.claim_initial_preparation_source_erasure();
 END; $$;
 CREATE TEMP TABLE closure_claim AS SELECT clock_timestamp() observed_at,r.claim_token FROM internal.initial_preparation_source_registry r JOIN closure_attempt a USING(object_id);
+SELECT extensions.throws_ok($$SELECT pg_temp.observation_snapshot()$$,'55000','initial_analysis_preparation_required','erased private state denies fresh live observation');
+SELECT extensions.throws_ok($$SELECT pg_temp.observation_snapshot('retired_marker',gen_random_uuid())$$,'55000','initial_analysis_preparation_required','snapshot cannot adopt another cleanup claim');
+CREATE TEMP TABLE marker_snapshot AS SELECT pg_temp.observation_snapshot('retired_marker',claim_token) value FROM closure_claim;
+SELECT extensions.is(value->'target','{"outcome":"retired_marker"}'::JSONB,'marker needs no erased private declaration') FROM marker_snapshot;
+SELECT extensions.is(value#>>'{erasure_claim,token}',(SELECT claim_token::TEXT FROM closure_claim),'original token retained') FROM marker_snapshot;
+SELECT extensions.ok((value#>>'{erasure_claim,issued_at_ms}')::NUMERIC>=extract(epoch FROM r.claim_expires_at-INTERVAL '1 minute')*1000
+ AND (value#>>'{erasure_claim,issued_at_ms}')::NUMERIC<extract(epoch FROM r.claim_expires_at-INTERVAL '1 minute')*1000+1
+ AND (value#>>'{erasure_claim,expires_at_ms}')::NUMERIC<=extract(epoch FROM r.claim_expires_at)*1000
+ AND (value#>>'{erasure_claim,expires_at_ms}')::NUMERIC>extract(epoch FROM r.claim_expires_at)*1000-1,
+ 'microsecond projection only shortens original claim interval') FROM marker_snapshot CROSS JOIN internal.initial_preparation_source_registry r JOIN closure_attempt a USING(object_id);
+SELECT extensions.is(pg_temp.observation_snapshot('retired_marker',(SELECT claim_token FROM closure_claim),value),value,'marker current check preserves exact captured snapshot') FROM marker_snapshot;
+
 SELECT extensions.throws_ok($$SELECT pg_temp.close_source('retired_marker',NULL,gen_random_uuid())$$,'55000','initial_analysis_preparation_required','replacement token cannot settle original observation');
 SELECT extensions.lives_ok($$SELECT pg_temp.close_source('retired_marker',(SELECT observed_at FROM closure_claim),(SELECT claim_token FROM closure_claim))$$,'original live erasure claim permits marker closure');
 SELECT extensions.is((SELECT count(*) FROM internal.initial_cpm_photo_write_closures),2::BIGINT,'live and terminal observations remain distinct');

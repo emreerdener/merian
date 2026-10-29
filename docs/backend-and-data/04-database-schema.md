@@ -1,3 +1,42 @@
+## Inactive CPM observation snapshot candidate — October 29
+
+The
+[observation read migration](../../services/supabase/migrations/20261029194445_prepare_initial_cpm_photo_observation_snapshot.sql)
+adds `internal.read_initial_cpm_photo_observation` as an unexposed
+database-owner boundary. It reads the original issued attempt, immutable backend
+and saved live-role declaration under the existing lifecycle lock order.
+Retired-marker reads require the caller's original claim token and do not read
+erased private declarations. Optional `p_expected` compares the whole captured
+snapshot against fresh authoritative facts. Revocation, retirement, expiry and
+claim replacement deny fresh work; each transaction ends before storage I/O.
+
+The existing cleanup registry stores a microsecond expiry, with its settlement
+guard deriving the lower bound as expiry minus one minute. The projection ceils
+that lower bound and floors expiry to milliseconds, so it can only shorten the
+coordinator's usable interval. Attempt issuance is similarly ceiled and
+admission expiry floored. These are conservative scheduling bounds, not
+replacements for the exact stored timestamps. No claim is acquired or renewed;
+settlement keeps the original token and independently checks the precise
+database timestamps. Receipt timestamp conversion remains a separate adapter
+obligation.
+
+This inactive owner passed a fresh 498-migration replay, all 176 database
+catalogs / 7,180 assertions, 543 static migration checks and Engine source
+review on the exact three-source candidate. The
+[local concurrency runner](../../services/supabase/scripts/test_initial_cpm_photo_observation_snapshot.py)
+then passed five schedules / 39 session commands: both retirement orders,
+original-claim replacement, policy revocation and backend revocation. It uses
+the existing owned disposable-database harness and retains metadata-only
+receipts; run it after catalogs with `--container`, `--evidence-directory` and
+`--replay-manifest`, then dispose only that owned database. These checks qualify
+SQL serialization, not storage I/O, an installed adapter or native journeys.
+
+It adds no public RPC, API grant, signer, storage request, closure mutation or
+capacity release. The production adapter still needs a reviewed service boundary
+and strict response decoding. The
+[scan guide](16-scan-ingestion-reliability-and-recovery.md#inactive-cpm-storage-observation)
+owns the complete observation-to-settlement sequence.
+
 ## Inactive CPM durable write closure — October 29
 
 The

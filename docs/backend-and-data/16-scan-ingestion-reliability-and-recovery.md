@@ -139,7 +139,17 @@ is not new signing or capacity-release authority.
 
 The production bridge must supply authoritative facts, preserve timestamp
 precision, avoid hidden retries and call the SQL settlement under its fresh
-lifecycle fences. Those adapters remain unimplemented and unqualified. The
+lifecycle fences. Its required
+[database snapshot/current-check owner](04-database-schema.md#inactive-cpm-observation-snapshot-candidate--october-29)
+now reads saved declarations, requires the original marker token and narrows
+microsecond validity windows conservatively for millisecond scheduling. It has
+no API grants. Its exact candidate passed fresh replay, all 176 catalogs / 7,180
+assertions and Engine source review; five subsequent local concurrency schedules
+qualified retirement, claim-replacement and revocation checks. The linked
+database contract owns the runner and qualification scope. Historical receipts
+must still be recovered before calling this fresh-state reader; rechecks must
+retain the captured snapshot and original claim unchanged. The service adapter,
+receipt conversion and signer remain unimplemented and unqualified. The
 [coordinator tests](../../services/supabase/functions/_shared/initialAnalysis/cpmPhotoWriteClosure_test.ts)
 cover source/AI/display reads, immutable claims, exact recovery, mismatches,
 late completion, lifecycle denial and shorter parent deadlines. Local evidence
