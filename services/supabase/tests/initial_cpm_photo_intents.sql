@@ -143,6 +143,52 @@ INSERT INTO internal.initial_cpm_photo_write_policies
  SELECT encode(extensions.digest(convert_to('merian.initial-analysis.cpm-write-policy.v1'||E'\n'||internal.initial_canonical(v),'UTF8'),'sha256'),'hex'),
  (v->>'backend_generation')::UUID,v->>'backend_configuration_digest',v->>'observation_build_digest',v->>'enforcement_evidence_digest',v->>'reviewed_revision',v->>'protocol','eligible'
  FROM closure_policy;
+-- Fresh issuance is an invocation result, never inferred from a stored state.
+SAVEPOINT fresh_issuance;
+CREATE TEMP TABLE issuance_args AS SELECT s.owner_id,s.scan_id,s.assignment_digest,m.object_id,m.role,p.digest policy
+ FROM internal.initial_analysis_preparation_intents s JOIN internal.initial_cpm_photo_role_mapping m USING(scan_id)
+ CROSS JOIN internal.initial_cpm_photo_write_policies p WHERE s.scan_id='00000000-0000-4000-8000-00000000f101';
+GRANT SELECT ON issuance_args TO service_role;
+CREATE FUNCTION pg_temp.begin_write(role_name TEXT DEFAULT 'source') RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT public.begin_initial_cpm_photo_write(owner_id,scan_id,assignment_digest,object_id,policy)
+ FROM issuance_args WHERE role=role_name;
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.begin_write(TEXT) TO service_role;
+SELECT extensions.ok(has_function_privilege('service_role','public.begin_initial_cpm_photo_write(uuid,uuid,text,uuid,text)','EXECUTE'),'issuance service allowlisted');
+SELECT extensions.ok(NOT has_function_privilege('anon','public.begin_initial_cpm_photo_write(uuid,uuid,text,uuid,text)','EXECUTE')
+ AND NOT has_function_privilege('authenticated','public.begin_initial_cpm_photo_write(uuid,uuid,text,uuid,text)','EXECUTE'),'issuance denies client roles');
+SELECT extensions.throws_ok($$SELECT public.begin_initial_cpm_photo_write(owner_id,scan_id,assignment_digest,object_id,NULL) FROM issuance_args WHERE role='source'$$,'22023','initial_analysis_input_invalid','policy required before bind');
+SELECT extensions.throws_ok($$SELECT public.begin_initial_cpm_photo_write(owner_id,scan_id,assignment_digest,object_id,repeat('0',64)) FROM issuance_args WHERE role='source'$$,'55000','initial_analysis_preparation_unavailable','unknown policy rolls back binding');
+SELECT extensions.is((SELECT count(*) FROM internal.initial_cpm_photo_write_attempts),0::BIGINT,'failed policy leaves no attempt');
+SELECT extensions.throws_ok($$SELECT public.begin_initial_cpm_photo_write(gen_random_uuid(),scan_id,assignment_digest,object_id,policy) FROM issuance_args WHERE role='source'$$,'P0002','initial_analysis_owner_unavailable','foreign owner cannot advance');
+SELECT extensions.throws_ok($$SELECT public.begin_initial_cpm_photo_write(owner_id,scan_id,repeat('0',64),object_id,policy) FROM issuance_args WHERE role='source'$$,'22023','initial_analysis_identity_conflict','changed assignment cannot advance');
+SAVEPOINT issuance_revoked;
+UPDATE internal.initial_cpm_photo_write_policies SET state='revoked';
+SELECT extensions.throws_ok($$SELECT pg_temp.begin_write()$$,'55000','initial_analysis_preparation_unavailable','revoked policy cannot begin');
+ROLLBACK TO issuance_revoked;
+SAVEPOINT issuance_each_role;
+SET LOCAL ROLE service_role;
+CREATE TEMP TABLE issuance_fresh AS SELECT pg_temp.begin_write() value;
+SELECT extensions.is((SELECT value->>'outcome' FROM issuance_fresh),'fresh','actual service caller receives fresh once');
+SELECT extensions.is((SELECT value#>>'{observation,target,role}' FROM issuance_fresh),'source','fresh snapshot binds exact original role');
+SELECT extensions.is((SELECT count(*)::INTEGER FROM issuance_fresh, jsonb_object_keys(value)),5,'fresh response is closed');
+RESET ROLE;
+CREATE TEMP TABLE issuance_row AS SELECT * FROM internal.initial_cpm_photo_write_attempts;
+SELECT extensions.is((SELECT write_capability_state FROM internal.initial_cpm_photo_capacity_reservations WHERE scan_id='00000000-0000-4000-8000-00000000f101'),'may_have_issued','fresh response retains outstanding liability');
+SELECT extensions.is(pg_temp.begin_write(),jsonb_build_object('outcome','held','attempt_id',(SELECT attempt_id FROM issuance_row)),'lost fresh response recovers only held');
+SELECT extensions.is(pg_temp.begin_write(),pg_temp.begin_write(),'repeated recovery never becomes fresh');
+SELECT extensions.is((SELECT to_jsonb(a) FROM internal.initial_cpm_photo_write_attempts a),(SELECT to_jsonb(a) FROM issuance_row a),'replay does not renew clocks or alter attempt');
+SELECT extensions.throws_ok($$SELECT pg_temp.begin_write('ai')$$,'55000','initial_analysis_cpm_write_outstanding','another role cannot overlap outstanding write');
+SELECT extensions.throws_ok($$SELECT public.begin_initial_cpm_photo_write(owner_id,scan_id,assignment_digest,object_id,repeat('0',64)) FROM issuance_args WHERE role='source'$$,'22023','initial_analysis_identity_conflict','replay cannot substitute policy');
+UPDATE internal.initial_cpm_photo_write_policies SET state='revoked';
+SELECT extensions.is(pg_temp.begin_write()->>'outcome','held','historical held does not require fresh eligibility');
+SET CONSTRAINTS ALL IMMEDIATE;
+ROLLBACK TO issuance_each_role;
+SELECT extensions.is(pg_temp.begin_write('ai')#>>'{observation,target,role}','ai','AI fresh snapshot binds exact role');
+ROLLBACK TO issuance_each_role;
+SELECT extensions.is(pg_temp.begin_write('display')#>>'{observation,target,role}','display','display fresh snapshot binds exact role');
+ROLLBACK TO fresh_issuance;
+
 CREATE FUNCTION pg_temp.closure_write(action TEXT,role_name TEXT DEFAULT 'source') RETURNS internal.initial_cpm_photo_write_attempts LANGUAGE SQL AS $$
  SELECT internal.initial_cpm_photo_write_action(action,'00000000-0000-4000-8000-00000000f001',
  '00000000-0000-4000-8000-00000000f101',s.assignment_digest,m.object_id)

@@ -1,3 +1,33 @@
+## October 29 — locally qualified dormant fresh issuance identity
+
+The server-side `begin_initial_cpm_photo_write` RPC now distinguishes this
+invocation's atomic bound-to-possibly-issued transition from saved history. Only
+a fresh result carries the exact authoritative observation and original clocks.
+Committed replay, closed or retired issuance returns held without another
+snapshot when the outer scope permits; cancellation, deletion or unavailable
+ownership may deny recovery first. Changed policy conflicts. This closes the
+ambiguity that prevented an issuer from safely consuming
+`initial_cpm_photo_write_action`, whose row shape deliberately does not
+distinguish fresh advancement from replay.
+
+The exact dormant SQL candidate passed a fresh 500-migration replay, all 176
+database catalogs and dedicated concurrent duplicate, rollback and both
+cancellation-order schedules. The complete catalog gate took 632.297 seconds;
+concurrency took 3.772 seconds. Static migration checks passed 548 tests across
+132 contract files. Engine cleared the corrected candidate. The first focused
+attempt failed on test-fixture role grants and a missing-owner SQLSTATE
+expectation; its evidence remains retained. These results do not resolve the
+previous aggregate timing failure or historical deadlock investigation.
+
+No signer or native consumer is installed. The database and API contract guides
+own its service-only transition and closed projection. A future issuer must wait
+for commit acknowledgement; a lost acknowledgement of a committed transition
+replays held, while rollback leaves no transition. Unknown outcomes authorize
+neither automatic retry nor another signature. Concrete native ticket
+consumption still requires durable started/unknown state and bounded
+payload/staging-copy/task-termination ownership. Hosted exact-payload,
+alternate-writer and retention evidence remains required before activation.
+
 # Scan Ingestion Reliability and Recovery Contract
 
 Start with the
@@ -214,12 +244,14 @@ The planner is not a fresh lifecycle check or an issuance permit. Its historical
 clocks do not become a new expiry, and `may_have_issued` recovery cannot
 authorize another signature. The eventual issuer still needs a distinct fresh
 authority boundary and durable possible-issuance acknowledgement before
-exposure. Marker replacement remains a separate original-claim operation:
-conditional creation cannot overwrite a live object, and DELETE cannot stand in
-for a permanent marker. Neither generic R2 helpers nor the existing v1
-retained-media writers are a qualified v2 writer. No signer, credential
-resolver, route or marker executor is installed by this planner; alternate
-hosted writers and lifecycle rules remain unqualified.
+exposure. The locally qualified dormant SQL boundary at the top of this guide
+now supplies that invocation distinction; issuer integration remains open.
+Marker replacement remains a separate original-claim operation: conditional
+creation cannot overwrite a live object, and DELETE cannot stand in for a
+permanent marker. Neither generic R2 helpers nor the existing v1 retained-media
+writers are a qualified v2 writer. No signer, credential resolver, route or
+marker executor is installed by this planner; alternate hosted writers and
+lifecycle rules remain unqualified.
 
 `cpmPhotoMarker.ts:eraseInitialCpmPhotoWrite` now implements the separate
 inactive marker executor. It reads the historical marker-closure receipt before

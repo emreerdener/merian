@@ -1,3 +1,27 @@
+## Dormant CPM fresh-issuance service result — October 29
+
+`begin_initial_cpm_photo_write` is a server-only RPC candidate; it has no Edge
+route or native caller. Its UUID owner, scan and object arguments and exact
+assignment/policy digests must come from the authenticated service's saved
+identity and trusted policy selection. Client roles cannot execute it.
+
+The closed result alternatives are `{outcome: "held", attempt_id}` and
+`{outcome: "fresh", attempt_id, observation, created_at_ms,
+capability_expires_at_ms}`.
+The observation uses the existing private CPM observation contract, including
+exact role declaration, backend configuration, issued epoch, policy and original
+admission deadline. It is never projected wholesale to an app. Fresh means this
+transaction made the transition; saved `may_have_issued` status alone is
+insufficient. A committed transition whose response is lost recovers only held
+when outer scope checks permit; cancelled, deleted or unavailable ownership may
+deny recovery. Rollback leaves no transition and a later invocation may be
+fresh. Unknown outcomes authorize neither automatic retry nor signing/upload.
+
+The database schema guide owns the transition and validation status. A future
+qualified issuer must await commit acknowledgement, retain all original fences
+and use the fixed upload specification. No signer, actual ticket, DTO consumer,
+installation or hosted acceptance is introduced by this candidate.
+
 ## October 29 — dormant service-only CPM closure RPCs
 
 The

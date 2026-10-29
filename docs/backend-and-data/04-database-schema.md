@@ -1,3 +1,41 @@
+## Dormant fresh-only CPM issuance transition — October 29
+
+`public.begin_initial_cpm_photo_write(owner, scan, assignment_digest, object,
+policy)`
+is a service-only candidate that reuses the existing write-action,
+policy-binding and authoritative observation owners in one transaction. It holds
+their owner/scan, capacity, registry and attempt locks across the whole
+transition. It returns `fresh` only when this invocation advances a bound
+attempt to `may_have_issued`, with the exact server-derived observation and
+original creation/capability clocks. A historical issued, retired or closed
+attempt returns only `held` and its existing attempt ID if the outer scope
+checks still permit recovery; it cannot return a fresh snapshot or renew a
+clock. Cancellation, deletion or unavailable ownership may deny the call before
+that projection. Neither result permits signing. A changed saved policy
+conflicts.
+
+The transaction must commit and its fresh acknowledgement must reach the future
+qualified issuer before any signing. A lost acknowledgement leaves the
+conservative hold if committed; repeating a committed transition returns `held`,
+never fresh signing authority. Rollback leaves no transition and a later
+invocation may be fresh. An unknown outcome does not authorize automatic retry
+or signing. Policy/backend/profile and account eligibility remain enforced by
+existing owners. No policy, credentials, signer, route or app installation is
+added. This is an invocation distinction, not hosted payload-enforcement
+qualification. A fresh local replay of all 500 migrations, all 176 database
+catalogs and the dedicated concurrency schedules passed on October 29. The
+concurrency cases cover committed duplicate replay, rollback, both cancellation
+orderings and capacity denial; rollout remained disabled. Engine reviewed the
+exact production/test candidate with no remaining blocking findings. These are
+local SQL results, not installed-app or hosted-storage acceptance.
+
+The existing CPM catalog covers exact replay, service/client-role boundaries,
+policy denial, rollback and role binding. The dedicated
+`services/supabase/scripts/test_initial_cpm_photo_fresh_issuance.py` adds
+concurrent duplicate, commit/rollback, cancellation and fail-fast capacity
+schedules on a disposable local database. No funding or provider execution is
+part of this transition.
+
 ## Dormant CPM closure service boundary — October 29
 
 The
