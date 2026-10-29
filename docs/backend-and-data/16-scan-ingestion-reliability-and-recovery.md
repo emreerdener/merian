@@ -94,6 +94,42 @@ unqualified. This prerequisite precedes byte consumption; signer/PUT integration
 still requires coordinated issuance authority and positive remote write closure
 under the existing backend contract.
 
+### Inactive CPM storage observation
+
+`cpmPhotoWriteObservation.ts:observeInitialCpmPhotoWrite` supplies the next
+storage-verification primitive. It snapshots the exact attempt, assignment,
+object, backend configuration, issuance epoch and verification-policy identity,
+then reuses the existing v2 backend decoder and bounded stream/deadline owners.
+It performs one direct uncached GET, with current lifecycle checks before
+signing, after signing and after full-byte verification. Live source/AI/display
+reads enforce their existing 32/5/4 MiB per-object limits, length, type and
+SHA256; retired-marker reads require exactly zero bytes and the permanent marker
+metadata. Missing, mismatched, late or uncertain responses fail closed. Signed
+headers are copied before suspension. No bytes, URL or credentials escape in the
+observation.
+
+This is an inactive, injected-dependency implementation candidate, not a durable
+closure proof. Twelve focused synthetic tests and the complete initial-analysis
+domain suite (363 tests / 164 steps) passed; Engine source review found no
+blocking issue on the exact two-file candidate. Repository Edge/script
+formatting and lint plus 26 documentation contracts passed. Evidence is retained
+under `.artifacts/native-app-capture-handoff-20261020/cpm-observation-*`. The
+future database settlement must recheck original attempt/registry state under
+locks and qualified storage-policy facts; an observation cannot settle a hold,
+release capacity, fund admission or authorize signing. Its returned structure is
+constructible: settlement must use a trusted coordinator that actually performs
+the read, never client-supplied observation JSON. Marker settlement must capture
+the original erasure claim token before the read and keep it through settlement;
+looking up a newer claim cannot replace it. Full-buffer hashing still requires
+CPM-specific server memory qualification. The existing backend protocol uses
+conditional creation and permanent same-key markers. Cloudflare documents atomic
+[conditional writes](https://developers.cloudflare.com/r2/reference/consistency/),
+but
+[presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)
+can be replayed until expiry. Exact payload enforcement, concurrent ingress and
+all alternate writer/lifecycle routes therefore remain qualification
+requirements. No hosted behavior is established by these local tests.
+
 ## October 29 — inactive single-role transfer reservation candidate
 
 `SharedMediaNativeOriginalOwner.reserveAppPhotoTransfer` now proposes one local

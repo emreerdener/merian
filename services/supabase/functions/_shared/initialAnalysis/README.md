@@ -1,3 +1,15 @@
+## Inactive CPM write observation
+
+`cpmPhotoWriteObservation.ts` performs one bounded direct read of the exact
+original v2 object, yielding only frozen identity/outcome facts after lifecycle
+checks and full-byte or retired-marker verification. It reuses the existing
+backend codec, stream and deadline owners. This observation has no issuance,
+settlement or capacity-release authority. The
+[scan contract](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#inactive-cpm-storage-observation)
+owns limits, validation status and the remaining durable closure/payload/memory
+qualification. Focused synthetic tests are in
+`cpmPhotoWriteObservation_test.ts`.
+
 ## October 27 — inactive photo CPM content declaration candidate
 
 `cpmPhotoContent.ts` validates a closed, bounded photo declaration and hashes a
