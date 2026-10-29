@@ -1,3 +1,15 @@
+## October 29 — inactive allocation role decoder
+
+`Models/ObservationAnalysis/InitialPhotoAllocationRoleReply.swift` validates the
+complete ordered v2 role/reference/object projection under the existing
+2,048-byte reply ceiling. `InitialPhotoAllocationRequest` and the live adapter
+still use v1; there is no v2 persistence or transfer capability. The
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#october-29--versioned-photo-allocation-role-projection-inactive)
+owns wire compatibility, mapping immutability and the required reservation
+before durable enrichment. The
+[scan entry point](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md)
+owns current integration and qualification status.
+
 ## Local task termination witness — October 29 qualified checkpoint
 
 The existing bounded pinned request bridge now delegates its task state to

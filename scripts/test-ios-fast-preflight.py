@@ -132,6 +132,8 @@ class PolicyTests(unittest.TestCase):
         for path in [
             'apps/ios/Merian/Core/Network/Inference/IdentificationPreflight.swift',
             'apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+IdentificationPreflight.swift',
+            'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRequest.swift',
+            'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRoleReply.swift',
         ]:
             actual = preflight.load_policy(ROOT)
             # Preserve the existing Core Network physical-line review ceiling.
@@ -139,7 +141,7 @@ class PolicyTests(unittest.TestCase):
             self.assertFalse(any(preflight.within(path, directory) for directory in
                                  [*actual['directoryRules'], *actual['globalOnlyDirectories']]))
             source = root / path
-            source.parent.mkdir(parents=True)
+            source.parent.mkdir(parents=True, exist_ok=True)
             policy['fileRules'][path] = dict(counter='physical', ceiling=2)
             source.write_bytes(b'x\nx\n')
             self.assertEqual(preflight.size_failures(root, policy, [path]), [])

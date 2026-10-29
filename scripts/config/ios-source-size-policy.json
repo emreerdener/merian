@@ -116,6 +116,14 @@
     "apps/ios/Merian/Core/Data/StoreRecovery/Services/ModelContainerFactory+Persistent.swift": {
       "counter": "physical",
       "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRequest.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRoleReply.swift": {
+      "counter": "physical",
+      "ceiling": 600
     }
   },
   "globalOnlyDirectories": [

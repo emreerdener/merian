@@ -1,3 +1,31 @@
+## October 29 — inactive role projection checkpoint
+
+The
+[v2 allocation contract](05-api-contracts.md#october-29--versioned-photo-allocation-role-projection-inactive)
+adds an ordered, bounded source/AI/display reference-to-object mapping on the
+same authenticated create/status endpoint and an inactive native decoder. This
+is a transfer prerequisite, not a transfer capability. Existing native requests
+and persisted receipts remain v1. Durable monotonic enrichment with
+metadata/revision reservation is next; original candidate, assignment digest and
+both clocks must survive status recovery unchanged. Upload/signing, remote
+closure, verification, admission/execution/result/history and full journey
+acceptance remain open.
+
+The local coding checkpoint passed the new decoder and existing allocation
+regressions: 20 methods / 46 cases. The broader selected native run accounted
+for 48 methods / 74 cases, with 47 methods passing and the known unrelated Auth
+architecture size gate failing. All 3,051 source/project pins remained
+unchanged; structured runtime warnings were empty. The full gate remains failed.
+Endpoint tests passed 13 cases, recursive Deno checking covered 1,224 files, and
+iOS tooling and the combined Supabase tooling components passed. Engine found no
+production source blocker. Evidence is retained under
+`.artifacts/native-app-capture-handoff-20261020/cpm-role-native-scoped02.json`
+and `cpm-role-static-evidence01.json`. Native run01 failed test compilation
+(492.855 seconds, zero runtime tests); the explicit enum inference correction
+passed in run02 (3,227.549 seconds). The stale Core Data version documentation
+and sandbox PTY failures remain retained with their corrective validation. No
+Release, deployed capability or full journey acceptance is claimed.
+
 ## October 29 — inactive outstanding-write hold candidate
 
 The
@@ -103,12 +131,12 @@ claim once. Assignment digest and the original 1,800,000 ms interval never
 renew. Saved allocation is historical evidence, not proof of current remote
 usability.
 
-`SharedMediaNativeAppPhotoAllocationOperations` permits only the allocation
-sidecar and inventory revision to change. Prepared/Received bytes and receiving
-revision stay fixed. Admission reserves two inventory advances, plus all other
-pending and terminal obligations. The unresolved witness reserves one remaining
-advance; the allocated witness reserves none. Exact receipt replays and negative
-observations do not write. Clean consumer/audit/budget readers use
+The current v1 `SharedMediaNativeAppPhotoAllocationOperations` permits only the
+allocation sidecar and inventory revision to change. Prepared/Received bytes and
+receiving revision stay fixed. Admission reserves two inventory advances, plus
+all other pending and terminal obligations. The unresolved witness reserves one
+remaining advance; the allocated witness reserves none. Exact receipt replays
+and negative observations do not write. Clean consumer/audit/budget readers use
 `SharedMediaNativePhotoAllocationSnapshot`; generic receiving and release remain
 closed. Charge existing metadata plus the larger canonical unresolved/positive
 sidecar and its SHA within the unchanged 1 MiB package metadata cap, including
@@ -186,6 +214,18 @@ owns the create/status request and opaque receipt. The
 [authenticated facade](../../services/supabase/functions/initial-photo-allocation/README.md)
 reuses the existing service-only allocation/status SQL owners without exposing
 provider configuration or adding funding/execution authority.
+
+The separate
+[v2 projection contract](05-api-contracts.md#october-29--versioned-photo-allocation-role-projection-inactive)
+exposes only the complete ordered logical-reference/opaque-object mapping. Its
+[`InitialPhotoAllocationRoleReply`](../../apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRoleReply.swift)
+decoder and
+[`focused native tests`](../../apps/ios/MerianTests/Core/Network/Transport/InitialPhotoAllocationRoleReplyTests.swift)
+are the contributor entry points. Native request/persistence remains v1. Before
+connecting this decoder, implement the explicit reservation/enrichment
+transition; the current settled v1 receipt has no remaining revision allowance.
+Preserve its historical bytes and exact claim, assignment digest and clocks
+through recovery.
 
 For a stalled local submission, inspect the exact receiving slot and current
 account/selection fences before retrying local recovery. Never edit Prepared,

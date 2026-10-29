@@ -1,3 +1,41 @@
+## October 29 — versioned photo allocation role projection (inactive)
+
+The same `initial-photo-allocation` create/status endpoint accepts either the
+unchanged
+[v1 schema](../../services/supabase/functions/initial-photo-allocation/schema-v1.json)
+or the closed
+[v2 schema](../../services/supabase/functions/initial-photo-allocation/schema-v2.json).
+Request version negotiates only the response projection; candidate identity,
+private assignment, service RPCs and original deadlines are unchanged. V2
+allocated replies add `role_mapping`, a complete cohort ordered by photo ordinal
+then `source`, `ai`, `display`. Each entry contains only `photo_ordinal`,
+`role`, `reference_id` and `object_id`. One or two photos produce exactly three
+or six entries, with distinct logical references and destinations even when
+bytes are equal. The private recovery validator checks the entire assignment
+before any projection. Both versions retain `authority: "none"` and the
+2,048-byte native reply bound; terminal holds expose no mapping.
+
+`InitialPhotoAllocationRoleReply` is an inactive native decoder. It verifies
+candidate/content digest association, exact local role references and ordering,
+unique object IDs, original receipt clocks and an already saved projection's
+identity. It cannot independently recompute the private assignment digest from
+this reduced projection. The authenticated mapping must be frozen when
+persisted; a later response changing it is rejected. An opaque terminal hold
+cannot clear that saved evidence, prove remote closure or authorize replacement.
+
+The native request builder, caller and durable receipt remain v1. Persisting v2
+requires a separate monotonic enrichment transition: reserve worst-case metadata
+and revision capacity before the request, recover only the original candidate
+and saved assignment digest through status, require both original clocks, and
+atomically save the complete mapping. Fresh allocation must likewise reserve its
+complete successor before create. This checkpoint supplies neither that
+transition nor upload/signing, byte verification, admission or execution
+authority. There are no Identify generated DTO, public web, admin, SQL schema or
+RPC changes. The
+[scan entry point](16-scan-ingestion-reliability-and-recovery.md#current-initial-photo-integration-entry-point--october-28)
+tracks integration and remaining acceptance. No deployment or activation is
+implied.
+
 ## October 28 — initial photo allocation HTTP candidate
 
 `initial-photo-allocation` is an implemented local authenticated facade for the
@@ -34,7 +72,9 @@ original clocks. The existing receiving owner persists a claim before I/O and
 recovers uncertain outcomes through status only; see the
 [native allocation lifecycle](16-scan-ingestion-reliability-and-recovery.md#current-initial-photo-integration-entry-point--october-28)
 for implementation and qualification status. Full provider, model, policy,
-installation, role mapping and destination data remain server-private.
+installation and storage addressing remain server-private. The v1 response also
+omits role mapping; the separately versioned v2 projection below exposes only
+opaque object identities.
 
 Terminal receipts contain the request association and a closed `not_found`,
 `expired` or `cancelled` reason. Association is not proof that the candidate

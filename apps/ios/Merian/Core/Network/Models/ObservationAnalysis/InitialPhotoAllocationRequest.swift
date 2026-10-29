@@ -32,23 +32,13 @@ enum InitialPhotoAllocationReply: Equatable, Sendable {
               let row = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw MerianError.invalidResponse
         }
-        let common: Set<String> = ["version", "variant", "authority", "scan_id", "package_id",
-            "candidate_digest", "content_digest", "outcome"]
-        let claim = request.allocation.claim
-        guard try ObservationHistoryPage.integer(row["version"], maximum: 1) == 1,
-              row["variant"] as? String == "client_prepared_photo", row["authority"] as? String == "none",
-              try ObservationHistoryPage.uuid(row["scan_id"]) == claim.observationID,
-              try ObservationHistoryPage.uuid(row["package_id"]) == claim.packageID,
-              row["candidate_digest"] as? String == claim.candidateDigest,
-              row["content_digest"] as? String == claim.contentDigest else { throw MerianError.invalidResponse }
+        let common = Self.associationKeys
+        try Self.requireAssociation(row, request: request, version: 1)
         switch row["outcome"] as? String {
         case "allocated":
             guard Set(row.keys) == common.union(["assignment_digest", "created_at_ms", "expires_at_ms"]),
                   let digest = row["assignment_digest"] as? String else { throw MerianError.invalidResponse }
-            let receipt = SharedMediaNativePhotoAllocation.Receipt(assignmentDigest: digest,
-                createdAtMilliseconds: Int64(try ObservationHistoryPage.integer(row["created_at_ms"], maximum: 8_639_999_998_200_000)),
-                expiresAtMilliseconds: Int64(try ObservationHistoryPage.integer(row["expires_at_ms"], maximum: 8_640_000_000_000_000)))
-            _ = try request.allocation.settling(receipt)
+            let receipt = try Self.receipt(row, digest: digest, request: request)
             self = .allocated(receipt)
         case "terminal_held":
             guard Set(row.keys) == common.union(["reason"]), let reason = row["reason"] as? String,
@@ -57,4 +47,25 @@ enum InitialPhotoAllocationReply: Equatable, Sendable {
         default: throw MerianError.invalidResponse
         }
     }
+    static let associationKeys: Set<String> = ["version", "variant", "authority", "scan_id", "package_id",
+        "candidate_digest", "content_digest", "outcome"]
+
+    static func requireAssociation(_ row: [String: Any], request: InitialPhotoAllocationRequest, version: Int) throws {
+        let claim = request.allocation.claim
+        guard try ObservationHistoryPage.integer(row["version"], maximum: version) == version,
+              row["variant"] as? String == "client_prepared_photo", row["authority"] as? String == "none",
+              try ObservationHistoryPage.uuid(row["scan_id"]) == claim.observationID,
+              try ObservationHistoryPage.uuid(row["package_id"]) == claim.packageID,
+              row["candidate_digest"] as? String == claim.candidateDigest,
+              row["content_digest"] as? String == claim.contentDigest else { throw MerianError.invalidResponse }
+    }
+
+    static func receipt(_ row: [String: Any], digest: String, request: InitialPhotoAllocationRequest) throws -> SharedMediaNativePhotoAllocation.Receipt {
+        let receipt = SharedMediaNativePhotoAllocation.Receipt(assignmentDigest: digest,
+                createdAtMilliseconds: Int64(try ObservationHistoryPage.integer(row["created_at_ms"], maximum: 8_639_999_998_200_000)),
+                expiresAtMilliseconds: Int64(try ObservationHistoryPage.integer(row["expires_at_ms"], maximum: 8_640_000_000_000_000)))
+        _ = try request.allocation.settling(receipt)
+        return receipt
+    }
+
 }

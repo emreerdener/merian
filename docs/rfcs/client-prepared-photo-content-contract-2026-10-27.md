@@ -1,3 +1,16 @@
+## October 29 — inactive role projection checkpoint
+
+The
+[v2 allocation contract](../backend-and-data/05-api-contracts.md#october-29--versioned-photo-allocation-role-projection-inactive)
+adds an ordered, bounded source/AI/display reference-to-object mapping on the
+same authenticated create/status endpoint and an inactive native decoder. This
+is a transfer prerequisite, not a transfer capability. Existing native requests
+and persisted receipts remain v1. Durable monotonic enrichment with
+metadata/revision reservation is next; original candidate, assignment digest and
+both clocks must survive status recovery unchanged. Upload/signing, remote
+closure, verification, admission/execution/result/history and full journey
+acceptance remain open.
+
 ## October 29 — inactive outstanding-write hold candidate
 
 The

@@ -44,6 +44,8 @@ Deno.test("photo authenticated route fixes owner and one RPC per create/status; 
           create(),
           status(),
           status(allocated().assignment_digest),
+          { ...create(), version: 2 },
+          { ...status(allocated().assignment_digest), version: 2 },
         ]
       ) {
         let calls = 0;
@@ -80,6 +82,8 @@ Deno.test("photo authenticated route fixes owner and one RPC per create/status; 
           "private, no-store",
         );
         const receipt = await response.json();
+        assertEquals(receipt.version, body.version);
+        assertEquals("role_mapping" in receipt, body.version === 2);
         assertEquals(receipt.assignment_digest, allocated().assignment_digest);
         assertEquals("assignment_canonical" in receipt, false);
         assertEquals("configuration" in receipt, false);

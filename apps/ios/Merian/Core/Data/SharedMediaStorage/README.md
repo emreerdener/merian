@@ -1,3 +1,15 @@
+## Current allocation integration — October 29
+
+The inactive Capture allocation caller and cold recovery are locally qualified;
+ordinary factory installation remains disabled. This supersedes the pending
+caller statements in the dated checkpoints below. The
+[scan entry point](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md)
+owns current qualification and remaining journey work. The new
+[v2 role projection](../../../../../../docs/backend-and-data/05-api-contracts.md#october-29--versioned-photo-allocation-role-projection-inactive)
+and native decoder do not change this owner's v1 persisted receipts. Monotonic
+enrichment must reserve metadata/revision capacity before request and save;
+transfer, remote closure and admission remain pending.
+
 ## October 28 — allocation consuming integration candidate
 
 The inactive `allocateAppPhoto` entry now joins the retained receiving owner,

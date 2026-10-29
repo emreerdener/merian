@@ -1,9 +1,12 @@
 # Initial photo allocation
 
 Local candidate only: authenticated photo create/status facade, not deployed,
-activated or called by the app. The canonical wire and recovery rules live in
+activated or installed in the ordinary app factory. An inactive Capture caller
+and durable v1 allocation owner have local validation evidence. The canonical
+wire and recovery rules live in
 [API contracts](../../../../docs/backend-and-data/05-api-contracts.md#october-28--initial-photo-allocation-http-candidate).
-The [schema](./schema-v1.json) owns the closed app projection; the existing
+The [v1 schema](./schema-v1.json) and [v2 schema](./schema-v2.json) own the
+closed app projections; the existing
 [CPM contract](../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
 owns exact content and server assignment semantics.
 
@@ -11,16 +14,22 @@ owns exact content and server assignment semantics.
 keeps private diagnostics out of the response. `db.ts` calls only the existing
 service-only create/status RPCs with bounded deadlines and no retries.
 `contract.ts` validates the complete private assignment before projecting the
-minimal receipt. Status may terminalize expiry; it is not mutation-free.
+minimal receipt. V2 additionally projects the complete ordered
+role/reference/object identity cohort; neither version returns storage keys,
+URLs or execution authority. Status may terminalize expiry; it is not
+mutation-free.
 
 Do not use this endpoint as an upload, execution or local-release capability.
-Native receiving-slot allocation claims and release fences are the next
-integration requirement. Until they exist, the app remains at local receipt.
+The native request/caller/persisted receipt remain v1. The inactive v2 decoder
+checks mapping association and saved identity, but durable enrichment must first
+reserve metadata/revision capacity. See the
+[current v2 contract](../../../../docs/backend-and-data/05-api-contracts.md#october-29--versioned-photo-allocation-role-projection-inactive).
+Physical transfer, remote write closure and admission remain pending.
 
 Run the focused synthetic tests from the repository root:
 
 ```sh
-deno test --frozen --config services/supabase/functions/deno.json --allow-env --deny-net services/supabase/functions/initial-photo-allocation/contract_test.ts services/supabase/functions/initial-photo-allocation/route_test.ts
+deno test --frozen --config services/supabase/functions/deno.json --allow-env --deny-net services/supabase/functions/initial-photo-allocation/*_test.ts
 ```
 
 These tests cover authenticated fixed RPC calls, exact assignment projection,

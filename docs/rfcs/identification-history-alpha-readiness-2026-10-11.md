@@ -1,3 +1,21 @@
+## October 29 — inactive allocation role projection
+
+The
+[API contract](../backend-and-data/05-api-contracts.md#october-29--versioned-photo-allocation-role-projection-inactive)
+now defines negotiated v2 metadata on the same allocation/status endpoint and an
+inactive native decoder. This preserves v1 callers and persisted receipts; there
+is no new transfer or execution authority. Engine source review found no
+blocker. The new decoder and existing allocation regressions passed 20 methods /
+46 cases. The broader selected gate retains the known unrelated Auth
+architecture size failure; full native acceptance is not claimed. The next
+prerequisite is bounded, monotonic receipt enrichment with metadata/revision
+reservation before request and save, followed by original/AI/display transfer
+and verification. The
+[scan entry point](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md)
+retains current implementation, evidence and recovery boundaries. Full photo,
+reanalysis, audio/video, RUX1–6 and later deletion/export/redesign remain open.
+PR116 and deployment holds are unchanged.
+
 ## October 29 — inactive outstanding-write hold candidate
 
 The
