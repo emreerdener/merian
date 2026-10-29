@@ -9,6 +9,16 @@ export const INITIAL_ASSET_TOTAL_BYTES = 1_048_576;
 const unavailable = () => new Error("initial_analysis_transport_unavailable");
 const deadlines = new WeakMap<AbortSignal, { at: number; abort: () => void }>();
 
+/** Remaining monotonic budget for a managed signal, including parent limits.
+ * Unmanaged signals have no known time limit; cancellation still applies. */
+export function initialRemainingDeadline(signal: AbortSignal): number {
+  checkInitialDeadline(signal);
+  return Math.max(
+    0,
+    (deadlines.get(signal)?.at ?? Infinity) - performance.now(),
+  );
+}
+
 /** Timers may be delayed by ready-stream microtasks or synchronous work. */
 export function checkInitialDeadline(signal: AbortSignal): void {
   const deadline = deadlines.get(signal);

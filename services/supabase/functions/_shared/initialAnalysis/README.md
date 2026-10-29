@@ -6,9 +6,17 @@ checks and full-byte or retired-marker verification. It reuses the existing
 backend codec, stream and deadline owners. This observation has no issuance,
 settlement or capacity-release authority. The
 [scan contract](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#inactive-cpm-storage-observation)
-owns limits, validation status and the remaining coordinator/payload/memory
-qualification. Focused synthetic tests are in
+owns limits, validation status and the remaining production
+bridge/payload/memory qualification. Focused synthetic tests are in
 `cpmPhotoWriteObservation_test.ts`.
+
+`cpmPhotoWriteClosure.ts:closeInitialCpmPhotoWrite` joins that actual
+observation to an injected authoritative database bridge. It freezes original
+facts and the marker claim, preserves a settlement reserve within managed
+deadlines, and recovers uncertain settlement through an exact receipt read.
+Tests live beside it in `cpmPhotoWriteClosure_test.ts`. The bridge and signer
+remain uninstalled; the linked scan contract owns their obligations and local
+validation/review status.
 
 ## October 27 — inactive photo CPM content declaration candidate
 

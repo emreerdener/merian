@@ -29,14 +29,15 @@ original no-closure increment; this section owns the new inactive metadata
 transition.
 
 These routines are database-owner-only metadata, not proof of a storage read.
-The future trusted coordinator must actually perform the exact bound observation
-and preserve its original claim through settlement; it must never accept client
-JSON as proof or substitute a newly looked-up claim. Policy qualification, exact
-payload enforcement, alternate writers, physical retention, server memory and
-full app journeys remain open. Do not clear holds by deleting records or
-renewing identities. The
+The inactive coordinator performs the exact bound observation and preserves its
+original claim through settlement; its production database bridge remains
+unimplemented. That bridge must never accept client JSON as proof or substitute
+a newly looked-up claim. Policy qualification, exact payload enforcement,
+alternate writers, physical retention, server memory and full app journeys
+remain open. Do not clear holds by deleting records or renewing identities. The
 [joined scan guide](16-scan-ingestion-reliability-and-recovery.md#inactive-cpm-storage-observation)
-connects this boundary to the observation primitive and native owners.
+owns coordinator behavior, remaining adapter obligations and validation status,
+and connects this boundary to the observation primitive and native owners.
 
 The exact repaired local candidate passed a fresh 497-migration replay, 136
 focused catalog assertions and all 176 catalogs / 7,166 assertions (643.721

@@ -115,13 +115,43 @@ blocking issue on the exact two-file candidate. Repository Edge/script
 formatting and lint plus 26 documentation contracts passed. Evidence is retained
 under `.artifacts/native-app-capture-handoff-20261020/cpm-observation-*`. The
 [inactive database settlement](04-database-schema.md#inactive-cpm-durable-write-closure--october-29)
-now records exact policy-bound closure metadata under registry locks; its
-trusted observation coordinator remains unimplemented; an observation cannot
-settle a hold, release capacity, fund admission or authorize signing. Its
-returned structure is constructible: settlement must use a trusted coordinator
-that actually performs the read, never client-supplied observation JSON. Marker
-settlement must capture the original erasure claim token before the read and
-keep it through settlement; looking up a newer claim cannot replace it.
+now records exact policy-bound closure metadata under registry locks. The
+inactive
+[coordinator](../../services/supabase/functions/_shared/initialAnalysis/cpmPhotoWriteClosure.ts)
+calls the actual observation primitive before attempting settlement; it accepts
+no client-supplied observation proof. Its production database bridge and signing
+adapter are not installed. An observation alone cannot settle a hold, release
+capacity, fund admission or authorize signing.
+
+The coordinator first reads the exact historical receipt, allowing recovery
+after private state erasure without new storage I/O. For fresh work it snapshots
+authoritative original attempt, backend, declarations and policy facts. Marker
+mode captures the already-owned original erasure claim and preserves it through
+observation and settlement; a newer claim cannot replace it. The operation has a
+20-second aggregate bound and reserves five seconds after observation, using the
+shorter managed parent deadline and admission or claim lifetime. A deadline
+unknown to the managed transport can still cancel the operation but cannot
+provide an advance time reserve. A lost or invalid settlement acknowledgement
+permits one exact receipt read, never another observation, claim or settlement
+within the invocation. Receipt identity, policy, timestamp and claim digest must
+all match. Cancellation leaves uncertainty held; a returned historical receipt
+is not new signing or capacity-release authority.
+
+The production bridge must supply authoritative facts, preserve timestamp
+precision, avoid hidden retries and call the SQL settlement under its fresh
+lifecycle fences. Those adapters remain unimplemented and unqualified. The
+[coordinator tests](../../services/supabase/functions/_shared/initialAnalysis/cpmPhotoWriteClosure_test.ts)
+cover source/AI/display reads, immutable claims, exact recovery, mismatches,
+late completion, lifecycle denial and shorter parent deadlines. Local evidence
+is retained under
+`.artifacts/native-app-capture-handoff-20261020/cpm-coordinator-*`. The exact
+candidate passed 19 focused tests and 382 initial-analysis domain tests / 164
+steps, including the inherited-deadline correction. Engine independently
+reviewed all three source hashes and found no remaining blocker. Recursive
+Edge/script formatting and lint, 26 documentation contracts and changed-Markdown
+checks passed. This qualifies the local inactive coordinator, not its absent
+production adapters or hosted storage behavior.
+
 Full-buffer hashing still requires CPM-specific server memory qualification. The
 existing backend protocol uses conditional creation and permanent same-key
 markers. Cloudflare documents atomic
