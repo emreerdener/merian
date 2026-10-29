@@ -6,9 +6,10 @@ This section traces the **inactive local initial-photo candidate**. The older
 runtime contract and its dated evidence below remain applicable to their legacy
 paths; they do not qualify this new journey. Photo consent/preflight through
 immutable local receipt is locally qualified. The authenticated allocation
-facade is implemented and source-reviewed; native durable allocation
-qualification, transfer, execution, result/history and full journey acceptance
-remain open. Nothing here implies deployment or feature activation. The
+facade and native durable allocation owner have local source review and
+runtime/Release evidence. Transfer, execution, result/history and full journey
+acceptance remain open. Nothing here implies deployment or feature activation.
+The
 [existing receiving record](../../apps/ios/Merian/Models/ActiveSchema/SharedMediaReceivingIntentRecord.swift)
 now has a dormant V67 allocation sidecar candidate; its migration and
 failure-closed release/recovery contract is owned by the
@@ -45,16 +46,22 @@ writer's exact poststate: its raw sidecar, package, membership and consumer stay
 unchanged while the actual successor graph retains the allocation's byte and
 revision reservations. Generic receiving and cleanup decoders remain closed to
 allocation targets. Focused tests caught an earlier blanket peer rejection; the
-repair passed compilation, independent source review, its first focused run (4
-methods / 7 cases), and an affected-surface batch (71 methods / 177 cases). That
-batch covers the complete allocation/foundation, metadata, acquisition,
-preparation, pair-plan, clean-graph and consumer suites, including six peer
-corruption cases. Evidence is retained in
-`.artifacts/native-app-capture-handoff-20261020/photo-allocation-consuming-tests06-coverage.json`
-and XCResult `681c60fbc3264a97bcb258023483b35b`: no source drift or structured
-runtime warnings. Remaining writer/release gates, Release and the unrelated Auth
-size-gate failure remain open. This is a local coding checkpoint, not full
-allocation integration acceptance.
+repair passed compilation, independent source review and **192 methods / 439
+cases** across allocation/foundation, all affected app writers,
+receiving/staging, clean/consumer graphs, release and terminal accounting. All
+native/project sources were unchanged across the three batches, with no
+structured runtime warnings. The combined evidence is
+`.artifacts/native-app-capture-handoff-20261020/photo-allocation-consuming-combined-runtime01.json`.
+The second batch's filename-based selector manifest omitted one two-case
+boundary method; its failed coverage receipt remains retained, and the third
+batch executed that method under its declared suite. The managed generic
+simulator Release build also passed with all 3,045 native/project source pins
+unchanged, zero errors and 381 warnings (XCResult
+`354dd01aac5544bf9c04a991c311b9ac`). Its exact qualification receipt is
+`.artifacts/native-app-capture-handoff-20261020/photo-allocation-release01-qualified.json`.
+The pre-existing unrelated Auth size-gate failure remains open. This qualifies
+the bounded implementation in local checkpoint `6276b2651`; full allocation
+integration acceptance remains open.
 
 `InitialPhotoAllocationTransport` uses the existing pinned authenticated
 transport with a five-second deadline, a streamed 2 KiB response cap, exact
@@ -63,17 +70,17 @@ follows redirects or calls inference. Receiving locks surround save and fresh
 settlement, while the outer account/store operation remains retained during I/O.
 The existing single-active-operation gate rejects overlapping requests as busy;
 shared-result status coalescing is not implemented. Tests for this candidate
-live in `SharedMediaNativePhotoAllocationTests`; their results must be qualified
-before calling this integration accepted. Do not manually clear sidecars to
-recover a stalled allocation: preserve the exact saved candidate and inspect
-status under the original account. Hosted operations and deployment need
+live in `SharedMediaNativePhotoAllocationTests`; the qualified bounded evidence
+above does not qualify the pending full app journey. Do not manually clear
+sidecars to recover a stalled allocation: preserve the exact saved candidate and
+inspect status under the original account. Hosted operations and deployment need
 separate authorization.
 
 ```mermaid
 flowchart LR
     A[Capture selection and optional text] --> B[Original ownership and photo preparation]
     B --> C[Frozen Prepared and local Received]
-    C -. unqualified allocation owner .-> D[Authenticated create or status]
+    C --> D[Inactive authenticated create or status]
     D --> E[Private CPM assignment and minimal receipt]
     E -. pending integration .-> F[Transfer and byte verification]
     F -. pending integration .-> G[Admission and execution]

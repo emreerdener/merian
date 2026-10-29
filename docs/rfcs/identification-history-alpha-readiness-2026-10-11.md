@@ -1,3 +1,19 @@
+## October 29 — bounded allocation validation complete
+
+The native allocation writer in local checkpoint `6276b2651` now has qualified
+affected runtime evidence (192 methods / 439 cases), independent source review
+and a managed Release build on unchanged inputs. The
+[scan-ingestion contract](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md)
+owns the detailed evidence and retained failed attempts. This supersedes the
+pending writer/release validation status below. The unrelated Auth architecture
+size gate remains failed; full integration acceptance is not claimed.
+
+Next is the existing Capture submission caller and exact allocation recovery,
+then transfer, admission/execution and result/history under the agreed native
+lifetime contract. The caller and downstream journey remain inactive. Initial
+photo/reanalysis/full-photo, audio/video, RUX and the later approved sequence
+remain open; all release and external-operation holds persist.
+
 ## October 28 — native allocation consuming integration candidate
 
 The existing receiving owner now implements a durable allocation claim, bounded

@@ -12,12 +12,14 @@ No Capture UI caller, upload, execution or release authority is enabled.
 
 `SharedMediaNativePhotoAllocationPeer` carries clean immutable peer evidence
 through existing facts and writer poststates so a held allocation can coexist
-with independent drafts. Compilation, independent source review and the first
-focused run (4 methods / 7 cases) passed. The next affected-surface batch passed
-71 methods / 177 cases, including six peer-corruption cases and the complete
-allocation, foundation, metadata, acquisition, preparation, pair-plan, clean
-graph and consumer suites. Remaining writer/release gates and Release are
-pending; generic mutation of the allocated target remains closed.
+with independent drafts; generic mutation of the allocated target remains
+closed. Compilation, independent source review and affected runtime validation
+passed: **192 methods / 439 cases** across allocation, app writers,
+receiving/staging, release and terminal accounting. The managed Release build
+also passed on unchanged native/project inputs. The unrelated Auth architecture
+size-gate disposition remains open. The canonical scan-ingestion guide linked
+above owns detailed evidence, including the retained selector-manifest failure
+and its completed missing coverage.
 
 ## October 28 — dormant native allocation storage qualified locally
 
