@@ -1,3 +1,17 @@
+## October 29 — inactive durable closure candidate
+
+The
+[database contract](../backend-and-data/04-database-schema.md#inactive-cpm-durable-write-closure--october-29)
+now owns policy-bound live/marker closure metadata and its validation status.
+This supersedes the earlier no-closure implementation checkpoint below without
+qualifying a storage protocol, installing a coordinator or issuer, releasing
+capacity, or completing the app journey. Source review found a raw-update
+backend-revocation gap; targeted reproduction confirmed it, the repaired guard
+and tests passed source review, then all 176 catalogs / 7,166 assertions and
+seven closure plus five existing write-hold concurrency schedules passed on
+exact local replays. All release controls and the approved milestone sequence
+remain unchanged.
+
 ## October 29 — native pre-transfer reservation candidate
 
 The inactive native owner now persists one exact reserved, not-started role with

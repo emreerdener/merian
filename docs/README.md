@@ -31,7 +31,7 @@ boundaries, and the [codebase map](./codebase-map.md) inventories source owners.
 | Database and Edge Functions             | [`services/supabase`](../services/supabase/README.md)                                                     |
 
 The app and widget target iOS 17.2; the companion targets watchOS 10.0. The
-active SwiftData source schema is `MerianSchemaV59`; the inactive NCO-1
+active SwiftData source schema is `MerianSchemaV67`; the inactive NCO-1
 original-photo owner is undergoing local validation. The
 [schema contract](./backend-and-data/04-database-schema.md) and
 [startup recovery guide](./backend-and-data/08-startup-store-recovery.md) own
@@ -83,10 +83,14 @@ production submission or public release.
 ### Cross-Surface Contracts
 
 - [Scan ingestion and recovery](./backend-and-data/16-scan-ingestion-reliability-and-recovery.md):
-  fresh multimodal success awaits moderation, required media promotion, primary
-  species resolution, scan creation, owner read-back, and canonical media
-  verification. Marked same-UUID replay may reconstruct from the exact owner row
-  while reconciliation remains retryable, without a second provider call.
+  start with the
+  [initial-photo journey](./backend-and-data/16-scan-ingestion-reliability-and-recovery.md#current-initial-photo-integration-entry-point--october-28)
+  for the inactive CPM owners and qualification gaps. In the separate legacy
+  joined flow, fresh multimodal success awaits moderation, required media
+  promotion, primary species resolution, scan creation, owner read-back, and
+  canonical media verification. Marked same-UUID replay may reconstruct from the
+  exact owner row while reconciliation remains retryable, without a second
+  provider call.
 - [Server credentials and database safety](./backend-and-data/13-server-credentials-and-database-release-safety.md):
   header classification, RLS/grants, migration ownership, and replay safety.
 - [Scientific-observation retention](./backend-and-data/17-scientific-observation-retention.md):

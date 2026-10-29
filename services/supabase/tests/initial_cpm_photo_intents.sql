@@ -126,6 +126,100 @@ SELECT extensions.ok(internal.initial_cpm_photo_cohort_complete('00000000-0000-4
 SELECT extensions.throws_ok($$SELECT pg_temp.cpm_create('00000000-0000-4000-8000-00000000f103')$$,'55000','initial_analysis_capacity_unavailable','third owner slot denied');
 SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM internal.initial_analysis_operation_fences WHERE scan_id='00000000-0000-4000-8000-00000000f103'),'capacity rejection rolls back identity claim');
 -- Outstanding-write bookkeeping is database-owner-only and grants no IO.
+SAVEPOINT closure_cases;
+SELECT extensions.is((SELECT count(*) FROM internal.initial_cpm_photo_write_policies),0::BIGINT,'closure policy is never installed by migration');
+SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM unnest(ARRAY['anon','authenticated','service_role']) r
+ CROSS JOIN unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE']) privilege
+ CROSS JOIN unnest(ARRAY['initial_cpm_photo_write_policies','initial_cpm_photo_write_closures']) t
+ WHERE has_table_privilege(r,'internal.'||t,privilege)),'closure tables deny API roles');
+SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM unnest(ARRAY['anon','authenticated','service_role']) r
+ CROSS JOIN unnest(ARRAY['internal.bind_initial_cpm_photo_write_policy(uuid,uuid,text)','internal.settle_initial_cpm_photo_write_closure(uuid,text,text,timestamptz,uuid)']) f
+ WHERE has_function_privilege(r,f,'EXECUTE')),'closure routines deny API roles');
+CREATE TEMP TABLE closure_policy AS SELECT jsonb_build_object('version',1,'backend_generation',generation,
+ 'backend_configuration_digest',configuration_digest,'observation_build_digest',repeat('1',64),
+ 'enforcement_evidence_digest',repeat('2',64),'reviewed_revision',repeat('3',40),
+ 'protocol','conditional_create_permanent_same_key_marker_v1') v FROM internal.initial_preparation_source_backends;
+INSERT INTO internal.initial_cpm_photo_write_policies
+ SELECT encode(extensions.digest(convert_to('merian.initial-analysis.cpm-write-policy.v1'||E'\n'||internal.initial_canonical(v),'UTF8'),'sha256'),'hex'),
+ (v->>'backend_generation')::UUID,v->>'backend_configuration_digest',v->>'observation_build_digest',v->>'enforcement_evidence_digest',v->>'reviewed_revision',v->>'protocol','eligible'
+ FROM closure_policy;
+CREATE FUNCTION pg_temp.closure_write(action TEXT,role_name TEXT DEFAULT 'source') RETURNS internal.initial_cpm_photo_write_attempts LANGUAGE SQL AS $$
+ SELECT internal.initial_cpm_photo_write_action(action,'00000000-0000-4000-8000-00000000f001',
+ '00000000-0000-4000-8000-00000000f101',s.assignment_digest,m.object_id)
+ FROM internal.initial_analysis_preparation_intents s JOIN internal.initial_cpm_photo_role_mapping m USING(scan_id)
+ WHERE s.scan_id='00000000-0000-4000-8000-00000000f101' AND m.role=role_name;
+$$;
+CREATE TEMP TABLE closure_attempt AS SELECT (pg_temp.closure_write('bind')).*;
+CREATE FUNCTION pg_temp.close_source(outcome TEXT DEFAULT 'live_object',at_time TIMESTAMPTZ DEFAULT NULL,claim UUID DEFAULT NULL)
+ RETURNS internal.initial_cpm_photo_write_closures LANGUAGE SQL AS $$
+ SELECT internal.settle_initial_cpm_photo_write_closure(a.attempt_id,p.digest,outcome,COALESCE(at_time,a.issued_at),claim)
+ FROM internal.initial_cpm_photo_write_attempts a CROSS JOIN internal.initial_cpm_photo_write_policies p
+ WHERE a.attempt_id=(SELECT attempt_id FROM closure_attempt);
+$$;
+SELECT extensions.throws_ok($$SELECT pg_temp.close_source()$$,'22023','initial_analysis_input_invalid','bound attempt has no issuance observation');
+SAVEPOINT legacy_unbound;
+SELECT (pg_temp.closure_write('may_have_issued')).state;
+SELECT extensions.throws_ok($$SELECT pg_temp.close_source()$$,'55000','initial_analysis_preparation_required','legacy issued attempt cannot acquire closure policy afterwards');
+SELECT extensions.throws_ok($$SELECT internal.bind_initial_cpm_photo_write_policy('00000000-0000-4000-8000-00000000f001',(SELECT attempt_id FROM closure_attempt),(SELECT digest FROM internal.initial_cpm_photo_write_policies))$$,'22023','initial_analysis_storage_immutable','policy cannot attach after issuance');
+ROLLBACK TO legacy_unbound;
+SELECT extensions.lives_ok($$SELECT internal.bind_initial_cpm_photo_write_policy('00000000-0000-4000-8000-00000000f001',(SELECT attempt_id FROM closure_attempt),(SELECT digest FROM internal.initial_cpm_photo_write_policies))$$,'bind policy before issuance');
+SAVEPOINT revoked_backend_raw;
+UPDATE internal.initial_preparation_backend_eligibility SET state='revoked';
+SELECT extensions.throws_ok($raw$DO $$ BEGIN
+ UPDATE internal.initial_cpm_photo_write_attempts SET state='may_have_issued',issued_at=clock_timestamp() WHERE attempt_id=(SELECT attempt_id FROM closure_attempt);
+ UPDATE internal.initial_cpm_photo_capacity_reservations SET write_capability_state='may_have_issued' WHERE scan_id='00000000-0000-4000-8000-00000000f101';
+ SET CONSTRAINTS ALL IMMEDIATE;
+END $$;$raw$,'55000','initial_analysis_preparation_unavailable','raw policy-bound issuance honors backend revocation');
+SELECT extensions.is((SELECT state FROM internal.initial_cpm_photo_write_attempts WHERE attempt_id=(SELECT attempt_id FROM closure_attempt)),'bound','raw revocation refusal preserves original state');
+ROLLBACK TO revoked_backend_raw;
+SAVEPOINT revoked_policy;
+UPDATE internal.initial_cpm_photo_write_policies SET state='revoked';
+SELECT extensions.throws_ok($$SELECT pg_temp.closure_write('may_have_issued')$$,'55000','initial_analysis_preparation_unavailable','revoked policy prevents issuance transition');
+SELECT extensions.throws_ok($$UPDATE internal.initial_cpm_photo_write_policies SET state='eligible'$$,'22023','initial_analysis_storage_immutable','policy revocation irreversible');
+ROLLBACK TO revoked_policy;
+SELECT (pg_temp.closure_write('may_have_issued')).state;
+SELECT extensions.throws_ok($$SELECT pg_temp.close_source('live_object','2000-01-01')$$,'55000','initial_analysis_preparation_required','observation cannot precede issuance');
+SELECT extensions.throws_ok($$SELECT pg_temp.close_source('live_object',clock_timestamp()+INTERVAL '1 hour')$$,'55000','initial_analysis_preparation_required','future observation denied');
+SELECT extensions.throws_ok($$SELECT pg_temp.close_source('retired_marker',NULL,gen_random_uuid())$$,'55000','initial_analysis_preparation_required','live registry denies marker closure');
+SELECT extensions.throws_ok($$UPDATE internal.initial_cpm_photo_write_attempts SET write_closed=TRUE$$,'22023',NULL,'raw closure without receipt denied');
+SAVEPOINT revoke_after_issue;
+UPDATE internal.initial_cpm_photo_write_policies SET state='revoked';
+SELECT extensions.throws_ok($$SELECT pg_temp.close_source()$$,'55000','initial_analysis_preparation_unavailable','revocation before settlement keeps hold');
+ROLLBACK TO revoke_after_issue;
+CREATE TEMP TABLE closure_saved AS SELECT (pg_temp.close_source()).*;
+SELECT extensions.ok((SELECT write_closed FROM internal.initial_cpm_photo_write_attempts WHERE attempt_id=(SELECT attempt_id FROM closure_attempt)),'live closure closes exact role');
+SELECT extensions.is(to_jsonb(pg_temp.close_source()),to_jsonb(s),'closure replay exact') FROM closure_saved s;
+SELECT extensions.throws_ok($$SELECT pg_temp.close_source('live_object',clock_timestamp())$$,'22023','initial_analysis_identity_conflict','replay cannot replace observation time');
+SELECT extensions.is((SELECT capability_expires_at FROM internal.initial_cpm_photo_write_attempts WHERE attempt_id=(SELECT attempt_id FROM closure_attempt)),(SELECT capability_expires_at FROM closure_attempt),'closure does not renew ticket');
+SELECT extensions.is((SELECT state FROM internal.initial_cpm_photo_capacity_reservations WHERE scan_id='00000000-0000-4000-8000-00000000f101'),'pending','live closure does not release capacity');
+SELECT extensions.throws_ok($$UPDATE internal.initial_cpm_photo_write_closures SET observed_at=clock_timestamp()$$,'22023',NULL,'closure immutable');
+SELECT extensions.throws_ok($$TRUNCATE internal.initial_cpm_photo_write_closures$$,'22023',NULL,'closure truncate denied');
+SELECT extensions.lives_ok($$SELECT pg_temp.closure_write('bind','ai')$$,'closed role permits next binding');
+SELECT extensions.lives_ok($$SELECT pg_temp.closure_write('may_have_issued','ai')$$,'next role may be outstanding only after closure');
+SELECT extensions.is((SELECT count(*) FROM internal.initial_cpm_photo_write_attempts WHERE state='may_have_issued' AND NOT write_closed),1::BIGINT,'one outstanding role preserved');
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+CREATE TEMP TABLE closure_display AS SELECT m.object_id,s.assignment_digest FROM internal.initial_cpm_photo_role_mapping m JOIN internal.initial_analysis_preparation_intents s USING(scan_id) WHERE m.scan_id='00000000-0000-4000-8000-00000000f101' AND m.role='display';
+SELECT public.cancel_initial_analysis('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101')->>'dispatch';
+SELECT extensions.is(to_jsonb(pg_temp.close_source()),to_jsonb(s),'historical live receipt replays after erasure without reviving it') FROM closure_saved s;
+SELECT extensions.ok(internal.initial_cpm_photo_retired_write_hold('00000000-0000-4000-8000-00000000f101'),'retirement keeps exact issued graph');
+DO $$ BEGIN
+ PERFORM public.claim_initial_preparation_source_erasure(); PERFORM public.claim_initial_preparation_source_erasure(); PERFORM public.claim_initial_preparation_source_erasure();
+END; $$;
+CREATE TEMP TABLE closure_claim AS SELECT clock_timestamp() observed_at,r.claim_token FROM internal.initial_preparation_source_registry r JOIN closure_attempt a USING(object_id);
+SELECT extensions.throws_ok($$SELECT pg_temp.close_source('retired_marker',NULL,gen_random_uuid())$$,'55000','initial_analysis_preparation_required','replacement token cannot settle original observation');
+SELECT extensions.lives_ok($$SELECT pg_temp.close_source('retired_marker',(SELECT observed_at FROM closure_claim),(SELECT claim_token FROM closure_claim))$$,'original live erasure claim permits marker closure');
+SELECT extensions.is((SELECT count(*) FROM internal.initial_cpm_photo_write_closures),2::BIGINT,'live and terminal observations remain distinct');
+SELECT extensions.ok(NOT (SELECT marker_confirmed FROM internal.initial_preparation_source_registry r JOIN closure_attempt a USING(object_id)),'write closure never acknowledges cleanup itself');
+SELECT public.finish_initial_preparation_source_erasure(a.object_id,c.claim_token,TRUE)->>'outcome' FROM closure_attempt a CROSS JOIN closure_claim c;
+SELECT extensions.lives_ok($$SELECT pg_temp.close_source('retired_marker',(SELECT observed_at FROM closure_claim),(SELECT claim_token FROM closure_claim))$$,'exact marker replay survives cleanup acknowledgement');
+SELECT extensions.is((SELECT state FROM internal.initial_cpm_photo_capacity_reservations WHERE scan_id='00000000-0000-4000-8000-00000000f101'),'pending','marker closure never releases capacity');
+SELECT extensions.throws_ok($$SELECT internal.initial_cpm_photo_write_action('bind','00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101',(SELECT assignment_digest FROM closure_display),(SELECT object_id FROM closure_display))$$,'55000',NULL,'retired scan cannot bind another role');
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+SELECT extensions.is((SELECT count(*) FROM internal.ai_quota_reservations),0::BIGINT,'closure never funds analysis');
+ROLLBACK TO closure_cases;
+
 SAVEPOINT write_hold_cases;
 SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM unnest(ARRAY['anon','authenticated','service_role']) role_name
  CROSS JOIN unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE']) privilege
@@ -173,7 +267,7 @@ SELECT extensions.throws_ok($$SELECT pg_temp.cpm_write('may_have_issued','ai')$$
 SELECT extensions.throws_ok($$SELECT pg_temp.cpm_write('bind','display')$$,'55000','initial_analysis_cpm_write_outstanding','cannot bind a new role while write is outstanding');
 SELECT extensions.throws_ok($$UPDATE internal.initial_cpm_photo_write_attempts SET state='bound',issued_at=NULL WHERE state='may_have_issued'$$,'22023','initial_analysis_storage_immutable','unknown issuance cannot reset');
 SELECT extensions.throws_ok($$DELETE FROM internal.initial_cpm_photo_write_attempts$$,'22023','initial_analysis_storage_immutable','attempt identity survives deletion');
-SELECT extensions.throws_ok($$TRUNCATE internal.initial_cpm_photo_write_attempts$$,'22023','initial_analysis_storage_immutable','attempt identity survives truncate');
+SELECT extensions.throws_ok($$TRUNCATE internal.initial_cpm_photo_write_attempts CASCADE$$,'22023','initial_analysis_storage_immutable','attempt identity survives truncate');
 SELECT extensions.is(public.get_initial_preparation_status('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101'),response,'preparation recovery remains exact while outstanding') FROM cpm_saved;
 SELECT extensions.is(public.cancel_initial_analysis('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101')->>'dispatch','dispatch_prevented','provider dispatch prevention does not claim storage closure');
 SET CONSTRAINTS ALL IMMEDIATE;

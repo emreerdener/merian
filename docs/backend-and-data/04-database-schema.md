@@ -1,3 +1,74 @@
+## Inactive CPM durable write closure — October 29
+
+The
+[forward migration](../../services/supabase/migrations/20261029180156_prepare_initial_cpm_photo_write_closure.sql)
+extends existing write attempts with an immutable policy binding and permanent
+closure receipts. No policy is seeded, API access granted, coordinator or signer
+installed, or feature activated. The policy binds the backend generation and
+configuration, observation build, enforcement evidence, reviewed revision and
+conditional-create/permanent-marker protocol. It may only be revoked; an attempt
+must bind it while still `bound`. An already-issued legacy attempt cannot
+acquire a policy afterwards.
+
+`settle_initial_cpm_photo_write_closure` records either `live_object` or
+`retired_marker` for that exact attempt. Fresh live settlement requires the
+original unfunded cohort, live registry, original admission deadline and current
+policy/backend eligibility. Retired settlement requires irreversible retirement
+and the original, still-current unexpired erasure claim captured before reading.
+The receipt retains only a domain-separated claim digest. Both outcomes are
+immutable; exact replay survives later erasure without becoming fresh authority.
+A different observation time, policy or claim conflicts with the saved outcome.
+
+Only a durable receipt permits `write_closed` and removes that attempt from the
+one-outstanding-role exclusion. Closure and the next role serialize through the
+existing scope/capacity/registry order. Rollback must preserve the original
+hold. Historical issuance remains charged: live closure, marker closure and
+cleanup acknowledgement do not release capacity, renew clocks, fund admission or
+revive a retired scan. The preceding write-hold checkpoint below describes the
+original no-closure increment; this section owns the new inactive metadata
+transition.
+
+These routines are database-owner-only metadata, not proof of a storage read.
+The future trusted coordinator must actually perform the exact bound observation
+and preserve its original claim through settlement; it must never accept client
+JSON as proof or substitute a newly looked-up claim. Policy qualification, exact
+payload enforcement, alternate writers, physical retention, server memory and
+full app journeys remain open. Do not clear holds by deleting records or
+renewing identities. The
+[joined scan guide](16-scan-ingestion-reliability-and-recovery.md#inactive-cpm-storage-observation)
+connects this boundary to the observation primitive and native owners.
+
+The exact repaired local candidate passed a fresh 497-migration replay, 136
+focused catalog assertions and all 176 catalogs / 7,166 assertions (643.721
+seconds). The first focused attempt caught two harness defects: a helper skipped
+the call after private erasure, and a foreign key intercepted TRUNCATE before
+the intended trigger. The corrected tests preserve pre-erasure identity and
+exercise guarded cascading truncation; the failed receipt remains retained.
+Engine then found a raw policy-bound issuance bypass of backend revocation. A
+targeted rolled-back regression reproduced it even though the original 176
+catalogs passed. The repaired guard locks both the exact eligible policy and
+backend configuration with fail-fast share locks. Source review cleared the
+repair and seven concurrency schedules; 540 static migration checks passed.
+Seven new closure schedules / 50 session commands passed in 5.076 seconds,
+covering durable next-role visibility, rollback, both retirement orders,
+original-claim replacement and concurrent policy/backend revocation. Five
+existing write-hold schedules / 37 commands passed in 4.154 seconds on an
+identical fresh replay. Both suites restored the fixture gate and reported no
+cleanup failures. Retained evidence is under
+`.artifacts/native-app-capture-handoff-20261020/cpm-closure-runtime02` and
+`cpm-closure-runtime03`; pre-repair failures and catalogs remain in `runtime01`.
+The broader tooling gate's synthetic terminal test failed in the sandbox at
+`key_entry`; its five scenarios passed with terminal access, followed by all
+nine remaining shell tests. Earlier TypeScript/DTO/archive results were reused;
+the retained main-run failure is not reported as a clean aggregate run. The
+[closure concurrency runner](../../services/supabase/scripts/test_initial_cpm_photo_write_closure.py)
+uses the same `--container`, `--evidence-directory` and `--replay-manifest`
+arguments as the existing write-hold runner. Run catalogs for the exact
+candidate before committing concurrency suites; each suite requires a fresh
+owned replay with identical migration hashes. Dispose only its owned database
+and retain all evidence. Local checks do not authorize deployment or storage
+experiments.
+
 ## October 29 — native transfer reservation sidecar candidate
 
 The existing V67 allocation columns now admit an explicit v3 sidecar for one

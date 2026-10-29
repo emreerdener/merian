@@ -114,15 +114,17 @@ domain suite (363 tests / 164 steps) passed; Engine source review found no
 blocking issue on the exact two-file candidate. Repository Edge/script
 formatting and lint plus 26 documentation contracts passed. Evidence is retained
 under `.artifacts/native-app-capture-handoff-20261020/cpm-observation-*`. The
-future database settlement must recheck original attempt/registry state under
-locks and qualified storage-policy facts; an observation cannot settle a hold,
-release capacity, fund admission or authorize signing. Its returned structure is
-constructible: settlement must use a trusted coordinator that actually performs
-the read, never client-supplied observation JSON. Marker settlement must capture
-the original erasure claim token before the read and keep it through settlement;
-looking up a newer claim cannot replace it. Full-buffer hashing still requires
-CPM-specific server memory qualification. The existing backend protocol uses
-conditional creation and permanent same-key markers. Cloudflare documents atomic
+[inactive database settlement](04-database-schema.md#inactive-cpm-durable-write-closure--october-29)
+now records exact policy-bound closure metadata under registry locks; its
+trusted observation coordinator remains unimplemented; an observation cannot
+settle a hold, release capacity, fund admission or authorize signing. Its
+returned structure is constructible: settlement must use a trusted coordinator
+that actually performs the read, never client-supplied observation JSON. Marker
+settlement must capture the original erasure claim token before the read and
+keep it through settlement; looking up a newer claim cannot replace it.
+Full-buffer hashing still requires CPM-specific server memory qualification. The
+existing backend protocol uses conditional creation and permanent same-key
+markers. Cloudflare documents atomic
 [conditional writes](https://developers.cloudflare.com/r2/reference/consistency/),
 but
 [presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)

@@ -6,7 +6,7 @@ checks and full-byte or retired-marker verification. It reuses the existing
 backend codec, stream and deadline owners. This observation has no issuance,
 settlement or capacity-release authority. The
 [scan contract](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#inactive-cpm-storage-observation)
-owns limits, validation status and the remaining durable closure/payload/memory
+owns limits, validation status and the remaining coordinator/payload/memory
 qualification. Focused synthetic tests are in
 `cpmPhotoWriteObservation_test.ts`.
 

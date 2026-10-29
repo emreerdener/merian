@@ -1,15 +1,27 @@
+## Inactive CPM durable closure candidate
+
+The
+[database contract](../../docs/backend-and-data/04-database-schema.md#inactive-cpm-durable-write-closure--october-29)
+owns policy binding, permanent live/marker receipts, exact replay and the
+next-role gate. This extends the historical write-hold checkpoint below. No
+installed policy, API grant, trusted observation coordinator, signer or capacity
+release is added. `test_initial_cpm_photo_write_closure.py` adds local
+transaction schedules using the same owned-replay arguments as the existing
+write-hold runner. Qualification status and retained failures live in the
+canonical contract.
+
 ## Inactive CPM outstanding-write hold candidate
 
 The
 [database schema contract](../../docs/backend-and-data/04-database-schema.md#inactive-cpm-outstanding-write-accounting--october-29)
 owns the new database-owner-only role attempts and capacity retained through
-cancellation/deletion. No signer, API grant, closure settlement or activation is
-installed. Source review, 100 focused assertions and five concurrency schedules
-passed. The subsequent private canonical encoder optimization passed all 176
-catalogs / 7,130 assertions and the five write-hold concurrency schedules on its
-exact local replay. The canonical contract retains the earlier expiry failures,
-170 differential assertions and unchanged-deadline cost comparison.
-`test_initial_cpm_photo_write_holds.py` accepts `--container`,
+cancellation/deletion. That checkpoint installed no signer, API grant, closure
+settlement or activation. Source review, 100 focused assertions and five
+concurrency schedules passed. The subsequent private canonical encoder
+optimization passed all 176 catalogs / 7,130 assertions and the five write-hold
+concurrency schedules on its exact local replay. The canonical contract retains
+the earlier expiry failures, 170 differential assertions and unchanged-deadline
+cost comparison. `test_initial_cpm_photo_write_holds.py` accepts `--container`,
 `--evidence-directory` and `--replay-manifest` for an exact fresh owned local
 replay. Run catalogs first, then this committing concurrency suite; always
 dispose its database and retain evidence. This does not qualify storage IO or
