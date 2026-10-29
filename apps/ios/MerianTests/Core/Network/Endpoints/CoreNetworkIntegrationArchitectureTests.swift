@@ -4077,16 +4077,17 @@ struct CoreNetworkIntegrationArchitectureTests {
             )
         )
         #expect(admissionPolicy.contains("request.httpMethod == \"POST\""))
-        #expect(!pinnedTransport.contains("withThrowingTaskGroup("))
+        let taskState = try networkSource("Transport/PinnedNetworkDataTaskState.swift")
+        #expect(!taskState.contains("withThrowingTaskGroup("))
         #expect(
-            pinnedTransport.contains(
-                "private final class PinnedNetworkDataTaskState: Sendable"
+            taskState.contains(
+                "final class PinnedNetworkDataTaskState: Sendable"
             )
         )
-        #expect(pinnedTransport.contains("OSAllocatedUnfairLock(initialState:"))
-        #expect(pinnedTransport.contains("withTaskCancellationHandler"))
-        #expect(pinnedTransport.contains("withCheckedThrowingContinuation"))
-        #expect(pinnedTransport.contains("deadlineQueue.asyncAfter"))
+        #expect(taskState.contains("OSAllocatedUnfairLock(initialState:"))
+        #expect(taskState.contains("withTaskCancellationHandler"))
+        #expect(taskState.contains("withCheckedThrowingContinuation"))
+        #expect(taskState.contains("deadlineQueue.asyncAfter"))
         #expect(
             pinnedTransport.contains(
                 "boundedRequest.cachePolicy = .reloadIgnoringLocalCacheData"
@@ -4573,6 +4574,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "InitialPhotoAllocationTransport.swift",
         "ObservationVideoAnalysisTransport.swift",
         "ObservationVideoEvidenceTransport.swift",
+        "PinnedNetworkDataTaskState.swift",
         "PinnedNetworkTransport.swift",
         "AccountDeletionRecoveryTransport.swift"
     ]

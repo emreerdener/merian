@@ -1,3 +1,27 @@
+## October 29 — Capture allocation caller qualified locally
+
+Local checkpoint `2685d18b2` connects the inactive Capture submission caller to
+explicit allocation and typed exact saved recovery. Focused validation passed 10
+methods / 34 cases with unchanged native/project inputs; Engine source review
+found no blocker. The
+[scan-ingestion contract](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md)
+owns the current behavior, evidence and retained failed attempt. This supersedes
+earlier planned/pending caller and recovery statements below. The preceding
+Release qualifies its earlier allocation-writer scope, not this caller change.
+
+Next is original/AI/display transfer and verification under the existing CPM
+lifetime/accounting contract, then admission/execution/result/history. The
+AI-only receiving readback does not implement that complete transfer. Ordinary
+installation remains disabled. Initial photo/reanalysis/full-photo, audio/video,
+RUX and final acceptance remain open; the unrelated Auth architecture failure,
+PR116 freeze, deployment hold and approved later sequence are unchanged.
+
+The required local task-termination primitive is now implemented in the existing
+pinned transport and qualified at 18 methods / 20 cases; see the
+[scan-ingestion contract](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
+This supersedes the planned primitive below, without qualifying media-owner
+integration, physical copies, transfer reservations or remote write closure.
+
 ## October 28 — allocation facade integration candidate
 
 The local authenticated `initial-photo-allocation` facade now connects the

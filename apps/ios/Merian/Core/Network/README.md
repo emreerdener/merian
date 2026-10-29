@@ -1,3 +1,18 @@
+## Local task termination witness — October 29 qualified checkpoint
+
+The existing bounded pinned request bridge now delegates its task state to
+`Transport/PinnedNetworkDataTaskState.swift`. Caller cancellation/deadlines
+remain prompt. Its separate `waitForLocalTermination()` joins the retained
+URLSession completion callback, or the resolved no-task-created path, even when
+the joiner is cancelled. This is the native lifetime prerequisite identified in
+the
+[CPM photo contract](../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md#native-transfer-lifetime-and-accounting).
+It does not attest remote write closure, staging-copy cleanup or
+maximum-original transfer capacity. No CPM transfer caller or upload authority
+is installed. Focused validation passed 18 methods / 20 cases across transport
+and owning architecture checks; Engine found no production source blocker. The
+original selector-coverage failure remains retained.
+
 ## October 28 — native allocation transport candidate
 
 `MerianNetworkClient.initialPhotoAllocationTransport()` composes the fixed

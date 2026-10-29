@@ -1,3 +1,23 @@
+## October 29 — local network termination witness qualified
+
+`PinnedNetworkDataTaskState` now distinguishes the bounded request await from
+local task termination. Cancellation keeps prompt response behavior while the
+completion callback retains its state; `waitForLocalTermination()` cannot finish
+merely because the joining task is cancelled. No-task-created rejection also
+closes the local lifetime. Focused validation passed 18 methods / 20 cases, with
+no runtime warnings. The first run passed 13 methods / 15 cases but failed
+coverage qualification because four method selectors omitted parentheses. The
+remaining five architecture checks passed after a test-only inventory
+correction; the passing transport methods were not repeated. Engine found no
+production source blocker. Evidence is retained under
+`.artifacts/native-app-capture-handoff-20261020/local-task-termination-combined-runtime01.json`.
+No new Release or aggregate acceptance is claimed. This supports the required
+CPM transfer owner but installs no upload capability or media-owner integration.
+It proves neither remote write closure nor physical-copy cleanup;
+original/AI/display transfer, durable reservation/restart state, maximum-size
+qualification and CPM write/verification/admission remain open under the
+[photo contract](../rfcs/client-prepared-photo-content-contract-2026-10-27.md#native-transfer-lifetime-and-accounting).
+
 # Scan Ingestion Reliability and Recovery Contract
 
 ## October 29 — inactive caller and recovery integration candidate
