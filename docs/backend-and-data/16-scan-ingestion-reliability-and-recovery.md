@@ -1,3 +1,35 @@
+## October 29 — dormant concrete upload issuer candidate
+
+`cpmPhotoUploadIssuer.ts:issueInitialCpmPhotoUpload` now joins the fresh-only
+service RPC, exact saved observation, existing upload specification and pinned
+SigV4 signer. `cpmPhotoClosureDb.ts` supplies the fixed begin call and both
+current-state checks. It produces no ticket for held or unknown outcomes and
+never retries begin or signs a replay. Only explicit trusted profile credentials
+are used. The signed request binds the declared payload hash and fixed headers;
+its expiry cannot extend the original ten-minute/admission limit.
+
+This is local implementation, not hosted qualification or installed app
+behavior. The pinned signer can construct the required signature; that does not
+prove R2 enforces the full declared payload or excludes alternate writers.
+[Cloudflare's compatibility table](https://developers.cloudflare.com/r2/api/s3/api/)
+does not establish this exact full-payload protocol. Hosted acceptance and
+retention evidence remain mandatory before enabling any profile or route.
+Synthetic tests cover exact source/AI/display signing, cryptographic payload
+binding, uncertainty, late cancellation, changed facts and both lifecycle
+checks. Engine reviewed the exact candidate with no blocking findings. The full
+Edge suite passed 3,537 tests / 703 steps with 532 ignored; recursive checking
+passed all 1,240 TypeScript files. Tooling coverage completed across retained
+runs: the original aggregate stopped at a synthetic terminal key-entry test in
+the sandbox after its TypeScript/evaluation groups passed; that test and the
+remaining shell tests passed with local terminal access. The failure remains
+recorded. DTO, dependency/configuration, formatter/lint and scoped preflight
+checks passed. These are local source and synthetic-runtime results only.
+
+The next consuming work remains the native transport with durable started and
+unknown state, staging-copy bounds and task-termination ownership, plus a closed
+native ticket contract. No route, production credentials or storage request is
+installed or executed by this change; no full journey is qualified.
+
 ## October 29 — locally qualified dormant fresh issuance identity
 
 The server-side `begin_initial_cpm_photo_write` RPC now distinguishes this

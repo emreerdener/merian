@@ -1,3 +1,32 @@
+## Dormant CPM issuer service composition — October 29
+
+`issueInitialCpmPhotoUpload` consumes a trusted
+owner/scan/assignment/object/policy identity through the fixed
+`begin_initial_cpm_photo_write` service adapter. A committed `held` result
+returns only its attempt identity. Only a fresh result can reach local signing;
+malformed, mismatched, cancelled or unknown results fail without retry. It
+snapshots trusted profile configuration before awaiting and uses explicit
+credentials bound to the saved backend/profile, with no v1 or ambient credential
+fallback. The existing closure bridge rechecks the exact observation before
+signing and before returning; no database lock spans signing.
+
+The private service result contains a PUT URL, the exact conditional-create,
+type/length/cache/payload-hash headers, original capability expiry and a
+whole-second signing expiry no later than that original expiry. SigV4 binds the
+explicit SHA-256 payload hash and all fixed headers; it never selects
+`UNSIGNED-PAYLOAD`. Signing is local cryptography with the pinned dependency,
+not provider acceptance evidence. Results and credentials must never be logged.
+The 20-second aggregate deadline includes bounded five-second service calls;
+late results are discarded and a failure after begin leaves its durable hold.
+
+There is no public endpoint, native ticket DTO, configured credential profile or
+activation. Hosted payload enforcement, conditional creation, alternate writers
+and retention remain unqualified. The unqualified result label is descriptive,
+not an enforcement switch: real credentials would produce a capability, so
+profiles and routes must stay uninstalled until the required hosted acceptance.
+No public/generated Identify contract changes. The scan guide owns qualification
+status and remaining journey integration.
+
 ## Dormant CPM fresh-issuance service result — October 29
 
 `begin_initial_cpm_photo_write` is a server-only RPC candidate; it has no Edge

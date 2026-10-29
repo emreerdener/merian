@@ -428,3 +428,99 @@ Deno.test("CPM production bridge recovers a lost settlement acknowledgement with
     );
     assertEquals(operations[0], "read_initial_cpm_photo_write_closure");
   }));
+
+Deno.test("CPM begin uses fixed service RPC and never retries an unknown acknowledgement", () =>
+  environment(async () => {
+    let calls = 0;
+    const db = createCpmPhotoClosureDb(null, (url, init) => {
+      calls++;
+      assertEquals(
+        String(url),
+        "https://trusted.invalid/rest/v1/rpc/begin_initial_cpm_photo_write",
+      );
+      assertEquals(JSON.parse(String(init?.body)), {
+        p_owner: id(9),
+        p_scan: id(2),
+        p_digest: "a".repeat(64),
+        p_object: id(3),
+        p_policy: "b".repeat(64),
+      });
+      assertEquals(init?.redirect, "error");
+      return Promise.reject(new Error("synthetic unknown commit"));
+    });
+    await assertRejects(() =>
+      db.begin({
+        owner: id(9),
+        scan: id(2),
+        assignment_digest: "a".repeat(64),
+        object: id(3),
+        policy: "b".repeat(64),
+      }, signal())
+    );
+    assertEquals(calls, 1);
+  }));
+Deno.test("CPM marker claim bridge cannot begin source issuance", () =>
+  environment(async () => {
+    let calls = 0;
+    const db = createCpmPhotoClosureDb(id(8), () => {
+      calls++;
+      return reply(null);
+    });
+    await assertRejects(() =>
+      db.begin({
+        owner: id(9),
+        scan: id(2),
+        assignment_digest: "a".repeat(64),
+        object: id(3),
+        policy: "b".repeat(64),
+      }, signal())
+    );
+    assertEquals(calls, 0);
+  }));
+
+Deno.test("CPM real service bridge drives fresh issuance and exact current checks", () =>
+  environment(async () => {
+    const { issueInitialCpmPhotoUpload } = await import(
+      "./cpmPhotoUploadIssuer.ts"
+    );
+    const observation = await snapshot();
+    const calls: string[] = [];
+    const db = createCpmPhotoClosureDb(null, (url, init) => {
+      const operation = new URL(String(url)).pathname.split("/").at(-1)!;
+      calls.push(operation);
+      const args = JSON.parse(String(init?.body));
+      if (operation === "begin_initial_cpm_photo_write") {
+        return reply({
+          outcome: "fresh",
+          attempt_id: id(1),
+          observation,
+          created_at_ms: observation.binding.issued_at_ms - 500,
+          capability_expires_at_ms: observation.admission_expires_at_ms,
+        });
+      }
+      assertEquals(operation, "read_initial_cpm_photo_observation");
+      assertEquals(args.p_expected, observation);
+      assertEquals(args.p_claim, null);
+      return reply(observation);
+    });
+    const result = await issueInitialCpmPhotoUpload(db, {
+      owner: id(9),
+      scan: id(2),
+      assignment_digest: "a".repeat(64),
+      object: id(3),
+      policy: "b".repeat(64),
+    }, [{
+      credential_profile: "synthetic_only",
+      backend_generation: id(4),
+      backend_configuration_digest:
+        observation.binding.backend_configuration_digest,
+      access_key_id: "SYNTHETIC_KEY_NOT_REAL",
+      secret_access_key: "SYNTHETIC_SECRET_NOT_REAL",
+    }], signal());
+    assertEquals(result.outcome, "issued");
+    assertEquals(calls, [
+      "begin_initial_cpm_photo_write",
+      "read_initial_cpm_photo_observation",
+      "read_initial_cpm_photo_observation",
+    ]);
+  }));

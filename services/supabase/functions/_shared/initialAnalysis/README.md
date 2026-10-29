@@ -1,3 +1,17 @@
+## Dormant CPM upload issuer
+
+`cpmPhotoUploadIssuer.ts:issueInitialCpmPhotoUpload` consumes the fresh-only
+service acknowledgement through `cpmPhotoClosureDb.ts`, reuses saved-role
+planning and signs the exact conditional request using explicit host profiles.
+Held/unknown results cannot sign or retry; lifecycle is rechecked before signing
+and delivery. Tests beside the issuer and bridge use synthetic credentials and
+no storage IO. The
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#dormant-cpm-issuer-service-composition--october-29)
+owns the private boundary; the
+[scan guide](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--dormant-concrete-upload-issuer-candidate)
+owns evidence and remaining hosted/native qualification. No profile, route or
+native consumer is installed.
+
 ## Inactive CPM write observation
 
 `cpmPhotoWriteObservation.ts` performs one bounded direct read of the exact

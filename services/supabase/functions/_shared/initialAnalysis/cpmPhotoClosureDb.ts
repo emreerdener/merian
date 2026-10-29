@@ -1,5 +1,9 @@
 /** Dormant service-only bridge. No route imports or signer installation.
  * Credentials and destination come together from server configuration. */
+import {
+  type CpmPhotoIssuanceBridge,
+  snapshotCpmPhotoIssuanceIdentity,
+} from "./cpmPhotoUploadIssuer.ts";
 import { fetchWithDeadline } from "../outbound.ts";
 import {
   requireServerApiKeyFromEnvironment,
@@ -28,6 +32,7 @@ import {
 
 type Outcome = CpmWriteClosureInput["target"]["outcome"];
 type Operation =
+  | "begin_initial_cpm_photo_write"
   | "read_initial_cpm_photo_write_closure"
   | "read_initial_cpm_photo_observation"
   | "settle_initial_cpm_photo_write_closure";
@@ -38,7 +43,7 @@ type Operation =
 export function createCpmPhotoClosureDb(
   originalClaim: string | null,
   fetcher: typeof fetch = fetch,
-): CpmWriteClosureBridge {
+): CpmWriteClosureBridge & CpmPhotoIssuanceBridge {
   if (originalClaim !== null) mediaUUID(originalClaim);
   const base = new URL(Deno.env.get("SUPABASE_URL") ?? "");
   if (
@@ -117,6 +122,17 @@ export function createCpmPhotoClosureDb(
   }
   return Object.freeze(
     {
+      async begin(identity, signal) {
+        if (originalClaim !== null) throw initialMediaUnavailable();
+        const i = snapshotCpmPhotoIssuanceIdentity(identity);
+        return await call("begin_initial_cpm_photo_write", {
+          p_owner: i.owner,
+          p_scan: i.scan,
+          p_digest: i.assignment_digest,
+          p_object: i.object,
+          p_policy: i.policy,
+        }, signal);
+      },
       async readReceipt(attempt, outcome, signal) {
         mediaUUID(attempt);
         if (
@@ -199,6 +215,6 @@ export function createCpmPhotoClosureDb(
         ) throw initialMediaUnavailable();
         return saved;
       },
-    } satisfies CpmWriteClosureBridge,
+    } satisfies CpmWriteClosureBridge & CpmPhotoIssuanceBridge,
   );
 }
