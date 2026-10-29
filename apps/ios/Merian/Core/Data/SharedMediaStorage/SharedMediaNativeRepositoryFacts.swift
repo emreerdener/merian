@@ -26,12 +26,38 @@ enum SharedMediaNativeRepositoryFacts {
         let context = ModelContext(container); context.autosaveEnabled = false
         return try SharedMediaNativeAppEligibility.snapshot(context: context, scope: scope)
     }
+    static func receivingIntent(_ container: ModelContainer, profile: SharedMediaNativeAppProfile,
+                                packageID: UUID) throws -> SharedMediaNativeReceivingIntent.Prepared? {
+        guard let row = try receivingSlot(container, inventoryID: profile.inventoryID, packageID: packageID) else { return nil }
+        guard case .prepared(let value) = try SharedMediaNativeReceivingSlot.decode(row, profile: profile) else { throw SharedMediaStorageFailure.closed }
+        return value
+    }
     static func receivingSlot(_ container: ModelContainer, inventoryID: UUID,
                               packageID: UUID) throws -> SharedMediaNativeReceivingIntentGraph.Row? {
         let context = ModelContext(container); context.autosaveEnabled = false
         let inventory = try SharedMediaNativePairPlanGraph.one(context,
             FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
         return try SharedMediaNativeReceivingPhaseGraph.pending(context, inventory: inventory)[packageID]?.row
+    }
+
+    static func photoSubmission(_ container: ModelContainer, inventoryID: UUID,
+                                packageID: UUID) throws -> SharedMediaNativePhotoSubmissionState? {
+        let context = ModelContext(container); context.autosaveEnabled = false
+        let inventory = try SharedMediaNativePairPlanGraph.one(context,
+            FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
+        guard let witness = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)[packageID] else { return nil }
+        switch witness {
+        case .allocating(let value):
+            return .init(prepared: value.prepared, receipt: value.transaction.cohort, allocation: value.allocation)
+        case .generic(let value):
+            switch value.slot {
+            case .prepared(let prepared): return .init(prepared: prepared, receipt: nil, allocation: nil)
+            case .received(let prepared, _, let transaction):
+                return .init(prepared: prepared, receipt: transaction.cohort, allocation: nil)
+            case .abandoned: throw SharedMediaStorageFailure.closed
+            }
+        case .staged, .releasing: throw SharedMediaStorageFailure.closed
+        }
     }
 
     static func receivedCandidates(_ container: ModelContainer, profile: SharedMediaNativeAppProfile) throws -> [SharedMediaNativeReceivedCandidate] {
@@ -52,4 +78,12 @@ enum SharedMediaNativeRepositoryFacts {
         }.sorted { $0.packageID.uuidString < $1.packageID.uuidString }
     }
 
+}
+
+/// Descriptive recovery projection from the clean graph. No create, execution
+/// or release authority; generic receiving readers still reject sidecars.
+struct SharedMediaNativePhotoSubmissionState: Sendable {
+    let prepared: SharedMediaNativeReceivingIntent.Prepared
+    let receipt: SharedMediaNativeConsumerCohort?
+    let allocation: SharedMediaNativePhotoAllocation?
 }

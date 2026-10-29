@@ -155,7 +155,7 @@ struct CaptureNativePhotoSubmissionTests {
         #expect(await f.owner.invalidateAndAwaitForAccountTransition())
     }
 
-    private func viewModel(session: CaptureNativePhotoSubmissionSession, account: @escaping @MainActor @Sendable () -> UUID?) -> CaptureWorkspaceViewModel {
+    func viewModel(session: CaptureNativePhotoSubmissionSession, account: @escaping @MainActor @Sendable () -> UUID?) -> CaptureWorkspaceViewModel {
         let base = CaptureWorkspaceDependencies.live(diContainer: .preview)
         let submission = CaptureSubmissionDependencies(context: base.submission.context,
             admission: .init(isOnline: { Issue.record("Native submit entered legacy admission"); return false },
@@ -170,7 +170,7 @@ struct CaptureNativePhotoSubmissionTests {
         return .init(diContainer: .preview, dependencies: dependencies, prewarmHeadersOnInit: false)
     }
 
-    private struct Fixture {
+    struct Fixture {
         let store: SharedMediaNativeAppMetadataTests.Store
         let owner: SharedMediaNativeOriginalOwner
         let selection: CaptureNativePhotoSubmissionSelection
@@ -393,7 +393,7 @@ struct CaptureNativePhotoSubmissionTests {
         #expect(await f.owner.invalidateAndAwaitForAccountTransition())
     }
 
-    private func fixture(count: Int = 1, detectedFocus: Bool = false, priorFocus: NormalizedImageFocusRegion? = nil, includePresentation: Bool = true) async throws -> Fixture {
+    func fixture(count: Int = 1, detectedFocus: Bool = false, priorFocus: NormalizedImageFocusRegion? = nil, includePresentation: Bool = true) async throws -> Fixture {
         let h = try SharedMediaNativeAppMetadataTests.Store(), owner = try await h.open()
         let bytes = PhotoPreparationTestHarness.image(), image = try #require(UIImage(data: bytes))
         let added = Date(timeIntervalSince1970: 1_700_000_000)

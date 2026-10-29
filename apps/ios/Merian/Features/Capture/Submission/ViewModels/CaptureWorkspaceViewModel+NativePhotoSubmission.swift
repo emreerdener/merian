@@ -50,6 +50,15 @@ extension CaptureWorkspaceViewModel {
                   !dependencies.submission.admission.isLibraryAccessBlocked(),
                   dependencies.submission.admission.accountID() == session.selection.identity.ownerID,
                   try CaptureNativePhotoSubmissionSnapshot(stagedCapture, selection: session.selection) == snapshot else { return }
+            if session.canAllocate {
+                let allocationAttempt = try await session.allocate(snapshot)
+                guard !Task.isCancelled, session.attemptID == allocationAttempt,
+                      draftSession.generation == generation, isDraftReadyForSubmission,
+                      isDraftAccountCurrent, baseRefinementContext == nil,
+                      !dependencies.submission.admission.isLibraryAccessBlocked(),
+                      dependencies.submission.admission.accountID() == session.selection.identity.ownerID,
+                      try CaptureNativePhotoSubmissionSnapshot(stagedCapture, selection: session.selection) == snapshot else { return }
+            }
             offlineToastMessage = .information("Saved locally. Identification has not been requested.")
         } catch {
             guard !Task.isCancelled, draftSession.generation == generation, isDraftAccountCurrent,

@@ -26,6 +26,19 @@ extension MerianNetworkClient {
             expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
     }
 
+    /// Bound allocation create checks current permission without rediscovering
+    /// the processor. Saved-claim status never enters this path.
+    func prepareBoundNativePhotoAllocationAuthorization(
+        prepared: SharedMediaNativeReceivingIntent.Prepared,
+        validateAttempt: @escaping @MainActor @Sendable () throws -> Void
+    ) async throws -> IdentificationDispatchAuthorization {
+        guard let admission = prepared.photoAdmission else { throw MerianError.invalidResponse }
+        try admission.validate()
+        try await synchronizeIdentificationConsent(expectedAuthUserID: prepared.profile.ownerID, validateAttempt: validateAttempt)
+        return try await identificationDispatchAuthorization(recipient: admission.expectedProcessorPermission,
+            expectedAuthUserID: prepared.profile.ownerID, validateAttempt: validateAttempt)
+    }
+
     /// The child already has a durable identity. This read neither starts work nor selects a result.
     func prepareIdentificationAuthorization(
         input: ObservationReanalysisPreflightRequest,

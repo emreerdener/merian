@@ -1,5 +1,43 @@
 # Scan Ingestion Reliability and Recovery Contract
 
+## October 29 — inactive caller and recovery integration candidate
+
+The existing `CaptureNativePhotoSubmissionSession` now separates local `submit`
+from explicit `allocate`. Its inactive factories compose the existing transport;
+the native Capture caller advances only a CPM submission with that composition,
+after its current account/generation/selection checks. Ordinary factory
+installation remains disabled. A legacy nil-admission receipt remains
+local-only.
+
+`SharedMediaNativeRepositoryFacts.photoSubmission` projects exact Prepared,
+local receipt and optional allocation through the clean graph under the existing
+repository audit and retained owner. It grants no mutation authority. Generic
+receiving decoding still rejects sidecars, and discovery never treats an
+allocated submission as absent. The session preserves local receipts through
+allocation failures; a cold session recovers the original claim and uses status.
+
+A first claim requires current permission for the saved processor, without fresh
+recipient discovery. This awaited check occurs inside the retained owner but
+outside receiving locks. Fresh locked state is rebuilt afterward; a claim that
+appeared meanwhile selects status. Consent is revalidated immediately before
+claim save and after transport Auth awaits before create dispatch. Revocation
+after save leaves the claim held and cannot restore create authority. Status and
+matching receipt settlement require current account/store/claim authority, not
+renewed inference consent. The original deadlines, byte/revision reservations
+and negative-status holds are unchanged.
+
+The caller/consent increment passed compilation, Engine source review and 10
+methods / 34 cases with all 3,048 native/project pins unchanged and no
+structured runtime warnings. Evidence is retained in
+`.artifacts/native-app-capture-handoff-20261020/photo-allocation-caller-tests02-qualified.json`
+and XCResult `f0552b76220d40e18b8da2f9acc674ed`. The first test-macro
+compilation failure executed zero runtime tests and remains retained. The
+broader allocation/Release evidence below belongs to the preceding bounded
+checkpoint; this coding checkpoint does not claim a new Release or full-journey
+acceptance. The unrelated Auth architecture failure stays open. Transfer, byte
+verification, admission/execution and result/history remain pending; there is no
+new upload, funding, provider, release or deployment right.
+
 ## Current initial-photo integration entry point — October 28
 
 This section traces the **inactive local initial-photo candidate**. The older

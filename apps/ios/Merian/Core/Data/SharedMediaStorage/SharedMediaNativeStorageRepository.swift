@@ -326,14 +326,13 @@ final class SharedMediaNativeStorageRepository {
         })
     }
     func appReceivingIntent(grant: SharedMediaNativeAppDispatchGrant, packageID: UUID) async throws -> SharedMediaNativeReceivingIntent.Prepared? {
-        guard let row = try await appReceivingSlot(grant: grant, packageID: packageID) else { return nil }
-        guard case .prepared(let prepared) = try SharedMediaNativeReceivingSlot.decode(row, profile: grant.profile) else {
-            throw SharedMediaStorageFailure.closed
-        }
-        return prepared
+        try await readAppReceiving(grant: grant) { try SharedMediaNativeRepositoryFacts.receivingIntent(self.container, profile: grant.profile, packageID: packageID) }
     }
     func appReceivingSlot(grant: SharedMediaNativeAppDispatchGrant, packageID: UUID) async throws -> SharedMediaNativeReceivingIntentGraph.Row? {
         try await readAppReceiving(grant: grant) { try SharedMediaNativeRepositoryFacts.receivingSlot(self.container, inventoryID: grant.profile.inventoryID, packageID: packageID) }
+    }
+    func appPhotoSubmission(grant: SharedMediaNativeAppDispatchGrant, packageID: UUID) async throws -> SharedMediaNativePhotoSubmissionState? {
+        try await readAppReceiving(grant: grant) { try SharedMediaNativeRepositoryFacts.photoSubmission(self.container, inventoryID: grant.profile.inventoryID, packageID: packageID) }
     }
     func appReceivedCandidates(grant: SharedMediaNativeAppDispatchGrant) async throws -> [SharedMediaNativeReceivedCandidate] {
         try await readAppReceiving(grant: grant) { try SharedMediaNativeRepositoryFacts.receivedCandidates(self.container, profile: grant.profile) }

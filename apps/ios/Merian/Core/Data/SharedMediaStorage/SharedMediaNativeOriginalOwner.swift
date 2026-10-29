@@ -150,17 +150,7 @@ final class SharedMediaNativeOriginalOwner {
     func inspectApp() async throws -> SharedMediaNativeScopedSnapshot {
         try await withAppDispatch(settled: false) { storage, grant in try await storage.inspectApp(grant: grant) }
     }
-    func prepareAppMetadata(packageID: UUID, draftGeneration: UUID, contexts: [ObservationContext],
-                            presentation: [PhotoPreparationImagePresentation]? = nil) async throws -> SharedMediaNativeAppMetadataRequest {
-        try await appMetadata { try $0.request(packageID: packageID, draftGeneration: draftGeneration, contexts: contexts, presentation: presentation) }
-    }
-    func currentAppMetadata(packageID: UUID, draftGeneration: UUID) async throws -> SharedMediaNativeAppMetadataRequest {
-        try await appMetadata { try $0.current(packageID: packageID, draftGeneration: draftGeneration) }
-    }
-    func saveAppMetadata(_ request: SharedMediaNativeAppMetadataRequest) async throws -> Int64 {
-        try await appMetadata { try $0.apply(request) }
-    }
-    private func appMetadata<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppMetadataOperations) throws -> T) async throws -> T {
+    func appMetadataWorkflow<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppMetadataOperations) throws -> T) async throws -> T {
         try await appOperation(settled: false, open: { try await $0.appMetadata(grant: $1) }, body: body)
     }
     func appPreparationWorkflow<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppPreparationOperations) async throws -> T) async throws -> T {
@@ -186,6 +176,9 @@ final class SharedMediaNativeOriginalOwner {
     func discoverAppReceivingSlot(packageID: UUID) async throws -> SharedMediaNativeReceivingIntentGraph.Row? {
         try await appOperation(open: { try await $0.appReceivingSlot(grant: $1, packageID: packageID) }, body: { $0 })
     }
+    func discoverAppPhotoSubmission(packageID: UUID) async throws -> SharedMediaNativePhotoSubmissionState? {
+        try await appOperation(open: { try await $0.appPhotoSubmission(grant: $1, packageID: packageID) }, body: { $0 })
+    }
     func discoverAppReceivedCandidates() async throws -> [SharedMediaNativeReceivedCandidate] {
         try await appOperation(open: { try await $0.appReceivedCandidates(grant: $1) }, body: { $0 })
     }
@@ -200,10 +193,11 @@ final class SharedMediaNativeOriginalOwner {
     }
     /// One retained account operation also bounds overlapping status attempts.
     func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
-        send: @escaping @MainActor (InitialPhotoAllocationRequest, @escaping @MainActor @Sendable () throws -> Void) async throws -> InitialPhotoAllocationReply) async throws -> SharedMediaNativePhotoAllocation {
+        authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
+        send: @escaping SharedMediaNativePhotoAllocationAccess.Send) async throws -> SharedMediaNativePhotoAllocation {
         try await withAppDispatch { storage, grant in
             try await self.allocateAppPhoto(prepared, storage: storage, grant: grant,
-                releaseStage: self.releaseStageSettlement, send: send)
+                releaseStage: self.releaseStageSettlement, authorizeCreate: authorizeCreate, send: send)
         }
     }
     /// An outer audit or lock failure must also spend an existing continuation.

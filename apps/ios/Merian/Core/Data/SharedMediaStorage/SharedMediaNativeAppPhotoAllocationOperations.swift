@@ -51,7 +51,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         }
     }
 
-    func claim(_ prepared: SharedMediaNativeReceivingIntent.Prepared, attemptID: UUID) throws -> SharedMediaNativePhotoAllocationDispatch {
+    func claim(_ prepared: SharedMediaNativeReceivingIntent.Prepared, attemptID: UUID, beforeClaimSave: () throws -> Void = {}) throws -> SharedMediaNativePhotoAllocationDispatch {
         if let saved = try saved(prepared) { return .init(allocation: saved, create: false) }
         let context = fresh(), inventory = try inventory(context)
         let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)
@@ -77,7 +77,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         let terminal = try SharedMediaNativeTerminalScan.read(container: container, inventoryID: inventory.id).consumptionAdvances
         let remaining = try PhotoPreparationPolicy.add([2, terminal] + witnesses.values.map { try $0.remainingAdvances })
         _ = try SharedMediaStoragePolicy.add(inventory.revision, remaining)
-        let acknowledged = try persist(allocation, prepared: prepared, context: context, inventory: inventory)
+        let acknowledged = try persist(allocation, prepared: prepared, context: context, inventory: inventory, beforeSave: beforeClaimSave)
         // Exact readback of an uncertain acknowledgement deliberately mints no create authority.
         return .init(allocation: allocation, create: acknowledged)
     }
@@ -106,7 +106,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
     /// Returns true only for a successful save acknowledgement and exact fresh
     /// readback. Any ambiguity permanently spends this operation's create right.
     private func persist(_ allocation: Allocation, prepared: SharedMediaNativeReceivingIntent.Prepared,
-                         context: ModelContext, inventory: SharedMediaInventoryRecord) throws -> Bool {
+                         context: ModelContext, inventory: SharedMediaInventoryRecord, beforeSave: () throws -> Void = {}) throws -> Bool {
         try validate()
         guard !consumed, let row = try SharedMediaNativeReceivingPhaseGraph.row(prepared.package.id, in: context) else {
             throw SharedMediaStorageFailure.closed
@@ -126,6 +126,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
             // Recheck whole pending runway immediately before save, without an await.
             _ = try SharedMediaNativeReceivingCleanGraph.pending(check, inventory: currentInventory)
             try seal.validate(context, row: row, inventory: inventory); try validate()
+            try beforeSave()
             consumed = true
             do {
                 try context.save(); try boundary(.afterSave)

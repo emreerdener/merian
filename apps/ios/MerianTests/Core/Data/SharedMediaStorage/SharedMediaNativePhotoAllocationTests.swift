@@ -14,6 +14,11 @@ struct SharedMediaNativePhotoAllocationTests {
     private var receipt: Allocation.Receipt {
         .init(assignmentDigest: String(repeating: "a", count: 64), createdAtMilliseconds: 1, expiresAtMilliseconds: 1_800_001)
     }
+    private func authorization(_ prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> IdentificationDispatchAuthorization {
+        let admission = try #require(prepared.photoAdmission)
+        return .init(recipient: admission.expectedProcessorPermission, validate: {})
+    }
+
     private func fixture() async throws -> (Store, SharedMediaNativeOriginalOwner, Intent.Prepared) {
         let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(temporaryStore: true, fenceBootstrap: true)
         let p = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft,
@@ -38,7 +43,7 @@ struct SharedMediaNativePhotoAllocationTests {
     @Test func savedBeforeCreateAndNegativeThenPositiveRetainsExactSubmission() async throws {
         let (h, owner, p) = try await fixture(), before = try row(h), initialRevision = try revision(h)
         let expected = receipt
-        let held = try await owner.allocateAppPhoto(p) { request, validate in
+        let held = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { request, validate, _ in
             try validate()
             #expect(request.action == .create)
             #expect(try allocation(h) == request.allocation)
@@ -46,7 +51,7 @@ struct SharedMediaNativePhotoAllocationTests {
             return .held(.notFound)
         }
         #expect(held.receipt == nil)
-        let saved = try await owner.allocateAppPhoto(p) { request, validate in
+        let saved = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { request, validate, _ in
             try validate(); #expect(request.action == .status)
             #expect(request.allocation == held)
             return .allocated(expected)
@@ -56,7 +61,7 @@ struct SharedMediaNativePhotoAllocationTests {
         #expect(final.preparedData == before.preparedData && final.resultData == before.resultData && final.revision == before.revision)
         #expect(try revision(h) == initialRevision + 2)
         for reply in [InitialPhotoAllocationReply.allocated(expected), .held(.expired), .held(.cancelled)] {
-            let replay = try await owner.allocateAppPhoto(p) { request, _ in
+            let replay = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { request, _, _ in
                 #expect(request.action == .status); return reply
             }
             #expect(replay == saved)
@@ -69,7 +74,7 @@ struct SharedMediaNativePhotoAllocationTests {
     @Test func lostCreateAndColdRestartUseStatusOnly() async throws {
         let (h, owner, p) = try await fixture()
         await #expect(throws: SharedMediaStorageFailure.unavailable) {
-            _ = try await owner.allocateAppPhoto(p) { request, _ in
+            _ = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { request, _, _ in
                 #expect(request.action == .create)
                 throw SharedMediaStorageFailure.unavailable
             }
@@ -78,7 +83,7 @@ struct SharedMediaNativePhotoAllocationTests {
         #expect(await owner.invalidateAndAwaitForAccountTransition())
         let cold = try await SharedMediaNativeReceivingStagingTests().reopen(h)
         let expected = receipt
-        let saved = try await cold.allocateAppPhoto(p) { request, validate in
+        let saved = try await cold.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { request, validate, _ in
             try validate(); #expect(request.action == .status && request.allocation == held)
             return .allocated(expected)
         }
@@ -90,7 +95,7 @@ struct SharedMediaNativePhotoAllocationTests {
         let (h, owner, p) = try await fixture()
         var fail = true
         try owner.setMetadataFault { if $0 == .afterSave && fail { fail = false; throw SharedMediaStorageFailure.unavailable } }
-        let saved = try await owner.allocateAppPhoto(p) { request, validate in
+        let saved = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { request, validate, _ in
             try validate(); #expect(request.action == .status)
             #expect(try allocation(h) == request.allocation)
             return .held(.notFound)
@@ -101,10 +106,10 @@ struct SharedMediaNativePhotoAllocationTests {
 
     @Test func conflictingAssignmentNeverOverwritesReceipt() async throws {
         let (h, owner, p) = try await fixture(), expected = receipt
-        _ = try await owner.allocateAppPhoto(p) { _, _ in .allocated(expected) }
+        _ = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { _, _, _ in .allocated(expected) }
         let before = try row(h), rev = try revision(h)
         await #expect(throws: SharedMediaStorageFailure.conflict) {
-            _ = try await owner.allocateAppPhoto(p) { _, _ in
+            _ = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { _, _, _ in
                 .allocated(.init(assignmentDigest: String(repeating: "b", count: 64), createdAtMilliseconds: 1, expiresAtMilliseconds: 1_800_001))
             }
         }
@@ -114,7 +119,7 @@ struct SharedMediaNativePhotoAllocationTests {
 
     @Test func envelopeAndReceiptBoundsAreExact() async throws {
         let (h, owner, p) = try await fixture()
-        let held = try await owner.allocateAppPhoto(p) { _, _ in .held(.notFound) }
+        let held = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { _, _, _ in .held(.notFound) }
         let encoded = try held.encoded(), settled = try held.settling(receipt)
         #expect(try Allocation.decode(encoded, sha256: SharedMediaAcquisitionEncoding.digest(encoded)) == held)
         #expect(try held.storageCharge >= settled.storageCharge)
@@ -143,7 +148,7 @@ struct SharedMediaNativePhotoAllocationTests {
         inventory.revision = Int64.max - 1; try context.save()
         let before = try row(h)
         await #expect(throws: (any Error).self) {
-            _ = try await owner.allocateAppPhoto(p) { _, _ in
+            _ = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { _, _, _ in
                 Issue.record("Revision exhaustion sent a request"); return .held(.notFound)
             }
         }
@@ -153,7 +158,7 @@ struct SharedMediaNativePhotoAllocationTests {
 
     @Test func escapedCandidateMustFitActualEnvelopeAndPositiveReservation() async throws {
         let (h, owner, p) = try await fixture()
-        let saved = try await owner.allocateAppPhoto(p) { _, _ in .held(.notFound) }
+        let saved = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { _, _, _ in .held(.notFound) }
         let fixture = SharedMediaNativeReceivingTestFixture.self
         var claim = try fixture.object(saved.claim)
         claim["candidateCanonical"] = String(repeating: "\"", count: 600_000)
@@ -193,9 +198,9 @@ struct SharedMediaNativePhotoAllocationTests {
                 headerFields: ["Content-Type": "application/json"])!, data)
         }
         if status == 200 {
-            #expect(try await owner.allocateAppPhoto(p, transport: transport).receipt == nil)
+            #expect(try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }, transport: transport).receipt == nil)
         } else {
-            await #expect(throws: (any Error).self) { _ = try await owner.allocateAppPhoto(p, transport: transport) }
+            await #expect(throws: (any Error).self) { _ = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }, transport: transport) }
         }
         #expect(calls.withLock { $0 } == 1)
         #expect(try allocation(h).receipt == nil)
@@ -205,7 +210,7 @@ struct SharedMediaNativePhotoAllocationTests {
     @Test(arguments: [false, true])
     func transportCancellationAndAccountTeardownDrainAndKeepStatusOnly(shutdown: Bool) async throws {
         let (h, owner, p) = try await fixture(), gate = Gate(), expected = receipt
-        let task = Task { try await owner.allocateAppPhoto(p) { request, _ in
+        let task = Task { try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { request, _, _ in
             #expect(request.action == .create)
             await gate.pause()
             return .allocated(expected) // Intentionally ignores cancellation to exercise late completion.
@@ -213,7 +218,7 @@ struct SharedMediaNativePhotoAllocationTests {
         await gate.arrived()
         let unresolved = try allocation(h)
         await #expect(throws: PhotoPreparationFailure.busy) {
-            _ = try await owner.allocateAppPhoto(p) { _, _ in
+            _ = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { _, _, _ in
                 Issue.record("Overlapping allocation dispatched"); return .held(.notFound)
             }
         }
@@ -230,7 +235,7 @@ struct SharedMediaNativePhotoAllocationTests {
         else { #expect(await owner.invalidateAndAwaitForAccountTransition()) }
         #expect(try allocation(h) == unresolved)
         let cold = try await SharedMediaNativeReceivingStagingTests().reopen(h)
-        _ = try await cold.allocateAppPhoto(p) { request, validate in
+        _ = try await cold.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { request, validate, _ in
             try validate(); #expect(request.action == .status && request.allocation == unresolved)
             return .allocated(expected)
         }
@@ -240,20 +245,20 @@ struct SharedMediaNativePhotoAllocationTests {
     @Test(arguments: ["after", "readback"])
     func ambiguousPositiveSettlementRecoversExactReceipt(fault: String) async throws {
         let (h, owner, p) = try await fixture(), expected = receipt
-        _ = try await owner.allocateAppPhoto(p) { _, _ in .held(.notFound) }
+        _ = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { _, _, _ in .held(.notFound) }
         var saved = false
         try owner.setMetadataFault {
             if $0 == .afterSave { saved = true; if fault == "after" { throw SharedMediaStorageFailure.unavailable } }
             if saved && $0 == .beforeReadback && fault == "readback" { throw SharedMediaStorageFailure.unavailable }
         }
         if fault == "after" {
-            let recovered = try await owner.allocateAppPhoto(p) { request, _ in
+            let recovered = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { request, _, _ in
                 #expect(request.action == .status); return .allocated(expected)
             }
             #expect(recovered.receipt == expected)
         } else {
             await #expect(throws: (any Error).self) {
-                _ = try await owner.allocateAppPhoto(p) { request, _ in
+                _ = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { request, _, _ in
                     #expect(request.action == .status); return .allocated(expected)
                 }
             }
@@ -261,7 +266,7 @@ struct SharedMediaNativePhotoAllocationTests {
         #expect(try allocation(h).receipt == expected)
         let before = try row(h), rev = try revision(h)
         try owner.setMetadataFault { if $0 == .beforeSave { Issue.record("Exact receipt replay saved again") } }
-        let replay = try await owner.allocateAppPhoto(p) { request, _ in
+        let replay = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { request, _, _ in
             #expect(request.action == .status); return .allocated(expected)
         }
         #expect(replay.receipt == expected)
@@ -271,7 +276,7 @@ struct SharedMediaNativePhotoAllocationTests {
 
     @Test func sidecarSealRejectsExtraDirtyRowAndPreservesImmutableBytes() async throws {
         let (h, owner, p) = try await fixture()
-        let unresolved = try await owner.allocateAppPhoto(p) { _, _ in .held(.notFound) }
+        let unresolved = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { _, _, _ in .held(.notFound) }
         let before = try row(h), context = h.context(), id = h.packageID, inventoryID = h.inventoryID
         let inventory = try SharedMediaNativePairPlanGraph.one(context,
             FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
@@ -294,7 +299,7 @@ struct SharedMediaNativePhotoAllocationTests {
     func changedClaimOrDeletedSlotCannotAcceptLateResponse(deleted: Bool) async throws {
         let (h, owner, p) = try await fixture(), expected = receipt
         await #expect(throws: (any Error).self) {
-            _ = try await owner.allocateAppPhoto(p) { request, _ in
+            _ = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { request, _, _ in
                 let context = h.context(), id = h.packageID
                 let slot = try SharedMediaNativePairPlanGraph.one(context,
                     FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == id }))
@@ -320,7 +325,7 @@ struct SharedMediaNativePhotoAllocationTests {
         let image = PhotoPreparationTestHarness.image()
         _ = try await owner.acquireAppOriginal(request) { image }
         let before = try budget(h)
-        let held = try await owner.allocateAppPhoto(p) { _, _ in .held(.notFound) }
+        let held = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { _, _, _ in .held(.notFound) }
         let after = try budget(h)
         #expect(after.metadataByPackage[second] == before.metadataByPackage[second])
         let charged = try #require(after.metadataByPackage[h.packageID]), previous = try #require(before.metadataByPackage[h.packageID])
@@ -350,7 +355,7 @@ struct SharedMediaNativePhotoAllocationTests {
         }
         #expect(try row(h) == saved && revision(h) == Int64.max - 1)
         let expected = receipt
-        _ = try await owner.allocateAppPhoto(p) { request, _ in
+        _ = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { request, _, _ in
             #expect(request.action == .status); return .allocated(expected)
         }
         #expect(try revision(h) == Int64.max)
@@ -364,7 +369,7 @@ struct SharedMediaNativePhotoAllocationTests {
         let acquisition = try await owner.prepareAppOriginal(packageID: second, draftGeneration: draft, ordinal: 0, kind: .picker)
         let image = PhotoPreparationTestHarness.image()
         _ = try await owner.acquireAppOriginal(acquisition) { image }
-        _ = try await owner.allocateAppPhoto(p) { _, _ in .held(.notFound) }
+        _ = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { _, _, _ in .held(.notFound) }
         let before = try h.package(second).supportingContextData
         let edit = try await owner.prepareAppMetadata(packageID: second, draftGeneration: draft,
             contexts: [.init(freeText: "Must not commit across changed peer")])
@@ -425,10 +430,10 @@ struct SharedMediaNativePhotoAllocationTests {
         dispatcher.overridingAuthUserID = h.ownerID
         dispatcher.overridingAuthSessionRefresh = { Issue.record("Boundary failure refreshed authentication"); return true }
         let transport = InitialPhotoAllocationTransport(baseURL: "https://example.supabase.co", dispatcher: dispatcher)
-        await #expect(throws: (any Error).self) { _ = try await owner.allocateAppPhoto(p, transport: transport) }
+        await #expect(throws: (any Error).self) { _ = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }, transport: transport) }
         let saved = try allocation(h)
         #expect(saved.receipt == nil)
-        let recovered = try await owner.allocateAppPhoto(p) { request, _ in
+        let recovered = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { request, _, _ in
             #expect(request.action == .status && request.allocation == saved)
             return .held(.notFound)
         }

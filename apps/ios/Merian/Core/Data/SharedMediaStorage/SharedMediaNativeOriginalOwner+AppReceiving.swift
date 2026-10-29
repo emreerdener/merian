@@ -80,33 +80,53 @@ extension SharedMediaNativeOriginalOwner {
         }
     }
     func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                          authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
                           transport: InitialPhotoAllocationTransport) async throws -> SharedMediaNativePhotoAllocation {
-        try await allocateAppPhoto(prepared, send: { request, validate in
-            try await transport.perform(request, validateAttempt: validate, validateResponse: validate)
+        try await allocateAppPhoto(prepared, authorizeCreate: authorizeCreate, send: { request, validate, settle in
+            try await transport.perform(request, validateAttempt: validate, validateResponse: settle)
         })
     }
-    /// One retained account/store operation spans both persistence boundaries.
-    /// Only coordinator locks are released during the bounded network request.
+    /// One retained account/store operation spans authorization and persistence.
+    /// Only coordinator locks are released during bounded network requests.
     func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
         storage: SharedMediaNativeStorageRepository, grant: SharedMediaNativeAppDispatchGrant,
         releaseStage: SharedMediaNativeReleaseStageSettlement,
-        send: @escaping @MainActor (InitialPhotoAllocationRequest, @escaping @MainActor @Sendable () throws -> Void) async throws -> InitialPhotoAllocationReply) async throws -> SharedMediaNativePhotoAllocation {
+        authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
+        send: @escaping SharedMediaNativePhotoAllocationAccess.Send) async throws -> SharedMediaNativePhotoAllocation {
+        let saved = try await withReceivingLocks(queueID: prepared.queueID.uuidString,
+            observationID: prepared.observationID.uuidString) { lock in
+            try await storage.appPhotoAllocation(grant: grant, lock: lock).saved(prepared)
+        }
+        var authorization: IdentificationDispatchAuthorization?
+        if saved == nil {
+            let value = try await authorizeCreate(prepared, { try grant.validate() })
+            try grant.validate()
+            try SharedMediaNativePhotoAdmission(authorization: value).requireSaved(prepared.photoAdmission)
+            authorization = value
+        }
         let dispatch = try await withReceivingLocks(queueID: prepared.queueID.uuidString,
             observationID: prepared.observationID.uuidString) { lock in
             try grant.validate()
             var operation = try await storage.appPhotoAllocation(grant: grant, lock: lock)
             if try operation.saved(prepared) == nil {
-                // First allocation requires the actual immutable received media.
+                guard let authorization else { throw SharedMediaStorageFailure.stale }
+                try authorization.validate()
                 let receiving = try await storage.appReceiving(grant: grant, lock: lock, releaseStage: releaseStage)
                 _ = try await receiving.readReceivedPhotos(prepared)
                 operation = try await storage.appPhotoAllocation(grant: grant, lock: lock)
             }
             try grant.validate(); try lock.validate()
-            return try operation.claim(prepared, attemptID: UUID())
+            return try operation.claim(prepared, attemptID: UUID(), beforeClaimSave: {
+                guard let authorization else { throw SharedMediaStorageFailure.stale }
+                try authorization.validate()
+            })
         }
         try grant.validate()
-        let request = try dispatch.consume() // Spend before dispatch, including synchronous transport failures.
-        let reply = try await send(request, { try grant.validate() })
+        let request = try dispatch.consume()
+        let createAuthorization = request.action == .create ? authorization : nil
+        let reply = try await send(request, {
+            try grant.validate(); try createAuthorization?.validate()
+        }, { try grant.validate() })
         try grant.validate()
         return try await withReceivingLocks(queueID: prepared.queueID.uuidString,
             observationID: prepared.observationID.uuidString) { lock in

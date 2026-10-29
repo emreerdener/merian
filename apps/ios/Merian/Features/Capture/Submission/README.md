@@ -1,3 +1,38 @@
+## October 29 — inactive Capture allocation caller candidate
+
+The native submission session keeps `submit` as the local receipt boundary and
+adds an explicit `allocate` phase. Its existing inactive app factories compose
+the bounded allocation adapter; the native Capture caller invokes that phase
+only after its current account, generation and exact-selection checks. Ordinary
+factory installation remains disabled. Legacy nil-admission submissions and
+sessions without allocation composition remain local-only. Allocation is not an
+identification request, upload or funding action.
+
+Typed submission discovery uses the clean receiving graph to recover the exact
+Prepared, local receipt and optional allocation. Generic receiving readers still
+reject allocation sidecars. Saved allocations select status through the existing
+owner and never rerun recipient discovery. Later visible text/media cannot
+retarget submitted work or be overwritten by its completion.
+
+Before a new claim, the retained owner releases receiving locks for a current
+permission check against the already-bound processor. It then reacquires locks,
+rebuilds audited state and checks permission immediately before saving the
+claim. The create transport checks permission again after Auth awaits, before
+sending; status and response settlement use account/store/claim checks without
+renewed inference consent. Revocation after claim save leaves that immutable
+claim held for status-only recovery. A concurrent saved claim selects status. No
+missing, expired or cancelled status grants replacement or release authority.
+
+This caller increment passed compilation, independent Engine source review and
+focused runtime qualification: 10 methods / 34 cases, with all 3,048
+native/project pins unchanged and no structured runtime warnings. The first
+test-macro compilation failure remains retained. The allocation writer's
+preceding 192-method / 439-case and Release evidence belongs to checkpoint
+`6276b2651`; no new Release or full-journey acceptance is claimed here. The
+unrelated Auth size-gate failure and full photo, reanalysis/recovery,
+audio/video and RUX acceptance remain open. See the
+[canonical journey](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
+
 ## October 28 — live preflight wiring qualified, activation still held
 
 The inactive native draft factory now carries the existing network preflight
