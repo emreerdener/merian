@@ -35,6 +35,15 @@ digest explicitly remains unqualified by the provider. Tests are in
 `cpmPhotoUploadSpecification_test.ts`; the linked scan contract owns the
 remaining issuance, payload-enforcement and separate marker-writer obligations.
 
+`cpmPhotoMarker.ts:eraseInitialCpmPhotoWrite` is the separate inactive permanent
+marker executor. It recovers historical closure first, then preserves one
+original snapshot/claim through at most one zero-byte overwrite and the existing
+observation/settlement coordinator. Signer substitutions fail before dispatch;
+unknown write acknowledgement permits exact recovery, never a repeated PUT.
+Tests are in `cpmPhotoMarker_test.ts`. The linked scan contract owns deadlines,
+claim fences and unqualified hosted behavior. There is no installed eraser
+signer, route or claim-acquisition owner here.
+
 ## October 27 — inactive photo CPM content declaration candidate
 
 `cpmPhotoContent.ts` validates a closed, bounded photo declaration and hashes a

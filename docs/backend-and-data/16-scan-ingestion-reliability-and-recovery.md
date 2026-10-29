@@ -209,6 +209,38 @@ retained-media writers are a qualified v2 writer. No signer, credential
 resolver, route or marker executor is installed by this planner; alternate
 hosted writers and lifecycle rules remain unqualified.
 
+`cpmPhotoMarker.ts:eraseInitialCpmPhotoWrite` now implements the separate
+inactive marker executor. It reads the historical marker-closure receipt before
+loading fresh state. Otherwise it captures the authoritative attempt/backend and
+already-owned original cleanup claim, checks that exact snapshot before signing
+and again before dispatch, and attempts at most one unconditional same-key PUT
+of zero bytes with the permanent marker metadata. The injected eraser signer is
+separate from the observation signer; it can add only bounded authentication
+headers, not change the key, method, query, marker metadata, body, copy
+operation or conditional headers. No signer or route is installed.
+
+The executor has a 20-second aggregate limit narrowed by its parent deadline and
+original claim lifetime. It reserves ten seconds after the write phase for the
+existing closure coordinator, which retains its own five-second settlement
+reserve. A dispatched PUT with an unknown outcome may proceed only to exact
+receipt recovery and marker observation in that reserved budget; it never
+repeats PUT. Any HTTP status is insufficient proof. The coordinator receives the
+same captured snapshot and original claim without acquiring or replacing a
+claim, then independently verifies the marker and settles under the existing SQL
+fences. Historical closure bypasses fresh storage work. Parent cancellation,
+stale claims, invalid markers and insufficient time leave uncertainty held; late
+signatures cannot dispatch and late response bodies are discarded.
+
+Fifteen focused synthetic tests / 25 steps cover successful and uncertain
+writes, exact marker verification, historical recovery, claim replacement before
+and after storage, lost settlement acknowledgement, immutable snapshots, signer
+substitution and cancellation/deadline behavior. They do not qualify hosted
+payload enforcement, alternate-writer exclusion, late-upload/marker races or
+provider retention. The executor relies on irreversible retirement and the
+existing qualified-policy gate before any future installation. It introduces no
+upload capability, claim acquisition, direct erasure acknowledgement, funding or
+capacity-release path.
+
 ## October 29 — inactive single-role transfer reservation candidate
 
 `SharedMediaNativeOriginalOwner.reserveAppPhotoTransfer` now proposes one local
