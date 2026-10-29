@@ -114,7 +114,25 @@ struct SharedMediaNativePhotoTransferReadbackTests {
     }
     @Test(arguments: Mapping.Role.allCases)
     func accountShutdownJoinsSynchronousRoleRead(_ role: Mapping.Role) async throws {
-        let (h, owner, p, held) = try await fixture(role), before = try row(h)
+        try await joinedRoleRead(role, throughAuth: false)
+    }
+
+    @Test(arguments: Mapping.Role.allCases)
+    func authDrainJoinsRegisteredRoleRead(_ role: Mapping.Role) async throws {
+        try await joinedRoleRead(role, throughAuth: true)
+    }
+
+    private func joinedRoleRead(_ role: Mapping.Role, throughAuth: Bool) async throws {
+        let (h, initialOwner, p, held) = try await fixture(role), before = try row(h)
+        let registeredDrain = SharedMediaNativeOriginalDrain()
+        let owner: SharedMediaNativeOriginalOwner
+        if throughAuth {
+            try #require(await initialOwner.invalidateAndAwaitForAccountTransition())
+            owner = try SharedMediaNativeOriginalOwner.appDispatch(
+                account: PhotoOriginalPreparationOwner.syntheticAccount(ownerID: h.ownerID, runtime: h.runtime),
+                drain: registeredDrain)
+            _ = try await owner.openApp(container: h.container, parent: h.parent, inventoryID: h.inventoryID)
+        } else { owner = initialOwner }
         let entered = ImageFocusEngineTests.Signal(), release = DispatchSemaphore(value: 0)
         let calls = OSAllocatedUnfairLock(initialState: 0)
         let timedOut = OSAllocatedUnfairLock(initialState: false)
@@ -142,14 +160,36 @@ struct SharedMediaNativePhotoTransferReadbackTests {
             release.signal(); _ = try? await operation.value
             #expect(await owner.invalidateAndAwaitForAccountTransition()); return
         }
-        let drain = Task { let value = await owner.invalidateAndAwaitForAccountTransition(); drainFinished = true; return value }
+        var order: [String] = []
+        let drain = Task {
+            let value: Bool
+            if throughAuth {
+                value = await SupabaseManager.drainPhotoPreparationBeforeAccountWork(preparation: {
+                    order.append("photo"); return true
+                }, native: {
+                    order.append("native")
+                    let stopped = await registeredDrain.shutdown()
+                    order.append("native-finished"); return stopped
+                }, drain: {
+                    order.append("auth")
+                    await h.runtime.awaitAccountWorkDrain()
+                    order.append("auth-finished")
+                })
+            } else { value = await owner.invalidateAndAwaitForAccountTransition() }
+            drainFinished = true; return value
+        }
         while !owner.heldOriginalAdmissionClosedForTesting && !drainFinished { await Task.yield() }
         #expect(!drainFinished && !resultEscaped)
+        if throughAuth { #expect(order == ["native"]) }
         #expect(try row(h) == before)
         await #expect(throws: (any Error).self) { try await owner.setAcquisitionEntryPause(nil) }
         release.signal()
         await #expect(throws: (any Error).self) { _ = try await operation.value }
         #expect(await drain.value)
+        if throughAuth {
+            #expect(order == ["native", "native-finished", "photo", "auth", "auth-finished"])
+            #expect(await registeredDrain.shutdown())
+        }
         #expect(!resultEscaped && !timedOut.withLock { $0 })
         #expect(try row(h) == before)
         let cold = try await SharedMediaNativeReceivingStagingTests().reopen(h)

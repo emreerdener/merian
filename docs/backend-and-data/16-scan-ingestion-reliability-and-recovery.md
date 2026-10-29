@@ -89,10 +89,22 @@ and verify again after cold reopening. Focused native qualification passed one
 parameterized method / three role cases in 648.775 seconds, with all 3,061
 pinned inputs unchanged and no structured runtime warnings. Evidence is
 `.artifacts/native-app-capture-handoff-20261020/role-drain-native-qualified01.json`.
-This covers direct owner shutdown; complete Auth/drain integration remains
-unqualified. This prerequisite precedes byte consumption; signer/PUT integration
-still requires coordinated issuance authority and positive remote write closure
-under the existing backend contract.
+This covers direct owner shutdown. The follow-up
+`SharedMediaNativePhotoTransferReadbackTests.authDrainJoinsRegisteredRoleRead`
+candidate drives the registered native callback through
+`SupabaseManager.drainPhotoPreparationBeforeAccountWork` for all three roles.
+While the real hash loop is paused, neither photo preparation nor the account
+work drain may start; after cancellation joins, the saved reservation must
+remain unchanged and verify after cold reopen. Focused native qualification
+passed both the direct-owner and registered-drain methods (six role cases) in
+865.030 seconds including build/test, with all 3,061 input pins unchanged and no
+structured runtime warnings. Evidence is
+`.artifacts/native-app-capture-handoff-20261020/role-auth-native-qualified01.json`.
+The fixture uses an unconfigured drain and synthetic account: configured
+discovery lifetime, real Auth transitions, AppDI installation and full journeys
+remain unqualified. This prerequisite precedes byte consumption; signer/PUT
+integration still requires coordinated issuance authority and positive remote
+write closure under the existing backend contract.
 
 ### Inactive CPM storage observation
 

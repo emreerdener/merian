@@ -13,8 +13,13 @@ and remote closure remain absent. The
 owns the lifetime contract and remaining acceptance. A new Debug-only owner
 drain test candidate covers shutdown during the actual role hash loop; its
 source/AI/display runtime qualification passed one method / three cases with
-unchanged pinned inputs and no structured runtime warnings. Complete Auth/drain
-integration remains unqualified.
+unchanged pinned inputs and no structured runtime warnings. Follow-up coverage
+now drives the registered drain through Auth's ordering helper during the paused
+role read; both direct-owner and registered-drain methods passed all six role
+cases with unchanged pinned inputs and no structured runtime warnings. This
+synthetic, unconfigured drain fixture does not qualify configured discovery
+lifetime, real Auth transitions, AppDI installation or full journeys. The linked
+scan guide owns those limits.
 
 ## Current single-role transfer reservation — October 29
 
