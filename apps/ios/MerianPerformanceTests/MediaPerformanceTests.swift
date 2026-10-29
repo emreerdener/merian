@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 @testable import Merian
 import UIKit
@@ -30,6 +31,45 @@ final class MediaPerformanceTests: XCTestCase {
                 }
             }
         }
+    }
+
+    /// Report-only maximum-original workload. Fixture construction and the
+    /// initial correctness check are outside the measured interval.
+    func testMaximumOriginalHashVerification() throws {
+        let root = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let files = try PhotoPreparationLockedFiles(root: root)
+        defer { files.close() }
+        let file = try makeMaximumHashFixture(root: root)
+        XCTAssertEqual(file.byteCount, PhotoPreparationPolicy.original)
+        let expected = try files.verifiedIdentity(file)
+        var lastIdentity = ""
+        measure(metrics: [XCTClockMetric(), XCTCPUMetric(), XCTMemoryMetric()], options: options) {
+            do {
+                // Every iteration reopens and hashes all bytes; no cached proof.
+                for _ in 0..<4 {
+                    lastIdentity = try autoreleasepool { try files.verifiedIdentity(file) }
+                }
+            } catch { XCTFail("Original hash verification failed: \(error)") }
+        }
+        XCTAssertEqual(lastIdentity, expected)
+    }
+
+    private func makeMaximumHashFixture(root: URL) throws -> PhotoPreparationFile {
+        let asset = UUID(), token = [UUID(), UUID(), asset].map { $0.uuidString.lowercased() }.joined(separator: "/")
+        let url = root.appendingPathComponent("PhotoPreparation").appendingPathComponent(token)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        guard FileManager.default.createFile(atPath: url.path, contents: nil) else { throw PhotoPreparationFailure.unavailable }
+        let handle = try FileHandle(forWritingTo: url)
+        defer { try? handle.close() }
+        // Synthetic file bytes exercise only the hash owner, not image decode.
+        let chunk = Data(repeating: 0x5a, count: 64 * 1024)
+        var hash = SHA256()
+        for _ in 0..<512 { try handle.write(contentsOf: chunk); hash.update(data: chunk) }
+        try handle.synchronize()
+        return .init(assetID: asset, generation: UUID(), token: token, byteCount: 32 * 1024 * 1024,
+            sha256: hash.finalize().map { String(format: "%02x", $0) }.joined(), contentType: "image/jpeg")
     }
 
     func testAudioVideoFileAdmission() throws {

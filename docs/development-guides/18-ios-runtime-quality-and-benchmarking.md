@@ -115,6 +115,16 @@ that workload. The repeated Insight benchmark requests hitch reporting; a
 missing hitch series is unverified, never zero hitches. These observations
 remain report-only and do not change behavioral pass/fail results.
 
+The maximum-original hash workload measures four complete verifications of a 32
+MiB synthetic file per measurement iteration, with clock, CPU and memory
+metrics. Fixture streaming and the initial byte-count/identity check happen
+outside the measured interval. Each verification uses the existing locked file
+owner and descriptor-scoped 64 KiB hash loop; it does not decode an image or
+create an upload copy. The manifest requests memory samples explicitly. Results
+remain report-only and require matching environment/workload identity; a missing
+memory series is unmeasured. This does not qualify retained memory across the
+whole native owner, account shutdown, URLSession or a physical device.
+
 The measured boundaries are intentionally narrower than full Capture → queue →
 inference → Insight latency. Provider time, real network throughput, physical
 camera/audio/video processing, thermal throttling, OS background transfer, and

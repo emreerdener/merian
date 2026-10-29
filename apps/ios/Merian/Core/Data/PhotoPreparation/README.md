@@ -3,8 +3,9 @@
 A Debug-only count callback exercises mutation and cancellation inside the
 existing 64 KiB reader. It returns no file or byte capability and is absent from
 Release. Maximum-size chunk-bound and interruption tests passed 4 methods / 10
-cases with unchanged inputs and no structured runtime warnings. Retained-memory
-measurement and full owner/upload integration remain open. The
+cases with unchanged inputs and no structured runtime warnings. The report-only
+reader memory benchmark also completed; full owner/upload retention and
+integration remain open. The
 [scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--local-reserved-role-byte-verification-candidate)
 owns current evidence and remaining memory/integration acceptance.
 

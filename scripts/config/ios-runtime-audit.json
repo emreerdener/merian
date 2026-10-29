@@ -510,6 +510,12 @@
   ],
   "performance": [
     {
+      "selector": "merianPerformanceTests/MediaPerformanceTests/testMaximumOriginalHashVerification",
+      "suite_names": ["MediaPerformanceTests"],
+      "owner": "apps/ios/MerianPerformanceTests/MediaPerformanceTests.swift",
+      "report_metric_families": ["Memory"]
+    },
+    {
       "selector": "merianPerformanceTests/MediaPerformanceTests/testRepeatedBoundedImageDecode",
       "suite_names": [
         "MediaPerformanceTests"

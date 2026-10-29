@@ -55,8 +55,29 @@ source/project inputs unchanged and no structured runtime warnings. Evidence is
 retained in
 `.artifacts/native-app-capture-handoff-20261020/read-loop-native-qualified01.json`
 and result bundle `04b746ceb3a949808a6fbd5b4487dc30.xcresult`. Chunk-count
-assertions do not measure retained memory; a report-only memory benchmark and
-full owner/upload integration remain required.
+assertions establish chunk bounds; the report-only measurements below complement
+that evidence. Full owner/upload integration remains required.
+
+A report-only maximum-original hash benchmark is now implemented in the existing
+performance target and runtime-audit manifest. It measures four 32 MiB reads per
+iteration through the locked production reader, with fixture construction
+outside the measured interval. The focused benchmark passed in 92.607 seconds,
+exporting 30 samples per metric across three invocations. All 3,062 input pins
+and the complete audit source identity were unchanged, with no structured
+runtime warnings. Evidence is retained in
+`.artifacts/native-app-capture-handoff-20261020/hash-memory-audit01/` and result
+`24b3b1fc16524eee9f3b9b9054508d00.xcresult`. On the recorded iPhone 18 Pro / iOS
+27.0 Simulator, Xcode 27.1 (27A9275), MacBookPro18,1 / macOS 26.6.2, Debug
+configuration, mean clock time was 0.084897 seconds per four-read sample.
+Physical-memory deltas ranged from -16.384 to 425.984 kB (mean 37.137 kB, SD
+87.221 kB); absolute process peaks ranged from 50,727.456 to 54,200.864 kB.
+These process-wide metrics include the test host and cannot isolate retained
+reader allocations. Raw samples, variance and environment/workload fingerprints
+are retained; no memory cap or stable baseline is inferred. CPU and memory-delta
+variance are flagged by the existing report. No whole-owner, account-drain,
+URLSession, sustained device-memory or full-journey qualification follows. The
+[benchmarking guide](../development-guides/18-ios-runtime-quality-and-benchmarking.md#performance-measurements)
+owns the workload and metric interpretation.
 
 ## October 29 — inactive single-role transfer reservation candidate
 
