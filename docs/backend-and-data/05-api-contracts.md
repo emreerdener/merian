@@ -1,3 +1,32 @@
+## Dormant CPM write-status service projection — October 29
+
+`read_initial_cpm_photo_write_status` is an additive, service-only SQL RPC. The
+future authenticated adapter must supply owner identity from authentication and
+scan/assignment/object identity from the saved allocation. Client roles have no
+execute grant. Its closed JSON result is:
+
+```json
+{
+  "version": 1,
+  "authority": "none",
+  "scan_id": "UUID",
+  "assignment_digest": "64 lowercase hexadecimal characters",
+  "object_id": "UUID",
+  "attempt": null
+}
+```
+
+An existing `attempt` replaces null with exactly `attempt_id` (UUID), `state`
+(`bound` or `may_have_issued`), `created_at_ms`, `capability_expires_at_ms`
+(original integer milliseconds) and `write_closed` (Boolean). No observation,
+including null or closed, grants issuance, retry, verification or release. The
+[database contract](04-database-schema.md#dormant-cpm-write-status-projection--october-29)
+owns locking, denial fences and qualification. The SQL producer and catalog
+shape assertions are the current executable boundary; no Edge endpoint,
+JavaScript decoder, Swift DTO, native persistence or web/admin consumer is
+added. Those consuming schemas must be defined before wiring this result into an
+app. The generated Identify contract is unchanged.
+
 ## Dormant CPM issuer service composition — October 29
 
 `issueInitialCpmPhotoUpload` consumes a trusted

@@ -1,3 +1,24 @@
+## October 29 — non-transition upload-status candidate
+
+The next integration prerequisite now has a dormant service-only SQL projection
+for an exact saved role. It observes absence or the original attempt and clocks
+without calling begin, signing, renewing or releasing capacity. Account,
+deletion and cancellation fences remain owned by the existing preparation scope.
+The
+[database contract](04-database-schema.md#dormant-cpm-write-status-projection--october-29)
+and
+[service projection](05-api-contracts.md#dormant-cpm-write-status-service-projection--october-29)
+own the behavior and fields. The 501-migration disposable replay, all 176
+catalogs / 7,249 assertions and transaction-order schedules passed. Engine
+cleared production. Static migration, recursive type/lint/format, DTO,
+documentation/link and scoped preflight gates passed. Tooling coverage completed
+across retained runs: its sandbox terminal failure was followed by a passing
+retry of only that test and the remaining shell tests. The first focused catalog
+failure and two fixture repairs are retained; no native or hosted qualification
+is claimed. No new route or native consumer is installed; closed consuming
+schemas, durable attempt binding and private payload/drain integration remain
+open.
+
 ## October 29 — file upload task lifetime candidate
 
 The existing pinned transport now has an inactive `photoUploadTask()` entry that

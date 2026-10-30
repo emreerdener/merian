@@ -1,3 +1,13 @@
+## Dormant CPM status recovery
+
+The
+[database status contract](../../docs/backend-and-data/04-database-schema.md#dormant-cpm-write-status-projection--october-29)
+owns the service-only projection, denial fences and qualification status.
+`tests/initial_cpm_photo_intents.sql` checks the closed shape and unchanged
+liability; `test_initial_cpm_photo_fresh_issuance.py` also covers status
+ordering against commit, rollback and cancellation on a fresh owned disposable
+replay. No route or native consumer is installed.
+
 ## Inactive CPM durable closure candidate
 
 The

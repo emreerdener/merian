@@ -149,6 +149,45 @@ CREATE TEMP TABLE issuance_args AS SELECT s.owner_id,s.scan_id,s.assignment_dige
  FROM internal.initial_analysis_preparation_intents s JOIN internal.initial_cpm_photo_role_mapping m USING(scan_id)
  CROSS JOIN internal.initial_cpm_photo_write_policies p WHERE s.scan_id='00000000-0000-4000-8000-00000000f101';
 GRANT SELECT ON issuance_args TO service_role;
+-- Status is a closed observation, including when no attempt exists.
+CREATE FUNCTION pg_temp.write_status(role_name TEXT DEFAULT 'source') RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT public.read_initial_cpm_photo_write_status(owner_id,scan_id,assignment_digest,object_id)
+ FROM issuance_args WHERE role=role_name;
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.write_status(TEXT) TO service_role;
+SELECT extensions.ok(has_function_privilege('service_role','public.read_initial_cpm_photo_write_status(uuid,uuid,text,uuid)','EXECUTE'),'status service allowlisted');
+SET LOCAL ROLE anon;
+SELECT extensions.throws_ok($$SELECT public.read_initial_cpm_photo_write_status(NULL,NULL,NULL,NULL)$$,'42501',NULL,'anon cannot read status');
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT extensions.throws_ok($$SELECT public.read_initial_cpm_photo_write_status(NULL,NULL,NULL,NULL)$$,'42501',NULL,'authenticated cannot read status directly');
+RESET ROLE;
+SAVEPOINT status_guard;
+SELECT set_config('request.jwt.claim.role','',TRUE);
+-- Test the internal guard independently of the production ACL. This temporary
+-- grant exists only inside the rollback-local fixture savepoint.
+GRANT EXECUTE ON FUNCTION public.read_initial_cpm_photo_write_status(UUID,UUID,TEXT,UUID) TO authenticated;
+SET LOCAL ROLE authenticated;
+SELECT extensions.throws_ok($$SELECT public.read_initial_cpm_photo_write_status(NULL,NULL,NULL,NULL)$$,'42501','service_role authorization required','definer requires service caller internally');
+RESET ROLE;
+SET LOCAL ROLE service_role;
+SELECT extensions.is(pg_temp.write_status(),jsonb_build_object('version',1,'authority','none','scan_id',scan_id,
+ 'assignment_digest',assignment_digest,'object_id',object_id,'attempt',NULL),'actual opaque service recovers closed absent status') FROM issuance_args WHERE role='source';
+RESET ROLE;
+ROLLBACK TO status_guard;
+SELECT extensions.is((SELECT count(*) FROM internal.initial_cpm_photo_write_attempts),0::BIGINT,'absent status never binds attempt');
+SELECT extensions.throws_ok($$SELECT public.read_initial_cpm_photo_write_status(gen_random_uuid(),scan_id,assignment_digest,object_id) FROM issuance_args WHERE role='source'$$,'P0002','initial_analysis_owner_unavailable','foreign owner denied status');
+SELECT extensions.throws_ok($$SELECT public.read_initial_cpm_photo_write_status(owner_id,scan_id,repeat('0',64),object_id) FROM issuance_args WHERE role='source'$$,'22023','initial_analysis_identity_conflict','changed digest denied status');
+SELECT extensions.throws_ok($$SELECT public.read_initial_cpm_photo_write_status(owner_id,scan_id,assignment_digest,gen_random_uuid()) FROM issuance_args WHERE role='source'$$,'22023','initial_analysis_identity_conflict','foreign object denied status');
+SELECT extensions.throws_ok($$SELECT public.read_initial_cpm_photo_write_status(owner_id,scan_id,'invalid',object_id) FROM issuance_args WHERE role='source'$$,'22023','initial_analysis_input_invalid','malformed digest denied status');
+SAVEPOINT status_bound;
+SELECT internal.initial_cpm_photo_write_action('bind',owner_id,scan_id,assignment_digest,object_id) IS NOT NULL FROM issuance_args WHERE role='source';
+CREATE TEMP TABLE bound_status AS SELECT pg_temp.write_status() value;
+SELECT extensions.is(value#>>'{attempt,state}','bound','bound status cannot advance possible issuance') FROM bound_status;
+SELECT extensions.is(pg_temp.write_status(),value,'bound status preserves original clock') FROM bound_status;
+SELECT extensions.is((SELECT state FROM internal.initial_cpm_photo_write_attempts),'bound','status leaves bound state');
+ROLLBACK TO status_bound;
+
 CREATE FUNCTION pg_temp.begin_write(role_name TEXT DEFAULT 'source') RETURNS JSONB LANGUAGE SQL AS $$
  SELECT public.begin_initial_cpm_photo_write(owner_id,scan_id,assignment_digest,object_id,policy)
  FROM issuance_args WHERE role=role_name;
@@ -174,6 +213,34 @@ SELECT extensions.is((SELECT value#>>'{observation,target,role}' FROM issuance_f
 SELECT extensions.is((SELECT count(*)::INTEGER FROM issuance_fresh, jsonb_object_keys(value)),5,'fresh response is closed');
 RESET ROLE;
 CREATE TEMP TABLE issuance_row AS SELECT * FROM internal.initial_cpm_photo_write_attempts;
+CREATE TEMP TABLE issued_status AS SELECT pg_temp.write_status() value;
+CREATE TEMP TABLE status_capacity AS SELECT jsonb_agg(to_jsonb(c) ORDER BY c.scan_id) value FROM internal.initial_cpm_photo_capacity_reservations c;
+SELECT extensions.is((SELECT value FROM issued_status),jsonb_build_object('version',1,'authority','none','scan_id',a.scan_id,
+ 'assignment_digest',a.assignment_digest,'object_id',a.object_id,'attempt',jsonb_build_object('attempt_id',a.attempt_id,'state',a.state,
+ 'created_at_ms',floor(extract(epoch FROM a.created_at)*1000)::BIGINT,
+ 'capability_expires_at_ms',floor(extract(epoch FROM a.capability_expires_at)*1000)::BIGINT,'write_closed',FALSE)),
+ 'issued status has exact closed public-safe fields, no private configuration') FROM issuance_row a;
+SELECT extensions.ok(octet_length(value::TEXT)<=2048,'status projection fits two KiB') FROM issued_status;
+SELECT extensions.is(pg_temp.write_status(),value,'lost response recovers exact attempt without issuance') FROM issued_status;
+SELECT extensions.is((SELECT jsonb_agg(to_jsonb(c) ORDER BY c.scan_id) FROM internal.initial_cpm_photo_capacity_reservations c),(SELECT value FROM status_capacity),'status never changes capacity');
+SAVEPOINT status_revocation;
+UPDATE internal.initial_cpm_photo_profile_eligibility SET state='revoked';
+UPDATE internal.initial_preparation_backend_eligibility SET state='revoked';
+UPDATE internal.initial_cpm_photo_write_policies SET state='revoked';
+UPDATE internal.initial_analysis_rollout SET initial_analysis_lifecycle_enabled=FALSE;
+SELECT extensions.is(pg_temp.write_status(),value,'revocation and rollout drift preserve exact status') FROM issued_status;
+ROLLBACK TO status_revocation;
+SAVEPOINT status_cancel;
+SELECT public.cancel_initial_analysis(owner_id,scan_id)->>'dispatch' FROM issuance_args WHERE role='source';
+SELECT extensions.throws_ok($$SELECT pg_temp.write_status()$$,'55000','initial_analysis_cancelled','cancelled scope cannot recover private status');
+SELECT extensions.ok(EXISTS(SELECT 1 FROM internal.initial_cpm_photo_write_attempts WHERE retired AND state='may_have_issued'),'cancelled status denial retains liability');
+ROLLBACK TO status_cancel;
+SAVEPOINT status_account_delete;
+DELETE FROM public.users WHERE id='00000000-0000-4000-8000-00000000f001';
+SELECT extensions.throws_ok($$SELECT pg_temp.write_status()$$,'P0002','initial_analysis_owner_unavailable','deleted owner cannot recover private status');
+SELECT extensions.ok(EXISTS(SELECT 1 FROM internal.initial_cpm_photo_capacity_reservations WHERE owner_id IS NULL AND state='pending'),'deleted status denial retains global liability');
+ROLLBACK TO status_account_delete;
+
 SELECT extensions.is((SELECT write_capability_state FROM internal.initial_cpm_photo_capacity_reservations WHERE scan_id='00000000-0000-4000-8000-00000000f101'),'may_have_issued','fresh response retains outstanding liability');
 SELECT extensions.is(pg_temp.begin_write(),jsonb_build_object('outcome','held','attempt_id',(SELECT attempt_id FROM issuance_row)),'lost fresh response recovers only held');
 SELECT extensions.is(pg_temp.begin_write(),pg_temp.begin_write(),'repeated recovery never becomes fresh');
@@ -290,6 +357,9 @@ UPDATE internal.initial_cpm_photo_write_policies SET state='revoked';
 SELECT extensions.is(public.read_initial_cpm_photo_write_closure(attempt_id,'live_object')->>'observed_at',observed,'historical service read survives revocation') FROM closure_service_args;
 ROLLBACK TO closure_service_projection;
 CREATE TEMP TABLE closure_saved AS SELECT (pg_temp.close_source()).*;
+SELECT extensions.is(public.read_initial_cpm_photo_write_status('00000000-0000-4000-8000-00000000f001',a.scan_id,a.assignment_digest,a.object_id)#>>'{attempt,write_closed}','true','status reports saved closure without verification or release') FROM closure_attempt a;
+SELECT extensions.is((SELECT state FROM internal.initial_cpm_photo_capacity_reservations WHERE scan_id='00000000-0000-4000-8000-00000000f101'),'pending','closed status retains capacity');
+
 SELECT extensions.ok((SELECT write_closed FROM internal.initial_cpm_photo_write_attempts WHERE attempt_id=(SELECT attempt_id FROM closure_attempt)),'live closure closes exact role');
 SELECT extensions.is(to_jsonb(pg_temp.close_source()),to_jsonb(s),'closure replay exact') FROM closure_saved s;
 SELECT extensions.throws_ok($$SELECT pg_temp.close_source('live_object',clock_timestamp())$$,'22023','initial_analysis_identity_conflict','replay cannot replace observation time');

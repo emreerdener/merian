@@ -1,3 +1,40 @@
+## Dormant CPM write-status projection — October 29
+
+`public.read_initial_cpm_photo_write_status(owner, scan, assignment_digest,
+object)`
+is a service-only non-transition observation. It reuses the existing
+write-action status branch and owner/scan → capacity → registry → attempt lock
+order. Owner mismatch, account deletion, scan deletion and cancellation retain
+the existing denial fences. Current profile/backend/policy revocation does not
+rewrite an accepted attempt or prevent its exact observation while the outer
+scope remains accessible.
+
+The closed result contains version 1, `authority: none`, the exact scan,
+assignment digest and object, plus a nullable attempt. An existing attempt
+contains only its ID, `bound` or `may_have_issued` state, original creation and
+capability-expiry milliseconds, and saved `write_closed`. No backend, policy,
+credentials, URL or headers escape. Null is an observation of absence, not
+permission to retry begin or upload. Closed is the existing durable
+write-closure fact, not byte verification, cleanup completion or capacity
+release. This function changes no rows, clocks, funding or liability; it does
+acquire the existing transaction locks. It is not a SQL read-only-transaction
+interface.
+
+The migration and `initial_cpm_photo_intents.sql` define the executable SQL
+boundary. The fresh-issuance concurrency runner now also covers status waiting
+for commit, rollback and cancellation. All 501 migrations replayed locally; the
+repaired focused catalog passed 219 assertions and all 176 catalogs passed 7,249
+assertions. Transaction schedules passed for status waiting across commit,
+rollback and cancellation, alongside the existing issuance schedules. Engine
+cleared the frozen production candidate. The initial catalog failure was in two
+fixtures: the trusted direct owner was incorrectly expected to fail the service
+guard, and a scalar capacity query matched multiple cohorts. Both were repaired;
+the failure is retained. Evidence is in
+`.artifacts/native-app-capture-handoff-20261020/cpm-status-checkpoint01.json`.
+No route, native consumer, credentials or activation is installed. A closed
+native transport contract and durable attempt binding remain the next
+integration work.
+
 ## Dormant fresh-only CPM issuance transition — October 29
 
 `public.begin_initial_cpm_photo_write(owner, scan, assignment_digest, object,
