@@ -247,6 +247,12 @@ extension SharedMediaNativeOriginalOwner {
         }
     }
     #if DEBUG
+    func requestAppPhotoTicketForTesting(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                         send: @escaping @MainActor (SharedMediaNativePhotoAllocation, SharedMediaNativePhotoTicketContinuation) async throws -> Void) async throws -> Bool {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0.requestTicketForTesting(prepared, send: send) }
+        }
+    }
     func frozenAppReleasePairForTesting(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) async throws -> SharedMediaNativeReleasePairAttempt? {
         let plan = progress.plan
         return try await withReceivingLocks(queueID: plan.queueID.uuidString, observationID: plan.observationID.uuidString) { lock in

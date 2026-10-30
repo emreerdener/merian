@@ -116,6 +116,36 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         return try saveRemoteAttempt(request.observing(status), replacing: request, prepared: prepared)
     }
 
+    /// No Release caller exists until the closed ticket transport is integrated.
+    /// Persistence ambiguity and recovered markers never mint a fresh continuation.
+    private func beginTicketRequest(_ prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> SharedMediaNativePhotoTicketContinuation? {
+        guard let current = try saved(prepared), current.version >= 4 else { throw SharedMediaStorageFailure.closed }
+        guard current.version == 4, current.remoteAttempt == nil else { return nil }
+        let after = try current.startingTicketRequest()
+        let context = fresh(), inventory = try inventory(context)
+        let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)
+        guard case .allocating(let snapshot) = witnesses[prepared.package.id], snapshot.allocation == current else {
+            throw SharedMediaStorageFailure.stale
+        }
+        try requireReservation(after, replacing: current, context: context, inventory: inventory, witnesses: witnesses)
+        guard try persist(after, prepared: prepared, context: context, inventory: inventory) else { return nil }
+        return .init(allocation: after, validate: { try self.readback(after, prepared: prepared) })
+    }
+
+    #if DEBUG
+    /// Observes the real durable boundary without a network route or Release callback.
+    func requestTicketForTesting(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                 send: @escaping @MainActor (Allocation, SharedMediaNativePhotoTicketContinuation) async throws -> Void) async throws -> Bool {
+        guard TestExecutionCoordinator.isRunningTests else { throw SharedMediaStorageFailure.closed }
+        guard let continuation = try beginTicketRequest(prepared) else { return false }
+        defer { continuation.close() }
+        try continuation.consume()
+        try await send(continuation.allocation, continuation)
+        try continuation.validateConsumed()
+        return true
+    }
+    #endif
+
     private func saveRemoteAttempt(_ after: Allocation, replacing current: Allocation,
                                    prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> Allocation {
         guard after != current else { return current }
@@ -131,7 +161,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
 
     func verifyTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                         allocation: Allocation) async throws -> SharedMediaNativePhotoTransferReadback {
-        guard try saved(prepared) == allocation, (3...4).contains(allocation.version),
+        guard try saved(prepared) == allocation, (3...5).contains(allocation.version),
               let reservation = allocation.transferReservation else { throw SharedMediaStorageFailure.stale }
         let state = try SharedMediaNativePhotoTransferReadback.state(prepared, reservation: reservation, context: fresh())
         let (inspection, completion) = try await io.verifyTransfer(state, reservation: reservation)
@@ -151,7 +181,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
     func uploadTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                         upload: SharedMediaNativePhotoUpload) async throws -> Int {
         let allocation = upload.allocation
-        guard try saved(prepared) == allocation, (3...4).contains(allocation.version),
+        guard try saved(prepared) == allocation, (3...5).contains(allocation.version),
               let reservation = allocation.transferReservation else { throw SharedMediaStorageFailure.stale }
         let state = try SharedMediaNativePhotoTransferReadback.state(prepared, reservation: reservation, context: fresh())
         let result = try await io.uploadTransfer(state, reservation: reservation, upload: upload) {
@@ -267,7 +297,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
             if let data = currentRow.allocationData, let sha = currentRow.allocationSHA256 {
                 predecessor = try Allocation.decode(data, sha256: sha)
             } else { predecessor = nil }
-            if predecessor == nil || predecessor?.version != allocation.version || allocation.version == 4 {
+            if predecessor == nil || predecessor?.version != allocation.version || allocation.version >= 4 {
                 try requireReservation(allocation, replacing: predecessor, context: check,
                     inventory: currentInventory, witnesses: witnesses)
             }
@@ -324,5 +354,32 @@ final class SharedMediaNativePhotoAllocationDispatch {
         guard !consumed else { throw SharedMediaStorageFailure.closed }
         consumed = true
         return try .init(allocation: allocation, action: create ? .create : .status, projection: projection)
+    }
+}
+
+/// Volatile, one-shot right bound to the exact saved successor and retained
+/// account/receiving operation. No decoded state can construct this value.
+@MainActor
+final class SharedMediaNativePhotoTicketContinuation {
+    let allocation: SharedMediaNativePhotoAllocation
+    private var check: (() throws -> Void)?
+    private var consumed = false
+    private var closed = false
+    fileprivate init(allocation: SharedMediaNativePhotoAllocation, validate: @escaping () throws -> Void) {
+        self.allocation = allocation; check = validate
+    }
+    func consume() throws {
+        guard !closed, !consumed, let check else { throw SharedMediaStorageFailure.closed }
+        consumed = true
+        try check()
+    }
+    func validateConsumed() throws {
+        guard !closed, consumed, let check else { throw SharedMediaStorageFailure.closed }
+        try check()
+    }
+    fileprivate func close() {
+        closed = true
+        // A closed handle must not retain the repository's file ownership.
+        check = nil
     }
 }

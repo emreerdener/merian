@@ -3013,6 +3013,7 @@
 		F85A47F77250E16E41C06E23 /* ObservationHistoryEnrollmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAE6882E5E4A1799AFC7E979 /* ObservationHistoryEnrollmentTests.swift */; };
 		F86815C5CD5525F81208A567 /* ObservationSourceReservationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 628A9667BC65C268CBA44603 /* ObservationSourceReservationTests.swift */; };
 		F86D7A75E2229F5879F7EA9B /* CaptureGoalIndicatorPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 637EF8BE5F48ED18D891F302 /* CaptureGoalIndicatorPresentation.swift */; };
+		F831A72E11CCABD49D07C88E /* SharedMediaNativePhotoTicketRequestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04E4AAA158A0ADBED71E1916 /* SharedMediaNativePhotoTicketRequestTests.swift */; };
 		F88DBE82E5C6D059B253FB5E /* IdentifyMediaDescriptors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62119B565737C6A8FD08A33C /* IdentifyMediaDescriptors.swift */; };
 		F8981F7AB60B7EAF97AF189F /* SchemaV50Snapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B3674719CE88E4703288F71 /* SchemaV50Snapshots.swift */; };
 		F8B5B0F7F32088C19D0ED1F0 /* FieldTripsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC3062DD36734484EB663976 /* FieldTripsViewModelTests.swift */; };
@@ -3230,6 +3231,7 @@
 		051F22D891FF476ACC3DC6F4 /* SpeciesPreferredNameCloudCanonicalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesPreferredNameCloudCanonicalizationTests.swift; sourceTree = "<group>"; };
 		053BD7530CE250DA49F8607E /* PrivateScanMapViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivateScanMapViewModel.swift; sourceTree = "<group>"; };
 		05458B92ECA8D6B3E61FDD75 /* OfflineQueueManager+QueuedScanExtraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OfflineQueueManager+QueuedScanExtraction.swift"; sourceTree = "<group>"; };
+		04E4AAA158A0ADBED71E1916 /* SharedMediaNativePhotoTicketRequestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativePhotoTicketRequestTests.swift; sourceTree = "<group>"; };
 		05707A3FE50D47FE2A9C6F97 /* OfflineQueueTestCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueTestCase.swift; sourceTree = "<group>"; };
 		057C489ACDDB1B64E4B14BD3 /* SpeciesDictionaryCatalogDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryCatalogDependencies.swift; sourceTree = "<group>"; };
 		0592BE838F3A043F76A7B5FF /* SharedMediaNativeReceivingIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeReceivingIntent.swift; sourceTree = "<group>"; };
@@ -7478,6 +7480,7 @@
 				9345F8BC3D03494237D1CC95 /* SharedMediaNativeReceivingCleanGraphTests.swift */,
 				C9BA2FA201D60FFD706969DA /* SharedMediaNativeReceivingDiscoveryTests.swift */,
 				39DEDF846186216EC0E94556 /* SharedMediaNativeReceivingIntentTests.swift */,
+				04E4AAA158A0ADBED71E1916 /* SharedMediaNativePhotoTicketRequestTests.swift */,
 				35CFEF02B14E3FC21E18C4F7 /* SharedMediaNativeReceivingPhaseOwnerTests.swift */,
 				97BCF6AD2E1C1DEED6A4BC8E /* SharedMediaNativeReceivingReleaseLiveAuditTests.swift */,
 				7C4DD0E97447C2BCB53BAC6C /* SharedMediaNativeReceivingReleaseValuesTests.swift */,
@@ -16149,6 +16152,7 @@
 				718E6E5BC51CABA500A8FF7F /* SharedMediaNativeReceivingReleaseValuesTests.swift in Sources */,
 				3817D0ECA07B64C7297B115B /* SharedMediaNativeReceivingStagingIntegrityTests.swift in Sources */,
 				E7E6F60CF205CD23E724855F /* SharedMediaNativeReceivingStagingTests.swift in Sources */,
+				F831A72E11CCABD49D07C88E /* SharedMediaNativePhotoTicketRequestTests.swift in Sources */,
 				DDFAD899A5B9E95E36DD701A /* SharedMediaNativeReceivingTerminalOwnerTests.swift in Sources */,
 				143D43F72CB123325791F2D2 /* SharedMediaNativeReceivingTerminalReaderTests.swift in Sources */,
 				62B2B73B9E5B7A5D629D7264 /* SharedMediaNativeReceivingTestFixture.swift in Sources */,

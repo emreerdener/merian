@@ -1,3 +1,17 @@
+## Pre-ticket uncertainty candidate — October 30
+
+The existing allocation owner now proposes a V5 marker before a fresh ticket
+request, with permanent metadata/copy accounting and four-save admission. Its
+private continuation requires acknowledged save/readback and lives only inside
+the retained receiving/account operation; recovery cannot recreate it. Only a
+Debug/test-runtime observation seam exists. Release transport and PUT authority
+remain unavailable. Engine source review and combined focused qualification
+passed 19 methods / 51 cases after fixes for closed-handle retention and test
+coordination/cleanup. The original failed runs remain retained; full journeys
+and resource qualification remain open. The
+[scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--inactive-pre-ticket-uncertainty-boundary)
+owns transitions, evidence and remaining integration.
+
 ## Sealed-file upload lifetime candidate — October 30
 
 `SharedMediaNativePhotoUpload` connects the existing file owner to a concrete

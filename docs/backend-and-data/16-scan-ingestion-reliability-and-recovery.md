@@ -1,3 +1,45 @@
+## October 30 — inactive pre-ticket uncertainty boundary
+
+The native allocation sidecar adds V5 with `ticketRequestStarted: true` only
+after an explicit V4 transition for the exact reserved role with no remote
+attempt. V1–V4 omit the field and retain canonical byte compatibility. Admission
+reserves this marker save plus three possible historical status saves, including
+peer and terminal obligations. V5 retains maximum marker/attempt metadata and
+the full transfer-copy liability after remote closure; status never downgrades
+or removes the marker.
+
+A volatile continuation is minted only after successful save acknowledgement and
+exact fresh readback. Ambiguous acknowledgement, decoded/cold V5, repeats,
+absent status and existing remote facts never mint it. Consumption spends its
+single use before request, then checks the exact saved successor and retained
+account/receiving authority before and after the await. The receiving locks and
+account operation stay live through completion; the continuation is closed
+before returning an inert outcome and releases its validation closure so an
+escaped closed handle cannot retain repository/file ownership. Cancellation or
+account transition cannot restore it or accept a late completion.
+
+This candidate has only a Debug/test-runtime request observation seam. There is
+no Release request callback, ticket route/decoder or upload construction. The
+stable ticket contract and concrete transport are still required; a later
+PUT-started/unknown transition needs its own metadata/revision admission and
+fresh ticket association. This marker alone grants no PUT or repeat execution.
+Local coding-checkpoint qualification now covers 19 methods / 51 cases: 27
+unchanged passing cases from native01, 21 from native02 and three targeted
+native03 cases, with exact selected-case and source/dependency reconciliation.
+Engine cleared the marker design and both remediation deltas. Retained failed
+runs exposed closed-handle retention and premature test polling/unjoined
+cleanup. The fixes release the closed validation capture and coordinate actual
+callback entry with all-path child joins; passing reruns alone are not their
+disposition. The final rerun had no source drift or structured runtime warnings.
+Evidence is retained in `.artifacts/native-app-capture-handoff-20261020/` under
+`cpm-ticket-marker-native-combined01.json`, `cpm-ticket-marker-candidate03.json`
+and the corresponding review/failure receipts.
+
+This is focused inactive-boundary qualification. Full affected-surface/Release,
+installed journeys, resource measurements and cumulative acceptance remain open;
+prior file-lifetime evidence keeps its original scope. No deployment,
+activation, device installation or hosted operation is authorized.
+
 ## October 30 — sealed-file upload lifetime candidate (unqualified)
 
 The inactive native file handoff uses the existing sealed source, AI or display

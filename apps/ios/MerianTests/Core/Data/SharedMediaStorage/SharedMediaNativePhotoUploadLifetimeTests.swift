@@ -15,13 +15,6 @@ struct NativePhotoUploadLifetimeTests {
         return .init(try SharedMediaNativePairPlanGraph.one(store.context(),
             FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == id })))
     }
-    private func waitUntil(_ predicate: () async -> Bool) async throws {
-        let end = ContinuousClock.now + .seconds(8)
-        while !(await predicate()) {
-            guard ContinuousClock.now < end else { throw URLError(.timedOut) }
-            try await Task.sleep(for: .milliseconds(5))
-        }
-    }
 
     @Test(arguments: Mapping.Role.allCases)
     func sealedRoleResponseNeverSettlesOrReleases(_ role: Mapping.Role) async throws {
@@ -62,42 +55,56 @@ struct NativePhotoUploadLifetimeTests {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [PhotoUploadHangingProtocol.self]
         let session = URLSession(configuration: config)
-        defer { pause.release(); session.invalidateAndCancel() }
+        let started = PhotoUploadTestSignal()
+        PhotoUploadHangingProtocol.startSignal.withLock { $0 = started }
+        defer { PhotoUploadHangingProtocol.startSignal.withLock { $0 = nil }; session.invalidateAndCancel() }
         let concrete = PinnedPhotoUploadTask(session: session, completionPause: { pause.wait() })
         let upload = try SharedMediaNativePhotoUpload.forTesting(allocation: allocation, task: concrete, timeout: mode == "timeout" ? 0.2 : 10)
         var finished = false, drained = false, acquired = false
-        let call = Task { defer { finished = true }; return try await owner.uploadAppPhotoTransfer(prepared, upload: upload) }
-        try await waitUntil { !(await session.allTasks).isEmpty }
-        let coordinator = ScanInferencePersistenceCoordinator.shared
-        let contender = Task {
-            let held = await coordinator.acquireAll(scanIds: [prepared.queueID.uuidString, prepared.observationID.uuidString])
-            acquired = true
-            await coordinator.releaseAll(scanIds: held)
+        let call = Task {
+            defer { finished = true; started.finish(); pause.finishWaiting() }
+            return try await owner.uploadAppPhotoTransfer(prepared, upload: upload)
         }
+        var contender: Task<Void, Never>?
         var transition: Task<Bool, Never>?
-        if mode == "account" {
-            transition = Task { let result = await owner.invalidateAndAwaitForAccountTransition(); drained = true; return result }
-        } else if mode == "cancel" { call.cancel() }
-        try await waitUntil { pause.entered }
-        try await Task.sleep(for: .milliseconds(30))
-        #expect(!finished && !drained && !acquired)
-        #expect(try row(store) == before)
-        pause.release()
-        await #expect(throws: (any Error).self) { _ = try await call.value }
-        await contender.value
-        let after = try row(store)
-        #expect(acquired && finished && after == before)
-        if let transition {
-            let result = await transition.value
-            #expect(result && drained)
-        } else { #expect(await owner.invalidateAndAwaitForAccountTransition()) }
+        do {
+            try await started.wait()
+            let coordinator = ScanInferencePersistenceCoordinator.shared
+            contender = Task {
+                let held = await coordinator.acquireAll(scanIds: [prepared.queueID.uuidString, prepared.observationID.uuidString])
+                acquired = true
+                await coordinator.releaseAll(scanIds: held)
+            }
+            if mode == "account" {
+                transition = Task { let result = await owner.invalidateAndAwaitForAccountTransition(); drained = true; return result }
+            } else if mode == "cancel" { call.cancel() }
+            try await pause.waitForEntry()
+            try await Task.sleep(for: .milliseconds(30))
+            #expect(!finished && !drained && !acquired)
+            #expect(try row(store) == before)
+            pause.release()
+            await #expect(throws: (any Error).self) { _ = try await call.value }
+            await contender?.value
+            let after = try row(store)
+            #expect(acquired && finished && after == before)
+            if let transition {
+                let result = await transition.value
+                #expect(result && drained)
+            } else { #expect(await owner.invalidateAndAwaitForAccountTransition()) }
+        } catch {
+            pause.release(); call.cancel()
+            _ = await call.result
+            await contender?.value
+            if let transition { _ = await transition.value } else { _ = await owner.invalidateAndAwaitForAccountTransition() }
+            throw error
+        }
     }
 
     @Test(arguments: ["file", "saved"])
     func postflightFailureJoinsBeforeRejecting(_ fault: String) async throws {
         let (store, owner, prepared, allocation) = try await SharedMediaNativePhotoTransferReadbackTests().fixture()
         let before = try row(store), mock = ScopedMockTransport(), session = mock.makeSession(), pause = PhotoUploadCompletionPause()
-        defer { pause.release(); session.invalidateAndCancel() }
+        defer { session.invalidateAndCancel() }
         mock.register(path: "/photo-upload") { request in
             let url = try #require(request.url)
             let response = try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
@@ -106,43 +113,71 @@ struct NativePhotoUploadLifetimeTests {
         let concrete = PinnedPhotoUploadTask(session: session, completionPause: { pause.wait() })
         let upload = try SharedMediaNativePhotoUpload.forTesting(allocation: allocation, task: concrete)
         var finished = false
-        let call = Task { defer { finished = true }; return try await owner.uploadAppPhotoTransfer(prepared, upload: upload) }
-        try await waitUntil { pause.entered }
-        if fault == "file" {
-            let reservation = try #require(allocation.transferReservation)
-            let file = store.parent.appendingPathComponent("photo/PhotoPreparation")
-                .appendingPathComponent(store.ownerID.uuidString.lowercased()).appendingPathComponent(store.packageID.uuidString.lowercased())
-                .appendingPathComponent(reservation.assetID.uuidString.lowercased())
-            // Out-of-band corruption, not a permitted writer path.
-            try Data([0]).write(to: file)
-        } else {
-            let context = store.context(), id = store.packageID
-            let value = try SharedMediaNativePairPlanGraph.one(context,
-                FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == id }))
-            value.revision += 1; try context.save()
+        let call = Task {
+            defer { finished = true; pause.finishWaiting() }
+            return try await owner.uploadAppPhotoTransfer(prepared, upload: upload)
         }
-        #expect(!finished)
-        pause.release()
-        await #expect(throws: (any Error).self) { _ = try await call.value }
-        let after = try row(store)
-        #expect(after.allocationData == before.allocationData && after.allocationSHA256 == before.allocationSHA256)
-        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        do {
+            try await pause.waitForEntry()
+            if fault == "file" {
+                let reservation = try #require(allocation.transferReservation)
+                let file = store.parent.appendingPathComponent("photo/PhotoPreparation")
+                    .appendingPathComponent(store.ownerID.uuidString.lowercased()).appendingPathComponent(store.packageID.uuidString.lowercased())
+                    .appendingPathComponent(reservation.assetID.uuidString.lowercased())
+                // Out-of-band corruption, not a permitted writer path.
+                try Data([0]).write(to: file)
+            } else {
+                let context = store.context(), id = store.packageID
+                let value = try SharedMediaNativePairPlanGraph.one(context,
+                    FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == id }))
+                value.revision += 1; try context.save()
+            }
+            #expect(!finished)
+            pause.release()
+            await #expect(throws: (any Error).self) { _ = try await call.value }
+            let after = try row(store)
+            #expect(after.allocationData == before.allocationData && after.allocationSHA256 == before.allocationSHA256)
+            #expect(await owner.invalidateAndAwaitForAccountTransition())
+        } catch {
+            pause.release(); call.cancel()
+            _ = await call.result
+            _ = await owner.invalidateAndAwaitForAccountTransition()
+            throw error
+        }
+    }
+}
+
+/// The runner owns the test deadline. Failure before the event also ends the wait.
+private final class PhotoUploadTestSignal: Sendable {
+    private let stream: AsyncStream<Void>
+    private let continuation: AsyncStream<Void>.Continuation
+    init() {
+        let pair = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        stream = pair.stream; continuation = pair.continuation
+    }
+    func signal() { continuation.yield(()); continuation.finish() }
+    func finish() { continuation.finish() }
+    func wait() async throws {
+        for await _ in stream { return }
+        throw URLError(.cannotLoadFromNetwork)
     }
 }
 
 private final class PhotoUploadCompletionPause: Sendable {
-    private let reached = OSAllocatedUnfairLock(initialState: false)
+    private let entry = PhotoUploadTestSignal()
     private let semaphore = DispatchSemaphore(value: 0)
-    var entered: Bool { reached.withLock { $0 } }
+    func waitForEntry() async throws { try await entry.wait() }
+    func finishWaiting() { entry.finish() }
     func wait() {
-        reached.withLock { $0 = true }
+        entry.signal()
         _ = semaphore.wait(timeout: .now() + 15)
     }
     func release() { semaphore.signal() }
 }
 private final class PhotoUploadHangingProtocol: URLProtocol {
+    static let startSignal = OSAllocatedUnfairLock<PhotoUploadTestSignal?>(initialState: nil)
     override static func canInit(with _: URLRequest) -> Bool { true }
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-    override func startLoading() {}
+    override func startLoading() { Self.startSignal.withLock { $0 }?.signal() }
     override func stopLoading() {}
 }
