@@ -270,8 +270,10 @@ struct SharedMediaNativePhotoEnrichmentTests {
             }
             #expect(try row(h) == before && revision(h) == savedRevision)
             let entry = try #require(enriched.roleMapping?.entries.first)
-            await #expect(throws: SharedMediaStorageFailure.closed) { _ = try await owner.reserveAppPhotoTransfer(p, selection: entry) }
-            #expect(try row(h) == before && revision(h) == savedRevision)
+            let transfer = try await owner.reserveAppPhotoTransfer(p, selection: entry)
+            #expect(transfer.version == 7 && transfer.backendBinding == enriched.backendBinding)
+            #expect(transfer.claim == enriched.claim && transfer.receipt == enriched.receipt && transfer.roleMapping == enriched.roleMapping)
+            #expect(try revision(h) == savedRevision + 1)
             #expect(await owner.invalidateAndAwaitForAccountTransition())
         } catch {
             _ = await owner.invalidateAndAwaitForAccountTransition()

@@ -1,3 +1,58 @@
+## October 30 — bound transfer and recovery candidate
+
+The inactive native candidate extends the existing sidecar owner with complete
+V6→V7 single-role transfer reservation, V7→V8 remote-status runway and V8→V9
+pre-ticket uncertainty. Every successor retains the exact claim, receipt,
+ordered mapping and backend generation/configuration digest. V3–V5 remain on
+their original recovery branch and cannot be promoted. V7–V9 cannot reenter
+wire-v3 allocation enrichment. These are local codec versions, not database
+schema versions or activation flags.
+
+V7 reserves the maximum transfer-copy allowance once; V8 reserves its save plus
+three future status saves; V9 reserves its marker save plus all three remaining
+status saves. Every boundary includes peer, terminal and retirement obligations.
+The bound branch retains V6's maximum receipt/mapping/tuple metadata charge,
+adds transfer and maximum remote-slot bytes at their explicit boundaries, and
+never releases charge when shorter replies or closure arrive. Existing remote
+facts prevent fresh ticket initiation. Absent status does not erase a V9 marker
+or restore permission. V8 and V9 accept only monotonic status facts.
+
+The existing readback operation can verify the exact retained role in V7–V9. The
+Debug-only consumed continuation can decode an inert V9 ticket response only
+when an independently supplied trusted destination matches the saved tuple,
+including held replies. Legacy V5 decoding remains inert and unchanged. Actual
+bound PUT handoff remains closed; no compiled destination registry, ticket
+transport, Release caller or ordinary factory is installed. Unknown/removed
+backend tuples must hold, never fall back to current configuration or a
+response-selected destination.
+
+Scoped source review and focused native qualification passed **51 methods / 180
+cases**: seven value/decoder methods (38 cases) and 44 real-owner/regression
+methods (142 cases). Actual selected coverage and all 3,069 native/project
+inputs were verified across both unchanged runs; neither run skipped cases or
+reported structured runtime warnings. Tests cover exact byte/revision admission,
+one-time copy charge, peer runway, cold recovery, ambiguous acknowledgement,
+status-before-ticket denial, account/cancellation fences and wrong-tuple held
+and issued replies. The review-required rejection matrix now exercises all seven
+absent/backward/identity/clock/role/stale/reopen cases in V4, V8 and V9. An
+undefined test argument and the missing bound rejection coverage were caught and
+corrected before runtime qualification.
+
+Evidence is `native-bound-transfer-combined-qualified02.json` under
+`.artifacts/native-app-capture-handoff-20261020/`. Build/test durations were
+378.240s and 12,634.304s; active implementation/remediation time is unknown.
+Design/source reviews took 22.541s, 45.770s, 19.402s and 16.243s. Scoped lint
+remains **failed**: candidate and committed baseline have identical 11 warnings
+and one existing four-member test-fixture tuple error; no rule was weakened. The
+first lint attempts also retained a cache-write sandbox failure, followed by
+no-cache comparison. Preflight, Markdown and new local-link checks passed. No
+fresh Release, real app journey or resource qualification is claimed.
+
+The preceding V6 evidence below applies only to that checkpoint. Full
+photo/audio/video journeys, resource measurements, RUX1–6 and cumulative
+acceptance remain open. All release and external-operation holds remain in
+effect.
+
 ## October 30 — native backend identity reservation candidate
 
 The inactive native allocation path now offers explicit v3 create/status through
@@ -12,9 +67,11 @@ original clocks or a previously saved tuple. The full metadata charge remains
 after completion, including ambiguous save acknowledgement and restart.
 
 Only V1/V2 can explicitly reserve V6. Existing V1–V5 bytes remain readable and
-unchanged. Legacy transfer/ticket states cannot upgrade; V6 cannot reserve a
-transfer, observe a remote attempt or start a ticket. Holds neither save nor
-clear facts. A fresh acknowledged claim alone can dispatch create; recovered or
+unchanged. At this qualified V6 checkpoint, transfer/remote/ticket transitions
+were closed. The subsequent locally qualified bound-branch candidate is
+described [above](#october-30--bound-transfer-and-recovery-candidate). Legacy
+transfer/ticket states still cannot upgrade. Holds neither save nor clear facts.
+A fresh acknowledged claim alone can dispatch create; recovered or
 save-then-throw claims use status. Account, cancellation, inventory and
 receiving locks remain owned by the existing operations. Both response orders
 preserve completed facts or reject conflicts.
@@ -42,12 +99,14 @@ format checks passed. Scoped SwiftLint exited successfully with 30 warnings and
 zero errors; known lint/architecture and resource-qualification gaps remain.
 This is a local coding checkpoint, not a new Release or full-journey acceptance.
 
-The ordinary factory remains inactive. V7–V9, saved-tuple trusted destination
-resolution and durable PUT-started integration remain next; no pin, upload
-factory or feature activation is installed. Full initial/reanalysis journeys,
-audio/video, RUX1–6 and cumulative qualification remain open. The dated backend
-checkpoint below records the preceding native-v2 boundary; this section is the
-current native contract. API wire authority remains the
+The ordinary factory remains inactive. V7–V9 are covered by the later
+[bound-branch checkpoint](#october-30--bound-transfer-and-recovery-candidate).
+Saved-tuple trusted destination resolution and durable PUT-started integration
+remain next; no pin, upload factory or feature activation is installed. Full
+initial/reanalysis journeys, audio/video, RUX1–6 and cumulative qualification
+remain open. The dated backend checkpoint below records the preceding native-v2
+boundary; the linked bound-branch section is the current native transition
+contract. API wire authority remains the
 [v3 allocation contract](05-api-contracts.md#october-30--inactive-v3-allocation-backend-projection).
 
 ## October 30 — backend allocation identity checkpoint
@@ -1083,8 +1142,9 @@ sidecar V2 also reserves the complete ordered role mapping. Explicit sidecar V6
 reserves the receipt, mapping and immutable backend tuple before wire v3
 create/status, then persists the complete projection atomically. Sidecar
 versions describe local metadata states; wire versions describe negotiated API
-shapes. V6 remains transfer/ticket closed. Metadata, package and aggregate
-revision accounting preserve every pending peer and terminal obligation. The
+shapes. Complete V6 can propose V7 in the current inactive, locally qualified
+bound-branch candidate. Metadata, package and aggregate revision accounting
+preserve every pending peer and terminal obligation. The
 [enrichment contract](#native-allocation-enrichment-inactive-candidate) owns
 those exact successor rules. Exact receipt replays and negative observations do
 not write. Clean consumer/audit/budget readers use
@@ -1093,9 +1153,10 @@ closed. Explicit
 [v3 transfer reservation](#october-29--inactive-single-role-transfer-reservation-candidate)
 adds one held role and its maximum additional-copy allowance after v2 mapping.
 That legacy V3 component is locally qualified under its linked evidence. The new
-V6 binding path cannot advance to transfer yet; trusted saved-tuple resolution
-and later V7–V9 integration remain pending. No transfer or retirement is
-authorized by any of these metadata states.
+bound-branch candidate preserves V6 identity through V7 transfer reservation, V8
+remote runway and V9 ticket uncertainty. Trusted saved-tuple destination
+resolution, actual ticket transport and durable PUT admission remain pending. No
+transfer or retirement is authorized by any of these metadata states.
 
 An unresolved allocation must not freeze independent drafts. The current repair
 carries a clean `SharedMediaNativePhotoAllocationPeer` through each existing
@@ -1140,8 +1201,9 @@ flowchart LR
     C --> V[Durable V6 claim and metadata reservation]
     V --> D[Inactive authenticated v3 create or status]
     D --> E[Atomic receipt, role mapping and backend identity]
-    E -. pending integration .-> R[Trusted saved-tuple resolution and transfer reservation]
-    R -. pending integration .-> F[Transfer and byte verification]
+    E --> R[Inactive V7 reservation and local byte verification]
+    R --> S[Inactive V8 status runway and V9 ticket uncertainty]
+    S -. pending integration .-> F[Trusted destination resolution and durable PUT admission]
     F -. pending integration .-> G[Admission and execution]
     G -. pending integration .-> H[Result then explicit history enrollment]
     H -. pending qualification .-> I[Reanalysis and preserved versions]

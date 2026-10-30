@@ -1,10 +1,24 @@
+## Bound transfer and recovery candidate — October 30
+
+The existing allocation value and operations propose V6→V7→V8→V9 while
+preserving the exact saved backend identity and all accounting obligations.
+Local role verification and the Debug-only inert ticket decoder cover this
+branch; actual bound PUT and ordinary app activation remain closed. Scoped
+source review and focused native qualification passed 51 methods / 180 cases.
+Full app journeys and Release remain unqualified; scoped lint retains its
+identical preexisting baseline failure. The
+[scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--bound-transfer-and-recovery-candidate)
+owns transitions, evidence status and remaining integration.
+
 ## Native backend identity reservation candidate — October 30
 
 The existing allocation value, persistence operations and receiving owner now
 reserve sidecar V6 before explicit v3 create/status and atomically save the
 receipt, mapping and immutable backend tuple. V1–V5 recovery is unchanged; V6
-remains transfer/ticket-closed. Source review and combined focused qualification
-passed 61 methods / 154 cases, with original test failures retained. The
+was transfer/ticket-closed at that checkpoint; the current bound-branch
+candidate above extends those states. Source review and combined focused
+qualification passed 61 methods / 154 cases, with original test failures
+retained. The
 [scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--native-backend-identity-reservation-candidate)
 owns accounting, transitions and the remaining trusted-destination integration.
 

@@ -7,14 +7,22 @@ struct InitialPhotoUploadTicketTests {
     typealias Allocation = SharedMediaNativePhotoAllocation
     typealias Role = SharedMediaNativePhotoRoleMapping.Role
     private let backend = UUID(uuidString: "00000000-0000-4000-8000-000000000400")!
+    func binding() -> Allocation.BackendBinding {
+        .init(generation: backend, configurationDigest: String(repeating: "c", count: 64))
+    }
     func destination() throws -> InitialPhotoUploadDestination {
         try .init(backendGeneration: backend, configurationDigest: String(repeating: "c", count: 64),
             endpoint: "https://00000000000000000000000000000000.r2.cloudflarestorage.com", bucket: "synthetic-private")
     }
     func bytes(_ row: [String: Any]) throws -> Data { try JSONSerialization.data(withJSONObject: row, options: [.sortedKeys]) }
+    private func copy(_ value: Allocation, changes: [String: Any]) throws -> Allocation {
+        var object = try #require(JSONSerialization.jsonObject(with: value.encoded()) as? [String: Any])
+        for (key, change) in changes { object[key] = change }
+        return try JSONDecoder().decode(Allocation.self, from: bytes(object))
+    }
     // Value-only fixture reuses the independently validated allocation contract;
     // it cannot mint a continuation, storage lock or any transfer authority.
-    func allocation(_ role: Role = .source, contentType: String? = nil) throws -> Allocation {
+    func allocation(_ role: Role = .source, contentType: String? = nil, boundBackend: Bool = false, phase: Int? = nil) throws -> Allocation {
         let fixture = InitialPhotoAllocationRoleReplyTests(), projection = try fixture.projection()
         var request = try fixture.request()
         if let contentType {
@@ -37,7 +45,10 @@ struct InitialPhotoUploadTicketTests {
             candidate["content_canonical"] = try canonical(content)
             request = try fixture.request(candidate: canonical(candidate))
         }
-        let base = try request.allocation.reservingRoleMapping().enriching(projection.receipt, mapping: .init(entries: projection.entries))
+        let reserved = try boundBackend ? request.allocation.reservingBackendBinding() : request.allocation.reservingRoleMapping()
+        let base = try reserved.enriching(projection.receipt, mapping: .init(entries: projection.entries),
+            binding: boundBackend ? binding() : nil)
+        if phase == base.version { return base }
         let entry = try #require(projection.entries.first { $0.role == role })
         let candidate = try #require(JSONSerialization.jsonObject(with: Data(base.claim.candidateCanonical.utf8)) as? [String: Any])
         let contentText = try #require(candidate["content_canonical"] as? String)
@@ -49,8 +60,11 @@ struct InitialPhotoUploadTicketTests {
         let transfer: [String: Any] = ["state": "reservedNotStarted", "selection": selection, "pairID": id, "assetID": id,
             "assetGeneration": id, "descriptor": ["version": 1, "file": "synthetic", "parent": "synthetic", "namespace": "synthetic"],
             "byteCount": value["byte_count"]!, "sha256": value["sha256"]!, "contentType": value["declared_content_type"]!]
-        return try base.reservingTransfer(JSONDecoder().decode(SharedMediaNativePhotoTransferReservation.self, from: bytes(transfer)))
-            .reservingRemoteAttempt().startingTicketRequest()
+        let held = try base.reservingTransfer(JSONDecoder().decode(SharedMediaNativePhotoTransferReservation.self, from: bytes(transfer)))
+        if phase == held.version { return held }
+        let remote = try held.reservingRemoteAttempt()
+        if phase == remote.version { return remote }
+        return try remote.startingTicketRequest()
     }
     func row(_ allocation: Allocation) throws -> [String: Any] {
         let receipt = try #require(allocation.receipt), transfer = try #require(allocation.transferReservation)
@@ -79,8 +93,85 @@ struct InitialPhotoUploadTicketTests {
         try .init(data: bytes(row), allocation: allocation, destination: destination(),
             nowMilliseconds: now ?? #require(allocation.receipt).createdAtMilliseconds + 2_000)
     }
-    @Test(arguments: Role.allCases) func exactRoleAndHeldRemainInert(_ role: Role) throws {
-        let allocation = try allocation(role), row = try row(allocation), result = try decode(row, allocation)
+    @Test(arguments: Role.allCases)
+    func boundPhasesPreserveIdentityAndCannotCrossLegacyBranch(_ role: Role) throws {
+        let v6 = try allocation(role, boundBackend: true, phase: 6)
+        let fixture = try allocation(role, boundBackend: true, phase: 7)
+        let v7 = try v6.reservingTransfer(#require(fixture.transferReservation))
+        let v8 = try v7.reservingRemoteAttempt(), v9 = try v8.startingTicketRequest()
+        for (before, after) in [(v6, v7), (v7, v8), (v8, v9)] {
+            try before.requireSuccessor(after)
+            #expect(after.claim == before.claim && after.receipt == before.receipt)
+            #expect(after.roleMapping == before.roleMapping && after.backendBinding == before.backendBinding)
+            #expect(try after.storageCharge >= before.storageCharge)
+            let data = try after.encoded()
+            #expect(try Allocation.decode(data, sha256: SharedMediaAcquisitionEncoding.digest(data)) == after)
+            #expect(throws: (any Error).self) { try after.requireSuccessor(before) }
+            #expect(throws: (any Error).self) {
+                _ = try InitialPhotoAllocationRequest(allocation: after, action: .status, projection: .boundRoles)
+            }
+            #expect(throws: (any Error).self) { _ = try after.reservingBackendBinding() }
+            for change: [String: Any] in [["backendBinding": NSNull()], ["version": after.version - 4],
+                ["backendBinding": ["generation": UUID().uuidString, "configurationDigest": "invalid"]]] {
+                let invalid = try copy(after, changes: change)
+                #expect(throws: (any Error).self) { _ = try invalid.encoded() }
+            }
+            let changed = try copy(after, changes: [
+                "backendBinding": ["generation": UUID().uuidString, "configurationDigest": String(repeating: "d", count: 64)]])
+            #expect(throws: (any Error).self) { try before.requireSuccessor(changed) }
+        }
+        #expect(v7.remainingAdvances == 0 && v8.remainingAdvances == 3 && v9.remainingAdvances == 3)
+        #expect(throws: (any Error).self) { _ = try v9.startingTicketRequest() }
+        let incomplete = try InitialPhotoAllocationRoleReplyTests().request().allocation.reservingBackendBinding()
+        #expect(throws: (any Error).self) { _ = try incomplete.reservingTransfer(#require(v7.transferReservation)) }
+        for phase in 3...5 {
+            let legacy = try allocation(role, phase: phase), data = try legacy.encoded()
+            #expect(try Allocation.decode(data, sha256: SharedMediaAcquisitionEncoding.digest(data)).encoded() == data)
+            #expect(throws: (any Error).self) { _ = try legacy.reservingBackendBinding() }
+            #expect(throws: (any Error).self) { try legacy.requireSuccessor(v9) }
+        }
+    }
+
+    @Test(arguments: [8, 9])
+    func boundMaximumClocksAndClosureKeepMetadataCharge(_ phase: Int) throws {
+        let value = try allocation(boundBackend: true, phase: phase)
+        let receipt = try #require(value.receipt)
+        let maximum = try copy(value, changes: ["receipt": ["assignmentDigest": receipt.assignmentDigest,
+            "createdAtMilliseconds": Int64(8_639_999_998_200_000), "expiresAtMilliseconds": Int64(8_640_000_000_000_000)]])
+        let id = UUID().uuidString
+        var current = maximum
+        for (state, closed) in [("bound", false), ("mayHaveIssued", false), ("mayHaveIssued", true)] {
+            let next = try copy(current, changes: ["remoteAttempt": ["id": id, "state": state,
+                "createdAtMilliseconds": Int64(8_639_999_999_999_999),
+                "capabilityExpiresAtMilliseconds": Int64(8_640_000_000_000_000), "writeClosed": closed]])
+            try current.requireSuccessor(next)
+            #expect(try next.storageCharge == value.storageCharge)
+            #expect(try next.storageCharge >= Int64(next.encoded().count) + 64)
+            #expect(throws: (any Error).self) { _ = try next.startingTicketRequest() }
+            current = next
+        }
+        #expect(current.remainingAdvances == 0 && current.backendBinding == value.backendBinding)
+        #expect(throws: (any Error).self) { try current.requireSuccessor(maximum) }
+    }
+
+    @Test(arguments: ["generation", "digest"], [false, true])
+    func boundDestinationMismatchRejectsIssuedAndHeld(_ mismatch: String, held: Bool) throws {
+        let value = try allocation(boundBackend: true)
+        let wire = try held ? ["outcome": "held", "attempt_id": UUID().uuidString.lowercased()] : row(value)
+        let wrong = try InitialPhotoUploadDestination(backendGeneration: mismatch == "generation" ? UUID() : backend,
+            configurationDigest: String(repeating: mismatch == "digest" ? "d" : "c", count: 64),
+            endpoint: "https://00000000000000000000000000000000.r2.cloudflarestorage.com", bucket: "synthetic-private")
+        #expect(throws: (any Error).self) {
+            _ = try InitialPhotoUploadTicket(data: bytes(wire), allocation: value, destination: wrong,
+                nowMilliseconds: #require(value.receipt).createdAtMilliseconds + 2_000)
+        }
+        for phase in [6, 7, 8] {
+            let premature = try allocation(boundBackend: true, phase: phase)
+            #expect(throws: (any Error).self) { _ = try decode(wire, premature) }
+        }
+    }
+    @Test(arguments: Role.allCases, [false, true]) func exactRoleAndHeldRemainInert(_ role: Role, boundBackend: Bool) throws {
+        let allocation = try allocation(role, boundBackend: boundBackend), row = try row(allocation), result = try decode(row, allocation)
         #expect(result.outcome == .issued && result.attemptID != allocation.claim.attemptID)
         try result.requireMatch(allocation, destination: destination())
         #expect(!String(describing: result).contains("X-Amz") && !String(reflecting: result).contains("https"))

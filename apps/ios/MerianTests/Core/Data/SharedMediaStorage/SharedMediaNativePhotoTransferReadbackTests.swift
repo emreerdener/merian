@@ -12,20 +12,25 @@ struct SharedMediaNativePhotoTransferReadbackTests {
     typealias Mapping = SharedMediaNativePhotoRoleMapping
     typealias Prepared = SharedMediaNativeReceivingIntent.Prepared
 
-    func fixture(_ role: Mapping.Role = .source) async throws -> (Store, SharedMediaNativeOriginalOwner, Prepared, Allocation) {
+    func fixture(_ role: Mapping.Role = .source, boundBackend: Bool = false) async throws -> (Store, SharedMediaNativeOriginalOwner, Prepared, Allocation) {
         let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
-        let allocation = try await owner.allocateAppPhotoRoles(p, authorizeCreate: { p, _ in
-            .init(recipient: try #require(p.photoAdmission).expectedProcessorPermission, validate: {})
-        }) { request, validate, settle in
-            try validate(); try settle()
-            let entries = try Mapping.references(request.allocation.claim).enumerated().map { index, reference in
-                Mapping.Entry(photoOrdinal: index / 3, role: Mapping.Role.allCases[index % 3], referenceID: reference, objectID: UUID())
+        do {
+            let allocation = try await owner.allocateAppPhotoRoles(p, backendBinding: boundBackend, authorizeCreate: { p, _ in
+                .init(recipient: try #require(p.photoAdmission).expectedProcessorPermission, validate: {})
+            }) { request, validate, settle in
+                try validate(); try settle()
+                let entries = try Mapping.references(request.allocation.claim).enumerated().map { index, reference in
+                    Mapping.Entry(photoOrdinal: index / 3, role: Mapping.Role.allCases[index % 3], referenceID: reference, objectID: UUID())
+                }
+                return .allocated(.init(receipt: .init(assignmentDigest: String(repeating: "a", count: 64),
+                    createdAtMilliseconds: 1, expiresAtMilliseconds: 1_800_001), entries: entries,
+                    backendBinding: boundBackend ? InitialPhotoUploadTicketTests().binding() : nil))
             }
-            return .allocated(.init(receipt: .init(assignmentDigest: String(repeating: "a", count: 64),
-                createdAtMilliseconds: 1, expiresAtMilliseconds: 1_800_001), entries: entries))
+            let entry = try #require(allocation.roleMapping?.entries.first { $0.role == role })
+            return (h, owner, p, try await owner.reserveAppPhotoTransfer(p, selection: entry))
+        } catch {
+            _ = await owner.invalidateAndAwaitForAccountTransition(); throw error
         }
-        let entry = try #require(allocation.roleMapping?.entries.first { $0.role == role })
-        return (h, owner, p, try await owner.reserveAppPhotoTransfer(p, selection: entry))
     }
     private func row(_ h: Store) throws -> SharedMediaNativeReceivingIntentGraph.Row {
         let id = h.packageID
@@ -33,9 +38,9 @@ struct SharedMediaNativePhotoTransferReadbackTests {
             FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == id })))
     }
 
-    @Test(arguments: Mapping.Role.allCases)
-    func exactRoleAndColdRepeatKeepReservation(_ role: Mapping.Role) async throws {
-        let (h, owner, p, held) = try await fixture(role), before = try row(h)
+    @Test(arguments: Mapping.Role.allCases, [false, true])
+    func exactRoleAndColdRepeatKeepReservation(_ role: Mapping.Role, boundBackend: Bool) async throws {
+        let (h, owner, p, held) = try await fixture(role, boundBackend: boundBackend), before = try row(h)
         let reservation = try #require(held.transferReservation)
         try owner.setMetadataFault { if $0 == .beforeSave { Issue.record("Read attempted persistence") } }
         let read = try await owner.verifyAppPhotoTransfer(p, allocation: held)

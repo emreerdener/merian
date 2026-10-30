@@ -11,8 +11,8 @@ struct SharedMediaNativePhotoTransferReservationTests {
     typealias Store = SharedMediaNativeAppMetadataTests.Store
     typealias Row = SharedMediaNativeReceivingIntentGraph.Row
 
-    private func allocate(_ owner: SharedMediaNativeOriginalOwner, _ p: SharedMediaNativeReceivingIntent.Prepared) async throws -> Allocation {
-        try await owner.allocateAppPhotoRoles(p, authorizeCreate: { prepared, _ in
+    private func allocate(_ owner: SharedMediaNativeOriginalOwner, _ p: SharedMediaNativeReceivingIntent.Prepared, boundBackend: Bool = false) async throws -> Allocation {
+        try await owner.allocateAppPhotoRoles(p, backendBinding: boundBackend, authorizeCreate: { prepared, _ in
             .init(recipient: try #require(prepared.photoAdmission).expectedProcessorPermission, validate: {})
         }) { request, validate, settle in
             try validate(); try settle()
@@ -20,7 +20,8 @@ struct SharedMediaNativePhotoTransferReservationTests {
                 Mapping.Entry(photoOrdinal: index / 3, role: Mapping.Role.allCases[index % 3], referenceID: reference, objectID: UUID())
             }
             return .allocated(.init(receipt: .init(assignmentDigest: String(repeating: "a", count: 64),
-                createdAtMilliseconds: 1, expiresAtMilliseconds: 1_800_001), entries: entries))
+                createdAtMilliseconds: 1, expiresAtMilliseconds: 1_800_001), entries: entries,
+                backendBinding: boundBackend ? InitialPhotoUploadTicketTests().binding() : nil))
         }
     }
     private func row(_ h: Store) throws -> Row {
@@ -44,14 +45,67 @@ struct SharedMediaNativePhotoTransferReservationTests {
         return lower
     }
 
-    @Test(arguments: Mapping.Role.allCases)
-    func exactRoleIsChargedOnceAndSurvivesColdReopen(_ role: Mapping.Role) async throws {
+    @Test(arguments: [7, 8, 9])
+    func boundTransitionRequiresExactCapacityAndRevisionRunway(_ target: Int) async throws {
         let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
-        let allocation = try await allocate(owner, p), before = try row(h), oldBudget = try budget(h)
+        do {
+            var current = try await allocate(owner, p, boundBackend: true)
+            let entry = try #require(current.roleMapping?.entries.first)
+            if target >= 8 { current = try await owner.reserveAppPhotoTransfer(p, selection: entry) }
+            if target == 9 { current = try await owner.reserveAppPhotoRemoteAttempt(p) }
+            let proposed: Allocation
+            switch target {
+            case 7: proposed = try current.reservingTransfer(.init(prepared: p, selection: entry))
+            case 8: proposed = try current.reservingRemoteAttempt()
+            default: proposed = try current.startingTicketRequest()
+            }
+            func advance() async throws {
+                switch target {
+                case 7: _ = try await owner.reserveAppPhotoTransfer(p, selection: entry)
+                case 8: _ = try await owner.reserveAppPhotoRemoteAttempt(p)
+                default: #expect(try await owner.requestAppPhotoTicketForTesting(p) { _, _ in })
+                }
+            }
+            let before = try row(h)
+            var totals = try budget(h)
+            try totals.includePhotoPhysical(materialized: 0, reserved: proposed.storageCharge - current.storageCharge)
+            if target == 7 {
+                try totals.include(.init(packageID: h.packageID, pool: .transfer, materialized: 0,
+                    reserved: SharedMediaNativePhotoTransferReservation.copyAllowance))
+            }
+            let required = minimumAvailable(totals)
+            try owner.setMetadataFault(nil, availableBytes: required - 1)
+            await #expect(throws: (any Error).self) { try await advance() }
+            #expect(try row(h) == before)
+            try owner.setMetadataFault(nil, availableBytes: required)
+            let c = h.context(), id = h.inventoryID
+            let inventory = try SharedMediaNativePairPlanGraph.one(c,
+                FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))
+            let saves = 1 + proposed.remainingAdvances
+            inventory.revision = Int64.max - saves + 1; try c.save()
+            await #expect(throws: (any Error).self) { try await advance() }
+            #expect(try row(h) == before)
+            inventory.revision = Int64.max - saves; try c.save()
+            try await advance()
+            let result = try row(h)
+            let held = try Allocation.decode(#require(result.allocationData), sha256: #require(result.allocationSHA256))
+            #expect(held == proposed && held.backendBinding == current.backendBinding)
+            #expect(try held.storageCharge >= current.storageCharge)
+            #expect(await owner.invalidateAndAwaitForAccountTransition())
+        } catch {
+            _ = await owner.invalidateAndAwaitForAccountTransition(); throw error
+        }
+    }
+
+    @Test(arguments: Mapping.Role.allCases, [false, true])
+    func exactRoleIsChargedOnceAndSurvivesColdReopen(_ role: Mapping.Role, boundBackend: Bool) async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let allocation = try await allocate(owner, p, boundBackend: boundBackend), before = try row(h), oldBudget = try budget(h)
         let entry = try #require(allocation.roleMapping?.entries.first { $0.role == role })
         let held = try await owner.reserveAppPhotoTransfer(p, selection: entry)
-        #expect(held.version == 3 && held.claim == allocation.claim && held.receipt == allocation.receipt)
+        #expect(held.version == (boundBackend ? 7 : 3) && held.claim == allocation.claim && held.receipt == allocation.receipt)
         #expect(held.roleMapping == allocation.roleMapping && held.remainingAdvances == 0)
+        #expect(held.backendBinding == allocation.backendBinding)
         #expect(try held.transferReservation == SharedMediaNativePhotoTransferReservation(prepared: p, selection: entry))
         try allocation.requireSuccessor(held)
         #expect(throws: (any Error).self) { try held.requireSuccessor(allocation) }
@@ -61,8 +115,13 @@ struct SharedMediaNativePhotoTransferReservationTests {
         // Both sidecars are fully materialized. Their metadata remains charged
         // to durable storage, but only the future copy needs free-space headroom.
         let oldMetadata = try allocation.storageCharge, heldMetadata = try held.storageCharge
-        #expect(oldMetadata == Int64(try allocation.encoded().count) + 64)
-        #expect(heldMetadata == Int64(try held.encoded().count) + 64)
+        if boundBackend {
+            #expect(oldMetadata >= Int64(try allocation.encoded().count) + 64)
+            #expect(heldMetadata >= Int64(try held.encoded().count) + 64)
+        } else {
+            #expect(oldMetadata == Int64(try allocation.encoded().count) + 64)
+            #expect(heldMetadata == Int64(try held.encoded().count) + 64)
+        }
         #expect(heldMetadata > oldMetadata)
         let additionalHeadroom = minimumAvailable(totals) - minimumAvailable(oldBudget)
         #expect(additionalHeadroom == SharedMediaNativePhotoTransferReservation.copyAllowance)
@@ -81,10 +140,10 @@ struct SharedMediaNativePhotoTransferReservationTests {
         #expect(await cold.invalidateAndAwaitForAccountTransition())
     }
 
-    @Test(arguments: ["afterSave", "readback", "capacity", "revision", "cancel"])
-    func failedOrAmbiguousReservationNeverDiscardsTheHold(_ fault: String) async throws {
+    @Test(arguments: ["afterSave", "readback", "capacity", "revision", "cancel"], [false, true])
+    func failedOrAmbiguousReservationNeverDiscardsTheHold(_ fault: String, boundBackend: Bool) async throws {
         let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
-        let allocation = try await allocate(owner, p)
+        let allocation = try await allocate(owner, p, boundBackend: boundBackend)
         let entry = try #require(allocation.roleMapping?.entries.first), before = try row(h)
         var saved = false
         if fault == "revision" {
@@ -240,12 +299,18 @@ struct SharedMediaNativePhotoTransferReservationTests {
         #expect(await cold.invalidateAndAwaitForAccountTransition())
     }
 
-    @Test(arguments: ["absent", "backward", "identity", "clocks", "role", "stale", "reopen"])
-    func historicalObservationCannotEraseOrReplaceSavedFacts(_ fault: String) async throws {
+    @Test(arguments: ["absent", "backward", "identity", "clocks", "role", "stale", "reopen"], [4, 8, 9])
+    func historicalObservationCannotEraseOrReplaceSavedFacts(_ fault: String, phase: Int) async throws {
         let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
-        let allocation = try await allocate(owner, p), entry = try #require(allocation.roleMapping?.entries.first)
+        let allocation = try await allocate(owner, p, boundBackend: phase >= 8), entry = try #require(allocation.roleMapping?.entries.first)
         _ = try await owner.reserveAppPhotoTransfer(p, selection: entry)
-        let empty = try await owner.reserveAppPhotoRemoteAttempt(p), id = UUID()
+        var empty = try await owner.reserveAppPhotoRemoteAttempt(p)
+        if phase == 9 {
+            #expect(try await owner.requestAppPhotoTicketForTesting(p) { _, _ in })
+            empty = try empty.startingTicketRequest()
+        }
+        #expect(empty.version == phase)
+        let id = UUID()
         let current = try await owner.observeAppPhotoRemoteAttempt(p, allocation: empty,
             status: status(empty, state: "may_have_issued", closed: true, id: id))
         let before = try row(h), totals = try budget(h)
@@ -257,6 +322,7 @@ struct SharedMediaNativePhotoTransferReservationTests {
             _ = try await owner.observeAppPhotoRemoteAttempt(p, allocation: fault == "stale" ? empty : current, status: response)
         }
         #expect(try row(h) == before && budget(h) == totals)
+        #expect(current.backendBinding == allocation.backendBinding)
         #expect(await owner.invalidateAndAwaitForAccountTransition())
     }
 
@@ -291,12 +357,12 @@ struct SharedMediaNativePhotoTransferReservationTests {
         if fault != "account" { #expect(await owner.invalidateAndAwaitForAccountTransition()) }
     }
 
-    @Test func statusRunwayCannotBeSpentByAnIndependentDraft() async throws {
+    @Test(arguments: [false, true]) func statusRunwayCannotBeSpentByAnIndependentDraft(boundBackend: Bool) async throws {
         let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
         let other = UUID(), draft = UUID(), image = PhotoPreparationTestHarness.image()
         let acquisition = try await owner.prepareAppOriginal(packageID: other, draftGeneration: draft, ordinal: 0, kind: .picker)
         _ = try await owner.acquireAppOriginal(acquisition) { image }
-        let allocation = try await allocate(owner, p), entry = try #require(allocation.roleMapping?.entries.first)
+        let allocation = try await allocate(owner, p, boundBackend: boundBackend), entry = try #require(allocation.roleMapping?.entries.first)
         _ = try await owner.reserveAppPhotoTransfer(p, selection: entry)
         let c = h.context(), id = h.inventoryID
         let inventory = try SharedMediaNativePairPlanGraph.one(c, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))

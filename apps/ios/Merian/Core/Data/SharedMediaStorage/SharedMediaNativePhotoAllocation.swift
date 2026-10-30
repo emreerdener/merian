@@ -104,7 +104,8 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
     let backendBinding: BackendBinding?
     var remainingAdvances: Int64 {
         if version == 6 { return (receipt == nil ? 1 : 0) + (backendBinding == nil ? 1 : 0) }
-        if version >= 4 { return remoteAttempt?.remainingAdvances ?? 3 }
+        if version == 7 { return 0 }
+        if (4...5).contains(version) || (8...9).contains(version) { return remoteAttempt?.remainingAdvances ?? 3 }
         return (receipt == nil ? 1 : 0) + (version == 2 && roleMapping == nil ? 1 : 0)
     }
 
@@ -142,7 +143,7 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
     }
 
     func enriching(_ value: Receipt, mapping: SharedMediaNativePhotoRoleMapping, binding: BackendBinding? = nil) throws -> Self {
-        guard (version == 6 && binding != nil) || ((2...5).contains(version) && binding == nil) else { throw SharedMediaStorageFailure.closed }
+        guard ((6...9).contains(version) && binding != nil) || ((2...5).contains(version) && binding == nil) else { throw SharedMediaStorageFailure.closed }
         try mapping.validate(claim)
         try binding?.validate()
         if let backendBinding { guard backendBinding == binding else { throw SharedMediaStorageFailure.conflict } }
@@ -157,23 +158,25 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
 
     func reservingTransfer(_ value: SharedMediaNativePhotoTransferReservation) throws -> Self {
         _ = try encoded()
-        guard (2...5).contains(version), let receipt, let roleMapping else { throw SharedMediaStorageFailure.closed }
+        guard (2...9).contains(version), let receipt, let roleMapping,
+              version < 6 || backendBinding != nil else { throw SharedMediaStorageFailure.closed }
         try value.validate(claim: claim, mapping: roleMapping)
         if let transferReservation {
             guard transferReservation == value else { throw SharedMediaStorageFailure.inUse }
             return self
         }
-        return Self(version: 3, claim: claim, receipt: receipt, roleMapping: roleMapping, transferReservation: value)
+        return Self(version: version >= 6 ? 7 : 3, claim: claim, receipt: receipt, roleMapping: roleMapping,
+                    transferReservation: value, backendBinding: backendBinding)
     }
 
     /// Explicitly reserve all future status metadata and up to three saves.
     /// An empty slot represents no saved fact, never fresh dispatch permission.
     func reservingRemoteAttempt() throws -> Self {
         _ = try encoded()
-        guard (3...5).contains(version) else { throw SharedMediaStorageFailure.closed }
-        if version >= 4 { return self }
-        let after = Self(version: 4, claim: claim, receipt: receipt, roleMapping: roleMapping,
-                         transferReservation: transferReservation)
+        guard (3...5).contains(version) || (7...9).contains(version) else { throw SharedMediaStorageFailure.closed }
+        if (4...5).contains(version) || (8...9).contains(version) { return self }
+        let after = Self(version: version == 7 ? 8 : 4, claim: claim, receipt: receipt, roleMapping: roleMapping,
+                         transferReservation: transferReservation, backendBinding: backendBinding)
         _ = try after.storageCharge
         return after
     }
@@ -182,16 +185,16 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
     /// request. Existing remote facts or a decoded marker cannot mint permission.
     func startingTicketRequest() throws -> Self {
         _ = try encoded()
-        guard version == 4, remoteAttempt == nil else { throw SharedMediaStorageFailure.closed }
-        let after = Self(version: 5, claim: claim, receipt: receipt, roleMapping: roleMapping,
-            transferReservation: transferReservation, ticketRequestStarted: true)
+        guard version == 4 || version == 8, remoteAttempt == nil else { throw SharedMediaStorageFailure.closed }
+        let after = Self(version: version == 8 ? 9 : 5, claim: claim, receipt: receipt, roleMapping: roleMapping,
+            transferReservation: transferReservation, ticketRequestStarted: true, backendBinding: backendBinding)
         _ = try after.storageCharge
         return after
     }
 
     func observing(_ status: InitialPhotoUploadStatus) throws -> Self {
         _ = try encoded()
-        guard (4...5).contains(version), let transferReservation else { throw SharedMediaStorageFailure.closed }
+        guard (4...5).contains(version) || (8...9).contains(version), let transferReservation else { throw SharedMediaStorageFailure.closed }
         try status.requireMatch(self, objectID: transferReservation.selection.objectID)
         let value = status.attempt.map {
             RemoteAttempt(id: $0.id, state: $0.state == .bound ? .bound : .mayHaveIssued,
@@ -202,10 +205,11 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
     }
 
     private func recording(_ value: RemoteAttempt?) throws -> Self {
-        guard (4...5).contains(version) else { throw SharedMediaStorageFailure.closed }
+        guard (4...5).contains(version) || (8...9).contains(version) else { throw SharedMediaStorageFailure.closed }
         try remoteAttempt?.requireSuccessor(value)
         let after = Self(version: version, claim: claim, receipt: receipt, roleMapping: roleMapping,
-                         transferReservation: transferReservation, remoteAttempt: value, ticketRequestStarted: ticketRequestStarted)
+                         transferReservation: transferReservation, remoteAttempt: value, ticketRequestStarted: ticketRequestStarted,
+                         backendBinding: backendBinding)
         _ = try after.encoded()
         return after
     }
@@ -214,16 +218,16 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
     /// enrichment before reservation can enter the sidecar write set.
     func requireSuccessor(_ after: Self) throws {
         _ = try encoded(); _ = try after.encoded()
-        if version == 2, after.version == 3, let value = after.transferReservation {
+        if (version == 2 && after.version == 3) || (version == 6 && after.version == 7), let value = after.transferReservation {
             guard try reservingTransfer(value) == after else { throw SharedMediaStorageFailure.conflict }
             return
         }
         guard after != self else { throw SharedMediaStorageFailure.closed }
-        if version == 3, after.version == 4 {
+        if (version == 3 && after.version == 4) || (version == 7 && after.version == 8) {
             guard try reservingRemoteAttempt() == after else { throw SharedMediaStorageFailure.conflict }
             return
         }
-        if version == 4, after.version == 5 {
+        if (version == 4 && after.version == 5) || (version == 8 && after.version == 9) {
             guard try startingTicketRequest() == after else { throw SharedMediaStorageFailure.conflict }
             return
         }
@@ -235,7 +239,7 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
             guard try enriching(value, mapping: mapping, binding: binding) == after else { throw SharedMediaStorageFailure.conflict }
             return
         }
-        if (4...5).contains(version) {
+        if (4...5).contains(version) || (8...9).contains(version) {
             guard try recording(after.remoteAttempt) == after else { throw SharedMediaStorageFailure.conflict }
             return
         }
@@ -260,17 +264,18 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
     }
 
     func encoded() throws -> Data {
-        guard (1...6).contains(version), !claim.candidateCanonical.isEmpty,
+        guard (1...9).contains(version), !claim.candidateCanonical.isEmpty,
               claim.candidateCanonical.utf8.count <= 1_048_576,
               [claim.preparedSHA256, claim.receivedSHA256, claim.candidateDigest, claim.contentDigest]
                 .allSatisfy(SharedMediaAcquisitionEncoding.isHash) else { throw SharedMediaStorageFailure.conflict }
         guard version >= 2 || roleMapping == nil, roleMapping == nil || receipt != nil,
-              (3...5).contains(version) == (transferReservation != nil),
-              !(3...5).contains(version) || (receipt != nil && roleMapping != nil),
-              (4...5).contains(version) || remoteAttempt == nil,
-              version == 6 || backendBinding == nil,
+              ((3...5).contains(version) || (7...9).contains(version)) == (transferReservation != nil),
+              transferReservation == nil || (receipt != nil && roleMapping != nil),
+              (4...5).contains(version) || (8...9).contains(version) || remoteAttempt == nil,
+              version >= 6 || backendBinding == nil,
+              version < 7 || backendBinding != nil,
               backendBinding == nil || (receipt != nil && roleMapping != nil),
-              version == 5 ? ticketRequestStarted == true : ticketRequestStarted == nil else {
+              (version == 5 || version == 9) ? ticketRequestStarted == true : ticketRequestStarted == nil else {
             throw SharedMediaStorageFailure.conflict
         }
         try receipt?.validate()
@@ -295,13 +300,18 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
     var storageCharge: Int64 {
         get throws {
             let current = try encoded().count
-            if version == 6 {
-                // Keep the complete reservation even after enrichment, including
-                // maximum clocks. A response cannot release pending liability.
-                let maximum = Self(version: 6, claim: claim,
-                    receipt: .init(assignmentDigest: String(repeating: "f", count: 64),
-                        createdAtMilliseconds: 8_639_999_998_200_000, expiresAtMilliseconds: 8_640_000_000_000_000),
-                    roleMapping: try .reservation(claim),
+            if version >= 6 {
+                // Every bound phase retains V6's full receipt/mapping/tuple charge.
+                // Later reservations add transfer and maximum remote-slot metadata;
+                // status or closure never shrinks this liability.
+                let receipt = Receipt(assignmentDigest: String(repeating: "f", count: 64),
+                    createdAtMilliseconds: 8_639_999_998_200_000, expiresAtMilliseconds: 8_640_000_000_000_000)
+                let remote: RemoteAttempt? = version >= 8 ? .init(id: claim.attemptID, state: .mayHaveIssued,
+                    createdAtMilliseconds: receipt.expiresAtMilliseconds - 1,
+                    capabilityExpiresAtMilliseconds: receipt.expiresAtMilliseconds, writeClosed: false) : nil
+                let maximum = Self(version: version, claim: claim, receipt: receipt,
+                    roleMapping: try roleMapping ?? .reservation(claim), transferReservation: transferReservation,
+                    remoteAttempt: remote, ticketRequestStarted: ticketRequestStarted,
                     backendBinding: .init(generation: claim.attemptID, configurationDigest: String(repeating: "f", count: 64)))
                 return try PhotoPreparationPolicy.add([Int64(max(current, maximum.encoded().count)), 64])
             }

@@ -119,8 +119,8 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
     /// No Release caller exists until the closed ticket transport is integrated.
     /// Persistence ambiguity and recovered markers never mint a fresh continuation.
     private func beginTicketRequest(_ prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> SharedMediaNativePhotoTicketContinuation? {
-        guard let current = try saved(prepared), current.version >= 4 else { throw SharedMediaStorageFailure.closed }
-        guard current.version == 4, current.remoteAttempt == nil else { return nil }
+        guard let current = try saved(prepared), (4...5).contains(current.version) || (8...9).contains(current.version) else { throw SharedMediaStorageFailure.closed }
+        guard current.version == 4 || current.version == 8, current.remoteAttempt == nil else { return nil }
         let after = try current.startingTicketRequest()
         let context = fresh(), inventory = try inventory(context)
         let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)
@@ -161,7 +161,8 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
 
     func verifyTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                         allocation: Allocation) async throws -> SharedMediaNativePhotoTransferReadback {
-        guard try saved(prepared) == allocation, (3...5).contains(allocation.version),
+        guard try saved(prepared) == allocation,
+              (3...5).contains(allocation.version) || (7...9).contains(allocation.version),
               let reservation = allocation.transferReservation else { throw SharedMediaStorageFailure.stale }
         let state = try SharedMediaNativePhotoTransferReadback.state(prepared, reservation: reservation, context: fresh())
         let (inspection, completion) = try await io.verifyTransfer(state, reservation: reservation)

@@ -18,10 +18,15 @@ struct InitialPhotoUploadTicket: Sendable, CustomStringConvertible, CustomDebugS
     init(data: Data, allocation: SharedMediaNativePhotoAllocation,
          destination: InitialPhotoUploadDestination, nowMilliseconds: Int64) throws {
         _ = try allocation.encoded()
-        guard allocation.version == 5, allocation.ticketRequestStarted == true, allocation.remoteAttempt == nil,
+        guard allocation.version == 5 || allocation.version == 9, allocation.ticketRequestStarted == true, allocation.remoteAttempt == nil,
               let receipt = allocation.receipt, let transfer = allocation.transferReservation,
               (1...8_640_000_000_000_000).contains(nowMilliseconds), data.count <= Self.maximumBytes,
               let row = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { throw MerianError.invalidResponse }
+        if allocation.version == 9 {
+            guard let binding = allocation.backendBinding,
+                  binding.generation == destination.backendGeneration,
+                  binding.configurationDigest == destination.configurationDigest else { throw MerianError.invalidResponse }
+        }
         self.allocation = allocation; self.destination = destination
         let contentType = try transfer.declaredContentType(claim: allocation.claim)
         attemptID = try ObservationHistoryPage.uuid(row["attempt_id"])
