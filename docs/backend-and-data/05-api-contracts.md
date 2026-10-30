@@ -1,3 +1,47 @@
+## Dormant authenticated photo transfer facade — October 30
+
+The source-only
+[`initial-photo-transfer`](../../services/supabase/functions/initial-photo-transfer/README.md)
+facade joins existing authenticated allocation recovery, the private CPM issuer
+and the write-status bridge. It has no serving entrypoint or deployment
+registration. The
+[closed v1 schema](../../services/supabase/functions/initial-photo-transfer/schema-v1.json)
+defines `issue` and `status`: both carry scan, assignment digest, selected
+object and original allocation clocks; issue additionally carries the exact
+frozen candidate canonical text. Unknown fields, client owner/policy/backend
+selection, renewed clocks and mismatched candidate scan are rejected. The body
+bound is 2 MiB plus 4 KiB; replies remain at most 8 KiB. The generated Identify
+DTO block is unaffected; there is no new Swift, web or admin caller yet.
+
+Owner identity comes only from the verified Edge session. Issue reuses v3
+allocation status and validates the complete saved assignment, selected role and
+original clocks before resolving an injected immutable catalog. The exact saved
+backend generation/configuration digest pins one reviewed policy digest and
+issuer profile; there is no latest-policy lookup or current-backend fallback.
+Unknown or duplicate catalog tuples fail closed before begin. Deployment
+configuration must preserve historical mappings; SQL independently checks
+policy/backend eligibility under its existing locks. No policy field is added to
+the native claim and no database schema or grant changes.
+
+The existing issuer alone owns fresh committed begin, possible-issuance
+liability, signing and current-state checks. The facade also binds the fresh
+observation to the recovered role's exact bytes/type/hash, backend and receipt
+before signing. Recovered values are snapshotted across awaits. Issued/held
+response shapes remain the private ticket contract below, including the
+`unqualified` provider label. Capabilities remain transient and are never
+logged.
+
+Status calls only the existing owner-scoped status RPC, without allocation
+recovery or signing configuration. Null, bound, possibly-issued and closed
+observations never trigger issuance, retry, clock renewal, execution or release.
+Unknown responses and cancellation produce an opaque unavailable error. The
+facade has a 25-second overall bound; existing five-second RPC and 20-second
+issuer limits remain unchanged. This dormant component passed source review,
+focused synthetic checks and the complete local backend gates. Native transport
+and durable PUT admission remain pending. The
+[scan guide](16-scan-ingestion-reliability-and-recovery.md#october-30--dormant-authenticated-transfer-facade)
+owns current evidence and release exclusions.
+
 ## October 30 — inactive v3 allocation backend projection
 
 The allocation endpoint also accepts the closed

@@ -1,3 +1,15 @@
+## Dormant authenticated transfer composition
+
+The source-only
+[`initial-photo-transfer`](../../initial-photo-transfer/README.md) facade now
+composes the existing issuer and status bridge with authenticated allocation
+recovery and an injected immutable policy catalog. No shared owner is replaced
+and no serving entrypoint, profile or native caller is installed. The
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#dormant-authenticated-photo-transfer-facade--october-30)
+owns its boundaries; the scan guide records local aggregate qualification and
+remaining native/provider exclusions. Earlier private-only checkpoint statements
+below retain their historical scope.
+
 ## Inactive bound CPM recovery
 
 `cpmPhotoBoundRecovery` adds a separate closed v3 metadata validator while

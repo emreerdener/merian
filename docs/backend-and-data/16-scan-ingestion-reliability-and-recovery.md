@@ -1,3 +1,44 @@
+## October 30 — dormant authenticated transfer facade
+
+The dormant photo integration component adds a source-only authenticated
+`issue`/`status` facade over the existing allocation repository, CPM issuer and
+write-status bridge. The
+[API contract](05-api-contracts.md#dormant-authenticated-photo-transfer-facade--october-30)
+owns its closed request shapes, saved-role/clock association, server-owned
+policy catalog and no-retry rules. The
+[local entry point](../../services/supabase/functions/initial-photo-transfer/README.md)
+maps the implementation and executable tests. No SQL, native or generated DTO
+changes are part of this increment.
+
+Focused tests currently pass 17 tests / 24 steps, including all photo roles,
+verified-session ownership, exact concrete RPC calls, malformed/oversized input,
+configuration removal, lost acknowledgement, snapshot mutation and late
+cancellation. These use synthetic profiles and intercepted requests with network
+denied; those focused tests do not prove real SQL execution or provider
+behavior. Independent source review found no concrete blockers. The complete
+function suite passed **4,123 tests / 772 steps** against a new disposable local
+database, with no failures, ignored tests or connection skips. All 502 unchanged
+migrations replayed; the instance and its temporary workdir were removed. Prior
+unchanged catalog evidence is retained, not relabeled as newly executed.
+
+The complete tooling gate passed (138 TypeScript sources, 63 standard test
+files, two DTO suites, one evaluation suite and 21 shell suites); recursive
+function type checking covered 1,254 files. Formatting, lint, DTO,
+configuration, dependency and new-link checks passed. Reviewed sources remained
+unchanged. Evidence is `native-transfer-facade-qualified01.json` under
+`.artifacts/native-app-capture-handoff-20261020/`. Disposable validation took
+378.995s including replay/cleanup (function tests 327.216s); tooling ran in
+parallel for 356.258s; source review took 49.238s. Implementation time is
+unknown; no review remediation was required. No native tests or Release build
+were repeated for this backend-only increment.
+
+There is no serving entrypoint, deployment registration, installed policy or
+credentials, native transport, bound PUT constructor or ordinary factory
+activation. Next native integration must resolve the saved destination before
+spending V8→V9 and persist PUT-started association before handing off the file.
+Full initial/reanalysis journeys, all media, recovery UX, resource measurements
+and cumulative acceptance remain open. PR116 and deployment holds are unchanged.
+
 ## October 30 — bound transfer and recovery candidate
 
 The inactive native candidate extends the existing sidecar owner with complete
