@@ -1655,6 +1655,7 @@
 		8725502FCAE99131DD623FD3 /* InsightSheetViewModel+FieldNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03ED5429ADC06989DAA02264 /* InsightSheetViewModel+FieldNotes.swift */; };
 		873865504DFC44BFE039C4B5 /* ObservationReanalysisOwnershipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3385C2E04C5E8A77E6949608 /* ObservationReanalysisOwnershipTests.swift */; };
 		8739A881B58A0A8F6604D349 /* ZoomableHostingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C0069F9E20282C78E45DC15 /* ZoomableHostingController.swift */; };
+		87449F121E67C8E02FA8102E /* SharedMediaNativePhotoUploadLifetimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60058AFF5E52839A2CD989C /* SharedMediaNativePhotoUploadLifetimeTests.swift */; };
 		875C819CDE64DE23AFDFE9C4 /* AuthRuntimeState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E42C6784E95679BDAD6BDB17 /* AuthRuntimeState.swift */; };
 		878C7D7DCC008C66DCFC0F1B /* SharedMediaNativeAllocationFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90296CA50E5BA7861545A74 /* SharedMediaNativeAllocationFoundationTests.swift */; };
 		878CD0FE9247FB4B5320D84A /* AuthSessionRecoveryCoordinationDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A6AA0DAC053983992ECE2E /* AuthSessionRecoveryCoordinationDependencies.swift */; };
@@ -1873,6 +1874,7 @@
 		9B62244FCAB92557FA93265E /* MerianNetworkClient+Inference.swift in Sources */ = {isa = PBXBuildFile; fileRef = F67CE15747F2364C4E0B82CD /* MerianNetworkClient+Inference.swift */; };
 		9B8850270C2F39C378BE7C85 /* SpeciesSearchRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42E118C022A7D780132199B0 /* SpeciesSearchRoute.swift */; };
 		9B9205DBE19850BA67EAD154 /* SharedMediaNativePreparationOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B966FEAA9A965A538322265 /* SharedMediaNativePreparationOperations.swift */; };
+		9BB37ABBA2EA2324885261B2 /* SharedMediaNativePhotoUpload.swift in Sources */ = {isa = PBXBuildFile; fileRef = B846D28B230FCA9B80C0575B /* SharedMediaNativePhotoUpload.swift */; };
 		9BB9B47FC654E684B5EE4A33 /* CaptureSubmissionEnvironmentContextGraceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD4AA6B1743E819EDBF4402D /* CaptureSubmissionEnvironmentContextGraceTests.swift */; };
 		9BF42ACA8E3D6437A7A39F98 /* ExplorePostComposerImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC5401721E208D77945385D7 /* ExplorePostComposerImageView.swift */; };
 		9C01B54970727AB1A1A74DA3 /* ObservationVideoPreparation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9190669EBD92977985B09A39 /* ObservationVideoPreparation.swift */; };
@@ -5160,6 +5162,7 @@
 		A5D3F6E832B6CEC6ABDEF735 /* SharedMediaStageExitProbeRecords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaStageExitProbeRecords.swift; sourceTree = "<group>"; };
 		A5DE90987E8C452EB9027CC8 /* SpeciesDictionaryRegionMapSnapshotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryRegionMapSnapshotService.swift; sourceTree = "<group>"; };
 		A5FD0B5DC2E8BD7198101B24 /* ExploreHashtagPostsViewModelDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreHashtagPostsViewModelDependencies.swift; sourceTree = "<group>"; };
+		A60058AFF5E52839A2CD989C /* SharedMediaNativePhotoUploadLifetimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativePhotoUploadLifetimeTests.swift; sourceTree = "<group>"; };
 		A60A2250EB49A61402250FA3 /* SharedMediaNativePreparationValues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativePreparationValues.swift; sourceTree = "<group>"; };
 		A619428B6DB6E94CD546CE50 /* SharedMediaNativePhotoContentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativePhotoContentTests.swift; sourceTree = "<group>"; };
 		A61A43E13E8D4C389A597B69 /* ScanConnectivityFailurePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanConnectivityFailurePolicy.swift; sourceTree = "<group>"; };
@@ -5361,6 +5364,7 @@
 		B7A40F7A0C1DA08771A8D755 /* CapturedMediaResolution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturedMediaResolution.swift; sourceTree = "<group>"; };
 		B7B072B5982CD3D6E3A7DC8B /* ObservationHistoryStateCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationHistoryStateCache.swift; sourceTree = "<group>"; };
 		B7BB346D399F648A07750542 /* SharedMediaStageExitProbeLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaStageExitProbeLocation.swift; sourceTree = "<group>"; };
+		B846D28B230FCA9B80C0575B /* SharedMediaNativePhotoUpload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativePhotoUpload.swift; sourceTree = "<group>"; };
 		B84BD85381129E4F5F0E1909 /* LocationPermissionDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPermissionDelegate.swift; sourceTree = "<group>"; };
 		B86299E534C360A615058895 /* NonBiologicalRetentionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NonBiologicalRetentionPolicy.swift; sourceTree = "<group>"; };
 		B86B1959CC08DD72C9D9DBF3 /* UITestSeedCoordinator+NativeProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UITestSeedCoordinator+NativeProtection.swift"; sourceTree = "<group>"; };
@@ -7465,6 +7469,7 @@
 				6A510169412385F63DE53064 /* SharedMediaNativePhotoRoleTransportTests.swift */,
 				A48AF257C3D1D5E16AD0ABC8 /* SharedMediaNativePhotoTransferReadbackTests.swift */,
 				826F8CA8F064841579F7321D /* SharedMediaNativePhotoTransferReservationTests.swift */,
+				A60058AFF5E52839A2CD989C /* SharedMediaNativePhotoUploadLifetimeTests.swift */,
 				1E9CFF2E102A6CC309975C2F /* SharedMediaNativePreparationCodecTests.swift */,
 				606E17DE88933D6E805BDF78 /* SharedMediaNativePreparationTests.swift */,
 				4381C5CF1BE111DAE41E30A2 /* SharedMediaNativeReceivedPhotoReadbackTests.swift */,
@@ -9815,6 +9820,7 @@
 				E1441F19FFB87C7D456DC5FF /* SharedMediaNativePhotoRoleMapping.swift */,
 				36F41D3620A714894BB3BD36 /* SharedMediaNativePhotoTransferReadback.swift */,
 				E72FBA65E83D7824EA6562A6 /* SharedMediaNativePhotoTransferReservation.swift */,
+				B846D28B230FCA9B80C0575B /* SharedMediaNativePhotoUpload.swift */,
 				3E72C703FD9F959ABFD73E77 /* SharedMediaNativePreparationGraph.swift */,
 				B9EC4072934B043590CE19BD /* SharedMediaNativePreparationMutation.swift */,
 				1B966FEAA9A965A538322265 /* SharedMediaNativePreparationOperations.swift */,
@@ -16129,6 +16135,7 @@
 				E9C0B50E5E868E0F9B0FC41E /* SharedMediaNativePhotoRoleTransportTests.swift in Sources */,
 				C8520EC907885558AE4F1FF5 /* SharedMediaNativePhotoTransferReadbackTests.swift in Sources */,
 				0F402AFA02B93145CB7D3A66 /* SharedMediaNativePhotoTransferReservationTests.swift in Sources */,
+				87449F121E67C8E02FA8102E /* SharedMediaNativePhotoUploadLifetimeTests.swift in Sources */,
 				F4255CABAA4A26592B77A4A9 /* SharedMediaNativePreparationCodecTests.swift in Sources */,
 				6F7D4EDB5CBD3D63FCAF3BCD /* SharedMediaNativePreparationTests.swift in Sources */,
 				CFB05BB604BB325FE4BC4011 /* SharedMediaNativeReceivedPhotoReadbackTests.swift in Sources */,
@@ -18073,6 +18080,7 @@
 				6A6E1EB27A20076D3F7DC4B6 /* SharedMediaNativePhotoRoleMapping.swift in Sources */,
 				DBCF39855F27D5D66C7351AA /* SharedMediaNativePhotoTransferReadback.swift in Sources */,
 				236E3F0A80A0C836976B5DBD /* SharedMediaNativePhotoTransferReservation.swift in Sources */,
+				9BB37ABBA2EA2324885261B2 /* SharedMediaNativePhotoUpload.swift in Sources */,
 				483945606978A70D62214F71 /* SharedMediaNativePreparationGraph.swift in Sources */,
 				B69C0E6ECCEC0C09362540BA /* SharedMediaNativePreparationMutation.swift in Sources */,
 				9B9205DBE19850BA67EAD154 /* SharedMediaNativePreparationOperations.swift in Sources */,

@@ -205,6 +205,27 @@ actor SharedMediaNativeOriginalIO {
         try Task.checkCancellation()
         return (proof, completion)
     }
+    /// The receiving owner holds queue/observation exclusion and its account
+    /// lease across this entire call. Ready files cannot be rewritten, and
+    /// received cleanup uses those same locks. Actor isolation alone is not the
+    /// exclusion guarantee while the concrete upload awaits its callback.
+    func uploadTransfer(_ state: SharedMediaNativePairFileState,
+                        reservation: SharedMediaNativePhotoTransferReservation,
+                        upload: SharedMediaNativePhotoUpload,
+                        validate: @MainActor @Sendable () throws -> Void) async throws -> SharedMediaNativePhotoUpload.Readback {
+        _ = try await verifyTransfer(state, reservation: reservation)
+        try await validate()
+        try Task.checkCancellation()
+        let intent = try state.intent()
+        let file = try reservation.selection.role == .source ? intent.preparation.original.file
+            : state.file(reservation.selection.role == .ai ? intent.ai.id : intent.display.id)
+        try files.requireSharedIdentity(file, identity: reservation.descriptor, binding: binding)
+        // consume joins actual termination on success AND failure before this
+        // owner can unwind. No staging copy or whole-original Data is created.
+        let status = try await upload.consume(file: files.preparationURL(file))
+        let (proof, completion) = try await verifyTransfer(state, reservation: reservation)
+        return .init(statusCode: status, inspection: proof, completion: completion)
+    }
     func recoverPair(_ state: SharedMediaNativePairFileState, workID: UUID) async throws -> SharedMediaNativePairCompletion? {
         try Task.checkCancellation()
         #if DEBUG

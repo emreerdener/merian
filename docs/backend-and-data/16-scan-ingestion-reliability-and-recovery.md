@@ -1,3 +1,40 @@
+## October 30 — sealed-file upload lifetime candidate (unqualified)
+
+The inactive native file handoff uses the existing sealed source, AI or display
+file through `SharedMediaNativeOriginalIO.uploadTransfer`. Its URL stays inside
+the file owner and is passed only to `SharedMediaNativePhotoUpload`, which
+retains the concrete `PinnedPhotoUploadTask` and joins actual local termination
+on both success and failure. The receiving owner retains queue/observation locks
+and its account operation until that join completes. Ready pair files cannot be
+rewritten; generic acquisition/preparation/removal rejects a live receiving
+slot; received release uses the same coordinator locks. Descriptor/hash, exact
+saved allocation, account authority and pair-completion checks surround the
+asynchronous boundary. An out-of-band file mutation can be detected afterward;
+this is not proof of bytes consumed by Foundation without the permitted-writer
+exclusion.
+
+Construction is private in Release. A Debug, test-runtime-only factory accepts
+an injected concrete task and a fixed reserved `.invalid` destination for
+intercepted unit tests. There is no app factory, ticket decoder or fresh PUT
+authority. Before installation, a fresh committed ticket and durable
+started/unknown transition must be integrated; V4 historical status cannot
+construct this operation. Response codes, errors, timeouts, cancellation and
+local termination never release the durable 32 MiB reservation, authorize
+another PUT, or establish remote closure.
+
+This handoff makes no app staging copy and does not materialize whole-original
+`Data`. Maximum-original Foundation disk/memory staging and cleanup
+measurements, provider behavior, production construction and full journeys
+remain unqualified. Engine source review cleared the candidate and its test-only
+macro correction. Focused native qualification passed 13 methods / 31 cases with
+unchanged input hashes and no structured runtime warnings. The first run stopped
+during test compilation and executed zero tests; its evidence remains retained.
+Console Photos-service XPC diagnostics were present in the passing simulator
+run; no Photos or full app journey qualification is claimed. The
+[native transfer contract](../rfcs/client-prepared-photo-content-contract-2026-10-27.md#native-transfer-lifetime-and-accounting)
+remains the normative owner of the unchanged allowance and acceptance
+requirements.
+
 ## October 29 — durable historical attempt candidate
 
 The inactive native allocation owner adds an explicit V3-to-V4 metadata

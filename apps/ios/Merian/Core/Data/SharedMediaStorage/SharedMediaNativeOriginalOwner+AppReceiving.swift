@@ -199,6 +199,14 @@ extension SharedMediaNativeOriginalOwner {
             try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0.verifyTransfer(prepared, allocation: allocation) }
         }
     }
+    /// Retains the receiving locks, file owner and account operation until the
+    /// concrete task terminates. Upload construction is closed in Release.
+    func uploadAppPhotoTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                upload: SharedMediaNativePhotoUpload) async throws -> Int {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0.uploadTransfer(prepared, upload: upload) }
+        }
+    }
     func abandonAppReceiving(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeReceivingIntent.Abandoned {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
             try await self.appReceivingWorkflow(lock: lock) { try $0.abandonPrepared(prepared) }

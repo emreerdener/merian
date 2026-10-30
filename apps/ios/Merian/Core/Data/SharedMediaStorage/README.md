@@ -1,3 +1,17 @@
+## Sealed-file upload lifetime candidate — October 30
+
+`SharedMediaNativePhotoUpload` connects the existing file owner to a concrete
+upload task while retaining receiving locks and account ownership through actual
+termination, including failure and cancellation. Its Release construction is
+closed; only intercepted Debug unit tests can construct the candidate. No status
+observation, response code or local termination releases durable transfer
+liability. Engine source review and focused native qualification passed 13
+methods / 31 cases. The earlier test-macro compilation failure is retained
+separately. See the
+[scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--sealed-file-upload-lifetime-candidate-unqualified)
+for exclusions, integration requirements and unqualified copy-budget
+measurements.
+
 ## Durable historical attempt candidate — October 29
 
 The existing allocation owner now has an inactive V4 status slot for the exact

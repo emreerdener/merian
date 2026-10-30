@@ -1,8 +1,8 @@
 import Foundation
 import SwiftData
 
-/// One fresh persistence boundary inside the retained receiving owner. Network
-/// suspension occurs outside this operation and its coordinator locks.
+/// One fresh persistence boundary inside the retained receiving owner. Allocation
+/// requests release coordinator locks; sealed-file consumption retains them.
 @MainActor
 final class SharedMediaNativeAppPhotoAllocationOperations {
     typealias Allocation = SharedMediaNativePhotoAllocation
@@ -144,6 +144,29 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         try sealTransfer(inspection, completion)
         try validate()
         return .init(selection: reservation.selection, byteCount: inspection.file.byteCount, sha256: inspection.file.sha256)
+    }
+
+    /// Inactive concrete file handoff. A response code is only a local transport
+    /// observation: it neither settles remote closure nor releases the hold.
+    func uploadTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                        upload: SharedMediaNativePhotoUpload) async throws -> Int {
+        let allocation = upload.allocation
+        guard try saved(prepared) == allocation, (3...4).contains(allocation.version),
+              let reservation = allocation.transferReservation else { throw SharedMediaStorageFailure.stale }
+        let state = try SharedMediaNativePhotoTransferReadback.state(prepared, reservation: reservation, context: fresh())
+        let result = try await io.uploadTransfer(state, reservation: reservation, upload: upload) {
+            guard try self.saved(prepared) == allocation,
+                  try SharedMediaNativePhotoTransferReadback.state(prepared, reservation: reservation, context: self.fresh()) == state else {
+                throw SharedMediaStorageFailure.stale
+            }
+        }
+        guard try saved(prepared) == allocation,
+              try SharedMediaNativePhotoTransferReadback.state(prepared, reservation: reservation, context: fresh()) == state else {
+            throw SharedMediaStorageFailure.stale
+        }
+        try sealTransfer(result.inspection, result.completion)
+        try validate()
+        return result.statusCode
     }
 
     private func requireReservation(_ allocation: Allocation, replacing oldAllocation: Allocation?,

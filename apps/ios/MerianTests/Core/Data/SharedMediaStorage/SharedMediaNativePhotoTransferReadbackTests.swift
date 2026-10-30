@@ -12,7 +12,7 @@ struct SharedMediaNativePhotoTransferReadbackTests {
     typealias Mapping = SharedMediaNativePhotoRoleMapping
     typealias Prepared = SharedMediaNativeReceivingIntent.Prepared
 
-    private func fixture(_ role: Mapping.Role = .source) async throws -> (Store, SharedMediaNativeOriginalOwner, Prepared, Allocation) {
+    func fixture(_ role: Mapping.Role = .source) async throws -> (Store, SharedMediaNativeOriginalOwner, Prepared, Allocation) {
         let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
         let allocation = try await owner.allocateAppPhotoRoles(p, authorizeCreate: { p, _ in
             .init(recipient: try #require(p.photoAdmission).expectedProcessorPermission, validate: {})
