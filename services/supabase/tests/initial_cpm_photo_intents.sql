@@ -84,6 +84,62 @@ INSERT INTO internal.initial_cpm_photo_current_selection VALUES('P1-L1','0000000
 CREATE TEMP TABLE cpm_saved AS SELECT pg_temp.cpm_create('00000000-0000-4000-8000-00000000f101') response;
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
+-- Negotiated backend projection: preserve old replies and all original liabilities.
+SAVEPOINT backend_projection;
+CREATE TEMP TABLE cpm_bound_saved AS SELECT public.create_initial_cpm_photo_v3_allocation(
+ '00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101',
+ pg_temp.cpm_candidate('00000000-0000-4000-8000-00000000f101')) response;
+SELECT extensions.is(response->>'version','3','negotiated private v3 allocation') FROM cpm_bound_saved;
+SELECT extensions.is(response-'backend_generation'-'backend_configuration_digest'-'version',
+ (SELECT response-'version' FROM cpm_saved),'v3 retains exact original assignment') FROM cpm_bound_saved;
+SELECT extensions.is(response->>'backend_configuration_digest',
+ (SELECT configuration_digest FROM internal.initial_preparation_source_backends WHERE generation='00000000-0000-4000-8000-00000000fb01'),
+ 'v3 digest comes from immutable saved backend') FROM cpm_bound_saved;
+SELECT extensions.is(public.get_initial_cpm_photo_v3_status('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101'),response,
+ 'v3 status exactly recovers original tuple') FROM cpm_bound_saved;
+SELECT extensions.throws_ok($$SELECT public.get_initial_cpm_photo_v3_status('00000000-0000-4000-8000-00000000f002','00000000-0000-4000-8000-00000000f101')$$,
+ 'P0002','initial_analysis_owner_unavailable','v3 foreign owner remains opaque');
+SELECT extensions.throws_ok($$SELECT internal.initial_cpm_photo_bound_response('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101',
+ (SELECT response||jsonb_build_object('assignment_digest',repeat('0',64)) FROM cpm_saved))$$,
+ '22023','initial_analysis_input_invalid','v3 cannot bind altered assignment digest');
+SELECT extensions.ok(NOT has_function_privilege(r,signature,'EXECUTE'),'v3 denies '||r||' on '||signature)
+ FROM unnest(ARRAY['anon','authenticated']) r CROSS JOIN unnest(ARRAY[
+ 'public.create_initial_cpm_photo_v3_allocation(uuid,uuid,text)','public.get_initial_cpm_photo_v3_status(uuid,uuid)']) signature;
+SELECT extensions.ok(has_function_privilege('service_role',signature,'EXECUTE'),'v3 service role allowed on '||signature)
+ FROM unnest(ARRAY['public.create_initial_cpm_photo_v3_allocation(uuid,uuid,text)','public.get_initial_cpm_photo_v3_status(uuid,uuid)']) signature;
+SELECT extensions.ok(NOT has_function_privilege(r,'internal.initial_cpm_photo_bound_response(uuid,uuid,jsonb)','EXECUTE'),'binding helper denies '||r)
+ FROM unnest(ARRAY['anon','authenticated','service_role']) r;
+SAVEPOINT fresh_backend_projection;
+CREATE TEMP TABLE cpm_bound_fresh AS SELECT public.create_initial_cpm_photo_v3_allocation(
+ '00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f102',
+ pg_temp.cpm_candidate('00000000-0000-4000-8000-00000000f102')) response;
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+SELECT extensions.is(response->>'version','3','fresh v3 create projects its just-persisted assignment in the same transaction') FROM cpm_bound_fresh;
+SELECT extensions.is(public.get_initial_cpm_photo_v3_status('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f102'),response,
+ 'fresh v3 create and recovered status are identical') FROM cpm_bound_fresh;
+SELECT extensions.is((SELECT count(*) FROM internal.initial_cpm_photo_capacity_reservations),2::BIGINT,'fresh v3 adds one liability');
+SELECT extensions.ok(internal.initial_cpm_photo_cohort_complete('00000000-0000-4000-8000-00000000f102'),'fresh v3 cohort complete');
+ROLLBACK TO fresh_backend_projection;
+RELEASE fresh_backend_projection;
+-- Rotation installs a different immutable generation. It must not rebase the old cohort.
+INSERT INTO internal.initial_preparation_source_backends(generation,configuration_digest,provider,direct_endpoint,private_bucket,namespace,credential_profile,storage_protocol)
+ SELECT (v->>'generation')::UUID,internal.initial_media_contract_digest('backend',internal.initial_canonical(v)),v->>'provider',v->>'direct_endpoint',v->>'private_bucket',v->>'namespace',v->>'credential_profile',v->>'storage_protocol'
+ FROM (SELECT value||jsonb_build_object('generation','00000000-0000-4000-8000-00000000fb02','private_bucket','synthetic-rotated') v FROM backend_fixture) fixture;
+INSERT INTO internal.initial_cpm_photo_selections(generation,profile_digest,backend_generation)
+ SELECT '00000000-0000-4000-8000-00000000fc02',digest,'00000000-0000-4000-8000-00000000fb02' FROM internal.initial_cpm_photo_profiles;
+UPDATE internal.initial_cpm_photo_current_selection SET generation='00000000-0000-4000-8000-00000000fc02';
+UPDATE internal.initial_preparation_backend_eligibility SET state='revoked' WHERE generation='00000000-0000-4000-8000-00000000fb01';
+SELECT extensions.is(public.get_initial_cpm_photo_v3_status('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101'),response,
+ 'rotation and revocation do not rewrite historical tuple') FROM cpm_bound_saved;
+SELECT extensions.is(public.create_initial_cpm_photo_v3_allocation('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101',
+ pg_temp.cpm_candidate('00000000-0000-4000-8000-00000000f101')),response,'create replay preserves old tuple after rotation') FROM cpm_bound_saved;
+SELECT extensions.is(public.get_initial_preparation_status('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101'),response,
+ 'legacy status unchanged after v3 recovery') FROM cpm_saved;
+SELECT extensions.is((SELECT count(*) FROM internal.initial_cpm_photo_capacity_reservations),1::BIGINT,'v3 replay retains single liability');
+SELECT extensions.is((SELECT count(*) FROM internal.initial_cpm_photo_write_attempts),0::BIGINT,'v3 metadata never issues a write');
+ROLLBACK TO backend_projection;
+RELEASE backend_projection;
 SELECT extensions.is(response->>'outcome','allocated','closed allocation reply') FROM cpm_saved;
 SELECT extensions.is(response->>'authority','none','allocation grants no authority') FROM cpm_saved;
 SELECT extensions.ok(internal.initial_cpm_photo_cohort_complete('00000000-0000-4000-8000-00000000f101'),'complete bound cohort');

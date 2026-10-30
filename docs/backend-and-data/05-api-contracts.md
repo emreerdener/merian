@@ -1,3 +1,39 @@
+## October 30 — inactive v3 allocation backend projection
+
+The allocation endpoint also accepts the closed
+[v3 schema](../../services/supabase/functions/initial-photo-allocation/schema-v3.json).
+V1/v2 requests, private RPCs and response shapes remain unchanged. V3 selects
+`create_initial_cpm_photo_v3_allocation` or `get_initial_cpm_photo_v3_status`;
+these service-only wrappers call the existing lifecycle owners in the same
+transaction. Allocated replies add `backend_generation` and
+`backend_configuration_digest` to the v2 role mapping and original receipt. The
+tuple derives from the saved canonical assignment and its immutable backend
+registry row, never the current selector or request. Rotation/revocation does
+not rewrite historical metadata; it does not bypass fresh issuance eligibility.
+Holds contain neither tuple nor mapping. The 2,048-byte reply bound is
+unchanged.
+
+The private
+[v3 recovery schema](../../services/supabase/functions/_shared/initialAnalysis/cpm-photo-recovery-schema-v3.json)
+and `cpmPhotoBoundRecovery` preserve the closed legacy validator. Generation
+must match the validated assignment; the SQL projection binds configuration
+digest to the registry because the private assignment contains generation only.
+No endpoint, bucket, credentials, capability or execution authority is exposed.
+The native client remains v2: durable tuple reservation/persistence and trusted
+allowlist resolution are not implemented by this backend increment. No v3 app
+request, ticket factory or feature activation is installed. Local qualification
+passed 18 focused projection/transport tests, all 502 migrations, 176 catalogs /
+7,269 assertions, and the complete connected function suite: 4,106 tests / 748
+steps, zero failures or skips. The additional fresh-v3 creation case passed with
+the exact affected catalog (243 assertions) on a second owned fresh replay.
+Engine cleared source and verified that correction. Both instances were removed.
+Tooling components passed across the retained aggregate prefix and resumed shell
+tail after a sandbox terminal-input failure; that original failure is not
+relabeled as a green aggregate invocation. Evidence:
+`.artifacts/native-app-capture-handoff-20261020/cpm-backend-binding-qualified02.json`.
+These are local backend component results, not native or full-journey
+acceptance.
+
 ## Role-aware CPM source MIME candidate — October 30
 
 The dormant server observation/specification/ticket boundary now admits the

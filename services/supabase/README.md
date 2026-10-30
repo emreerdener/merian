@@ -1,3 +1,12 @@
+## Inactive CPM v3 backend metadata
+
+The
+[database projection contract](../../docs/backend-and-data/04-database-schema.md#inactive-cpm-backend-projection--october-30)
+owns the service-only wrappers, saved backend provenance and local
+qualification. They reuse existing allocation/recovery owners and preserve
+private v1 replies. No native v3 caller, storage destination or capability is
+installed.
+
 ## Dormant CPM status recovery
 
 The

@@ -1,3 +1,30 @@
+## Inactive CPM backend projection — October 30
+
+The forward
+[backend projection migration](../../services/supabase/migrations/20261030131532_prepare_initial_cpm_photo_backend_projection.sql)
+adds two service-only v3 allocation/recovery wrappers and a private projection
+helper. Existing allocation/status routines retain their exact private v1
+shapes. The wrappers reuse their account, owner, deletion, expiry and lock
+boundaries in one transaction; status may still terminalize expiry. The helper
+validates the response against the saved candidate/assignment, checks cohort
+consistency, and derives the opaque backend tuple from saved generation and its
+immutable registry row. Missing or inconsistent binding fails closed.
+
+No new table, column, selector, eligibility, clock, funding, write attempt or
+capacity transition is introduced. Historical rotation or revocation does not
+change the tuple and supplies no fresh issuance authority. Terminal holds stay
+closed and omit backend facts. The executable catalog extends
+`tests/initial_cpm_photo_intents.sql` with exact legacy/v3 replay, rotation,
+revocation, altered-response, owner-denial and ACL cases. All 502 migrations
+replayed, the full 176-catalog suite passed 7,269 assertions, and the exact
+additional fresh-create catalog passed 243 assertions on a second fresh replay.
+The privilege audit and Engine source/corrective reviews passed. Both owned
+instances were removed. Original failure and result evidence are retained in the
+linked API checkpoint; full app acceptance remains open. The
+[API contract](05-api-contracts.md#october-30--inactive-v3-allocation-backend-projection)
+owns the public projection and native integration limits. Nothing is deployed or
+activated.
+
 ## Dormant CPM write-status projection — October 29
 
 `public.read_initial_cpm_photo_write_status(owner, scan, assignment_digest,

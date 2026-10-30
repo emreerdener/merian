@@ -31,9 +31,13 @@ export function allocationRepository(fetcher: typeof fetch = fetch) {
       request: AllocationRequest,
       signal: AbortSignal,
     ): Promise<unknown> {
-      const operation = request.action === "create"
-        ? "create_initial_preparation_intent"
-        : "get_initial_preparation_status";
+      const operation = request.version === 3
+        ? (request.action === "create"
+          ? "create_initial_cpm_photo_v3_allocation"
+          : "get_initial_cpm_photo_v3_status")
+        : (request.action === "create"
+          ? "create_initial_preparation_intent"
+          : "get_initial_preparation_status");
       const args = {
         p_owner: owner,
         p_scan: request.scanID,

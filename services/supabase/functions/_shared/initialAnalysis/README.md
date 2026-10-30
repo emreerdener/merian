@@ -1,3 +1,13 @@
+## Inactive bound CPM recovery
+
+`cpmPhotoBoundRecovery` adds a separate closed v3 metadata validator while
+preserving `cpmPhotoRecovery` v1. It checks the generation against the validated
+assignment; the SQL wrapper binds the opaque configuration digest to the saved
+immutable registry row. The
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#october-30--inactive-v3-allocation-backend-projection)
+owns projection, authority and native integration limits. This codec installs no
+signer, backend profile or route activation.
+
 ## Role-aware source MIME candidate — October 30
 
 The existing observation target validator now distinguishes retained originals

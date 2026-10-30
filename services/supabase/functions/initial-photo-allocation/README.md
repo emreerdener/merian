@@ -1,3 +1,13 @@
+## October 30 — inactive backend-binding projection
+
+Negotiated v3 now projects the exact saved backend generation/configuration
+digest through two service-only wrappers. V1/v2 shapes remain unchanged. The
+[API contract](../../../../docs/backend-and-data/05-api-contracts.md#october-30--inactive-v3-allocation-backend-projection)
+owns the tuple, authority and pending qualification rules. Native v3
+reservation, persistence and destination resolution remain open; the app still
+uses the inactive v2 owner. Earlier checkpoint notes below describe their own
+scopes.
+
 ## October 29 — native v2 transport candidate
 
 The inactive native owner and authenticated adapter now support explicitly

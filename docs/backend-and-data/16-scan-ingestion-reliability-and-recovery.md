@@ -1,3 +1,24 @@
+## October 30 — backend allocation identity checkpoint
+
+The inactive
+[v3 API projection](05-api-contracts.md#october-30--inactive-v3-allocation-backend-projection)
+now supplies the exact saved backend generation and configuration digest through
+existing allocation/recovery lifecycle owners. Legacy v1/v2 shapes remain
+unchanged. The
+[database contract](04-database-schema.md#inactive-cpm-backend-projection--october-30)
+owns SQL provenance and qualification. Historical metadata grants no upload,
+execution, replacement or release authority.
+
+Native remains v2. The next integration must explicitly reserve maximum tuple
+metadata and revision runway before v3 dispatch, atomically persist receipt,
+role mapping and immutable tuple, and resolve only that saved tuple through a
+trusted compiled allowlist. Unknown/removed configurations hold. Accepted legacy
+claims retain exact bytes, identities, clocks and liability; legacy V5 ticket
+uncertainty cannot regain fresh issuance through status or enrichment. No app
+factory, destination pin, feature activation or live provider qualification is
+included in this backend checkpoint. Initial/reanalysis photo/audio/video,
+RUX1–6 and cumulative app acceptance remain open.
+
 ## October 30 — original-source MIME compatibility candidate
 
 The existing server target/ticket validators and inert native ticket decoder now

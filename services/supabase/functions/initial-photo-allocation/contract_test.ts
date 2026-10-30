@@ -38,7 +38,7 @@ Deno.test("photo allocation closed requests reject spoofing, noncanonical candid
       { ...status(), saved_assignment_digest: "bad" },
       { ...create(), candidate_canonical: " " + create().candidate_canonical },
       { ...create(), candidate_canonical: "x".repeat(1048577) },
-      { ...create(), version: 3 },
+      { ...create(), version: 4 },
     ]
   ) assertThrows(() => parseAllocationRequest(body));
   for (

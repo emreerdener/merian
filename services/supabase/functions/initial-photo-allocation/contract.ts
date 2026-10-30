@@ -12,13 +12,15 @@ import { validateInitialCpmPhotoRecovery } from "../_shared/initialAnalysis/cpmP
 import { matchesInitialSchema } from "../_shared/initialAnalysis/schema.ts";
 import schema from "./schema-v1.json" with { type: "json" };
 import schemaV2 from "./schema-v2.json" with { type: "json" };
+import schemaV3 from "./schema-v3.json" with { type: "json" };
+import { validateInitialCpmPhotoBoundRecovery } from "../_shared/initialAnalysis/cpmPhotoBoundRecovery.ts";
 
-// Six entries of at most 146 JSON bytes plus the fixed receipt fit in 2048.
-// This is metadata only; no URLs, configuration or bearer may enter the reply.
+// Six mapping entries, the receipt and the opaque backend tuple fit in 2048.
+// No URLs, configuration contents or bearer may enter the reply.
 export const ALLOCATION_REPLY_LIMIT = 2048;
 export const ALLOCATION_BODY_LIMIT = 2 * 1048576 + 4096;
 export type AllocationRequest = Readonly<{
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   action: "create" | "status";
   candidateCanonical: string;
   scanID: string;
@@ -31,10 +33,12 @@ export function parseAllocationRequest(body: unknown): AllocationRequest {
     !matchesInitialSchema(body, schema.create) &&
     !matchesInitialSchema(body, schema.status) &&
     !matchesInitialSchema(body, schemaV2.create) &&
-    !matchesInitialSchema(body, schemaV2.status)
+    !matchesInitialSchema(body, schemaV2.status) &&
+    !matchesInitialSchema(body, schemaV3.create) &&
+    !matchesInitialSchema(body, schemaV3.status)
   ) return invalidInitialInput();
   const request = body as {
-    version: 1 | 2;
+    version: 1 | 2 | 3;
     action: "create" | "status";
     candidate_canonical: string;
     saved_assignment_digest?: string | null;
@@ -67,10 +71,16 @@ export async function projectAllocationReceipt(
 ): Promise<unknown> {
   const candidate = JSON.parse(request.candidateCanonical);
   const recovery = JSON.parse(
-    await validateInitialCpmPhotoRecovery(candidate, privateResponse, null),
+    await (request.version === 3
+      ? validateInitialCpmPhotoBoundRecovery
+      : validateInitialCpmPhotoRecovery)(candidate, privateResponse, null),
   );
   const content = JSON.parse(candidate.content_canonical);
-  const replySchema = request.version === 1 ? schema : schemaV2;
+  const replySchema = request.version === 1
+    ? schema
+    : request.version === 2
+    ? schemaV2
+    : schemaV3;
   const base = {
     version: request.version,
     variant: "client_prepared_photo",
@@ -114,10 +124,16 @@ export async function projectAllocationReceipt(
   const receipt = {
     ...base,
     outcome: "allocated",
+    ...(request.version === 3
+      ? {
+        backend_generation: recovery.backend_generation,
+        backend_configuration_digest: recovery.backend_configuration_digest,
+      }
+      : {}),
     assignment_digest: recovery.assignment_digest,
     created_at_ms: assignment.created_at_ms,
     expires_at_ms: assignment.expires_at_ms,
-    ...(request.version === 2
+    ...(request.version >= 2
       ? {
         role_mapping: assignment.preparation.role_mapping.map((entry) => ({
           photo_ordinal: entry.photo_ordinal,
