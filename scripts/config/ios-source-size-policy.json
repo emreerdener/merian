@@ -136,6 +136,14 @@
     "apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift": {
       "counter": "physical",
       "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoUploadDestination.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoUploadTicket.swift": {
+      "counter": "physical",
+      "ceiling": 600
     }
   },
   "globalOnlyDirectories": [

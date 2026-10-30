@@ -365,6 +365,7 @@ final class SharedMediaNativePhotoTicketContinuation {
     private var check: (() throws -> Void)?
     private var consumed = false
     private var closed = false
+    private var responseConsumed = false
     fileprivate init(allocation: SharedMediaNativePhotoAllocation, validate: @escaping () throws -> Void) {
         self.allocation = allocation; check = validate
     }
@@ -376,6 +377,18 @@ final class SharedMediaNativePhotoTicketContinuation {
     func validateConsumed() throws {
         guard !closed, consumed, let check else { throw SharedMediaStorageFailure.closed }
         try check()
+    }
+    /// One response observation while the exact receiving/account operation is
+    /// retained. This never constructs a request or promotes metadata to PUT authority.
+    func decodeResponse(_ data: Data, destination: InitialPhotoUploadDestination,
+                        nowMilliseconds: Int64) throws -> InitialPhotoUploadTicket {
+        try validateConsumed()
+        guard !responseConsumed else { throw SharedMediaStorageFailure.closed }
+        responseConsumed = true
+        let result = try InitialPhotoUploadTicket(data: data, allocation: allocation,
+            destination: destination, nowMilliseconds: nowMilliseconds)
+        try validateConsumed()
+        return result
     }
     fileprivate func close() {
         closed = true

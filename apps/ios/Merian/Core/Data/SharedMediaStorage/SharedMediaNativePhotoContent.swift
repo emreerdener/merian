@@ -19,7 +19,7 @@ struct SharedMediaNativePhotoContent: Sendable {
     let unverifiedDigest: String
 
     /// Only saved values are projected. No media reads, live controls or identity creation.
-    init(prepared: SharedMediaNativeReceivingIntent.Prepared) throws {
+    init(prepared: SharedMediaNativeReceivingIntent.Prepared, legacyLocalTypes: Bool = false) throws {
         _ = try prepared.encoded()
         guard prepared.format == .preparedV2, prepared.version == 2 else { throw SharedMediaStorageFailure.invalid }
         let frozen = try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes)
@@ -28,15 +28,28 @@ struct SharedMediaNativePhotoContent: Sendable {
         let photos = try frozen.entries.map { entry -> Photo in
             let intent = try SharedMediaNativeDerivativeIntent.decode(entry.intent.bytes)
             let original = intent.preparation.original
-            return .init(source: .init(referenceID: original.reference.referenceID, byteCount: original.byteCount,
-                sha256: original.sha256, contentType: original.contentType),
+            return try .init(source: .init(referenceID: original.reference.referenceID, byteCount: original.byteCount,
+                sha256: original.sha256, contentType: legacyLocalTypes ? original.contentType : Self.wireContentType(original.contentType)),
                 ai: .init(referenceID: intent.ai.referenceID, byteCount: intent.ai.byteCount,
-                    sha256: intent.ai.sha256, contentType: intent.ai.contentType),
+                    sha256: intent.ai.sha256, contentType: legacyLocalTypes ? intent.ai.contentType : Self.wireContentType(intent.ai.contentType)),
                 display: .init(referenceID: intent.display.referenceID, byteCount: intent.display.byteCount,
-                    sha256: intent.display.sha256, contentType: intent.display.contentType), recipe: intent.preparation.recipe)
+                    sha256: intent.display.sha256, contentType: legacyLocalTypes ? intent.display.contentType : Self.wireContentType(intent.display.contentType)), recipe: intent.preparation.recipe)
         }
         try self.init(scanID: prepared.observationID, packageID: frozen.packageID,
             photos: photos, contexts: supporting.contexts)
+    }
+
+    /// Closed wire spelling; never rewrites the immutable ImageIO metadata.
+    /// Historical canonical declarations are reconstructed separately and exactly.
+    static func wireContentType(_ local: String) throws -> String {
+        switch local {
+        case "public.jpeg", "image/jpeg": return "image/jpeg"
+        case "public.png", "image/png": return "image/png"
+        case "org.webmproject.webp", "image/webp": return "image/webp"
+        case "public.heic", "image/heic": return "image/heic"
+        case "public.heif", "image/heif": return "image/heif"
+        default: throw SharedMediaStorageFailure.invalid
+        }
     }
 
     /// Typed claims for the closed v1 schema; these values carry no local or remote authority.

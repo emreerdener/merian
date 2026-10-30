@@ -1,3 +1,18 @@
+## Inert CPM ticket response candidate — October 30
+
+`InitialPhotoUploadTicket` and `InitialPhotoUploadDestination` validate bounded
+transient response metadata against the exact selected allocation role and an
+independently injected trusted destination. The receiving continuation owns the
+single observation; decoding grants no upload authority. No production pin,
+transport or request factory is installed. Tickets bind the exact submitted MIME
+declaration, not the persisted ImageIO type; legacy UTI declarations remain
+held. The HQ-010 corrective candidate passed source review and exact native
+qualification (22 methods / 27 cases); original failures remain retained. The
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-cpm-ticket-decoder-candidate--october-30)
+owns wire and trust rules; the
+[scan guide](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--native-ticket-response-candidate)
+owns integration evidence and gaps.
+
 ## Inactive upload-status decoder
 
 `Models/ObservationAnalysis/InitialPhotoUploadStatus.swift` consumes historical

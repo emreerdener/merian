@@ -12,8 +12,15 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
 
         init(prepared: SharedMediaNativeReceivingIntent.Prepared,
              received: SharedMediaNativeReceivingIntent.Received, attemptID: UUID) throws {
-            let candidate = try SharedMediaNativePhotoCandidate(prepared: prepared)
-            let content = try SharedMediaNativePhotoContent(prepared: prepared)
+            try self.init(prepared: prepared, received: received, attemptID: attemptID,
+                          content: SharedMediaNativePhotoContent(prepared: prepared))
+        }
+
+        private init(prepared: SharedMediaNativeReceivingIntent.Prepared,
+                     received: SharedMediaNativeReceivingIntent.Received, attemptID: UUID,
+                     content: SharedMediaNativePhotoContent) throws {
+            guard let admission = prepared.photoAdmission else { throw SharedMediaStorageFailure.closed }
+            let candidate = try SharedMediaNativePhotoCandidate(content: content, admission: admission)
             guard let text = String(data: candidate.canonicalBytes, encoding: .utf8) else {
                 throw SharedMediaStorageFailure.invalid
             }
@@ -29,7 +36,11 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
 
         func requireMatch(prepared: SharedMediaNativeReceivingIntent.Prepared,
                           received: SharedMediaNativeReceivingIntent.Received) throws {
-            guard self == (try Self(prepared: prepared, received: received, attemptID: attemptID)) else {
+            if self == (try? Self(prepared: prepared, received: received, attemptID: attemptID)) { return }
+            // Match the complete historical claim, including both canonical digests.
+            // Never normalize or replace an already accepted declaration on recovery.
+            guard self == (try Self(prepared: prepared, received: received, attemptID: attemptID,
+                                   content: SharedMediaNativePhotoContent(prepared: prepared, legacyLocalTypes: true))) else {
                 throw SharedMediaStorageFailure.conflict
             }
         }

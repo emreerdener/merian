@@ -135,6 +135,8 @@ class PolicyTests(unittest.TestCase):
             'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRequest.swift',
             'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRoleReply.swift',
             'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoUploadStatus.swift',
+            'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoUploadDestination.swift',
+            'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoUploadTicket.swift',
             'apps/ios/Merian/Core/Network/Transport/InitialPhotoAllocationTransport.swift',
             'apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift',
         ]:

@@ -34,6 +34,38 @@ struct NativePhotoTicketRequestTests {
         }
     }
 
+    private func verifyLegacyClaim(_ allocation: Allocation, prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                   store: Store) throws {
+        let id = store.packageID
+        let row = try SharedMediaNativePairPlanGraph.one(store.context(),
+            FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == id }))
+        let received = try SharedMediaNativeReceivingIntent.Received.decode(#require(row.resultData), prepared: prepared)
+        let content = try SharedMediaNativePhotoContent(prepared: prepared, legacyLocalTypes: true)
+        let candidate = try SharedMediaNativePhotoCandidate(content: content, admission: #require(prepared.photoAdmission))
+        let legacy = try SharedMediaNativeReceivingTestFixture.copy(allocation.claim, changes: [
+            "candidateCanonical": #require(String(data: candidate.canonicalBytes, encoding: .utf8)),
+            "candidateDigest": candidate.unverifiedDigest, "contentDigest": content.unverifiedDigest])
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        let before = try encoder.encode(legacy)
+        try legacy.requireMatch(prepared: prepared, received: received)
+        let after = try encoder.encode(legacy)
+        #expect(legacy != allocation.claim && after == before)
+        let transfer = try #require(allocation.transferReservation), mapping = try #require(allocation.roleMapping)
+        try transfer.validate(claim: legacy, mapping: mapping)
+        #expect(try transfer.declaredContentType(claim: legacy) == transfer.contentType)
+        let mixed = try SharedMediaNativeReceivingTestFixture.copy(legacy, changes: ["contentDigest": allocation.claim.contentDigest])
+        #expect(throws: (any Error).self) { try mixed.requireMatch(prepared: prepared, received: received) }
+        let legacyAllocation = try SharedMediaNativeReceivingTestFixture.copy(allocation, changes: [
+            "claim": SharedMediaNativeReceivingTestFixture.object(legacy)])
+        let bytes = try legacyAllocation.encoded()
+        #expect(try Allocation.decode(bytes, sha256: SharedMediaAcquisitionEncoding.digest(bytes)) == legacyAllocation)
+        let fixture = InitialPhotoUploadTicketTests()
+        #expect(throws: (any Error).self) {
+            _ = try InitialPhotoUploadTicket(data: fixture.bytes(fixture.row(legacyAllocation)), allocation: legacyAllocation,
+                destination: fixture.destination(), nowMilliseconds: #require(legacyAllocation.receipt).createdAtMilliseconds + 2_000)
+        }
+    }
+
     @Test(arguments: Mapping.Role.allCases)
     func freshOnceAndColdRecoveryNeverReconstructPermission(_ role: Mapping.Role) async throws {
         let (h, owner, p, v3) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(role)
@@ -45,8 +77,19 @@ struct NativePhotoTicketRequestTests {
             #expect(try self.saved(h) == allocation)
             #expect(allocation.version == 5 && allocation.ticketRequestStarted == true && allocation.remainingAdvances == 3)
             #expect(allocation.transferReservation == v3.transferReservation && allocation.remoteAttempt == nil)
+            try self.verifyLegacyClaim(allocation, prepared: p, store: h)
+            let transfer = try #require(allocation.transferReservation)
+            #expect(transfer.contentType != (try transfer.declaredContentType(claim: allocation.claim)))
+            #expect(try transfer.declaredContentType(claim: allocation.claim) == SharedMediaNativePhotoContent.wireContentType(transfer.contentType))
             #expect(throws: SharedMediaStorageFailure.closed) { try continuation.consume() }
             try continuation.validateConsumed()
+            let fixture = InitialPhotoUploadTicketTests(), wire = try fixture.row(allocation)
+            let ticket = try continuation.decodeResponse(fixture.bytes(wire), destination: fixture.destination(),
+                nowMilliseconds: #require(allocation.receipt).createdAtMilliseconds + 2_000)
+            #expect(ticket.outcome == .issued)
+            #expect(throws: SharedMediaStorageFailure.closed) {
+                _ = try continuation.decodeResponse(fixture.bytes(wire), destination: fixture.destination(), nowMilliseconds: 2_001)
+            }
         }
         #expect(requested)
         let continuation = try #require(escaped)
@@ -60,6 +103,30 @@ struct NativePhotoTicketRequestTests {
         #expect(try await !cold.requestAppPhotoTicketForTesting(p) { _, _ in Issue.record("Recovered fresh request") })
         #expect(try saved(h) == held)
         #expect(await cold.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func invalidTicketResponseConsumesObservationAndCannotRetry() async throws {
+        let (store, owner, prepared, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture()
+        defer { withExtendedLifetime(store) {} }
+        _ = try await owner.reserveAppPhotoRemoteAttempt(prepared)
+        var escaped: SharedMediaNativePhotoTicketContinuation?
+        let requested = try await owner.requestAppPhotoTicketForTesting(prepared) { allocation, continuation in
+            escaped = continuation
+            let fixture = InitialPhotoUploadTicketTests(), destination = try fixture.destination()
+            #expect(throws: (any Error).self) {
+                _ = try continuation.decodeResponse(Data("{}".utf8), destination: destination, nowMilliseconds: 2_001)
+            }
+            #expect(throws: SharedMediaStorageFailure.closed) {
+                _ = try continuation.decodeResponse(fixture.bytes(fixture.row(allocation)), destination: destination, nowMilliseconds: 2_001)
+            }
+        }
+        #expect(requested)
+        let continuation = try #require(escaped), destination = try InitialPhotoUploadTicketTests().destination()
+        #expect(throws: SharedMediaStorageFailure.closed) {
+            _ = try continuation.decodeResponse(Data("{}".utf8), destination: destination, nowMilliseconds: 2_001)
+        }
+        #expect(try await !owner.requestAppPhotoTicketForTesting(prepared) { _, _ in Issue.record("Invalid response reminted permission") })
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
     }
 
     @Test(arguments: ["afterSave", "readback", "beforeSave", "capacity", "generation"])

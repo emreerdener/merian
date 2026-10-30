@@ -9,6 +9,17 @@ struct SharedMediaNativePhotoContentTests {
     typealias Recipe = SharedMediaNativePreparationRecipe
     typealias Fixture = SharedMediaNativeReceivingTestFixture
 
+    @Test func closedWireTypesPreserveLocalSpellings() throws {
+        for (local, mime) in [("public.jpeg", "image/jpeg"), ("public.png", "image/png"),
+                              ("org.webmproject.webp", "image/webp"), ("public.heic", "image/heic"), ("public.heif", "image/heif")] {
+            #expect(try Content.wireContentType(local) == mime)
+            #expect(try Content.wireContentType(mime) == mime)
+        }
+        for type in ["", "public.image", "public.gif", "IMAGE/JPEG", "image/jpeg; charset=utf-8", "audio/mp4"] {
+            #expect(throws: (any Error).self) { _ = try Content.wireContentType(type) }
+        }
+    }
+
     @Test func independentDenoGoldenBytesAndDigest() throws {
         let value = try content(contexts: [.init(freeText: " \u{feff}a\0e\u{301}🦭\n")])
         #expect(value.canonicalBytes == Data(Self.golden.utf8))
@@ -115,6 +126,11 @@ struct SharedMediaNativePhotoContentTests {
             #expect((row["source"] as? [String: Any])?["reference_id"] as? String == intent.preparation.original.reference.referenceID.uuidString.lowercased())
             #expect((row["ai"] as? [String: Any])?["byte_count"] as? Int64 == intent.ai.byteCount)
             #expect((row["display"] as? [String: Any])?["sha256"] as? String == intent.display.sha256)
+            for (role, local) in [("source", intent.preparation.original.contentType), ("ai", intent.ai.contentType), ("display", intent.display.contentType)] {
+                #expect((row[role] as? [String: Any])?["declared_content_type"] as? String == (try Content.wireContentType(local)))
+                #expect(!local.hasPrefix("image/"))
+            }
+            #expect(intent.preparation.original.contentType == "public.png")
         }
         let supporting: SharedMediaNativeFrozenSupporting = try SharedMediaAcquisitionEncoding.decode(
             frozen.supportingBytes, maximum: Int(PhotoPreparationPolicy.metadata))

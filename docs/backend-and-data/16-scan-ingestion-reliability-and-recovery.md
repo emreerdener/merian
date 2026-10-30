@@ -1,10 +1,53 @@
+## October 30 — native ticket response candidate
+
+The private server ticket contract now has an inert native decoder and an
+explicit trusted destination value. The existing consumed continuation validates
+the exact retained allocation/account operation and permits only one response
+observation, spent before decoding. The
+[API contract](05-api-contracts.md#native-cpm-ticket-decoder-candidate--october-30)
+owns field, destination, clock, secrecy and trust rules. Backend configuration
+is not yet persisted by native allocation; no production pin, route/transport or
+fresh upload constructor is installed. Durable PUT-started/unknown admission,
+configuration-change binding and provider qualification remain prerequisites.
+
+Candidate02 compiled and covered all 19 selected methods / 23 cases, with no
+structured runtime warnings or source drift. Twenty cases passed; all three
+real-owner fresh-ticket role cases failed `invalidResponse` because local
+ImageIO types were compared directly with wire MIME. The failed XCResult and
+994.574-second run are retained in `cpm-native-ticket-native-qualified01.json`;
+Engine's earlier source clearance does not override this failure. The iOS
+tooling gates passed separately. HQ-010 tracks the defect.
+
+The correction projects MIME only when creating a fresh declaration, retains
+exact legacy claim recovery and immutable physical metadata, and binds ticket
+headers to the exact submitted spelling. New tests cover closed mappings, legacy
+digest integrity and rejection of legacy UTI upload tickets alongside the
+real-owner all-role/cold-recovery cases. Engine cleared corrective source
+candidate03 and the subsequent test-only compilation fix in candidate04. Exact
+candidate04 native qualification passed all 22 methods / 27 cases in 808.047
+seconds, with 3,069 unchanged input pins, no structured runtime warnings and
+complete selected coverage (`cpm-native-ticket-native-qualified03.json`). Launch
+preflight measured 31,090,606,080 bytes free; qualification measured
+30,975,733,760 bytes free, within unchanged limits. The intermediate native02
+run stopped at a throwing-expression test-macro compile error and ran zero
+tests; both failures remain retained. HQ-010 is resolved for this local
+component. No app journey, provider or resource qualification follows; existing
+failed-run evidence retains its original scope.
+
+A separate integration gap remains open: CPM admission requires JPEG AI/display
+roles, while the current native encoder owners prefer WebP when available.
+JPEG-specific preparation must be reconciled before the complete app journey is
+qualified (HQ-011). The decoder's bounded MIME check does not prove allocation
+admission or derivative-format compatibility. Source formats beyond the current
+JPEG/PNG ticket contract also remain outside this slice's qualification.
+
 ## October 30 — dormant transient ticket contract
 
 The existing private issuer now validates its versioned result against the
 [closed executable ticket contract](05-api-contracts.md#dormant-transient-cpm-ticket-contract--october-30)
 before returning. This supplies the exact identity, role-byte and original-clock
 binding needed by the next native decoder; it does not install a route or grant
-freshness to decoded/recovered data. No native consumer exists yet. The V5
+freshness to decoded/recovered data. No native consumer is installed. The V5
 continuation and separately admitted PUT-started/unknown transition remain
 required for concrete upload construction, alongside trusted destination
 configuration and the existing provider/retention qualification controls.

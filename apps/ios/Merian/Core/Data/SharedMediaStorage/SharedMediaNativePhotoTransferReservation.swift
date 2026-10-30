@@ -42,6 +42,12 @@ struct SharedMediaNativePhotoTransferReservation: Codable, Equatable, Sendable {
             throw SharedMediaStorageFailure.conflict
         }
         _ = try SharedMediaPhotoRetirementIdentity.decode(descriptor.encoded())
+        _ = try declaredContentType(claim: claim)
+    }
+
+    /// Exact submitted spelling, checked against physical metadata without mutation.
+    /// Legacy UTI claims remain readable but are not MIME upload capabilities.
+    func declaredContentType(claim: SharedMediaNativePhotoAllocation.Claim) throws -> String {
         // Compare the declaration to the same canonical content already checked
         // by mapping.validate; local physical identity is checked against Prepared
         // by the clean snapshot before this value can enter aggregate accounting.
@@ -51,8 +57,10 @@ struct SharedMediaNativePhotoTransferReservation: Codable, Equatable, Sendable {
               let photos = content["photos"] as? [[String: Any]], photos.indices.contains(selection.photoOrdinal),
               let role = photos[selection.photoOrdinal][selection.role.rawValue] as? [String: Any],
               try ObservationHistoryPage.integer(role["byte_count"], maximum: Int(Self.copyAllowance)) == byteCount,
-              role["sha256"] as? String == sha256, role["declared_content_type"] as? String == contentType else {
+              role["sha256"] as? String == sha256, let declared = role["declared_content_type"] as? String,
+              declared == contentType || declared == (try? SharedMediaNativePhotoContent.wireContentType(contentType)) else {
             throw SharedMediaStorageFailure.conflict
         }
+        return declared
     }
 }

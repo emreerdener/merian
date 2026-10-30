@@ -1,3 +1,47 @@
+## Native CPM ticket decoder candidate — October 30
+
+`InitialPhotoUploadTicket` consumes the existing closed private issued/held
+contract, bounded to 8 KiB before JSON parsing. It requires exact V5 allocation,
+selected transfer role/media and original receipt-bounded clocks, then matches
+backend generation/configuration digest and the complete signed destination
+against an independently injected `InitialPhotoUploadDestination` pin. The
+native allocation does **not** currently persist that backend projection: this
+proves agreement with a trusted composition input, not with a locally saved
+backend. No ticket, status response or remote flag may construct or choose the
+pin, and no production pin is installed. Configuration mismatch fails closed.
+
+The server-created write attempt remains distinct from the allocation's
+`Claim.attemptID`; UUID syntax does not establish freshness. Existing remote
+attempts deny this fresh-response decoder. Five exact headers, closed SigV4
+queries, signed expiry, source/AI/display byte ceilings and MIME/hash identity
+are checked. The consumed receiving continuation permits one response
+observation, spent before decode; malformed replies cannot be replaced through
+that handle. Decoded data is transient and redacted, with private URL/headers
+and no Codable, URLRequest or upload factory. It cannot confer PUT, restart or
+retry permission.
+
+Fresh native CPM declarations project saved ImageIO identifiers to a closed wire
+MIME spelling (JPEG, PNG, WebP, HEIC or HEIF) before the candidate is frozen.
+`SharedMediaNativePhotoContent` owns this projection; local original, derivative
+and transfer metadata retain their exact stored type. This does not expand the
+currently JPEG/PNG-only ticket contract or qualify other upload formats. Claim
+recovery accepts only an exact reconstruction of the complete current or legacy
+claim, including canonical bytes and both digests; it never rewrites an accepted
+legacy declaration. A transfer validates the declaration against its unchanged
+physical type, and the ticket must match that exact submitted spelling. A legacy
+UTI declaration remains recoverable but cannot be treated as a MIME upload
+ticket.
+
+Candidate02 compiled, but its real-owner role tests exposed this UTI/MIME
+mismatch (HQ-010). The projection fix passed independent corrective source
+review and exact native qualification (22 methods / 27 cases); failed runs
+remain retained. Before durable PUT-started integration, backend identity across
+configuration changes must be fixed through a saved projection or demonstrated
+immutable server-assignment binding plus exact trusted-pin matching. Unknown
+configurations remain held. The
+[scan contract](16-scan-ingestion-reliability-and-recovery.md#october-30--native-ticket-response-candidate)
+owns evidence and remaining integration.
+
 ## Dormant transient CPM ticket contract — October 30
 
 The private `issued` result of `issueInitialCpmPhotoUpload` now uses the closed

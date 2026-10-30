@@ -1,3 +1,20 @@
+## Native ticket response candidate — October 30
+
+The existing consumed continuation now admits one response observation and
+spends that observation before decoding, including malformed and held replies.
+It checks the exact retained receiving/account operation before and after
+decoding. The native decoder binds V5 and its selected role to an independently
+injected trusted destination pin. Its transient result is inert, redacted and
+has no request factory. No pin or transport is installed; backend identity
+across configuration changes and durable PUT-started admission remain required.
+Fresh CPM declarations now project local ImageIO types to wire MIME while
+keeping physical metadata and exact legacy claims unchanged. HQ-010 records the
+real-owner mismatch found by candidate02; corrective source review and exact
+native qualification passed 22 methods / 27 cases, with failed runs retained.
+The
+[scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--native-ticket-response-candidate)
+owns the candidate evidence and exclusions.
+
 ## Pre-ticket uncertainty candidate — October 30
 
 The existing allocation owner now proposes a V5 marker before a fresh ticket

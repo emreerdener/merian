@@ -83,12 +83,14 @@ and every configured boundary fixture against Python. The portable
 Swift parity. Neither is native test-target or runtime qualification.
 
 Domain coverage is deliberately bounded to Capture, the listed Camera files, the
-globally bounded SharedMediaStorage/PhotoPreparation directories, and six exact
+globally bounded SharedMediaStorage/PhotoPreparation directories, and nine exact
 Network owners: `Core/Network/Inference/IdentificationPreflight.swift`,
 `Core/Network/Endpoints/MerianNetworkClient+IdentificationPreflight.swift`,
 `Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRequest.swift`,
 `Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRoleReply.swift`,
 `Core/Network/Models/ObservationAnalysis/InitialPhotoUploadStatus.swift`,
+`Core/Network/Models/ObservationAnalysis/InitialPhotoUploadDestination.swift`,
+`Core/Network/Models/ObservationAnalysis/InitialPhotoUploadTicket.swift`,
 `Core/Network/Transport/InitialPhotoAllocationTransport.swift` and
 `Core/Network/Transport/PinnedNetworkTransport.swift`. Each Network file retains
 the existing Core Network 600 physical-line ceiling; this does not cover sibling
