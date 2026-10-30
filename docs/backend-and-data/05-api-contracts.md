@@ -19,17 +19,21 @@ and `cpmPhotoBoundRecovery` preserve the closed legacy validator. Generation
 must match the validated assignment; the SQL projection binds configuration
 digest to the registry because the private assignment contains generation only.
 No endpoint, bucket, credentials, capability or execution authority is exposed.
-The native client remains v2: durable tuple reservation/persistence and trusted
-allowlist resolution are not implemented by this backend increment. No v3 app
-request, ticket factory or feature activation is installed. Local qualification
-passed 18 focused projection/transport tests, all 502 migrations, 176 catalogs /
-7,269 assertions, and the complete connected function suite: 4,106 tests / 748
-steps, zero failures or skips. The additional fresh-v3 creation case passed with
-the exact affected catalog (243 assertions) on a second owned fresh replay.
-Engine cleared source and verified that correction. Both instances were removed.
-Tooling components passed across the retained aggregate prefix and resumed shell
-tail after a sandbox terminal-input failure; that original failure is not
-relabeled as a green aggregate invocation. Evidence:
+The subsequent inactive
+[native reservation candidate](16-scan-ingestion-reliability-and-recovery.md#october-30--native-backend-identity-reservation-candidate)
+adds explicit v3 request/decoding and atomic durable tuple persistence. It is
+locally qualified for the bounded native reservation/adapter checkpoint; the
+linked scan contract records exact tests, retained failures and exclusions.
+Trusted allowlist resolution, ticket factory and feature activation remain
+unimplemented. Local qualification passed 18 focused projection/transport tests,
+all 502 migrations, 176 catalogs / 7,269 assertions, and the complete connected
+function suite: 4,106 tests / 748 steps, zero failures or skips. The additional
+fresh-v3 creation case passed with the exact affected catalog (243 assertions)
+on a second owned fresh replay. Engine cleared source and verified that
+correction. Both instances were removed. Tooling components passed across the
+retained aggregate prefix and resumed shell tail after a sandbox terminal-input
+failure; that original failure is not relabeled as a green aggregate invocation.
+Evidence:
 `.artifacts/native-app-capture-handoff-20261020/cpm-backend-binding-qualified02.json`.
 These are local backend component results, not native or full-journey
 acceptance.

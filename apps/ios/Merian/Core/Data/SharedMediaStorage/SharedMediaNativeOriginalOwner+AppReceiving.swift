@@ -84,10 +84,10 @@ extension SharedMediaNativeOriginalOwner {
                           send: @escaping SharedMediaNativePhotoAllocationAccess.Send) async throws -> SharedMediaNativePhotoAllocation {
         try await allocateAppPhoto(prepared, reserveRoleMapping: reserveRoleMapping, authorizeCreate: authorizeCreate, transport: .legacy(send))
     }
-    func allocateAppPhotoRoles(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+    func allocateAppPhotoRoles(_ prepared: SharedMediaNativeReceivingIntent.Prepared, backendBinding: Bool = false,
                               authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
                               send: @escaping SharedMediaNativePhotoAllocationTransportAccess.RolesSend) async throws -> SharedMediaNativePhotoAllocation {
-        try await allocateAppPhoto(prepared, authorizeCreate: authorizeCreate, transport: .roles(send))
+        try await allocateAppPhoto(prepared, authorizeCreate: authorizeCreate, transport: backendBinding ? .boundRoles(send) : .roles(send))
     }
     func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                           authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
@@ -126,7 +126,7 @@ extension SharedMediaNativeOriginalOwner {
                 operation = try await storage.appPhotoAllocation(grant: grant, lock: lock)
             }
             try grant.validate(); try lock.validate()
-            return try operation.claim(prepared, attemptID: UUID(), reserveRoleMapping: reserveRoleMapping || transport.projection == .roles, beforeClaimSave: {
+            return try operation.claim(prepared, attemptID: UUID(), reserveRoleMapping: reserveRoleMapping || transport.projection == .roles, reserveBackendBinding: transport.projection == .boundRoles, beforeClaimSave: {
                 guard let authorization else { throw SharedMediaStorageFailure.stale }
                 try authorization.validate()
             })

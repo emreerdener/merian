@@ -1,3 +1,55 @@
+## October 30 — native backend identity reservation candidate
+
+The inactive native allocation path now offers explicit v3 create/status through
+`InitialPhotoAllocationRequest`, the existing authenticated transport and the
+retained receiving owner. Before dispatch, the owner persists sidecar V6 with
+maximum receipt, ordered mapping and backend-tuple metadata plus revision
+runway. A missing receipt reserves two advances: a delayed legacy receipt may
+arrive before atomic v3 enrichment. Terminal/peer obligations remain included in
+the whole-graph admission calculation. Enrichment saves the receipt, mapping and
+`BackendBinding` together; it never changes accepted claims, existing mappings,
+original clocks or a previously saved tuple. The full metadata charge remains
+after completion, including ambiguous save acknowledgement and restart.
+
+Only V1/V2 can explicitly reserve V6. Existing V1–V5 bytes remain readable and
+unchanged. Legacy transfer/ticket states cannot upgrade; V6 cannot reserve a
+transfer, observe a remote attempt or start a ticket. Holds neither save nor
+clear facts. A fresh acknowledged claim alone can dispatch create; recovered or
+save-then-throw claims use status. Account, cancellation, inventory and
+receiving locks remain owned by the existing operations. Both response orders
+preserve completed facts or reject conflicts.
+
+Engine and independent contract source reviews cleared this bounded candidate.
+Combined focused native qualification passed **61 methods / 154 cases** across
+allocation enrichment, v3 wire/transport, Capture composition, transfer/ticket
+regressions, owner boundaries and network architecture. All 3,069 native/project
+inputs were checked. The original run passed 151 cases and failed three cases in
+two new tests: unsupported overlapping owner dispatch and an invalid legacy
+fixture. The reviewed sequential response/replay correction passed its two
+cases; the legacy fixture also needed canonical slash encoding before its
+single-case rerun passed. These test-only fixes leave production unchanged. The
+sequential test proves post-reservation response/replay ordering, not an
+in-flight pre-upgrade response. Original failed runs remain retained; they are
+not relabeled green. There were no skipped tests or structured runtime warnings.
+
+Evidence is `native-backend-binding-combined-qualified05.json` under
+`.artifacts/native-app-capture-handoff-20261020/`. Build/test durations were
+8,907.785s, 519.054s and 172.218s for the original and two corrective runs;
+active remediation duration is unknown. The exact Foundation-only encoding
+reproduction caught the second fixture mismatch before another native build.
+Markdown, new canonical links, generated DTO/project checks and exact Supabase
+format checks passed. Scoped SwiftLint exited successfully with 30 warnings and
+zero errors; known lint/architecture and resource-qualification gaps remain.
+This is a local coding checkpoint, not a new Release or full-journey acceptance.
+
+The ordinary factory remains inactive. V7–V9, saved-tuple trusted destination
+resolution and durable PUT-started integration remain next; no pin, upload
+factory or feature activation is installed. Full initial/reanalysis journeys,
+audio/video, RUX1–6 and cumulative qualification remain open. The dated backend
+checkpoint below records the preceding native-v2 boundary; this section is the
+current native contract. API wire authority remains the
+[v3 allocation contract](05-api-contracts.md#october-30--inactive-v3-allocation-backend-projection).
+
 ## October 30 — backend allocation identity checkpoint
 
 The inactive
@@ -996,14 +1048,15 @@ new upload, funding, provider, release or deployment right.
 
 ## Current initial-photo integration entry point — October 28
 
-This section traces the **inactive local initial-photo candidate**. The older
-runtime contract and its dated evidence below remain applicable to their legacy
-paths; they do not qualify this new journey. Photo consent/preflight through
-immutable local receipt is locally qualified. The authenticated allocation
-facade and native durable allocation owner have local source review and
-runtime/Release evidence. Transfer, execution, result/history and full journey
-acceptance remain open. Nothing here implies deployment or feature activation.
-The
+Updated October 30 for explicit native backend binding; the heading remains
+stable for existing links. This section traces the **inactive local
+initial-photo candidate**. The older runtime contract and its dated evidence
+below remain applicable to their legacy paths; they do not qualify this new
+journey. Photo consent/preflight through immutable local receipt is locally
+qualified. The authenticated allocation facade and native durable allocation
+owner have local source review and runtime/Release evidence. Transfer,
+execution, result/history and full journey acceptance remain open. Nothing here
+implies deployment or feature activation. The
 [existing receiving record](../../apps/ios/Merian/Models/ActiveSchema/SharedMediaReceivingIntentRecord.swift)
 owns the V67 allocation sidecar; its migration and failure-closed
 release/recovery contract is owned by the
@@ -1026,9 +1079,12 @@ usability.
 `SharedMediaNativeAppPhotoAllocationOperations` permits only the allocation
 sidecar and inventory revision to change. Prepared/Received bytes and receiving
 revision stay fixed. V1 claim creation reserves its receipt successor; explicit
-v2 also reserves the complete ordered role mapping. Metadata, package and
-aggregate revision accounting preserve every pending peer and terminal
-obligation. The
+sidecar V2 also reserves the complete ordered role mapping. Explicit sidecar V6
+reserves the receipt, mapping and immutable backend tuple before wire v3
+create/status, then persists the complete projection atomically. Sidecar
+versions describe local metadata states; wire versions describe negotiated API
+shapes. V6 remains transfer/ticket closed. Metadata, package and aggregate
+revision accounting preserve every pending peer and terminal obligation. The
 [enrichment contract](#native-allocation-enrichment-inactive-candidate) owns
 those exact successor rules. Exact receipt replays and negative observations do
 not write. Clean consumer/audit/budget readers use
@@ -1036,8 +1092,10 @@ not write. Clean consumer/audit/budget readers use
 closed. Explicit
 [v3 transfer reservation](#october-29--inactive-single-role-transfer-reservation-candidate)
 adds one held role and its maximum additional-copy allowance after v2 mapping.
-It is implemented, with native qualification pending. No transfer or retirement
-is authorized by any of these metadata states.
+That legacy V3 component is locally qualified under its linked evidence. The new
+V6 binding path cannot advance to transfer yet; trusted saved-tuple resolution
+and later V7–V9 integration remain pending. No transfer or retirement is
+authorized by any of these metadata states.
 
 An unresolved allocation must not freeze independent drafts. The current repair
 carries a clean `SharedMediaNativePhotoAllocationPeer` through each existing
@@ -1079,9 +1137,10 @@ separate authorization.
 flowchart LR
     A[Capture selection and optional text] --> B[Original ownership and photo preparation]
     B --> C[Frozen Prepared and local Received]
-    C --> D[Inactive authenticated create or status]
-    D --> E[Private CPM assignment and minimal receipt]
-    E --> R[One role reserved locally - qualification pending]
+    C --> V[Durable V6 claim and metadata reservation]
+    V --> D[Inactive authenticated v3 create or status]
+    D --> E[Atomic receipt, role mapping and backend identity]
+    E -. pending integration .-> R[Trusted saved-tuple resolution and transfer reservation]
     R -. pending integration .-> F[Transfer and byte verification]
     F -. pending integration .-> G[Admission and execution]
     G -. pending integration .-> H[Result then explicit history enrollment]
@@ -1119,8 +1178,11 @@ exposes only the complete ordered logical-reference/opaque-object mapping. Its
 [`InitialPhotoAllocationRoleReply`](../../apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRoleReply.swift)
 decoder and
 [`focused native tests`](../../apps/ios/MerianTests/Core/Network/Transport/InitialPhotoAllocationRoleReplyTests.swift)
-are the contributor entry points. Legacy requests default to v1; the inactive
-Capture composition now explicitly selects v2 and is locally qualified. The
+are the contributor entry points. Legacy requests default to v1. The inactive
+Capture composition retains locally qualified v2 and now accepts explicit v3
+backend binding; the
+[current native contract](#october-30--native-backend-identity-reservation-candidate)
+records its exact qualification and remaining work. The
 [inactive reservation/enrichment writer](#native-allocation-enrichment-inactive-candidate)
 is locally qualified; a settled v1 receipt must first reserve its additional
 metadata and revision allowance before v2 transport can consume it. Recovery

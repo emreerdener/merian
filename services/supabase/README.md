@@ -1,3 +1,13 @@
+## Current native CPM binding — October 30
+
+The inactive native v3 composition now reserves and durably saves backend
+identity with the complete allocation projection through existing owners. See
+the
+[current scan contract](../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--native-backend-identity-reservation-candidate)
+for qualification and remaining trusted-destination/ticket integration. No
+ordinary factory, provider, feature or deployment activation is installed. The
+backend-only checkpoint below predates this native increment.
+
 ## Inactive CPM v3 backend metadata
 
 The

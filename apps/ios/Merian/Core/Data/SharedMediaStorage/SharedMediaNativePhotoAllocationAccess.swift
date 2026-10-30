@@ -15,6 +15,10 @@ struct SharedMediaNativePhotoAllocationAccess {
         self.authorize = authorize; transport = .roles(sendRoles)
     }
 
+    init(authorize: @escaping Authorize, sendBoundRoles: @escaping SharedMediaNativePhotoAllocationTransportAccess.RolesSend) {
+        self.authorize = authorize; transport = .boundRoles(sendBoundRoles)
+    }
+
     /// Preserve the caller's immutable selection/attempt fence around both
     /// projections. Only the retained owner decides durable create versus status.
     @MainActor func allocate(owner: SharedMediaNativeOriginalOwner,
@@ -30,8 +34,8 @@ struct SharedMediaNativePhotoAllocationAccess {
                 try validate()
                 return try await send(request, { try check(); try validate() }, { try settle(); try validate() })
             }
-        case .roles(let send):
-            return try await owner.allocateAppPhotoRoles(prepared, authorizeCreate: authorizeCreate) { request, check, settle in
+        case .roles(let send), .boundRoles(let send):
+            return try await owner.allocateAppPhotoRoles(prepared, backendBinding: transport.projection == .boundRoles, authorizeCreate: authorizeCreate) { request, check, settle in
                 try validate()
                 return try await send(request, { try check(); try validate() }, { try settle(); try validate() })
             }
@@ -45,8 +49,13 @@ enum SharedMediaNativePhotoAllocationTransportAccess {
     typealias RolesSend = @MainActor (InitialPhotoAllocationRequest, @escaping SharedMediaNativePhotoAllocationAccess.Validator, @escaping SharedMediaNativePhotoAllocationAccess.Validator) async throws -> InitialPhotoAllocationRoleReply
     case legacy(SharedMediaNativePhotoAllocationAccess.Send)
     case roles(RolesSend)
+    case boundRoles(RolesSend)
     var projection: InitialPhotoAllocationRequest.Projection {
-        switch self { case .legacy: .legacy; case .roles: .roles }
+        switch self {
+        case .legacy: .legacy
+        case .roles: .roles
+        case .boundRoles: .boundRoles
+        }
     }
     enum Reply { case legacy(InitialPhotoAllocationReply), roles(InitialPhotoAllocationRoleReply) }
     @MainActor func send(_ request: InitialPhotoAllocationRequest,
@@ -54,7 +63,7 @@ enum SharedMediaNativePhotoAllocationTransportAccess {
                         settle: @escaping SharedMediaNativePhotoAllocationAccess.Validator) async throws -> Reply {
         switch self {
         case .legacy(let send): return .legacy(try await send(request, validate, settle))
-        case .roles(let send): return .roles(try await send(request, validate, settle))
+        case .roles(let send), .boundRoles(let send): return .roles(try await send(request, validate, settle))
         }
     }
 }

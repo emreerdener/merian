@@ -1,3 +1,15 @@
+## Current native allocation v3 candidate — October 30
+
+`InitialPhotoAllocationRequest` and the existing authenticated allocation
+transport now support explicitly selected v3 alongside v1/v2. The closed v3
+reply binds receipt, ordered roles and backend identity to the saved V6
+reservation; the receiving owner saves them atomically. The
+[scan contract](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--native-backend-identity-reservation-candidate)
+owns qualification, accounting and the next trusted-destination boundary. The
+ordinary factory, ticket/PUT construction and feature activation remain closed.
+Earlier dated decoder and transport notes retain their checkpoint scope; v1-only
+or v2-only statements there are superseded by this current candidate.
+
 ## Inert CPM ticket response candidate — October 30
 
 `InitialPhotoUploadTicket` and `InitialPhotoUploadDestination` validate bounded

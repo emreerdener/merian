@@ -31,11 +31,16 @@ struct InitialPhotoAllocationTransportTests {
              "reference_id": ref.uuidString.lowercased(),
              "object_id": String(format: "00000000-0000-4000-8000-%012d", index + (changedObject ? 200 : 100))]
         }
-        return try JSONSerialization.data(withJSONObject: ["version": 2, "variant": "client_prepared_photo", "authority": "none",
+        var response: [String: Any] = ["version": request.projection == .boundRoles ? 3 : 2, "variant": "client_prepared_photo", "authority": "none",
             "scan_id": claim.observationID.uuidString.lowercased(), "package_id": claim.packageID.uuidString.lowercased(),
             "candidate_digest": claim.candidateDigest, "content_digest": claim.contentDigest, "outcome": "allocated",
             "assignment_digest": receipt.assignmentDigest, "created_at_ms": receipt.createdAtMilliseconds,
-            "expires_at_ms": receipt.expiresAtMilliseconds, "role_mapping": entries], options: [.sortedKeys])
+            "expires_at_ms": receipt.expiresAtMilliseconds, "role_mapping": entries]
+        if request.projection == .boundRoles {
+            response["backend_generation"] = "00000000-0000-4000-8000-000000000077"
+            response["backend_configuration_digest"] = String(repeating: "c", count: 64)
+        }
+        return try JSONSerialization.data(withJSONObject: response, options: [.sortedKeys])
     }
     private func candidate() throws -> Request {
         try .init(allocation: InitialPhotoAllocationRoleReplyTests().request().allocation.reservingRoleMapping(), action: .status, projection: .roles)

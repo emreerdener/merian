@@ -22,12 +22,13 @@ struct InitialPhotoAllocationTransport {
     func performRoles(_ candidate: InitialPhotoAllocationRequest,
                       validateAttempt: @escaping @MainActor @Sendable () throws -> Void,
                       validateResponse: @escaping @MainActor @Sendable () throws -> Void) async throws -> InitialPhotoAllocationRoleReply {
-        guard candidate.projection == .roles, candidate.allocation.version == 2 else { throw SharedMediaStorageFailure.closed }
+        guard (candidate.projection == .roles && candidate.allocation.version == 2)
+            || (candidate.projection == .boundRoles && candidate.allocation.version == 6) else { throw SharedMediaStorageFailure.closed }
         let data = try await exchange(candidate, validateAttempt: validateAttempt)
         let saved = candidate.allocation.roleMapping.flatMap { mapping in
-            candidate.allocation.receipt.map { InitialPhotoAllocationRoleReply.Projection(receipt: $0, entries: mapping.entries) }
+            candidate.allocation.receipt.map { InitialPhotoAllocationRoleReply.Projection(receipt: $0, entries: mapping.entries, backendBinding: candidate.allocation.backendBinding) }
         }
-        let reply = try InitialPhotoAllocationRoleReply(data: data, request: candidate, saved: saved)
+        let reply = try InitialPhotoAllocationRoleReply(data: data, request: candidate, saved: candidate.projection == .boundRoles && candidate.allocation.backendBinding == nil ? nil : saved)
         try await validateResponse()
         return reply
     }

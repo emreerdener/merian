@@ -1,3 +1,14 @@
+## Current native v3 integration — October 30
+
+The inactive native composition now explicitly reserves V6 metadata/revisions
+before v3 create/status and atomically persists the exact receipt, mapping and
+backend identity. The
+[scan contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--native-backend-identity-reservation-candidate)
+owns its qualification status and remaining integration. Trusted destination
+resolution, ticket/PUT construction and the ordinary factory remain closed.
+Earlier sections record their dated backend/projection checkpoints; their
+native-v1/v2-only statements do not describe this current inactive candidate.
+
 ## October 30 — inactive backend-binding projection
 
 Negotiated v3 now projects the exact saved backend generation/configuration

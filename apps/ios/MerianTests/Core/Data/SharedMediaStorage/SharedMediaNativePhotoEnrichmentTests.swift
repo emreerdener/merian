@@ -193,4 +193,147 @@ struct SharedMediaNativePhotoEnrichmentTests {
         #expect(final.preparedData == before.preparedData && final.resultData == before.resultData && final.revision == before.revision)
         #expect(await owner.invalidateAndAwaitForAccountTransition())
     }
+    private var binding: Allocation.BackendBinding {
+        .init(generation: UUID(uuidString: "00000000-0000-4000-8000-000000000077")!, configurationDigest: String(repeating: "c", count: 64))
+    }
+
+    @Test(arguments: ["v1", "v1Receipt", "v2", "v2Receipt", "v2Mapping"])
+    func bindingReservationPreservesLegacyAndRetainsMaximumCharge(_ predecessor: String) throws {
+        let fixture = InitialPhotoAllocationRoleReplyTests(), projection = try fixture.projection()
+        var legacy = try fixture.request().allocation
+        if predecessor.hasPrefix("v2") { legacy = try legacy.reservingRoleMapping() }
+        if predecessor.hasSuffix("Receipt") { legacy = try legacy.settling(projection.receipt) }
+        if predecessor == "v2Mapping" { legacy = try legacy.enriching(projection.receipt, mapping: .init(entries: projection.entries)) }
+        let bytes = try legacy.encoded(), reserved = try legacy.reservingBackendBinding()
+        #expect(try Allocation.decode(bytes, sha256: SharedMediaAcquisitionEncoding.digest(bytes)).encoded() == bytes)
+        let original = try #require(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        #expect(original["backendBinding"] == nil)
+        try legacy.requireSuccessor(reserved)
+        #expect(reserved.claim == legacy.claim && reserved.receipt == legacy.receipt && reserved.roleMapping == legacy.roleMapping)
+        #expect(reserved.remainingAdvances == (legacy.receipt == nil ? 2 : 1))
+        let delayed = try reserved.settling(projection.receipt)
+        if delayed != reserved { try reserved.requireSuccessor(delayed) }
+        #expect(delayed.version == 6 && delayed.remainingAdvances == 1)
+        let enriched = try delayed.enriching(projection.receipt, mapping: .init(entries: projection.entries), binding: binding)
+        try delayed.requireSuccessor(enriched)
+        #expect(enriched.remainingAdvances == 0 && enriched.backendBinding == binding)
+        #expect(try enriched.storageCharge == reserved.storageCharge)
+        #expect(try enriched.storageCharge >= Int64(enriched.encoded().count) + 64)
+        #expect(try enriched.settling(projection.receipt) == enriched)
+        #expect(try enriched.enriching(projection.receipt, mapping: .init(entries: projection.entries), binding: binding) == enriched)
+        #expect(throws: (any Error).self) { try enriched.requireSuccessor(legacy) }
+        #expect(throws: (any Error).self) { _ = try enriched.enriching(projection.receipt, mapping: .init(entries: projection.entries)) }
+        #expect(throws: (any Error).self) { _ = try enriched.reservingRemoteAttempt() }
+        #expect(throws: (any Error).self) { _ = try enriched.startingTicketRequest() }
+    }
+
+    @Test(arguments: [false, true])
+    func legacyReceiptAndBoundReplyPreserveFactsInBothOrders(boundFirst: Bool) async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture(), receipt = receipt
+        let recoveryAuthorization: SharedMediaNativePhotoAllocationAccess.Authorize = { _, _ in
+            Issue.record("Recovery requested create authorization"); throw SharedMediaStorageFailure.closed
+        }
+        do {
+            // The owner rejects overlapping dispatch. Exercise both supported
+            // response/replay orders through complete retained operations.
+            let legacy = try await owner.allocateAppPhoto(p, authorizeCreate: { p, _ in try authorize(p) }) { _, _, _ in .held(.notFound) }
+            let reserved = try await owner.allocateAppPhotoRoles(p, backendBinding: true, authorizeCreate: recoveryAuthorization) { request, _, _ in
+                #expect(request.action == .status && request.allocation.claim == legacy.claim)
+                return .held(.notFound)
+            }
+            #expect(reserved.version == 6 && reserved.remainingAdvances == 2)
+            if !boundFirst {
+                let delayed = try await owner.allocateAppPhoto(p, authorizeCreate: recoveryAuthorization) { request, _, _ in
+                    #expect(request.action == .status && request.allocation.claim == legacy.claim)
+                    return .allocated(receipt)
+                }
+                #expect(delayed.version == 6 && delayed.remainingAdvances == 1 && delayed.backendBinding == nil)
+            }
+            let enriched = try await owner.allocateAppPhotoRoles(p, backendBinding: true, authorizeCreate: recoveryAuthorization) { request, _, _ in
+                .allocated(.init(receipt: receipt, entries: try mapping(request.allocation).entries, backendBinding: binding))
+            }
+            let before = try row(h), savedRevision = try revision(h)
+            if boundFirst {
+                let delayed = try await owner.allocateAppPhoto(p, authorizeCreate: recoveryAuthorization) { request, _, _ in
+                    #expect(request.action == .status && request.allocation.claim == legacy.claim)
+                    return .allocated(receipt)
+                }
+                #expect(delayed == enriched)
+                #expect(try row(h) == before && revision(h) == savedRevision)
+            }
+            #expect(try allocation(h) == enriched && enriched.backendBinding == binding)
+            #expect(try enriched.storageCharge == reserved.storageCharge)
+            let conflicting = Allocation.Receipt(assignmentDigest: String(repeating: "d", count: 64),
+                createdAtMilliseconds: receipt.createdAtMilliseconds, expiresAtMilliseconds: receipt.expiresAtMilliseconds)
+            await #expect(throws: (any Error).self) {
+                _ = try await owner.allocateAppPhoto(p, authorizeCreate: recoveryAuthorization) { _, _, _ in .allocated(conflicting) }
+            }
+            #expect(try row(h) == before && revision(h) == savedRevision)
+            let entry = try #require(enriched.roleMapping?.entries.first)
+            await #expect(throws: SharedMediaStorageFailure.closed) { _ = try await owner.reserveAppPhotoTransfer(p, selection: entry) }
+            #expect(try row(h) == before && revision(h) == savedRevision)
+            #expect(await owner.invalidateAndAwaitForAccountTransition())
+        } catch {
+            _ = await owner.invalidateAndAwaitForAccountTransition()
+            throw error
+        }
+    }
+
+    @Test(arguments: ["capacity", "revision", "afterSave"])
+    func bindingReservationFailsBeforeDispatchOrRecoversOnlyStatus(_ fault: String) async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let before = try row(h)
+        if fault == "revision" {
+            let c = h.context(); try inventory(h, c).revision = Int64.max - 2; try c.save()
+        }
+        var fail = true, calls = 0
+        try owner.setMetadataFault({ boundary in
+            if fault == "afterSave", boundary == .afterSave, fail { fail = false; throw SharedMediaStorageFailure.unavailable }
+        }, availableBytes: fault == "capacity" ? 0 : nil)
+        let send: SharedMediaNativePhotoAllocationTransportAccess.RolesSend = { request, _, _ in
+            calls += 1; #expect(request.action == .status && request.allocation.version == 6)
+            return .held(.notFound)
+        }
+        if fault == "afterSave" {
+            let saved = try await owner.allocateAppPhotoRoles(p, backendBinding: true, authorizeCreate: { p, _ in try authorize(p) }, send: send)
+            #expect(saved.backendBinding == nil && saved.remainingAdvances == 2 && calls == 1)
+        } else {
+            await #expect(throws: (any Error).self) {
+                _ = try await owner.allocateAppPhotoRoles(p, backendBinding: true, authorizeCreate: { p, _ in try authorize(p) }, send: send)
+            }
+            #expect(calls == 0)
+            #expect(try row(h) == before)
+        }
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func ambiguousBindingSaveColdRecoveryAndChangedTupleCannotReleaseFacts() async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture(), receipt = receipt
+        _ = try await owner.allocateAppPhotoRoles(p, backendBinding: true, authorizeCreate: { p, _ in try authorize(p) }) { _, _, _ in .held(.notFound) }
+        var fail = true
+        try owner.setMetadataFault { if $0 == .afterSave, fail { fail = false; throw SharedMediaStorageFailure.unavailable } }
+        let enriched = try await owner.allocateAppPhotoRoles(p, backendBinding: true, authorizeCreate: { p, _ in try authorize(p) }) { request, _, _ in
+            .allocated(.init(receipt: receipt, entries: try mapping(request.allocation).entries, backendBinding: binding))
+        }
+        let before = try row(h), charge = try enriched.storageCharge
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let cold = try await SharedMediaNativeReceivingStagingTests().reopen(h)
+        let replay = try await cold.allocateAppPhotoRoles(p, backendBinding: true, authorizeCreate: { _, _ in
+            Issue.record("Cold recovery authorized create"); throw SharedMediaStorageFailure.closed
+        }) { request, _, _ in
+            #expect(request.action == .status && request.allocation == enriched)
+            return .allocated(.init(receipt: receipt, entries: try mapping(request.allocation).entries, backendBinding: binding))
+        }
+        #expect(replay == enriched)
+        #expect(try replay.storageCharge == charge && row(h) == before)
+        await #expect(throws: (any Error).self) {
+            _ = try await cold.allocateAppPhotoRoles(p, backendBinding: true, authorizeCreate: { p, _ in try authorize(p) }) { request, _, _ in
+                .allocated(.init(receipt: receipt, entries: try mapping(request.allocation).entries,
+                    backendBinding: .init(generation: UUID(), configurationDigest: binding.configurationDigest)))
+            }
+        }
+        #expect(try row(h) == before)
+        #expect(await cold.invalidateAndAwaitForAccountTransition())
+    }
+
 }

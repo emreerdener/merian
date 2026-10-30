@@ -8,16 +8,17 @@ import Testing
 struct CaptureNativePhotoRoleAllocationTests {
     typealias Wire = InitialPhotoAllocationTransportTests
 
-    @Test(arguments: [false, true])
-    func twoPhotoRoleAllocationAndColdRecoveryPreserveSubmission(lostReply: Bool) async throws {
+    @Test(arguments: [false, true], [false, true])
+    func twoPhotoRoleAllocationAndColdRecoveryPreserveSubmission(lostReply: Bool, boundBackend: Bool) async throws {
         let f = try await CaptureNativePhotoSubmissionTests().fixture(count: 2)
         let wire = Wire.Fixture(ownerID: f.store.ownerID); defer { wire.close() }
         var authorizations = 0, actions: [InitialPhotoAllocationRequest.Action] = []
-        let access = SharedMediaNativePhotoAllocationAccess(authorize: { _, validate in
+        let authorize: SharedMediaNativePhotoAllocationAccess.Authorize = { _, validate in
             try validate(); authorizations += 1
             return .init(recipient: .gemini, validate: {})
-        }, sendRoles: { request, validate, settle in
-            #expect(request.projection == .roles && request.allocation.version == 2)
+        }
+        let send: SharedMediaNativePhotoAllocationTransportAccess.RolesSend = { request, validate, settle in
+            #expect(request.projection == (boundBackend ? .boundRoles : .roles) && request.allocation.version == (boundBackend ? 6 : 2))
             actions.append(request.action)
             let data = try Wire.reply(request), body = request.body, lose = lostReply && request.action == .create
             wire.mock.register(path: Wire.path) { outgoing in
@@ -26,7 +27,9 @@ struct CaptureNativePhotoRoleAllocationTests {
                 return (HTTPURLResponse(url: outgoing.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!, data)
             }
             return try await wire.transport.performRoles(request, validateAttempt: validate, validateResponse: settle)
-        })
+        }
+        let access = boundBackend ? SharedMediaNativePhotoAllocationAccess(authorize: authorize, sendBoundRoles: send)
+            : SharedMediaNativePhotoAllocationAccess(authorize: authorize, sendRoles: send)
         let session = CaptureNativePhotoSubmissionSession(selection: f.selection,
             preflight: { _, _, _ in .init(recipient: .gemini, validate: {}) }, allocationAccess: access, resolveOwner: { f.owner })
         let snapshot = try CaptureNativePhotoSubmissionSnapshot(f.capture)
@@ -50,19 +53,21 @@ struct CaptureNativePhotoRoleAllocationTests {
         #expect(actions == [.create, .status] && authorizations == 1)
         #expect(recovered.allocation?.roleMapping?.entries.count == 6)
         #expect(recovered.allocation?.remainingAdvances == 0)
+        #expect((recovered.allocation?.backendBinding != nil) == boundBackend)
         #expect(try f.store.context().fetch(FetchDescriptor<OfflineQueuedScan>()).map(\.queueNeedsAttention) == [true])
         #expect(await cold.invalidateAndAwaitForAccountTransition())
     }
 
-    @Test(arguments: [false, true])
-    func actualCaptureCallerPreservesLaterSelectionWithRoleProjection(changeSelection: Bool) async throws {
+    @Test(arguments: [false, true], [false, true])
+    func actualCaptureCallerPreservesLaterSelectionWithRoleProjection(changeSelection: Bool, boundBackend: Bool) async throws {
         let harness = CaptureNativePhotoSubmissionTests(), f = try await harness.fixture()
         let entered = ImageFocusEngineTests.Signal(), release = ImageFocusEngineTests.Signal()
         let wire = Wire.Fixture(ownerID: f.store.ownerID); defer { wire.close() }
         var actions: [InitialPhotoAllocationRequest.Action] = []
-        let access = SharedMediaNativePhotoAllocationAccess(authorize: { _, validate in
+        let authorize: SharedMediaNativePhotoAllocationAccess.Authorize = { _, validate in
             try validate(); return .init(recipient: .gemini, validate: {})
-        }, sendRoles: { request, validate, settle in
+        }
+        let send: SharedMediaNativePhotoAllocationTransportAccess.RolesSend = { request, validate, settle in
             try validate(); actions.append(request.action)
             await entered.open(); await release.wait()
             let data = try Wire.reply(request)
@@ -70,7 +75,9 @@ struct CaptureNativePhotoRoleAllocationTests {
                 (HTTPURLResponse(url: outgoing.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!, data)
             }
             return try await wire.transport.performRoles(request, validateAttempt: validate, validateResponse: settle)
-        })
+        }
+        let access = boundBackend ? SharedMediaNativePhotoAllocationAccess(authorize: authorize, sendBoundRoles: send)
+            : SharedMediaNativePhotoAllocationAccess(authorize: authorize, sendRoles: send)
         let session = CaptureNativePhotoSubmissionSession(selection: f.selection,
             preflight: { _, _, _ in .init(recipient: .gemini, validate: {}) }, allocationAccess: access, resolveOwner: { f.owner })
         let vm = harness.viewModel(session: session, account: { f.store.ownerID })

@@ -4,7 +4,7 @@ import Foundation
 /// right to create; only its live, acknowledged claim transition can do that.
 struct InitialPhotoAllocationRequest: Sendable {
     enum Action: String, Sendable { case create, status }
-    enum Projection: Int, Sendable { case legacy = 1, roles = 2 }
+    enum Projection: Int, Sendable { case legacy = 1, roles = 2, boundRoles = 3 }
     let allocation: SharedMediaNativePhotoAllocation
     let action: Action
     let projection: Projection
@@ -13,6 +13,7 @@ struct InitialPhotoAllocationRequest: Sendable {
     init(allocation: SharedMediaNativePhotoAllocation, action: Action, projection: Projection = .legacy) throws {
         _ = try allocation.encoded()
         guard projection != .roles || allocation.version == 2 else { throw SharedMediaStorageFailure.closed }
+        guard projection != .boundRoles || allocation.version == 6 else { throw SharedMediaStorageFailure.closed }
         guard action != .create || allocation.receipt == nil else { throw SharedMediaStorageFailure.closed }
         var fields: [String: Any] = ["version": projection.rawValue, "action": action.rawValue,
             "candidate_canonical": allocation.claim.candidateCanonical]

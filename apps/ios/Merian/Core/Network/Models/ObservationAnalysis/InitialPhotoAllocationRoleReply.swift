@@ -1,6 +1,6 @@
 import Foundation
 
-/// Inactive v2 metadata decoder. No request, persistence, transfer or closure
+/// Inactive v2/v3 metadata decoder. No request, persistence, transfer or closure
 /// authority follows from this projection. The receiving owner must reserve
 /// metadata/revision runway before requesting or saving an enriched receipt.
 enum InitialPhotoAllocationRoleReply: Equatable, Sendable {
@@ -9,6 +9,11 @@ enum InitialPhotoAllocationRoleReply: Equatable, Sendable {
     struct Projection: Equatable, Sendable {
         let receipt: SharedMediaNativePhotoAllocation.Receipt
         let entries: [Entry]
+        let backendBinding: SharedMediaNativePhotoAllocation.BackendBinding?
+        init(receipt: SharedMediaNativePhotoAllocation.Receipt, entries: [Entry],
+             backendBinding: SharedMediaNativePhotoAllocation.BackendBinding? = nil) {
+            self.receipt = receipt; self.entries = entries; self.backendBinding = backendBinding
+        }
     }
     static let maximumBytes = 2048
     case allocated(Projection)
@@ -19,7 +24,8 @@ enum InitialPhotoAllocationRoleReply: Equatable, Sendable {
               let row = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw MerianError.invalidResponse
         }
-        try InitialPhotoAllocationReply.requireAssociation(row, request: request, version: 2)
+        let bound = request.projection == .boundRoles
+        try InitialPhotoAllocationReply.requireAssociation(row, request: request, version: bound ? 3 : 2)
         let common = InitialPhotoAllocationReply.associationKeys
         switch row["outcome"] as? String {
         case "terminal_held":
@@ -28,7 +34,7 @@ enum InitialPhotoAllocationRoleReply: Equatable, Sendable {
             // A hold cannot discard a previously saved projection or prove closure.
             self = .held(held)
         case "allocated":
-            guard Set(row.keys) == common.union(["assignment_digest", "created_at_ms", "expires_at_ms", "role_mapping"]),
+            guard Set(row.keys) == common.union(["assignment_digest", "created_at_ms", "expires_at_ms", "role_mapping"]).union(bound ? ["backend_generation", "backend_configuration_digest"] : []),
                   let digest = row["assignment_digest"] as? String,
                   let mapping = row["role_mapping"] as? [[String: Any]] else { throw MerianError.invalidResponse }
             let receipt = try InitialPhotoAllocationReply.receipt(row, digest: digest, request: request)
@@ -44,7 +50,14 @@ enum InitialPhotoAllocationRoleReply: Equatable, Sendable {
                 guard objects.insert(object).inserted else { throw MerianError.invalidResponse }
                 entries.append(.init(photoOrdinal: index / 3, role: Role.allCases[index % 3], referenceID: references[index], objectID: object))
             }
-            let projection = Projection(receipt: receipt, entries: entries)
+            let binding: SharedMediaNativePhotoAllocation.BackendBinding?
+            if bound {
+                guard let digest = row["backend_configuration_digest"] as? String else { throw MerianError.invalidResponse }
+                binding = try .init(generation: ObservationHistoryPage.uuid(row["backend_generation"]), configurationDigest: digest)
+                try binding?.validate()
+                _ = try request.allocation.enriching(receipt, mapping: .init(entries: entries), binding: binding)
+            } else { binding = nil }
+            let projection = Projection(receipt: receipt, entries: entries, backendBinding: binding)
             guard saved == nil || saved == projection else { throw MerianError.invalidResponse }
             self = .allocated(projection)
         default: throw MerianError.invalidResponse

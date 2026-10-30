@@ -56,9 +56,9 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         }
     }
 
-    func claim(_ prepared: SharedMediaNativeReceivingIntent.Prepared, attemptID: UUID, reserveRoleMapping: Bool = false, beforeClaimSave: () throws -> Void = {}) throws -> SharedMediaNativePhotoAllocationDispatch {
+    func claim(_ prepared: SharedMediaNativeReceivingIntent.Prepared, attemptID: UUID, reserveRoleMapping: Bool = false, reserveBackendBinding: Bool = false, beforeClaimSave: () throws -> Void = {}) throws -> SharedMediaNativePhotoAllocationDispatch {
         if let saved = try saved(prepared) {
-            let allocation = try reserveRoleMapping ? reserveRoles(prepared) : saved
+            let allocation = try reserveBackendBinding ? reserveRoles(prepared, backendBinding: true) : (reserveRoleMapping ? reserveRoles(prepared) : saved)
             return .init(allocation: allocation, create: false)
         }
         let context = fresh(), inventory = try inventory(context)
@@ -66,7 +66,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         guard case .generic(let value) = witnesses[prepared.package.id],
               case .received(let p, let received, _) = value.slot, try p.encoded() == prepared.encoded() else { throw SharedMediaStorageFailure.stale }
         let legacy = Allocation(claim: try .init(prepared: p, received: received, attemptID: attemptID))
-        let allocation = try reserveRoleMapping ? legacy.reservingRoleMapping() : legacy
+        let allocation = try reserveBackendBinding ? legacy.reservingBackendBinding() : (reserveRoleMapping ? legacy.reservingRoleMapping() : legacy)
         try requireReservation(allocation, replacing: nil, context: context, inventory: inventory, witnesses: witnesses)
         let acknowledged = try persist(allocation, prepared: prepared, context: context, inventory: inventory, beforeSave: beforeClaimSave)
         // Exact readback of an uncertain acknowledgement deliberately mints no create authority.
@@ -75,9 +75,9 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
 
     /// Upgrade an existing claim only. Even an unresolved legacy claim can never
     /// regain create authority through reservation or acknowledgement recovery.
-    func reserveRoles(_ prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> Allocation {
+    func reserveRoles(_ prepared: SharedMediaNativeReceivingIntent.Prepared, backendBinding: Bool = false) throws -> Allocation {
         guard let current = try saved(prepared) else { throw SharedMediaStorageFailure.closed }
-        let after = try current.reservingRoleMapping()
+        let after = try backendBinding ? current.reservingBackendBinding() : current.reservingRoleMapping()
         guard after != current else { return current }
         let context = fresh(), inventory = try inventory(context)
         let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)
@@ -254,12 +254,13 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
     /// request. Holds and exact replays do not save or release any liability.
     func enrich(_ reply: InitialPhotoAllocationRoleReply, request: Allocation,
                 prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> Allocation {
-        guard request.version == 2, let current = try saved(prepared), current.version == 2,
+        guard request.version == 2 || request.version == 6, let current = try saved(prepared), current.version == request.version,
               current.claim == request.claim else { throw SharedMediaStorageFailure.stale }
         if let receipt = request.receipt, receipt != current.receipt { throw SharedMediaStorageFailure.conflict }
         if let mapping = request.roleMapping, mapping != current.roleMapping { throw SharedMediaStorageFailure.conflict }
+        if let binding = request.backendBinding, binding != current.backendBinding { throw SharedMediaStorageFailure.conflict }
         guard case .allocated(let projection) = reply else { return current }
-        let after = try current.enriching(projection.receipt, mapping: .init(entries: projection.entries))
+        let after = try current.enriching(projection.receipt, mapping: .init(entries: projection.entries), binding: projection.backendBinding)
         guard after != current else { return current }
         let context = fresh(), inventory = try inventory(context)
         guard let row = try SharedMediaNativeReceivingPhaseGraph.row(prepared.package.id, in: context),
