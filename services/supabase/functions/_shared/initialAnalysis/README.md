@@ -1,3 +1,15 @@
+## Role-aware source MIME candidate — October 30
+
+The existing observation target validator now distinguishes retained originals
+from JPEG-only AI/display derivatives. Ticket decoding reuses that validator;
+signing still binds the exact submitted type, length and digest. The
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#role-aware-cpm-source-mime-candidate--october-30)
+owns the closed vocabulary, immutable profile boundary and coordinated local
+qualification: native 20 methods / 42 cases and a fresh-database backend run of
+4,099 tests / 748 steps. Physical-format, provider and full-journey
+qualification remain open. No original conversion, profile or route installation
+is introduced.
+
 ## Dormant transient upload ticket
 
 The existing issuer now returns its private issued capability through the closed

@@ -2,6 +2,7 @@ import { assertEquals, assertRejects } from "@std/assert";
 import { initialCanonicalText } from "./canonical.ts";
 import { initialMediaHash } from "./mediaBinding.ts";
 import {
+  CPM_PHOTO_CONTENT_TYPES,
   type CpmWriteObservationBinding,
   type CpmWriteObservationDependencies,
   type CpmWriteObservationTarget,
@@ -324,4 +325,30 @@ Deno.test("CPM signed headers are privately captured before the next lifecycle a
   };
   await f.run();
   assertEquals(f.requests[0].headers.has("range"), false);
+});
+
+Deno.test("CPM observation preserves source MIME and rejects non-JPEG derivatives before IO", async (t) => {
+  for (const role of ["source", "ai", "display"] as const) {
+    for (const type of CPM_PHOTO_CONTENT_TYPES) {
+      await t.step(`${role} ${type}`, async () => {
+        const f = await fixture();
+        if (f.target.outcome !== "live_object") throw new Error("fixture");
+        f.target.role = role;
+        f.target.content_type = type;
+        f.headers.set("content-type", type);
+        if (role !== "source" && type !== "image/jpeg") {
+          await assertRejects(f.run);
+          assertEquals(f.requests.length, 0);
+          assertEquals(f.checks(), 0);
+        } else {
+          const result = await f.run();
+          assertEquals(result.target, f.target);
+          assertEquals(f.requests.length, 1);
+          // Metadata vocabulary never permits a mismatched storage response.
+          f.headers.set("content-type", "image/gif");
+          await assertRejects(f.run);
+        }
+      });
+    }
+  }
 });

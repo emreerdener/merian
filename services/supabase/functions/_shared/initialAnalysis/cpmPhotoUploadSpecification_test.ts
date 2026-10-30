@@ -3,6 +3,8 @@ import { initialCanonicalText } from "./canonical.ts";
 import { initialMediaHash } from "./mediaBinding.ts";
 import { prepareCpmPhotoUploadSpecification } from "./cpmPhotoUploadSpecification.ts";
 
+import { CPM_PHOTO_CONTENT_TYPES } from "./cpmPhotoWriteObservation.ts";
+
 const id = (n: number) =>
   `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
@@ -221,4 +223,32 @@ Deno.test("CPM specification snapshots every mutable caller fact before suspensi
   assertThrows(() =>
     Object.assign(result.headers, { "If-None-Match": "different" })
   );
+});
+
+Deno.test("CPM specification fixes role-aware MIME without original conversion", async (t) => {
+  for (const role of ["source", "ai", "display"]) {
+    for (const type of CPM_PHOTO_CONTENT_TYPES) {
+      await t.step(`${role} ${type}`, async () => {
+        const f = await fixture();
+        f.input.target.role = role;
+        f.input.target.content_type = type;
+        if (role !== "source" && type !== "image/jpeg") {
+          await assertRejects(() =>
+            prepareCpmPhotoUploadSpecification(f.input, f.profiles)
+          );
+        } else {
+          const result = await prepareCpmPhotoUploadSpecification(
+            f.input,
+            f.profiles,
+          );
+          assertEquals(result.target, f.input.target);
+          assertEquals(result.headers["Content-Type"], type);
+          assertEquals(
+            result.payload_integrity.required_digest,
+            f.input.target.sha256,
+          );
+        }
+      });
+    }
+  }
 });

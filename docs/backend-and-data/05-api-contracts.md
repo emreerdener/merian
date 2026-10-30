@@ -1,3 +1,30 @@
+## Role-aware CPM source MIME candidate — October 30
+
+The dormant server observation/specification/ticket boundary now admits the
+existing five original-source MIME spellings: `image/jpeg`, `image/png`,
+`image/webp`, `image/heic` and `image/heif`. AI/display derivatives require
+`image/jpeg`. `snapshotCpmWriteObservationTarget` owns that role rule and the
+ticket decoder reuses it before exact target/header matching. The executable
+schema declares the closed vocabulary for both body and header; its restricted
+matcher does not implement general JSON Schema conditionals. SQL remains the
+authority for the exact immutable profile's `original_content_types`; this
+transport vocabulary grants no profile, issuance or retry authority.
+
+Bytes, declared types, digests, original clocks and signatures remain bound
+exactly. No original conversion or saved-claim migration is performed. Focused
+synthetic backend checks passed 33 tests / 75 steps, including non-JPEG
+derivative rejection before storage IO and coherent target/header substitution.
+The inert native decoder now mirrors the role rule, with a 21-case matrix that
+also denies unsupported MIME and legacy UTI tickets, preserves exact frozen
+declarations and keeps held replies inert. Engine source and corrective-delta
+reviews passed. Native qualification passed 20 methods / 42 cases; the complete
+backend suite passed 4,099 tests / 748 steps with no ignored tests or connection
+skips on a fresh disposable database replaying all 501 migrations. The
+[scan contract](16-scan-ingestion-reliability-and-recovery.md#october-30--original-source-mime-compatibility-candidate)
+owns failed-run evidence, environment correction and remaining physical-format,
+provider and full-journey qualification. No live route/profile or provider
+activation is added.
+
 ## Native CPM ticket decoder candidate — October 30
 
 `InitialPhotoUploadTicket` consumes the existing closed private issued/held
@@ -23,14 +50,15 @@ retry permission.
 Fresh native CPM declarations project saved ImageIO identifiers to a closed wire
 MIME spelling (JPEG, PNG, WebP, HEIC or HEIF) before the candidate is frozen.
 `SharedMediaNativePhotoContent` owns this projection; local original, derivative
-and transfer metadata retain their exact stored type. This does not expand the
-currently JPEG/PNG-only ticket contract or qualify other upload formats. Claim
-recovery accepts only an exact reconstruction of the complete current or legacy
-claim, including canonical bytes and both digests; it never rewrites an accepted
-legacy declaration. A transfer validates the declaration against its unchanged
-physical type, and the ticket must match that exact submitted spelling. A legacy
-UTI declaration remains recoverable but cannot be treated as a MIME upload
-ticket.
+and transfer metadata retain their exact stored type. The backend candidate
+above and the inert native decoder share source vocabulary with focused local
+qualification; full physical-format and upload-journey qualification remain
+pending. Claim recovery accepts only an exact reconstruction of the complete
+current or legacy claim, including canonical bytes and both digests; it never
+rewrites an accepted legacy declaration. A transfer validates the declaration
+against its unchanged physical type, and the ticket must match that exact
+submitted spelling. A legacy UTI declaration remains recoverable but cannot be
+treated as a MIME upload ticket.
 
 Candidate02 compiled, but its real-owner role tests exposed this UTI/MIME
 mismatch (HQ-010). The projection fix passed independent corrective source

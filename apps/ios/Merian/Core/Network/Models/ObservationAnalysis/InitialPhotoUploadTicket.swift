@@ -34,6 +34,9 @@ struct InitialPhotoUploadTicket: Sendable, CustomStringConvertible, CustomDebugS
         let keys: Set<String> = ["version", "outcome", "attempt_id", "scan_id", "assignment_digest", "object_id",
             "backend_generation", "backend_configuration_digest", "role", "byte_count", "content_type", "sha256",
             "created_at_ms", "capability_expires_at_ms", "signed_expires_at_ms", "url", "method", "headers", "provider_enforcement"]
+        let contentTypeAccepted = transfer.selection.role == .source
+            ? ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].contains(contentType)
+            : contentType == "image/jpeg"
         guard Set(row.keys) == keys, try ObservationHistoryPage.integer(row["version"], maximum: 1) == 1,
               row["outcome"] as? String == "issued", row["method"] as? String == "PUT",
               row["provider_enforcement"] as? String == "unqualified",
@@ -45,7 +48,7 @@ struct InitialPhotoUploadTicket: Sendable, CustomStringConvertible, CustomDebugS
               row["role"] as? String == transfer.selection.role.rawValue,
               try ObservationHistoryPage.integer(row["byte_count"], maximum: 33_554_432) == transfer.byteCount,
               row["content_type"] as? String == contentType,
-              ["image/jpeg", "image/png"].contains(contentType), row["sha256"] as? String == transfer.sha256,
+              contentTypeAccepted, row["sha256"] as? String == transfer.sha256,
               let headers = row["headers"] as? [String: String], let rawURL = row["url"] as? String else { throw MerianError.invalidResponse }
         let maximum: Int64 = transfer.selection.role == .source ? 33_554_432 : (transfer.selection.role == .ai ? 5_242_880 : 4_194_304)
         guard transfer.byteCount > 0, transfer.byteCount <= maximum,

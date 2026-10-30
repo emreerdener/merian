@@ -29,13 +29,24 @@ export interface CpmWriteObservationBinding {
   issued_at_ms: number;
   verification_policy_digest: string;
 }
+// Transport vocabulary only. SQL still checks the exact immutable profile's
+// original_content_types; this list grants no profile or upload authority.
+export const CPM_PHOTO_CONTENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+] as const;
+export type CpmPhotoContentType = typeof CPM_PHOTO_CONTENT_TYPES[number];
+
 export type CpmWriteObservationTarget =
   | {
     outcome: "live_object";
     role: "source" | "ai" | "display";
     byte_count: number;
     sha256: string;
-    content_type: "image/jpeg" | "image/png";
+    content_type: CpmPhotoContentType;
   }
   | { outcome: "retired_marker" };
 export interface CpmWriteObservationDependencies {
@@ -109,7 +120,9 @@ export function snapshotCpmWriteObservationTarget(value: unknown) {
     t.outcome !== "live_object" || !Number.isSafeInteger(t.byte_count) ||
     typeof t.byte_count !== "number" || t.byte_count < 1 ||
     t.byte_count > limit ||
-    (t.content_type !== "image/jpeg" && t.content_type !== "image/png")
+    !(t.role === "source"
+      ? CPM_PHOTO_CONTENT_TYPES.some((type) => type === t.content_type)
+      : t.content_type === "image/jpeg")
   ) throw initialMediaUnavailable();
   mediaDigest(t.sha256);
   return Object.freeze(t) as unknown as Readonly<CpmWriteObservationTarget>;

@@ -62,7 +62,10 @@
       "max_bytes": 10,
       "enum": [
         "image/jpeg",
-        "image/png"
+        "image/png",
+        "image/webp",
+        "image/heic",
+        "image/heif"
       ]
     },
     "sha256": {
@@ -111,7 +114,10 @@
           "max_bytes": 10,
           "enum": [
             "image/jpeg",
-            "image/png"
+            "image/png",
+            "image/webp",
+            "image/heic",
+            "image/heif"
           ]
         },
         "Content-Length": {

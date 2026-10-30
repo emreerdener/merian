@@ -7,6 +7,11 @@ import { matchesInitialSchema } from "./schema.ts";
 import { initialMediaUnavailable } from "./mediaBinding.ts";
 import type { prepareCpmPhotoUploadSpecification } from "./cpmPhotoUploadSpecification.ts";
 
+import {
+  type CpmPhotoContentType,
+  snapshotCpmWriteObservationTarget,
+} from "./cpmPhotoWriteObservation.ts";
+
 type Specification = Awaited<
   ReturnType<typeof prepareCpmPhotoUploadSpecification>
 >;
@@ -22,7 +27,7 @@ export interface CpmPhotoUploadTicket {
   readonly backend_configuration_digest: string;
   readonly role: "source" | "ai" | "display";
   readonly byte_count: number;
-  readonly content_type: "image/jpeg" | "image/png";
+  readonly content_type: CpmPhotoContentType;
   readonly sha256: string;
   readonly created_at_ms: number;
   readonly capability_expires_at_ms: number;
@@ -31,7 +36,7 @@ export interface CpmPhotoUploadTicket {
   readonly method: "PUT";
   readonly headers: Readonly<{
     "If-None-Match": "*";
-    "Content-Type": "image/jpeg" | "image/png";
+    "Content-Type": CpmPhotoContentType;
     "Content-Length": string;
     "Cache-Control": "private, no-store";
     "x-amz-content-sha256": string;
@@ -65,7 +70,7 @@ export function decodeCpmPhotoUploadTicket(
   ) {
     if (v[key] !== spec.binding[key]) throw initialMediaUnavailable();
   }
-  const target = spec.target;
+  const target = snapshotCpmWriteObservationTarget(spec.target);
   if (
     target.outcome !== "live_object" || v.role !== target.role ||
     v.byte_count !== target.byte_count ||

@@ -14,9 +14,30 @@ struct InitialPhotoUploadTicketTests {
     func bytes(_ row: [String: Any]) throws -> Data { try JSONSerialization.data(withJSONObject: row, options: [.sortedKeys]) }
     // Value-only fixture reuses the independently validated allocation contract;
     // it cannot mint a continuation, storage lock or any transfer authority.
-    func allocation(_ role: Role = .source) throws -> Allocation {
+    func allocation(_ role: Role = .source, contentType: String? = nil) throws -> Allocation {
         let fixture = InitialPhotoAllocationRoleReplyTests(), projection = try fixture.projection()
-        let base = try fixture.request().allocation.reservingRoleMapping().enriching(projection.receipt, mapping: .init(entries: projection.entries))
+        var request = try fixture.request()
+        if let contentType {
+            // Change only the synthetic declaration before constructing the claim.
+            // This fixture does not assert SQL profile admission or actual file bytes.
+            func canonical(_ object: [String: Any]) throws -> String {
+                let data = try JSONSerialization.data(withJSONObject: object,
+                    options: [.sortedKeys, .withoutEscapingSlashes])
+                return try #require(String(data: data, encoding: .utf8))
+            }
+            var candidate = try #require(JSONSerialization.jsonObject(with:
+                Data(request.allocation.claim.candidateCanonical.utf8)) as? [String: Any])
+            let contentText = try #require(candidate["content_canonical"] as? String)
+            var content = try #require(JSONSerialization.jsonObject(with:
+                Data(contentText.utf8)) as? [String: Any])
+            var photos = try #require(content["photos"] as? [[String: Any]])
+            var value = try #require(photos[0][role.rawValue] as? [String: Any])
+            value["declared_content_type"] = contentType
+            photos[0][role.rawValue] = value; content["photos"] = photos
+            candidate["content_canonical"] = try canonical(content)
+            request = try fixture.request(candidate: canonical(candidate))
+        }
+        let base = try request.allocation.reservingRoleMapping().enriching(projection.receipt, mapping: .init(entries: projection.entries))
         let entry = try #require(projection.entries.first { $0.role == role })
         let candidate = try #require(JSONSerialization.jsonObject(with: Data(base.claim.candidateCanonical.utf8)) as? [String: Any])
         let contentText = try #require(candidate["content_canonical"] as? String)
@@ -67,6 +88,27 @@ struct InitialPhotoUploadTicketTests {
         #expect(try decode(held, allocation).outcome == .held)
         #expect(throws: (any Error).self) { _ = try decode(held.merging(["url": row["url"]!]) { _, new in new }, allocation) }
     }
+    @Test(arguments: Role.allCases, ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif", "public.jpeg"])
+    func roleContentTypesPreserveExactFrozenDeclaration(_ role: Role, _ contentType: String) throws {
+        let allocation = try allocation(role, contentType: contentType), row = try row(allocation)
+        let before = try allocation.encoded()
+        let sourceType = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].contains(contentType)
+        if contentType == "image/jpeg" || (role == .source && sourceType) {
+            let ticket = try decode(row, allocation)
+            #expect(ticket.outcome == .issued)
+            try ticket.requireMatch(allocation, destination: destination())
+            var changed = row, headers = try #require(row["headers"] as? [String: String])
+            headers["Content-Type"] = contentType == "image/png" ? "image/jpeg" : "image/png"
+            changed["headers"] = headers
+            #expect(throws: (any Error).self) { _ = try decode(changed, allocation) }
+        } else {
+            #expect(throws: (any Error).self) { _ = try decode(row, allocation) }
+        }
+        let held: [String: Any] = ["outcome": "held", "attempt_id": row["attempt_id"]!]
+        #expect(try decode(held, allocation).outcome == .held)
+        #expect(try allocation.encoded() == before)
+    }
+
     @Test func closedFieldsAndImmutableBinding() throws {
         let allocation = try allocation(), row = try row(allocation)
         for key in row.keys {

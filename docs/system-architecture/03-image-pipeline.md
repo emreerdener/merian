@@ -55,7 +55,7 @@ quality, dimensions and byte budgets are unchanged. This option changes neither
 saved original bytes nor already-published derivative bytes, types or digests.
 Cold recovery reads the exact saved pair; it does not regenerate older WebP
 pairs. Wider original formats and full app admission remain unqualified; see the
-[scan integration status](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--native-jpeg-preparation-candidate).
+[scan integration status](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--native-jpeg-preparation-local-qualification).
 
 After downsampling, a **composing-zone-aware square crop** is applied to both
 payloads before WebP encoding. The crop geometry is calculated from the

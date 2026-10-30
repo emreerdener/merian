@@ -10,6 +10,10 @@ import {
   type CpmPhotoIssuanceBridge,
   issueInitialCpmPhotoUpload,
 } from "./cpmPhotoUploadIssuer.ts";
+import { CPM_PHOTO_CONTENT_TYPES } from "./cpmPhotoWriteObservation.ts";
+import ticketSchema from "./cpm-photo-upload-ticket-schema-v1.json" with {
+  type: "json",
+};
 const id = (n: number) =>
   `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const signal = () => new AbortController().signal;
@@ -400,6 +404,25 @@ Deno.test("CPM transient ticket rejects identity, byte, header, expiry and desti
     })),
   );
   assertEquals(decodeCpmPhotoUploadTicket(result, spec), result);
+  // Even a coherently substituted specification cannot authorize a PNG derivative.
+  assertThrows(() =>
+    decodeCpmPhotoUploadTicket({
+      ...result,
+      role: "ai",
+      content_type: "image/png",
+      headers: { ...result.headers, "Content-Type": "image/png" },
+    }, {
+      ...spec,
+      target: {
+        ...f.fresh.observation.target,
+        outcome: "live_object",
+        role: "ai",
+        content_type: "image/png",
+      },
+      headers: { ...spec.headers, "Content-Type": "image/png" },
+    })
+  );
+
   const changes: Record<string, unknown>[] = [
     { version: 2 },
     { outcome: "held" },
@@ -502,4 +525,40 @@ Deno.test("CPM transient ticket rejects identity, byte, header, expiry and desti
     assertThrows(() => decodeCpmPhotoUploadTicket({ ...result, url }, spec));
   }
   assertEquals(f.calls, ["begin", "current", "current"]);
+});
+
+Deno.test("CPM issued ticket schema vocabulary and role binding agree", async (t) => {
+  assertEquals(ticketSchema.properties.content_type.enum, [
+    ...CPM_PHOTO_CONTENT_TYPES,
+  ]);
+  assertEquals(
+    ticketSchema.properties.headers.properties["Content-Type"].enum,
+    [...CPM_PHOTO_CONTENT_TYPES],
+  );
+  for (const role of ["source", "ai", "display"]) {
+    for (const type of CPM_PHOTO_CONTENT_TYPES) {
+      await t.step(`${role} ${type}`, async () => {
+        const f = await fixture(role);
+        f.fresh.observation.target.content_type = type;
+        const issue = () =>
+          issueInitialCpmPhotoUpload(
+            f.bridge,
+            f.identity,
+            f.profiles,
+            signal(),
+          );
+        if (role !== "source" && type !== "image/jpeg") {
+          await assertRejects(issue);
+          assertEquals(f.calls, ["begin"]);
+        } else {
+          const result = await issue();
+          assert(result.outcome === "issued");
+          assertEquals(result.content_type, type);
+          assertEquals(result.headers["Content-Type"], type);
+          assertEquals(result.sha256, f.fresh.observation.target.sha256);
+          assertEquals(f.calls, ["begin", "current", "current"]);
+        }
+      });
+    }
+  }
 });

@@ -5,8 +5,8 @@ through the existing file, manual-crop and camera encoders. It retains original
 bytes and exact saved pairs; recovery performs no format migration. The
 [image pipeline](../../../../../../docs/system-architecture/03-image-pipeline.md#2-dual-path-preparation-mediapreparationactor--imagedownsampler)
 owns format policy; the
-[scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--native-jpeg-preparation-candidate)
-tracks pending qualification and remaining integration.
+[scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--native-jpeg-preparation-local-qualification)
+tracks focused local qualification and remaining full-journey integration.
 
 ## Native ticket response candidate — October 30
 

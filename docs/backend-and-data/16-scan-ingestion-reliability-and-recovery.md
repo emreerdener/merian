@@ -1,3 +1,47 @@
+## October 30 — original-source MIME compatibility candidate
+
+The existing server target/ticket validators and inert native ticket decoder now
+distinguish five original-source MIME spellings from JPEG-only AI/display
+derivatives. The
+[API contract](05-api-contracts.md#role-aware-cpm-source-mime-candidate--october-30)
+owns the role rule and exact declaration/header binding. No original is
+converted and no saved claim is rewritten. SQL profile admission remains the
+authority; this transport compatibility adds no execution permission.
+
+Focused synthetic backend checks passed 33 tests / 75 steps. Engine cleared the
+source and corrective delta. Native qualification passed 20 methods / 42 cases
+in 310.449 seconds, including the 21-case role/format matrix, exact declaration
+preservation, inert held replies and invalid-response consumption. The initial
+native run stopped at a nested test-macro compile error and executed zero tests;
+its log and XCResult remain retained. Hoisting the inner required value fixed
+the fixture without changing production. Exact native input hashes and actual
+selected coverage were verified; no structured runtime warnings were reported.
+
+The first complete backend invocation reached the existing default local
+database and failed 36 database tests / 2 steps: missing Explore columns and
+routines plus older Field Trip behavior. Its 3,531 passed tests / 746 steps and
+532 ignored tests remain recorded as an incomplete result. The shared instance
+was not reset or migrated. A uniquely owned disposable local instance replayed
+all 501 migrations and ran the complete task with an explicit test target:
+**4,099 tests / 748 steps passed, zero failures, ignored tests or connection
+skips**. Cleanup removed only that disposable instance. This establishes a
+current-schema test environment; it does not repair the shared local database.
+
+Recursive types, formatting/lint, generated DTO parity, Supabase tooling,
+function configuration/dependency checks and source preflight passed. The
+combined exact-input receipt is `cpm-source-mime-qualified02.json` under
+`.artifacts/native-app-capture-handoff-20261020/`, with 6,788 worktree inputs
+checked and original failures preserved. Native build/test time across both
+attempts was 576.126 seconds, original backend gates 662.779 seconds, disposable
+setup/test/cleanup 582.029 seconds and source reviews 35.062 seconds. These are
+separate run durations, not summed elapsed wall time; active remediation time
+was not measured.
+
+Physical decoding of every original format, provider enforcement and full app
+journeys remain unqualified. Trusted backend configuration binding and durable
+PUT-started integration are still required; no route/profile or feature is
+activated.
+
 ## October 30 — native JPEG preparation local qualification
 
 The existing native processor now requests JPEG from the shared image encoders
@@ -25,11 +69,12 @@ and preflight parity passed. Two new test-lint warnings were corrected; six
 existing warnings remain. This is focused component evidence, not full app,
 Release, provider or resource qualification.
 
-HQ-011 remains open for wider source-format compatibility and complete app
-qualification. This change does not install a ticket route, destination profile
-or PUT constructor; configuration binding and durable PUT-started admission
-remain required. Existing claims and published derivatives are never rewritten
-or automatically reprocessed to satisfy the new format choice.
+The source-MIME checkpoint above subsequently qualifies transport vocabulary.
+HQ-011 remains open for physical-format and complete app qualification. This
+change does not install a ticket route, destination profile or PUT constructor;
+configuration binding and durable PUT-started admission remain required.
+Existing claims and published derivatives are never rewritten or automatically
+reprocessed to satisfy the new format choice.
 
 ## October 30 — native ticket response candidate
 
@@ -72,8 +117,9 @@ roles. At the ticket checkpoint, native encoder owners preferred WebP when
 available; the locally qualified JPEG preparation above addresses new encoding
 only. Complete app journey qualification remains open (HQ-011). The decoder's
 bounded MIME check does not prove allocation admission or derivative-format
-compatibility. Source formats beyond the current JPEG/PNG ticket contract also
-remain outside this slice's qualification.
+compatibility. Source formats beyond the then-current JPEG/PNG ticket contract
+were outside this slice's qualification; the source-MIME checkpoint above
+records the later transport qualification.
 
 ## October 30 — dormant transient ticket contract
 
@@ -91,7 +137,11 @@ caught a missing discriminated-union narrowing for the live-object target; it
 was repaired without a cast or suppressed check. Engine cleared the exact
 seven-file source candidate without blockers. The full backend suite passed
 3,564 tests / 703 steps with 532 explicitly ignored tests; those ignored cases
-remain unqualified. Recursive type checks, formatting/lint, DTO parity, Function
+remain unqualified for that run. Its database helpers also returned after local
+connection failures, so the green count is not connected-database evidence. The
+fresh explicit-target run at the source-MIME checkpoint above supplies current
+connected coverage; it does not retroactively qualify this historical run.
+Recursive type checks, formatting/lint, DTO parity, Function
 configuration/dependency checks and Markdown/diff gates passed.
 
 The tooling invocation stopped at a synthetic hidden-key launcher test because
