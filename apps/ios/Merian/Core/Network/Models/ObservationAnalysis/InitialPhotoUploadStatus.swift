@@ -14,6 +14,7 @@ struct InitialPhotoUploadStatus: Equatable, Sendable {
     }
     static let maximumBytes = 2048
     let attempt: Attempt?
+    private let claim: SharedMediaNativePhotoAllocation.Claim
     private let ownerID: UUID, scanID: UUID, objectID: UUID
     private let receipt: SharedMediaNativePhotoAllocation.Receipt
 
@@ -30,6 +31,7 @@ struct InitialPhotoUploadStatus: Equatable, Sendable {
               try ObservationHistoryPage.uuid(row["scan_id"]) == allocation.claim.observationID,
               row["assignment_digest"] as? String == receipt.assignmentDigest,
               try ObservationHistoryPage.uuid(row["object_id"]) == objectID else { throw MerianError.invalidResponse }
+        claim = allocation.claim
         ownerID = allocation.claim.profile.ownerID; scanID = allocation.claim.observationID
         self.objectID = objectID; self.receipt = receipt
         if row["attempt"] is NSNull { attempt = nil } else {
@@ -47,7 +49,7 @@ struct InitialPhotoUploadStatus: Equatable, Sendable {
                             createdAtMilliseconds: created, capabilityExpiresAtMilliseconds: expires, writeClosed: closed.boolValue)
         }
         if let saved {
-            guard saved.ownerID == ownerID, saved.scanID == scanID, saved.objectID == objectID,
+            guard saved.claim == claim, saved.ownerID == ownerID, saved.scanID == scanID, saved.objectID == objectID,
                   saved.receipt == receipt else { throw MerianError.invalidResponse }
             if let old = saved.attempt {
                 guard let attempt, attempt.id == old.id,
@@ -57,5 +59,11 @@ struct InitialPhotoUploadStatus: Equatable, Sendable {
                       !old.writeClosed || attempt.writeClosed else { throw MerianError.invalidResponse }
             }
         }
+    }
+
+    /// Validates the caller's retained identity again at the persistence seam.
+    func requireMatch(_ allocation: SharedMediaNativePhotoAllocation, objectID: UUID) throws {
+        guard allocation.claim == claim, allocation.receipt == receipt,
+              self.objectID == objectID else { throw SharedMediaStorageFailure.conflict }
     }
 }

@@ -1,3 +1,55 @@
+## October 29 — durable historical attempt candidate
+
+The inactive native allocation owner adds an explicit V3-to-V4 metadata
+reservation before saving historical status. V1/V2/V3 canonical bytes remain
+accepted unchanged. The V4 slot belongs only to the already reserved transfer
+role; it contains no ticket, URL, headers, credentials or fresh dispatch right.
+`SharedMediaNativePhotoAllocation.RemoteAttempt` stores the original attempt ID,
+bound/possibly-issued state, original creation and capability-expiry clocks and
+write-closed fact. The existing SwiftData allocation sidecar stores these facts;
+no SwiftData schema fields or schema version change.
+
+Reservation holds the largest canonical status slot and three future inventory
+advances. Observation may progress from absent to bound, possibly issued and
+closed, including skipped intermediate observations. Same-value or
+absent-before- known replies do not write. Known attempts cannot disappear,
+change identity or clocks, regress to bound, or reopen after closure. Expiry is
+historical evidence, not a renewed deadline. The largest metadata charge and the
+existing 32 MiB copy liability remain held even after closure; closure proves
+neither local file retirement nor remote media availability.
+
+`reserveAppPhotoRemoteAttempt` and `observeAppPhotoRemoteAttempt` reuse the
+retained native owner, coordinator locks and fresh allocation audit. The
+observation must match the exact saved request, full claim, receipt and selected
+role object. The persistence owner checks aggregate metadata, free space and
+peer/terminal revision runway before saving, including same-version V4 progress.
+It mutates only allocation sidecar bytes/hash and inventory revision; received
+media/text and row revision remain immutable. Account/deletion authority is
+rechecked by the existing owner around its asynchronous acquisition/audit. No
+network caller is installed by this checkpoint.
+
+Engine source review cleared the frozen candidate. Focused native qualification
+passed 24 methods / 79 cases across two retained runs, with 3,063 unchanged
+input hashes, no structured runtime warnings and passing storage/evidence
+limits. Cases cover role-specific progress and cold reopen, unchanged legacy
+decoding, no-op absence, monotonic rejection, account/deletion fences, failed or
+ambiguous saves, and recovery revisions that unrelated drafts cannot spend. The
+first run passed 66 cases but omitted eight individually selected methods
+because their Swift signatures were incomplete. The follow-up ran only those
+missing methods / 13 cases; the original coverage failure remains retained.
+Build/test durations were 4,767.104s and 1,684.218s; source review took 43.792s.
+Evidence:
+`.artifacts/native-app-capture-handoff-20261020/cpm-attempt-storage-native-combined01.json`
+and the same prefix's manifests, review, preflight and gate receipts. New style
+issues caught before compilation were corrected; whole-file SwiftLint still
+reports 19 pre-existing violations versus 20 in the baseline, with no new ones.
+
+This qualifies the inactive historical-status storage checkpoint. Private
+payload/upload-task lifetime integration, full journeys and final acceptance
+remain open; no new Release or hosted qualification is claimed. Earlier dated
+entries below retain their qualified scope; their statements that no durable
+attempt state exists are superseded by this inactive candidate.
+
 ## October 29 — typed upload-status consuming candidate
 
 The service-only status projection now has a closed executable schema, a typed

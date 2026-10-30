@@ -178,6 +178,19 @@ extension SharedMediaNativeOriginalOwner {
             try await self.appPhotoAllocationWorkflow(lock: lock) { try $0.reserveTransfer(prepared, selection: selection) }
         }
     }
+    /// Metadata-only historical status reservation and observation. No transport
+    /// callback or fresh upload authority is exposed by either operation.
+    func reserveAppPhotoRemoteAttempt(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativePhotoAllocation {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appPhotoAllocationWorkflow(lock: lock) { try $0.reserveRemoteAttempt(prepared) }
+        }
+    }
+    func observeAppPhotoRemoteAttempt(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                      allocation: SharedMediaNativePhotoAllocation, status: InitialPhotoUploadStatus) async throws -> SharedMediaNativePhotoAllocation {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appPhotoAllocationWorkflow(lock: lock) { try $0.observeRemoteAttempt(status, request: allocation, prepared: prepared) }
+        }
+    }
     /// Local hash/count verification only. The saved hold survives success,
     /// cancellation and failure; no bytes or file capability leave the owner.
     func verifyAppPhotoTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,

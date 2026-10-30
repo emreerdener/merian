@@ -105,9 +105,33 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         return after
     }
 
+    func reserveRemoteAttempt(_ prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> Allocation {
+        guard let current = try saved(prepared) else { throw SharedMediaStorageFailure.closed }
+        return try saveRemoteAttempt(current.reservingRemoteAttempt(), replacing: current, prepared: prepared)
+    }
+
+    func observeRemoteAttempt(_ status: InitialPhotoUploadStatus, request: Allocation,
+                              prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> Allocation {
+        guard try saved(prepared) == request else { throw SharedMediaStorageFailure.stale }
+        return try saveRemoteAttempt(request.observing(status), replacing: request, prepared: prepared)
+    }
+
+    private func saveRemoteAttempt(_ after: Allocation, replacing current: Allocation,
+                                   prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> Allocation {
+        guard after != current else { return current }
+        let context = fresh(), inventory = try inventory(context)
+        let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)
+        guard case .allocating(let snapshot) = witnesses[prepared.package.id], snapshot.allocation == current else {
+            throw SharedMediaStorageFailure.stale
+        }
+        try requireReservation(after, replacing: current, context: context, inventory: inventory, witnesses: witnesses)
+        _ = try persist(after, prepared: prepared, context: context, inventory: inventory)
+        return after
+    }
+
     func verifyTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                         allocation: Allocation) async throws -> SharedMediaNativePhotoTransferReadback {
-        guard try saved(prepared) == allocation, allocation.version == 3,
+        guard try saved(prepared) == allocation, (3...4).contains(allocation.version),
               let reservation = allocation.transferReservation else { throw SharedMediaStorageFailure.stale }
         let state = try SharedMediaNativePhotoTransferReadback.state(prepared, reservation: reservation, context: fresh())
         let (inspection, completion) = try await io.verifyTransfer(state, reservation: reservation)
@@ -220,7 +244,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
             if let data = currentRow.allocationData, let sha = currentRow.allocationSHA256 {
                 predecessor = try Allocation.decode(data, sha256: sha)
             } else { predecessor = nil }
-            if predecessor == nil || predecessor?.version != allocation.version {
+            if predecessor == nil || predecessor?.version != allocation.version || allocation.version == 4 {
                 try requireReservation(allocation, replacing: predecessor, context: check,
                     inventory: currentInventory, witnesses: witnesses)
             }

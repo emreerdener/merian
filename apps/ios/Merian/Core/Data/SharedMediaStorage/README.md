@@ -1,3 +1,14 @@
+## Durable historical attempt candidate — October 29
+
+The existing allocation owner now has an inactive V4 status slot for the exact
+reserved transfer role. It reserves metadata and revision runway before
+monotonic observations and retains the existing copy liability. Engine source
+review and focused native qualification passed 24 methods / 79 cases across
+retained runs; the initial selector coverage gap remains recorded. No upload
+authority or network caller is installed. The
+[scan guide](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--durable-historical-attempt-candidate)
+owns state transitions, compatibility, accounting and remaining integration.
+
 ## Local reserved-role verification candidate — October 29
 
 The existing retained owner now exposes exact-reservation local hash/count
