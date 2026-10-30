@@ -144,6 +144,18 @@
     "apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoUploadTicket.swift": {
       "counter": "physical",
       "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/Images/Policies/ImagePreparationPolicy.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/Images/MediaPreparationActor.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Media/ImageCropProcessor.swift": {
+      "counter": "physical",
+      "ceiling": 600
     }
   },
   "globalOnlyDirectories": [

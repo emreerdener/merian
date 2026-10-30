@@ -71,9 +71,11 @@ struct ImageCropProcessor {
     }()
 
     private static func makeImageDestination(
-        _ renderData: NSMutableData
+        _ renderData: NSMutableData,
+        encoding: ImagePreparationPolicy.Encoding
     ) -> CGImageDestination? {
-        for type in destinationTypePreferences {
+        let types = encoding == .jpeg ? [UTType.jpeg.identifier] : destinationTypePreferences
+        for type in types {
             if let destination = CGImageDestinationCreateWithData(
                 renderData as CFMutableData,
                 type as CFString,
@@ -86,16 +88,18 @@ struct ImageCropProcessor {
         return nil
     }
 
-    /// Encodes WebP when ImageIO advertises support, otherwise JPEG.
+    /// Defaults to WebP when ImageIO supports it, otherwise JPEG. An explicit
+    /// JPEG request never falls back to a different format.
     nonisolated static func encode(
         _ cgImage: CGImage,
         quality: Double = ImagePreparationPolicy.compressionQuality,
         orientation: CGImagePropertyOrientation? = nil,
-        maxPixelSize: Int? = nil
+        maxPixelSize: Int? = nil,
+        encoding: ImagePreparationPolicy.Encoding = .preferred
     ) -> Data? {
         autoreleasepool {
             let renderData = NSMutableData()
-            guard let destination = makeImageDestination(renderData) else {
+            guard let destination = makeImageDestination(renderData, encoding: encoding) else {
                 return nil
             }
             var options: [CFString: Any] = [
@@ -127,7 +131,8 @@ struct ImageCropProcessor {
         quarterTurns: Int = 0,
         maxPixelSize: Int? = Int(
             ImagePreparationPolicy.maximumInferenceDimension
-        )
+        ),
+        encoding: ImagePreparationPolicy.Encoding = .preferred
     ) async -> Data {
         let finalScale = scale * currentScale
         let finalOffset = CGSize(
@@ -254,7 +259,8 @@ struct ImageCropProcessor {
             return encode(
                 croppedImage,
                 orientation: cgOrientation(from: targetOrientation),
-                maxPixelSize: maxPixelSize
+                maxPixelSize: maxPixelSize,
+                encoding: encoding
             )
         }
 

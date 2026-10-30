@@ -4,6 +4,12 @@ The `Media` directory owns reusable, bounded image/audio/video processing and
 player-lifecycle infrastructure. It does not own feature navigation, global UI
 feedback, or durable scan state.
 
+`ImageCropProcessor` owns crop geometry and single-pass image encoding. Its
+optional `ImagePreparationPolicy.Encoding` retains the preferred format by
+default; native CPM preparation selects JPEG explicitly. See the canonical
+[image pipeline](../../../../../docs/system-architecture/03-image-pipeline.md#2-dual-path-preparation-mediapreparationactor--imagedownsampler)
+for dimensions, format policy and preservation of saved originals/derivatives.
+
 ## Playback dependency boundary
 
 `MediaPlaybackDependencies` is the initializer-injected adapter for unmuted

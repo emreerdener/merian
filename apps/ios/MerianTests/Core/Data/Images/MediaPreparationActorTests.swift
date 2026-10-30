@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import Testing
 import UIKit
 
@@ -28,16 +29,28 @@ struct MediaPreparationActorTests {
         return url
     }
 
-    @Test func prepareStillImageReturnsOnlyBoundedPayloads() async throws {
+    @Test(arguments: [ImagePreparationPolicy.Encoding.preferred, .jpeg])
+    func prepareStillImageReturnsOnlyBoundedPayloads(_ encoding: ImagePreparationPolicy.Encoding) async throws {
         let sourceData = makeLargeJPEGData()
         let url = try writeTemporaryImage(sourceData)
         defer { try? FileManager.default.removeItem(at: url) }
 
         let prepared = try await MediaPreparationActor.shared.prepareStillImage(
             fileURL: url,
-            isPro: false
+            isPro: false,
+            encoding: encoding
         )
 
+        for data in [prepared.inferenceData, prepared.displayData] {
+            let image = try #require(CGImageSourceCreateWithData(data as CFData, nil))
+            let type = try #require(CGImageSourceGetType(image) as String?)
+            if encoding == .jpeg {
+                #expect(type == "public.jpeg")
+            } else {
+                #expect(["public.jpeg", "org.webmproject.webp"].contains(type))
+            }
+        }
+        #expect(try Data(contentsOf: url) == sourceData)
         #expect(prepared.metrics.isWithinImageBudgets)
         #expect(prepared.metrics.largestInferenceDimension <= Int(ImagePreparationPolicy.flashInferenceMaxDimension))
         #expect(prepared.metrics.largestDisplayDimension <= Int(ImagePreparationPolicy.displayMaxDimension))

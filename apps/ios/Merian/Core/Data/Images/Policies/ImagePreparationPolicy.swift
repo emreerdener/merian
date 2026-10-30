@@ -1,7 +1,13 @@
 import CoreGraphics
 
 enum ImagePreparationPolicy {
-    /// Lossy quality for WebP-encoded captures before storage or upload.
+    /// Select the wire format at the existing encoder, without a second encode.
+    enum Encoding: Sendable {
+        case preferred
+        case jpeg
+    }
+
+    /// Lossy quality shared by WebP and JPEG captures before storage or upload.
     static let compressionQuality: CGFloat = 0.85
 
     /// Longest-edge cap for Pro inference payloads.

@@ -1,3 +1,36 @@
+## October 30 — native JPEG preparation local qualification
+
+The existing native processor now requests JPEG from the shared image encoders
+for ordinary, manual and camera preparation. The
+[image pipeline](../system-architecture/03-image-pipeline.md#2-dual-path-preparation-mediapreparationactor--imagedownsampler)
+owns encoding policy and preservation rules. Tests exercise the file-owning path
+with and without a receiving consumer, verify actual encoded types and unchanged
+originals, and reopen the retained pair. Engine cleared the production source;
+subsequent changes only formatted test statements/imports. Focused local
+qualification covers 20 methods / 34 cases across image preparation, crop
+geometry, ordinary/manual/camera file delivery, failure/cancellation, saved
+content and all three ticket roles with cold recovery. All 3,069 native inputs
+were checked; no structured runtime warnings or source drift were found.
+
+The first run returned Xcode success but executed only 12 methods / 13 cases:
+eight individual selectors lacked full Swift Testing signatures. That coverage
+failure remains retained. Corrected selectors executed 12 methods / 25 cases in
+1,271.965 seconds; unchanged actor and image-architecture coverage contributes 8
+methods / 9 cases. Exact input comparison permits that reuse; the changed
+crop-test imports and entire crop suite were revalidated. Combined evidence is
+`cpm-jpeg-native-combined02.json` under
+`.artifacts/native-app-capture-handoff-20261020/`. Combined native build/test
+time was 1,642.233 seconds; source review took 34.523 seconds. Full iOS tooling
+and preflight parity passed. Two new test-lint warnings were corrected; six
+existing warnings remain. This is focused component evidence, not full app,
+Release, provider or resource qualification.
+
+HQ-011 remains open for wider source-format compatibility and complete app
+qualification. This change does not install a ticket route, destination profile
+or PUT constructor; configuration binding and durable PUT-started admission
+remain required. Existing claims and published derivatives are never rewritten
+or automatically reprocessed to satisfy the new format choice.
+
 ## October 30 — native ticket response candidate
 
 The private server ticket contract now has an inert native decoder and an
@@ -35,11 +68,12 @@ component. No app journey, provider or resource qualification follows; existing
 failed-run evidence retains its original scope.
 
 A separate integration gap remains open: CPM admission requires JPEG AI/display
-roles, while the current native encoder owners prefer WebP when available.
-JPEG-specific preparation must be reconciled before the complete app journey is
-qualified (HQ-011). The decoder's bounded MIME check does not prove allocation
-admission or derivative-format compatibility. Source formats beyond the current
-JPEG/PNG ticket contract also remain outside this slice's qualification.
+roles. At the ticket checkpoint, native encoder owners preferred WebP when
+available; the locally qualified JPEG preparation above addresses new encoding
+only. Complete app journey qualification remains open (HQ-011). The decoder's
+bounded MIME check does not prove allocation admission or derivative-format
+compatibility. Source formats beyond the current JPEG/PNG ticket contract also
+remain outside this slice's qualification.
 
 ## October 30 — dormant transient ticket contract
 

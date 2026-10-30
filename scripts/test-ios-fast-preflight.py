@@ -127,9 +127,12 @@ class PolicyTests(unittest.TestCase):
         self.assertTrue(any('Missing bounded owner' in f for f in failures))
         self.assertTrue(any('Empty or missing policy directory' in f for f in failures))
 
-    def test_native_photo_preflight_coverage_has_exact_bounded_network_owners(self):
+    def test_native_photo_preflight_coverage_has_exact_bounded_network_and_image_owners(self):
         root, policy, _ = self.fixture()
         for path in [
+            'apps/ios/Merian/Core/Data/Images/Policies/ImagePreparationPolicy.swift',
+            'apps/ios/Merian/Core/Data/Images/MediaPreparationActor.swift',
+            'apps/ios/Merian/Core/Media/ImageCropProcessor.swift',
             'apps/ios/Merian/Core/Network/Inference/IdentificationPreflight.swift',
             'apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+IdentificationPreflight.swift',
             'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRequest.swift',
@@ -141,7 +144,7 @@ class PolicyTests(unittest.TestCase):
             'apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift',
         ]:
             actual = preflight.load_policy(ROOT)
-            # Preserve the existing Core Network physical-line review ceiling.
+            # Preserve the existing physical-line review ceiling for each owner.
             self.assertEqual(actual['fileRules'][path], dict(counter='physical', ceiling=600))
             self.assertFalse(any(preflight.within(path, directory) for directory in
                                  [*actual['directoryRules'], *actual['globalOnlyDirectories']]))

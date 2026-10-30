@@ -1,3 +1,4 @@
+import ImageIO
 @testable import Merian
 import Testing
 import UIKit
@@ -5,6 +6,24 @@ import UIKit
 @MainActor
 @Suite("Image crop rotation")
 struct ImageCropProcessorTests {
+    @Test func explicitJPEGPreservesCropGeometryAndSource() async throws {
+        let image = makeImage(size: CGSize(width: 240, height: 160))
+        let original = try #require(image.cgImage)
+        let direct = try #require(ImageCropProcessor.encode(original, maxPixelSize: 96, encoding: .jpeg))
+        let crop = await ImageCropProcessor.generateCrop(image: image, displaySize: 96,
+            scale: 1.75, currentScale: 1, offset: CGSize(width: 11, height: -7),
+            currentOffset: .zero, quarterTurns: 1, maxPixelSize: 96, encoding: .jpeg)
+        for data in [direct, crop] {
+            let source = try #require(CGImageSourceCreateWithData(data as CFData, nil))
+            #expect(CGImageSourceGetType(source) as String? == "public.jpeg")
+            let decoded = try #require(ImageDownsampler.downsample(data: data, maxSize: 96))
+            #expect(max(decoded.width, decoded.height) <= 96)
+        }
+        #expect(image.cgImage === original && original.width == 240 && original.height == 160)
+        let decoded = try #require(ImageDownsampler.downsample(data: crop, maxSize: 96))
+        #expect(abs(decoded.width - decoded.height) <= 1)
+    }
+
     @Test func rotationsPreservePixelsAndComposeWithoutCopies() throws {
         let image = makeImage(size: CGSize(width: 240, height: 160))
         let source = try #require(image.cgImage)

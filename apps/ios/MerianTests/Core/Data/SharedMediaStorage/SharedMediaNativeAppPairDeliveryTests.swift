@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import SwiftData
 import Testing
 @testable import Merian
@@ -10,8 +11,8 @@ struct SharedMediaNativeAppPairDeliveryTests {
     private static let recipe = SharedMediaNativePreparationRecipe(format: .stillImage, isPro: false,
         cropDisplaySize: nil, quarterTurns: 0, scale: 1, offsetX: 0, offsetY: 0)
 
-    @Test(arguments: [false, true])
-    func freshDeliveryRetainsOriginalAndPublishesExactPair(_ receiving: Bool) async throws {
+    @Test(arguments: [false, true], ["ordinary", "manual", "camera"])
+    func freshDeliveryRetainsOriginalAndPublishesExactPair(_ receiving: Bool, _ pathKind: String) async throws {
         let h = try Store(receiving: receiving)
         let owner: SharedMediaNativeOriginalOwner
         if receiving { owner = try await h.openWithReceivingConsumer().0 } else { owner = try await h.open() }
@@ -24,15 +25,29 @@ struct SharedMediaNativeAppPairDeliveryTests {
             if point == .beforeFileCompletion { completionSaves += 1 }
             if point == .beforeFilePublish { publishSaves += 1 }
         }
-        let state = try await owner.prepareAndDeliverAppPhoto(original: original, recipe: Self.recipe)
+        let recipe: SharedMediaNativePreparationRecipe
+        switch pathKind {
+        case "manual":
+            recipe = .init(format: .stillImage, isPro: false, cropDisplaySize: 96,
+                quarterTurns: 1, scale: 1.5, offsetX: 3, offsetY: -2)
+        case "camera":
+            recipe = .init(format: .cameraStill, isPro: true, cropDisplaySize: nil,
+                quarterTurns: 0, scale: 1, offsetX: 0, offsetY: 0, cameraVerticalCenter: 0.35)
+        default: recipe = Self.recipe
+        }
+        let state = try await owner.prepareAndDeliverAppPhoto(original: original, recipe: recipe)
         #expect(planSaves == 1 && reserveSaves == 1 && partialSaves == 2 && completionSaves == 2 && publishSaves == 1)
         #expect(state.phase == "ready" && state.publishedRevision == state.plan.packageRevision)
         #expect(state.work.allSatisfy { $0.phase == "completed" && $0.writerState == "closed" })
         let intent = try state.intent()
+        #expect(intent.preparation.original.contentType == "public.png")
         #expect(try Data(contentsOf: path(h, intent.preparation.original.token)) == PhotoPreparationTestHarness.image())
         for input in [intent.ai, intent.display] {
             let file = try state.file(input.id), bytes = try Data(contentsOf: path(h, file.token))
             try SharedMediaDerivativeWorkFiles.validate(bytes, input: input)
+            let image = try #require(CGImageSourceCreateWithData(bytes as CFData, nil))
+            #expect(CGImageSourceGetType(image) as String? == "public.jpeg")
+            #expect(input.contentType == "public.jpeg")
             #expect(!FileManager.default.fileExists(atPath: path(h, file.token).path + ".partial"))
             let lease = input.leaseID
             #expect(try h.context().fetchCount(FetchDescriptor<PhotoPreparationLease>(predicate: #Predicate { $0.id == lease })) == 0)

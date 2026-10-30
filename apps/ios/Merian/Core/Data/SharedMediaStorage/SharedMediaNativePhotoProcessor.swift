@@ -27,13 +27,13 @@ enum SharedMediaNativePhotoProcessor {
             guard let image = UIImage(contentsOfFile: url.path) else { throw MediaPreparationError.unreadableImage }
             ai = await ImageCropProcessor.generateCrop(image: image, displaySize: size, scale: recipe.scale,
                 currentScale: 1, offset: .init(width: recipe.offsetX, height: recipe.offsetY), currentOffset: .zero,
-                quarterTurns: recipe.quarterTurns, maxPixelSize: Int(ImagePreparationPolicy.inferenceMaxDimension(isProActive: recipe.isPro)))
+                quarterTurns: recipe.quarterTurns, maxPixelSize: Int(ImagePreparationPolicy.inferenceMaxDimension(isProActive: recipe.isPro)), encoding: .jpeg)
             try Task.checkCancellation()
             display = await ImageCropProcessor.generateCrop(image: image, displaySize: size, scale: recipe.scale,
                 currentScale: 1, offset: .init(width: recipe.offsetX, height: recipe.offsetY), currentOffset: .zero,
-                quarterTurns: recipe.quarterTurns, maxPixelSize: Int(ImagePreparationPolicy.displayMaxDimension))
+                quarterTurns: recipe.quarterTurns, maxPixelSize: Int(ImagePreparationPolicy.displayMaxDimension), encoding: .jpeg)
         } else {
-            let prepared = try await MediaPreparationActor.shared.prepareStillImage(fileURL: url, isPro: recipe.isPro)
+            let prepared = try await MediaPreparationActor.shared.prepareStillImage(fileURL: url, isPro: recipe.isPro, encoding: .jpeg)
             ai = prepared.inferenceData; display = prepared.displayData
         }
         try Task.checkCancellation()
@@ -56,7 +56,7 @@ enum SharedMediaNativePhotoProcessor {
         return try autoreleasepool {
             guard let image = ImageDownsampler.downsample(url: url, maxSize: maximum),
                   let crop = ImageCropProcessor.squareCrop(image, verticalCenterFraction: center),
-                  let bytes = ImageCropProcessor.encode(crop), !bytes.isEmpty else {
+                  let bytes = ImageCropProcessor.encode(crop, encoding: .jpeg), !bytes.isEmpty else {
                 throw MediaPreparationError.unreadableImage
             }
             return bytes

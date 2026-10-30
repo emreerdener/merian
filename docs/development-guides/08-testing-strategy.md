@@ -94,16 +94,21 @@ Network owners: `Core/Network/Inference/IdentificationPreflight.swift`,
 `Core/Network/Transport/InitialPhotoAllocationTransport.swift` and
 `Core/Network/Transport/PinnedNetworkTransport.swift`. Each Network file retains
 the existing Core Network 600 physical-line ceiling; this does not cover sibling
-Network files or replace the owning architecture checks. Other production
-candidates fail with an unsupported-domain diagnostic rather than silently using
-only 600 lines. Test-file and other domains' stricter or aggregate limits remain
-in their owning architecture tests; the preflight does not replace them. Extend
-shared coverage with parity fixtures when a new domain enters the candidate. The
-exact outgoing `Models/Schema/SchemaV66.swift` snapshot also has explicit
-coverage at the unchanged global 600 physical-line ceiling; sibling schemas and
-migration registry/recovery rules remain outside this size check. Keep the
-policy file available in the repository for native source-inspection tests, just
-like the source files those tests read.
+Network files or replace the owning architecture checks. Three exact image
+owners also retain the 600 physical-line ceiling:
+`Core/Data/Images/MediaPreparationActor.swift`,
+`Core/Data/Images/Policies/ImagePreparationPolicy.swift` and
+`Core/Media/ImageCropProcessor.swift`. Sibling image/media files remain outside
+this coverage. Other production candidates fail with an unsupported-domain
+diagnostic rather than silently using only 600 lines. Test-file and other
+domains' stricter or aggregate limits remain in their owning architecture tests;
+the preflight does not replace them. Extend shared coverage with parity fixtures
+when a new domain enters the candidate. The exact outgoing
+`Models/Schema/SchemaV66.swift` snapshot also has explicit coverage at the
+unchanged global 600 physical-line ceiling; sibling schemas and migration
+registry/recovery rules remain outside this size check. Keep the policy file
+available in the repository for native source-inspection tests, just like the
+source files those tests read.
 
 For the next identification-history integration trial, track implementation,
 build/test, review and blocked time separately, plus cheap failures found before
