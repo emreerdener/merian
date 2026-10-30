@@ -1,3 +1,38 @@
+## October 30 — dormant transient ticket contract
+
+The existing private issuer now validates its versioned result against the
+[closed executable ticket contract](05-api-contracts.md#dormant-transient-cpm-ticket-contract--october-30)
+before returning. This supplies the exact identity, role-byte and original-clock
+binding needed by the next native decoder; it does not install a route or grant
+freshness to decoded/recovered data. No native consumer exists yet. The V5
+continuation and separately admitted PUT-started/unknown transition remain
+required for concrete upload construction, alongside trusted destination
+configuration and the existing provider/retention qualification controls.
+
+Focused synthetic tests passed 33 tests/30 steps. The first cheap type check
+caught a missing discriminated-union narrowing for the live-object target; it
+was repaired without a cast or suppressed check. Engine cleared the exact
+seven-file source candidate without blockers. The full backend suite passed
+3,564 tests / 703 steps with 532 explicitly ignored tests; those ignored cases
+remain unqualified. Recursive type checks, formatting/lint, DTO parity, Function
+configuration/dependency checks and Markdown/diff gates passed.
+
+The tooling invocation stopped at a synthetic hidden-key launcher test because
+the sandbox denied opening `/dev/tty` for read/write. A minimal PTY diagnostic
+reproduced that permission failure. Its already-passing prefix is reused against
+6,148 unchanged input hashes; all ten affected or unrun shell tests then passed
+with local terminal access. The original failed invocation is retained, not
+relabeled as a pass. Combined evidence is recorded in
+`.artifacts/native-app-capture-handoff-20261020/cpm-ticket-contract-qualified02.json`,
+with per-phase logs, candidate hashes, source review and the failed diagnostic.
+No source fix, timeout increase or repeated passing suite was needed for that
+environment restriction.
+
+This is a local coding checkpoint, not full journey or release acceptance. No
+hosted service, provider IO, credential configuration, feature activation or
+release operation ran. Historical issuer and native evidence below retains its
+original scope.
+
 ## October 30 — inactive pre-ticket uncertainty boundary
 
 The native allocation sidecar adds V5 with `ticketRequestStarted: true` only

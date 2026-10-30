@@ -2,6 +2,7 @@
  * A returned capability is secret; never log it. Hosted payload enforcement and
  * alternate-writer/retention qualification remain activation prerequisites. */
 import { getS3Client } from "../aws.ts";
+import { decodeCpmPhotoUploadTicket } from "./cpmPhotoUploadTicket.ts";
 import {
   type CpmPhotoUploadProfile,
   prepareCpmPhotoUploadSpecification,
@@ -137,6 +138,9 @@ export async function issueInitialCpmPhotoUpload(
         attempt,
         "live_object",
       );
+      if (observation.target.outcome !== "live_object") {
+        throw initialMediaUnavailable();
+      }
       const b = observation.binding;
       const created = mediaTime(r.created_at_ms),
         expiry = mediaTime(r.capability_expires_at_ms);
@@ -232,16 +236,27 @@ export async function issueInitialCpmPhotoUpload(
       if (Date.now() >= expirySecond) throw initialMediaUnavailable();
       // This is private service output, not a public/native wire DTO. No route
       // may expose it until hosted enforcement and consuming contracts qualify.
-      return Object.freeze({
+      return decodeCpmPhotoUploadTicket({
+        version: 1,
         outcome: "issued" as const,
         attempt_id: attempt,
+        scan_id: b.scan_id,
+        assignment_digest: b.assignment_digest,
+        object_id: b.object_id,
+        backend_generation: b.backend_generation,
+        backend_configuration_digest: b.backend_configuration_digest,
+        role: observation.target.role,
+        byte_count: observation.target.byte_count,
+        content_type: observation.target.content_type,
+        sha256: observation.target.sha256,
+        created_at_ms: created,
         url: signed.url,
         method: "PUT" as const,
         headers,
         capability_expires_at_ms: expiry,
         signed_expires_at_ms: expirySecond,
         provider_enforcement: "unqualified" as const,
-      });
+      }, spec);
     } catch {
       throw initialMediaUnavailable();
     }

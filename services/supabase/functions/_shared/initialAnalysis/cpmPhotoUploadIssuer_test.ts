@@ -1,4 +1,9 @@
-import { assert, assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
+import { prepareCpmPhotoUploadSpecification } from "./cpmPhotoUploadSpecification.ts";
+import {
+  CPM_PHOTO_UPLOAD_TICKET_MAX_BYTES,
+  decodeCpmPhotoUploadTicket,
+} from "./cpmPhotoUploadTicket.ts";
 import { initialCanonicalText } from "./canonical.ts";
 import { initialMediaHash } from "./mediaBinding.ts";
 import {
@@ -95,6 +100,18 @@ for (const role of ["source", "ai", "display"]) {
     );
     assertEquals(f.calls, ["begin", "current", "current"]);
     assert(result.outcome === "issued");
+    assertEquals(result.version, 1);
+    assertEquals(result.scan_id, f.identity.scan);
+    assertEquals(result.assignment_digest, f.identity.assignment_digest);
+    assertEquals(result.object_id, f.identity.object);
+    assertEquals(result.role, role);
+    assertEquals(result.byte_count, f.fresh.observation.target.byte_count);
+    assertEquals(result.sha256, f.fresh.observation.target.sha256);
+    assertEquals(result.created_at_ms, f.fresh.created_at_ms);
+    assert(
+      new TextEncoder().encode(JSON.stringify(result)).length <=
+        CPM_PHOTO_UPLOAD_TICKET_MAX_BYTES,
+    );
     const url = new URL(result.url);
     assertEquals(url.origin, f.fresh.observation.backend.direct_endpoint);
     assertEquals(
@@ -349,4 +366,140 @@ Deno.test("CPM signature cryptographically binds declared hash and all fixed hea
   assertEquals(signature, await signatureFor("c".repeat(64)));
   assert(signature !== await signatureFor("UNSIGNED-PAYLOAD"));
   assert(signature !== await signatureFor("d".repeat(64)));
+});
+
+Deno.test("CPM transient ticket rejects identity, byte, header, expiry and destination substitutions", async () => {
+  const f = await fixture();
+  const result = await issueInitialCpmPhotoUpload(
+    f.bridge,
+    f.identity,
+    f.profiles,
+    signal(),
+  );
+  assert(result.outcome === "issued");
+  const {
+    issued_at_ms: _issued,
+    verification_policy_digest: _policy,
+    ...binding
+  } = f.fresh.observation.binding;
+  const spec = await prepareCpmPhotoUploadSpecification(
+    {
+      binding,
+      target: f.fresh.observation.target,
+      backend: f.fresh.observation.backend,
+      created_at_ms: f.fresh.created_at_ms,
+      admission_expires_at_ms: f.fresh.observation.admission_expires_at_ms,
+      capability_expires_at_ms: f.fresh.capability_expires_at_ms,
+    },
+    f.profiles.map((
+      { credential_profile, backend_generation, backend_configuration_digest },
+    ) => ({
+      credential_profile,
+      backend_generation,
+      backend_configuration_digest,
+    })),
+  );
+  assertEquals(decodeCpmPhotoUploadTicket(result, spec), result);
+  const changes: Record<string, unknown>[] = [
+    { version: 2 },
+    { outcome: "held" },
+    { owner: id(9) },
+    { role: "ai" },
+    { attempt_id: id(91) },
+    { scan_id: id(92) },
+    { object_id: id(93) },
+    { assignment_digest: "d".repeat(64) },
+    { backend_generation: id(94) },
+    { backend_configuration_digest: "d".repeat(64) },
+    { byte_count: 5 },
+    { byte_count: true },
+    { byte_count: 33_554_433 },
+    { content_type: "image/png" },
+    { sha256: "d".repeat(64) },
+    { created_at_ms: result.created_at_ms + 1 },
+    { capability_expires_at_ms: result.capability_expires_at_ms + 1 },
+    { signed_expires_at_ms: result.signed_expires_at_ms + 1000 },
+    { provider_enforcement: "qualified" },
+    { method: "POST" },
+    { url: "x".repeat(4097) },
+  ];
+  for (const change of changes) {
+    assertThrows(() =>
+      decodeCpmPhotoUploadTicket({ ...result, ...change }, spec)
+    );
+  }
+  for (const key of Object.keys(result)) {
+    const missing: Record<string, unknown> = { ...result };
+    delete missing[key];
+    assertThrows(() => decodeCpmPhotoUploadTicket(missing, spec));
+  }
+  for (
+    const [key, value] of Object.entries({
+      "If-None-Match": "other",
+      "Content-Type": "image/png",
+      "Content-Length": "04",
+      "Cache-Control": "public",
+      "x-amz-content-sha256": "d".repeat(64),
+      "Authorization": "synthetic",
+    })
+  ) {
+    assertThrows(() =>
+      decodeCpmPhotoUploadTicket({
+        ...result,
+        headers: { ...result.headers, [key]: value },
+      }, spec)
+    );
+  }
+  const urls: string[] = [" " + result.url];
+  for (
+    const edit of [
+      (u: URL) => {
+        u.hostname = "wrong.invalid";
+      },
+      (u: URL) => {
+        u.pathname += "/other";
+      },
+      (u: URL) => {
+        u.username = "synthetic";
+      },
+      (u: URL) => {
+        u.hash = "fragment";
+      },
+      (u: URL) => {
+        u.searchParams.append("X-Amz-Expires", "1");
+      },
+      (u: URL) => {
+        u.searchParams.set("X-Amz-Security-Token", "synthetic");
+      },
+      (u: URL) => {
+        u.searchParams.set("X-Amz-SignedHeaders", "host");
+      },
+      (u: URL) => {
+        u.searchParams.set("X-Amz-Expires", "601");
+      },
+      (u: URL) => {
+        u.searchParams.set("X-Amz-Expires", "01");
+      },
+      (u: URL) => {
+        u.searchParams.set("X-Amz-Date", "20260230T000000Z");
+      },
+      (u: URL) => {
+        u.searchParams.set(
+          "X-Amz-Credential",
+          "SYNTHETIC_KEY_NOT_REAL/20000101/auto/s3/aws4_request",
+        );
+      },
+      (u: URL) => {
+        u.searchParams.set("X-Amz-Signature", "z".repeat(64));
+      },
+    ]
+  ) {
+    const url = new URL(result.url);
+    edit(url);
+    urls.push(url.href);
+  }
+  for (const url of urls) {
+    assertThrows(() => decodeCpmPhotoUploadTicket({ ...result, url }, spec));
+  }
+  assertEquals(f.calls, ["begin", "current", "current"]);
 });

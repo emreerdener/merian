@@ -1,3 +1,47 @@
+## Dormant transient CPM ticket contract — October 30
+
+The private `issued` result of `issueInitialCpmPhotoUpload` now uses the closed
+[`cpm-photo-upload-ticket-schema-v1.json`](../../services/supabase/functions/_shared/initialAnalysis/cpm-photo-upload-ticket-schema-v1.json)
+contract and
+[`decodeCpmPhotoUploadTicket`](../../services/supabase/functions/_shared/initialAnalysis/cpmPhotoUploadTicket.ts).
+It is version 1, at most 8 KiB encoded, with a URL of at most 4 KiB. Required
+fields bind attempt, scan, assignment digest, object, backend generation and
+configuration digest, exact source/AI/display role, byte count, content type,
+SHA-256 and original creation/capability/signing clocks. No owner, policy
+credentials, private observation or arbitrary extra fields are projected. The
+unchanged `held` alternative contains only its outcome and attempt ID, with no
+URL or fresh ticket. This is a private service boundary with no existing native,
+web or admin consumer; the generated Identify DTO block is unaffected.
+
+The issuer validates the result against its frozen saved upload specification
+before delivery. Header names and values are exact: conditional create, type,
+length, private/no-store cache handling and explicit payload SHA-256. The signed
+URL must be canonical HTTPS at the exact trusted direct origin/path, without
+userinfo or fragment. Exactly six unique SigV4 query fields are allowed;
+algorithm, signed-header set, credential date/scope, signature syntax and
+whole-second expiry must agree. The TTL remains at most ten minutes and the
+signing expiry cannot extend the original capability. Malformed or expired
+results fail without retry, while the durable possibly-issued hold remains.
+These checks do not verify a signature cryptographically or prove provider
+payload enforcement.
+
+The only accepted provider label remains `unqualified`; it is not an activation
+switch. The result contains a capability and must never enter logs, persistence,
+fixtures derived from real data, or recovery replies. Issuer profiles and routes
+remain uninstalled. Native decoding still requires the exact fresh continuation,
+trusted destination configuration and a separately admitted durable
+PUT-started/unknown boundary before any upload construction. No public endpoint,
+native transport, deployment or hosted qualification is introduced here.
+
+Focused synthetic issuer/specification/service-adapter tests pass 33 tests and
+30 steps, including identity/media/header/URL/expiry substitutions, missing and
+extra fields, all three roles, held outcomes and lost acknowledgements. Engine
+source review is clear; backend and combined tooling checks passed with the
+retained environment-failure disposition recorded below. This does not qualify
+the 532 ignored backend tests or the absent native consumer. The
+[scan guide](16-scan-ingestion-reliability-and-recovery.md#october-30--dormant-transient-ticket-contract)
+owns candidate evidence and remaining integration.
+
 ## Dormant CPM write-status service projection — October 29
 
 `read_initial_cpm_photo_write_status` is an additive, service-only SQL RPC. The

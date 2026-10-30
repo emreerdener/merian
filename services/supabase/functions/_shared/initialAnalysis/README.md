@@ -1,3 +1,15 @@
+## Dormant transient upload ticket
+
+The existing issuer now returns its private issued capability through the closed
+`cpm-photo-upload-ticket-schema-v1.json` and `cpmPhotoUploadTicket.ts`
+validator. It binds the exact role bytes, saved identity/backend and original
+clocks, and rejects header/destination/SigV4 metadata substitutions before
+returning. The
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#dormant-transient-cpm-ticket-contract--october-30)
+owns the 8 KiB envelope, field bounds, secrecy and compatibility rules. Tests
+remain beside the issuer; there is no additional issuer or retry owner. Native
+consumption, route/profile installation and provider qualification remain open.
+
 ## Typed historical upload-status observation
 
 `cpmPhotoWriteStatus.ts` validates the closed
