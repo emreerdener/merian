@@ -67,15 +67,26 @@ activation is added.
 
 ## Native CPM ticket decoder candidate — October 30
 
+Current native integration: the saved V6 backend tuple now survives explicit V7
+transfer, V8 remote-observation and V9 pre-ticket transitions. The inert V9
+decoder matches that saved tuple against the independently trusted destination
+before accepting either an issued or held response. Legacy V5 decoding remains
+available for exact recovery and test observation; it does not acquire fresh
+bound-ticket authority. The
+[bound-transfer contract](16-scan-ingestion-reliability-and-recovery.md#october-30--bound-transfer-and-recovery-candidate)
+owns the locally qualified checkpoint and remaining closed boundaries. The
+following paragraphs retain the earlier V5-only decoder checkpoint.
+
 `InitialPhotoUploadTicket` consumes the existing closed private issued/held
 contract, bounded to 8 KiB before JSON parsing. It requires exact V5 allocation,
 selected transfer role/media and original receipt-bounded clocks, then matches
 backend generation/configuration digest and the complete signed destination
 against an independently injected `InitialPhotoUploadDestination` pin. The
-native allocation does **not** currently persist that backend projection: this
-proves agreement with a trusted composition input, not with a locally saved
-backend. No ticket, status response or remote flag may construct or choose the
-pin, and no production pin is installed. Configuration mismatch fails closed.
+native allocation did **not** yet persist that backend projection at this
+earlier checkpoint: it proved agreement with a trusted composition input, not
+with a locally saved backend. No ticket, status response or remote flag may
+construct or choose the pin, and no production pin is installed. Configuration
+mismatch fails closed.
 
 The server-created write attempt remains distinct from the allocation's
 `Claim.attemptID`; UUID syntax does not establish freshness. Existing remote
@@ -103,10 +114,10 @@ treated as a MIME upload ticket.
 Candidate02 compiled, but its real-owner role tests exposed this UTI/MIME
 mismatch (HQ-010). The projection fix passed independent corrective source
 review and exact native qualification (22 methods / 27 cases); failed runs
-remain retained. Before durable PUT-started integration, backend identity across
-configuration changes must be fixed through a saved projection or demonstrated
-immutable server-assignment binding plus exact trusted-pin matching. Unknown
-configurations remain held. The
+remain retained. The saved backend projection and bound decoder described above
+now preserve backend identity across these native transitions. Trusted catalog
+resolution, the authenticated ticket path and durable PUT-started integration
+remain open; unknown configurations remain held. The
 [scan contract](16-scan-ingestion-reliability-and-recovery.md#october-30--native-ticket-response-candidate)
 owns evidence and remaining integration.
 
@@ -122,8 +133,10 @@ configuration digest, exact source/AI/display role, byte count, content type,
 SHA-256 and original creation/capability/signing clocks. No owner, policy
 credentials, private observation or arbitrary extra fields are projected. The
 unchanged `held` alternative contains only its outcome and attempt ID, with no
-URL or fresh ticket. This is a private service boundary with no existing native,
-web or admin consumer; the generated Identify DTO block is unaffected.
+URL or fresh ticket. This remains a private service boundary: the native inert
+decoder above consumes synthetic test responses, but no authenticated native
+ticket transport, web or admin consumer is installed. The generated Identify DTO
+block is unaffected.
 
 The issuer validates the result against its frozen saved upload specification
 before delivery. Header names and values are exact: conditional create, type,
