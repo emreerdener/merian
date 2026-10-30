@@ -1,3 +1,34 @@
+## October 29 — typed upload-status consuming candidate
+
+The service-only status projection now has a closed executable schema, a typed
+Deno decoder and an inactive Swift decoder. The existing fixed service bridge
+reads status once with a pre-await snapshot of the saved allocation identity.
+Both decoders reject changed attempts, renewed clocks, vanished saved attempts,
+backward issued/closed state and private extra fields. They accept historical
+expiry without interpreting absence or closure as permission. The
+[API contract](05-api-contracts.md#dormant-cpm-write-status-service-projection--october-29)
+owns the exact shape and invariants. Native decoding additionally requires an
+existing validated role mapping and preserves its owner association.
+
+The candidate passed Engine source review and focused native qualification: six
+methods / 25 cases, with 3,063 unchanged source hashes, no runtime warnings and
+passing storage/evidence limits. The complete Edge suite passed 3,563 tests and
+703 steps (532 ignored). Complete iOS and Supabase tooling, Swift/Python
+preflight parity, recursive type/lint/format, DTO, project and
+documentation/link gates passed. Earlier invocation, sandbox/cache and
+import-order failures remain retained; XCResult extraction was retried without
+rerunning native tests. Evidence:
+`.artifacts/native-app-capture-handoff-20261020/cpm-status-boundary-native-qualified01.json`
+and the same prefix's candidate, Engine review and gate receipts. No new Release
+or full-journey qualification is claimed. No new SQL, endpoint, credentials,
+native status request, durable attempt state or activation is introduced. The V3
+sidecar still remains reserved/not-started. Next integration work must reserve
+metadata and revision runway before saving remote-attempt facts, then connect
+private payload ownership and retained task drain with the unchanged
+transfer-copy budget. Full photo/result/history/reanalysis, audio/video, RUX1–6
+and final acceptance remain open. Earlier qualification and failures below
+retain their own scope.
+
 ## October 29 — non-transition upload-status candidate
 
 The next integration prerequisite now has a dormant service-only SQL projection
@@ -15,9 +46,9 @@ documentation/link and scoped preflight gates passed. Tooling coverage completed
 across retained runs: its sandbox terminal failure was followed by a passing
 retry of only that test and the remaining shell tests. The first focused catalog
 failure and two fixture repairs are retained; no native or hosted qualification
-is claimed. No new route or native consumer is installed; closed consuming
-schemas, durable attempt binding and private payload/drain integration remain
-open.
+is claimed. No new route or native consumer is installed; the typed consuming
+candidate above supersedes the earlier schema gap; durable attempt binding and
+private payload/drain integration remain open.
 
 ## October 29 — file upload task lifetime candidate
 

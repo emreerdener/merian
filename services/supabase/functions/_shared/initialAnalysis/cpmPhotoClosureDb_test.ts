@@ -524,3 +524,72 @@ Deno.test("CPM real service bridge drives fresh issuance and exact current check
       "read_initial_cpm_photo_observation",
     ]);
   }));
+
+Deno.test("CPM status adapter snapshots saved identity, uses one fixed non-transition RPC", () =>
+  environment(async () => {
+    const identity = {
+      owner: id(1),
+      scan: id(2),
+      object: id(3),
+      assignment_digest: "a".repeat(64),
+      allocation_created_at_ms: 1_000,
+      allocation_expires_at_ms: 1_801_000,
+    };
+    const value = {
+      version: 1,
+      authority: "none",
+      scan_id: id(2),
+      object_id: id(3),
+      assignment_digest: "a".repeat(64),
+      attempt: {
+        attempt_id: id(4),
+        state: "bound",
+        created_at_ms: 2_000,
+        capability_expires_at_ms: 602_000,
+        write_closed: false,
+      },
+    };
+    let calls = 0;
+    const db = createCpmPhotoClosureDb(
+      null,
+      ((url, options) => {
+        calls++;
+        assertEquals(
+          String(url),
+          "https://trusted.invalid/rest/v1/rpc/read_initial_cpm_photo_write_status",
+        );
+        assertEquals(JSON.parse(String(options?.body)), {
+          p_owner: id(1),
+          p_scan: id(2),
+          p_digest: "a".repeat(64),
+          p_object: id(3),
+        });
+        assertEquals(options?.redirect, "error");
+        identity.object = id(8);
+        return reply(value);
+      }) as typeof fetch,
+    );
+    const saved = await db.readStatus(identity, null, signal());
+    assertEquals(saved.attempt?.attempt_id, id(4));
+    assertEquals(calls, 1);
+    identity.object = id(3);
+    await assertRejects(() =>
+      createCpmPhotoClosureDb(
+        id(9),
+        (() => {
+          throw Error("must not call");
+        }) as typeof fetch,
+      ).readStatus(identity, saved, signal())
+    );
+    let failures = 0;
+    await assertRejects(() =>
+      createCpmPhotoClosureDb(
+        null,
+        (() => {
+          failures++;
+          return reply(null);
+        }) as typeof fetch,
+      ).readStatus(identity, saved, signal())
+    );
+    assertEquals(failures, 1);
+  }));

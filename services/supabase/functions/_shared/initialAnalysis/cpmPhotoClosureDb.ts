@@ -6,6 +6,11 @@ import {
 } from "./cpmPhotoUploadIssuer.ts";
 import { fetchWithDeadline } from "../outbound.ts";
 import {
+  type CpmPhotoStatusBridge,
+  decodeCpmPhotoWriteStatus,
+  snapshotCpmPhotoStatusIdentity,
+} from "./cpmPhotoWriteStatus.ts";
+import {
   requireServerApiKeyFromEnvironment,
   serviceRoleRequestHeaders,
 } from "../serviceRoleAuth.ts";
@@ -32,6 +37,7 @@ import {
 
 type Outcome = CpmWriteClosureInput["target"]["outcome"];
 type Operation =
+  | "read_initial_cpm_photo_write_status"
   | "begin_initial_cpm_photo_write"
   | "read_initial_cpm_photo_write_closure"
   | "read_initial_cpm_photo_observation"
@@ -43,7 +49,7 @@ type Operation =
 export function createCpmPhotoClosureDb(
   originalClaim: string | null,
   fetcher: typeof fetch = fetch,
-): CpmWriteClosureBridge & CpmPhotoIssuanceBridge {
+): CpmWriteClosureBridge & CpmPhotoIssuanceBridge & CpmPhotoStatusBridge {
   if (originalClaim !== null) mediaUUID(originalClaim);
   const base = new URL(Deno.env.get("SUPABASE_URL") ?? "");
   if (
@@ -122,6 +128,20 @@ export function createCpmPhotoClosureDb(
   }
   return Object.freeze(
     {
+      async readStatus(identity, saved, signal) {
+        if (originalClaim !== null) throw initialMediaUnavailable();
+        const i = snapshotCpmPhotoStatusIdentity(identity);
+        const previous = saved === null
+          ? null
+          : decodeCpmPhotoWriteStatus(saved, i);
+        const value = await call("read_initial_cpm_photo_write_status", {
+          p_owner: i.owner,
+          p_scan: i.scan,
+          p_digest: i.assignment_digest,
+          p_object: i.object,
+        }, signal);
+        return decodeCpmPhotoWriteStatus(value, i, previous);
+      },
       async begin(identity, signal) {
         if (originalClaim !== null) throw initialMediaUnavailable();
         const i = snapshotCpmPhotoIssuanceIdentity(identity);
@@ -215,6 +235,9 @@ export function createCpmPhotoClosureDb(
         ) throw initialMediaUnavailable();
         return saved;
       },
-    } satisfies CpmWriteClosureBridge & CpmPhotoIssuanceBridge,
+    } satisfies
+      & CpmWriteClosureBridge
+      & CpmPhotoIssuanceBridge
+      & CpmPhotoStatusBridge,
   );
 }

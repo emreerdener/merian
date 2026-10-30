@@ -1,3 +1,14 @@
+## Typed historical upload-status observation
+
+`cpmPhotoWriteStatus.ts` validates the closed
+`cpm-photo-write-status-schema-v1.json` projection against saved allocation
+identity, clocks and prior monotonic facts. `createCpmPhotoClosureDb.readStatus`
+uses the fixed service RPC once; no begin or retry follows absence or failure.
+The
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#dormant-cpm-write-status-service-projection--october-29)
+owns its rules and native parity. Tests are in `cpmPhotoWriteStatus_test.ts` and
+`cpmPhotoClosureDb_test.ts`. This adapter remains uninstalled.
+
 ## Dormant CPM upload issuer
 
 `cpmPhotoUploadIssuer.ts:issueInitialCpmPhotoUpload` consumes the fresh-only

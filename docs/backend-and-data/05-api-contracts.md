@@ -21,11 +21,32 @@ An existing `attempt` replaces null with exactly `attempt_id` (UUID), `state`
 (original integer milliseconds) and `write_closed` (Boolean). No observation,
 including null or closed, grants issuance, retry, verification or release. The
 [database contract](04-database-schema.md#dormant-cpm-write-status-projection--october-29)
-owns locking, denial fences and qualification. The SQL producer and catalog
-shape assertions are the current executable boundary; no Edge endpoint,
-JavaScript decoder, Swift DTO, native persistence or web/admin consumer is
-added. Those consuming schemas must be defined before wiring this result into an
-app. The generated Identify contract is unchanged.
+owns locking, denial fences and qualification. The closed consuming authority is
+[`cpm-photo-write-status-schema-v1.json`](../../services/supabase/functions/_shared/initialAnalysis/cpm-photo-write-status-schema-v1.json),
+with semantic checks in `cpmPhotoWriteStatus.ts`. The fixed service adapter
+`createCpmPhotoClosureDb.readStatus` captures authenticated owner and saved
+allocation facts before awaiting one bounded RPC; failures never retry. No
+policy, credentials or marker claim can be supplied through this read.
+
+The inactive hand-owned Swift boundary is
+[`InitialPhotoUploadStatus`](../../apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoUploadStatus.swift).
+It requires a validated allocation receipt and role mapping containing the
+requested object. Both decoders require exact scan/assignment/object identity,
+creation within the original allocation interval and capability expiry equal to
+`min(allocation expiry, attempt creation + 600000 ms)`. Saved attempt identity
+and clocks cannot change or disappear; issued state and closure cannot move
+backward, and a bound attempt cannot be closed. Expired original facts remain
+readable. The native saved comparison also fences the owner and allocation
+receipt. Current account/session validation remains the calling owner's duty;
+these decoders do not authenticate the caller. These are observations, never
+fresh acknowledgements or upload grants.
+
+The matching golden and malformed, rebase and maximum-clock cases live in
+`cpmPhotoWriteStatus_test.ts` and `InitialPhotoUploadStatusTests.swift`.
+Transport bytes remain bounded before parsing (8 KiB service, 2 KiB native).
+There is no Edge endpoint, native network caller, persistence change or
+web/admin consumer. The generated Identify contract is unchanged. Qualification
+and remaining integration are recorded in the scan guide.
 
 ## Dormant CPM issuer service composition — October 29
 

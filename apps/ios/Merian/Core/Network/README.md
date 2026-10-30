@@ -1,3 +1,16 @@
+## Inactive upload-status decoder
+
+`Models/ObservationAnalysis/InitialPhotoUploadStatus.swift` consumes historical
+attempt observations only against an existing allocation receipt and role
+mapping. Its 2 KiB closed boundary rejects identity/clock rebasing and backward
+state; it grants no dispatch, closure or release. The
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#dormant-cpm-write-status-service-projection--october-29)
+owns the schema and cross-client rules. Tests are in
+`InitialPhotoUploadStatusTests`; the
+[scan guide](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--typed-upload-status-consuming-candidate)
+owns qualification and remaining durable integration. No native request is
+wired.
+
 ## File upload task lifetime candidate — October 29
 
 `PinnedNetworkTransport.photoUploadTask()` creates a single-use file PUT owner
