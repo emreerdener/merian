@@ -1,3 +1,26 @@
+## October 29 — cumulative qualification and environment agreement
+
+IC-1 integration acceptance includes the
+[cumulative functional audit](identification-history-alpha-readiness-2026-10-11.md#october-29--cumulative-functional-qualification-agreement)
+of the exact complete candidate at the current functional milestone, before
+later deletion/export and redesign. History remains sole writer; the existing
+Engine owner reviews lifecycle/accounting. Durable-save/acknowledgement and
+both-order race evidence, populated-store upgrades, real wiring, all media and
+one findings register supplement component evidence. Known failures and
+unqualified obligations remain visible; this amendment closes none of them.
+
+The
+[planned qualification environment](../development-guides/24-identification-history-device-review.md#planned-real-app-qualification-environment)
+uses local disposable databases for destructive/fault/contention testing and the
+existing beta production backend for eventual explicitly authorized real-app
+qualification. A new hosted database is not required. Qualification-build and
+executable-guard reconciliation precede use; the exact operation/target packet
+and approval remain required. No current executable guard, ordinary activation,
+PR116 freeze or deployment hold changes. Earlier nonproduction-only real-app
+database planning below is historical; separate edge/storage security
+qualification remains required by the deployment runbook. Continue the
+authorized implementation sequence.
+
 ## October 29 — native pre-transfer reservation candidate
 
 The inactive native owner now persists one exact reserved, not-started role with

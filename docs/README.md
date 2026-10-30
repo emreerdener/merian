@@ -62,7 +62,9 @@ production submission or public release.
   record findings, repairs, validation and remaining qualification.
 - [Identification-history device review](./development-guides/24-identification-history-device-review.md)
   provides Xcode launch profiles, guided fixture steps and a concise result
-  template.
+  template, plus the planned existing-beta qualification environment. The
+  [cumulative functional audit](./rfcs/identification-history-alpha-readiness-2026-10-11.md#october-29--cumulative-functional-qualification-agreement)
+  owns whole-candidate acceptance and evidence mapping before later milestones.
 - [Testing strategy](./development-guides/08-testing-strategy.md) owns the
   compiled **iOS Build and Test** gate and **Supabase Candidate Validation**.
   Candidate validation uses a disposable database without production secrets or

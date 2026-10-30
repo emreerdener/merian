@@ -10,6 +10,26 @@ policy parity includes the exact-file list and missing/sibling rejection.
 
 # Merian Testing & Quality Assurance Strategy
 
+## Identification-history cumulative qualification
+
+At the current functional milestone, use the roadmap's
+[cumulative audit and A1–A21 acceptance matrix](../rfcs/identification-history-alpha-readiness-2026-10-11.md#october-29--cumulative-functional-qualification-agreement)
+for the complete exact candidate, before deletion/export and redesign. Map
+requirements to owners and applicable evidence; retain one findings register,
+failed attempts, selected-test coverage gaps and independent fix verification.
+Track audit/testing, remediation and blocked time separately. Reuse unchanged
+qualified inputs; a fix selects affected checks, not an automatic full restart.
+Final affected gates/CI still require the exact candidate.
+
+The
+[planned real-app environment](24-identification-history-device-review.md#planned-real-app-qualification-environment)
+uses local disposable databases for destructive/fault/contention work and the
+existing beta backend for eventual explicitly authorized real-app qualification.
+No new hosted project is required. This planning decision changes no executable
+guard or external authorization; build/target/account/data containment must be
+implemented and reviewed before use. Component or fixture success does not close
+populated-store, device, hosted, resource or real-wiring acceptance.
+
 ## Local coding checkpoints and validation milestones
 
 A small internal commit is a coding checkpoint, not an automatic request for

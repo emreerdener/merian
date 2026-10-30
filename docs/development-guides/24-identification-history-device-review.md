@@ -78,7 +78,8 @@ Physical-device acceptance remains required. Record these outcomes:
   changes invalidate retained actions instead of targeting a newer result.
 - Reopening after an uncertain save observes the same operation. Actual process
   restart and second-device receipt recovery still require the separate durable
-  store/nonproduction acceptance pass; an in-memory fixture cannot prove them.
+  store and explicitly authorized named-target acceptance pass; an in-memory
+  fixture cannot prove them.
 
 The
 [verification matrix](08-testing-strategy.md#durable-confirmation-undo-verification)
@@ -100,12 +101,61 @@ configuration and bundle identifier remain unchanged.
 
 Relaunch resets this test library. It cannot establish crash/restart durability,
 account switching, live provider reanalysis, private storage, cross-device
-reconciliation or a V57-to-V58 migration. Those checks require a named
-nonproduction backend/device plan and a separately authorized build/install
-path. Existing migration tests and simulator measurements do not replace a real
+reconciliation or a V57-to-V58 migration. Those checks require the named beta
+backend/device plan below and a separately authorized build/install path.
+Existing migration tests and simulator measurements do not replace a real
 install-over test or sustained-memory trace. See the
 [history verification contract](08-testing-strategy.md#observation-analysis-history-preparation)
 and [runtime qualification guide](18-ios-runtime-quality-and-benchmarking.md).
+
+## Planned real-app qualification environment
+
+The October 29 decision selects the existing **beta production backend for
+planning** eventual real-app qualification. No additional hosted database is
+required. Use local disposable databases for destructive migration, injected
+fault and contention testing; never direct those tests at existing beta data.
+This replaces earlier separate hosted nonproduction database planning for the
+real-app journey only, while preserving historical evidence and every current
+executable guard. It is not an installed, validated or enabled configuration.
+The deployment runbook
+[history activation hold](../backend-and-data/06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold)
+still requires its separate nonproduction edge/R2 security evidence. Those
+requirements neither imply another hosted database nor permit destructive or
+contention testing on beta data; retain them as distinct pending authorization
+and qualification obligations.
+
+Before use, implement and review the dedicated `HistoryQualification` design and
+its executable safety checks together. Require a compiled qualification marker,
+exact explicitly approved project/host and test-account/data scope, isolated
+bundle/app-group/keychain/disk/auth namespaces, and fail-closed validation
+before constructing live clients or installing the composition. Ordinary
+Debug/Release must exclude that branch and retain the hard-false
+`PreparedHistoryReanalysisComposition.isAppInstallationQualified` path. Remote
+flags, preferences, warning suppression and simply relaxing a production-denial
+check are not qualification mechanisms. Validate wrong/missing target, missing
+marker, ordinary builds and out-of-scope account/data refusal alongside the
+positive authorized configuration. These checks are **planned**, not claimed as
+implemented by this document.
+
+Prepare a reviewable operation packet before requesting external authorization:
+exact source/build artifact and backend revisions; named target; each proposed
+operation, test accounts and data scope; provider/cost bounds; preservation,
+cleanup and rollback plan. Obtain explicit operation-and-target authorization
+before hosted mutation, migration, deployment, credentials, provider
+experiments, device installation or activation. Cleanup against the hosted
+target also needs that explicit scope. No actual target identifier, credential
+or personal data belongs in these public instructions. Existing beta selection
+is planning consent, not blanket operational approval. PR116 and deployment
+holds remain; ordinary production activation stays disabled.
+
+Use real navigation, AppDI owners and disk-backed storage for the separately
+authorized run. Record exact artifact/backend identity and sanitized outcomes
+for all three media types, populated-store upgrades, offline/relaunch, lost
+responses, account/deletion fences and resource measurements. Dedicated test
+accounts do not make a shared production backend disposable. Apply the
+[cumulative functional audit](../rfcs/identification-history-alpha-readiness-2026-10-11.md#october-29--cumulative-functional-qualification-agreement)
+and A1–A21 matrix; fixture results above retain their narrower scope. Continue
+independent authorized local work while this external packet is pending.
 
 ## Report a result
 
