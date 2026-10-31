@@ -77,6 +77,27 @@ performance, or resolve the original five failures. No performance remediation
 is installed. Exact selections, raw XCResult and phase totals are retained in
 `hq028-measurement-runtime01-reconciled.json`.
 
+The first correction removes one duplicate bootstrap fetch per synchronous
+header snapshot. Both projections use the same freshly validated inventory and
+bootstrap pair; all predicates, uniqueness checks, validation order, fresh
+contexts and audit checkpoints remain. Independent source review cleared it, and
+compilation passed in 472.682 seconds. The focused regression run executed all
+21 selected methods / 50 cases: 45 passed, the same five failed, none skipped.
+New snapshot commit/deletion and invalid-authority cases passed, together with
+selected account-drain, bootstrap-revision, foreign-evidence, stale-store,
+pre-save and architecture checks. All 6,816 inputs remained unchanged during the
+1,183.454-second managed run.
+
+The identical probe still performed 669 checkpoints: phases totaled 8.042
+seconds, checkpoints 5.565 seconds and sender entry 8.293 seconds. Comparing
+these single Debug samples does not establish a performance improvement. All
+four status cases again failed before sender entry; the upload timeout again
+reported `invalidResponse` in the ticket-response phase. The duplicate-read
+correction therefore does not resolve HQ-028, HQ-029 or HQ-030. Evidence:
+`hq028-header-runtime01-reconciled.json`, including the exact selection mapping,
+raw failed XCResult and timing comparison. Further decomposition of authority
+checkpoint cost is required before a broader optimization.
+
 Retained receipts under `.artifacts/native-app-capture-handoff-20261020/`
 include `hq019-environment-repaired01.json`,
 `hq019-migration-startup-qualified01.json`, `hq019-network01-results/`,

@@ -36,8 +36,7 @@ enum SharedMediaNativeAppEligibility {
     }
 
     static func snapshot(context: ModelContext, scope: SharedMediaNativeScopeIdentity) throws -> Header {
-        let row = try header(context: context, scope: scope), id = scope.inventoryID
-        let bootstrap = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaMembershipBootstrapRecord>(predicate: #Predicate { $0.id == id }))
+        let (row, bootstrap) = try validatedHeader(context: context, scope: scope)
         return .init(inventory: .init(generation: row.generation, revision: row.revision, phase: row.phaseRaw, cursor: row.cursor),
             bootstrapID: bootstrap.id, bootstrapGeneration: bootstrap.inventoryGeneration,
             bootstrapContract: bootstrap.contractVersion, bootstrapRevision: bootstrap.revision)
@@ -81,6 +80,13 @@ enum SharedMediaNativeAppEligibility {
     }
 
     static func header(context: ModelContext, scope: SharedMediaNativeScopeIdentity) throws -> SharedMediaInventoryRecord {
+        try validatedHeader(context: context, scope: scope).inventory
+    }
+
+    // Both projections use the same validated pair within this synchronous call.
+    // No model or authority is retained between invocations or across suspension.
+    private static func validatedHeader(context: ModelContext, scope: SharedMediaNativeScopeIdentity) throws
+        -> (inventory: SharedMediaInventoryRecord, bootstrap: SharedMediaMembershipBootstrapRecord) {
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         let id = scope.inventoryID
         let row = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))
@@ -90,6 +96,6 @@ enum SharedMediaNativeAppEligibility {
               row.storeIdentity == scope.storeIdentity, row.rootIdentity == scope.rootBinding,
               bootstrap.inventoryGeneration == scope.generation, bootstrap.contractVersion == 2,
               bootstrap.revision >= 0 else { throw SharedMediaStorageFailure.conflict }
-        return row
+        return (row, bootstrap)
     }
 }

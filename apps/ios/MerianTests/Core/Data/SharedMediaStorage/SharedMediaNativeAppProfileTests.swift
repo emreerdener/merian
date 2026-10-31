@@ -12,6 +12,83 @@ struct SharedMediaNativeAppProfileTests {
     private enum Interruption: Error { case injected }
     private final class Resources: NSObject {}
 
+    @Test func headerSnapshotsObserveSuccessiveCommitsAndDeletion() throws {
+        let fixture = try HeaderFixture(), first = try fixture.snapshot()
+        #expect(first.inventory.revision == 0 && first.bootstrapRevision == 0)
+        let context = fixture.context()
+        let inventory = try #require(try context.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
+        let bootstrap = try #require(try context.fetch(FetchDescriptor<SharedMediaMembershipBootstrapRecord>()).first)
+        inventory.revision = 7; bootstrap.revision = 11; try context.save()
+        let second = try fixture.snapshot()
+        #expect(second.inventory.revision == 7 && second.bootstrapRevision == 11)
+        #expect(second != first && first.inventory.revision == 0 && first.bootstrapRevision == 0)
+        context.delete(bootstrap); try context.save()
+        #expect(throws: SharedMediaStorageFailure.conflict) { _ = try fixture.snapshot() }
+        #expect(throws: SharedMediaStorageFailure.conflict) {
+            _ = try SharedMediaNativeAppEligibility.header(context: fixture.context(), scope: fixture.scope)
+        }
+    }
+
+    @Test(arguments: ["inventoryMissing", "bootstrapMissing", "profile", "mode", "phase", "cursor",
+        "inventoryRevision", "bootstrapRevision", "contract", "generation", "store", "owner", "root", "dirty"])
+    func bothHeaderProjectionsRejectInvalidAuthority(_ fault: String) throws {
+        let fixture = try HeaderFixture(); _ = try fixture.snapshot()
+        let context = fixture.context()
+        let inventory = try #require(try context.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
+        let bootstrap = try #require(try context.fetch(FetchDescriptor<SharedMediaMembershipBootstrapRecord>()).first)
+        switch fault {
+        case "inventoryMissing": context.delete(inventory)
+        case "bootstrapMissing": context.delete(bootstrap)
+        case "profile": inventory.rootIdentity = "malformed"
+        case "mode": inventory.modeRaw = "unknown"
+        case "phase": inventory.phaseRaw = "unknown"
+        case "cursor": inventory.cursor = "unexpected"
+        case "inventoryRevision": inventory.revision = -1
+        case "bootstrapRevision": bootstrap.revision = -1
+        case "contract": bootstrap.contractVersion = 1
+        case "generation": bootstrap.inventoryGeneration = UUID()
+        case "store": inventory.storeIdentity = UUID().uuidString
+        case "dirty": inventory.revision += 1
+        default: break
+        }
+        if fault != "dirty" { try context.save() }
+        let scope = SharedMediaNativeScopeIdentity(inventoryID: fixture.scope.inventoryID, generation: fixture.scope.generation,
+            ownerID: fault == "owner" ? UUID() : fixture.scope.ownerID, storeIdentity: fixture.scope.storeIdentity,
+            rootBinding: fault == "root" ? "wrong-root" : fixture.scope.rootBinding)
+        #expect(throws: (any Error).self) {
+            _ = try SharedMediaNativeAppEligibility.snapshot(context: context, scope: scope)
+        }
+        #expect(throws: (any Error).self) {
+            _ = try SharedMediaNativeAppEligibility.header(context: context, scope: scope)
+        }
+        context.rollback()
+    }
+
+    @MainActor private struct HeaderFixture {
+        let container: ModelContainer
+        let scope: SharedMediaNativeScopeIdentity
+        init() throws {
+            let schema = Schema([SharedMediaInventoryRecord.self, SharedMediaMembershipBootstrapRecord.self])
+            container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+            let profile = Profile(ownerID: UUID(), inventoryID: UUID(), generation: UUID(), storeIdentity: UUID().uuidString,
+                physicalBinding: String(repeating: "a", count: 64), receiptDigest: String(repeating: "b", count: 64))
+            scope = try .init(inventoryID: profile.inventoryID, generation: profile.generation, ownerID: profile.ownerID,
+                storeIdentity: profile.storeIdentity, rootBinding: profile.rootIdentity)
+            let context = ModelContext(container); context.autosaveEnabled = false
+            context.insert(SharedMediaInventoryRecord(id: profile.inventoryID, rootIdentity: scope.rootBinding,
+                storeIdentity: profile.storeIdentity, generation: profile.generation, revision: 0,
+                modeRaw: Profile.mode, phaseRaw: Profile.phase, cursor: ""))
+            let bootstrap = SharedMediaMembershipBootstrapRecord(inventoryID: profile.inventoryID, inventoryGeneration: profile.generation)
+            bootstrap.contractVersion = 2; context.insert(bootstrap); try context.save()
+        }
+        func context() -> ModelContext {
+            let context = ModelContext(container); context.autosaveEnabled = false; return context
+        }
+        func snapshot() throws -> SharedMediaNativeAppEligibility.Header {
+            try SharedMediaNativeAppEligibility.snapshot(context: context(), scope: scope)
+        }
+    }
+
     @Test func legacyCompleteSnapshotsRetainBothCanonicalEncodings() throws {
         // Captured from the synthetic no-save07 fixture before adding a format
         // field. These are committed legacy bytes, not values built by new code.
