@@ -179,6 +179,7 @@ final class PersistentStoreBootstrapSessionTests: XCTestCase {
     func testLegacyRescueReplacementHoldsFenceAndKeepsAdmissionDenied() throws {
         try legacyRescueReplacement(schema: MerianSchemaV65.self, source: .v65)
         try legacyRescueReplacement(schema: MerianSchemaV66.self, source: .v66)
+        try legacyRescueReplacement(schema: MerianSchemaV67.self, source: .v67)
     }
 
     private func legacyRescueReplacement(schema: any VersionedSchema.Type,

@@ -1,3 +1,12 @@
+## October 31 — separate recovery presentation storage
+
+V68 reserves nullable presentation bytes on the existing queue row. Native
+receiving rejects nonnil values until the typed presentation owner is
+integrated; raw transaction seals include the field. No
+prepared/received/allocation bytes or execution fields are reused. The
+[scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--recovery-presentation-storage-prerequisite)
+owns the RUX integration boundary and pending qualification.
+
 ## Status-only allocation recovery — October 31
 
 `recoverAppPhotoAllocationStatus` requires a saved V1/V2/V6 claim and matching

@@ -45,6 +45,7 @@ enum SharedMediaNativeReceivingTerminalRaw {
             "sourceAnalysisID": value(row.sourceAnalysisID),
             "reanalysisOwnerAccountID": value(row.reanalysisOwnerAccountID),
             "timestamp": value(row.timestamp),
+            "recoveryPresentationData": value(row.recoveryPresentationData),
             "capturedMediaJSON": value(row.capturedMediaJSON),
             "capturedMediaEntries": value(row.capturedMediaEntries.map { $0.map(\.persistentModelID) }),
             "gpsLatitude": value(row.gpsLatitude),

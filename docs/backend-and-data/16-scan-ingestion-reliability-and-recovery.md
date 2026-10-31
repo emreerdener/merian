@@ -1,3 +1,24 @@
+## October 31 — recovery presentation storage prerequisite
+
+RUX-1 requires the total visible checking budget to survive navigation and
+restart. The
+[V68 queue field](04-database-schema.md#october-31--v68-recovery-presentation-storage-candidate)
+provides separate nullable storage under the existing operation row; immutable
+submitted media/text and execution metadata are unchanged. The initial storage
+checkpoint passed app/test-target compilation, bounded independent source review
+and the affected tooling suite. It installs no writer or timer and remains
+runtime-unqualified under HQ-019. Existing native readers reject unexpected
+populated presentation bytes.
+
+The next typed owner must bind account, observation and exact operation, reserve
+checking presentation durably before displaying it, use monotonic elapsed time
+while visible, and settle clean pauses against the same reservation. An
+interrupted active reservation must become Needs attention on restart rather
+than grant a fresh spinner budget. Presentation timeout never terminates network
+ownership, releases funding or authorizes execution. Initial and reanalysis UI
+wiring and all RUX-1–RUX-6 acceptance remain open; the ordinary factory remains
+disabled. No feature activation or external operation is authorized.
+
 ## October 31 — allocation recovery cannot create a claim
 
 The existing allocation owner now has a dedicated `recoverAllocationStatus`

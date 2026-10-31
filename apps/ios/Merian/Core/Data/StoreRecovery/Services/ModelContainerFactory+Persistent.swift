@@ -128,6 +128,10 @@ extension ModelContainerFactory {
             }
 
             if let recovered = try optionalRecovery({ try makePersistentContainer(
+                migrationPlan: MerianRecentV67MigrationPlan.self, named: "checksum-recent-v67", diagnostic: &diagnostic
+            ) }) { return recovered }
+
+            if let recovered = try optionalRecovery({ try makePersistentContainer(
                 migrationPlan: MerianRecentV66MigrationPlan.self, named: "checksum-recent-v66", diagnostic: &diagnostic
             ) }) { return recovered }
 
@@ -432,6 +436,8 @@ extension ModelContainerFactory {
             diagnostic: inout StartupStoreDiagnostic
         ) throws -> ModelContainer {
             switch source {
+            case .v67:
+                return try makePersistentContainer(migrationPlan: MerianRecentV67MigrationPlan.self, named: "recent-v67", diagnostic: &diagnostic)
             case .v66:
                 return try makePersistentContainer(migrationPlan: MerianRecentV66MigrationPlan.self, named: "recent-v66", diagnostic: &diagnostic)
             case .v65:

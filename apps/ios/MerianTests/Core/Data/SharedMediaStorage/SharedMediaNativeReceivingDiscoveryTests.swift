@@ -129,7 +129,7 @@ struct SharedMediaNativeReceivingDiscoveryTests {
         #expect(await cold.invalidateAndAwaitForAccountTransition())
     }
 
-    @Test(arguments: ["foreign", "orphan", "malformed", "allocation"])
+    @Test(arguments: ["foreign", "orphan", "malformed", "allocation", "presentation"])
     func rawCorruptionCannotDisappearBehindCandidateFiltering(_ fault: String) async throws {
         let (h, owner, _) = try await SharedMediaNativeAppReceivingTests().fixture(staged: true)
         let prepared = try #require(try await owner.discoverAppReceivingIntent(packageID: h.packageID))
@@ -137,8 +137,10 @@ struct SharedMediaNativeReceivingDiscoveryTests {
         let context = h.context()
         let row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(h.packageID, in: context))
         let hash = row.preparedSHA256
+        let queue = try #require(try context.fetch(FetchDescriptor<OfflineQueuedScan>()).first)
         var orphan: SharedMediaReceivingIntentRecord?
         switch fault {
+        case "presentation": queue.recoveryPresentationData = Data([1])
         case "foreign": row.ownerID = UUID()
         case "orphan":
             let extra = SharedMediaReceivingIntentRecord(packageID: UUID(), inventoryID: h.inventoryID,
@@ -152,7 +154,7 @@ struct SharedMediaNativeReceivingDiscoveryTests {
         await #expect(throws: (any Error).self) { _ = try await owner.discoverAppReceivedCandidates() }
         if let orphan { context.delete(orphan) }
         row.ownerID = h.ownerID; row.preparedSHA256 = hash
-        row.allocationData = nil; row.allocationSHA256 = nil; try context.save()
+        row.allocationData = nil; row.allocationSHA256 = nil; queue.recoveryPresentationData = nil; try context.save()
         #expect(await owner.invalidateAndAwaitForAccountTransition())
     }
 

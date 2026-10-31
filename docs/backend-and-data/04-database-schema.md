@@ -1,3 +1,39 @@
+## October 31 — V68 recovery presentation storage candidate
+
+Current source schema V68 adds nullable
+`OfflineQueuedScan.recoveryPresentationData` through lightweight V67→V68. This
+is the storage prerequisite for RUX-1's operation-bound, restart-stable visible
+checking budget. No existing metadata carrier is safe: native receiving
+job/event metadata forms part of immutable submitted bytes, and retry/execution
+fields retain their existing meanings. The field belongs to the existing queue
+lifecycle; it creates no new job or execution owner. Migration leaves it nil for
+every existing operation and preserves media, request, allocation, retry and
+funding state. No presentation writer, timer or remote UI caller is installed in
+this checkpoint. Native receiving rejects populated presentation storage until
+its typed owner is qualified, and transaction seals include the field.
+
+V67 was frozen and compiled before active model changes, retaining the closed
+V64 relationship graph and exact V67 receiving shape. All forward plans append
+V67→V68; startup recognizes V67 with its source-isolated plan and checksum
+fallback. Current stores remain plan-free and rescue/quarantine eligibility is
+unchanged. Populated V67 full/recent migration plus cold reopen, V67 startup
+recovery and malformed presentation cases are added. V68 app/test-target
+compilation passed in 527.940s with all 3,229 pinned inputs unchanged; full
+affected iOS tooling passed in 525.705s. Bounded independent source review
+cleared schema and ownership; its stale V67 wording finding was corrected.
+Scoped preflight, migration guard/mutation tests and lint passed with eight
+inherited warnings. This compiles the existing shared working tree, including
+unrelated inputs, rather than a clean commit-only checkout. Evidence:
+`.artifacts/native-app-capture-handoff-20261020/rux-presentation-v68-compile-qualified01.json`.
+**Zero runtime cases executed:** complete migration/startup and affected
+persistence suites remain blocked by HQ-019. Source comparison and compilation
+do not prove on-disk migration or checksum compatibility. Earlier V67 checkpoint
+evidence below remains historical and does not qualify V68.
+
+The
+[scan contract](16-scan-ingestion-reliability-and-recovery.md#october-31--recovery-presentation-storage-prerequisite)
+owns remaining RUX integration and release limitations.
+
 ## Inactive CPM backend projection — October 30
 
 The forward
@@ -6105,12 +6141,12 @@ hashes. Evidence: `staged-funding-composite01.json` under
 a pre-refactor oracle; exhaustive dirty-poststate parity and complete affected
 gates remain open. This is not routing, writer or feature acceptance.
 
-`MerianSchemaV67` now owns the active global models. The additive V66→V67 stage
-adds nullable `allocationData` and `allocationSHA256` to the existing
-package-keyed receiving record. It preserves every historical prepared, result
-and release-start byte and digest; migration leaves the new fields nil and
-creates no remote operation. V66 was frozen and compiled before active model
-edits, retaining the closed V64 graph for unchanged models.
+At the October 28 checkpoint, `MerianSchemaV67` owned the active global models.
+The additive V66→V67 stage adds nullable `allocationData` and `allocationSHA256`
+to the existing package-keyed receiving record. It preserves every historical
+prepared, result and release-start byte and digest; migration leaves the new
+fields nil and creates no remote operation. V66 was frozen and compiled before
+active model edits, retaining the closed V64 graph for unchanged models.
 
 Allocation state is currently dormant: there is no installed writer or network
 caller. Any populated or partial pair fails closed in receiving, abandonment,
@@ -6140,7 +6176,7 @@ evidence. See the
 separate server boundary and remaining end-to-end integration.
 
 **Historical V66 foundation (October 22):** the following paragraphs retain that
-checkpoint's contract and evidence; the current schema is V67 and typed
+checkpoint's contract and evidence; the current schema is V68 and typed
 release-stage/start owners have since been integrated separately.
 
 `MerianSchemaV66` owned the active global models. Its lightweight V65→V66 stage
@@ -6255,7 +6291,8 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current source schema is `MerianSchemaV67`. V67 adds nil-default allocation
+The current source schema is `MerianSchemaV68`; see the presentation-storage
+candidate and qualification limits above. V67 added nil-default allocation
 columns through lightweight V66→V67; these remain closed to existing owners
 until the dedicated allocation lifecycle is qualified. V66 added optional
 release-request columns through lightweight V65→V66. V65 added an empty
@@ -6340,12 +6377,12 @@ Ordinary Capture access remains nil. Recent milestones:
   directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
-  `ModelContainer`: fresh/current V67 stores open without a migration plan,
+  `ModelContainer`: fresh/current V68 stores open without a migration plan,
   known recent stores use the source-isolated
-  V66/V65/V64/V63/V62/V61/V60/V59/V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42
-  plans, and only unknown older stores use the full historical plan. V66 needs
-  only lightweight V66→V67; earlier plans retain their previous stages and
-  append V66→V67. Each V50 plan contains its custom V50→V51 preference-ownership
+  V67/V66/V65/V64/V63/V62/V61/V60/V59/V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42
+  plans, and only unknown older stores use the full historical plan. V67 needs
+  only lightweight V67→V68; earlier plans retain their previous stages and
+  append V67→V68. Each V50 plan contains its custom V50→V51 preference-ownership
   stage followed by
   V51→V52→V53→V54→V55→V56→V57→V58→V59→V60→V61→V62→V63→V64→V65→V66; the V49 plan
   prepends the required lightweight V49→V50 hop. Immediate predecessors

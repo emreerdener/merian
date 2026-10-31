@@ -1,3 +1,13 @@
+## October 31 — V68 presentation storage candidate
+
+The current schema adds a nullable queue presentation field through lightweight
+V67→V68. V67 has an exact source-isolated startup and checksum fallback plan;
+current stores remain plan-free. Rescue and quarantine eligibility are
+unchanged. The
+[schema contract](../../../../../../docs/backend-and-data/04-database-schema.md#october-31--v68-recovery-presentation-storage-candidate)
+owns preservation requirements and qualification limits. Runtime checks remain
+blocked by HQ-019; this does not introduce a recovery writer or activate UI.
+
 ## October 28 — V67 allocation storage checkpoint
 
 Current schema V67 adds nullable allocation bytes/digest on the existing

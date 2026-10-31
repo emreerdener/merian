@@ -136,7 +136,7 @@ enum SharedMediaNativeReceivingRows {
               queue.workKindRaw == "ordinary", queue.parentObservationID == nil, queue.sourceAnalysisID == nil,
               queue.reanalysisOwnerAccountID == nil, queue.scanStateRaw == ScanQueueState.pending.rawValue,
               queue.queueNeedsAttention, queue.queueAttemptCount == 0, queue.queueSchemaRepairGeneration == 1,
-              queue.capturedMediaJSON == nil, queue.capturedMediaEntries?.isEmpty != false,
+              queue.recoveryPresentationData == nil, queue.capturedMediaJSON == nil, queue.capturedMediaEntries?.isEmpty != false,
               queue.coverImagePath == nil, queue.inferenceImagePaths == nil, queue.visualMediaItemsJSON == nil,
               queue.fieldNotes == nil, queue.stagedR2Keys == nil, queue.queueLastAttemptAt == nil,
               queue.queueNextRetryAt == nil, queue.queueLastErrorCode == nil, queue.queueLastErrorMessage == nil,

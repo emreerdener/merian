@@ -14,6 +14,9 @@ public final class OfflineQueuedScan {
     public var sourceAnalysisID: String?
     public var reanalysisOwnerAccountID: String?
     public var timestamp: Date
+    /// V68 presentation-only recovery budget; nil for every migrated operation.
+    /// Typed operation owners must validate before use; never execution or retry authority.
+    public var recoveryPresentationData: Data?
     public var capturedMediaJSON: String?
     @Relationship(deleteRule: .cascade) public var capturedMediaEntries: [CapturedMediaEntry]? = []
 

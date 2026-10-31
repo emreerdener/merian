@@ -88,7 +88,11 @@ if mode == "forbidden-source":
         1,
     )
     source = source[:start] + plan + source[end:]
-if mode == "missing-v66-full-tail":
+if mode == "missing-v68-full-tail":
+    source = source.replace("migrateV67toV68", "removedV68Stage", 1)
+elif mode == "missing-v67-plan":
+    source = source[:source.index("enum MerianRecentV67MigrationPlan")]
+elif mode == "missing-v66-full-tail":
     source = source.replace("migrateV65toV66", "removedV66Stage", 1)
 elif mode == "missing-v65-plan":
     source = source[:source.index("enum MerianRecentV65MigrationPlan")]
@@ -257,68 +261,71 @@ assert_rejected safe-mode-plan "The empty current-schema safe-mode container mus
 assert_rejected weakened-full-plan-test "MigrationPlanTests must validate the full historical plan independently from safe mode."
 assert_rejected reconstructed-store-path "Store recovery must not reconstruct the SwiftData store under Application Support."
 
-assert_rejected missing-v52-full-tail "Full migration plan must finish with the shared V51 through V67 stages."
-assert_rejected missing-v52-recent-tail "Recent V50 plan must finish with the shared V51 through V67 stages."
-assert_rejected reordered-v52-schema "Full migration plan must end its schemas with frozen V51 through V66 then active V67."
-assert_rejected missing-v51-plan "Recent V51 plan must end its schemas with frozen V51 through V66 then active V67."
+assert_rejected missing-v52-full-tail "Full migration plan must finish with the shared V51 through V68 stages."
+assert_rejected missing-v52-recent-tail "Recent V50 plan must finish with the shared V51 through V68 stages."
+assert_rejected reordered-v52-schema "Full migration plan must end its schemas with frozen V51 through V67 then active V68."
+assert_rejected missing-v51-plan "Recent V51 plan must end its schemas with frozen V51 through V67 then active V68."
 assert_rejected missing-v51-source "RecentSourceSchema must include V51."
 assert_rejected missing-v51-dispatch "ModelContainerFactory recent-source dispatch must handle V51 explicitly."
 
-assert_rejected missing-v53-full-tail "Full migration plan must finish with the shared V51 through V67 stages."
+assert_rejected missing-v53-full-tail "Full migration plan must finish with the shared V51 through V68 stages."
 assert_rejected missing-v52-plan "Missing V52 source-isolated plan."
 
-assert_rejected missing-v55-full-tail "Full migration plan must finish with the shared V51 through V67 stages."
+assert_rejected missing-v55-full-tail "Full migration plan must finish with the shared V51 through V68 stages."
 assert_rejected missing-v54-plan "Missing V54 source-isolated plan."
 
-assert_rejected missing-v56-full-tail "Full migration plan must finish with the shared V51 through V67 stages."
+assert_rejected missing-v56-full-tail "Full migration plan must finish with the shared V51 through V68 stages."
 assert_rejected missing-v55-plan "Missing V55 source-isolated plan."
 
-assert_rejected missing-v57-full-tail "Full migration plan must finish with the shared V51 through V67 stages."
+assert_rejected missing-v57-full-tail "Full migration plan must finish with the shared V51 through V68 stages."
 assert_rejected changed-v57-ScanSnapshots "V57 frozen snapshot changed: ScanSnapshots"
 assert_rejected changed-v57-QueueSnapshots "V57 frozen snapshot changed: QueueSnapshots"
-assert_rejected missing-v58-full-tail "Full migration plan must finish with the shared V51 through V67 stages."
+assert_rejected missing-v58-full-tail "Full migration plan must finish with the shared V51 through V68 stages."
 assert_rejected missing-v57-plan "Missing V57 source-isolated plan."
 assert_rejected missing-v56-plan "Missing V56 source-isolated plan."
 
-assert_rejected missing-v59-full-tail "Full migration plan must finish with the shared V51 through V67 stages."
+assert_rejected missing-v59-full-tail "Full migration plan must finish with the shared V51 through V68 stages."
 assert_rejected missing-v58-plan "Missing V58 source-isolated plan."
 assert_rejected changed-v58-ScanSnapshots "V58 frozen snapshot changed: ScanSnapshots"
 assert_rejected changed-v58-QueueSnapshots "V58 frozen snapshot changed: QueueSnapshots"
 
-assert_rejected missing-v60-full-tail "Full migration plan must finish with the shared V51 through V67 stages."
+assert_rejected missing-v60-full-tail "Full migration plan must finish with the shared V51 through V68 stages."
 assert_rejected missing-v59-plan "Missing V59 source-isolated plan."
 assert_rejected changed-v59-ScanSnapshots "V59 frozen snapshot changed: ScanSnapshots"
 assert_rejected changed-v59-QueueSnapshots "V59 frozen snapshot changed: QueueSnapshots"
 assert_rejected changed-v59-PhotoPreparationSnapshots "V59 frozen snapshot changed: PhotoPreparationSnapshots"
 
-assert_rejected missing-v62-full-tail "Full migration plan must finish with the shared V51 through V67 stages."
+assert_rejected missing-v62-full-tail "Full migration plan must finish with the shared V51 through V68 stages."
 assert_rejected missing-v61-plan "Missing V61 source-isolated plan."
 assert_rejected changed-v61-schema "V61 frozen snapshot changed: SchemaV61.swift"
 assert_rejected changed-v61-snapshot "V61 frozen snapshot changed: SchemaV61InboxSnapshots.swift"
-assert_rejected missing-v61-full-tail "Full migration plan must finish with the shared V51 through V67 stages."
+assert_rejected missing-v61-full-tail "Full migration plan must finish with the shared V51 through V68 stages."
 assert_rejected missing-v60-plan "Missing V60 source-isolated plan."
 
 for snapshot in SchemaV62.swift SchemaV62ScanSnapshots.swift SchemaV62QueueSnapshots.swift SchemaV62PreparationSnapshots.swift; do
   assert_rejected "changed-$snapshot" "V62 frozen snapshot changed: $snapshot"
 done
 
-assert_rejected missing-v64-full-tail "Full migration plan must finish with the shared V51 through V67 stages."
+assert_rejected missing-v64-full-tail "Full migration plan must finish with the shared V51 through V68 stages."
 assert_rejected missing-v63-plan "Missing V63 source-isolated plan."
 for snapshot in SchemaV63.swift SchemaV63ScanSnapshots.swift SchemaV63QueueSnapshots.swift SchemaV63PreparationSnapshots.swift SchemaV63ConsumerSnapshots.swift; do
   assert_rejected "changed-$snapshot" "V63 frozen snapshot changed: $snapshot"
 done
 
-assert_rejected missing-v65-full-tail "Full migration plan must finish with the shared V51 through V67 stages."
+assert_rejected missing-v65-full-tail "Full migration plan must finish with the shared V51 through V68 stages."
 assert_rejected missing-v64-plan "Missing V64 source-isolated plan."
 for snapshot in SchemaV64.swift SchemaV64ScanSnapshots.swift SchemaV64QueueSnapshots.swift SchemaV64AcquisitionSnapshots.swift; do
   assert_rejected "changed-$snapshot" "V64 frozen snapshot changed: $snapshot"
 done
 
-assert_rejected missing-v66-full-tail "Full migration plan must finish with the shared V51 through V67 stages."
+assert_rejected missing-v66-full-tail "Full migration plan must finish with the shared V51 through V68 stages."
 assert_rejected missing-v65-plan "Missing V65 source-isolated plan."
-assert_rejected reordered-v66-schema "Full migration plan must end its schemas with frozen V51 through V66 then active V67."
+assert_rejected reordered-v66-schema "Full migration plan must end its schemas with frozen V51 through V67 then active V68."
 for snapshot in SchemaV65.swift SchemaV65ReceivingSnapshots.swift; do
   assert_rejected "changed-$snapshot" "V65 frozen snapshot changed: $snapshot"
 done
+
+assert_rejected missing-v68-full-tail "Full migration plan must finish with the shared V51 through V68 stages."
+assert_rejected missing-v67-plan "Missing V67 source-isolated plan."
 
 echo "iOS migration source guardrail tests passed."
