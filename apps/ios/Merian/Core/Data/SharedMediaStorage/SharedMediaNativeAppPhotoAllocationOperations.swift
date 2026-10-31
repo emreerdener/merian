@@ -28,11 +28,26 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
     static func audited(container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority,
                         io: SharedMediaNativeOriginalIO, sealTransfer: @escaping (SharedMediaPhotoRetirementInspection, SharedMediaNativePairCompletion?) throws -> Void,
                         availableBytes: @escaping () throws -> Int64,
-                        boundary: @escaping (SharedMediaNativeMetadataBoundary) throws -> Void) async throws -> Self {
+                        boundary: @escaping (SharedMediaNativeMetadataBoundary) throws -> Void,
+                        configureAudit: (inout SharedMediaNativeScopedAudit) -> Void = { _ in }) async throws -> Self {
+        #if DEBUG
+        var trace: SharedMediaNativeDebugHooks.InspectionTrace?
+        #endif
         let expected = try authority.header(container)
-        _ = try await SharedMediaNativeScopedAudit(app: container, profile: authority.profile, expected: expected.inventory,
-            check: { guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale } },
-            betweenPages: { await Task.yield() }).run()
+        var audit = try SharedMediaNativeScopedAudit(app: container, profile: authority.profile, expected: expected.inventory,
+            check: {
+                #if DEBUG
+                let started = trace == nil ? nil : ContinuousClock.now
+                defer { if let started { trace?.checkpoint(started.duration(to: .now)) } }
+                #endif
+                guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale }
+            }, betweenPages: { await Task.yield() })
+        configureAudit(&audit)
+        #if DEBUG
+        trace = audit.inspectionTrace
+        defer { trace?.finish() }
+        #endif
+        _ = try await audit.run()
         guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale }
         return Self(container: container, authority: authority, io: io, sealTransfer: sealTransfer, expected: expected,
             availableBytes: availableBytes, boundary: boundary)

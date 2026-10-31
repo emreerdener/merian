@@ -89,6 +89,13 @@ enum SharedMediaNativeInitializationBoundary: Sendable {
 
 @MainActor
 extension SharedMediaNativeAppDispatchGrant {
+    /// Configure bounded observation only; all authority checks remain in the audit.
+    func configureInspection(_ audit: inout SharedMediaNativeScopedAudit) {
+        #if DEBUG
+        audit.inspectionTrace = debug.inspectionTrace
+        #endif
+    }
+
     /// Test-only capacity clamp supplied through the already registered grant.
     /// Release builds return real availability without an override or extra authority.
     func limitingAllocationAvailableBytes(_ actual: Int64) -> Int64 {

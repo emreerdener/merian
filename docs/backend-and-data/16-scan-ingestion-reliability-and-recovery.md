@@ -52,6 +52,31 @@ behavior. Evidence: `hq029-diagnostic-runtime01-reconciled.json`; managed
 compilation 181.769 seconds and diagnostic execution 884.056 seconds, each with
 all 6,816 inputs unchanged. The original failures remain retained.
 
+The measurement candidate connects allocation/status auditing to the existing
+opt-in `SharedMediaNativeDebugHooks.InspectionTrace`. The ready/idle metadata
+test-hook setter installs it; allocation audits report bounded phase and
+checkpoint timing, and the test clears it after the retained operation returns.
+The probe uses the real status owner and validates that an injected lost
+response leaves the saved attempt unchanged. It adds no audit, await, network
+call, cache or mutation authority. Release builds cannot enable the trace.
+Initial/final header calls and fixture setup are outside its per-phase
+checkpoint totals; sender validation is measured separately. Independent review
+cleared the candidate after a test cleanup correction. Compilation passed, and
+all 11 selected methods/cases passed without skips: the one measurement probe,
+eight Core Data integration architecture checks and two iOS hygiene checks. All
+6,816 inputs remained unchanged during the 228.003-second managed run.
+
+The single Debug simulator probe measured 8.536 seconds to sender entry. Its 12
+audit phases totaled 8.232 seconds; 669 authority-header checkpoints consumed
+5.719 seconds, or 69.48% of those reported phases. Sender validation took
+another 0.140 seconds within the entry interval. The saved attempt remained
+unchanged after the injected lost response and the trace was cleared. These
+measurements identify repeated checkpoint validation as a material cost; they do
+not isolate individual filesystem/database checks, qualify device or Release
+performance, or resolve the original five failures. No performance remediation
+is installed. Exact selections, raw XCResult and phase totals are retained in
+`hq028-measurement-runtime01-reconciled.json`.
+
 Retained receipts under `.artifacts/native-app-capture-handoff-20261020/`
 include `hq019-environment-repaired01.json`,
 `hq019-migration-startup-qualified01.json`, `hq019-network01-results/`,

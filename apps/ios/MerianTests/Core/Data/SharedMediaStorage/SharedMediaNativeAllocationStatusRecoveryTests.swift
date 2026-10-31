@@ -208,6 +208,40 @@ struct NativeAllocationStatusRecoveryTests {
             _ = await owner.invalidateAndAwaitForAccountTransition()
         } catch { _ = await owner.invalidateAndAwaitForAccountTransition(); throw error }
     }
+    @Test
+    func allocationStatusAuditMeasurementsPreserveSavedAttempt() async throws {
+        let f = try await fixture(6)
+        var completedPhases = 0, saturated = false, entered = false
+        let trace = SharedMediaNativeDebugHooks.InspectionTrace { value in
+            if value.completed { completedPhases += 1 }
+            saturated = saturated || value.saturated
+            print("Native status audit phase=\(value.phase.rawValue) completed=\(value.completed) elapsed=\(value.elapsed) checkpoints=\(value.checkpointCount) checkpointTime=\(value.checkpointTime)")
+        }
+        do {
+            let before = try NativePhotoStatusRecoveryTests().row(f.store)
+            try f.owner.setMetadataFault(nil, inspectionTrace: trace)
+            let began = ContinuousClock.now
+            let caller = access(6) { _, check, settle in
+                let validationBegan = ContinuousClock.now
+                try check(); try settle(); entered = true
+                print("Native status sender entry elapsed=\(began.duration(to: .now)) validation=\(validationBegan.duration(to: .now))")
+                throw URLError(.networkConnectionLost)
+            }
+            await #expect(throws: URLError.self) {
+                _ = try await caller.recover(owner: f.owner, prepared: f.prepared, validate: {})
+            }
+            #expect(entered && completedPhases > 0 && !saturated)
+            #expect(try NativePhotoStatusRecoveryTests().row(f.store) == before)
+            try f.owner.setMetadataFault(nil)
+            #expect(!f.owner.hasInspectionTraceForTesting)
+            #expect(await f.owner.invalidateAndAwaitForAccountTransition())
+        } catch {
+            try? f.owner.setMetadataFault(nil)
+            _ = await f.owner.invalidateAndAwaitForAccountTransition()
+            throw error
+        }
+    }
+
     @Test(arguments: [false, true])
     func cancellationRetainsOwnerUntilSenderReturns(_ shutdown: Bool) async throws {
         let f = try await fixture(6)

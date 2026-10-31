@@ -1,3 +1,12 @@
+## October 31 — current qualification and audit diagnostics
+
+The
+[scan recovery guide](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--simulator-qualification-after-component-repair)
+owns current runtime results, retained failures and measurement limits. The
+allocation audit's optional bounded Debug trace observes existing checks; it
+provides no account, file, save or network authority. Earlier checkpoint notes
+below retain their original qualification status.
+
 ## October 31 — separate recovery presentation storage
 
 V68 reserves nullable presentation bytes on the existing queue row. Native

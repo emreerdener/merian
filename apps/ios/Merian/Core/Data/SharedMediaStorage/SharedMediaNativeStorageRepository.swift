@@ -350,7 +350,7 @@ final class SharedMediaNativeStorageRepository {
     func appPhotoAllocation(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant) async throws -> SharedMediaNativeAppPhotoAllocationOperations {
         let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try lock.validate(); try self.requireApp(grant); return try self.appHeader() }
         let seal: (SharedMediaPhotoRetirementInspection, SharedMediaNativePairCompletion?) throws -> Void = { try self.photos.requireCurrentSharedInspection($0); if let proof = $1 { try self.photos.requireCurrentPairCompletion(proof, binding: self.nativeBinding) } }
-        return try await .audited(container: container, authority: authority, io: originalIO, sealTransfer: seal, availableBytes: { try grant.limitingAllocationAvailableBytes(self.files.availableBytes()) }, boundary: metadataBoundary)
+        return try await .audited(container: container, authority: authority, io: originalIO, sealTransfer: seal, availableBytes: { try grant.limitingAllocationAvailableBytes(self.files.availableBytes()) }, boundary: metadataBoundary, configureAudit: grant.configureInspection)
     }
     func appReleaseStage(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant,
                          settlement: SharedMediaNativeReleaseStageSettlement) async throws -> SharedMediaNativeAppReleaseStageOperations {
