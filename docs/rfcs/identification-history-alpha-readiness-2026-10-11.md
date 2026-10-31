@@ -1,3 +1,10 @@
+> October 31 qualification update:
+> [current simulator qualification](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--simulator-qualification-after-component-repair)
+> records repaired simulator execution, populated-store migration and selected
+> native/network results. It also retains pending fixture coverage and the
+> measured native-audit performance gap. This does not close journey/RUX
+> acceptance, activate features or change the approved milestone sequence.
+
 ## October 29 — cumulative functional qualification agreement
 
 The current functional milestone includes a bounded audit of the **complete

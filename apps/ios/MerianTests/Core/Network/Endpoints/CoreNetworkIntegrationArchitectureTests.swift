@@ -4353,17 +4353,20 @@ struct CoreNetworkIntegrationArchitectureTests {
             )
         )
         #expect(pinnedTransport.contains("systemTrustIsValid: systemTrustIsValid"))
-        #expect(
-            pinnedTransport.contains(
-                "completionHandler(.cancelAuthenticationChallenge, nil)"
-            )
-        )
-        #expect(
-            pinnedTransport.components(
-                separatedBy: "completionHandler(.cancelAuthenticationChallenge, nil)"
-            ).count == 3
-        )
-        #expect(pinnedTransport.contains("private final class MerianTLSDelegate"))
+        let rejectChallenge = "completionHandler(.cancelAuthenticationChallenge, nil)"
+        let tlsOwners = pinnedTransport.components(separatedBy: "private final class MerianTLSDelegate:")
+        try #require(tlsOwners.count == 2)
+        let tlsAndCollectors = tlsOwners[1].components(separatedBy: "struct ProtectedInsightChatDataTask:")
+        try #require(tlsAndCollectors.count == 2)
+        let uploadOwners = tlsAndCollectors[1].components(separatedBy: "final class PinnedPhotoUploadTask:")
+        try #require(uploadOwners.count == 2)
+        // TLS rejects missing or invalid trust; the PUT owner separately refuses
+        // credential negotiation that could resend its immutable request body.
+        #expect(tlsAndCollectors[0].components(separatedBy: rejectChallenge).count == 3)
+        #expect(uploadOwners[1].components(separatedBy: rejectChallenge).count == 2)
+        #expect(pinnedTransport.components(separatedBy: rejectChallenge).count == 4)
+        let boundedCollector = try networkSource("Transport/PinnedBoundedJSONDataTask.swift")
+        #expect(boundedCollector.components(separatedBy: rejectChallenge).count == 2)
         let assembly = client
         #expect(assembly.contains("private final class NetworkTransportAssembly"))
         #expect(client.contains("private let transport: NetworkTransportAssembly"))

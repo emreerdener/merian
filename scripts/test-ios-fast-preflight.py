@@ -168,6 +168,22 @@ class PolicyTests(unittest.TestCase):
             self.assertTrue(any('Unsupported domain' in failure for failure in
                                 preflight.size_failures(root, policy, [sibling.relative_to(root).as_posix()])))
 
+    def test_auth_facade_preserves_owning_architecture_ceiling(self):
+        path = 'apps/ios/Merian/Core/Network/SupabaseManager.swift'
+        actual = preflight.load_policy(ROOT)
+        rule = dict(counter='physical', ceiling=3792)
+        self.assertEqual(actual['fileRules'][path], rule)
+        root, policy, _ = self.fixture()
+        source = root / path
+        source.parent.mkdir(parents=True, exist_ok=True)
+        policy['oversizedOwners'].append('Core/Network/SupabaseManager.swift')
+        policy['fileRules'][path] = rule
+        source.write_text('x\n' * 3792)
+        self.assertEqual(preflight.size_failures(root, policy, [path]), [])
+        source.write_text('x\n' * 3793)
+        self.assertTrue(any('3793 physical > 3792' in error for error in
+                            preflight.size_failures(root, policy, [path])))
+
     def test_outgoing_receiving_schema_has_exact_global_ceiling_coverage(self):
         path = 'apps/ios/Merian/Models/Schema/SchemaV66.swift'
         actual = preflight.load_policy(ROOT)

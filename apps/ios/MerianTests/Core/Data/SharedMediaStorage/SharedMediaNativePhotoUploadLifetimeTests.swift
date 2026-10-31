@@ -23,8 +23,11 @@ struct NativePhotoUploadLifetimeTests {
         let reserved: SharedMediaNativePhotoAllocation
     }
     private func putFixture(_ role: Mapping.Role = .source, nearExpiry: Bool = false) async throws -> PutFixture {
-        let (store, owner, prepared, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(role,
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(role,
             boundBackend: true, createdAtMilliseconds: Int64(Date().timeIntervalSince1970 * 1000) - (nearExpiry ? 1_790_000 : 1_000))
+        let store = reservedFixture.store
+        let owner = reservedFixture.owner
+        let prepared = reservedFixture.prepared
         _ = try await owner.reserveAppPhotoRemoteAttempt(prepared)
         return .init(store: store, owner: owner, prepared: prepared, reserved: try await owner.reserveAppPhotoPutStart(prepared))
     }
@@ -238,7 +241,11 @@ struct NativePhotoUploadLifetimeTests {
 
     @Test(arguments: Mapping.Role.allCases)
     func sealedRoleResponseNeverSettlesOrReleases(_ role: Mapping.Role) async throws {
-        let (store, owner, prepared, allocation) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(role)
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(role)
+        let store = reservedFixture.store
+        let owner = reservedFixture.owner
+        let prepared = reservedFixture.prepared
+        let allocation = reservedFixture.allocation
         let before = try row(store), mock = ScopedMockTransport(), session = mock.makeSession()
         defer { session.invalidateAndCancel() }
         mock.register(path: "/photo-upload") { request in
@@ -256,7 +263,11 @@ struct NativePhotoUploadLifetimeTests {
     }
 
     @Test func staleAllocationCannotCreateUploadTask() async throws {
-        let (store, owner, prepared, allocation) = try await SharedMediaNativePhotoTransferReadbackTests().fixture()
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture()
+        let store = reservedFixture.store
+        let owner = reservedFixture.owner
+        let prepared = reservedFixture.prepared
+        let allocation = reservedFixture.allocation
         let mock = ScopedMockTransport(), session = mock.makeSession()
         defer { session.invalidateAndCancel() }
         let upload = try SharedMediaNativePhotoUpload.forTesting(allocation: allocation, task: .init(session: session))
@@ -270,7 +281,11 @@ struct NativePhotoUploadLifetimeTests {
 
     @Test(arguments: ["cancel", "timeout", "account"])
     func terminationRetainsOwnerAndCoordinatorExclusion(_ mode: String) async throws {
-        let (store, owner, prepared, allocation) = try await SharedMediaNativePhotoTransferReadbackTests().fixture()
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture()
+        let store = reservedFixture.store
+        let owner = reservedFixture.owner
+        let prepared = reservedFixture.prepared
+        let allocation = reservedFixture.allocation
         let before = try row(store), pause = PhotoUploadCompletionPause()
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [PhotoUploadHangingProtocol.self]
@@ -371,7 +386,11 @@ struct NativePhotoUploadLifetimeTests {
 
     @Test(arguments: ["file", "saved"])
     func postflightFailureJoinsBeforeRejecting(_ fault: String) async throws {
-        let (store, owner, prepared, allocation) = try await SharedMediaNativePhotoTransferReadbackTests().fixture()
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture()
+        let store = reservedFixture.store
+        let owner = reservedFixture.owner
+        let prepared = reservedFixture.prepared
+        let allocation = reservedFixture.allocation
         let before = try row(store), mock = ScopedMockTransport(), session = mock.makeSession(), pause = PhotoUploadCompletionPause()
         defer { session.invalidateAndCancel() }
         mock.register(path: "/photo-upload") { request in

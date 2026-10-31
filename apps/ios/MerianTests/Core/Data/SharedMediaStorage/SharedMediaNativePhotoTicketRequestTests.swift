@@ -36,7 +36,10 @@ struct NativePhotoTicketRequestTests {
 
     @Test(arguments: Mapping.Role.allCases)
     func boundCatalogFailurePrecedesSaveAndRequestKeepsExactSuccessor(_ role: Mapping.Role) async throws {
-        let (h, owner, p, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(role, boundBackend: true)
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(role, boundBackend: true)
+        let h = reservedFixture.store
+        let owner = reservedFixture.owner
+        let p = reservedFixture.prepared
         do {
             let before = try await owner.reserveAppPhotoRemoteAttempt(p)
             let fixture = InitialPhotoUploadTicketTests(), destination = try fixture.destination()
@@ -70,7 +73,10 @@ struct NativePhotoTicketRequestTests {
 
     @Test(arguments: ["owner", "deletion"])
     func boundRequestRechecksOwnerAndDeletionAfterObservation(_ fault: String) async throws {
-        let (h, owner, p, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: true)
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: true)
+        let h = reservedFixture.store
+        let owner = reservedFixture.owner
+        let p = reservedFixture.prepared
         do {
             _ = try await owner.reserveAppPhotoRemoteAttempt(p)
             let catalog = try InitialPhotoUploadDestination.Catalog([InitialPhotoUploadTicketTests().destination()])
@@ -97,7 +103,10 @@ struct NativePhotoTicketRequestTests {
 
     @Test(arguments: ["beforeSave", "afterSave"])
     func putReservationRecoversExactStateWithoutTicketPermission(_ fault: String) async throws {
-        let (h, initialOwner, p, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: true)
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: true)
+        let h = reservedFixture.store
+        let initialOwner = reservedFixture.owner
+        let p = reservedFixture.prepared
         var owner = initialOwner
         do {
             let before = try await owner.reserveAppPhotoRemoteAttempt(p)
@@ -167,7 +176,11 @@ struct NativePhotoTicketRequestTests {
 
     @Test(arguments: Mapping.Role.allCases, [false, true])
     func freshOnceAndColdRecoveryNeverReconstructPermission(_ role: Mapping.Role, boundBackend: Bool) async throws {
-        let (h, owner, p, v3) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(role, boundBackend: boundBackend)
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(role, boundBackend: boundBackend)
+        let h = reservedFixture.store
+        let owner = reservedFixture.owner
+        let p = reservedFixture.prepared
+        let v3 = reservedFixture.allocation
         let v4 = try await owner.reserveAppPhotoRemoteAttempt(p)
         #expect(try !SharedMediaNativeReceivingTestFixture.object(v4).keys.contains("ticketRequestStarted"))
         var escaped: SharedMediaNativePhotoTicketContinuation?
@@ -206,7 +219,10 @@ struct NativePhotoTicketRequestTests {
     }
 
     @Test(arguments: [false, true]) func invalidTicketResponseConsumesObservationAndCannotRetry(boundBackend: Bool) async throws {
-        let (store, owner, prepared, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let store = reservedFixture.store
+        let owner = reservedFixture.owner
+        let prepared = reservedFixture.prepared
         defer { withExtendedLifetime(store) {} }
         _ = try await owner.reserveAppPhotoRemoteAttempt(prepared)
         var escaped: SharedMediaNativePhotoTicketContinuation?
@@ -231,7 +247,10 @@ struct NativePhotoTicketRequestTests {
 
     @Test(arguments: ["afterSave", "readback", "beforeSave", "capacity", "generation"], [false, true])
     func failedAcknowledgementNeverInvokesRequest(_ fault: String, boundBackend: Bool) async throws {
-        let (h, owner, p, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let h = reservedFixture.store
+        let owner = reservedFixture.owner
+        let p = reservedFixture.prepared
         let v4 = try await owner.reserveAppPhotoRemoteAttempt(p)
         var didSave = false, calls = 0
         try owner.setMetadataFault({ boundary in
@@ -264,7 +283,10 @@ struct NativePhotoTicketRequestTests {
     }
 
     @Test(arguments: [false, true]) func markerAndThreeStatusSavesRetainMaximumCharge(boundBackend: Bool) async throws {
-        let (h, owner, p, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let h = reservedFixture.store
+        let owner = reservedFixture.owner
+        let p = reservedFixture.prepared
         let v4 = try await owner.reserveAppPhotoRemoteAttempt(p)
         let other = UUID(), draft = UUID(), image = PhotoPreparationTestHarness.image()
         let acquisition = try await owner.prepareAppOriginal(packageID: other, draftGeneration: draft, ordinal: 0, kind: .picker)
@@ -299,7 +321,9 @@ struct NativePhotoTicketRequestTests {
 
     @Test(arguments: ["legacy", "false", "null", "missing"], [false, true])
     func malformedMarkerIsRejected(_ fault: String, boundBackend: Bool) async throws {
-        let (_, owner, p, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let owner = reservedFixture.owner
+        let p = reservedFixture.prepared
         let v4 = try await owner.reserveAppPhotoRemoteAttempt(p), v5 = try v4.startingTicketRequest()
         var object = try SharedMediaNativeReceivingTestFixture.object(v5)
         switch fault {
@@ -315,7 +339,10 @@ struct NativePhotoTicketRequestTests {
 
     @Test(arguments: ["bound", "may_have_issued", "closed"], [false, true])
     func historicalRemoteFactCannotStartFreshRequest(_ state: String, boundBackend: Bool) async throws {
-        let (h, owner, p, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let h = reservedFixture.store
+        let owner = reservedFixture.owner
+        let p = reservedFixture.prepared
         let v4 = try await owner.reserveAppPhotoRemoteAttempt(p)
         let held = try await owner.observeAppPhotoRemoteAttempt(p, allocation: v4,
             status: status(v4, state: state == "bound" ? "bound" : "may_have_issued", closed: state == "closed", id: UUID()))
@@ -325,7 +352,9 @@ struct NativePhotoTicketRequestTests {
     }
 
     @Test(arguments: [false, true]) func simultaneousReservationsInvokeOnlyOneRequest(boundBackend: Bool) async throws {
-        let (_, owner, p, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let owner = reservedFixture.owner
+        let p = reservedFixture.prepared
         _ = try await owner.reserveAppPhotoRemoteAttempt(p)
         let pause = PhotoTicketRequestPause()
         var calls = 0
@@ -358,7 +387,10 @@ struct NativePhotoTicketRequestTests {
 
     @Test(arguments: [false, true], [false, true])
     func pausedRequestRetainsOperationAndRejectsLateCompletion(_ accountTransition: Bool, boundBackend: Bool) async throws {
-        let (h, owner, p, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let h = reservedFixture.store
+        let owner = reservedFixture.owner
+        let p = reservedFixture.prepared
         _ = try await owner.reserveAppPhotoRemoteAttempt(p)
         let pause = PhotoTicketRequestPause()
         var finished = false, drained = false, contenderEntered = false

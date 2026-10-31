@@ -156,14 +156,6 @@ import SwiftData
         authRuntimeState.finishAccountWork(lease)
     }
 
-    var isOAuthTransitionInProgress: Bool {
-        guard let kind = activeAuthTransition?.token.kind,
-              case .oauth = kind else {
-            return false
-        }
-        return true
-    }
-
     private var isUserSignOutTransitionInProgress: Bool {
         guard let kind = activeAuthTransition?.token.kind,
               case .signOut = kind else {

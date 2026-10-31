@@ -145,7 +145,10 @@ struct NativeAllocationStatusRecoveryTests {
 
     @Test(arguments: [false, true])
     func transferStateUsesItsSeparateRecoveryOwner(_ bound: Bool) async throws {
-        let (store, owner, prepared, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: bound)
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: bound)
+        let store = reservedFixture.store
+        let owner = reservedFixture.owner
+        let prepared = reservedFixture.prepared
         do {
             let before = try NativePhotoStatusRecoveryTests().row(store)
             let caller = access(bound ? 6 : 2) { _, _, _ in Issue.record("Transfer state entered allocation recovery"); throw SharedMediaStorageFailure.closed }

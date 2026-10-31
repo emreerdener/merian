@@ -96,8 +96,11 @@ exact Network owners: `Core/Network/Inference/IdentificationPreflight.swift`,
 `Core/Network/Transport/PinnedBoundedJSONDataTask.swift`,
 `Core/Network/Transport/AuthenticatedTransportDispatcher.swift` and
 `Core/Network/Transport/PinnedNetworkTransport.swift`. Each Network file retains
-the existing Core Network 600 physical-line ceiling; this does not cover sibling
-Network files or replace the owning architecture checks. Three exact image
+the existing Core Network 600 physical-line ceiling. The Auth facade
+`Core/Network/SupabaseManager.swift` additionally retains its existing 3,792
+physical-line ceiling; the Auth/Purchase aggregate budgets remain enforced by
+`CoreNetworkIntegrationArchitectureTests`. This does not cover sibling Network
+files or replace the owning architecture checks. Three exact image
 owners also retain the 600 physical-line ceiling:
 `Core/Data/Images/MediaPreparationActor.swift`,
 `Core/Data/Images/Policies/ImagePreparationPolicy.swift` and

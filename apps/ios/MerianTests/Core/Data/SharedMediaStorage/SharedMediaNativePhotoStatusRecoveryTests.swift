@@ -37,7 +37,10 @@ struct NativePhotoStatusRecoveryTests {
             "object_id": transfer.selection.objectID.uuidString.lowercased(), "attempt": attempt], options: [.sortedKeys])
     }
     private func fixture(_ phase: Int, role: Role = .source) async throws -> Fixture {
-        let (store, owner, prepared, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(role, boundBackend: phase >= 8)
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(role, boundBackend: phase >= 8)
+        let store = reservedFixture.store
+        let owner = reservedFixture.owner
+        let prepared = reservedFixture.prepared
         do {
             _ = try await owner.reserveAppPhotoRemoteAttempt(prepared)
             if phase == 5 || phase == 9 {
@@ -69,7 +72,10 @@ struct NativePhotoStatusRecoveryTests {
 
     @Test(arguments: [false, true])
     func unreservedStatusCannotDispatch(boundBackend: Bool) async throws {
-        let (store, owner, prepared, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
+        let store = reservedFixture.store
+        let owner = reservedFixture.owner
+        let prepared = reservedFixture.prepared
         do {
             let before = try row(store)
             let candidates = try await owner.discoverAppReceivedCandidates()

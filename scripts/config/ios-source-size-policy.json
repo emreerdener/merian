@@ -45,6 +45,10 @@
     }
   },
   "fileRules": {
+    "apps/ios/Merian/Core/Network/SupabaseManager.swift": {
+      "counter": "physical",
+      "ceiling": 3792
+    },
     "apps/ios/Merian/Core/Data/AnalysisHistory/AnalysisRecoveryPresentation.swift": {
       "counter": "physical",
       "ceiling": 600

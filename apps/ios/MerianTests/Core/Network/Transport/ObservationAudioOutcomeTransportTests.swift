@@ -18,7 +18,7 @@ struct ObservationAudioOutcomeTransportTests {
         state["observation_id"] = fixture.seed.source.observationID.uuidString.lowercased()
         state["selected_analysis_id"] = fixture.seed.source.analysisID.uuidString.lowercased()
         var item = try #require(state["analysis"] as? [String: Any])
-        item["snapshot"] = String(decoding: bytes, as: UTF8.self)
+        item["snapshot"] = try #require(String(bytes: bytes, encoding: .utf8))
         state["analysis"] = item
         return try JSONSerialization.data(withJSONObject: state)
     }
@@ -89,8 +89,11 @@ struct ObservationAudioOutcomeTransportTests {
         if kind == "details" { value["details"] = 1 }
         register(fixture, status: kind == "status" ? 500 : 404, data: try JSONSerialization.data(withJSONObject: value),
             headers: ["Content-Type": kind == "mime" ? "text/html" : "application/json"])
-        if kind == "exact" { #expect(try await read(fixture) == nil) }
-        else { await #expect(throws: (any Error).self) { try await read(fixture) } }
+        if kind == "exact" {
+            #expect(try await read(fixture) == nil)
+        } else {
+            await #expect(throws: (any Error).self) { try await read(fixture) }
+        }
         #expect(try Store.read(fixture.seed.proof, container: fixture.seed.container, isCurrent: { true }).work.consumedAttempt != nil)
     }
 
@@ -128,7 +131,8 @@ struct ObservationAudioOutcomeTransportTests {
 
     @Test func unconsumedClaimCannotEnterRecovery() async throws {
         let seed = try await ObservationAudioExecutionStoreTests().ready()
-        defer { try? FileManager.default.removeItem(at: seed.root) }
+        // Keep the unique temporary store: SwiftData may still hold its SQLite
+        // descriptors when this scope exits, just as in Fixture.close().
         let claim = try Store.claim(ObservationAudioExecutionStoreTests().bind(seed), purpose: .initial,
             proof: seed.proof, container: seed.container, isCurrent: { true })
         let fixture = try await Fixture(); defer { fixture.close() }

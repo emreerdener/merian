@@ -1,3 +1,9 @@
+> October 31 qualification update: the
+> [current simulator qualification](16-scan-ingestion-reliability-and-recovery.md#october-31--simulator-qualification-after-component-repair)
+> now includes both populated V67→V68 migration plans and startup recovery on
+> iOS 27.0. The compile-only evidence below is historical; the wider runtime
+> matrix, device install-over and RUX integration remain unqualified.
+
 ## October 31 — V68 recovery presentation storage candidate
 
 Current source schema V68 adds nullable

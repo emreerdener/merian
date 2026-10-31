@@ -12,7 +12,15 @@ struct SharedMediaNativePhotoTransferReadbackTests {
     typealias Mapping = SharedMediaNativePhotoRoleMapping
     typealias Prepared = SharedMediaNativeReceivingIntent.Prepared
 
-    func fixture(_ role: Mapping.Role = .source, boundBackend: Bool = false, createdAtMilliseconds: Int64 = 1) async throws -> (Store, SharedMediaNativeOriginalOwner, Prepared, Allocation) {
+    struct ReservedTransferFixture {
+        let store: Store
+        let owner: SharedMediaNativeOriginalOwner
+        let prepared: Prepared
+        let allocation: Allocation
+    }
+
+    func fixture(_ role: Mapping.Role = .source, boundBackend: Bool = false,
+                 createdAtMilliseconds: Int64 = 1) async throws -> ReservedTransferFixture {
         let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
         do {
             let allocation = try await owner.allocateAppPhotoRoles(p, backendBinding: boundBackend, authorizeCreate: { p, _ in
@@ -27,7 +35,8 @@ struct SharedMediaNativePhotoTransferReadbackTests {
                     backendBinding: boundBackend ? InitialPhotoUploadTicketTests().binding() : nil))
             }
             let entry = try #require(allocation.roleMapping?.entries.first { $0.role == role })
-            return (h, owner, p, try await owner.reserveAppPhotoTransfer(p, selection: entry))
+            return .init(store: h, owner: owner, prepared: p,
+                allocation: try await owner.reserveAppPhotoTransfer(p, selection: entry))
         } catch {
             _ = await owner.invalidateAndAwaitForAccountTransition(); throw error
         }
@@ -40,7 +49,12 @@ struct SharedMediaNativePhotoTransferReadbackTests {
 
     @Test(arguments: Mapping.Role.allCases, [false, true])
     func exactRoleAndColdRepeatKeepReservation(_ role: Mapping.Role, boundBackend: Bool) async throws {
-        let (h, owner, p, held) = try await fixture(role, boundBackend: boundBackend), before = try row(h)
+        let reservedFixture = try await fixture(role, boundBackend: boundBackend)
+        let h = reservedFixture.store
+        let owner = reservedFixture.owner
+        let p = reservedFixture.prepared
+        let held = reservedFixture.allocation
+        let before = try row(h)
         let reservation = try #require(held.transferReservation)
         try owner.setMetadataFault { if $0 == .beforeSave { Issue.record("Read attempted persistence") } }
         let read = try await owner.verifyAppPhotoTransfer(p, allocation: held)
@@ -56,7 +70,12 @@ struct SharedMediaNativePhotoTransferReadbackTests {
 
     @Test(arguments: ["generation", "descriptor", "role", "claim"])
     func callerCannotSubstituteSavedIdentity(_ fault: String) async throws {
-        let (h, owner, p, held) = try await fixture(), before = try row(h)
+        let reservedFixture = try await fixture()
+        let h = reservedFixture.store
+        let owner = reservedFixture.owner
+        let p = reservedFixture.prepared
+        let held = reservedFixture.allocation
+        let before = try row(h)
         var json = try #require(try JSONSerialization.jsonObject(with: held.encoded()) as? [String: Any])
         var transfer = try #require(json["transferReservation"] as? [String: Any])
         if fault == "generation" { transfer["assetGeneration"] = UUID().uuidString }
@@ -78,7 +97,12 @@ struct SharedMediaNativePhotoTransferReadbackTests {
 
     @Test(arguments: ["missing", "symlink", "replaced", "truncated", "appended", "modified", "cancel", "account", "saved"])
     func heldReadRejectsRacesWithoutRetiring(_ fault: String) async throws {
-        let (h, owner, p, held) = try await fixture(), before = try row(h)
+        let reservedFixture = try await fixture()
+        let h = reservedFixture.store
+        let owner = reservedFixture.owner
+        let p = reservedFixture.prepared
+        let held = reservedFixture.allocation
+        let before = try row(h)
         let reservation = try #require(held.transferReservation)
         let file = h.parent.appendingPathComponent("photo/PhotoPreparation")
             .appendingPathComponent(h.ownerID.uuidString.lowercased()).appendingPathComponent(h.packageID.uuidString.lowercased())
@@ -128,7 +152,12 @@ struct SharedMediaNativePhotoTransferReadbackTests {
     }
 
     private func joinedRoleRead(_ role: Mapping.Role, throughAuth: Bool) async throws {
-        let (h, initialOwner, p, held) = try await fixture(role), before = try row(h)
+        let reservedFixture = try await fixture(role)
+        let h = reservedFixture.store
+        let initialOwner = reservedFixture.owner
+        let p = reservedFixture.prepared
+        let held = reservedFixture.allocation
+        let before = try row(h)
         let registeredDrain = SharedMediaNativeOriginalDrain()
         let owner: SharedMediaNativeOriginalOwner
         if throughAuth {

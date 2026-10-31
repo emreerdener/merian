@@ -24,7 +24,12 @@ struct ObservationAudioAnalysisTransportTests {
             dispatcher = AuthenticatedTransportDispatcher(sessionTransport: pinned)
             dispatcher.overridingAuthUserID = seed.source.ownerID
         }
-        func close() { session.invalidateAndCancel(); try? FileManager.default.removeItem(at: seed.root) }
+        func close() {
+            session.invalidateAndCancel()
+            // SwiftData/Core Data may retain SQLite descriptors beyond this
+            // fixture's lifetime. Keep its unique temporary store until process
+            // teardown instead of unlinking a live database or WAL.
+        }
         func receipt(state: String = "complete") throws -> Data {
             try JSONSerialization.data(withJSONObject: ["schema_version": 1,
                 "observation_id": seed.source.observationID.uuidString.lowercased(),

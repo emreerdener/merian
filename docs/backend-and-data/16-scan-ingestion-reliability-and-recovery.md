@@ -1,3 +1,57 @@
+## October 31 — simulator qualification after component repair
+
+The user completed Xcode setup. CoreSimulator 1174.21 now matches Xcode 27.2;
+HQ-019's component mismatch is resolved by actual execution on the existing
+arm64 iPhone 18 Pro simulator running iOS 27.0. Earlier dated compile-only and
+HQ-019-blocked statements below describe their original checkpoints. This
+qualification update supersedes that environment blocker only within the tested
+scope; it does not establish device, Release-performance or full journey
+acceptance.
+
+| Selected scope                                                                                                          | Executed evidence                    | Outcome                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Bounded recovery presentation value                                                                                     | 8 methods / 26 cases                 | Passed; no skips. No persistence or UI consumer is installed.                                                     |
+| Migration, startup recovery and model architecture                                                                      | 152 methods / 156 cases              | Passed; both populated V67→V68 full/recent plans and cold reopen executed.                                        |
+| Network batch                                                                                                           | 103 methods / 280 cases              | First attempt failed the Auth size and stale TLS inventory checks; failed evidence is retained.                   |
+| Corrected network architecture, audio transport and task termination                                                    | 40 methods / 87 cases                | Passed; no skips or live-SQLite unlink warnings. Reuses unchanged passing consumers from the first network batch. |
+| Native receiving, allocation, enrichment, reservation, discovery, release, reanalysis persistence and data architecture | 161 methods / 370 cases in 24 suites | Passed; exact selected suites verified, no skips. Five fixture-dependent transfer/status suites remain pending.   |
+
+The corrected source removes an unused Auth facade accessor, preserves its
+3,792-line ceiling and all Auth/Purchase aggregate limits, and verifies
+rejection paths separately for the TLS delegate, immutable PUT owner and bounded
+response collector. Audio transport fixtures retain their unique temporary
+stores through process teardown instead of unlinking SQLite/WAL files while
+descriptors are live. Production transport and persistence behavior are
+unchanged. A remaining four-value test fixture is being converted to a named
+value; its five consumers require new compilation and execution before
+qualification.
+
+Retained receipts under `.artifacts/native-app-capture-handoff-20261020/`
+include `hq019-environment-repaired01.json`,
+`hq019-migration-startup-qualified01.json`, `hq019-network01-results/`,
+`hq019-remediation-validation01.json` and
+`hq019-native-unaffected01-qualified.json`. The corrected candidate passed
+managed compilation (249.241 seconds), full affected tooling (366.470 seconds),
+Swift/Python preflight parity and bounded independent source review. All 6,812
+working inputs remained pinned through each run, including unrelated edits; this
+is not a clean commit-only checkout.
+
+**Performance remains unqualified (HQ-028).** The 24-suite native batch took
+20,847.355 seconds. Its two-photo allocation test took 385.098 seconds across
+two cases. Samples show active MainActor work in repeated full graph, accounting
+and filesystem audits, with progress between phases. Passing these assertions
+does not resolve the cost or prove UI responsiveness/cancellation latency.
+Investigate this normal integration path without weakening account, deletion,
+ownership, byte or revision fences. This is distinct from HQ-002's historical
+PostgreSQL deadlock/deadline evidence; no native lock cycle was established.
+
+Remaining acceptance includes the five affected fixture suites, supported
+runtime matrix, complete affected final gates, measured memory/disk/cancellation
+behavior, RUX-1–RUX-6 and actual photo/audio/video initial and reanalysis
+journeys. Presentation sidecar admission/persistence and real UI wiring remain
+open. The ordinary factory stays disabled; PR116, deployment holds and external
+operation approvals remain unchanged.
+
 ## October 31 — bounded recovery presentation value
 
 `AnalysisRecoveryPresentation` now defines the local, versioned value intended
