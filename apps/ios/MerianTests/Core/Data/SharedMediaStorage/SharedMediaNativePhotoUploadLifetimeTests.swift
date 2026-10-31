@@ -16,6 +16,198 @@ struct NativePhotoUploadLifetimeTests {
             FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == id })))
     }
 
+    private struct PutFixture {
+        let store: Store
+        let owner: SharedMediaNativeOriginalOwner
+        let prepared: SharedMediaNativeReceivingIntent.Prepared
+        let reserved: SharedMediaNativePhotoAllocation
+    }
+    private func putFixture(_ role: Mapping.Role = .source, nearExpiry: Bool = false) async throws -> PutFixture {
+        let (store, owner, prepared, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(role,
+            boundBackend: true, createdAtMilliseconds: Int64(Date().timeIntervalSince1970 * 1000) - (nearExpiry ? 1_790_000 : 1_000))
+        _ = try await owner.reserveAppPhotoRemoteAttempt(prepared)
+        return .init(store: store, owner: owner, prepared: prepared, reserved: try await owner.reserveAppPhotoPutStart(prepared))
+    }
+
+    @Test(arguments: Mapping.Role.allCases, [201, 503])
+    func freshTicketRequiresDurablePutAndNeverRepeats(_ role: Mapping.Role, status: Int) async throws {
+        let context = try await putFixture(role), store = context.store, owner = context.owner, prepared = context.prepared, reserved = context.reserved
+        let fixture = InitialPhotoUploadTicketTests(), catalog = try InitialPhotoUploadDestination.Catalog([fixture.destination()])
+        let issued = try reserved.startingTicketRequest(), wire = try fixture.row(issued)
+        let decoded = try InitialPhotoUploadTicket(data: fixture.bytes(wire), allocation: issued,
+            destination: fixture.destination(), nowMilliseconds: Int64(Date().timeIntervalSince1970 * 1000))
+        let expected = try issued.startingPut(#require(decoded.issuedAttempt)), expectedBytes = try expected.encoded()
+        let mock = ScopedMockTransport(), session = mock.makeSession()
+        defer { session.invalidateAndCancel() }
+        let address = try #require(wire["url"] as? String), path = try #require(URL(string: address)?.path)
+        let puts = OSAllocatedUnfairLock(initialState: 0)
+        mock.register(path: path) { request in
+            puts.withLock { $0 += 1 }
+            #expect(request.httpMethod == "PUT" && request.value(forHTTPHeaderField: "If-None-Match") == "*")
+            let url = try #require(request.url)
+            return (try #require(HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil)), Data())
+        }
+        var sends = 0, constructions = 0
+        let result = try await owner.transferAppPhoto(prepared, catalog: catalog, send: { request, validate in
+            sends += 1; try validate()
+            #expect(request.allocation == issued)
+            return try fixture.bytes(wire)
+        }, makeTask: {
+            constructions += 1
+            // Construction is downstream of acknowledged durable V12, not just an in-memory proposal.
+            do { #expect(try self.row(store).allocationData == expectedBytes) } catch { Issue.record(error) }
+            return .init(session: session)
+        })
+        #expect(result == status && sends == 1 && constructions == 1 && puts.withLock { $0 } == 1)
+        let retained = try row(store)
+        #expect(retained.allocationData == expectedBytes)
+        let read = try await owner.verifyAppPhotoTransfer(prepared, allocation: expected)
+        #expect(read.selection == expected.transferReservation?.selection && read.sha256 == expected.transferReservation?.sha256)
+        #expect(try await owner.transferAppPhoto(prepared, catalog: catalog, send: { _, _ in
+            Issue.record("Repeated ticket request"); return Data()
+        }, makeTask: { Issue.record("Repeated PUT"); return .init(session: session) }) == nil)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let cold = try await SharedMediaNativeReceivingStagingTests().reopen(store)
+        #expect(try await cold.transferAppPhoto(prepared, catalog: catalog, send: { _, _ in
+            Issue.record("Cold request recreated authority"); return Data()
+        }, makeTask: { Issue.record("Cold PUT recreated authority"); return .init(session: session) }) == nil)
+        #expect(try row(store) == retained)
+        #expect(await cold.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test(arguments: ["beforeSave", "afterSave"], [1, 2])
+    func ambiguousTicketOrPutSaveCannotConstructUpload(_ fault: String, save: Int) async throws {
+        let context = try await putFixture(), store = context.store, owner = context.owner, prepared = context.prepared, reserved = context.reserved
+        let fixture = InitialPhotoUploadTicketTests(), catalog = try InitialPhotoUploadDestination.Catalog([fixture.destination()])
+        let session = ScopedMockTransport().makeSession()
+        defer { session.invalidateAndCancel() }
+        var saves = 0, sends = 0, constructions = 0
+        try owner.setMetadataFault { boundary in
+            if boundary == .beforeSave { saves += 1 }
+            if saves == save && ((fault == "beforeSave" && boundary == .beforeSave) || (fault == "afterSave" && boundary == .afterSave)) {
+                throw SharedMediaStorageFailure.unavailable
+            }
+        }
+        do {
+            let result = try await owner.transferAppPhoto(prepared, catalog: catalog, send: { request, validate in
+                sends += 1; try validate(); return try fixture.bytes(fixture.row(request.allocation))
+            }, makeTask: { constructions += 1; return .init(session: session) })
+            #expect(fault == "afterSave" && result == nil)
+        } catch { #expect(fault == "beforeSave") }
+        try owner.setMetadataFault(nil)
+        #expect(constructions == 0 && sends == save - 1)
+        #expect(await session.allTasks.isEmpty)
+        let retained = try row(store)
+        if save == 1 && fault == "beforeSave" { #expect(try retained.allocationData == reserved.encoded()) } else {
+            #expect(try await owner.transferAppPhoto(prepared, catalog: catalog, send: { _, _ in
+                Issue.record("Ambiguous state retried"); return Data()
+            }, makeTask: { Issue.record("Ambiguous state minted PUT"); return .init(session: session) }) == nil)
+            #expect(try row(store) == retained)
+        }
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test(arguments: ["held", "malformed", "cancel"])
+    func unusableTicketRetainsMarkerWithoutPut(_ mode: String) async throws {
+        let context = try await putFixture(), store = context.store, owner = context.owner, prepared = context.prepared, reserved = context.reserved
+        let fixture = InitialPhotoUploadTicketTests(), catalog = try InitialPhotoUploadDestination.Catalog([fixture.destination()])
+        let session = ScopedMockTransport().makeSession()
+        defer { session.invalidateAndCancel() }
+        var constructions = 0
+        do {
+            let result = try await owner.transferAppPhoto(prepared, catalog: catalog, send: { _, validate in
+                try validate()
+                if mode == "cancel" { throw CancellationError() }
+                return try fixture.bytes(mode == "held" ? ["outcome": "held", "attempt_id": UUID().uuidString.lowercased()] : [:])
+            }, makeTask: { constructions += 1; return .init(session: session) })
+            #expect(mode == "held" && result == nil)
+        } catch { #expect(mode != "held") }
+        #expect(constructions == 0)
+        #expect(await session.allTasks.isEmpty)
+        #expect(try row(store).allocationData == reserved.startingTicketRequest().encoded())
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func expiredSignedCapabilityCreatesNoTaskAndIsSpent() async throws {
+        let session = ScopedMockTransport().makeSession(), task = PinnedPhotoUploadTask(session: session)
+        defer { session.invalidateAndCancel() }
+        var request = URLRequest(url: try #require(URL(string: "https://sealed-role.invalid/photo-upload")))
+        request.httpMethod = "PUT"
+        await #expect(throws: (any Error).self) {
+            _ = try await task.response(for: request, fromFile: URL(fileURLWithPath: "/synthetic-unopened-file"),
+                timeout: 300, expiresAtMilliseconds: Int64(Date().timeIntervalSince1970 * 1000) - 1)
+        }
+        await task.waitForLocalTermination()
+        #expect(await session.allTasks.isEmpty)
+        await #expect(throws: (any Error).self) {
+            _ = try await task.response(for: request, fromFile: URL(fileURLWithPath: "/synthetic-unopened-file"), timeout: 300)
+        }
+        #expect(await session.allTasks.isEmpty)
+    }
+
+    @Test func expiryBetweenCreationAndResumeCancelsRetainedTask() async throws {
+        let mock = ScopedMockTransport(), session = mock.makeSession(), hooks = OSAllocatedUnfairLock(initialState: 0)
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data([1]).write(to: file)
+        defer { session.invalidateAndCancel(); try? FileManager.default.removeItem(at: file) }
+        mock.register(path: "/photo-upload") { _ in Issue.record("Expired suspended upload resumed"); throw URLError(.badURL) }
+        let task = PinnedPhotoUploadTask(session: session, beforeResume: {
+            hooks.withLock { $0 += 1 }
+            Thread.sleep(forTimeInterval: 2.2)
+        })
+        var request = URLRequest(url: try #require(URL(string: "https://sealed-role.invalid/photo-upload")))
+        request.httpMethod = "PUT"
+        let expiry = Int64(Date().timeIntervalSince1970 * 1000) + 2_000
+        await #expect(throws: (any Error).self) {
+            _ = try await task.response(for: request, fromFile: file, timeout: 300, expiresAtMilliseconds: expiry)
+        }
+        await task.waitForLocalTermination()
+        #expect(hooks.withLock { $0 } == 1)
+        #expect(await session.allTasks.isEmpty)
+    }
+
+    @Test(arguments: ["owner", "deletion"], ["beforeSave", "beforeConsume"])
+    func issuedTicketLosesOwnershipBeforePut(_ fault: String, phase: String) async throws {
+        let fixtureContext = try await putFixture(), store = fixtureContext.store, owner = fixtureContext.owner, prepared = fixtureContext.prepared
+        let fixture = InitialPhotoUploadTicketTests(), catalog = try InitialPhotoUploadDestination.Catalog([fixture.destination()])
+        let session = ScopedMockTransport().makeSession()
+        defer { session.invalidateAndCancel() }
+        func loseOwnership() throws {
+            let context = store.context()
+            if fault == "owner" {
+                let id = store.inventoryID
+                let inventory = try SharedMediaNativePairPlanGraph.one(context,
+                    FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))
+                inventory.generation = UUID()
+            } else {
+                let id = store.packageID
+                let row = try SharedMediaNativePairPlanGraph.one(context,
+                    FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == id }))
+                context.delete(row)
+            }
+            try context.save()
+        }
+        var saves = 0, sends = 0, constructions = 0
+        try owner.setMetadataFault { boundary in
+            if boundary == .beforeSave {
+                saves += 1
+                if saves == 2 && phase == "beforeSave" { try loseOwnership() }
+            }
+        }
+        await #expect(throws: (any Error).self) {
+            _ = try await owner.transferAppPhoto(prepared, catalog: catalog, send: { request, validate in
+                sends += 1; try validate(); return try fixture.bytes(fixture.row(request.allocation))
+            }, makeTask: {
+                constructions += 1
+                do { try loseOwnership() } catch { Issue.record(error) }
+                return .init(session: session)
+            })
+        }
+        #expect(sends == 1 && constructions == (phase == "beforeConsume" ? 1 : 0))
+        #expect(await session.allTasks.isEmpty)
+        _ = await owner.invalidateAndAwaitForAccountTransition()
+    }
+
     @Test(arguments: Mapping.Role.allCases)
     func sealedRoleResponseNeverSettlesOrReleases(_ role: Mapping.Role) async throws {
         let (store, owner, prepared, allocation) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(role)
@@ -94,6 +286,55 @@ struct NativePhotoUploadLifetimeTests {
         } catch {
             pause.release(); call.cancel()
             _ = await call.result
+            await contender?.value
+            if let transition { _ = await transition.value } else { _ = await owner.invalidateAndAwaitForAccountTransition() }
+            throw error
+        }
+    }
+
+    @Test(arguments: ["cancel", "account", "timeout"])
+    func freshPutTerminationRetainsLeaseAndLocks(_ mode: String) async throws {
+        let context = try await putFixture(nearExpiry: mode == "timeout"), store = context.store, owner = context.owner, prepared = context.prepared
+        let fixture = InitialPhotoUploadTicketTests(), catalog = try InitialPhotoUploadDestination.Catalog([fixture.destination()])
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [PhotoUploadHangingProtocol.self]
+        let session = URLSession(configuration: config), started = PhotoUploadTestSignal(), pause = PhotoUploadCompletionPause()
+        PhotoUploadHangingProtocol.startSignal.withLock { $0 = started }
+        defer { PhotoUploadHangingProtocol.startSignal.withLock { $0 = nil }; session.invalidateAndCancel() }
+        var finished = false, drained = false, acquired = false
+        let call = Task {
+            defer { finished = true; started.finish(); pause.finishWaiting() }
+            return try await owner.transferAppPhoto(prepared, catalog: catalog, send: { request, validate in
+                try validate()
+                let wire = try fixture.row(request.allocation, createdAtMilliseconds: Int64(Date().timeIntervalSince1970 * 1000))
+                return try fixture.bytes(wire)
+            }, makeTask: { .init(session: session, completionPause: { pause.wait() }) })
+        }
+        var contender: Task<Void, Never>?, transition: Task<Bool, Never>?
+        do {
+            try await started.wait()
+            let held = try row(store)
+            let coordinator = ScanInferencePersistenceCoordinator.shared
+            contender = Task {
+                let locks = await coordinator.acquireAll(scanIds: [prepared.queueID.uuidString, prepared.observationID.uuidString])
+                acquired = true
+                await coordinator.releaseAll(scanIds: locks)
+            }
+            if mode == "account" {
+                transition = Task { let result = await owner.invalidateAndAwaitForAccountTransition(); drained = true; return result }
+            } else if mode == "cancel" { call.cancel() }
+            try await pause.waitForEntry()
+            try await Task.sleep(for: .milliseconds(30))
+            #expect(!finished && !drained && !acquired)
+            #expect(try row(store) == held)
+            pause.release()
+            await #expect(throws: (any Error).self) { _ = try await call.value }
+            await contender?.value
+            #expect(finished && acquired)
+            #expect(try row(store) == held)
+            if let transition { #expect(await transition.value); #expect(drained) } else { #expect(await owner.invalidateAndAwaitForAccountTransition()) }
+        } catch {
+            pause.release(); call.cancel(); _ = await call.result
             await contender?.value
             if let transition { _ = await transition.value } else { _ = await owner.invalidateAndAwaitForAccountTransition() }
             throw error

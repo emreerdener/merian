@@ -13,24 +13,35 @@ final class SharedMediaNativePhotoUpload: Sendable {
     private let request: URLRequest
     private let timeout: TimeInterval
     private let task: PinnedPhotoUploadTask
+    private let signedExpiry: Int64?
+    private let validate: (@MainActor @Sendable () throws -> Void)?
 
     private init(allocation: SharedMediaNativePhotoAllocation, request: URLRequest,
-                 timeout: TimeInterval, task: PinnedPhotoUploadTask) {
+                 timeout: TimeInterval, task: PinnedPhotoUploadTask, signedExpiry: Int64? = nil,
+                 validate: (@MainActor @Sendable () throws -> Void)? = nil) {
         self.allocation = allocation; self.request = request
-        self.timeout = timeout; self.task = task
+        self.timeout = timeout; self.task = task; self.signedExpiry = signedExpiry; self.validate = validate
     }
 
     /// Only the file owner supplies this URL. Neither a callback nor a response
     /// can publish it. Every started task is joined even on error/cancellation.
     func consume(file: URL) async throws -> Int {
         let response: HTTPURLResponse
-        do { response = try await task.response(for: request, fromFile: file, timeout: timeout) } catch {
+        try await validate?()
+        do { response = try await task.response(for: request, fromFile: file, timeout: timeout, expiresAtMilliseconds: signedExpiry) } catch {
             await task.waitForLocalTermination()
             throw error
         }
         await task.waitForLocalTermination()
         try Task.checkCancellation()
         return response.statusCode
+    }
+
+    @MainActor static func authorized(_ authority: SharedMediaNativePhotoPutAuthorization,
+                                      task: PinnedPhotoUploadTask, nowMilliseconds: Int64) throws -> Self {
+        let (request, expiry) = try authority.request(nowMilliseconds: nowMilliseconds)
+        return Self(allocation: authority.allocation, request: request, timeout: 300, task: task,
+            signedExpiry: expiry, validate: { try authority.validateConsumed() })
     }
 
     #if DEBUG

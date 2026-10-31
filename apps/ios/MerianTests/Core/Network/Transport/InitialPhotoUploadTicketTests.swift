@@ -102,10 +102,10 @@ struct InitialPhotoUploadTicketTests {
         if phase == remote.version { return remote }
         return try remote.startingTicketRequest()
     }
-    func row(_ allocation: Allocation) throws -> [String: Any] {
+    func row(_ allocation: Allocation, createdAtMilliseconds: Int64? = nil) throws -> [String: Any] {
         let receipt = try #require(allocation.receipt), transfer = try #require(allocation.transferReservation)
         let contentType = try transfer.declaredContentType(claim: allocation.claim)
-        let created = receipt.createdAtMilliseconds + 1_000, expiry = min(created + 600_000, receipt.expiresAtMilliseconds)
+        let created = createdAtMilliseconds ?? (receipt.createdAtMilliseconds + 1_000), expiry = min(created + 600_000, receipt.expiresAtMilliseconds)
         let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0); formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
         let signed = (created / 1000) * 1000, date = formatter.string(from: Date(timeIntervalSince1970: Double(signed) / 1000))

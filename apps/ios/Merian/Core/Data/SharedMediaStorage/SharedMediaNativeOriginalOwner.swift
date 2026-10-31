@@ -202,8 +202,10 @@ final class SharedMediaNativeOriginalOwner {
         try await withAppDispatch { try await self.enrichAppPhotoAllocation(prepared, storage: $0, grant: $1, send: send) }
     }
     func appPhotoAllocationWorkflow<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant,
-        _ body: @escaping @MainActor (SharedMediaNativeAppPhotoAllocationOperations) async throws -> T) async throws -> T {
-        try await appOperation(open: { try await $0.appPhotoAllocation(grant: $1, lock: lock) }, body: body)
+        _ body: @escaping @MainActor (@escaping @MainActor () async throws -> SharedMediaNativeAppPhotoAllocationOperations) async throws -> T) async throws -> T {
+        try await withAppDispatch { storage, grant in
+            try await body { try await storage.appPhotoAllocation(grant: grant, lock: lock) }
+        }
     }
     /// An outer audit or lock failure must also spend an existing continuation.
     func abandonAppReleaseContinuation(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) {

@@ -175,26 +175,26 @@ extension SharedMediaNativeOriginalOwner {
     func reserveAppPhotoTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
         selection: SharedMediaNativePhotoRoleMapping.Entry) async throws -> SharedMediaNativePhotoAllocation {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
-            try await self.appPhotoAllocationWorkflow(lock: lock) { try $0.reserveTransfer(prepared, selection: selection) }
+            try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0().reserveTransfer(prepared, selection: selection) }
         }
     }
     /// Metadata-only historical status reservation and observation. No transport
     /// callback or fresh upload authority is exposed by either operation.
     func reserveAppPhotoRemoteAttempt(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativePhotoAllocation {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
-            try await self.appPhotoAllocationWorkflow(lock: lock) { try $0.reserveRemoteAttempt(prepared) }
+            try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0().reserveRemoteAttempt(prepared) }
         }
     }
     /// Reserves later PUT persistence without issuing a ticket or granting upload.
     func reserveAppPhotoPutStart(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativePhotoAllocation {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
-            try await self.appPhotoAllocationWorkflow(lock: lock) { try $0.reservePutStart(prepared) }
+            try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0().reservePutStart(prepared) }
         }
     }
     func observeAppPhotoRemoteAttempt(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                       allocation: SharedMediaNativePhotoAllocation, status: InitialPhotoUploadStatus) async throws -> SharedMediaNativePhotoAllocation {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
-            try await self.appPhotoAllocationWorkflow(lock: lock) { try $0.observeRemoteAttempt(status, request: allocation, prepared: prepared) }
+            try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0().observeRemoteAttempt(status, request: allocation, prepared: prepared) }
         }
     }
     /// Local hash/count verification only. The saved hold survives success,
@@ -202,15 +202,37 @@ extension SharedMediaNativeOriginalOwner {
     func verifyAppPhotoTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
         allocation: SharedMediaNativePhotoAllocation) async throws -> SharedMediaNativePhotoTransferReadback {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
-            try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0.verifyTransfer(prepared, allocation: allocation) }
+            try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0().verifyTransfer(prepared, allocation: allocation) }
         }
     }
     /// Retains the receiving locks, file owner and account operation until the
-    /// concrete task terminates. Upload construction is closed in Release.
+    /// concrete task terminates. Only fresh acknowledged handoff constructs uploads.
     func uploadAppPhotoTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                 upload: SharedMediaNativePhotoUpload) async throws -> Int {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
-            try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0.uploadTransfer(prepared, upload: upload) }
+            try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0().uploadTransfer(prepared, upload: upload) }
+        }
+    }
+    /// Inactive composition: the caller supplies the bounded authenticated send
+    /// and pinned task owner. No endpoint or ordinary app factory is installed.
+    func transferAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                          catalog: InitialPhotoUploadDestination.Catalog,
+                          send: @escaping @MainActor (InitialPhotoTransferRequest, @escaping @MainActor @Sendable () throws -> Void) async throws -> Data,
+                          makeTask: @escaping @MainActor () -> PinnedPhotoUploadTask) async throws -> Int? {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appPhotoAllocationWorkflow(lock: lock) { open in
+                let request = try await open()
+                return try await request.withPutTicket(prepared, catalog: catalog, send: send,
+                    now: { Int64(Date().timeIntervalSince1970 * 1000) }) { continuation in
+                    let persist = try await open()
+                    guard let authority = try persist.persistPut(prepared, continuation: continuation) else { return nil }
+                    defer { authority.close() }
+                    let upload = try SharedMediaNativePhotoUpload.authorized(authority, task: makeTask(),
+                        nowMilliseconds: Int64(Date().timeIntervalSince1970 * 1000))
+                    let consume = try await open()
+                    return try await consume.uploadTransfer(prepared, upload: upload)
+                }
+            }
         }
     }
     func abandonAppReceiving(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeReceivingIntent.Abandoned {
@@ -258,14 +280,14 @@ extension SharedMediaNativeOriginalOwner {
                                               observe: @escaping @MainActor (InitialPhotoTransferRequest, InitialPhotoUploadDestination, SharedMediaNativePhotoTicketContinuation) async throws -> Void) async throws -> Bool {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
             try await self.appPhotoAllocationWorkflow(lock: lock) {
-                try await $0.requestBoundTicketForTesting(prepared, catalog: catalog, observe: observe)
+                try await $0().requestBoundTicketForTesting(prepared, catalog: catalog, observe: observe)
             }
         }
     }
     func requestAppPhotoTicketForTesting(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                          send: @escaping @MainActor (SharedMediaNativePhotoAllocation, SharedMediaNativePhotoTicketContinuation) async throws -> Void) async throws -> Bool {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
-            try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0.requestTicketForTesting(prepared, send: send) }
+            try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0().requestTicketForTesting(prepared, send: send) }
         }
     }
     func frozenAppReleasePairForTesting(_ progress: SharedMediaNativeReceivingReleaseValues.Progress) async throws -> SharedMediaNativeReleasePairAttempt? {

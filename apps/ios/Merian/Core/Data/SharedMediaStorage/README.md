@@ -1,11 +1,25 @@
+## Fresh ticket to durable PUT handoff candidate — October 30
+
+`transferAppPhoto` composes the existing receiving, account, persistence and
+sealed-file owners under one retained lock/lease. Only a fresh issued V11 reply
+plus acknowledged V12 save mints one-use upload authority; recovered or
+uncertain states retain holds without retry authority. HTTP responses do not
+settle or release media. No endpoint or ordinary app registration is installed.
+App/test-target compilation and independent source review passed for this local
+coding checkpoint. HQ-019 still blocks the 22 new runtime cases, prior 42
+reservation cases and affected legacy suites. Recorded lint gaps remain open.
+The
+[scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--fresh-ticket-to-durable-put-handoff-candidate)
+owns transitions, expiry, cancellation and task drain.
+
 ## Pre-ticket PUT persistence reservation candidate — October 30
 
 The existing allocation owner proposes a V10 reservation for later ticket,
 PUT-started and status saves, preserving legacy V1–V9 bytes and transfer-copy
-liability. V11/V12 are inert value transitions; the live persistence-to-upload
-handoff is not yet connected. Source review and app/test-target compilation
-passed; all 42 planned runtime cases remain unrun because Xcode simulator
-component setup is incomplete. The
+liability. At that earlier checkpoint V11/V12 were inert value transitions; the
+fresh handoff above supersedes the missing composition. Source review and
+app/test-target compilation passed; all 42 planned runtime cases remain unrun
+because Xcode simulator component setup is incomplete. The
 [scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--pre-ticket-put-persistence-reservation-candidate)
 owns accounting, recovery and remaining integration.
 

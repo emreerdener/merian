@@ -13,10 +13,15 @@ selection, renewed clocks and mismatched candidate scan are rejected. The body
 bound is 2 MiB plus 4 KiB; replies remain at most 8 KiB. The generated Identify
 DTO block is unaffected. The inactive native
 [`InitialPhotoTransferRequest`](../../apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoTransferRequest.swift)
-projects this shape from saved allocation state; issue is restricted to V9 with
-no remote observation, while status supports V4/V5/V8–V12 without signing
-configuration. This value grants no dispatch authority. There is no native HTTP,
-web or admin caller yet.
+projects this shape from saved allocation state; issue is restricted to V9/V11
+with no remote observation, while status supports V4/V5/V8–V12 without signing
+configuration. This value grants no dispatch authority. No native ticket
+transport, web or admin caller is registered yet. The inactive receiving owner
+can consume a fresh V11 reply and acknowledged V12 save to construct one bound
+PUT through its injected pinned task; recovered markers and arbitrary decoded
+tickets grant no upload permission. The
+[scan handoff contract](16-scan-ingestion-reliability-and-recovery.md#october-30--fresh-ticket-to-durable-put-handoff-candidate)
+owns lease, acknowledgement, expiry and task-drain requirements.
 
 Owner identity comes only from the verified Edge session. Issue reuses v3
 allocation status and validates the complete saved assignment, selected role and

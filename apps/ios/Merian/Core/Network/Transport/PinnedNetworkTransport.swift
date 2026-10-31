@@ -435,14 +435,15 @@ final class PinnedPhotoUploadTask: NSObject, URLSessionDataDelegate, Sendable {
     private static let responseLimit = 4096
     #if DEBUG
     private let completionPause: (@Sendable () -> Void)?
-    init(session: URLSession, completionPause: (@Sendable () -> Void)? = nil) {
-        self.session = session; self.completionPause = completionPause; super.init()
+    private let beforeResume: (@Sendable () -> Void)?
+    init(session: URLSession, completionPause: (@Sendable () -> Void)? = nil, beforeResume: (@Sendable () -> Void)? = nil) {
+        self.session = session; self.completionPause = completionPause; self.beforeResume = beforeResume; super.init()
     }
     #else
     init(session: URLSession) { self.session = session; super.init() }
     #endif
 
-    func response(for request: URLRequest, fromFile file: URL, timeout: TimeInterval) async throws -> HTTPURLResponse {
+    func response(for request: URLRequest, fromFile file: URL, timeout: TimeInterval, expiresAtMilliseconds: Int64? = nil) async throws -> HTTPURLResponse {
         guard state.withLock({ value in
             guard !value.started else { return false }; value.started = true; return true
         }) else { throw URLError(.badURL) }
@@ -456,17 +457,33 @@ final class PinnedPhotoUploadTask: NSObject, URLSessionDataDelegate, Sendable {
             return try await withCheckedThrowingContinuation { continuation in
                 // Task creation/registration is atomic with cancellation. Even
                 // a cancelled suspended task remains retained until its callback.
+                var deadline = DispatchTime.now() + timeout
+                var rejection: any Error = CancellationError()
                 let task = state.withLock { value -> URLSessionUploadTask? in
                     guard !value.callerFinished else { return nil }
+                    if let expiresAtMilliseconds {
+                        let observedAt = DispatchTime.now()
+                        let remaining = Double(expiresAtMilliseconds) / 1000 - Date().timeIntervalSince1970
+                        guard remaining.isFinite, remaining > 0 else { rejection = URLError(.timedOut); return nil }
+                        deadline = min(deadline, observedAt + remaining)
+                    }
                     let task = session.uploadTask(with: request, fromFile: file)
                     task.delegate = self; value.task = task; value.continuation = continuation
                     return task
                 }
-                guard let task else { continuation.resume(throwing: CancellationError()); return }
-                task.resume()
-                Self.deadlineQueue.asyncAfter(deadline: .now() + timeout) { [weak self] in
+                guard let task else { continuation.resume(throwing: rejection); return }
+                Self.deadlineQueue.asyncAfter(deadline: deadline) { [weak self] in
                     self?.finish(error: URLError(.timedOut))
                 }
+                #if DEBUG
+                beforeResume?()
+                #endif
+                guard DispatchTime.now() < deadline,
+                      expiresAtMilliseconds.map({ Double($0) / 1000 > Date().timeIntervalSince1970 }) ?? true else {
+                    // The suspended task is retained until its cancellation callback.
+                    finish(error: URLError(.timedOut)); return
+                }
+                task.resume()
             }
         } onCancel: { self.finish(error: CancellationError()) }
     }

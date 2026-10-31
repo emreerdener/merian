@@ -65,7 +65,11 @@ struct InitialPhotoTransferRequestTests {
             #expect(value.transferReservation == old.transferReservation)
             let bytes = try value.encoded()
             #expect(try Allocation.decode(bytes, sha256: SharedMediaAcquisitionEncoding.digest(bytes)) == value)
-            #expect(throws: SharedMediaStorageFailure.closed) { _ = try InitialPhotoTransferRequest(allocation: value, action: .issue) }
+            if value.version == 11 {
+                #expect(try InitialPhotoTransferRequest(allocation: value, action: .issue).allocation == value)
+            } else {
+                #expect(throws: SharedMediaStorageFailure.closed) { _ = try InitialPhotoTransferRequest(allocation: value, action: .issue) }
+            }
             #expect(try InitialPhotoTransferRequest(allocation: value, action: .status).body == InitialPhotoTransferRequest(allocation: old, action: .status).body)
             #expect(try value.reservingRemoteAttempt() == value)
         }

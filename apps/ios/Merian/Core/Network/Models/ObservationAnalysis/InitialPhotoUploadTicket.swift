@@ -12,17 +12,19 @@ struct InitialPhotoUploadTicket: Sendable, CustomStringConvertible, CustomDebugS
     private let url: URL?
     private let headers: [String: String]?
     private let capabilityExpiry: Int64?
+    private let issuedAt: Int64?
+    private let signedExpiry: Int64?
     var description: String { "InitialPhotoUploadTicket(redacted, inert)" }
     var debugDescription: String { description }
 
     init(data: Data, allocation: SharedMediaNativePhotoAllocation,
          destination: InitialPhotoUploadDestination, nowMilliseconds: Int64) throws {
         _ = try allocation.encoded()
-        guard allocation.version == 5 || allocation.version == 9, allocation.ticketRequestStarted == true, allocation.remoteAttempt == nil,
+        guard allocation.version == 5 || allocation.version == 9 || allocation.version == 11, allocation.ticketRequestStarted == true, allocation.remoteAttempt == nil,
               let receipt = allocation.receipt, let transfer = allocation.transferReservation,
               (1...8_640_000_000_000_000).contains(nowMilliseconds), data.count <= Self.maximumBytes,
               let row = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { throw MerianError.invalidResponse }
-        if allocation.version == 9 {
+        if allocation.version == 9 || allocation.version == 11 {
             guard let binding = allocation.backendBinding,
                   binding.generation == destination.backendGeneration,
                   binding.configurationDigest == destination.configurationDigest else { throw MerianError.invalidResponse }
@@ -33,7 +35,7 @@ struct InitialPhotoUploadTicket: Sendable, CustomStringConvertible, CustomDebugS
         // This is a server-created write attempt, not Claim.attemptID (allocation).
         if row["outcome"] as? String == "held" {
             guard Set(row.keys) == ["outcome", "attempt_id"] else { throw MerianError.invalidResponse }
-            outcome = .held; url = nil; headers = nil; capabilityExpiry = nil
+            outcome = .held; url = nil; headers = nil; capabilityExpiry = nil; issuedAt = nil; signedExpiry = nil
             return
         }
         let keys: Set<String> = ["version", "outcome", "attempt_id", "scan_id", "assignment_digest", "object_id",
@@ -68,7 +70,42 @@ struct InitialPhotoUploadTicket: Sendable, CustomStringConvertible, CustomDebugS
         }
         url = try destination.validateSignedURL(rawURL, scan: allocation.claim.observationID, object: transfer.selection.objectID,
             created: created, signedExpiry: signedExpiry, now: nowMilliseconds)
-        self.headers = headers; capabilityExpiry = expiry; outcome = .issued
+        self.headers = headers; capabilityExpiry = expiry; issuedAt = created; self.signedExpiry = signedExpiry; outcome = .issued
+    }
+
+    /// Non-capability historical facts for the exact durable PUT-started successor.
+    var issuedAttempt: SharedMediaNativePhotoAllocation.RemoteAttempt? {
+        guard outcome == .issued, let issuedAt, let capabilityExpiry else { return nil }
+        return .init(id: attemptID, state: .mayHaveIssued, createdAtMilliseconds: issuedAt,
+            capabilityExpiresAtMilliseconds: capabilityExpiry, writeClosed: false)
+    }
+
+    func requirePutSuccessor(_ after: SharedMediaNativePhotoAllocation) throws {
+        guard allocation.version == 11, let issuedAttempt,
+              try allocation.startingPut(issuedAttempt) == after else { throw SharedMediaStorageFailure.stale }
+    }
+
+    func matches(_ other: Self) -> Bool {
+        allocation == other.allocation && destination == other.destination && outcome == other.outcome
+            && attemptID == other.attemptID && url == other.url && headers == other.headers
+            && capabilityExpiry == other.capabilityExpiry && issuedAt == other.issuedAt && signedExpiry == other.signedExpiry
+    }
+
+    /// Capability extraction requires the unforgeable, acknowledged owner grant.
+    @MainActor func authorizedRequest(_ authority: SharedMediaNativePhotoPutAuthorization,
+                                      nowMilliseconds: Int64) throws -> (URLRequest, Int64) {
+        try authority.consume(matching: self)
+        guard allocation.version == 11, let issuedAt, let signedExpiry, let url, let headers,
+              let transfer = authority.allocation.transferReservation else {
+            throw SharedMediaStorageFailure.closed
+        }
+        _ = try destination.validateSignedURL(url.absoluteString, scan: allocation.claim.observationID,
+            object: transfer.selection.objectID,
+            created: issuedAt, signedExpiry: signedExpiry, now: nowMilliseconds)
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"; request.allHTTPHeaderFields = headers
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        return (request, signedExpiry)
     }
 
     func requireMatch(_ allocation: SharedMediaNativePhotoAllocation, destination: InitialPhotoUploadDestination) throws {

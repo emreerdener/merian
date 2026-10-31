@@ -15,7 +15,7 @@ struct InitialPhotoTransferRequest: Sendable {
             throw SharedMediaStorageFailure.closed
         }
         if action == .issue {
-            guard allocation.version == 9, allocation.ticketRequestStarted == true,
+            guard allocation.version == 9 || allocation.version == 11, allocation.ticketRequestStarted == true,
                   allocation.remoteAttempt == nil, allocation.backendBinding != nil else {
                 throw SharedMediaStorageFailure.closed
             }

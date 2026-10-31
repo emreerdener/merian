@@ -12,7 +12,7 @@ struct SharedMediaNativePhotoTransferReadbackTests {
     typealias Mapping = SharedMediaNativePhotoRoleMapping
     typealias Prepared = SharedMediaNativeReceivingIntent.Prepared
 
-    func fixture(_ role: Mapping.Role = .source, boundBackend: Bool = false) async throws -> (Store, SharedMediaNativeOriginalOwner, Prepared, Allocation) {
+    func fixture(_ role: Mapping.Role = .source, boundBackend: Bool = false, createdAtMilliseconds: Int64 = 1) async throws -> (Store, SharedMediaNativeOriginalOwner, Prepared, Allocation) {
         let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
         do {
             let allocation = try await owner.allocateAppPhotoRoles(p, backendBinding: boundBackend, authorizeCreate: { p, _ in
@@ -23,7 +23,7 @@ struct SharedMediaNativePhotoTransferReadbackTests {
                     Mapping.Entry(photoOrdinal: index / 3, role: Mapping.Role.allCases[index % 3], referenceID: reference, objectID: UUID())
                 }
                 return .allocated(.init(receipt: .init(assignmentDigest: String(repeating: "a", count: 64),
-                    createdAtMilliseconds: 1, expiresAtMilliseconds: 1_800_001), entries: entries,
+                    createdAtMilliseconds: createdAtMilliseconds, expiresAtMilliseconds: createdAtMilliseconds + 1_800_000), entries: entries,
                     backendBinding: boundBackend ? InitialPhotoUploadTicketTests().binding() : nil))
             }
             let entry = try #require(allocation.roleMapping?.entries.first { $0.role == role })

@@ -1,3 +1,57 @@
+## October 30 — fresh ticket to durable PUT handoff candidate
+
+The inactive native composition now retains one receiving lock grant and one
+account-work lease from V10 through ticket response, acknowledged V12 save,
+sealed-file upload and actual task termination. Each save uses a fresh audited
+operation under that same grant. Only the fresh consumed V11 response can mint
+one-use upload authority after exact V12 persistence/readback; ambiguous saves,
+held/malformed replies, recovered records and status observations cannot.
+
+The ticket must match its exact V11 predecessor and V12 successor, including
+server attempt identity and original clocks. Capability extraction spends the
+volatile grant before fallible checks. Both continuation and upload authority
+close on every exit. The file owner verifies sealed bytes before task creation;
+the pinned task checks signed expiry immediately before creating its task and
+bounds its absolute monotonic deadline by remaining signed lifetime and 300
+seconds. It schedules against that original deadline and rechecks signed expiry
+before resuming; an expired suspended task is cancelled and joined. Every
+started task is joined before the lease and coordinator locks release. HTTP
+success is not settlement: success, failure, cancellation and timeout all retain
+V12 and its full copy/metadata liability for later status recovery.
+
+Contributor entry points are `transferAppPhoto`, `appPhotoAllocationWorkflow`,
+`withPutTicket`, `persistPut`, and `SharedMediaNativePhotoUpload.authorized` in
+the existing shared-media owners; `PinnedPhotoUploadTask` owns task lifetime.
+The injected send/task seams have no endpoint, ordinary app registration or
+activation. V9 decoding compatibility remains isolated; fresh upload
+construction requires V11→V12. Provider enforcement remains unqualified.
+
+The first handoff candidate compiled app and test targets in 704.879s with all
+3,211 pins unchanged. Independent review found HQ-020: relative deadline
+scheduling after task creation could extend signed lifetime. The absolute
+deadline correction and added expiry-gap, owner/deletion-fence and fresh timeout
+regressions passed independent source review. Review also caught a timeout
+fixture that violated the unchanged ticket-expiry contract; the corrected
+fixture uses a consistent near-expiry receipt. The final app/test-target
+build-for-testing passed in 370.134s with all 3,211 pinned inputs unchanged.
+Earlier compile/review candidates remain retained, including the invalid
+fixture. This is a **compiled, source-reviewed coding checkpoint only**; no
+runtime acceptance is implied. Added runtime cases cover three roles with
+successful/failed HTTP responses, both save boundaries and acknowledgement
+failure orders, unusable tickets, expiry and cancel/account task drain. These
+cases and the prior 42 reservation cases remain **unrun**, blocked by HQ-019.
+Existing compilation evidence below applies only to its earlier candidate. Full
+journeys, Release, cumulative acceptance and all external/release holds remain
+open. Seven new methods/22 cases plus the prior 42 reservation cases and
+affected legacy dispatch/termination suites remain unrun. Preflight, wire
+parity, transport security, Markdown and diff checks passed; scoped lint retains
+32 warnings and one preexisting fixture tuple error (HQ-003). Evidence:
+`native-put-handoff-compile-qualified03.json`,
+`native-put-handoff-engine-clearance05.json` and
+`native-put-handoff-expected05.json` under the retained artifact root. No
+endpoint registration, provider experiment, device installation, deployment or
+activation occurred.
+
 ## October 30 — pre-ticket PUT persistence reservation candidate
 
 The inactive native sidecar now proposes V8→V10 to reserve the complete later
@@ -17,15 +71,17 @@ advances in V10/V11 remain conservatively reserved. The existing owner checks
 the immediate save, peers and terminal obligations before saving and at the
 final persistence boundary. Exact restart replay grants no dispatch permission.
 
-This candidate implements the codec, real-owner V10 reservation, status recovery
-and tests. The V11/V12 value transitions do not authorize HTTP or construct PUT;
-fresh ticket consumption, acknowledged atomic V12 persistence/readback and
-one-use upload construction still require integration through the existing
-retained owner. Status projection supports V10–V12; issue projection remains V9
-only and inactive. Design and source review found no concrete blockers. Managed
-Debug build-for-testing passed for the app and test targets in 460.724s with all
-3,211 pinned inputs unchanged. This is **compile-only evidence**: none of the
-planned ten methods / 42 runtime cases has executed for this candidate.
+At the preceding reservation checkpoint, the candidate implemented the codec,
+real-owner V10 reservation, status recovery and tests. At that checkpoint the
+V11/V12 value transitions did not authorize HTTP or construct PUT; fresh ticket
+consumption, acknowledged atomic V12 persistence/readback and one-use upload
+construction still required integration through the existing retained owner. The
+fresh handoff above supersedes that integration gap. Status projection supported
+V10–V12; issue projection was V9 only and inactive. Design and source review
+found no concrete blockers. Managed Debug build-for-testing passed for the app
+and test targets in 460.724s with all 3,211 pinned inputs unchanged. This is
+**compile-only evidence**: none of the planned ten methods / 42 runtime cases
+has executed for this candidate.
 
 The installed Xcode 27.2 requires CoreSimulator 1174.21.0; the installed
 component remains 1174.9.2. The runtime attempt failed before compilation/tests
@@ -1243,15 +1299,15 @@ new upload, funding, provider, release or deployment right.
 
 ## Current initial-photo integration entry point — October 28
 
-Updated October 30 for explicit native backend binding; the heading remains
-stable for existing links. This section traces the **inactive local
-initial-photo candidate**. The older runtime contract and its dated evidence
-below remain applicable to their legacy paths; they do not qualify this new
-journey. Photo consent/preflight through immutable local receipt is locally
-qualified. The authenticated allocation facade and native durable allocation
-owner have local source review and runtime/Release evidence. Transfer,
-execution, result/history and full journey acceptance remain open. Nothing here
-implies deployment or feature activation. The
+Updated October 30 for explicit native backend binding and the inactive fresh
+ticket-to-PUT handoff; the heading remains stable for existing links. This
+section traces the **inactive local initial-photo candidate**. The older runtime
+contract and its dated evidence below remain applicable to their legacy paths;
+they do not qualify this new journey. Photo consent/preflight through immutable
+local receipt is locally qualified. The authenticated allocation facade and
+native durable allocation owner have local source review and runtime/Release
+evidence. Transfer, execution, result/history and full journey acceptance remain
+open. Nothing here implies deployment or feature activation. The
 [existing receiving record](../../apps/ios/Merian/Models/ActiveSchema/SharedMediaReceivingIntentRecord.swift)
 owns the V67 allocation sidecar; its migration and failure-closed
 release/recovery contract is owned by the
@@ -1260,6 +1316,14 @@ checkpoint is locally qualified. The claim-before-send owner/adapter candidate
 passed focused runtime validation; the Capture caller is locally qualified as
 recorded above. Full integration acceptance remains pending. This qualification
 does not enable allocation or analysis.
+
+The
+[fresh ticket-to-PUT handoff](#october-30--fresh-ticket-to-durable-put-handoff-candidate)
+now composes ticket receipt, acknowledged durable attempt and sealed-file upload
+under the same receiving/account owners. It is compiled and source-reviewed, but
+inactive and runtime-unqualified under HQ-019. This supersedes earlier
+statements that this owner composition is unimplemented; it does not complete
+the transfer or end-to-end journey acceptance.
 
 The allocation owner saves an immutable unresolved claim before sending. Only an
 unambiguous save in that same retained operation permits one create request;

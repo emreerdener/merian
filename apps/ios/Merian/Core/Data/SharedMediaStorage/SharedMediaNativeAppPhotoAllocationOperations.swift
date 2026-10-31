@@ -123,9 +123,9 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
 
     /// No Release caller exists until the closed ticket transport is integrated.
     /// Persistence ambiguity and recovered markers never mint a fresh continuation.
-    private func beginTicketRequest(_ prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> SharedMediaNativePhotoTicketContinuation? {
-        guard let current = try saved(prepared), (4...5).contains(current.version) || (8...9).contains(current.version) else { throw SharedMediaStorageFailure.closed }
-        guard current.version == 4 || current.version == 8, current.remoteAttempt == nil else { return nil }
+    private func beginTicketRequest(_ prepared: SharedMediaNativeReceivingIntent.Prepared, putReserved: Bool = false) throws -> SharedMediaNativePhotoTicketContinuation? {
+        guard let current = try saved(prepared), putReserved ? (10...11).contains(current.version) : ((4...5).contains(current.version) || (8...9).contains(current.version)) else { throw SharedMediaStorageFailure.closed }
+        guard putReserved ? current.version == 10 : (current.version == 4 || current.version == 8), current.remoteAttempt == nil else { return nil }
         let after = try current.startingTicketRequest()
         let context = fresh(), inventory = try inventory(context)
         let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)
@@ -135,6 +135,44 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         try requireReservation(after, replacing: current, context: context, inventory: inventory, witnesses: witnesses)
         guard try persist(after, prepared: prepared, context: context, inventory: inventory) else { return nil }
         return .init(allocation: after, validate: { try self.readback(after, prepared: prepared) })
+    }
+
+    /// One fresh response within the original retained lease. Completion must
+    /// open its next one-save operation under that same grant, not reacquire it.
+    func withPutTicket(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                       catalog: InitialPhotoUploadDestination.Catalog,
+                       send: @MainActor (InitialPhotoTransferRequest, @escaping @MainActor @Sendable () throws -> Void) async throws -> Data,
+                       now: () -> Int64,
+                       finish: @MainActor (SharedMediaNativePhotoTicketContinuation) async throws -> Int?) async throws -> Int? {
+        guard let current = try saved(prepared), (10...12).contains(current.version) else { throw SharedMediaStorageFailure.closed }
+        guard current.version == 10, current.remoteAttempt == nil, let binding = current.backendBinding else { return nil }
+        let destination = try catalog.resolve(binding)
+        let request = try InitialPhotoTransferRequest(allocation: current.startingTicketRequest(), action: .issue)
+        guard let continuation = try beginTicketRequest(prepared, putReserved: true) else { return nil }
+        defer { continuation.close() }
+        guard continuation.allocation == request.allocation else { throw SharedMediaStorageFailure.stale }
+        try continuation.consume()
+        let bytes = try await send(request, { try continuation.validateConsumed() })
+        let ticket = try continuation.decodeResponse(bytes, destination: destination, nowMilliseconds: now())
+        guard ticket.outcome == .issued else { return nil }
+        return try await finish(continuation)
+    }
+
+    func persistPut(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                    continuation: SharedMediaNativePhotoTicketContinuation) throws -> SharedMediaNativePhotoPutAuthorization? {
+        guard let current = try saved(prepared), current.version == 11,
+              current == continuation.allocation else { throw SharedMediaStorageFailure.stale }
+        let ticket = try continuation.takeIssued()
+        guard let attempt = ticket.issuedAttempt else { throw SharedMediaStorageFailure.closed }
+        let after = try current.startingPut(attempt)
+        let context = fresh(), inventory = try inventory(context)
+        let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)
+        guard case .allocating(let snapshot) = witnesses[prepared.package.id], snapshot.allocation == current else {
+            throw SharedMediaStorageFailure.stale
+        }
+        try requireReservation(after, replacing: current, context: context, inventory: inventory, witnesses: witnesses)
+        guard try persist(after, prepared: prepared, context: context, inventory: inventory) else { return nil }
+        return try .init(allocation: after, ticket: ticket, validate: { try self.readback(after, prepared: prepared) })
     }
 
     #if DEBUG
@@ -208,7 +246,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
     func uploadTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                         upload: SharedMediaNativePhotoUpload) async throws -> Int {
         let allocation = upload.allocation
-        guard try saved(prepared) == allocation, (3...5).contains(allocation.version),
+        guard try saved(prepared) == allocation, (3...5).contains(allocation.version) || allocation.version == 12,
               let reservation = allocation.transferReservation else { throw SharedMediaStorageFailure.stale }
         let state = try SharedMediaNativePhotoTransferReadback.state(prepared, reservation: reservation, context: fresh())
         let result = try await io.uploadTransfer(state, reservation: reservation, upload: upload) {
@@ -394,6 +432,7 @@ final class SharedMediaNativePhotoTicketContinuation {
     private var consumed = false
     private var closed = false
     private var responseConsumed = false
+    private var issuedTicket: InitialPhotoUploadTicket?
     fileprivate init(allocation: SharedMediaNativePhotoAllocation, validate: @escaping () throws -> Void) {
         self.allocation = allocation; check = validate
     }
@@ -416,11 +455,49 @@ final class SharedMediaNativePhotoTicketContinuation {
         let result = try InitialPhotoUploadTicket(data: data, allocation: allocation,
             destination: destination, nowMilliseconds: nowMilliseconds)
         try validateConsumed()
+        if allocation.version == 11, result.outcome == .issued { issuedTicket = result }
         return result
+    }
+    fileprivate func takeIssued() throws -> InitialPhotoUploadTicket {
+        let ticket = issuedTicket; issuedTicket = nil
+        defer { close() }
+        try validateConsumed()
+        guard allocation.version == 11, let ticket else { throw SharedMediaStorageFailure.closed }
+        return ticket
     }
     fileprivate func close() {
         closed = true
         // A closed handle must not retain the repository's file ownership.
-        check = nil
+        check = nil; issuedTicket = nil
     }
+}
+
+/// Volatile grant minted only by a freshly consumed response and acknowledged
+/// V12 save. Decoded records and arbitrary tickets cannot construct this value.
+@MainActor
+final class SharedMediaNativePhotoPutAuthorization {
+    let allocation: SharedMediaNativePhotoAllocation
+    private var ticket: InitialPhotoUploadTicket?
+    private var check: (() throws -> Void)?
+    private var consumed = false
+    fileprivate init(allocation: SharedMediaNativePhotoAllocation, ticket: InitialPhotoUploadTicket,
+                     validate: @escaping () throws -> Void) throws {
+        try ticket.requirePutSuccessor(allocation)
+        self.allocation = allocation; self.ticket = ticket; check = validate
+    }
+    func request(nowMilliseconds: Int64) throws -> (URLRequest, Int64) {
+        guard let ticket else { throw SharedMediaStorageFailure.closed }
+        return try ticket.authorizedRequest(self, nowMilliseconds: nowMilliseconds)
+    }
+    func consume(matching candidate: InitialPhotoUploadTicket) throws {
+        let fresh = ticket; ticket = nil
+        guard !consumed else { throw SharedMediaStorageFailure.closed }; consumed = true
+        guard let fresh, fresh.matches(candidate), let check else { throw SharedMediaStorageFailure.closed }
+        try check()
+    }
+    func validateConsumed() throws {
+        guard consumed, let check else { throw SharedMediaStorageFailure.closed }
+        try check()
+    }
+    func close() { ticket = nil; check = nil; consumed = true }
 }
