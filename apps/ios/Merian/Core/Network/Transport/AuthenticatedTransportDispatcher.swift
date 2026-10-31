@@ -154,6 +154,13 @@ final class AuthenticatedTransportDispatcher {
         return try await perform(attempt, protectedChatExpiry: nil, initialPhotoAllocation: true)
     }
 
+    func performInitialPhotoTransfer(_ attempt: AuthenticatedRequestExecutor.TransportAttempt) async throws -> AuthenticatedRequestExecutor.TransportResult {
+        guard attempt.expectedAuthUserID != nil, attempt.validateAttempt != nil,
+              attempt.identificationAuthorization == nil,
+              attempt.authTransitionOwner == nil else { throw MerianError.invalidResponse }
+        return try await perform(attempt, protectedChatExpiry: nil, initialPhotoTransfer: true)
+    }
+
     func performSourceReservation(_ attempt: AuthenticatedRequestExecutor.TransportAttempt) async throws -> AuthenticatedRequestExecutor.TransportResult {
         guard attempt.expectedAuthUserID != nil, attempt.validateAttempt != nil,
               attempt.identificationAuthorization == nil,
@@ -169,7 +176,7 @@ final class AuthenticatedTransportDispatcher {
     }
 
     private func perform(
-        _ attempt: AuthenticatedRequestExecutor.TransportAttempt, protectedChatExpiry: Date?, retirement: Bool = false, audioAnalysis: Bool = false, audioOutcome: Bool = false, sourceReservation: Bool = false, initialPhotoAllocation: Bool = false, videoEvidence: Bool = false, videoAnalysis: Bool = false
+        _ attempt: AuthenticatedRequestExecutor.TransportAttempt, protectedChatExpiry: Date?, retirement: Bool = false, audioAnalysis: Bool = false, audioOutcome: Bool = false, sourceReservation: Bool = false, initialPhotoAllocation: Bool = false, initialPhotoTransfer: Bool = false, videoEvidence: Bool = false, videoAnalysis: Bool = false
     ) async throws -> AuthenticatedRequestExecutor.TransportResult {
         let accountWorkLease: AccountBoundWorkLease?
         if attempt.authTransitionOwner == nil {
@@ -212,7 +219,7 @@ final class AuthenticatedTransportDispatcher {
             try await attempt.identificationAuthorization?.validate()
             try await attempt.validateAttempt?()
             #if DEBUG
-            if retirement || audioAnalysis || audioOutcome || sourceReservation || initialPhotoAllocation || videoEvidence || videoAnalysis, sessionTransport.isUsingOverridingSession, overridingAuthUserID != attempt.expectedAuthUserID {
+            if retirement || audioAnalysis || audioOutcome || sourceReservation || initialPhotoAllocation || initialPhotoTransfer || videoEvidence || videoAnalysis, sessionTransport.isUsingOverridingSession, overridingAuthUserID != attempt.expectedAuthUserID {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
             #endif
@@ -231,11 +238,11 @@ final class AuthenticatedTransportDispatcher {
                 request: request,
                 body: attempt.body,
                 onRequestBodySent: attempt.onRequestBodySent,
-                protectedChatExpiry: protectedChatExpiry, retirement: retirement, audioAnalysis: audioAnalysis, audioOutcome: audioOutcome, sourceReservation: sourceReservation, initialPhotoAllocation: initialPhotoAllocation, videoEvidence: videoEvidence, videoAnalysis: videoAnalysis
+                protectedChatExpiry: protectedChatExpiry, retirement: retirement, audioAnalysis: audioAnalysis, audioOutcome: audioOutcome, sourceReservation: sourceReservation, initialPhotoAllocation: initialPhotoAllocation, initialPhotoTransfer: initialPhotoTransfer, videoEvidence: videoEvidence, videoAnalysis: videoAnalysis
             )
 
             #if DEBUG
-            if protectedChatExpiry != nil || retirement || audioAnalysis || audioOutcome || sourceReservation || initialPhotoAllocation || videoEvidence || videoAnalysis, sessionTransport.isUsingOverridingSession,
+            if protectedChatExpiry != nil || retirement || audioAnalysis || audioOutcome || sourceReservation || initialPhotoAllocation || initialPhotoTransfer || videoEvidence || videoAnalysis, sessionTransport.isUsingOverridingSession,
                overridingAuthUserID != attempt.expectedAuthUserID {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
@@ -327,7 +334,7 @@ final class AuthenticatedTransportDispatcher {
     private func dispatch(
         request: URLRequest,
         body: Data?,
-        onRequestBodySent: (@Sendable () -> Void)?, protectedChatExpiry: Date?, retirement: Bool, audioAnalysis: Bool, audioOutcome: Bool, sourceReservation: Bool, initialPhotoAllocation: Bool, videoEvidence: Bool, videoAnalysis: Bool
+        onRequestBodySent: (@Sendable () -> Void)?, protectedChatExpiry: Date?, retirement: Bool, audioAnalysis: Bool, audioOutcome: Bool, sourceReservation: Bool, initialPhotoAllocation: Bool, initialPhotoTransfer: Bool, videoEvidence: Bool, videoAnalysis: Bool
     ) async throws -> TransportDispatchResult {
         if videoAnalysis {
             let (data, response) = try await sessionTransport.videoAnalysisData(for: request)
@@ -336,6 +343,10 @@ final class AuthenticatedTransportDispatcher {
         if videoEvidence {
             let (data, response) = try await sessionTransport.videoEvidenceData(for: request)
             return TransportDispatchResult(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
+        }
+        if initialPhotoTransfer {
+            let (data, response) = try await sessionTransport.initialPhotoTransferData(for: request)
+            return .init(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
         }
         if initialPhotoAllocation {
             let (data, response) = try await sessionTransport.initialPhotoAllocationData(for: request)

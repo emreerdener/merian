@@ -143,6 +143,8 @@ class PolicyTests(unittest.TestCase):
             'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoUploadTicket.swift',
             'apps/ios/Merian/Core/Network/Transport/InitialPhotoAllocationTransport.swift',
             'apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift',
+            'apps/ios/Merian/Core/Network/Transport/PinnedBoundedJSONDataTask.swift',
+            'apps/ios/Merian/Core/Network/Transport/AuthenticatedTransportDispatcher.swift',
         ]:
             actual = preflight.load_policy(ROOT)
             # Preserve the existing physical-line review ceiling for each owner.

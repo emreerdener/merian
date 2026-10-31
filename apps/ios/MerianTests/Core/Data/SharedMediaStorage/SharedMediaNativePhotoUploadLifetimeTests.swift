@@ -47,11 +47,19 @@ struct NativePhotoUploadLifetimeTests {
             let url = try #require(request.url)
             return (try #require(HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil)), Data())
         }
+        let transportFixture = InitialPhotoAllocationTransportTests.Fixture(ownerID: issued.claim.profile.ownerID)
+        defer { transportFixture.close() }
+        let ticketBytes = try fixture.bytes(wire)
+        transportFixture.mock.register(path: "/initial-photo-transfer") { request in
+            #expect(request.httpMethod == "POST")
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"])!, ticketBytes)
+        }
         var sends = 0, constructions = 0
         let result = try await owner.transferAppPhoto(prepared, catalog: catalog, send: { request, validate in
-            sends += 1; try validate()
+            sends += 1
             #expect(request.allocation == issued)
-            return try fixture.bytes(wire)
+            return try await transportFixture.transport.performTransfer(request, validateAttempt: validate)
         }, makeTask: {
             constructions += 1
             // Construction is downstream of acknowledged durable V12, not just an in-memory proposal.

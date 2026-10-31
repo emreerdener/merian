@@ -2,8 +2,10 @@
 
 Source-only authenticated `issue`/`status` composition. There is deliberately no
 `index.ts`, `serveEdge`, deployment registration, installed policy/credentials,
-or native caller. This folder does not expose an endpoint. Provider enforcement
-remains unqualified and all existing release controls apply.
+or ordinary native caller. The inactive native adapter is documented in the
+[current scan contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--inactive-native-ticket-transport).
+This folder does not expose an endpoint. Provider enforcement remains
+unqualified and all existing release controls apply.
 
 The
 [API contract](../../../../docs/backend-and-data/05-api-contracts.md#dormant-authenticated-photo-transfer-facade--october-30)
@@ -35,6 +37,7 @@ deno test --frozen --config services/supabase/functions/deno.json --allow-env --
 
 An unavailable or lost issue reply remains uncertain. Recover the same write
 status; do not repeat issuance, renew clocks or release retained source bytes.
-No status result is upload, inference or cleanup authority. Native destination
-resolution and durable PUT-started admission remain required before this facade
-can participate in a qualified app journey.
+No status result is upload, inference or cleanup authority. The inactive native
+composition includes trusted destination resolution and durable PUT-started
+admission; complete runtime and real-app qualification remain required before
+this facade can participate in an accepted journey.

@@ -1,3 +1,18 @@
+## Current inactive ticket transport — October 31
+
+The existing `InitialPhotoAllocationTransport.performTransfer` adapter sends one
+fixed issue/status POST through the authenticated dispatcher and pinned bounded
+collector. Fresh issue requires V11 and the retained owner's validation
+callback; V9 remains decoding compatibility only. The 8 KiB reply has a
+five-second response deadline; actual task termination may take longer and is
+joined before dispatcher account protection ends. Cancellation, timeout and lost
+replies retain uncertainty and never refresh or repeat issuance. The
+[current scan contract](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--inactive-native-ticket-transport)
+owns qualification and remaining gaps. No ordinary registration, serving
+endpoint or activation is installed. Earlier dated notes below describe their
+own checkpoints; their pending ticket/PUT construction statements are superseded
+by the current inactive composition.
+
 ## Current native allocation v3 candidate — October 30
 
 `InitialPhotoAllocationRequest` and the existing authenticated allocation

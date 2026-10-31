@@ -1,7 +1,7 @@
 import Foundation
+@testable import Merian
 import os
 import Testing
-@testable import Merian
 
 @MainActor
 @Suite(.serialized, .sharedProcessState(.offlineQueueManager))
@@ -110,4 +110,67 @@ struct InitialPhotoAllocationTransportTests {
         }
         #expect(calls.withLock { $0 } == (["owner", "attempt"].contains(fault) ? 0 : 1))
     }
+    private func transferCandidate(_ action: InitialPhotoTransferRequest.Action = .issue, legacy: Bool = false) throws -> InitialPhotoTransferRequest {
+        var value = try InitialPhotoUploadTicketTests().allocation(boundBackend: true, phase: 8)
+        if !legacy { value = try value.reservingPutStart() }
+        if action == .issue { value = try value.startingTicketRequest() }
+        return try .init(allocation: value, action: action)
+    }
+
+    @Test(arguments: [InitialPhotoTransferRequest.Action.issue, .status])
+    func transferSendsExactBodyOnceAndRechecksOwner(action: InitialPhotoTransferRequest.Action) async throws {
+        let request = try transferCandidate(action), f = Fixture(ownerID: request.allocation.claim.profile.ownerID)
+        defer { f.close() }
+        let calls = OSAllocatedUnfairLock(initialState: 0), body = request.body, data = Data("{}".utf8)
+        f.mock.register(path: "/initial-photo-transfer") { wire in
+            calls.withLock { $0 += 1 }
+            #expect(wire.httpMethod == "POST" && wire.timeoutInterval == 5)
+            #expect(MockURLProtocol.bodyData(for: wire) == body)
+            #expect(wire.value(forHTTPHeaderField: IdentificationRecipientExpectation.header) == nil)
+            #expect(wire.value(forHTTPHeaderField: "Idempotency-Key") == nil)
+            return (HTTPURLResponse(url: wire.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"])!, data)
+        }
+        var checks = 0
+        let result = try await f.transport.performTransfer(request, validateAttempt: { checks += 1 })
+        #expect(result == data && checks == 2 && calls.withLock { $0 } == 1)
+    }
+
+    @Test(arguments: [401, 409, 429, 503, -1, 302])
+    func transferFailuresNeverRefreshOrRetry(status: Int) async throws {
+        let request = try transferCandidate(), f = Fixture(ownerID: request.allocation.claim.profile.ownerID)
+        defer { f.close() }
+        let calls = OSAllocatedUnfairLock(initialState: 0)
+        f.mock.register(path: "/initial-photo-transfer") { wire in
+            calls.withLock { $0 += 1 }
+            if status == -1 { throw URLError(.networkConnectionLost) }
+            return (HTTPURLResponse(url: wire.url!, statusCode: status, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"])!, Data())
+        }
+        await #expect(throws: (any Error).self) { _ = try await f.transport.performTransfer(request, validateAttempt: {}) }
+        #expect(calls.withLock { $0 } == 1)
+    }
+
+    @Test(arguments: ["legacy", "owner", "before", "after", "mime", "oversized"])
+    func transferRejectsStaleAuthorityAndUnboundedReplies(fault: String) async throws {
+        let request = try transferCandidate(legacy: fault == "legacy"), f = Fixture(ownerID: request.allocation.claim.profile.ownerID)
+        defer { f.close() }
+        let calls = OSAllocatedUnfairLock(initialState: 0)
+        f.mock.register(path: "/initial-photo-transfer") { wire in
+            calls.withLock { $0 += 1 }
+            return (HTTPURLResponse(url: wire.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": fault == "mime" ? "text/plain" : "application/json"])!,
+                Data(repeating: 32, count: fault == "oversized" ? 8193 : 2))
+        }
+        if fault == "owner" { f.dispatcher.overridingAuthUserID = UUID() }
+        var checks = 0
+        await #expect(throws: (any Error).self) {
+            _ = try await f.transport.performTransfer(request, validateAttempt: {
+                checks += 1
+                if fault == "before" || (fault == "after" && checks == 2) { throw SharedMediaStorageFailure.stale }
+            })
+        }
+        #expect(calls.withLock { $0 } == (["legacy", "owner", "before"].contains(fault) ? 0 : 1))
+    }
+
 }

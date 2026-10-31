@@ -4574,6 +4574,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "InitialPhotoAllocationTransport.swift",
         "ObservationVideoAnalysisTransport.swift",
         "ObservationVideoEvidenceTransport.swift",
+        "PinnedBoundedJSONDataTask.swift",
         "PinnedNetworkDataTaskState.swift",
         "PinnedNetworkTransport.swift",
         "AccountDeletionRecoveryTransport.swift"

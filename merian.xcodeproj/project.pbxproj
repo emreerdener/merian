@@ -136,6 +136,7 @@
 		0BFEF56CF65E06688D7F4A57 /* SharedMediaNativePhotoContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A619428B6DB6E94CD546CE50 /* SharedMediaNativePhotoContentTests.swift */; };
 		0C310A18B2260F20A9A43546 /* AddCollectionTopMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = C29DF71ACB92B9695A00B9B6 /* AddCollectionTopMenu.swift */; };
 		0C4A633A79CD6745B941094D /* SharedMediaPhotoLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14B33BFD1909BF079879FB8E /* SharedMediaPhotoLedger.swift */; };
+		0C55C0A37B8C8D07EE19B41D /* PinnedBoundedJSONDataTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D5E893007C4BBF91D95BD0 /* PinnedBoundedJSONDataTask.swift */; };
 		0C55F6C74A60DF1931BCB98D /* FieldTripEventEntries.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B7B1C1914F7342D1A9A3FCA /* FieldTripEventEntries.swift */; };
 		0C9445C927421DFEF0E4E2A9 /* SmartCollectionSuggester.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16290110BE169A71C0823B13 /* SmartCollectionSuggester.swift */; };
 		0C98B8EABA425F206084A5A5 /* MapLocateCameraPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E008FFEA3C7113A68630EBE0 /* MapLocateCameraPolicyTests.swift */; };
@@ -3515,6 +3516,7 @@
 		19C03DAED4040BA0416FE1A1 /* CandidateConfirmationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateConfirmationUITests.swift; sourceTree = "<group>"; };
 		19CB437233AD608BD7E7A085 /* ObservationVideoExecutionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationVideoExecutionStoreTests.swift; sourceTree = "<group>"; };
 		19CC2830DF0D4BB3AB20C72C /* ExploreCoverVideoPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreCoverVideoPlayer.swift; sourceTree = "<group>"; };
+		19D5E893007C4BBF91D95BD0 /* PinnedBoundedJSONDataTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedBoundedJSONDataTask.swift; sourceTree = "<group>"; };
 		19E50993402FF825377AB7B7 /* InsightSheetView+ReviewActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InsightSheetView+ReviewActions.swift"; sourceTree = "<group>"; };
 		19E6DC98067F7A536B9ABFBE /* VideoAudioFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoAudioFixture.swift; sourceTree = "<group>"; };
 		19ECC300E15CC708904ECB19 /* SmartCollectionDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartCollectionDetailViewModel.swift; sourceTree = "<group>"; };
@@ -11491,6 +11493,7 @@
 				EE7CCC087DECBC59F2C73084 /* ObservationSourceReservationTransport.swift */,
 				FF6D580E652ADD88ED334326 /* ObservationVideoAnalysisTransport.swift */,
 				3258700F2C688A4FBC075C9F /* ObservationVideoEvidenceTransport.swift */,
+				19D5E893007C4BBF91D95BD0 /* PinnedBoundedJSONDataTask.swift */,
 				FABE21EFC3B6D05C22CB0A23 /* PinnedNetworkDataTaskState.swift */,
 				287650284E26B0D3C5C7160D /* PinnedNetworkTransport.swift */,
 			);
@@ -17674,6 +17677,7 @@
 				21A6AB65559E5EA40046AD46 /* PhotoPreparationRepository.swift in Sources */,
 				D6655F4E9966531AF803BEE0 /* PhotoPreparationValues.swift in Sources */,
 				FD5F36AA329058E2858DD686 /* PhysicalCameraShutterModifier.swift in Sources */,
+				0C55C0A37B8C8D07EE19B41D /* PinnedBoundedJSONDataTask.swift in Sources */,
 				EC1B97B3A0576210EF9D74B1 /* PinnedNetworkDataTaskState.swift in Sources */,
 				87A4FC50F7BD6B47FCEE8CE2 /* PinnedNetworkTransport.swift in Sources */,
 				4088187AD652186D58BCE048 /* PlanCard.swift in Sources */,

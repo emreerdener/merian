@@ -33,6 +33,30 @@ struct InitialPhotoAllocationTransport {
         return reply
     }
 
+    /// Trusted injected sender only. The retained owner consumes the fresh
+    /// continuation before calling, and rechecks it again when decoding the reply.
+    /// No ordinary caller or server endpoint is installed by this adapter.
+    func performTransfer(_ candidate: InitialPhotoTransferRequest,
+                         validateAttempt: @escaping @MainActor @Sendable () throws -> Void) async throws -> Data {
+        if candidate.action == .issue, candidate.allocation.version != 11 { throw SharedMediaStorageFailure.closed }
+        try Task.checkCancellation()
+        let url = try EdgeFunctionRoutePolicy.endpointURL(baseURL: baseURL, function: "initial-photo-transfer")
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 5)
+        request.httpMethod = "POST"; request.httpBody = candidate.body
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let result = try await dispatcher.performInitialPhotoTransfer(.init(request: request, body: candidate.body,
+            onRequestBodySent: nil, authTransitionOwner: nil, expectedAuthUserID: candidate.allocation.claim.profile.ownerID,
+            validateAttempt: validateAttempt))
+        try await validateAttempt()
+        guard let response = result.response as? HTTPURLResponse else { throw MerianError.invalidResponse }
+        guard response.statusCode == 200 else {
+            throw MerianError.httpError(statusCode: response.statusCode, message: "initial_photo_transfer_unavailable")
+        }
+        guard response.mimeType?.lowercased() == "application/json" else { throw MerianError.invalidResponse }
+        return result.data
+    }
+
     private func exchange(_ candidate: InitialPhotoAllocationRequest,
                           validateAttempt: @escaping @MainActor @Sendable () throws -> Void) async throws -> Data {
         try Task.checkCancellation()

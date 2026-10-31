@@ -1,3 +1,59 @@
+## October 31 — inactive native ticket transport
+
+`InitialPhotoAllocationTransport.performTransfer` is the injected sender for the
+existing retained photo owner. It posts the exact saved request to the fixed
+`initial-photo-transfer` route, with exact-account admission and owner
+validation after authentication and again after response. Fresh issue accepts
+only V11; legacy V9 remains readable but cannot use this adapter for issuance.
+Status is a separate action and cannot sign, execute, renew clocks or release
+retained bytes. No ordinary app registration or serving backend endpoint is
+installed.
+
+The existing bounded JSON collector now exposes an actual termination join.
+`AuthenticatedTransportDispatcher` awaits that join inside dispatch, before its
+account lease can finish. The transfer response is bounded to 8 KiB and five
+seconds; actual termination can take longer and has no manufactured timeout; its
+absolute monotonic deadline includes task creation/resume gaps. Redirects and
+non-TLS authentication challenges are rejected. Cancellation, timeout, MIME
+rejection and overflow cancel the task, but cannot manufacture a termination
+acknowledgement. Existing ordinary bounded-response consumers keep prompt caller
+completion and retain task state until the callback. The shared collector was
+extracted to `Transport/PinnedBoundedJSONDataTask.swift`; the existing
+certificate policy remains its only TLS delegate, private behind the pinned
+owner’s stateless server-trust forwarding method. The shared fast preflight now
+names this collector and the existing authenticated dispatcher under the
+unchanged 600-physical-line ceiling; unrelated network files still require their
+own coverage.
+
+A lost or unavailable issue reply remains uncertain. Preserve the saved V11
+marker and original allocation clocks for same-operation status recovery; never
+repeat issue automatically. A successful ticket response still requires the
+fresh continuation and acknowledged V12 save described in the handoff contract
+below. HTTP success alone is neither upload authority nor settlement.
+
+The candidate adds collector lifetime/deadline and adapter refusal regressions,
+and routes the retained-owner three-role upload tests through the actual
+intercepted authenticated adapter. The first app/test compilation passed in
+658.241s with all 3,217 pinned inputs unchanged, but a follow-up source check
+caught HQ-021: extraction widened the private TLS delegate and omitted the new
+exact inventory entry. The correction restores privacy and updates the inventory
+without weakening assertions or ceilings. Engine independently verified the
+correction; corrected app/test compilation passed in 601.221s with all 3,218
+pinned inputs unchanged. Complete iOS tooling, focused preflight/Swift parity,
+project, transport security, Markdown and backend formatting gates passed.
+Scoped lint retains one parameter-alignment warning and zero errors. Prior wire
+parity was reused after unchanged dependency checks. Evidence is retained under
+`.artifacts/native-app-capture-handoff-20261020/native-transfer-transport-compile-qualified02.json`.
+Nine new methods/27 cases and six changed retained-owner cases remain unrun,
+along with prior reservation/handoff and affected consumer/architecture suites.
+**Runtime qualification remains pending.** HQ-019 still blocks simulator
+execution; previous compilation and runtime evidence applies only to its named
+candidates. Production account leases are bypassed by the established
+intercepted-test seam, so those tests do not prove live authentication or
+account shutdown. Full journeys, cumulative/Release/resource qualification and
+external operation authorization remain outstanding. No provider request or
+activation occurred.
+
 ## October 30 — fresh ticket to durable PUT handoff candidate
 
 The inactive native composition now retains one receiving lock grant and one
@@ -1323,7 +1379,11 @@ now composes ticket receipt, acknowledged durable attempt and sealed-file upload
 under the same receiving/account owners. It is compiled and source-reviewed, but
 inactive and runtime-unqualified under HQ-019. This supersedes earlier
 statements that this owner composition is unimplemented; it does not complete
-the transfer or end-to-end journey acceptance.
+the transfer or end-to-end journey acceptance. The
+[inactive ticket adapter](#october-31--inactive-native-ticket-transport) now
+connects that owner to the bounded authenticated transport, including actual
+task drain; same-operation status recovery and complete app qualification remain
+outstanding.
 
 The allocation owner saves an immutable unresolved claim before sending. Only an
 unambiguous save in that same retained operation permits one create request;

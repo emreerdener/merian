@@ -15,8 +15,9 @@ DTO block is unaffected. The inactive native
 [`InitialPhotoTransferRequest`](../../apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoTransferRequest.swift)
 projects this shape from saved allocation state; issue is restricted to V9/V11
 with no remote observation, while status supports V4/V5/V8–V12 without signing
-configuration. This value grants no dispatch authority. No native ticket
-transport, web or admin caller is registered yet. The inactive receiving owner
+configuration. This value grants no dispatch authority. The inactive native
+ticket adapter uses this exact body and requires V11 for fresh issue; no
+ordinary native, web or admin caller is registered. The inactive receiving owner
 can consume a fresh V11 reply and acknowledged V12 save to construct one bound
 PUT through its injected pinned task; recovered markers and arbitrary decoded
 tickets grant no upload permission. The
@@ -47,8 +48,10 @@ observations never trigger issuance, retry, clock renewal, execution or release.
 Unknown responses and cancellation produce an opaque unavailable error. The
 facade has a 25-second overall bound; existing five-second RPC and 20-second
 issuer limits remain unchanged. This dormant component passed source review,
-focused synthetic checks and the complete local backend gates. Native transport
-and durable PUT admission remain pending. The
+focused synthetic checks and the complete local backend gates. The native
+adapter and durable PUT admission are implemented but inactive; see the
+[current transport qualification](16-scan-ingestion-reliability-and-recovery.md#october-31--inactive-native-ticket-transport).
+The
 [scan guide](16-scan-ingestion-reliability-and-recovery.md#october-30--dormant-authenticated-transfer-facade)
 owns current evidence and release exclusions.
 

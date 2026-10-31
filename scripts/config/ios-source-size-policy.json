@@ -160,6 +160,14 @@
     "apps/ios/Merian/Core/Media/ImageCropProcessor.swift": {
       "counter": "physical",
       "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Network/Transport/PinnedBoundedJSONDataTask.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Network/Transport/AuthenticatedTransportDispatcher.swift": {
+      "counter": "physical",
+      "ceiling": 600
     }
   },
   "globalOnlyDirectories": [

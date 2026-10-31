@@ -98,6 +98,145 @@ struct PinnedNetworkTaskTerminationTests {
         await state.waitForLocalTermination()
     }
 
+    @Test(arguments: [false, true])
+    func boundedCallerCompletionStillRequiresActualTermination(timeout: Bool) async throws {
+        let pause = CompletionPause(), session = hangingSession()
+        let collector = PinnedBoundedJSONDataTask(maximumBytes: 8192, completionPause: { pause.wait() })
+        defer { pause.release(); session.invalidateAndCancel() }
+        let call = Task { try await collector.response(using: session, request: request(), timeout: timeout ? 0.1 : 10) }
+        if !timeout {
+            try await waitUntil { await sessionHasTask(session) }
+            call.cancel()
+        }
+        if case .success = await call.result { Issue.record("Hanging collection succeeded") }
+        try await waitUntil { pause.entered }
+        let joined = OSAllocatedUnfairLock(initialState: false)
+        let join = Task { await collector.waitForLocalTermination(); joined.withLock { $0 = true } }
+        join.cancel()
+        try await Task.sleep(for: .milliseconds(30))
+        #expect(!joined.withLock { $0 })
+        pause.release(); await join.value
+        #expect(joined.withLock { $0 })
+        await collector.waitForLocalTermination()
+    }
+
+    @Test(arguments: [false, true])
+    func joinedBoundedResponseWithholdsCancellationAndTimeoutUntilDrain(timeout: Bool) async throws {
+        let pause = CompletionPause(), session = hangingSession()
+        let collector = PinnedBoundedJSONDataTask(maximumBytes: 8192, completionPause: { pause.wait() })
+        let returned = OSAllocatedUnfairLock(initialState: false)
+        defer { pause.release(); session.invalidateAndCancel() }
+        let call = Task {
+            defer { returned.withLock { $0 = true } }
+            return try await collector.joinedResponse(using: session, request: request(), timeout: timeout ? 0.1 : 10)
+        }
+        if !timeout {
+            try await waitUntil { await sessionHasTask(session) }
+            call.cancel()
+        }
+        try await waitUntil { pause.entered }
+        #expect(!returned.withLock { $0 })
+        pause.release()
+        switch await call.result {
+        case .success: Issue.record("Hanging collection succeeded")
+        case .failure(let error):
+            if timeout { #expect((error as? URLError)?.code == .timedOut) } else { #expect(error is CancellationError) }
+        }
+        #expect(returned.withLock { $0 })
+    }
+
+    @Test func boundedCollectorRemainsAliveUntilCallbackAfterCallerDropsIt() async throws {
+        let pause = CompletionPause(), session = hangingSession()
+        var collector: PinnedBoundedJSONDataTask? = .init(maximumBytes: 8192, completionPause: { pause.wait() })
+        weak var retained = collector
+        defer { pause.release(); session.invalidateAndCancel() }
+        let call = Task { [collector = collector!] in
+            try await collector.response(using: session, request: request(), timeout: 0.1)
+        }
+        _ = await call.result
+        try await waitUntil { pause.entered }
+        collector = nil
+        #expect(retained != nil)
+        pause.release()
+        try await waitUntil { retained == nil }
+    }
+
+    @Test(arguments: ["cancel", "timeout", "beforeStart"])
+    func boundedRejectedStartDrainsWithoutInventingTask(reason: String) async throws {
+        let gate = StartGate(), session = hangingSession(), collector = PinnedBoundedJSONDataTask(maximumBytes: 8192)
+        defer { session.invalidateAndCancel() }
+        let call = Task {
+            await gate.wait()
+            return try await collector.response(using: session, request: request(), timeout: reason == "timeout" ? 0 : 1,
+                beforeStart: { if reason == "beforeStart" { throw URLError(.badURL) } })
+        }
+        if reason == "cancel" { call.cancel() }
+        await gate.open()
+        if case .success = await call.result { Issue.record("Rejected start succeeded") }
+        await collector.waitForLocalTermination()
+        #expect(await session.allTasks.isEmpty)
+    }
+
+    @Test func boundedDeadlineIncludesResumeGapAndStillDrains() async throws {
+        let mock = ScopedMockTransport(), session = mock.makeSession(), pause = CompletionPause()
+        let collector = PinnedBoundedJSONDataTask(maximumBytes: 8192,
+            completionPause: { pause.wait() }, beforeResume: { Thread.sleep(forTimeInterval: 0.2) })
+        let calls = OSAllocatedUnfairLock(initialState: 0), returned = OSAllocatedUnfairLock(initialState: false)
+        defer { pause.release(); session.invalidateAndCancel() }
+        mock.register(path: "/local-termination") { request in
+            calls.withLock { $0 += 1 }
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"])!, Data())
+        }
+        let call = Task {
+            defer { returned.withLock { $0 = true } }
+            return try await collector.joinedResponse(using: session, request: request(), timeout: 0.05)
+        }
+        try await waitUntil { pause.entered }
+        #expect(!returned.withLock { $0 } && calls.withLock { $0 } == 0)
+        pause.release()
+        if case .success = await call.result { Issue.record("Expired request resumed") }
+        #expect(calls.withLock { $0 } == 0)
+    }
+
+    @Test(arguments: ["auth", "redirect", "mime", "overflow"])
+    func boundedProtocolRejectionCannotAcknowledgeDrain(reason: String) async throws {
+        let pause = CompletionPause(), session = hangingSession()
+        let collector = PinnedBoundedJSONDataTask(maximumBytes: 8, completionPause: { pause.wait() })
+        defer { pause.release(); session.invalidateAndCancel() }
+        let call = Task { try await collector.response(using: session, request: request(), timeout: 10) }
+        try await waitUntil { await sessionHasTask(session) }
+        let task = try #require(await session.allTasks.first as? URLSessionDataTask)
+        if reason == "auth" {
+            let space = URLProtectionSpace(host: "example.supabase.co", port: 443, protocol: "https", realm: nil,
+                authenticationMethod: NSURLAuthenticationMethodHTTPBasic)
+            let challenge = URLAuthenticationChallenge(protectionSpace: space, proposedCredential: nil, previousFailureCount: 0,
+                failureResponse: nil, error: nil, sender: UploadChallengeSender())
+            collector.urlSession(session, task: task, didReceive: challenge) { disposition, credential in
+                #expect(disposition == .cancelAuthenticationChallenge && credential == nil)
+            }
+        } else if reason == "redirect" {
+            collector.urlSession(session, task: task,
+                willPerformHTTPRedirection: HTTPURLResponse(url: request().url!, statusCode: 302, httpVersion: nil, headerFields: nil)!,
+                newRequest: request()) { #expect($0 == nil) }
+        } else if reason == "mime" {
+            collector.urlSession(session, dataTask: task,
+                didReceive: HTTPURLResponse(url: request().url!, statusCode: 200, httpVersion: nil,
+                    headerFields: ["Content-Type": "text/plain"])!) { #expect($0 == .cancel) }
+        } else {
+            collector.urlSession(session, dataTask: task, didReceive: Data(repeating: 1, count: 9))
+        }
+        if case .success = await call.result { Issue.record("Rejected protocol succeeded") }
+        try await waitUntil { pause.entered }
+        let done = OSAllocatedUnfairLock(initialState: false)
+        let join = Task { await collector.waitForLocalTermination(); done.withLock { $0 = true } }
+        join.cancel()
+        try await Task.sleep(for: .milliseconds(30))
+        #expect(!done.withLock { $0 })
+        pause.release(); await join.value
+        #expect(done.withLock { $0 })
+    }
+
     private func request() -> URLRequest {
         URLRequest(url: URL(string: "https://example.supabase.co/local-termination")!)
     }
