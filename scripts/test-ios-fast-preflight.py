@@ -130,6 +130,7 @@ class PolicyTests(unittest.TestCase):
     def test_native_photo_preflight_coverage_has_exact_bounded_network_and_image_owners(self):
         root, policy, _ = self.fixture()
         for path in [
+            'apps/ios/Merian/Core/Data/AnalysisHistory/AnalysisRecoveryPresentation.swift',
             'apps/ios/Merian/Models/ActiveSchema/OfflineQueuedScan.swift',
             'apps/ios/Merian/Models/Schema/SchemaV68.swift',
             'apps/ios/Merian/Core/Data/Images/Policies/ImagePreparationPolicy.swift',

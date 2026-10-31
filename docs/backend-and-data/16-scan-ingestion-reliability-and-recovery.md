@@ -1,3 +1,48 @@
+## October 31 — bounded recovery presentation value
+
+`AnalysisRecoveryPresentation` now defines the local, versioned value intended
+for the V68 queue field. Its canonical encoding is capped at 512 bytes and binds
+account, observation and exact operation. It has no persistence, networking or
+execution authority. Native receiving still rejects populated presentation data;
+no writer, visible timer or UI action is installed by this value checkpoint.
+
+A reservation conservatively charges the entire remaining 30-second visible
+budget. The existing operation owner must compare the predecessor and durably
+save that reservation before acknowledging a visible monotonic-clock start. A
+clean pause can settle only its exact reservation, rounding elapsed fractions up
+to a millisecond. Reopening an active reservation shows Needs attention: a
+decoded value cannot recreate the in-memory settlement receipt. Revision checks
+prevent a late pause from refunding a later check, even if a token is reused.
+The value also caps the lifetime at 30 reservations / 60 transitions so rapid
+zero-duration open/close cycles cannot consume unbounded inventory revisions.
+Reaching either limit offers Needs attention; explicit status-only recovery may
+still run without another Checking presentation. No timer tick needs a save.
+
+**Persistence integration remains open.** The current receiving reservation did
+not reserve these queue bytes. Preserve its legacy calculation and exact saved
+bytes. The new sidecar must be admitted separately, charging its versioned
+maximum, materialized bytes and reserved remainder, plus finite transition
+headroom through the existing receiving owner. Carry that liability through
+allocation and cleanup projections until the queue is durably removed. A
+capacity refusal must preserve accepted legacy work and offer Needs attention
+without granting a spinner budget. The reanalysis owner needs the same exact
+identity, queue, account/container and deletion fences. Do not loosen the native
+nil-only guard before those accounting and transaction invariants are installed.
+
+Focused value tests cover cold active recovery, cumulative clean pauses,
+boundaries/rounding, foreign identities, malformed canonical bytes, stale
+settlement and finite zero-duration cycles. Managed app/test-target compilation
+passed in 617.101s; the full affected iOS tooling suite passed in 586.416s. All
+6,812 pinned working inputs remained unchanged through both runs, including
+unrelated edits; this is not a clean commit-only build. Independent source
+review verified all seven candidate hashes with no blocking finding. Scoped lint
+passed without warnings. Evidence is retained under
+`.artifacts/native-app-capture-handoff-20261020/rux-presentation-value-compile-qualified01.json`.
+**Zero runtime cases executed:** all 26 new cases and affected architecture
+runtime remain unrun under HQ-019. This value alone does not qualify
+RUX-1–RUX-6, real app wiring or either analysis journey. Ordinary activation and
+all release controls remain unchanged.
+
 ## October 31 — recovery presentation storage prerequisite
 
 RUX-1 requires the total visible checking budget to survive navigation and

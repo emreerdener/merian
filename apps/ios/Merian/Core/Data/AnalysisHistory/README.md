@@ -1,5 +1,14 @@
 # Analysis history admission
 
+The shared `AnalysisRecoveryPresentation` value defines bounded, exact-operation
+presentation accounting for initial analysis and reanalysis. It is not a new
+operation owner and has no persistence or execution consumer yet. Native queue
+admission remains nil-only pending separately charged sidecar integration. See
+the
+[recovery contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--bounded-recovery-presentation-value)
+for the 30-second budget, finite transitions, interrupted checks and remaining
+owner integration.
+
 This prepared boundary is separate from ordinary `Database/HistoricalSync`,
 which hydrates the current scan projection. Ordinary history admission remains
 disconnected. The backend reader, enrollment and selection gates remain false.

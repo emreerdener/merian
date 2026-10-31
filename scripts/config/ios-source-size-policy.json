@@ -45,6 +45,10 @@
     }
   },
   "fileRules": {
+    "apps/ios/Merian/Core/Data/AnalysisHistory/AnalysisRecoveryPresentation.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
     "apps/ios/Merian/Models/ActiveSchema/OfflineQueuedScan.swift": {
       "counter": "physical",
       "ceiling": 600
