@@ -73,6 +73,32 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         return .init(allocation: allocation, create: acknowledged)
     }
 
+    /// Recovery cannot create or upgrade a claim. The saved format selects its
+    /// original response projection; no persistence occurs before the status await.
+    func recoverAllocationStatus(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                 transport: SharedMediaNativePhotoAllocationTransportAccess) async throws -> Allocation {
+        guard let current = try saved(prepared) else { throw SharedMediaStorageFailure.closed }
+        let projection: InitialPhotoAllocationRequest.Projection
+        switch current.version {
+        case 1: projection = .legacy
+        case 2: projection = .roles
+        case 6: projection = .boundRoles
+        default: throw SharedMediaStorageFailure.closed
+        }
+        guard transport.projection == projection else { throw SharedMediaStorageFailure.closed }
+        let request = try InitialPhotoAllocationRequest(allocation: current, action: .status, projection: projection)
+        let check: @MainActor @Sendable () throws -> Void = {
+            guard try self.saved(prepared) == current else { throw SharedMediaStorageFailure.stale }
+        }
+        try check()
+        let reply = try await transport.send(request, validate: check, settle: check)
+        try check()
+        switch reply {
+        case .legacy(let value): return try settle(value, request: current, prepared: prepared)
+        case .roles(let value): return try enrich(value, request: current, prepared: prepared)
+        }
+    }
+
     /// Upgrade an existing claim only. Even an unresolved legacy claim can never
     /// regain create authority through reservation or acknowledgement recovery.
     func reserveRoles(_ prepared: SharedMediaNativeReceivingIntent.Prepared, backendBinding: Bool = false) throws -> Allocation {

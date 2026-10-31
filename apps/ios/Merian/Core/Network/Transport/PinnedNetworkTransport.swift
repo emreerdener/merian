@@ -140,9 +140,10 @@ final class PinnedNetworkTransport: @unchecked Sendable {
             .response(using: activeSession, request: request, timeout: 5)
     }
 
+    /// Allocation create/status also retain account ownership through task drain.
     func initialPhotoAllocationData(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await PinnedBoundedJSONDataTask(maximumBytes: InitialPhotoAllocationReply.maximumBytes)
-            .response(using: activeSession, request: request, timeout: 5)
+            .joinedResponse(using: activeSession, request: request, timeout: 5)
     }
 
     /// Ticket/status replies drain their actual task before account ownership ends.

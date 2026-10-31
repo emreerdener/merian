@@ -120,10 +120,10 @@ struct PinnedNetworkTaskTerminationTests {
         await collector.waitForLocalTermination()
     }
 
-    @Test(arguments: [false, true])
-    func joinedBoundedResponseWithholdsCancellationAndTimeoutUntilDrain(timeout: Bool) async throws {
+    @Test(arguments: [false, true], [InitialPhotoAllocationReply.maximumBytes, InitialPhotoUploadTicket.maximumBytes])
+    func joinedBoundedResponseWithholdsCancellationAndTimeoutUntilDrain(timeout: Bool, maximumBytes: Int) async throws {
         let pause = CompletionPause(), session = hangingSession()
-        let collector = PinnedBoundedJSONDataTask(maximumBytes: 8192, completionPause: { pause.wait() })
+        let collector = PinnedBoundedJSONDataTask(maximumBytes: maximumBytes, completionPause: { pause.wait() })
         let returned = OSAllocatedUnfairLock(initialState: false)
         defer { pause.release(); session.invalidateAndCancel() }
         let call = Task {

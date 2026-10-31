@@ -1,3 +1,44 @@
+## October 31 — allocation recovery cannot create a claim
+
+The existing allocation owner now has a dedicated `recoverAllocationStatus`
+operation, exposed through `recoverAppPhotoAllocationStatus` and the existing
+access object's `recover`. It requires a saved claim and its original V1 legacy,
+V2 role or V6 bound-role response projection. Missing claims, mismatched formats
+and transfer-reserved phases refuse before sending. This path never calls the
+create authorizer, `claim`, projection reservation or a create request. No write
+precedes the query. Exact saved-state checks surround the await; only the
+existing receipt settlement/enrichment can save a matching response. Negative
+and exact repeated replies preserve all saved facts without writes. Caller
+presentation validation runs after the sender returns, before persistence, even
+if an injected sender omits its response callback.
+
+The existing receiving/account owners stay retained across this status exchange
+and observation. The allocation create/status transport now joins actual task
+termination using the existing bounded collector, closing HQ-024's early lease
+release gap. Its 2 KiB response budget, five-second response deadline, exact
+account validation, no-refresh/no-retry policy and pinned TLS remain unchanged.
+Actual task drainage can outlast the response deadline; neither cancellation nor
+a UI timer fabricates termination. Transfer requests already use that join.
+
+Tests cover missing claims, all three saved projections, unchanged/negative and
+cold replies, projection refusal, caller/store/account changes, cancellation and
+interrupted saves. The existing collector cancellation/timeout test now covers
+both allocation and ticket budgets. Bounded independent source review passed,
+and managed app/test-target compilation passed in 416.488s with all 3,222 pinned
+inputs unchanged. This compiled the full existing working tree, including
+unrelated inputs, rather than a clean commit-only checkout. Focused preflight,
+transport-security and scoped lint passed; lint retains 21 inherited warnings
+and no errors. Evidence is retained under
+`.artifacts/native-app-capture-handoff-20261020/native-allocation-status-compile-qualified01.json`.
+**Zero runtime cases executed:** 34 new owner cases and four collector cases
+(two additional variants) remain unrun under HQ-019. Injected sender and
+collector tests do not establish production Auth shutdown or an end-to-end
+allocation exchange. This does not install a recovery UI caller or enable an
+endpoint. A remote action still needs exact selected-identity routing and RUX's
+30-second, restart-stable presentation contract; a transient spinner or transfer
+observation cannot stand in for an analysis result. All RUX and journey
+acceptance remains open.
+
 ## October 31 — allocated submissions remain visible in recovery
 
 Pending-submission discovery now includes the existing clean graph's validated
@@ -1478,8 +1519,10 @@ task drain. The
 [same-operation status composition](#october-31--same-operation-photo-status-recovery)
 now connects that bounded query to the existing monotonic writer.
 [Allocated submissions remain visible](#october-31--allocated-submissions-remain-visible-in-recovery)
-under the existing exact-identity recovery model. Complete app and runtime
-qualification remain outstanding.
+under the existing exact-identity recovery model.
+[Allocation status-only recovery](#october-31--allocation-recovery-cannot-create-a-claim)
+now provides a no-create entry point for the future explicit action. Complete
+app and runtime qualification remain outstanding.
 
 The allocation owner saves an immutable unresolved claim before sending. Only an
 unambiguous save in that same retained operation permits one create request;

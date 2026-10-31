@@ -1,3 +1,15 @@
+## Allocation transport termination — October 31
+
+The existing initial-photo allocation create/status route now joins actual task
+termination before dispatch/account ownership ends. It keeps the 2 KiB response
+budget and five-second response deadline; task drainage may take longer. The
+status-only native owner cannot create a missing claim or change its projection.
+App/test-target compilation and bounded independent source review passed; the
+four collector cases remain unrun under HQ-019. Production Auth shutdown and the
+end-to-end allocation exchange remain unqualified. The
+[scan contract](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--allocation-recovery-cannot-create-a-claim)
+owns these boundaries. No UI caller, endpoint deployment or activation is added.
+
 ## Current inactive ticket transport — October 31
 
 The existing `InitialPhotoAllocationTransport.performTransfer` adapter sends one

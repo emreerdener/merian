@@ -205,6 +205,15 @@ extension SharedMediaNativeOriginalOwner {
             try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0().verifyTransfer(prepared, allocation: allocation) }
         }
     }
+    /// Saved-claim recovery has no authorizer, claim save or projection upgrade.
+    func recoverAppPhotoAllocationStatus(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                         transport: SharedMediaNativePhotoAllocationTransportAccess) async throws -> SharedMediaNativePhotoAllocation {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appPhotoAllocationWorkflow(lock: lock) { open in
+                try await open().recoverAllocationStatus(prepared, transport: transport)
+            }
+        }
+    }
     /// Status recovery never issues a ticket, starts a PUT or releases a hold.
     func recoverAppPhotoTransferStatus(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                        send: @escaping @MainActor (InitialPhotoTransferRequest, @escaping @MainActor @Sendable () throws -> Void) async throws -> Data) async throws -> SharedMediaNativePhotoAllocation {

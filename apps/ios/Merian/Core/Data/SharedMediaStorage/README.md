@@ -1,3 +1,15 @@
+## Status-only allocation recovery — October 31
+
+`recoverAppPhotoAllocationStatus` requires a saved V1/V2/V6 claim and matching
+original projection. It cannot authorize/create/upgrade a claim; exact checks
+and existing settlement/enrichment surround one request.
+`SharedMediaNativePhotoAllocationAccess.recover` preserves caller validation
+before persistence. Transfer states use their separate owner. App/test-target
+compilation and bounded independent source review passed; 34 new owner cases
+remain runtime-unqualified under HQ-019. The
+[scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--allocation-recovery-cannot-create-a-claim)
+owns lifetime, no-save and remaining UI requirements.
+
 ## Allocated recovery identities — October 31
 
 Received-candidate discovery now projects validated allocation snapshots as the

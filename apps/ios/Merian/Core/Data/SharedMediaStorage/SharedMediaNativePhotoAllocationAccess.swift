@@ -19,6 +19,34 @@ struct SharedMediaNativePhotoAllocationAccess {
         self.authorize = authorize; transport = .boundRoles(sendBoundRoles)
     }
 
+    /// Explicit recovery only. Never calls authorize or the create-capable owner.
+    @MainActor func recover(owner: SharedMediaNativeOriginalOwner,
+                            prepared: SharedMediaNativeReceivingIntent.Prepared,
+                            validate: @escaping Validator) async throws -> SharedMediaNativePhotoAllocation {
+        let scoped: SharedMediaNativePhotoAllocationTransportAccess
+        switch transport {
+        case .legacy(let send):
+            scoped = .legacy { request, check, settle in
+                try validate()
+                let reply = try await send(request, { try check(); try validate() }, { try settle(); try validate() })
+                try validate()
+                return reply
+            }
+        case .roles(let send), .boundRoles(let send):
+            let wrapped: SharedMediaNativePhotoAllocationTransportAccess.RolesSend = { request, check, settle in
+                try validate()
+                let reply = try await send(request, { try check(); try validate() }, { try settle(); try validate() })
+                try validate()
+                return reply
+            }
+            scoped = transport.projection == .boundRoles ? .boundRoles(wrapped) : .roles(wrapped)
+        }
+        try validate()
+        let result = try await owner.recoverAppPhotoAllocationStatus(prepared, transport: scoped)
+        try validate()
+        return result
+    }
+
     /// Preserve the caller's immutable selection/attempt fence around both
     /// projections. Only the retained owner decides durable create versus status.
     @MainActor func allocate(owner: SharedMediaNativeOriginalOwner,

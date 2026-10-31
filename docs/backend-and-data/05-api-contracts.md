@@ -1,3 +1,14 @@
+## October 31 — native allocation status-only entry point
+
+The native
+[recovery owner](16-scan-ingestion-reliability-and-recovery.md#october-31--allocation-recovery-cannot-create-a-claim)
+requires an existing claim and its original response projection. It performs no
+create authorization, claim creation or pre-query format upgrade. Allocation
+create/status transport retains account ownership until actual network-task
+termination; its 2 KiB response cap and five-second response deadline are
+unchanged. Wire fields and backend behavior do not change. Native compilation,
+runtime and UI qualification remain separately recorded in the scan contract.
+
 ## Dormant authenticated photo transfer facade — October 30
 
 The source-only
