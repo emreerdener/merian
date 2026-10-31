@@ -118,6 +118,32 @@ original failure cases remain open. Evidence and scope limits are in
 `hq028-components-runtime01-reconciled.json`; this is Debug simulator diagnosis,
 not a production performance qualification.
 
+The subsequent control-read/sync measurement passed 22 selected methods / 41
+cases with zero skips (391.990 seconds, all 6,816 inputs unchanged), including
+12 interruption/recovery and nine incomplete/foreign-control cases. The initial
+compile failed on an actor-isolated initializer in a default argument; the
+corrected optional-nil argument constructs the measurement handle inside the
+existing actor-isolated body. That failure is retained. Corrected compilation
+passed in 2,220.790 seconds, with independent source review clear.
+
+This single Debug sample measured 30.046 seconds to sender entry, with 669 audit
+checkpoints taking 19.559 seconds inside 29.241 seconds of phases. The 675
+whole-operation store-binding checks consumed 12.803 seconds. Nested control
+reads/validation/sync consumed 1.688 seconds across 10,800 calls; file sync
+consumed 0.046 seconds across 9,450 calls, and the final parent sync consumed
+0.012 seconds across 1,350 calls. Read totals include file sync and must not be
+summed with it; missing controls may count a read without a sync. Parent timing
+covers only the final bootstrap check flush. The measurement handle retains no
+authority and changes no read, identity predicate, sync, error or ordering.
+
+These observations do not support removing synchronization to resolve the
+measured delay. Remaining binding validation cost needs investigation;
+differences between individual Debug runs are not comparative performance
+qualification. The original five failed scenarios and HQ-028/029/030 remain
+open. Exact selection counts, raw XCResult exports and timing scopes are
+retained in `hq028-sync-runtime01-reconciled.json`. No durability witness,
+cached authority, page-only validation or deadline change has been introduced.
+
 Retained receipts under `.artifacts/native-app-capture-handoff-20261020/`
 include `hq019-environment-repaired01.json`,
 `hq019-migration-startup-qualified01.json`, `hq019-network01-results/`,

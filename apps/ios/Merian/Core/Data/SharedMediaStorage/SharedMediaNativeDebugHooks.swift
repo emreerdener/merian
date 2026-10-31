@@ -2,6 +2,26 @@ import Foundation
 
 enum SharedMediaNativeInspectionComponent: String, CaseIterable {
     case roots, storeBinding, photoIdentity, inboxIdentity, profileMatch, databaseHeader
+    case controlReadAndSync, controlFileSync, controlParentSync
+}
+
+/// A call-local observation handle, never a persisted durability witness.
+@MainActor
+struct SharedMediaNativeInspectionMeasurement {
+    #if DEBUG
+    private let trace: SharedMediaNativeDebugHooks.InspectionTrace?
+    #endif
+    init(authority: SharedMediaNativeBootstrapAuthority? = nil) {
+        #if DEBUG
+        trace = authority?.debug?.inspectionTrace
+        #endif
+    }
+    func measure<T>(_ component: SharedMediaNativeInspectionComponent, _ body: () throws -> T) rethrows -> T {
+        #if DEBUG
+        if let trace { return try trace.measure(component, body) }
+        #endif
+        return try body()
+    }
 }
 
 /// Typed test controls only; never account, file or mutation authority. The
