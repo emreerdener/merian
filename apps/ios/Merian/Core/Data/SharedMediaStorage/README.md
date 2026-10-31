@@ -1,3 +1,15 @@
+## Allocated recovery identities — October 31
+
+Received-candidate discovery now projects validated allocation snapshots as the
+same noneditable local identity. Allocation/status progress preserves that
+identity; generic mutation readers stay closed and no remote action or cleanup
+is authorized. Prepared/staged/releasing records remain excluded and corrupt
+sidecars fail the audit. App/test-target compilation and bounded independent
+source review passed; seven new and 27 extended runtime cases remain unrun under
+HQ-019. The
+[scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--allocated-submissions-remain-visible-in-recovery)
+owns exact behavior and qualification.
+
 ## Same-operation status recovery candidate — October 31
 
 `recoverAppPhotoTransferStatus` retains existing receiving/account ownership

@@ -72,6 +72,8 @@ struct NativePhotoStatusRecoveryTests {
         let (store, owner, prepared, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: boundBackend)
         do {
             let before = try row(store)
+            let candidates = try await owner.discoverAppReceivedCandidates()
+            #expect(candidates.count == 1 && candidates.first?.operationID == prepared.operationID)
             await #expect(throws: SharedMediaStorageFailure.closed) {
                 _ = try await owner.recoverAppPhotoTransferStatus(prepared) { _, _ in
                     Issue.record("Unreserved status dispatched"); return Data()
@@ -86,6 +88,8 @@ struct NativePhotoStatusRecoveryTests {
     func historicalStatusIsExactMonotonicAndColdReplayDoesNotSave(phase: Int, role: Role) async throws {
         let f = try await fixture(phase, role: role), before = try row(f.store)
         var owner = f.owner
+        let candidates = try await owner.discoverAppReceivedCandidates()
+        #expect(candidates.count == 1 && candidates.first?.operationID == f.prepared.operationID)
         let network = InitialPhotoAllocationTransportTests.Fixture(ownerID: f.prepared.profile.ownerID)
         defer { network.close() }
         let count = OSAllocatedUnfairLock(initialState: 0), id = UUID()
@@ -110,10 +114,12 @@ struct NativePhotoStatusRecoveryTests {
                 let currentCharge = try current.storageCharge
                 #expect(current.transferReservation == f.allocation.transferReservation && currentCharge == charge)
                 #expect(try saved(f.store) == current)
+                #expect(try await owner.discoverAppReceivedCandidates() == candidates)
                 let immutable = try row(f.store)
                 #expect(immutable.preparedData == before.preparedData && immutable.resultData == before.resultData)
                 #expect(await owner.invalidateAndAwaitForAccountTransition())
                 owner = try await SharedMediaNativeReceivingStagingTests().reopen(f.store)
+                #expect(try await owner.discoverAppReceivedCandidates() == candidates)
                 try owner.setMetadataFault { if $0 == .beforeSave { Issue.record("Unchanged cold status saved") } }
                 #expect(try await owner.recoverAppPhotoTransferStatus(f.prepared, send: network.transport.performTransfer) == current)
                 #expect(try row(f.store) == immutable)

@@ -1,3 +1,15 @@
+## October 31 — allocated submissions stay in Pending submissions
+
+The existing local discovery and exact-selection model now retain allocated and
+transfer-held received submissions in the list. Their identity remains stable
+across allocation/status progress and cold discovery. This supersedes the older
+scope that projected only generic received rows; it adds no remote action,
+editable reconstruction or cleanup authority. The factory remains disabled.
+App/test-target compilation and bounded independent source review passed. HQ-019
+still blocks the seven new and 27 extended runtime cases. The
+[current scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--allocated-submissions-remain-visible-in-recovery)
+records the owning projection and remaining acceptance work.
+
 ## October 29 — inactive v2 allocation composition
 
 The existing app composition now selects v2 through the qualified durable

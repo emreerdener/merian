@@ -68,9 +68,14 @@ enum SharedMediaNativeRepositoryFacts {
         guard try SharedMediaNativeAppEligibility.profile(inventory) == profile else { throw SharedMediaStorageFailure.stale }
         let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)
         return try witnesses.values.compactMap { witness -> SharedMediaNativeReceivedCandidate? in
-            guard case .generic(let value) = witness,
-                  case .received = value.slot else { return nil }
-            let row = value.row
+            let row: SharedMediaNativeReceivingIntentGraph.Row
+            switch witness {
+            case .allocating(let value): row = value.row
+            case .generic(let value):
+                guard case .received = value.slot else { return nil }
+                row = value.row
+            case .staged, .releasing: return nil
+            }
             guard let resultHash = row.resultSHA256 else { throw SharedMediaStorageFailure.conflict }
             return SharedMediaNativeReceivedCandidate(profile: profile, packageID: row.id,
                 draftGeneration: row.draftGeneration, operationID: row.operationID,

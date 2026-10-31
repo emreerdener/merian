@@ -80,6 +80,8 @@ struct NativePhotoUploadLifetimeTests {
             Issue.record("Cold request recreated authority"); return Data()
         }, makeTask: { Issue.record("Cold PUT recreated authority"); return .init(session: session) }) == nil)
         #expect(try row(store) == retained)
+        let candidates = try await cold.discoverAppReceivedCandidates()
+        #expect(candidates.count == 1 && candidates.first?.operationID == prepared.operationID)
         let attempt = try #require(expected.remoteAttempt)
         let closedBytes = try NativePhotoStatusRecoveryTests().statusBytes(expected, state: "may_have_issued", closed: true, id: attempt.id)
         let statusBody = try InitialPhotoTransferRequest(allocation: expected, action: .status).body
@@ -93,6 +95,7 @@ struct NativePhotoUploadLifetimeTests {
         #expect(closed.remoteAttempt?.id == attempt.id && closed.remoteAttempt?.createdAtMilliseconds == attempt.createdAtMilliseconds)
         let closedCharge = try closed.storageCharge, expectedCharge = try expected.storageCharge
         #expect(closed.transferReservation == expected.transferReservation && closedCharge == expectedCharge)
+        #expect(try await cold.discoverAppReceivedCandidates() == candidates)
         let closedRow = try row(store)
         try cold.setMetadataFault { if $0 == .beforeSave { Issue.record("Closed status replay saved") } }
         #expect(try await cold.recoverAppPhotoTransferStatus(prepared, send: transportFixture.transport.performTransfer) == closed)

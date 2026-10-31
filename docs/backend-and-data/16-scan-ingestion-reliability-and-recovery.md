@@ -1,3 +1,39 @@
+## October 31 — allocated submissions remain visible in recovery
+
+Pending-submission discovery now includes the existing clean graph's validated
+allocation snapshots. Previously it selected only generic received rows, so a
+saved claim hid a still-held submission from the recovery list (HQ-023). The
+projection keeps the same profile/package/draft/operation identity, receiving
+revision and Prepared/Received hashes; it exposes no allocation, role, file,
+ticket or capability. Complete audit and exact current-header checks still
+precede discovery. Prepared, staged and releasing work remains excluded, and
+malformed sidecars fail the read rather than disappear behind filtering.
+
+Allocation/status saves advance the **inventory** revision but preserve the
+receiving row revision and hashes. Existing explicit selection, exact refresh
+and Close behavior therefore continue to work across those saves and cold
+recovery without replacing the selected identity. Generic receiving/mutation
+APIs still reject allocation sidecars. This fixes local visibility only: remote
+result checking, retry, editable reconstruction, media access and release are
+not granted by the candidate list. The ordinary factory remains disabled.
+
+Contributor entry points are
+`SharedMediaNativeRepositoryFacts.receivedCandidates`,
+`SharedMediaNativePhotoAllocationSnapshot.read` and
+`CaptureNativeRecoveryModel`. Tests cover unresolved/settled legacy, role and
+bound claims, mixed generic and allocated packages, corrupt sidecars, cold
+selection, and preserved visibility through transfer/status V3–V12. Bounded
+independent source review passed, and app/test-target compilation passed in
+329.923s with all 3,221 pinned inputs unchanged. This compiled the full existing
+working tree, including unrelated inputs, rather than a clean commit-only
+checkout. Focused preflight and scoped lint passed with two inherited warnings
+and no errors. Evidence is retained under
+`.artifacts/native-app-capture-handoff-20261020/native-recovery-visibility-compile-qualified01.json`.
+**Zero runtime cases executed:** seven new and 27 extended cases remain unrun
+under HQ-019, alongside prior affected recovery suites. All earlier evidence
+retains its named scope; full RUX, installed UI and journey acceptance remain
+open.
+
 ## October 31 — same-operation photo status recovery
 
 The inactive retained owner now exposes `recoverAppPhotoTransferStatus`. It
@@ -1440,8 +1476,10 @@ the transfer or end-to-end journey acceptance. The
 connects that owner to the bounded authenticated transport, including actual
 task drain. The
 [same-operation status composition](#october-31--same-operation-photo-status-recovery)
-now connects that bounded query to the existing monotonic writer; complete app
-and runtime qualification remain outstanding.
+now connects that bounded query to the existing monotonic writer.
+[Allocated submissions remain visible](#october-31--allocated-submissions-remain-visible-in-recovery)
+under the existing exact-identity recovery model. Complete app and runtime
+qualification remain outstanding.
 
 The allocation owner saves an immutable unresolved claim before sending. Only an
 unambiguous save in that same retained operation permits one create request;
