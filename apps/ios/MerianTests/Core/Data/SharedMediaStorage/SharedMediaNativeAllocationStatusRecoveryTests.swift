@@ -221,6 +221,8 @@ struct NativeAllocationStatusRecoveryTests {
             await release.wait()
             return try positive(request)
         }
+        let began = ContinuousClock.now
+        var maximumPollGap: Duration = .zero
         let call = Task {
             defer { returned = true }
             return try await caller.recover(owner: owner, prepared: prepared, validate: {})
@@ -229,7 +231,9 @@ struct NativeAllocationStatusRecoveryTests {
             let deadline = ContinuousClock.now + .seconds(4)
             while !entered {
                 guard ContinuousClock.now < deadline else { throw URLError(.timedOut) }
+                let poll = ContinuousClock.now
                 try await Task.sleep(for: .milliseconds(5))
+                maximumPollGap = max(maximumPollGap, poll.duration(to: .now))
             }
             if shutdown {
                 closing = Task { let result = await owner.invalidateAndAwaitForAccountTransition(); drained = true; return result }
@@ -241,6 +245,7 @@ struct NativeAllocationStatusRecoveryTests {
             #expect(try NativePhotoStatusRecoveryTests().row(store) == before)
             if let closing { #expect(await closing.value) } else { #expect(await owner.invalidateAndAwaitForAccountTransition()) }
         } catch {
+            print("Native allocation entry diagnostic elapsed=\(began.duration(to: .now)) maximumPollGap=\(maximumPollGap) entered=\(entered) returned=\(returned)")
             await release.open(); call.cancel(); _ = await call.result
             if let closing { _ = await closing.value } else { _ = await owner.invalidateAndAwaitForAccountTransition() }
             throw error

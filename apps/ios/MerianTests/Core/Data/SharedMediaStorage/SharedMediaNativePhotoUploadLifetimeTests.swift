@@ -337,6 +337,8 @@ struct NativePhotoUploadLifetimeTests {
 
     @Test(arguments: ["cancel", "account", "timeout"])
     func freshPutTerminationRetainsLeaseAndLocks(_ mode: String) async throws {
+        let began = ContinuousClock.now
+        var phase = "fixture"
         let context = try await putFixture(nearExpiry: mode == "timeout"), store = context.store, owner = context.owner, prepared = context.prepared
         let fixture = InitialPhotoUploadTicketTests(), catalog = try InitialPhotoUploadDestination.Catalog([fixture.destination()])
         let config = URLSessionConfiguration.ephemeral
@@ -344,18 +346,26 @@ struct NativePhotoUploadLifetimeTests {
         let session = URLSession(configuration: config), started = PhotoUploadTestSignal(), pause = PhotoUploadCompletionPause()
         PhotoUploadHangingProtocol.startSignal.withLock { $0 = started }
         defer { PhotoUploadHangingProtocol.startSignal.withLock { $0 = nil }; session.invalidateAndCancel() }
-        var finished = false, drained = false, acquired = false
+        var finished = false, drained = false, acquired = false, observedStart = false
+        phase = "opening-ticket-owner"
         let call = Task {
             defer { finished = true; started.finish(); pause.finishWaiting() }
             return try await owner.transferAppPhoto(prepared, catalog: catalog, send: { request, validate in
+                phase = "ticket-sender-validation"
                 try validate()
+                phase = "ticket-response"
                 let wire = try fixture.row(request.allocation, createdAtMilliseconds: Int64(Date().timeIntervalSince1970 * 1000))
                 return try fixture.bytes(wire)
-            }, makeTask: { .init(session: session, completionPause: { pause.wait() }) })
+            }, makeTask: {
+                phase = "construct-upload"
+                return .init(session: session, completionPause: { pause.wait() })
+            })
         }
         var contender: Task<Void, Never>?, transition: Task<Bool, Never>?
         do {
             try await started.wait()
+            observedStart = true
+            phase = "upload-started"
             let held = try row(store)
             let coordinator = ScanInferencePersistenceCoordinator.shared
             contender = Task {
@@ -367,6 +377,7 @@ struct NativePhotoUploadLifetimeTests {
                 transition = Task { let result = await owner.invalidateAndAwaitForAccountTransition(); drained = true; return result }
             } else if mode == "cancel" { call.cancel() }
             try await pause.waitForEntry()
+            phase = "completion-paused"
             try await Task.sleep(for: .milliseconds(30))
             #expect(!finished && !drained && !acquired)
             #expect(try row(store) == held)
@@ -377,9 +388,14 @@ struct NativePhotoUploadLifetimeTests {
             #expect(try row(store) == held)
             if let transition { #expect(await transition.value); #expect(drained) } else { #expect(await owner.invalidateAndAwaitForAccountTransition()) }
         } catch {
-            pause.release(); call.cancel(); _ = await call.result
+            let completedBeforeCleanup = finished
+            pause.release(); call.cancel()
+            let outcome = await call.result
             await contender?.value
             if let transition { _ = await transition.value } else { _ = await owner.invalidateAndAwaitForAccountTransition() }
+            print("Native PUT diagnostic mode=\(mode) phase=\(phase) elapsed=\(began.duration(to: .now)) completedBeforeCleanup=\(completedBeforeCleanup)")
+            // A closed start signal must not hide a child failure that preceded cleanup.
+            if !observedStart, completedBeforeCleanup, case .failure(let underlying) = outcome { throw underlying }
             throw error
         }
     }

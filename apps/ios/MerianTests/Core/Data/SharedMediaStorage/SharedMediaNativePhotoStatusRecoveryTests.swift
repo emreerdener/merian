@@ -237,6 +237,7 @@ struct NativePhotoStatusRecoveryTests {
         let bytes = try statusBytes(f.allocation, state: "bound", id: UUID())
         var returned = false, drained = false
         var transition: Task<Bool, Never>?
+        let began = ContinuousClock.now
         let call = Task {
             defer { returned = true }
             return try await f.owner.recoverAppPhotoTransferStatus(f.prepared) { _, validate in
@@ -255,6 +256,7 @@ struct NativePhotoStatusRecoveryTests {
             #expect(try row(f.store) == before)
             if let transition { #expect(await transition.value) } else { #expect(await f.owner.invalidateAndAwaitForAccountTransition()) }
         } catch {
+            print("Native photo status entry diagnostic elapsed=\(began.duration(to: .now)) entered=\(pause.entered) returned=\(returned)")
             pause.release(); call.cancel(); _ = await call.result
             if let transition { _ = await transition.value } else { _ = await f.owner.invalidateAndAwaitForAccountTransition() }
             throw error

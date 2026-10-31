@@ -8,13 +8,13 @@ qualification update supersedes that environment blocker only within the tested
 scope; it does not establish device, Release-performance or full journey
 acceptance.
 
-| Selected scope                                                                                                          | Executed evidence                    | Outcome                                                                                                           |
-| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| Bounded recovery presentation value                                                                                     | 8 methods / 26 cases                 | Passed; no skips. No persistence or UI consumer is installed.                                                     |
-| Migration, startup recovery and model architecture                                                                      | 152 methods / 156 cases              | Passed; both populated V67→V68 full/recent plans and cold reopen executed.                                        |
-| Network batch                                                                                                           | 103 methods / 280 cases              | First attempt failed the Auth size and stale TLS inventory checks; failed evidence is retained.                   |
-| Corrected network architecture, audio transport and task termination                                                    | 40 methods / 87 cases                | Passed; no skips or live-SQLite unlink warnings. Reuses unchanged passing consumers from the first network batch. |
-| Native receiving, allocation, enrichment, reservation, discovery, release, reanalysis persistence and data architecture | 161 methods / 370 cases in 24 suites | Passed; exact selected suites verified, no skips. Five fixture-dependent transfer/status suites remain pending.   |
+| Selected scope                                                                                                          | Executed evidence                    | Outcome                                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Bounded recovery presentation value                                                                                     | 8 methods / 26 cases                 | Passed; no skips. No persistence or UI consumer is installed.                                                      |
+| Migration, startup recovery and model architecture                                                                      | 152 methods / 156 cases              | Passed; both populated V67→V68 full/recent plans and cold reopen executed.                                         |
+| Network batch                                                                                                           | 103 methods / 280 cases              | First attempt failed the Auth size and stale TLS inventory checks; failed evidence is retained.                    |
+| Corrected network architecture, audio transport and task termination                                                    | 40 methods / 87 cases                | Passed; no skips or live-SQLite unlink warnings. Reuses unchanged passing consumers from the first network batch.  |
+| Native receiving, allocation, enrichment, reservation, discovery, release, reanalysis persistence and data architecture | 161 methods / 370 cases in 24 suites | Passed; exact selected suites verified, no skips. The five fixture-dependent suites are reported separately below. |
 
 The corrected source removes an unused Auth facade accessor, preserves its
 3,792-line ceiling and all Auth/Purchase aggregate limits, and verifies
@@ -22,19 +22,54 @@ rejection paths separately for the TLS delegate, immutable PUT owner and bounded
 response collector. Audio transport fixtures retain their unique temporary
 stores through process teardown instead of unlinking SQLite/WAL files while
 descriptors are live. Production transport and persistence behavior are
-unchanged. A remaining four-value test fixture is being converted to a named
-value; its five consumers require new compilation and execution before
-qualification.
+unchanged. The four-value test fixture is now a named value and compiled. Its
+five consumer suites executed 42 methods / 173 cases: 168 cases passed, five
+failed and none skipped. Ticket-request and reserved-role-readback suites
+passed. Both allocation-status cancellation parameters and both photo-status
+cancellation parameters failed their sender-entry waits before exercising the
+intended cancellation/drain assertions (HQ-029). The upload timeout parameter
+also failed before the test observed upload start; its stream-completion error
+masked the child failure (HQ-030). The upload cancel/account parameters passed.
+These failures block qualification of the affected scenarios.
+
+The narrow diagnostic follow-up preserves the four-second entry limit, real
+receipt/capability expiry, ownership assertions and cleanup joins. It reports
+entry timing and the original already-completed upload failure instead of the
+test stream's generic error. This is diagnostic work, not a performance fix or
+acceptance. The existing bounded inspection trace remains the intended seam for
+separating audit phase cost from checkpoint validation before optimization.
+
+The diagnostic candidate compiled and its three selected methods executed all
+seven cases with no skips: the same five failed and the upload cancel/account
+cases passed. All four status failures observed `entered=false` and
+`returned=false`; allocation polling gaps reached 1.679 and 1.738 seconds while
+requesting five-millisecond sleeps. This supports investigating MainActor audit
+cost; it does not isolate the cause of each interval. The upload child reported
+`invalidResponse` in the ticket-response phase before upload construction.
+Elapsed 112.486 seconds includes fixture setup and cleanup. These are
+report-only Debug observations, not performance acceptance or fixed cancellation
+behavior. Evidence: `hq029-diagnostic-runtime01-reconciled.json`; managed
+compilation 181.769 seconds and diagnostic execution 884.056 seconds, each with
+all 6,816 inputs unchanged. The original failures remain retained.
 
 Retained receipts under `.artifacts/native-app-capture-handoff-20261020/`
 include `hq019-environment-repaired01.json`,
 `hq019-migration-startup-qualified01.json`, `hq019-network01-results/`,
 `hq019-remediation-validation01.json` and
-`hq019-native-unaffected01-qualified.json`. The corrected candidate passed
+`hq019-native-unaffected01-qualified.json`,
+`hq019-fixture-runtime01-reconciled.json` and the retained failing XCResult
+`9774d20eaa234123b8303614a169ce06.xcresult`. The corrected candidate passed
 managed compilation (249.241 seconds), full affected tooling (366.470 seconds),
 Swift/Python preflight parity and bounded independent source review. All 6,812
 working inputs remained pinned through each run, including unrelated edits; this
-is not a clean commit-only checkout.
+is not a clean commit-only checkout. In the subsequent five-suite run, ten
+unrelated agent-guidance/tooling files changed; native source and project pins
+remained unchanged. Its terminal parent disappeared while Xcode continued, so no
+wrapper exit/duration receipt is claimed. The completed XCResult records
+17,150.632 seconds. Original logs, failed cases and exact source comparisons are
+retained. Expected-case reconciliation also identified an older two-case
+collector record superseded by four passing cases covering both allocation and
+ticket response-size limits; that expansion is not missing coverage.
 
 **Performance remains unqualified (HQ-028).** The 24-suite native batch took
 20,847.355 seconds. Its two-photo allocation test took 385.098 seconds across
@@ -45,12 +80,12 @@ Investigate this normal integration path without weakening account, deletion,
 ownership, byte or revision fences. This is distinct from HQ-002's historical
 PostgreSQL deadlock/deadline evidence; no native lock cycle was established.
 
-Remaining acceptance includes the five affected fixture suites, supported
-runtime matrix, complete affected final gates, measured memory/disk/cancellation
-behavior, RUX-1–RUX-6 and actual photo/audio/video initial and reanalysis
-journeys. Presentation sidecar admission/persistence and real UI wiring remain
-open. The ordinary factory stays disabled; PR116, deployment holds and external
-operation approvals remain unchanged.
+Remaining acceptance includes remediation and qualification of the five failed
+cases, the supported runtime matrix, complete affected final gates, measured
+memory/disk/cancellation behavior, RUX-1–RUX-6 and actual photo/audio/video
+initial and reanalysis journeys. Presentation sidecar admission/persistence and
+real UI wiring remain open. The ordinary factory stays disabled; PR116,
+deployment holds and external operation approvals remain unchanged.
 
 ## October 31 — bounded recovery presentation value
 
