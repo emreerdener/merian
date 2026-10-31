@@ -1,3 +1,52 @@
+## October 30 — native destination and request boundary candidate
+
+The inactive native candidate adds an immutable, bounded trusted destination
+catalog and a closed issue/status request value for the dormant transfer facade.
+The retained receiving owner resolves the exact saved backend generation and
+configuration digest and serializes the proposed request **before** saving
+V8→V9. Empty, removed or duplicate catalog tuples cannot select a current
+fallback. Catalog entries are trusted composition inputs; no default profile,
+configuration loader or remote-flag path is installed.
+
+The Debug/test-runtime observation seam then exposes the request only after the
+existing marker save and exact readback. It retains the receiving/account locks
+and rechecks the consumed continuation after observation. Issue retains exact
+submitted candidate text, selected object and original receipt clocks; status
+omits candidate text and needs no destination catalog. Legacy V4/V5 can project
+status but cannot construct a fresh issue request. There is no HTTP dispatch or
+PUT construction in this checkpoint. V1–V9 sidecar encodings are unchanged.
+
+The
+[API contract](05-api-contracts.md#dormant-authenticated-photo-transfer-facade--october-30)
+owns the wire shape. The cross-language golden test validates the Swift test's
+status bytes and frozen candidate against the Deno parser. Focused native
+qualification passed **21 methods / 35 cases**, including all three photo roles,
+catalog rejection before save, exact acknowledged successor, repeated-marker
+closure and owner/deletion changes. All 3,211 pinned native/project/config
+inputs remained unchanged. Focused facade/parity tests passed 18 tests / 24
+steps; complete iOS and Supabase tooling and the static caller contract passed.
+Source review and final evidence closure found no concrete blockers for this
+bounded checkpoint.
+
+Evidence is `native-transfer-request-native-qualified03.json` under
+`.artifacts/native-app-capture-handoff-20261020/`. The first native attempt
+failed to compile a nested Swift Testing macro in the new fixture; the corrected
+fixture passed in 825.670s, with the failed 382.123s attempt retained. Scoped
+Swift lint has 17 warnings and no errors; broader historical lint/architecture
+and deadlock gaps remain open. No Release or full-journey qualification is
+claimed. Native validation launched with 26.8 GiB free and final extraction
+measured 34.87 GiB; retained current evidence was 6.13 MiB. No cleanup was
+needed.
+
+The subsequent live transfer path must reserve maximum encoded PUT-started
+metadata and its save, plus status/peer/terminal runway, **before** ticket
+issuance. Current V8/V9 accounting does not cover that additional save. Only a
+fresh issued ticket followed by acknowledged atomic PUT-started persistence may
+create one-use upload authority; decoded markers, old V9 records, held replies
+and ambiguous saves cannot. The existing retained-file uploader remains the
+owner of file lifetime through actual task termination. Function registration,
+HTTP transport, PUT state, full journeys and all release controls remain open.
+
 ## October 30 — dormant authenticated transfer facade
 
 The dormant photo integration component adds a source-only authenticated

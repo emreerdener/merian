@@ -121,6 +121,10 @@
       "counter": "physical",
       "ceiling": 600
     },
+    "apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoTransferRequest.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
     "apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoUploadStatus.swift": {
       "counter": "physical",
       "ceiling": 600

@@ -11,7 +11,12 @@ object and original allocation clocks; issue additionally carries the exact
 frozen candidate canonical text. Unknown fields, client owner/policy/backend
 selection, renewed clocks and mismatched candidate scan are rejected. The body
 bound is 2 MiB plus 4 KiB; replies remain at most 8 KiB. The generated Identify
-DTO block is unaffected; there is no new Swift, web or admin caller yet.
+DTO block is unaffected. The inactive native
+[`InitialPhotoTransferRequest`](../../apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoTransferRequest.swift)
+projects this shape from saved allocation state; issue is restricted to V9 with
+no remote observation, while status supports V4/V5/V8/V9 without signing
+configuration. This value grants no dispatch authority. There is no native HTTP,
+web or admin caller yet.
 
 Owner identity comes only from the verified Edge session. Issue reuses v3
 allocation status and validates the complete saved assignment, selected role and

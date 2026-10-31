@@ -1,3 +1,14 @@
+## Native trusted destination/request candidate — October 30
+
+The existing allocation operations now propose exact trusted-catalog resolution
+and request construction before the V8→V9 marker save, with a Debug-only
+observation seam under the retained receiving/account owner. No HTTP or PUT is
+dispatched. Focused native qualification passed 21 methods / 35 cases; full
+journeys and Release remain unqualified. The
+[scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--native-destination-and-request-boundary-candidate)
+owns this boundary and the additional persistence reservation required before
+live ticket issuance. V1–V9 encodings and existing recovery remain unchanged.
+
 ## Bound transfer and recovery candidate — October 30
 
 The existing allocation value and operations propose V6→V7→V8→V9 while

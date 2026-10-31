@@ -3,6 +3,27 @@ import Foundation
 /// Explicit trusted composition input, never constructed from a ticket or flag.
 /// No profile is installed. This value is not provider qualification or authority.
 struct InitialPhotoUploadDestination: Equatable, Sendable {
+    /// Immutable trusted composition, never loaded from a response or remote flag.
+    /// Empty/removed configurations hold saved work; there is no current fallback.
+    struct Catalog: Sendable {
+        private let destinations: [InitialPhotoUploadDestination]
+
+        init(_ destinations: [InitialPhotoUploadDestination]) throws {
+            guard destinations.count <= 16 else { throw SharedMediaStorageFailure.capacity }
+            let identities = destinations.map { $0.backendGeneration.uuidString + "/" + $0.configurationDigest }
+            guard Set(identities).count == destinations.count else { throw SharedMediaStorageFailure.conflict }
+            self.destinations = destinations
+        }
+
+        func resolve(_ binding: SharedMediaNativePhotoAllocation.BackendBinding) throws -> InitialPhotoUploadDestination {
+            try binding.validate()
+            guard let destination = destinations.first(where: {
+                $0.backendGeneration == binding.generation && $0.configurationDigest == binding.configurationDigest
+            }) else { throw SharedMediaStorageFailure.closed }
+            return destination
+        }
+    }
+
     let backendGeneration: UUID
     let configurationDigest: String
     private let endpoint: String

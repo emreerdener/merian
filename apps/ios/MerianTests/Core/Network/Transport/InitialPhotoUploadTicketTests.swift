@@ -14,6 +14,42 @@ struct InitialPhotoUploadTicketTests {
         try .init(backendGeneration: backend, configurationDigest: String(repeating: "c", count: 64),
             endpoint: "https://00000000000000000000000000000000.r2.cloudflarestorage.com", bucket: "synthetic-private")
     }
+    @Test func trustedCatalogSnapshotsExactTuplesAndHoldsUnknownConfigurations() throws {
+        let expected = try destination()
+        var entries = [expected]
+        let catalog = try InitialPhotoUploadDestination.Catalog(entries)
+        entries.removeAll()
+        #expect(try catalog.resolve(binding()) == expected)
+        #expect(throws: SharedMediaStorageFailure.closed) {
+            _ = try InitialPhotoUploadDestination.Catalog(entries).resolve(binding())
+        }
+        for changed in [Allocation.BackendBinding(generation: UUID(), configurationDigest: binding().configurationDigest),
+                        .init(generation: binding().generation, configurationDigest: String(repeating: "d", count: 64))] {
+            #expect(throws: SharedMediaStorageFailure.closed) { _ = try catalog.resolve(changed) }
+        }
+        #expect(throws: (any Error).self) {
+            _ = try catalog.resolve(.init(generation: binding().generation, configurationDigest: "invalid"))
+        }
+    }
+    @Test func trustedCatalogRejectsDuplicateAndOversizedConfiguration() throws {
+        let expected = try destination()
+        let conflicting = try InitialPhotoUploadDestination(backendGeneration: expected.backendGeneration,
+            configurationDigest: expected.configurationDigest,
+            endpoint: "https://11111111111111111111111111111111.r2.cloudflarestorage.com", bucket: "synthetic-other")
+        for duplicate in [expected, conflicting] {
+            #expect(throws: SharedMediaStorageFailure.conflict) { _ = try InitialPhotoUploadDestination.Catalog([expected, duplicate]) }
+        }
+        var entries = try (0..<16).map { _ in
+            try InitialPhotoUploadDestination(backendGeneration: UUID(), configurationDigest: expected.configurationDigest,
+                endpoint: "https://00000000000000000000000000000000.r2.cloudflarestorage.com", bucket: "synthetic-private")
+        }
+        let catalog = try InitialPhotoUploadDestination.Catalog(entries)
+        for entry in entries {
+            #expect(try catalog.resolve(.init(generation: entry.backendGeneration, configurationDigest: entry.configurationDigest)) == entry)
+        }
+        entries.append(expected)
+        #expect(throws: SharedMediaStorageFailure.capacity) { _ = try InitialPhotoUploadDestination.Catalog(entries) }
+    }
     func bytes(_ row: [String: Any]) throws -> Data { try JSONSerialization.data(withJSONObject: row, options: [.sortedKeys]) }
     private func copy(_ value: Allocation, changes: [String: Any]) throws -> Allocation {
         var object = try #require(JSONSerialization.jsonObject(with: value.encoded()) as? [String: Any])

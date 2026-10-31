@@ -133,6 +133,27 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
     }
 
     #if DEBUG
+    /// Prepares the exact future wire request under the real owner. No HTTP or
+    /// PUT is allowed here: V8/V9 have not reserved the later PUT-state save.
+    func requestBoundTicketForTesting(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                      catalog: InitialPhotoUploadDestination.Catalog,
+                                      observe: @escaping @MainActor (InitialPhotoTransferRequest, InitialPhotoUploadDestination, SharedMediaNativePhotoTicketContinuation) async throws -> Void) async throws -> Bool {
+        guard TestExecutionCoordinator.isRunningTests,
+              let current = try saved(prepared), current.version == 8 || current.version == 9,
+              let binding = current.backendBinding else { throw SharedMediaStorageFailure.closed }
+        guard current.version == 8, current.remoteAttempt == nil else { return false }
+        // Both resolution and bounded serialization finish before the marker save.
+        let destination = try catalog.resolve(binding)
+        let request = try InitialPhotoTransferRequest(allocation: current.startingTicketRequest(), action: .issue)
+        guard let continuation = try beginTicketRequest(prepared) else { return false }
+        defer { continuation.close() }
+        guard continuation.allocation == request.allocation else { throw SharedMediaStorageFailure.stale }
+        try continuation.consume()
+        try await observe(request, destination, continuation)
+        try continuation.validateConsumed()
+        return true
+    }
+
     /// Observes the real durable boundary without a network route or Release callback.
     func requestTicketForTesting(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                  send: @escaping @MainActor (Allocation, SharedMediaNativePhotoTicketContinuation) async throws -> Void) async throws -> Bool {

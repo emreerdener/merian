@@ -247,6 +247,15 @@ extension SharedMediaNativeOriginalOwner {
         }
     }
     #if DEBUG
+    func requestAppPhotoBoundTicketForTesting(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                              catalog: InitialPhotoUploadDestination.Catalog,
+                                              observe: @escaping @MainActor (InitialPhotoTransferRequest, InitialPhotoUploadDestination, SharedMediaNativePhotoTicketContinuation) async throws -> Void) async throws -> Bool {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appPhotoAllocationWorkflow(lock: lock) {
+                try await $0.requestBoundTicketForTesting(prepared, catalog: catalog, observe: observe)
+            }
+        }
+    }
     func requestAppPhotoTicketForTesting(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                          send: @escaping @MainActor (SharedMediaNativePhotoAllocation, SharedMediaNativePhotoTicketContinuation) async throws -> Void) async throws -> Bool {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in

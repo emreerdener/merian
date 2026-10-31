@@ -34,6 +34,67 @@ struct NativePhotoTicketRequestTests {
         }
     }
 
+    @Test(arguments: Mapping.Role.allCases)
+    func boundCatalogFailurePrecedesSaveAndRequestKeepsExactSuccessor(_ role: Mapping.Role) async throws {
+        let (h, owner, p, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(role, boundBackend: true)
+        do {
+            let before = try await owner.reserveAppPhotoRemoteAttempt(p)
+            let fixture = InitialPhotoUploadTicketTests(), destination = try fixture.destination()
+            let wrong = try InitialPhotoUploadDestination(backendGeneration: UUID(), configurationDigest: destination.configurationDigest,
+                endpoint: "https://00000000000000000000000000000000.r2.cloudflarestorage.com", bucket: "synthetic-private")
+            var calls = 0, saves = 0
+            try owner.setMetadataFault { if $0 == .beforeSave { saves += 1 } }
+            for entries in [[], [wrong]] {
+                await #expect(throws: SharedMediaStorageFailure.closed) {
+                    _ = try await owner.requestAppPhotoBoundTicketForTesting(p, catalog: .init(entries)) { _, _, _ in calls += 1 }
+                }
+                #expect(try saved(h) == before)
+            }
+            #expect(calls == 0 && saves == 0)
+            let catalog = try InitialPhotoUploadDestination.Catalog([destination])
+            let requested = try await owner.requestAppPhotoBoundTicketForTesting(p, catalog: catalog) { request, resolved, continuation in
+                calls += 1
+                #expect(request.action == .issue && request.allocation == continuation.allocation)
+                #expect(try self.saved(h) == request.allocation)
+                #expect(try before.startingTicketRequest() == request.allocation)
+                #expect(resolved == destination)
+                #expect(try InitialPhotoTransferRequest(allocation: request.allocation, action: .issue).body == request.body)
+                try continuation.validateConsumed()
+            }
+            #expect(requested && calls == 1 && saves == 1)
+            #expect(try await !owner.requestAppPhotoBoundTicketForTesting(p, catalog: .init([])) { _, _, _ in calls += 1 })
+            #expect(calls == 1)
+            #expect(await owner.invalidateAndAwaitForAccountTransition())
+        } catch { _ = await owner.invalidateAndAwaitForAccountTransition(); throw error }
+    }
+
+    @Test(arguments: ["owner", "deletion"])
+    func boundRequestRechecksOwnerAndDeletionAfterObservation(_ fault: String) async throws {
+        let (h, owner, p, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: true)
+        do {
+            _ = try await owner.reserveAppPhotoRemoteAttempt(p)
+            let catalog = try InitialPhotoUploadDestination.Catalog([InitialPhotoUploadTicketTests().destination()])
+            await #expect(throws: (any Error).self) {
+                _ = try await owner.requestAppPhotoBoundTicketForTesting(p, catalog: catalog) { _, _, _ in
+                    let context = h.context()
+                    if fault == "owner" {
+                        let id = h.inventoryID
+                        let inventory = try SharedMediaNativePairPlanGraph.one(context,
+                            FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))
+                        inventory.generation = UUID()
+                    } else {
+                        let id = h.packageID
+                        let row = try SharedMediaNativePairPlanGraph.one(context,
+                            FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == id }))
+                        context.delete(row)
+                    }
+                    try context.save()
+                }
+            }
+            _ = await owner.invalidateAndAwaitForAccountTransition()
+        } catch { _ = await owner.invalidateAndAwaitForAccountTransition(); throw error }
+    }
+
     private func verifyLegacyClaim(_ allocation: Allocation, prepared: SharedMediaNativeReceivingIntent.Prepared,
                                    store: Store) throws {
         let id = store.packageID

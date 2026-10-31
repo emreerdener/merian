@@ -136,6 +136,7 @@ class PolicyTests(unittest.TestCase):
             'apps/ios/Merian/Core/Network/Inference/IdentificationPreflight.swift',
             'apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+IdentificationPreflight.swift',
             'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRequest.swift',
+            'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoTransferRequest.swift',
             'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRoleReply.swift',
             'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoUploadStatus.swift',
             'apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoUploadDestination.swift',
