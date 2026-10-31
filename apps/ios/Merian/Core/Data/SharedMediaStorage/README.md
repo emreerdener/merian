@@ -1,3 +1,14 @@
+## Pre-ticket PUT persistence reservation candidate — October 30
+
+The existing allocation owner proposes a V10 reservation for later ticket,
+PUT-started and status saves, preserving legacy V1–V9 bytes and transfer-copy
+liability. V11/V12 are inert value transitions; the live persistence-to-upload
+handoff is not yet connected. Source review and app/test-target compilation
+passed; all 42 planned runtime cases remain unrun because Xcode simulator
+component setup is incomplete. The
+[scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--pre-ticket-put-persistence-reservation-candidate)
+owns accounting, recovery and remaining integration.
+
 ## Native trusted destination/request candidate — October 30
 
 The existing allocation operations now propose exact trusted-catalog resolution

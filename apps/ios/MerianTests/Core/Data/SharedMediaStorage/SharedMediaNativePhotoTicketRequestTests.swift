@@ -95,6 +95,44 @@ struct NativePhotoTicketRequestTests {
         } catch { _ = await owner.invalidateAndAwaitForAccountTransition(); throw error }
     }
 
+    @Test(arguments: ["beforeSave", "afterSave"])
+    func putReservationRecoversExactStateWithoutTicketPermission(_ fault: String) async throws {
+        let (h, initialOwner, p, _) = try await SharedMediaNativePhotoTransferReadbackTests().fixture(boundBackend: true)
+        var owner = initialOwner
+        do {
+            let before = try await owner.reserveAppPhotoRemoteAttempt(p)
+            try owner.setMetadataFault { boundary in
+                if (fault == "beforeSave" && boundary == .beforeSave) || (fault == "afterSave" && boundary == .afterSave) {
+                    throw SharedMediaStorageFailure.unavailable
+                }
+            }
+            if fault == "beforeSave" {
+                await #expect(throws: (any Error).self) { _ = try await owner.reserveAppPhotoPutStart(p) }
+                #expect(try saved(h) == before)
+            } else {
+                let result = try await owner.reserveAppPhotoPutStart(p)
+                #expect(try result == before.reservingPutStart() && saved(h) == result)
+            }
+            try owner.setMetadataFault(nil)
+            let reserved = try await owner.reserveAppPhotoPutStart(p), bytes = try reserved.encoded()
+            #expect(await owner.invalidateAndAwaitForAccountTransition())
+            owner = try await SharedMediaNativeReceivingStagingTests().reopen(h)
+            try owner.setMetadataFault { if $0 == .beforeSave { Issue.record("Recovered reservation saved again") } }
+            #expect(try await owner.reserveAppPhotoPutStart(p) == reserved)
+            #expect(try saved(h).encoded() == bytes)
+            await #expect(throws: SharedMediaStorageFailure.closed) {
+                _ = try await owner.requestAppPhotoTicketForTesting(p) { _, _ in Issue.record("Reservation minted ticket authority") }
+            }
+            try owner.setMetadataFault(nil)
+            let observed = try await owner.observeAppPhotoRemoteAttempt(p, allocation: reserved,
+                status: status(reserved, state: "bound", id: UUID()))
+            #expect(observed.version == 10 && observed.remainingAdvances == 4)
+            #expect(throws: SharedMediaStorageFailure.closed) { _ = try observed.startingTicketRequest() }
+            #expect(try observed.storageCharge == reserved.storageCharge)
+            #expect(await owner.invalidateAndAwaitForAccountTransition())
+        } catch { _ = await owner.invalidateAndAwaitForAccountTransition(); throw error }
+    }
+
     private func verifyLegacyClaim(_ allocation: Allocation, prepared: SharedMediaNativeReceivingIntent.Prepared,
                                    store: Store) throws {
         let id = store.packageID

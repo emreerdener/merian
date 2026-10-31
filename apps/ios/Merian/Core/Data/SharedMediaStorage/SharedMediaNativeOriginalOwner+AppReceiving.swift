@@ -185,6 +185,12 @@ extension SharedMediaNativeOriginalOwner {
             try await self.appPhotoAllocationWorkflow(lock: lock) { try $0.reserveRemoteAttempt(prepared) }
         }
     }
+    /// Reserves later PUT persistence without issuing a ticket or granting upload.
+    func reserveAppPhotoPutStart(_ prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativePhotoAllocation {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appPhotoAllocationWorkflow(lock: lock) { try $0.reservePutStart(prepared) }
+        }
+    }
     func observeAppPhotoRemoteAttempt(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                       allocation: SharedMediaNativePhotoAllocation, status: InitialPhotoUploadStatus) async throws -> SharedMediaNativePhotoAllocation {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in

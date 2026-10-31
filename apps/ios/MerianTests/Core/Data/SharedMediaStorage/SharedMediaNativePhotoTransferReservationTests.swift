@@ -45,25 +45,27 @@ struct SharedMediaNativePhotoTransferReservationTests {
         return lower
     }
 
-    @Test(arguments: [7, 8, 9])
+    @Test(arguments: [7, 8, 9, 10])
     func boundTransitionRequiresExactCapacityAndRevisionRunway(_ target: Int) async throws {
         let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
         do {
             var current = try await allocate(owner, p, boundBackend: true)
             let entry = try #require(current.roleMapping?.entries.first)
             if target >= 8 { current = try await owner.reserveAppPhotoTransfer(p, selection: entry) }
-            if target == 9 { current = try await owner.reserveAppPhotoRemoteAttempt(p) }
+            if target >= 9 { current = try await owner.reserveAppPhotoRemoteAttempt(p) }
             let proposed: Allocation
             switch target {
             case 7: proposed = try current.reservingTransfer(.init(prepared: p, selection: entry))
             case 8: proposed = try current.reservingRemoteAttempt()
-            default: proposed = try current.startingTicketRequest()
+            case 9: proposed = try current.startingTicketRequest()
+            default: proposed = try current.reservingPutStart()
             }
             func advance() async throws {
                 switch target {
                 case 7: _ = try await owner.reserveAppPhotoTransfer(p, selection: entry)
                 case 8: _ = try await owner.reserveAppPhotoRemoteAttempt(p)
-                default: #expect(try await owner.requestAppPhotoTicketForTesting(p) { _, _ in })
+                case 9: #expect(try await owner.requestAppPhotoTicketForTesting(p) { _, _ in })
+                default: _ = try await owner.reserveAppPhotoPutStart(p)
                 }
             }
             let before = try row(h)

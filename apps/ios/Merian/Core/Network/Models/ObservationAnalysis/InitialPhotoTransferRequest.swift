@@ -10,7 +10,7 @@ struct InitialPhotoTransferRequest: Sendable {
 
     init(allocation: SharedMediaNativePhotoAllocation, action: Action) throws {
         _ = try allocation.encoded()
-        guard (4...5).contains(allocation.version) || (8...9).contains(allocation.version),
+        guard (4...5).contains(allocation.version) || (8...12).contains(allocation.version),
               let receipt = allocation.receipt, let transfer = allocation.transferReservation else {
             throw SharedMediaStorageFailure.closed
         }

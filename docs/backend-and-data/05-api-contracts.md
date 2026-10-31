@@ -14,7 +14,7 @@ bound is 2 MiB plus 4 KiB; replies remain at most 8 KiB. The generated Identify
 DTO block is unaffected. The inactive native
 [`InitialPhotoTransferRequest`](../../apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoTransferRequest.swift)
 projects this shape from saved allocation state; issue is restricted to V9 with
-no remote observation, while status supports V4/V5/V8/V9 without signing
+no remote observation, while status supports V4/V5/V8–V12 without signing
 configuration. This value grants no dispatch authority. There is no native HTTP,
 web or admin caller yet.
 

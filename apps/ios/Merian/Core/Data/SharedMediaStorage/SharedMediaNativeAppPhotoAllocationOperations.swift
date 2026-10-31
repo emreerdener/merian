@@ -110,6 +110,11 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         return try saveRemoteAttempt(current.reservingRemoteAttempt(), replacing: current, prepared: prepared)
     }
 
+    func reservePutStart(_ prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> Allocation {
+        guard let current = try saved(prepared) else { throw SharedMediaStorageFailure.closed }
+        return try saveRemoteAttempt(current.reservingPutStart(), replacing: current, prepared: prepared)
+    }
+
     func observeRemoteAttempt(_ status: InitialPhotoUploadStatus, request: Allocation,
                               prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> Allocation {
         guard try saved(prepared) == request else { throw SharedMediaStorageFailure.stale }
@@ -183,7 +188,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
     func verifyTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                         allocation: Allocation) async throws -> SharedMediaNativePhotoTransferReadback {
         guard try saved(prepared) == allocation,
-              (3...5).contains(allocation.version) || (7...9).contains(allocation.version),
+              (3...5).contains(allocation.version) || (7...12).contains(allocation.version),
               let reservation = allocation.transferReservation else { throw SharedMediaStorageFailure.stale }
         let state = try SharedMediaNativePhotoTransferReadback.state(prepared, reservation: reservation, context: fresh())
         let (inspection, completion) = try await io.verifyTransfer(state, reservation: reservation)

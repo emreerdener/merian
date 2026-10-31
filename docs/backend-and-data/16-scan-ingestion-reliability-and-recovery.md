@@ -1,3 +1,49 @@
+## October 30 — pre-ticket PUT persistence reservation candidate
+
+The inactive native sidecar now proposes V8→V10 to reserve the complete later
+PUT-state footprint and revision runway before ticket issuance. V10 permits five
+future advances; V11 records ticket-request uncertainty and retains four; V12
+permanently records PUT-started with the exact server attempt UUID and original
+clocks. V12 creation requires possibly-issued, not-closed state and leaves one
+closure observation. These are encoded sidecar versions, not SwiftData schema
+versions. V1–V9 encoding and legacy recovery remain unchanged; old V9 cannot
+upgrade into this branch.
+
+The reservation charge uses maximum-width receipt/attempt clocks and the longest
+remote state across all V10–V12 encodings, including the saved backend identity,
+marker and separate digest. Status cannot shrink metadata or transfer-copy
+liability. Any observed attempt forbids fresh ticket/PUT transitions; unused
+advances in V10/V11 remain conservatively reserved. The existing owner checks
+the immediate save, peers and terminal obligations before saving and at the
+final persistence boundary. Exact restart replay grants no dispatch permission.
+
+This candidate implements the codec, real-owner V10 reservation, status recovery
+and tests. The V11/V12 value transitions do not authorize HTTP or construct PUT;
+fresh ticket consumption, acknowledged atomic V12 persistence/readback and
+one-use upload construction still require integration through the existing
+retained owner. Status projection supports V10–V12; issue projection remains V9
+only and inactive. Design and source review found no concrete blockers. Managed
+Debug build-for-testing passed for the app and test targets in 460.724s with all
+3,211 pinned inputs unchanged. This is **compile-only evidence**: none of the
+planned ten methods / 42 runtime cases has executed for this candidate.
+
+The installed Xcode 27.2 requires CoreSimulator 1174.21.0; the installed
+component remains 1174.9.2. The runtime attempt failed before compilation/tests
+(75.554s). Xcode additional-components setup requires administrator
+authorization; no component installation or simulator/app data deletion was
+performed. HQ-019 tracks this environment gap. An intervening compile-only
+attempt failed on a new test fixture's actor isolation (734.165s); adding
+`@MainActor` to that test method corrected it, with the failed run retained. The
+passing build is not a runtime substitute. Evidence is
+`native-put-reservation-compile-qualified03.json` under
+`.artifacts/native-app-capture-handoff-20261020/`.
+
+DTO/Markdown/parity and static preflight passed. Scoped Swift lint reports 19
+warnings and no errors; broader historical gaps remain open. Final evidence
+review cleared a local coding checkpoint only, explicitly runtime-unqualified.
+Full journeys, Release and all external/release holds remain open. Continue
+local work while runtime qualification awaits component setup.
+
 ## October 30 — native destination and request boundary candidate
 
 The inactive native candidate adds an immutable, bounded trusted destination
