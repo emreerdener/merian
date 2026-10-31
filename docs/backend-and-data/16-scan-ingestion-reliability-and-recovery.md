@@ -98,6 +98,26 @@ correction therefore does not resolve HQ-028, HQ-029 or HQ-030. Evidence:
 raw failed XCResult and timing comparison. Further decomposition of authority
 checkpoint cost is required before a broader optimization.
 
+The bounded component measurement then passed all 20 selected methods/cases
+without skips (272.088-second managed run; all 6,816 inputs unchanged).
+Exactly-once execution, optional results, original thrown errors, owner boundary
+and architecture checks passed. Compilation took 746.919 seconds; independent
+source review cleared the three instrumented files. The same status probe
+measured 8.029 seconds to sender entry. Whole-operation totals each covered 675
+calls: root validation 0.677 seconds, store binding 3.441 seconds, photo
+identity 0.038 seconds, inbox identity 0.201 seconds, profile matching 0.417
+seconds and fresh database headers 0.584 seconds. These totals include outer and
+sender checks; they are distinct from the 669 audit checkpoints, which consumed
+5.336 seconds inside 7.759 seconds of measured phases.
+
+Store binding is the largest measured component. Its implementation brackets the
+marker read with fresh file-owner checks, including bootstrap control-byte
+validation and synchronization. The aggregate measurement does not yet separate
+those substeps or justify removing any durability or identity check. All five
+original failure cases remain open. Evidence and scope limits are in
+`hq028-components-runtime01-reconciled.json`; this is Debug simulator diagnosis,
+not a production performance qualification.
+
 Retained receipts under `.artifacts/native-app-capture-handoff-20261020/`
 include `hq019-environment-repaired01.json`,
 `hq019-migration-startup-qualified01.json`, `hq019-network01-results/`,

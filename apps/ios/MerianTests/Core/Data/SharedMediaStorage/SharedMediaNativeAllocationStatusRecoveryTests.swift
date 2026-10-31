@@ -208,6 +208,20 @@ struct NativeAllocationStatusRecoveryTests {
             _ = await owner.invalidateAndAwaitForAccountTransition()
         } catch { _ = await owner.invalidateAndAwaitForAccountTransition(); throw error }
     }
+    @Test func componentMeasurementExecutesOnceAndPreservesErrorsAndOptionalResults() throws {
+        let trace = SharedMediaNativeDebugHooks.InspectionTrace { _ in }
+        var calls = 0
+        let value: Int? = trace.measure(.roots) { calls += 1; return nil }
+        #expect(value == nil && calls == 1)
+        #expect(throws: SharedMediaStorageFailure.closed) {
+            try trace.measure(.storeBinding) { calls += 1; throw SharedMediaStorageFailure.closed }
+        }
+        #expect(calls == 2)
+        let summaries = trace.componentSummaries
+        #expect(summaries.map(\.component) == [.roots, .storeBinding])
+        #expect(summaries.allSatisfy { $0.calls == 1 && $0.elapsed >= .zero && !$0.saturated })
+    }
+
     @Test
     func allocationStatusAuditMeasurementsPreserveSavedAttempt() async throws {
         let f = try await fixture(6)
@@ -232,6 +246,12 @@ struct NativeAllocationStatusRecoveryTests {
             }
             #expect(entered && completedPhases > 0 && !saturated)
             #expect(try NativePhotoStatusRecoveryTests().row(f.store) == before)
+            let components = trace.componentSummaries
+            #expect(components.map(\.component) == SharedMediaNativeInspectionComponent.allCases)
+            #expect(components.allSatisfy { $0.calls > 0 && !$0.saturated })
+            for value in components {
+                print("Native status component=\(value.component.rawValue) count=\(value.calls) elapsed=\(value.elapsed)")
+            }
             try f.owner.setMetadataFault(nil)
             #expect(!f.owner.hasInspectionTraceForTesting)
             #expect(await f.owner.invalidateAndAwaitForAccountTransition())

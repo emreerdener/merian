@@ -3,9 +3,11 @@
 The
 [scan recovery guide](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--simulator-qualification-after-component-repair)
 owns current runtime results, retained failures and measurement limits. The
-allocation audit's optional bounded Debug trace observes existing checks; it
-provides no account, file, save or network authority. Earlier checkpoint notes
-below retain their original qualification status.
+allocation audit's optional bounded Debug trace observes existing phase and
+component checks; it provides no account, file, save or network authority.
+Component totals include outer and sender checks and must be kept separate from
+the audit checkpoint totals. Earlier checkpoint notes below retain their
+original qualification status.
 
 ## October 31 — separate recovery presentation storage
 

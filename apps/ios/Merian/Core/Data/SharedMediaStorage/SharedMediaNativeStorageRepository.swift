@@ -14,6 +14,9 @@ final class SharedMediaNativeStorageRepository {
     private let binding: Data, nativeBinding: SharedMediaNativeBinding
     #if DEBUG
     private var debug: SharedMediaNativeDebugHooks?
+    private func measuredInspection<T>(_ part: SharedMediaNativeInspectionComponent, _ body: () throws -> T) rethrows -> T { if let trace = debug?.inspectionTrace { return try trace.measure(part, body) }; return try body() }
+    #else
+    private func measuredInspection<T>(_ part: SharedMediaNativeInspectionComponent, _ body: () throws -> T) rethrows -> T { try body() }
     #endif
     private let sources: [String: URL]
     #if DEBUG
@@ -153,8 +156,6 @@ final class SharedMediaNativeStorageRepository {
         return try .init(app: container, control: .init(parent: parent, inventoryID: inventoryID,
             storeIdentity: identity, container: container, grant: grant), discovery: discovery)
     }
-
-
     /// Initialization and existing-profile opening use the same physical owners;
     /// their sealed control grants retain distinct admission and mutation rules.
     private init(app container: ModelContainer, control: SharedMediaNativeBootstrapAuthority,
@@ -234,7 +235,6 @@ final class SharedMediaNativeStorageRepository {
         openKind = .appDispatch
         return profile
     }
-
     static func openApp(container: ModelContainer, parent: URL, inventoryID: UUID,
                         grant: SharedMediaNativeAppDispatchGrant, discovery: SharedMediaNativeBootstrapDiscovery? = nil) throws -> SharedMediaNativeStorageRepository {
         try grant.validate()
@@ -250,11 +250,11 @@ final class SharedMediaNativeStorageRepository {
         guard openKind == .appDispatch, expectedOwnerID == profile.ownerID,
               originalWriterEpoch == epoch, let roots = scopedRoots,
               !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.closed }
-        try SharedMediaNativeScopedEligibility.requireRoots(authority: roots.authority, photo: roots.photo, inbox: roots.inbox)
-        try files.bindStore(binding, initializing: false); try photos.checkIdentity(); try inbox.check()
-        try files.bootstrapProfile().requireMatch(profile, generation: generation, authority: files.identity, sources: sources)
+        try measuredInspection(.roots) { try SharedMediaNativeScopedEligibility.requireRoots(authority: roots.authority, photo: roots.photo, inbox: roots.inbox) }
+        try measuredInspection(.storeBinding) { try files.bindStore(binding, initializing: false) }; try measuredInspection(.photoIdentity) { try photos.checkIdentity() }; try measuredInspection(.inboxIdentity) { try inbox.check() }
+        try measuredInspection(.profileMatch) { try files.bootstrapProfile().requireMatch(profile, generation: generation, authority: files.identity, sources: sources) }
     }
-    private func appHeader() throws -> SharedMediaNativeAppEligibility.Header { try SharedMediaNativeRepositoryFacts.app(container, scope: scopedIdentity) }
+    private func appHeader() throws -> SharedMediaNativeAppEligibility.Header { try measuredInspection(.databaseHeader) { try SharedMediaNativeRepositoryFacts.app(container, scope: scopedIdentity) } }
     func inspectApp(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeScopedSnapshot {
         try await SharedMediaNativeScopedAudit.runApp(container: container,
             profile: { try self.files.bootstrapProfile() },

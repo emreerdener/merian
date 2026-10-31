@@ -1,5 +1,9 @@
 import Foundation
 
+enum SharedMediaNativeInspectionComponent: String, CaseIterable {
+    case roots, storeBinding, photoIdentity, inboxIdentity, profileMatch, databaseHeader
+}
+
 /// Typed test controls only; never account, file or mutation authority. The
 /// registered owner supplies the instance through its sealed grants.
 #if DEBUG
@@ -23,6 +27,12 @@ final class SharedMediaNativeDebugHooks {
     var bootstrapAvailableBytes: Int64?
     var scopedPagePause: (@Sendable () async -> Void)?
     var inspectionTrace: InspectionTrace?
+    struct ComponentSummary {
+        let component: SharedMediaNativeInspectionComponent
+        var calls: Int64 = 0
+        var elapsed: Duration = .zero
+        var saturated = false
+    }
 
     /// Opt-in test measurements only. Fixed counters and a bounded number of
     /// value-only phase reports; no identifiers, persistence or authority.
@@ -40,6 +50,21 @@ final class SharedMediaNativeDebugHooks {
             let checkpointCount: Int64
             let checkpointTime: Duration
             let saturated: Bool
+        }
+        private var components: [SharedMediaNativeInspectionComponent: ComponentSummary] = [:]
+        var componentSummaries: [ComponentSummary] {
+            SharedMediaNativeInspectionComponent.allCases.compactMap { components[$0] }
+        }
+        func measure<T>(_ component: SharedMediaNativeInspectionComponent, _ body: () throws -> T) rethrows -> T {
+            let began = ContinuousClock.now
+            defer {
+                var value = components[component] ?? .init(component: component)
+                if value.calls < 1_000_000 { value.calls += 1 } else { value.saturated = true }
+                let duration = began.duration(to: .now), limit = Duration.seconds(86_400)
+                if duration >= limit - value.elapsed { value.elapsed = limit; value.saturated = true } else { value.elapsed += duration }
+                components[component] = value
+            }
+            return try body()
         }
         private let report: (Summary) -> Void
         private var phase: Phase?
