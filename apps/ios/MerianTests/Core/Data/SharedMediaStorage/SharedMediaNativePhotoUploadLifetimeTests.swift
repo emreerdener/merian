@@ -80,6 +80,23 @@ struct NativePhotoUploadLifetimeTests {
             Issue.record("Cold request recreated authority"); return Data()
         }, makeTask: { Issue.record("Cold PUT recreated authority"); return .init(session: session) }) == nil)
         #expect(try row(store) == retained)
+        let attempt = try #require(expected.remoteAttempt)
+        let closedBytes = try NativePhotoStatusRecoveryTests().statusBytes(expected, state: "may_have_issued", closed: true, id: attempt.id)
+        let statusBody = try InitialPhotoTransferRequest(allocation: expected, action: .status).body
+        transportFixture.mock.register(path: "/initial-photo-transfer") { request in
+            #expect(MockURLProtocol.bodyData(for: request) == statusBody)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"])!, closedBytes)
+        }
+        let closed = try await cold.recoverAppPhotoTransferStatus(prepared, send: transportFixture.transport.performTransfer)
+        #expect(closed.version == 12 && closed.remoteAttempt?.writeClosed == true)
+        #expect(closed.remoteAttempt?.id == attempt.id && closed.remoteAttempt?.createdAtMilliseconds == attempt.createdAtMilliseconds)
+        let closedCharge = try closed.storageCharge, expectedCharge = try expected.storageCharge
+        #expect(closed.transferReservation == expected.transferReservation && closedCharge == expectedCharge)
+        let closedRow = try row(store)
+        try cold.setMetadataFault { if $0 == .beforeSave { Issue.record("Closed status replay saved") } }
+        #expect(try await cold.recoverAppPhotoTransferStatus(prepared, send: transportFixture.transport.performTransfer) == closed)
+        #expect(try row(store) == closedRow)
         #expect(await cold.invalidateAndAwaitForAccountTransition())
     }
 

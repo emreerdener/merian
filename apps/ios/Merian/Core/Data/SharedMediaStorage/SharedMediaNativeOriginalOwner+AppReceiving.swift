@@ -205,6 +205,15 @@ extension SharedMediaNativeOriginalOwner {
             try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0().verifyTransfer(prepared, allocation: allocation) }
         }
     }
+    /// Status recovery never issues a ticket, starts a PUT or releases a hold.
+    func recoverAppPhotoTransferStatus(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                       send: @escaping @MainActor (InitialPhotoTransferRequest, @escaping @MainActor @Sendable () throws -> Void) async throws -> Data) async throws -> SharedMediaNativePhotoAllocation {
+        try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appPhotoAllocationWorkflow(lock: lock) { open in
+                try await open().recoverTransferStatus(prepared, send: send)
+            }
+        }
+    }
     /// Retains the receiving locks, file owner and account operation until the
     /// concrete task terminates. Only fresh acknowledged handoff constructs uploads.
     func uploadAppPhotoTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,

@@ -1,3 +1,18 @@
+## Same-operation status recovery candidate — October 31
+
+`recoverAppPhotoTransferStatus` retains existing receiving/account ownership
+through the bounded status request, task drain and at most one observation save.
+It uses the exact saved allocation and original clocks. Null/unchanged replies
+are no-save; stale or backward replies are rejected. Even closed status retains
+media and transfer liability. No ticket, upload, execution or cleanup authority
+is created. App/test-target compilation and bounded independent source review
+passed after a test-assertion compile correction. HQ-019 still blocks the 36 new
+and six extended runtime cases; no runtime or activation clearance is claimed.
+The
+[current scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--same-operation-photo-status-recovery)
+owns the rules and qualification limits; earlier dated notes below retain their
+checkpoint scope.
+
 ## Fresh ticket to durable PUT handoff candidate — October 30
 
 `transferAppPhoto` composes the existing receiving, account, persistence and

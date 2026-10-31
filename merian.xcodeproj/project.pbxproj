@@ -1795,6 +1795,7 @@
 		939E44DD5281E28E0E4DA67A /* AnalysisCandidateReviewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9A51D37B83F053F85345172 /* AnalysisCandidateReviewModel.swift */; };
 		939EA3AB88CF513A5D5F7344 /* AudioReviewPlaybackFilePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E7CD894C9125A07244B759 /* AudioReviewPlaybackFilePlayer.swift */; };
 		93A12F86C97C2A6F4E0B9369 /* MerianNetworkClient+SpeciesDiscoverySearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E209819312301256DBBCD47 /* MerianNetworkClient+SpeciesDiscoverySearch.swift */; };
+		93A3595F824144102CC9C3FC /* SharedMediaNativePhotoStatusRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E38BB685365ABC9904C00B9 /* SharedMediaNativePhotoStatusRecoveryTests.swift */; };
 		93BF12818717BD21A70626F4 /* FieldTripPublishedContentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D5962F8835F7C306646548 /* FieldTripPublishedContentViewModel.swift */; };
 		93C170753D90F4641770C05D /* ProtectedInsightChatUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C307D01E33E13E1AB7BF73C4 /* ProtectedInsightChatUITests.swift */; };
 		93FC3ABFF6E32E35590A6F27 /* CommunityIdentificationPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF9CA1C7C8F16A4EAECADCD4 /* CommunityIdentificationPresentationTests.swift */; };
@@ -4528,6 +4529,7 @@
 		6DDA92C129857CB59A6B99CB /* SpeciesData+Presentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpeciesData+Presentation.swift"; sourceTree = "<group>"; };
 		6DDAB901A769861575B77C29 /* InferenceSpeciesEnrichmentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceSpeciesEnrichmentService.swift; sourceTree = "<group>"; };
 		6DF2988E33CAFDCDBA83A62D /* AudioPlaybackSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlaybackSessionController.swift; sourceTree = "<group>"; };
+		6E38BB685365ABC9904C00B9 /* SharedMediaNativePhotoStatusRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativePhotoStatusRecoveryTests.swift; sourceTree = "<group>"; };
 		6E3C6DB119C5812398DA52ED /* OnboardingArchitectureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingArchitectureTests.swift; sourceTree = "<group>"; };
 		6E3F771DAD8ADEDAC0C78482 /* CloudDeletionIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudDeletionIntent.swift; sourceTree = "<group>"; };
 		6E4603CB11D1674583A9ACA6 /* CameraSessionPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraSessionPolicyTests.swift; sourceTree = "<group>"; };
@@ -7484,6 +7486,7 @@
 				B2981E5B6D1E166F87DF948A /* SharedMediaNativePhotoEnrichmentTests.swift */,
 				E46FF1483791147839A57244 /* SharedMediaNativePhotoReadbackTests.swift */,
 				6A510169412385F63DE53064 /* SharedMediaNativePhotoRoleTransportTests.swift */,
+				6E38BB685365ABC9904C00B9 /* SharedMediaNativePhotoStatusRecoveryTests.swift */,
 				A48AF257C3D1D5E16AD0ABC8 /* SharedMediaNativePhotoTransferReadbackTests.swift */,
 				826F8CA8F064841579F7321D /* SharedMediaNativePhotoTransferReservationTests.swift */,
 				A60058AFF5E52839A2CD989C /* SharedMediaNativePhotoUploadLifetimeTests.swift */,
@@ -16156,6 +16159,7 @@
 				6F0D31768D4B66A69F9C5561 /* SharedMediaNativePhotoEnrichmentTests.swift in Sources */,
 				16675209268827ABF5539ADB /* SharedMediaNativePhotoReadbackTests.swift in Sources */,
 				E9C0B50E5E868E0F9B0FC41E /* SharedMediaNativePhotoRoleTransportTests.swift in Sources */,
+				93A3595F824144102CC9C3FC /* SharedMediaNativePhotoStatusRecoveryTests.swift in Sources */,
 				C8520EC907885558AE4F1FF5 /* SharedMediaNativePhotoTransferReadbackTests.swift in Sources */,
 				0F402AFA02B93145CB7D3A66 /* SharedMediaNativePhotoTransferReservationTests.swift in Sources */,
 				87449F121E67C8E02FA8102E /* SharedMediaNativePhotoUploadLifetimeTests.swift in Sources */,

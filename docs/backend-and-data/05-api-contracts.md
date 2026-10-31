@@ -43,13 +43,17 @@ response shapes remain the private ticket contract below, including the
 logged.
 
 Status calls only the existing owner-scoped status RPC, without allocation
-recovery or signing configuration. Null, bound, possibly-issued and closed
-observations never trigger issuance, retry, clock renewal, execution or release.
-Unknown responses and cancellation produce an opaque unavailable error. The
-facade has a 25-second overall bound; existing five-second RPC and 20-second
-issuer limits remain unchanged. This dormant component passed source review,
-focused synthetic checks and the complete local backend gates. The native
-adapter and durable PUT admission are implemented but inactive; see the
+recovery or signing configuration. The inactive native
+[status recovery composition](16-scan-ingestion-reliability-and-recovery.md#october-31--same-operation-photo-status-recovery)
+retains the original saved allocation through this query and the existing
+monotonic observation save; it does not grant upload or release authority. Null,
+bound, possibly-issued and closed observations never trigger issuance, retry,
+clock renewal, execution or release. Unknown responses and cancellation produce
+an opaque unavailable error. The facade has a 25-second overall bound; existing
+five-second RPC and 20-second issuer limits remain unchanged. This dormant
+component passed source review, focused synthetic checks and the complete local
+backend gates. The native adapter and durable PUT admission are implemented but
+inactive; see the
 [current transport qualification](16-scan-ingestion-reliability-and-recovery.md#october-31--inactive-native-ticket-transport).
 The
 [scan guide](16-scan-ingestion-reliability-and-recovery.md#october-30--dormant-authenticated-transfer-facade)

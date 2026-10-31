@@ -1,3 +1,58 @@
+## October 31 — same-operation photo status recovery
+
+The inactive retained owner now exposes `recoverAppPhotoTransferStatus`. It
+keeps the existing receiving locks and account-work lease through one injected
+status exchange and its actual network-task drain. A fresh audited allocation
+operation reads the exact saved state, builds only `.status`, checks the same
+saved identity before and after the await, decodes against its original selected
+object and receipt, and calls the existing `observeRemoteAttempt` writer. The
+private post-save readback is not reused as a pre-request validator: status does
+not increment revision before requesting an observation.
+
+V4/V5/V8–V12 recover without a signing catalog, new ticket, PUT constructor or
+clock renewal. Unreserved states cannot dispatch. Null status before an attempt
+and exact repeated observations do not save; once an attempt is recorded, null,
+changed identity/clocks, backward state and reopened closure are rejected.
+Monotonic progress uses the existing one-save boundary, whole-graph revision
+runway, capacity admission and exact readback. An ambiguous save can recover the
+same persisted observation but never grants capability or release authority. The
+original media/text, role reservation and full copy liability remain held,
+including when a server observation says the write is closed.
+
+A changed owner, inventory revision, deleted receiving record or cancelled
+operation across the await prevents response application. A cancelled sender
+must finish its actual task drain before returning; the existing authenticated
+adapter provides that guarantee. No loop, automatic issuance, execution,
+settlement or media cleanup is added. Contributor entry points are
+`SharedMediaNativeOriginalOwner+AppReceiving.recoverAppPhotoTransferStatus`,
+`SharedMediaNativeAppPhotoAllocationOperations.recoverTransferStatus` and
+`InitialPhotoAllocationTransport.performTransfer`.
+
+The candidate's new retained-owner tests cover legacy/current phases, all photo
+roles, unchanged cold replies, progress, invalid or lost responses, both save
+failure orders, stale ownership and account/caller cancellation. Existing V12
+upload tests now continue through reopened status and unchanged replay using the
+actual intercepted adapter. The first build caught HQ-022, a throwing read
+inside a Swift Testing assertion, after 271.032s; its failure evidence is
+retained. The test-only correction preserves that assertion, and Engine
+independently verified it. Corrected app/test-target compilation passed in
+99.000s with all 3,220 pinned inputs unchanged; this compiled the existing
+working tree, including unrelated inputs, rather than a clean commit-only
+checkout. Bounded independent source review and focused
+preflight/project/transport/Markdown checks passed. Scoped lint retains 17
+existing warnings and zero errors; the corrected test file has no lint findings.
+Unchanged tooling and wire-contract evidence retains its original scope.
+Evidence is under
+`.artifacts/native-app-capture-handoff-20261020/native-status-recovery-compile-qualified02.json`.
+**Zero runtime cases executed:** six new methods/36 cases and six extended V12
+cases remain unrun, alongside earlier affected suites. HQ-019 still blocks
+native runtime. Injected paused-sender and intercepted transport tests do not
+establish live authentication or production account shutdown, even once
+executed. Earlier accepted evidence applies only to its named inputs. No
+ordinary factory, deployed endpoint, feature activation or external operation is
+added. Full initial/reanalysis journeys, all media, RUX1–6 and cumulative
+acceptance remain outstanding before later milestones.
+
 ## October 31 — inactive native ticket transport
 
 `InitialPhotoAllocationTransport.performTransfer` is the injected sender for the
@@ -1355,15 +1410,16 @@ new upload, funding, provider, release or deployment right.
 
 ## Current initial-photo integration entry point — October 28
 
-Updated October 30 for explicit native backend binding and the inactive fresh
-ticket-to-PUT handoff; the heading remains stable for existing links. This
-section traces the **inactive local initial-photo candidate**. The older runtime
-contract and its dated evidence below remain applicable to their legacy paths;
-they do not qualify this new journey. Photo consent/preflight through immutable
-local receipt is locally qualified. The authenticated allocation facade and
-native durable allocation owner have local source review and runtime/Release
-evidence. Transfer, execution, result/history and full journey acceptance remain
-open. Nothing here implies deployment or feature activation. The
+Updated October 31 for explicit native backend binding, the inactive fresh
+ticket-to-PUT handoff and same-operation status recovery; the heading remains
+stable for existing links. This section traces the **inactive local
+initial-photo candidate**. The older runtime contract and its dated evidence
+below remain applicable to their legacy paths; they do not qualify this new
+journey. Photo consent/preflight through immutable local receipt is locally
+qualified. The authenticated allocation facade and native durable allocation
+owner have local source review and runtime/Release evidence. Transfer,
+execution, result/history and full journey acceptance remain open. Nothing here
+implies deployment or feature activation. The
 [existing receiving record](../../apps/ios/Merian/Models/ActiveSchema/SharedMediaReceivingIntentRecord.swift)
 owns the V67 allocation sidecar; its migration and failure-closed
 release/recovery contract is owned by the
@@ -1382,8 +1438,10 @@ statements that this owner composition is unimplemented; it does not complete
 the transfer or end-to-end journey acceptance. The
 [inactive ticket adapter](#october-31--inactive-native-ticket-transport) now
 connects that owner to the bounded authenticated transport, including actual
-task drain; same-operation status recovery and complete app qualification remain
-outstanding.
+task drain. The
+[same-operation status composition](#october-31--same-operation-photo-status-recovery)
+now connects that bounded query to the existing monotonic writer; complete app
+and runtime qualification remain outstanding.
 
 The allocation owner saves an immutable unresolved claim before sending. Only an
 unambiguous save in that same retained operation permits one create request;
@@ -1414,9 +1472,13 @@ closed. Explicit
 adds one held role and its maximum additional-copy allowance after v2 mapping.
 That legacy V3 component is locally qualified under its linked evidence. The new
 bound-branch candidate preserves V6 identity through V7 transfer reservation, V8
-remote runway and V9 ticket uncertainty. Trusted saved-tuple destination
-resolution, actual ticket transport and durable PUT admission remain pending. No
-transfer or retirement is authorized by any of these metadata states.
+remote runway and V9 ticket uncertainty. The current inactive handoff adds V10
+PUT reservation, V11 fresh-ticket uncertainty and acknowledged V12 PUT-started
+state, with trusted saved-tuple destination resolution and actual ticket
+transport. The status composition observes the same operation without gaining
+new authority. These compositions are implemented but remain runtime-unqualified
+under HQ-019. A saved metadata state alone never authorizes transfer or
+retirement.
 
 An unresolved allocation must not freeze independent drafts. The current repair
 carries a clean `SharedMediaNativePhotoAllocationPeer` through each existing
@@ -1462,8 +1524,13 @@ flowchart LR
     V --> D[Inactive authenticated v3 create or status]
     D --> E[Atomic receipt, role mapping and backend identity]
     E --> R[Inactive V7 reservation and local byte verification]
-    R --> S[Inactive V8 status runway and V9 ticket uncertainty]
-    S -. pending integration .-> F[Trusted destination resolution and durable PUT admission]
+    R --> S[Inactive V8 status runway]
+    S --> T[Inactive V10 reservation and V11 fresh-ticket uncertainty]
+    T --> F[Inactive acknowledged V12 and retained sealed-file PUT]
+    S --> Q[Same-operation status and monotonic observation]
+    T --> Q
+    F --> Q
+    Q --> L[Preserved media and copy liability]
     F -. pending integration .-> G[Admission and execution]
     G -. pending integration .-> H[Result then explicit history enrollment]
     H -. pending qualification .-> I[Reanalysis and preserved versions]
@@ -1515,10 +1582,17 @@ For transfer accounting, begin with
 [`SharedMediaNativePhotoTransferReservation`](../../apps/ios/Merian/Core/Data/SharedMediaStorage/SharedMediaNativePhotoTransferReservation.swift),
 the existing allocation writer and
 [`reservation tests`](../../apps/ios/MerianTests/Core/Data/SharedMediaStorage/SharedMediaNativePhotoTransferReservationTests.swift).
-The current v3 state is always reserved and not started; another role and
-generic release are refused. Never manually clear it to unblock a transfer.
-Future source access must remain inside the retained original/derivative owner
-and separately prove its lifetime and copy bounds.
+The legacy V3 reservation is reserved and not started; later bound states retain
+the selected role and its copy allowance through the fresh handoff. Another role
+and generic release remain refused. Never manually clear a reservation to
+unblock a transfer. Source access in the inactive handoff stays inside the
+retained original/derivative owner; its runtime lifetime and copy-bound
+qualification remain open. For lost ticket/PUT responses, use
+`recoverAppPhotoTransferStatus` under the original owner and exact saved tuple;
+even a closed remote write does not permit local cleanup.
+[`NativePhotoStatusRecoveryTests`](../../apps/ios/MerianTests/Core/Data/SharedMediaStorage/SharedMediaNativePhotoStatusRecoveryTests.swift)
+and the retained upload lifetime tests cover cold recovery and unchanged replay;
+the qualification status above remains authoritative.
 
 For a stalled local submission, inspect the exact receiving slot and current
 account/selection fences before retrying local recovery. Never edit Prepared,

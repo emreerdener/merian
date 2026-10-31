@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 /// One fresh persistence boundary inside the retained receiving owner. Allocation
-/// requests release coordinator locks; sealed-file consumption retains them.
+/// requests release coordinator locks; transfer/status operations retain them.
 @MainActor
 final class SharedMediaNativeAppPhotoAllocationOperations {
     typealias Allocation = SharedMediaNativePhotoAllocation
@@ -121,7 +121,23 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         return try saveRemoteAttempt(request.observing(status), replacing: request, prepared: prepared)
     }
 
-    /// No Release caller exists until the closed ticket transport is integrated.
+    /// One read-only query followed by at most one existing observation save.
+    /// The retained account/receiving operation owns the complete transport drain.
+    func recoverTransferStatus(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                               send: @MainActor (InitialPhotoTransferRequest, @escaping @MainActor @Sendable () throws -> Void) async throws -> Data) async throws -> Allocation {
+        guard let current = try saved(prepared), let transfer = current.transferReservation else { throw SharedMediaStorageFailure.closed }
+        let request = try InitialPhotoTransferRequest(allocation: current, action: .status)
+        let check: @MainActor @Sendable () throws -> Void = {
+            guard try self.saved(prepared) == current else { throw SharedMediaStorageFailure.stale }
+        }
+        try check()
+        let bytes = try await send(request, check)
+        try check()
+        let status = try InitialPhotoUploadStatus(data: bytes, allocation: current, objectID: transfer.selection.objectID)
+        return try observeRemoteAttempt(status, request: current, prepared: prepared)
+    }
+
+    /// Only the retained fresh-ticket composition may request this marker.
     /// Persistence ambiguity and recovered markers never mint a fresh continuation.
     private func beginTicketRequest(_ prepared: SharedMediaNativeReceivingIntent.Prepared, putReserved: Bool = false) throws -> SharedMediaNativePhotoTicketContinuation? {
         guard let current = try saved(prepared), putReserved ? (10...11).contains(current.version) : ((4...5).contains(current.version) || (8...9).contains(current.version)) else { throw SharedMediaStorageFailure.closed }
