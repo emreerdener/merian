@@ -104,8 +104,10 @@ struct SharedMediaNativeAppReleasePairOperations {
             try SharedMediaNativeTerminalScan.requireAbsent([attempt.closure.retirementID], container: container, inventoryID: inventory.id)
             try SharedMediaNativeReleaseStageIdentity.direct(attempt.closure.retirementID, context: context)
             try SharedMediaNativeReleasePairFunding.check(attempt, snapshot: snapshot, funded: projection)
-            let other = try witnesses.filter { $0.key != admission.progress.plan.package.id }.values.map { try $0.remainingAdvances }
-            _ = try SharedMediaStoragePolicy.add(inventory.revision, PhotoPreparationPolicy.add([SharedMediaNativeTerminalScan.read(container: container, inventoryID: inventory.id).consumptionAdvances, 1, attempt.after.remainingAdvances] + other))
+            let terminals = try SharedMediaNativeTerminalScan.read(container: container, inventoryID: inventory.id).consumptionAdvances
+            try SharedMediaNativeReceivingCleanGraph.requireReplacementRunway(inventoryRevision: inventory.revision,
+                packageID: admission.progress.plan.package.id, executionAdvances: attempt.after.remainingAdvances,
+                saveAdvances: 1, witnesses: witnesses, terminalConsumptionAdvances: terminals)
         }
         return snapshot
     }

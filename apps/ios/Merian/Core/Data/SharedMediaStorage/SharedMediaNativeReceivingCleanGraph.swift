@@ -34,22 +34,41 @@ enum SharedMediaNativeReceivingCleanGraph {
             }
         }
 
-        var remainingAdvances: Int64 {
+        var packageID: UUID {
+            switch self {
+            case .allocating(let snapshot): return snapshot.row.id
+            case .generic(let witness): return witness.row.id
+            case .releasing(let snapshot): return snapshot.release.slot.id
+            case .staged(let snapshot): return snapshot.origin.row.id
+            }
+        }
+
+        /// Presentation survives execution transitions until atomic queue deletion.
+        var presentationAdvances: Int64 {
             get throws {
                 switch self {
                 case .allocating(let snapshot):
-                    return try PhotoPreparationPolicy.add([snapshot.allocation.remainingAdvances,
-                        SharedMediaNativeReceivingRows.recoveryPresentation(snapshot.recoveryPresentationData,
-                            prepared: snapshot.prepared).remainingTransitions])
+                    return try SharedMediaNativeReceivingRows.recoveryPresentation(snapshot.recoveryPresentationData,
+                        prepared: snapshot.prepared).remainingTransitions
                 case .generic(let witness): return try witness.recoveryPresentation?.remainingTransitions ?? 0
                 case .releasing(let snapshot):
-                    return try PhotoPreparationPolicy.add([snapshot.release.progress.remainingAdvances,
-                        SharedMediaNativeReceivingRows.recoveryPresentation(snapshot.recoveryPresentationData,
-                            prepared: snapshot.release.origin.prepared).remainingTransitions])
-                case .staged(let snapshot):
-                    return try PhotoPreparationPolicy.add([1, snapshot.components.progress.remainingAdvances,
-                        snapshot.components.recoveryPresentation.remainingTransitions])
+                    return try SharedMediaNativeReceivingRows.recoveryPresentation(snapshot.recoveryPresentationData,
+                        prepared: snapshot.release.origin.prepared).remainingTransitions
+                case .staged(let snapshot): return try snapshot.components.recoveryPresentation.remainingTransitions
                 }
+            }
+        }
+
+        var remainingAdvances: Int64 {
+            get throws {
+                let execution: Int64
+                switch self {
+                case .allocating(let snapshot): execution = snapshot.allocation.remainingAdvances
+                case .generic: execution = 0
+                case .releasing(let snapshot): execution = try snapshot.release.progress.remainingAdvances
+                case .staged(let snapshot): execution = try PhotoPreparationPolicy.add([1, snapshot.components.progress.remainingAdvances])
+                }
+                return try PhotoPreparationPolicy.add([execution, presentationAdvances])
             }
         }
     }
@@ -123,6 +142,19 @@ enum SharedMediaNativeReceivingCleanGraph {
         try requireAggregateRunway(inventoryRevision: revision, witnesses: Array(result.values),
             terminalConsumptionAdvances: SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id, checkpoint: checkpoint).consumptionAdvances)
         return result
+    }
+
+    /// Substitute only the own execution budget; preserve its presentation,
+    /// every peer and terminal consumption exactly once. Callers retain their
+    /// full-prestate audit and repeat this check immediately before saving.
+    static func requireReplacementRunway(inventoryRevision: Int64, packageID: UUID,
+                                         executionAdvances: Int64, saveAdvances: Int64,
+                                         witnesses: [UUID: Witness], terminalConsumptionAdvances: Int64) throws {
+        guard let own = witnesses[packageID], own.packageID == packageID else { throw SharedMediaStorageFailure.stale }
+        let peers = witnesses.filter { $0.key != packageID }.values
+        let remaining = try PhotoPreparationPolicy.add([saveAdvances, executionAdvances, own.presentationAdvances,
+            terminalConsumptionAdvances] + peers.map { try $0.remainingAdvances })
+        _ = try SharedMediaStoragePolicy.add(inventoryRevision, remaining)
     }
 
     /// Complete pending-root arithmetic only; raw orphan/terminal enumeration

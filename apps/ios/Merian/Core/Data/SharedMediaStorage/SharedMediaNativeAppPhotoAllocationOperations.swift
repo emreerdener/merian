@@ -358,9 +358,9 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         }
         try totals.checkAvailable(availableBytes())
         let terminal = try SharedMediaNativeTerminalScan.read(container: container, inventoryID: inventory.id).consumptionAdvances
-        let peers = witnesses.filter { $0.key != packageID }.values
-        let remaining = try PhotoPreparationPolicy.add([1, allocation.remainingAdvances, terminal] + peers.map { try $0.remainingAdvances })
-        _ = try SharedMediaStoragePolicy.add(inventory.revision, remaining)
+        try SharedMediaNativeReceivingCleanGraph.requireReplacementRunway(inventoryRevision: inventory.revision,
+            packageID: packageID, executionAdvances: allocation.remainingAdvances, saveAdvances: 1,
+            witnesses: witnesses, terminalConsumptionAdvances: terminal)
     }
 
     func settle(_ reply: InitialPhotoAllocationReply, request: Allocation,

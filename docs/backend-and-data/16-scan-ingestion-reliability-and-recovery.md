@@ -381,6 +381,26 @@ live-reader guard remains closed: write-seal/CAS admission, transaction failure
 and race qualification, reanalysis persistence and UI wiring remain required
 before presentation writes can be enabled.
 
+The native revision-budget integration retains the own queue's presentation
+advances when allocation, release-start or pair-retirement admission substitutes
+a successor execution budget. The shared clean-graph calculation requires the
+exact own package witness and counts save advances, replacement execution, own
+presentation, all peers and terminal receipt consumption once. Full prestate
+checks and fresh pre-save repetitions remain in their existing owners. Release
+staging already includes all witnesses; adding presentation separately there
+would double-count it. Only committed atomic queue deletion releases this
+presentation obligation. Managed compilation passed in 367.757 seconds; the
+focused run passed 8 methods / 10 cases, zero failures/skips, in 1,110.819
+seconds (`rux-native-runway-runtime01-reconciled.json`), with all 6,819 inputs
+unchanged. Coverage includes replacement arithmetic at exact revision
+boundaries, existing allocation exhaustion, release-start and pair-retirement
+owners, and continued nil-only admission. Separate fixture roots establish
+descriptive arithmetic, not same-inventory positive presentation admission. The
+earlier missing-`try` compile/review failures are retained. Positive
+presentation persistence, pre-save mutation races, queue-deletion
+rollback/uncertainty and app timer/UI qualification remain required; this does
+not open presentation admission.
+
 The intended first admission atomically saves the first reserved value at
 revision one: its inventory save consumes one advance and the value retains 59
 future transitions, in addition to existing execution/peer/cleanup obligations.

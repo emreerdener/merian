@@ -286,6 +286,52 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
         #expect(try SharedMediaNativeReceivingCleanGraph.Witness.releasing(snapshot).remainingAdvances == baseline + 58)
     }
 
+    @Test func executionReplacementRetainsOwnPresentationPeersAndTerminalRunway() async throws {
+        typealias Graph = SharedMediaNativeReceivingCleanGraph
+        let own = try await Fixture.make(count: 1), peerA = try await Fixture.make(count: 1), peerB = try await Fixture.make(count: 1)
+        func read(_ f: Fixture) throws -> Reader.Snapshot {
+            try Reader.read(packageID: f.store.packageID, inventoryID: f.store.inventoryID, context: f.store.context())
+        }
+        func initial(_ f: Fixture) throws -> AnalysisRecoveryPresentation {
+            try .initial(for: .init(ownerID: f.prepared.profile.ownerID,
+                observationID: f.prepared.observationID, operationID: f.prepared.operationID))
+        }
+        var snapshot = try read(own), firstPeer = try read(peerA)
+        let secondPeer = try read(peerB), reserved = try initial(own).reserve(id: UUID())
+        firstPeer.recoveryPresentationData = try initial(peerA).reserve(id: UUID()).reserved.encoded()
+        let peers: [UUID: Graph.Witness] = [peerA.store.packageID: .releasing(firstPeer), peerB.store.packageID: .releasing(secondPeer)]
+        let peerAdvances = try PhotoPreparationPolicy.add([firstPeer.release.progress.remainingAdvances, 59, secondPeer.release.progress.remainingAdvances])
+        func check(_ revision: Int64, execution: Int64 = 5, save: Int64 = 1, terminals: Int64 = 3,
+                   map: [UUID: Graph.Witness]) throws {
+            try Graph.requireReplacementRunway(inventoryRevision: revision, packageID: own.store.packageID,
+                executionAdvances: execution, saveAdvances: save, witnesses: map, terminalConsumptionAdvances: terminals)
+        }
+        let states: [(Data?, Int64)] = [(nil, 0), (try reserved.reserved.encoded(), 59),
+            (try reserved.settle(current: reserved.reserved, elapsed: .seconds(30)).encoded(), 58)]
+        for (bytes, presentation) in states {
+            snapshot.recoveryPresentationData = bytes
+            var map = peers; map[own.store.packageID] = .releasing(snapshot)
+            // Exact successor boundary: own old execution is replaced, while
+            // two real peer roots and terminal consumption remain charged once.
+            let needed = 1 + 5 + presentation + peerAdvances + 3
+            try check(Int64.max - needed, map: map)
+            #expect(throws: (any Error).self) { try check(Int64.max - needed + 1, map: map) }
+            #expect(throws: (any Error).self) { try check(Int64.max - needed, execution: 6, map: map) }
+            // Presentation persists even when the successor has no execution
+            // advances. This helper does not authorize terminal queue deletion.
+            try check(Int64.max - needed + 5, execution: 0, map: map)
+            #expect(throws: (any Error).self) { try check(0, execution: -1, map: map) }
+            #expect(throws: (any Error).self) { try check(0, save: -1, map: map) }
+            #expect(throws: (any Error).self) { try check(0, terminals: -1, map: map) }
+        }
+        #expect(throws: SharedMediaStorageFailure.stale) { try check(0, map: peers) }
+        var mismatched = peers; mismatched[own.store.packageID] = .releasing(firstPeer)
+        #expect(throws: SharedMediaStorageFailure.stale) { try check(0, map: mismatched) }
+        snapshot.recoveryPresentationData = Data([0])
+        var invalid = peers; invalid[own.store.packageID] = .releasing(snapshot)
+        #expect(throws: (any Error).self) { try check(0, map: invalid) }
+    }
+
     @Test func presentationFreshnessRejectsExactByteAndQueueIdentityChanges() async throws {
         let f = try await Fixture.make(count: 1)
         let snapshot = try Reader.read(packageID: f.store.packageID, inventoryID: f.store.inventoryID, context: f.store.context())
