@@ -208,6 +208,121 @@ struct NativeAllocationStatusRecoveryTests {
             _ = await owner.invalidateAndAwaitForAccountTransition()
         } catch { _ = await owner.invalidateAndAwaitForAccountTransition(); throw error }
     }
+    @Test(arguments: ["root", "restoredRoot", "control", "restoredControl", "store", "revision", "account", "liability", "receiving", "cancel", "pageRoot", "pageRevision", "finalRoot"])
+    func auditReadFaultsCannotAuthorizeStatus(_ fault: String) async throws {
+        var f = try await fixture(6)
+        let helper = NativePhotoStatusRecoveryTests(), runtime = f.store.runtime
+        let session = AuthTransitionSession(userID: f.store.ownerID, isAnonymous: false)
+        var publishedSession: AuthTransitionSession? = session
+        var activeLease: AccountBoundWorkLease?
+        var reads = 0, sends = 0, saves = 0, injected = false, restoredAfterReads = false, finalPhase = false
+        var restore: (() throws -> Void)?
+        func restoreFiles() throws { try restore?(); restore = nil }
+        do {
+            if fault == "account" {
+                try #require(await f.owner.invalidateAndAwaitForAccountTransition())
+                let account = PhotoOriginalPreparationOwner.AccountAccess(ownerID: f.store.ownerID,
+                    begin: {
+                        let lease = runtime.beginAccountWork(session: session)
+                        activeLease = lease; return lease
+                    },
+                    isCurrent: { runtime.accountWorkLeaseIsCurrent($0, publishedSession: publishedSession, sdkSession: session) },
+                    finish: { _ = runtime.finishAccountWork($0); activeLease = nil })
+                let owner = try SharedMediaNativeOriginalOwner.appDispatch(account: account, drain: .init())
+                f = .init(store: f.store, owner: owner, prepared: f.prepared)
+                _ = try await owner.openApp(container: f.store.container, parent: f.store.parent, inventoryID: f.store.inventoryID)
+            }
+            let before = try helper.row(f.store)
+            func inject() throws {
+                switch fault {
+                case "root", "restoredRoot", "store", "pageRoot", "finalRoot":
+                    let database = try #require(f.store.container.configurations.first).url.deletingLastPathComponent()
+                    let original = fault == "store" ? database : f.store.parent.appendingPathComponent("photo", isDirectory: true)
+                    let held = original.deletingLastPathComponent().deletingLastPathComponent()
+                        .appendingPathComponent("audit-held-" + UUID().uuidString, isDirectory: true)
+                    try FileManager.default.moveItem(at: original, to: held)
+                    restore = {
+                        guard FileManager.default.fileExists(atPath: held.path) else { return }
+                        if FileManager.default.fileExists(atPath: original.path) {
+                            #expect(try FileManager.default.contentsOfDirectory(atPath: original.path).isEmpty)
+                            guard try FileManager.default.contentsOfDirectory(atPath: original.path).isEmpty else { throw SharedMediaStorageFailure.conflict }
+                            try FileManager.default.removeItem(at: original)
+                        }
+                        try FileManager.default.moveItem(at: held, to: original)
+                    }
+                    try FileManager.default.createDirectory(at: original, withIntermediateDirectories: false)
+                    var url = original, values = URLResourceValues(); values.isExcludedFromBackup = true
+                    try url.setResourceValues(values)
+                case "control", "restoredControl":
+                    let url = f.store.parent.appendingPathComponent(SharedMediaNativeBootstrapCodec.finalName)
+                    let original = try Data(contentsOf: url)
+                    restore = { try original.write(to: url) }
+                    try Data("invalid-control".utf8).write(to: url)
+                case "revision", "pageRevision":
+                    let context = f.store.context()
+                    let inventory = try #require(try context.fetch(FetchDescriptor<SharedMediaInventoryRecord>()).first)
+                    inventory.revision += 1; try context.save()
+                case "account":
+                    let lease = try #require(activeLease)
+                    try #require(runtime.accountWorkLeaseIsCurrent(lease, publishedSession: publishedSession, sdkSession: session))
+                    // A generation counter alone does not invalidate this lease.
+                    // Match production's live published/SDK session predicate.
+                    publishedSession = nil
+                    #expect(!runtime.accountWorkLeaseIsCurrent(lease, publishedSession: publishedSession, sdkSession: session))
+                case "liability":
+                    let context = f.store.context()
+                    let allocation = try #require(try context.fetch(FetchDescriptor<SharedMediaAllocationRecord>()).first)
+                    allocation.reservedBytes = -1; try context.save()
+                case "receiving":
+                    let context = f.store.context()
+                    let row = try #require(try context.fetch(FetchDescriptor<SharedMediaReceivingIntentRecord>()).first)
+                    row.phaseRaw = "invalid-audit-phase"; try context.save()
+                case "cancel": withUnsafeCurrentTask { $0?.cancel() }
+                default: throw SharedMediaStorageFailure.invalid
+                }
+                injected = true
+            }
+            let trace = SharedMediaNativeDebugHooks.InspectionTrace { value in
+                if value.phase == .finalHeader && !value.completed { finalPhase = true }
+            }
+            try f.owner.setMetadataFault({ if $0 == .beforeSave { saves += 1 } }, inspectionTrace: trace, inspectionReadFault: {
+                reads += 1
+                if reads == 4 && ["restoredRoot", "restoredControl"].contains(fault) {
+                    // Checkpoints 2 and 3 completed with the replacement present.
+                    #expect(injected && restore != nil)
+                    try restoreFiles(); restoredAfterReads = true
+                }
+                let atFinal = fault == "finalRoot" && finalPhase
+                if !injected && (atFinal || (reads == 2 && !["pageRoot", "pageRevision", "finalRoot"].contains(fault))) { try inject() }
+            }, inspectionPageFault: {
+                if !injected && ["pageRoot", "pageRevision"].contains(fault) {
+                    await Task.yield(); try inject()
+                }
+            })
+            let caller = access(6) { request, check, settle in
+                sends += 1; try check(); try settle(); return held(request)
+            }
+            let outcome = await Task { try await caller.recover(owner: f.owner, prepared: f.prepared, validate: {}) }.result
+            try restoreFiles()
+            #expect(injected && saves == 0)
+            if fault == "restoredRoot" || fault == "restoredControl" {
+                _ = try outcome.get(); #expect(sends == 1 && restoredAfterReads)
+            } else {
+                if case .success = outcome { Issue.record("Audit fault authorized status: \(fault)") }
+                #expect(sends == 0)
+            }
+            if ["store", "revision", "account", "cancel"].contains(fault) { #expect(reads == 2) }
+            if fault != "receiving" { #expect(try helper.row(f.store) == before) }
+            try f.owner.setMetadataFault(nil)
+            #expect(await f.owner.invalidateAndAwaitForAccountTransition())
+            if fault == "account" { #expect(activeLease == nil) }
+        } catch {
+            do { try restoreFiles() } catch { Issue.record("Audit fixture restoration failed: \(error)") }
+            try? f.owner.setMetadataFault(nil)
+            _ = await f.owner.invalidateAndAwaitForAccountTransition(); throw error
+        }
+    }
+
     @Test func componentMeasurementExecutesOnceAndPreservesErrorsAndOptionalResults() throws {
         let trace = SharedMediaNativeDebugHooks.InspectionTrace { _ in }
         var calls = 0

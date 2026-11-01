@@ -1,3 +1,15 @@
+## October 31 — photo audit read boundaries
+
+Photo allocation/status operation construction uses a physical database-read
+checkpoint inside synchronous graph traversal, with full filesystem/control
+validation around every suspension and before operation construction. Ordinary
+operation authority remains fully validating; the complete audit still precedes
+both status endpoints. The
+[scan recovery contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--bounded-database-read-checkpoints-for-photo-status-audits)
+owns the exact boundary rules, transient replacement limitation and
+qualification status, including the November 1 original-failure and corrected
+13-case fault-test results. Debug fault hooks provide no production authority.
+
 ## October 31 — current qualification and audit diagnostics
 
 The

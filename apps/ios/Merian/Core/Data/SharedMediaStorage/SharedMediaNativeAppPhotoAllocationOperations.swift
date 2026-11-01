@@ -29,22 +29,34 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
                         io: SharedMediaNativeOriginalIO, sealTransfer: @escaping (SharedMediaPhotoRetirementInspection, SharedMediaNativePairCompletion?) throws -> Void,
                         availableBytes: @escaping () throws -> Int64,
                         boundary: @escaping (SharedMediaNativeMetadataBoundary) throws -> Void,
+                        readCheckpoint: @escaping () throws -> SharedMediaNativeAppEligibility.Header,
                         configureAudit: (inout SharedMediaNativeScopedAudit) -> Void = { _ in }) async throws -> Self {
         #if DEBUG
         var trace: SharedMediaNativeDebugHooks.InspectionTrace?
+        var readFault: (() throws -> Void)?
+        var pageFault: (() async throws -> Void)?
         #endif
         let expected = try authority.header(container)
         var audit = try SharedMediaNativeScopedAudit(app: container, profile: authority.profile, expected: expected.inventory,
             check: {
                 #if DEBUG
+                try readFault?()
                 let started = trace == nil ? nil : ContinuousClock.now
                 defer { if let started { trace?.checkpoint(started.duration(to: .now)) } }
                 #endif
+                try Task.checkCancellation()
+                guard try readCheckpoint() == expected else { throw SharedMediaStorageFailure.stale }
+            }, betweenPages: {
+                #if DEBUG
+                try await pageFault?()
+                #endif
+                await Task.yield()
+            }, fullBoundaryCheck: {
                 guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale }
-            }, betweenPages: { await Task.yield() })
+            })
         configureAudit(&audit)
         #if DEBUG
-        trace = audit.inspectionTrace
+        trace = audit.inspectionTrace; readFault = audit.inspectionReadFault; pageFault = audit.inspectionPageFault
         defer { trace?.finish() }
         #endif
         _ = try await audit.run()

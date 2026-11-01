@@ -24,7 +24,7 @@ struct NativePhotoUploadLifetimeTests {
     }
     private func putFixture(_ role: Mapping.Role = .source, nearExpiry: Bool = false) async throws -> PutFixture {
         let reservedFixture = try await SharedMediaNativePhotoTransferReadbackTests().fixture(role,
-            boundBackend: true, createdAtMilliseconds: Int64(Date().timeIntervalSince1970 * 1000) - (nearExpiry ? 1_790_000 : 1_000))
+            boundBackend: true, receiptClock: { Int64(Date().timeIntervalSince1970 * 1000) - (nearExpiry ? 900_000 : 1_000) })
         let store = reservedFixture.store
         let owner = reservedFixture.owner
         let prepared = reservedFixture.prepared
@@ -354,7 +354,21 @@ struct NativePhotoUploadLifetimeTests {
                 phase = "ticket-sender-validation"
                 try validate()
                 phase = "ticket-response"
-                let wire = try fixture.row(request.allocation, createdAtMilliseconds: Int64(Date().timeIntervalSince1970 * 1000))
+                let now = Int64(Date().timeIntervalSince1970 * 1000)
+                // A delayed ticket response leaves the same short PUT window;
+                // allocation preparation must not consume that window first.
+                let created = now - (mode == "timeout" ? 590_000 : 0)
+                let wire = try fixture.row(request.allocation, createdAtMilliseconds: created)
+                if mode == "timeout" {
+                    let receipt = try #require(request.allocation.receipt)
+                    let expiry = try #require(wire["capability_expires_at_ms"] as? Int64)
+                    let signed = try #require(wire["signed_expires_at_ms"] as? Int64)
+                    #expect(receipt == context.reserved.receipt)
+                    #expect(created >= receipt.createdAtMilliseconds && created < receipt.expiresAtMilliseconds)
+                    #expect(receipt.expiresAtMilliseconds > now + 10_000)
+                    #expect(expiry == min(receipt.expiresAtMilliseconds, created + 600_000) && expiry == now + 10_000)
+                    #expect(signed == (expiry / 1000) * 1000 && signed > now)
+                }
                 return try fixture.bytes(wire)
             }, makeTask: {
                 phase = "construct-upload"
@@ -378,6 +392,8 @@ struct NativePhotoUploadLifetimeTests {
             } else if mode == "cancel" { call.cancel() }
             try await pause.waitForEntry()
             phase = "completion-paused"
+            #expect(observedStart && (mode != "timeout" || !call.isCancelled))
+            #expect(try NativePhotoStatusRecoveryTests().saved(store).receipt == context.reserved.receipt)
             try await Task.sleep(for: .milliseconds(30))
             #expect(!finished && !drained && !acquired)
             #expect(try row(store) == held)
@@ -386,6 +402,7 @@ struct NativePhotoUploadLifetimeTests {
             await contender?.value
             #expect(finished && acquired)
             #expect(try row(store) == held)
+            #expect(try NativePhotoStatusRecoveryTests().saved(store).receipt == context.reserved.receipt)
             if let transition { #expect(await transition.value); #expect(drained) } else { #expect(await owner.invalidateAndAwaitForAccountTransition()) }
         } catch {
             let completedBeforeCleanup = finished

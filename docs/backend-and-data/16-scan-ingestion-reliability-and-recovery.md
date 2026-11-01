@@ -1,3 +1,109 @@
+## October 31 — bounded database-read checkpoints for photo status audits
+
+The photo allocation operation still completes its inventory audit before any
+allocation or transfer status request. Allocation status can terminalize expired
+server work, so it is not treated as a side-effect-free lookup. The operation's
+ordinary authority header remains fully validating before dispatch, settlement
+and mutation.
+
+Within the audit's synchronous database-only traversal, every existing nested
+checkpoint still checks cancellation, the coordinator lock, account-session
+equality and retained lease ownership, repository owner and writer epoch, clean
+main context, live store admission fence, bound directory/SQLite identities and
+the fresh exact database header/revision.
+`SharedMediaStorageFileOwner.checkAuditReadIdentity` supplies only the physical
+database-read fence; it grants no media, control-file, save or network
+authority. `appPhotoAllocation` supplies this restricted callback only to
+`SharedMediaNativeAppPhotoAllocationOperations.audited`; it is not retained in
+the returned operation.
+
+Full filesystem, bootstrap-control, namespace and profile validation brackets
+audit construction and initial reads, synchronous pending work, every page
+suspension (including receiving pages), final exit and operation construction.
+`SharedMediaNativeScopedAudit` keeps autosave disabled and releases page
+contexts before awaiting. Other audit callers retain their existing full-check
+behavior. A persistent media-root or bootstrap-control replacement fails the
+next full boundary before an effect. A replacement restored entirely within a
+synchronous database-only segment need not be observed: that segment consumes no
+media or control-file authority. Physical store replacement remains subject to
+every nested checkpoint and cannot use that exception.
+
+The candidate adds Debug-only fault injection for nested reads and page
+suspensions, with regressions for persistent and temporarily restored media or
+control paths, store replacement, revision/account/cancellation changes, invalid
+liability and receiving records, suspension changes and final operation minting.
+The original four-second status-entry deadlines and real allocation expiry are
+unchanged. Compilation, runtime and final qualification results are recorded
+separately; this design description does not claim that the original failures
+have passed.
+
+The upload fixture correction now separates allocation setup from upload
+timeout. Sampling the allocation receipt at fake response issuance alone did not
+solve HQ-030: `hq030-receipt-clock-runtime01-reconciled.json` executed two
+methods / nine cases, with eight passed, the timeout failed and no skips. The
+timeout still reported `invalidResponse` before PUT construction. All 6,816
+inputs stayed unchanged during the 1,106.448-second run; its failure remains
+retained.
+
+The timeout fixture now admits an immutable allocation with the unchanged
+1,800,000 ms TTL and sufficient remaining setup time. At ticket response it
+models a delayed ticket created 590,000 ms earlier, leaving the same 10,000 ms
+capability window under the exact `min(allocationExpiry, created + 600000)`
+rule, with signed expiry rounded down to seconds. Each clock is sampled once.
+Tests assert the original receipt, non-clipping allocation interval, exact
+expiry, actual PUT start and paused completion without explicit timeout-branch
+cancellation. No saved receipt is refreshed, and post-response work that
+consumes the remaining capability lifetime still fails. A separate deterministic
+decoder case checks allocation-clipped validity immediately before expiry,
+rejection at and after expiry, and rejection of ticket creation at or after
+allocation expiry. Production expiry rules, parser checks and clocks are
+unchanged. Exact-source review and compilation passed. The November 1 focused
+run below records execution; full integration qualification remains pending.
+
+### November 1 — original failures and corrected account fault qualified
+
+`hq028-audit-read-runtime01-reconciled.json` reconciles 29 selected methods / 49
+parameter cases: 48 passed, one failed, zero skipped. The four original
+allocation/photo-status cancellation and account-transition cases passed with
+the unchanged four-second entry deadline. All three upload-lifetime siblings,
+including actual started-upload timeout, passed. The four selected ticket and
+pre-start expiry cases also passed. Compilation took 194.869 seconds and the
+runtime took 1,449.951 seconds; all 6,816 inputs remained unchanged.
+
+The new audit fault test failed only its `account` parameter, with three
+assertions: recovery succeeded, one status request was sent, and nested reads
+continued after `advanceSessionGeneration()`. The failure is retained and the
+independent trace found that this counter does not invalidate an account-work
+lease. The shared synthetic account supplies the same immutable session as
+published and SDK session. Production checks live published/SDK sessions and
+retained lease ownership and registers the native Auth drain; a generation-only
+invalidation is not this lease contract.
+
+The corrected test reopens its account case with a mutable published session and
+the existing runtime lease predicate. It clears that session at nested read two,
+asserts that the previously valid lease is now stale, and retains the lease
+until normal cleanup. No-send, no-save and read-two rejection assertions remain.
+Production authority and the shared synthetic helper are unchanged.
+
+`hq028-account-fixture-runtime01-reconciled.json` then passed that complete
+13-case method with zero failures/skips in 630.658 seconds, after a
+136.475-second compile. All 6,816 inputs remained unchanged; final free space
+was 31.855 GiB. The corrected account case proves immediate rejection at read
+two, no send/save and normal lease cleanup. Source review passed before the run.
+The other 36 selected cases retain the prior run's applicable evidence because
+production and their test inputs did not change. Together these runs qualify 49
+distinct selected cases; the first run's failure remains retained, and this is
+not described as one all-green 49-case run. HQ-029's original status failures
+and HQ-030's original timeout scenario are resolved within this focused scope.
+HQ-028's broader resource/performance qualification remains open.
+
+The retained probe measured sender entry at 2.470 seconds. This is one Debug
+simulator sample; overlapping component timings are not additive and do not
+qualify Release/device performance or complete initial/reanalysis journeys.
+
+Earlier diagnostic paragraphs preserve their checkpoint facts; they do not
+supersede the current implementation and qualification statements above.
+
 ## October 31 — simulator qualification after component repair
 
 The user completed Xcode setup. CoreSimulator 1174.21 now matches Xcode 27.2;

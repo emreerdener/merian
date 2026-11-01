@@ -102,6 +102,8 @@ final class SharedMediaStorageFileOwner {
         let measurement = nativeBootstrap?.inspectionMeasurement ?? SharedMediaNativeInspectionMeasurement()
         try measurement.measure(.fileOwnerIdentity) { try checkFileIdentity() }
     }
+    /// Audit database reads only; this does not authorize media or control use.
+    func checkAuditReadIdentity() throws { try checkFileIdentity() }
     private func checkFileIdentity() throws {
         do { try admissionFence.check() }
         catch { throw SharedMediaStorageFailure.conflict }

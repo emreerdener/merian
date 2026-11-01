@@ -301,9 +301,9 @@ final class SharedMediaNativeOriginalOwner {
     }
     var inspectionAuditCount: Int { debug.inspectionAuditCount }
     var hasInspectionTraceForTesting: Bool { debug.inspectionTrace != nil }
-    func setMetadataFault(_ fault: ((SharedMediaNativeMetadataBoundary) throws -> Void)?, availableBytes: Int64? = nil, inspectionTrace: SharedMediaNativeDebugHooks.InspectionTrace? = nil) throws {
+    func setMetadataFault(_ fault: ((SharedMediaNativeMetadataBoundary) throws -> Void)?, availableBytes: Int64? = nil, inspectionTrace: SharedMediaNativeDebugHooks.InspectionTrace? = nil, inspectionReadFault: (() throws -> Void)? = nil, inspectionPageFault: (() async throws -> Void)? = nil) throws {
         guard phase == .ready, cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }
-        debug.metadataFault = fault; debug.metadataAvailableBytes = availableBytes; debug.inspectionTrace = inspectionTrace
+        debug.metadataFault = fault; debug.metadataAvailableBytes = availableBytes; debug.inspectionTrace = inspectionTrace; debug.inspectionReadFault = inspectionReadFault; debug.inspectionPageFault = inspectionPageFault
     }
     #endif
 

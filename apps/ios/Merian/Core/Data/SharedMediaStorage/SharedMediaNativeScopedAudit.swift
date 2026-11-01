@@ -23,8 +23,11 @@ struct SharedMediaNativeScopedAudit {
     let expected: SharedMediaStorageSnapshot
     let check: () throws -> Void
     let betweenPages: () async throws -> Void
+    private let fullBoundaryCheck: (() throws -> Void)?
     #if DEBUG
     var inspectionTrace: SharedMediaNativeDebugHooks.InspectionTrace?
+    var inspectionReadFault: (() throws -> Void)?
+    var inspectionPageFault: (() async throws -> Void)?
     #endif
 
     init(container: ModelContainer, scope: SharedMediaNativeScopeIdentity, expected: SharedMediaStorageSnapshot,
@@ -32,20 +35,21 @@ struct SharedMediaNativeScopedAudit {
         self.init(container: container, scope: scope, expected: expected, format: .existingV1, check: check, betweenPages: betweenPages)
     }
     init(app container: ModelContainer, profile: SharedMediaNativeAppProfile, expected: SharedMediaStorageSnapshot,
-         check: @escaping () throws -> Void, betweenPages: @escaping () async throws -> Void) throws {
+         check: @escaping () throws -> Void, betweenPages: @escaping () async throws -> Void,
+         fullBoundaryCheck: (() throws -> Void)? = nil) throws {
         let scope = SharedMediaNativeScopeIdentity(inventoryID: profile.inventoryID, generation: profile.generation,
             ownerID: profile.ownerID, storeIdentity: profile.storeIdentity, rootBinding: try profile.rootIdentity)
         let context = ModelContext(container); context.autosaveEnabled = false
         let header = try SharedMediaNativeAppEligibility.snapshot(context: context, scope: scope)
         guard header.inventory == expected else { throw SharedMediaStorageFailure.conflict }
         self.init(container: container, scope: scope, expected: expected, format: .appV2,
-            appHeader: header, check: check, betweenPages: betweenPages)
+            appHeader: header, check: check, betweenPages: betweenPages, fullBoundaryCheck: fullBoundaryCheck)
     }
 
     private init(container: ModelContainer, scope: SharedMediaNativeScopeIdentity, expected: SharedMediaStorageSnapshot,
-                 format: SharedMediaNativeScopedFormat, appHeader: SharedMediaNativeAppEligibility.Header? = nil, check: @escaping () throws -> Void, betweenPages: @escaping () async throws -> Void) {
+                 format: SharedMediaNativeScopedFormat, appHeader: SharedMediaNativeAppEligibility.Header? = nil, check: @escaping () throws -> Void, betweenPages: @escaping () async throws -> Void, fullBoundaryCheck: (() throws -> Void)? = nil) {
         self.container = container; self.scope = scope; self.expected = expected; self.format = format; self.appHeader = appHeader
-        self.check = check; self.betweenPages = betweenPages
+        self.check = check; self.betweenPages = betweenPages; self.fullBoundaryCheck = fullBoundaryCheck
     }
 
     /// V1 uses the same read-fence discipline as the app audit. The caller
@@ -88,11 +92,15 @@ struct SharedMediaNativeScopedAudit {
         return result
     }
 
+    private func checkBoundary() throws { try (fullBoundaryCheck ?? check)() }
+
     func run() async throws -> SharedMediaNativeScopedSnapshot {
+        try fullBoundaryCheck?()
         #if DEBUG
         inspectionTrace?.enter(.pending)
         #endif
         let count = try pending()
+        try fullBoundaryCheck?()
         let id = scope.inventoryID
         var futureReferences = Set<UUID>()
         #if DEBUG
@@ -170,7 +178,7 @@ struct SharedMediaNativeScopedAudit {
         #if DEBUG
         inspectionTrace?.enter(.finalHeader)
         #endif
-        try check(); _ = try header(freshContext())
+        try checkBoundary(); _ = try header(freshContext())
         return .init(inventory: expected, pendingPackages: count, consumers: consumers,
             receipts: receipts, allocations: allocations)
     }
@@ -178,10 +186,11 @@ struct SharedMediaNativeScopedAudit {
     private func receivingPages() async throws {
         var offset = 0
         while true {
-            try Task.checkCancellation(); try check()
+            try Task.checkCancellation(); try checkBoundary()
             let count = try receivingPage(offset: offset)
             // The synchronous page releases its context/models/snapshots first.
-            try await betweenPages(); try Task.checkCancellation(); try check()
+            try fullBoundaryCheck?()
+            try await betweenPages(); try Task.checkCancellation(); try checkBoundary()
             _ = try header(freshContext())
             if count < SharedMediaStoragePolicy.pageSize { return }
             let (next, overflow) = offset.addingReportingOverflow(count)
@@ -419,11 +428,12 @@ struct SharedMediaNativeScopedAudit {
         body: (T, ModelContext, SharedMediaInventoryRecord, ProjectionMemo) throws -> Void) async throws -> Int64 {
         var offset = 0, total: Int64 = 0
         while true {
-            try Task.checkCancellation(); try check()
+            try Task.checkCancellation(); try checkBoundary()
             let count = try readPage(descriptor, offset: offset, body: body)
             total = try SharedMediaStoragePolicy.add(total, Int64(count))
             // readPage's context/models are released before this suspension.
-            try await betweenPages(); try Task.checkCancellation(); try check()
+            try fullBoundaryCheck?()
+            try await betweenPages(); try Task.checkCancellation(); try checkBoundary()
             _ = try header(freshContext())
             if count < SharedMediaStoragePolicy.pageSize { return total }
             let (next, overflow) = offset.addingReportingOverflow(count)

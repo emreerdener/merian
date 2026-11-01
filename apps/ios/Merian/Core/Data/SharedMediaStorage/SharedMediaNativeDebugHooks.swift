@@ -49,6 +49,8 @@ final class SharedMediaNativeDebugHooks {
     var bootstrapAvailableBytes: Int64?
     var scopedPagePause: (@Sendable () async -> Void)?
     var inspectionTrace: InspectionTrace?
+    var inspectionReadFault: (() throws -> Void)?
+    var inspectionPageFault: (() async throws -> Void)?
     struct ComponentSummary {
         let component: SharedMediaNativeInspectionComponent
         var calls: Int64 = 0
@@ -136,10 +138,12 @@ enum SharedMediaNativeInitializationBoundary: Sendable {
 
 @MainActor
 extension SharedMediaNativeAppDispatchGrant {
-    /// Configure bounded observation only; all authority checks remain in the audit.
+    /// Configure test observation/faults only; all authority checks remain in the audit.
     func configureInspection(_ audit: inout SharedMediaNativeScopedAudit) {
         #if DEBUG
         audit.inspectionTrace = debug.inspectionTrace
+        audit.inspectionReadFault = debug.inspectionReadFault
+        audit.inspectionPageFault = debug.inspectionPageFault
         #endif
     }
 

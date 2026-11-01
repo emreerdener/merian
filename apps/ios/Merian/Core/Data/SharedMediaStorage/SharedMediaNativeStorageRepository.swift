@@ -137,7 +137,6 @@ final class SharedMediaNativeStorageRepository {
                 await Task.yield()
             })
     }
-
     private func requireScoped(_ grant: SharedMediaNativeScopedReadGrant) throws {
         try grant.validate()
         guard openKind == .scopedInspection, scopedIdentity == grant.scope,
@@ -246,10 +245,11 @@ final class SharedMediaNativeStorageRepository {
         try grant.validate()
         try requireAppIdentity(profile: grant.profile, epoch: grant.writerEpoch)
     }
-    private func requireAppIdentity(profile: SharedMediaNativeAppProfile, epoch: UUID) throws {
+    private func requireAppIdentity(profile: SharedMediaNativeAppProfile, epoch: UUID, databaseReadOnly: Bool = false) throws {
         guard openKind == .appDispatch, expectedOwnerID == profile.ownerID,
               originalWriterEpoch == epoch, let roots = scopedRoots,
               !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.closed }
+        if databaseReadOnly { try files.checkAuditReadIdentity(); return }
         try measuredInspection(.roots) { try SharedMediaNativeScopedEligibility.requireRoots(authority: roots.authority, photo: roots.photo, inbox: roots.inbox) }
         try measuredInspection(.storeBinding) { try files.bindStore(binding, initializing: false) }; try measuredInspection(.photoIdentity) { try photos.checkIdentity() }; try measuredInspection(.inboxIdentity) { try inbox.check() }
         try measuredInspection(.profileMatch) { try files.bootstrapProfile().requireMatch(profile, generation: generation, authority: files.identity, sources: sources) }
@@ -350,7 +350,7 @@ final class SharedMediaNativeStorageRepository {
     func appPhotoAllocation(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant) async throws -> SharedMediaNativeAppPhotoAllocationOperations {
         let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try lock.validate(); try self.requireApp(grant); return try self.appHeader() }
         let seal: (SharedMediaPhotoRetirementInspection, SharedMediaNativePairCompletion?) throws -> Void = { try self.photos.requireCurrentSharedInspection($0); if let proof = $1 { try self.photos.requireCurrentPairCompletion(proof, binding: self.nativeBinding) } }
-        return try await .audited(container: container, authority: authority, io: originalIO, sealTransfer: seal, availableBytes: { try grant.limitingAllocationAvailableBytes(self.files.availableBytes()) }, boundary: metadataBoundary, configureAudit: grant.configureInspection)
+        return try await .audited(container: container, authority: authority, io: originalIO, sealTransfer: seal, availableBytes: { try grant.limitingAllocationAvailableBytes(self.files.availableBytes()) }, boundary: metadataBoundary, readCheckpoint: { try lock.validate(); try grant.validate(); try self.requireAppIdentity(profile: grant.profile, epoch: grant.writerEpoch, databaseReadOnly: true); return try self.appHeader() }, configureAudit: grant.configureInspection)
     }
     func appReleaseStage(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant,
                          settlement: SharedMediaNativeReleaseStageSettlement) async throws -> SharedMediaNativeAppReleaseStageOperations {

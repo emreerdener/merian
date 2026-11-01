@@ -258,6 +258,26 @@ struct InitialPhotoUploadTicketTests {
         headers["Authorization"] = "forbidden"; var invalid = row; invalid["headers"] = headers
         #expect(throws: (any Error).self) { _ = try decode(invalid, allocation) }
     }
+    @Test func allocationClippedTicketExpiryCannotBeExtended() throws {
+        let allocation = try allocation(), before = try allocation.encoded()
+        let receipt = try #require(allocation.receipt)
+        let created = receipt.expiresAtMilliseconds - 10_000
+        let wire = try row(allocation, createdAtMilliseconds: created)
+        let expiry = try #require(wire["capability_expires_at_ms"] as? Int64)
+        let signed = try #require(wire["signed_expires_at_ms"] as? Int64)
+        #expect(expiry == receipt.expiresAtMilliseconds && expiry < created + 600_000)
+        #expect(signed == (expiry / 1000) * 1000)
+        #expect(try decode(wire, allocation, now: signed - 1).outcome == .issued)
+        for now in [signed, signed + 1, receipt.expiresAtMilliseconds] {
+            #expect(throws: (any Error).self) { _ = try decode(wire, allocation, now: now) }
+        }
+        for late in [receipt.expiresAtMilliseconds, receipt.expiresAtMilliseconds + 1] {
+            let invalid = try row(allocation, createdAtMilliseconds: late)
+            #expect(throws: (any Error).self) { _ = try decode(invalid, allocation, now: late) }
+        }
+        #expect(try allocation.encoded() == before)
+    }
+
     @Test func destinationSignatureAndExpiryCannotChange() throws {
         let allocation = try allocation(), row = try row(allocation), raw = try #require(row["url"] as? String)
         for url in [" " + raw, raw + "#fragment", raw + "&X-Amz-Expires=1", raw + "&X-Amz-Security-Token=forbidden",
