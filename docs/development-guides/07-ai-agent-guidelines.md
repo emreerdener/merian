@@ -538,6 +538,7 @@ The project skills are:
 | `$merian-web-admin`                 | Public web/internal admin trust boundaries and package-local verification                                              |
 | `$merian-identification-evaluation` | Identification research, task benchmark qualification, model assignment evidence, data lineage and evaluator selection |
 | `$merian-docs-sync`                 | Documentation authority, ownership synchronization, stale-reference cleanup, and historical-record preservation        |
+| `$merian-feature-delivery`          | Observable journeys, integration checkpoints, applicable evidence, blockers and outcome-based forecasts                |
 | `$merian-incident-response`         | Regression-first incident diagnosis, remediation, status separation, privacy, and evidence-backed closure              |
 | `$merian-release`                   | Explicitly authorized TestFlight, Supabase production, RevenueCat, and rollout procedures                              |
 
