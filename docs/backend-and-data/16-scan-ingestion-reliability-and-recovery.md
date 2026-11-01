@@ -334,6 +334,40 @@ initial and reanalysis journeys. Presentation sidecar admission/persistence and
 real UI wiring remain open. The ordinary factory stays disabled; PR116,
 deployment holds and external operation approvals remain unchanged.
 
+## November 1 — recovery presentation liability projection
+
+`AnalysisRecoveryPresentation.storageLiability` is a strict, read-only
+projection for the separate queue field. A nil value contributes zero bytes and
+zero transitions, preserving legacy accounting. Canonical bytes must match the
+exact account, observation and operation. A valid value contributes its
+materialized size plus reserved bytes up to the existing 512-byte maximum, even
+after visible time or transition exhaustion. Remaining value transitions are
+reported separately; this does not reserve inventory revisions or authorize a
+save.
+
+The next native integration must add this companion charge exactly once in
+ordinary received, allocation, staged and releasing package/global totals while
+leaving accepted receiving bytes and historical release funding unchanged.
+`receivedLiabilityByPackage`, `historicalReceived.liability` and staged funding
+retain their legacy basis. Exact optional presentation bytes must participate in
+peer, stage/start, cleanup and write-seal comparisons. Cleanup cannot release
+the charge until its queue deletion commits. Presentation writes must stop once
+release staging begins. The native nil-only guard remains in force until all
+accounting, revision-runway and transaction checks are connected.
+
+The intended first admission atomically saves the first reserved value at
+revision one: its inventory save consumes one advance and the value retains 59
+future transitions, in addition to existing execution/peer/cleanup obligations.
+Native identity comes from the accepted receiving operation; reanalysis identity
+comes from its exact child analysis. Reanalysis uses its own queue owner and
+requires separate accounting integration. Neither may infer identity from the
+current selection. No writer, timer, UI action or activation is installed here.
+The focused suite passed 10 methods / 28 cases with zero failures/skips in
+`rux-liability-runtime01-reconciled.json` (70.385 seconds), following managed
+compilation in 342.006 seconds and independent source review in 12.775 seconds.
+All 6,816 inputs remained unchanged. This qualifies the value projection only;
+the native companion-accounting and persistence integration remains open.
+
 ## October 31 — bounded recovery presentation value
 
 `AnalysisRecoveryPresentation` now defines the local, versioned value intended

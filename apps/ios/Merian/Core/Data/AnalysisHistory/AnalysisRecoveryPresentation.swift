@@ -119,6 +119,27 @@ struct AnalysisRecoveryPresentation: Equatable, Sendable {
         return result
     }
 
+    /// Separate queue-sidecar liability. It never changes the accepted receiving
+    /// reservation. Owners retain the full charge until durable queue removal,
+    /// even when no checking time or transitions remain.
+    struct StorageLiability: Equatable, Sendable {
+        let bytes: Data?
+        let remainingTransitions: Int64
+        var materializedBytes: Int64 { Int64(bytes?.count ?? 0) }
+        var reservedBytes: Int64 { bytes == nil ? 0 : Int64(AnalysisRecoveryPresentation.maximumBytes) - materializedBytes }
+        var chargedBytes: Int64 { materializedBytes + reservedBytes }
+
+        fileprivate init(bytes: Data?, remainingTransitions: Int64) {
+            self.bytes = bytes; self.remainingTransitions = remainingTransitions
+        }
+    }
+
+    static func storageLiability(_ data: Data?, identity: Identity) throws -> StorageLiability {
+        guard let data else { return .init(bytes: nil, remainingTransitions: 0) }
+        let value = try decode(data, identity: identity)
+        return .init(bytes: data, remainingTransitions: value.remainingTransitions)
+    }
+
     private struct Envelope: Codable {
         let version: Int
         let owner: String

@@ -5,6 +5,37 @@ import Testing
 struct AnalysisRecoveryPresentationTests {
     private let identity = AnalysisRecoveryPresentation.Identity(ownerID: UUID(), observationID: UUID(), operationID: UUID())
 
+    @Test func absentSidecarPreservesLegacyZeroLiability() throws {
+        let liability = try AnalysisRecoveryPresentation.storageLiability(nil, identity: identity)
+        #expect(liability.bytes == nil)
+        #expect(liability.materializedBytes == 0 && liability.reservedBytes == 0)
+        #expect(liability.chargedBytes == 0 && liability.remainingTransitions == 0)
+    }
+
+    @Test func sidecarChargeSurvivesPauseColdRecoveryAndExhaustion() throws {
+        var value = AnalysisRecoveryPresentation.initial(for: identity)
+        func check(_ value: AnalysisRecoveryPresentation) throws {
+            let bytes = try value.encoded()
+            let liability = try AnalysisRecoveryPresentation.storageLiability(bytes, identity: identity)
+            #expect(liability.bytes == bytes && liability.materializedBytes == Int64(bytes.count))
+            #expect(liability.reservedBytes == Int64(512 - bytes.count))
+            #expect(liability.chargedBytes == 512)
+            #expect(liability.remainingTransitions == 60 - value.revision)
+        }
+        try check(value)
+        for _ in 0..<30 {
+            let reservation = try value.reserve(id: UUID())
+            let cold = try AnalysisRecoveryPresentation.decode(reservation.reserved.encoded(), identity: identity)
+            #expect(cold.needsAttention)
+            try check(cold)
+            value = try reservation.settle(current: reservation.reserved, elapsed: .zero)
+            try check(value)
+        }
+        #expect(value.needsAttention && value.remainingTransitions == 0)
+        let spent = try AnalysisRecoveryPresentation.initial(for: identity).reserve(id: UUID())
+        try check(spent.settle(current: spent.reserved, elapsed: .seconds(30)))
+    }
+
     @Test func interruptedReservationCannotReopenChecking() throws {
         let initial = AnalysisRecoveryPresentation.initial(for: identity)
         let reservation = try initial.reserve(id: UUID())
@@ -66,6 +97,7 @@ struct AnalysisRecoveryPresentationTests {
             observationID: field == "observation" ? UUID() : identity.observationID,
             operationID: field == "operation" ? UUID() : identity.operationID)
         #expect(throws: (any Error).self) { try AnalysisRecoveryPresentation.decode(value.encoded(), identity: foreign) }
+        #expect(throws: (any Error).self) { try AnalysisRecoveryPresentation.storageLiability(value.encoded(), identity: foreign) }
     }
 
     @Test(arguments: ["unknown", "version", "negative", "overflow", "boolean", "fraction", "activeBudget", "null", "oversize", "duplicate", "revision", "parity"])
@@ -93,6 +125,7 @@ struct AnalysisRecoveryPresentationTests {
             data = Data(("{\"version\":1," + suffix).utf8)
         }
         #expect(throws: (any Error).self) { try AnalysisRecoveryPresentation.decode(data, identity: identity) }
+        #expect(throws: (any Error).self) { try AnalysisRecoveryPresentation.storageLiability(data, identity: identity) }
     }
 
     @Test func zeroElapsedChecksCannotExhaustInventoryRevisionRunway() throws {
