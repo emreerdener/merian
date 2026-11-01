@@ -200,14 +200,15 @@ final class SharedMediaNativeBootstrapFiles {
     func take(_ name: String) throws -> SharedMediaNativeLockedRoot {
         guard let result = roots.removeValue(forKey: name) else { throw SharedMediaStorageFailure.closed }; return result
     }
+    var inspectionMeasurement: SharedMediaNativeInspectionMeasurement { .init(authority: authority) }
     func check() throws {
-        let measurement = SharedMediaNativeInspectionMeasurement(authority: authority)
+        let measurement = inspectionMeasurement
         func readControl(_ name: String) throws -> Data? {
             try measurement.measure(.controlReadAndSync) { try Self.read(parentFD, name, synchronizeParent: false, measurement: measurement) }
         }
-        guard try Self.names(parentFD) == expectedNames,
+        guard try measurement.measure(.bootstrapEnumeration, { try Self.names(parentFD) }) == expectedNames,
               try readControl(SharedMediaNativeBootstrapCodec.parentReceiptName) == expectedParentReceipt,
-              try SharedMediaStorageFileOwner.directoryIdentity(parent) == parentIdentity,
+              try measurement.measure(.bootstrapDirectoryIdentity, { try SharedMediaStorageFileOwner.directoryIdentity(parent) }) == parentIdentity,
               try readControl(SharedMediaNativeBootstrapCodec.intentName) == expectedIntent,
               try readControl(SharedMediaNativeBootstrapCodec.finalName) == expectedFinal else { throw SharedMediaStorageFailure.conflict }
         for (name, bytes) in zip(SharedMediaNativeBootstrapCodec.progressNames, expectedProgress) {
@@ -215,8 +216,8 @@ final class SharedMediaNativeBootstrapFiles {
         }
         for (name, expected) in zip(SharedMediaNativeBootstrapCodec.names, expectedIdentities) {
             let url = parent.appendingPathComponent(name)
-            guard try SharedMediaStorageFileOwner.directoryIdentity(url) == expected else { throw SharedMediaStorageFailure.conflict }
-            let values = try url.resourceValues(forKeys: [.isExcludedFromBackupKey])
+            guard try measurement.measure(.bootstrapDirectoryIdentity, { try SharedMediaStorageFileOwner.directoryIdentity(url) }) == expected else { throw SharedMediaStorageFailure.conflict }
+            let values = try measurement.measure(.bootstrapBackupExclusion) { try url.resourceValues(forKeys: [.isExcludedFromBackupKey]) }
             guard values.isExcludedFromBackup == true else { throw SharedMediaStorageFailure.conflict }
         }
         // All accepted control bytes have been read and their files flushed.

@@ -144,6 +144,27 @@ open. Exact selection counts, raw XCResult exports and timing scopes are
 retained in `hq028-sync-runtime01-reconciled.json`. No durability witness,
 cached authority, page-only validation or deadline change has been introduced.
 
+The subsequent directory/backup timing candidate passed the same 22 methods / 41
+cases without skips (473.599 seconds, all 6,816 inputs unchanged), after a
+513.706-second compilation and clear independent source review. Its fixed
+counters preserve every existing operation and measure enumeration, directory
+identity, backup exclusion and the remaining file-owner checks separately.
+`fileOwnerIdentity` excludes bootstrap validation; all these measurements remain
+nested within broader operation totals.
+
+This sample measured 17.388 seconds to sender entry. Store binding consumed
+7.499 seconds: 8,100 bootstrap directory-identity calls consumed 4.081 seconds,
+1,350 enumerations 0.189 seconds, 6,750 backup-property reads 0.560 seconds and
+1,350 remaining file-owner checks 1.316 seconds. Control reads/validation/sync
+consumed 0.911 seconds, including 0.026 seconds of file sync; final parent sync
+consumed 0.004 seconds. Separately, 669 audit checkpoints consumed 11.344
+seconds inside 16.706 seconds of phases. Directory traversal is the largest
+measured binding substep, but this sample does not establish a comparative
+improvement or justify dropping fresh named-path, identity, backup or fence
+validation. Exact coverage and timing are retained in
+`hq028-paths-runtime01-reconciled.json`. HQ-028/029/030 and the original five
+failed cases remain open; no production performance qualification follows.
+
 Retained receipts under `.artifacts/native-app-capture-handoff-20261020/`
 include `hq019-environment-repaired01.json`,
 `hq019-migration-startup-qualified01.json`, `hq019-network01-results/`,

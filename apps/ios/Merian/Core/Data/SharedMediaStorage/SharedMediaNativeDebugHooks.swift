@@ -3,6 +3,7 @@ import Foundation
 enum SharedMediaNativeInspectionComponent: String, CaseIterable {
     case roots, storeBinding, photoIdentity, inboxIdentity, profileMatch, databaseHeader
     case controlReadAndSync, controlFileSync, controlParentSync
+    case bootstrapEnumeration, bootstrapDirectoryIdentity, bootstrapBackupExclusion, fileOwnerIdentity
 }
 
 /// A call-local observation handle, never a persisted durability witness.

@@ -99,6 +99,10 @@ final class SharedMediaStorageFileOwner {
 
     func check() throws {
         try nativeBootstrap?.check()
+        let measurement = nativeBootstrap?.inspectionMeasurement ?? SharedMediaNativeInspectionMeasurement()
+        try measurement.measure(.fileOwnerIdentity) { try checkFileIdentity() }
+    }
+    private func checkFileIdentity() throws {
         do { try admissionFence.check() }
         catch { throw SharedMediaStorageFailure.conflict }
         let namedParentFD = try Self.openDirectory(storeDirectoryURL)
