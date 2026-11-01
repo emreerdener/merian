@@ -165,6 +165,34 @@ validation. Exact coverage and timing are retained in
 `hq028-paths-runtime01-reconciled.json`. HQ-028/029/030 and the original five
 failed cases remain open; no production performance qualification follows.
 
+The invocation-local path parsing correction passed 26 methods / 53 cases with
+zero skips (200.926 seconds, all 6,816 inputs unchanged). `openDirectory`
+computes immutable path components once after file-URL/absolute-path checks,
+rejects lexical `..`, and preserves a fresh root open and every component open,
+`O_NOFOLLOW` flag, error and descriptor close. It retains no path authority
+between calls. Direct tests cover actual lexical components, non-file URLs,
+valid traversal, intermediate/final symlinks and fresh replacement identity;
+existing physical digest, replaced-root and unproven-parent cases also passed.
+Compilation took 1,723.057 seconds; independent candidate review was clear.
+
+The 8,100 measured bootstrap directory calls spent 0.052 seconds in lexical
+validation and 2.052 seconds in descriptor traversal (2.129 seconds total).
+Final descriptor `fstat` and close are outside traversal timing. Store binding
+consumed 3.886 seconds; 669 phase checkpoints consumed 5.943 seconds inside
+8.334 seconds of phases. Sender entry was 8.610 seconds, still beyond the
+original four-second entry window. No comparative improvement or resolution of
+the five earlier failures is established. Exact coverage and timing scopes are
+in `hq028-lexical-runtime01-reconciled.json`; filesystem traversal remains the
+larger measured substep. Any further remediation must retain fresh named-path,
+identity, account, deletion and durable-control validation.
+
+Before this build, storage preflight refused at 20.3 GiB. With builds idle and
+the preceding runtime complete, managed cleanup removed only the simulator and
+temporary build outputs; retained evidence and dependencies were preserved. Free
+space measured 33.758 GiB afterward, and fresh admission passed without lowering
+limits. Cleanup receipts are `hq028-lexical-clean-apply01.log` and
+`hq028-lexical-clean-space01.json`.
+
 Retained receipts under `.artifacts/native-app-capture-handoff-20261020/`
 include `hq019-environment-repaired01.json`,
 `hq019-migration-startup-qualified01.json`, `hq019-network01-results/`,

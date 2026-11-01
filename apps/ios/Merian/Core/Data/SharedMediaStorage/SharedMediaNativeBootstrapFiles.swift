@@ -208,7 +208,7 @@ final class SharedMediaNativeBootstrapFiles {
         }
         guard try measurement.measure(.bootstrapEnumeration, { try Self.names(parentFD) }) == expectedNames,
               try readControl(SharedMediaNativeBootstrapCodec.parentReceiptName) == expectedParentReceipt,
-              try measurement.measure(.bootstrapDirectoryIdentity, { try SharedMediaStorageFileOwner.directoryIdentity(parent) }) == parentIdentity,
+              try measurement.measure(.bootstrapDirectoryIdentity, { try SharedMediaStorageFileOwner.directoryIdentity(parent, measurement: measurement) }) == parentIdentity,
               try readControl(SharedMediaNativeBootstrapCodec.intentName) == expectedIntent,
               try readControl(SharedMediaNativeBootstrapCodec.finalName) == expectedFinal else { throw SharedMediaStorageFailure.conflict }
         for (name, bytes) in zip(SharedMediaNativeBootstrapCodec.progressNames, expectedProgress) {
@@ -216,7 +216,7 @@ final class SharedMediaNativeBootstrapFiles {
         }
         for (name, expected) in zip(SharedMediaNativeBootstrapCodec.names, expectedIdentities) {
             let url = parent.appendingPathComponent(name)
-            guard try measurement.measure(.bootstrapDirectoryIdentity, { try SharedMediaStorageFileOwner.directoryIdentity(url) }) == expected else { throw SharedMediaStorageFailure.conflict }
+            guard try measurement.measure(.bootstrapDirectoryIdentity, { try SharedMediaStorageFileOwner.directoryIdentity(url, measurement: measurement) }) == expected else { throw SharedMediaStorageFailure.conflict }
             let values = try measurement.measure(.bootstrapBackupExclusion) { try url.resourceValues(forKeys: [.isExcludedFromBackupKey]) }
             guard values.isExcludedFromBackup == true else { throw SharedMediaStorageFailure.conflict }
         }

@@ -215,6 +215,30 @@ struct SharedMediaNativeAppProfileTests {
         #expect(try SharedMediaNativeAppEligibility.profile(row).physicalBindingFormat == .absolutePathsV1)
     }
 
+    @Test func directoryTraversalPreservesLexicalAndSymlinkRejection() throws {
+        let remote = try #require(URL(string: "https://example.invalid/directory"))
+        #expect(throws: SharedMediaStorageFailure.invalid) { _ = try SharedMediaStorageFileOwner.directoryIdentity(remote) }
+        let traversal = try #require(URL(string: "file:///merian-lexical/../directory"))
+        #expect(traversal.pathComponents.contains(".."))
+        #expect(throws: SharedMediaStorageFailure.invalid) { _ = try SharedMediaStorageFileOwner.directoryIdentity(traversal) }
+        let base = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("directory-traversal-" + UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: base) }
+        let real = base.appendingPathComponent("real", isDirectory: true)
+        let child = real.appendingPathComponent("child", isDirectory: true)
+        try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
+        let identity = try SharedMediaStorageFileOwner.directoryIdentity(child)
+        #expect(try SharedMediaStorageFileOwner.directoryIdentity(child) == identity)
+        let link = base.appendingPathComponent("link", isDirectory: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+        for url in [link, link.appendingPathComponent("child", isDirectory: true)] {
+            #expect(throws: SharedMediaStorageFailure.unavailable) { _ = try SharedMediaStorageFileOwner.directoryIdentity(url) }
+        }
+        try FileManager.default.moveItem(at: real, to: base.appendingPathComponent("held", isDirectory: true))
+        try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
+        #expect(try SharedMediaStorageFileOwner.directoryIdentity(child) != identity)
+    }
+
     @Test func physicalDigestDistinguishesCopiesNamespacesAndSymlinks() throws {
         let base = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("profile-binding-" + UUID().uuidString, isDirectory: true)

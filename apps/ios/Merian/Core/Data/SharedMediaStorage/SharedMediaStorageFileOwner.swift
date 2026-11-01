@@ -204,8 +204,8 @@ final class SharedMediaStorageFileOwner {
             bytes: Int64(before.st_size), physicalIdentity: "\(identity(before)):\(before.st_mtimespec.tv_sec):\(before.st_mtimespec.tv_nsec):\(before.st_ctimespec.tv_sec):\(before.st_ctimespec.tv_nsec)")
     }
 
-    static func directoryIdentity(_ root: URL) throws -> String {
-        let fd = try openDirectory(root)
+    static func directoryIdentity(_ root: URL, measurement: SharedMediaNativeInspectionMeasurement? = nil) throws -> String {
+        let fd = try openDirectory(root, measurement: measurement)
         defer { Darwin.close(fd) }
         var info = stat()
         guard fstat(fd, &info) == 0 else { throw SharedMediaStorageFailure.unavailable }
@@ -214,18 +214,24 @@ final class SharedMediaStorageFileOwner {
 
     private static func identity(_ value: stat) -> String { "\(value.st_dev):\(value.st_ino)" }
 
-    static func openDirectory(_ url: URL) throws -> Int32 {
-        guard url.isFileURL, url.path.hasPrefix("/"), !url.pathComponents.contains("..") else {
-            throw SharedMediaStorageFailure.invalid
+    static func openDirectory(_ url: URL, measurement: SharedMediaNativeInspectionMeasurement? = nil) throws -> Int32 {
+        let measurement = measurement ?? SharedMediaNativeInspectionMeasurement()
+        let components = try measurement.measure(.directoryLexicalValidation) {
+            guard url.isFileURL, url.path.hasPrefix("/") else { throw SharedMediaStorageFailure.invalid }
+            let components = url.pathComponents
+            guard !components.contains("..") else { throw SharedMediaStorageFailure.invalid }
+            return components
         }
-        var fd = Darwin.open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
-        guard fd >= 0 else { throw SharedMediaStorageFailure.unavailable }
-        for part in url.pathComponents.dropFirst() {
-            let next = openat(fd, part, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
-            Darwin.close(fd)
-            guard next >= 0 else { throw SharedMediaStorageFailure.unavailable }
-            fd = next
+        return try measurement.measure(.directoryDescriptorWalk) {
+            var fd = Darwin.open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard fd >= 0 else { throw SharedMediaStorageFailure.unavailable }
+            for part in components.dropFirst() {
+                let next = openat(fd, part, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+                Darwin.close(fd)
+                guard next >= 0 else { throw SharedMediaStorageFailure.unavailable }
+                fd = next
+            }
+            return fd
         }
-        return fd
     }
 }
