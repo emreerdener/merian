@@ -99,7 +99,7 @@ enum SharedMediaNativeReceivedReleaseSnapshot {
         let budget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: context, inventory: inventory,
             ownerID: profile.ownerID, format: .appV2, checkpoint: checkpoint)
         guard let before = budget.receivedLiabilityByPackage[packageID],
-              try before.charged == budget.metadataByPackage[packageID] else { throw SharedMediaStorageFailure.conflict }
+              try PhotoPreparationPolicy.add([before.charged, components.recoveryPresentation.chargedBytes]) == budget.metadataByPackage[packageID] else { throw SharedMediaStorageFailure.conflict }
         let funding = try Funding(before: before, projection: Projection.maximum(components))
         try checkpoint()
         guard !context.hasChanges, SharedMediaNativeReceivingIntentGraph.Row(record) == slot,
@@ -224,7 +224,7 @@ enum SharedMediaNativeReceivedReleaseSnapshot {
             executionBytes: try PhotoPreparationPolicy.add([Int64(job.utf8.count), Int64(event.utf8.count)]),
             slotBytes: Int64(try progress.encoded().count), pairs: pairs,
             ownedOriginals: try Metadata.ownedOriginals(packageID, inventory: inventory, context: context, checkpoint: checkpoint),
-            targetOrigins: origins)
+            targetOrigins: origins, recoveryPresentationData: rows.queue.recoveryPresentationData)
         guard !context.hasChanges,
               expected.package == SharedMediaNativeAppMetadataFacts.Package(package),
               expected.member == SharedMediaNativeAppMetadataFacts.Member(member) else {
@@ -235,10 +235,13 @@ enum SharedMediaNativeReceivedReleaseSnapshot {
 
     private static func requireFrozenRows(_ components: Projection.Components, context: ModelContext) throws {
         let id = components.package.id
+        let transaction = try components.received.reconstruct(components.prepared)
+        let rows = try SharedMediaNativeReceivingPhaseGraph.receivedRows(transaction, context: context)
         let package = try one(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == id }))
         let member = try one(context, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
         guard !context.hasChanges, components.package == SharedMediaNativeAppMetadataFacts.Package(package),
-              components.member == SharedMediaNativeAppMetadataFacts.Member(member) else {
+              components.member == SharedMediaNativeAppMetadataFacts.Member(member),
+              rows.queue.recoveryPresentationData == components.recoveryPresentationData else {
             throw SharedMediaStorageFailure.stale
         }
     }

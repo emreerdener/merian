@@ -176,10 +176,10 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
         #expect(try Projection.maximum(input, memo: fresh) == baseline)
         #expect(fresh.hits == 0)
         for _ in 0..<2 { #expect(try Projection.maximum(input, memo: tiny) == baseline) }
-        #expect(tiny.count == 0 && tiny.hits == 0 && tiny.retainedBytes == 0)
+        #expect(tiny.isEmpty && tiny.hits == 0 && tiny.retainedBytes == 0)
         let small = Projection.Memo(byteLimit: 512)
         #expect(try Projection.maximum(input, memo: small) == baseline)
-        #expect(small.count == 0 && small.retainedBytes == 0)
+        #expect(small.isEmpty && small.retainedBytes == 0)
         let extra = (0..<2).map { _ in Reader.Original(assetID: UUID(), physicalOriginID: f.store.packageID,
             receiptBytes: 100, identityBytes: 40, retiring: false) }
         let oversized = Projection.components(copy(s, originals: s.ownedOriginals + extra))
@@ -208,12 +208,158 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
         #expect(memo.hits == 0 && memo.count == 3)
     }
 
+    @Test func presentationCompanionPreservesLegacyFundingAndKeysExactBytes() async throws {
+        let f = try await Fixture.make(count: 1)
+        let snapshot = try Reader.read(packageID: f.store.packageID, inventoryID: f.store.inventoryID, context: f.store.context())
+        let original = Projection.components(snapshot), baseline = try Projection.maximum(original)
+        let identity = AnalysisRecoveryPresentation.Identity(ownerID: f.prepared.profile.ownerID,
+            observationID: f.prepared.observationID, operationID: f.prepared.operationID)
+        let first = try AnalysisRecoveryPresentation.initial(for: identity).reserve(id: UUID())
+        let second = try first.settle(current: first.reserved, elapsed: .zero).reserve(id: UUID())
+        let firstBytes = try first.reserved.encoded(), secondBytes = try second.reserved.encoded()
+        #expect(firstBytes != secondBytes && firstBytes.count == secondBytes.count)
+        var input = original; input.recoveryPresentationData = firstBytes
+        let memo = Projection.Memo(), measured = try Projection.maximum(input, memo: memo)
+        #expect(measured.recoveryPresentation.bytes == firstBytes)
+        #expect(measured.recoveryPresentation.materializedBytes == Int64(firstBytes.count))
+        #expect(measured.recoveryPresentation.chargedBytes == 512)
+        #expect(measured.recoveryPresentation.remainingTransitions == 59)
+        #expect(measured.charges == baseline.charges)
+        #expect(measured.currentBytes == baseline.currentBytes && measured.maximumBytes == baseline.maximumBytes)
+        #expect(measured.currentIdentityExcludedBytes == baseline.currentIdentityExcludedBytes)
+        #expect(measured.maximumIdentityExcludedBytes == baseline.maximumIdentityExcludedBytes)
+        let funding = SharedMediaNativeReceivedReleaseSnapshot.Liability(current: baseline.currentIdentityExcludedBytes,
+            reserved: baseline.maximumIdentityExcludedBytes - baseline.currentIdentityExcludedBytes)
+        let oldFunding = try SharedMediaNativeReceivedReleaseSnapshot.Funding(before: funding, projection: baseline)
+        let newFunding = try SharedMediaNativeReceivedReleaseSnapshot.Funding(before: funding, projection: measured)
+        #expect(oldFunding.before == newFunding.before && oldFunding.after == newFunding.after)
+        try newFunding.requireExistingFunding()
+        #expect(try Projection.maximum(input, memo: memo) == measured)
+        #expect(memo.hits == 1 && memo.count == 1)
+        input.recoveryPresentationData = secondBytes
+        let changed = try Projection.maximum(input, memo: memo)
+        #expect(changed.recoveryPresentation.bytes == secondBytes && changed != measured)
+        #expect(memo.hits == 1 && memo.count == 2)
+        // The queue companion consumes package capacity without changing B/S.
+        let offset = PhotoPreparationPolicy.metadata - baseline.maximumLivePackageMetadataBytes
+        var exact = Projection.components(copy(snapshot, execution: snapshot.executionBytes + offset - 512))
+        exact.recoveryPresentationData = firstBytes
+        try Projection.maximum(exact).requireMetadataCapacity()
+        var over = Projection.components(copy(snapshot, execution: snapshot.executionBytes + offset - 511))
+        over.recoveryPresentationData = firstBytes
+        #expect(throws: SharedMediaStorageFailure.capacity) { try Projection.maximum(over).requireMetadataCapacity() }
+        let foreign = AnalysisRecoveryPresentation.Identity(ownerID: identity.ownerID,
+            observationID: identity.observationID, operationID: UUID())
+        for invalid in [Data(), Data("{}".utf8), try AnalysisRecoveryPresentation.initial(for: foreign).encoded()] {
+            input.recoveryPresentationData = invalid
+            #expect(throws: (any Error).self) { _ = try Projection.maximum(input, memo: memo) }
+        }
+        #expect(memo.hits == 1 && memo.count == 2)
+        #expect(baseline.recoveryPresentation.bytes == nil && baseline.recoveryPresentation.chargedBytes == 0)
+    }
+
+    @Test func presentationRunwaySurvivesCleanupAndAggregatesWithOtherRoots() async throws {
+        let f = try await Fixture.make(count: 1)
+        var snapshot = try Reader.read(packageID: f.store.packageID, inventoryID: f.store.inventoryID, context: f.store.context())
+        let baseline = try SharedMediaNativeReceivingCleanGraph.Witness.releasing(snapshot).remainingAdvances
+        let identity = AnalysisRecoveryPresentation.Identity(ownerID: f.prepared.profile.ownerID,
+            observationID: f.prepared.observationID, operationID: f.prepared.operationID)
+        let reservation = try AnalysisRecoveryPresentation.initial(for: identity).reserve(id: UUID())
+        snapshot.recoveryPresentationData = try reservation.reserved.encoded()
+        let witness = SharedMediaNativeReceivingCleanGraph.Witness.releasing(snapshot)
+        #expect(try witness.remainingAdvances == baseline + 59)
+        try SharedMediaNativeReceivingCleanGraph.requireAggregateRunway(inventoryRevision: Int64.max - baseline - 59,
+            witnesses: [witness])
+        #expect(throws: (any Error).self) {
+            try SharedMediaNativeReceivingCleanGraph.requireAggregateRunway(inventoryRevision: Int64.max - baseline - 58,
+                witnesses: [witness])
+        }
+        // Pure aggregate arithmetic; duplicate synthetic roots grant no identity
+        // or admission authority. The clean reader checks uniqueness separately.
+        #expect(throws: (any Error).self) {
+            try SharedMediaNativeReceivingCleanGraph.requireAggregateRunway(inventoryRevision: Int64.max - baseline - 59,
+                witnesses: [witness, witness])
+        }
+        let exhausted = try reservation.settle(current: reservation.reserved, elapsed: .seconds(30))
+        snapshot.recoveryPresentationData = try exhausted.encoded()
+        #expect(try Projection.maximum(snapshot).recoveryPresentation.chargedBytes == 512)
+        #expect(try SharedMediaNativeReceivingCleanGraph.Witness.releasing(snapshot).remainingAdvances == baseline + 58)
+    }
+
+    @Test func presentationFreshnessRejectsExactByteAndQueueIdentityChanges() async throws {
+        let f = try await Fixture.make(count: 1)
+        let snapshot = try Reader.read(packageID: f.store.packageID, inventoryID: f.store.inventoryID, context: f.store.context())
+        let request = snapshot.release.origin.transaction, queueID = request.cohort.originQueueID
+        let context = f.store.context()
+        let queue = try Fixture.one(context, FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == queueID }))
+        func check(_ expected: Data?) throws {
+            try SharedMediaNativeReceivingRows.requireRecoveryPresentation(expected, request: request, in: context)
+        }
+        try check(nil)
+        let initial = try AnalysisRecoveryPresentation.initial(for: .init(ownerID: f.prepared.profile.ownerID,
+            observationID: f.prepared.observationID, operationID: f.prepared.operationID))
+        let first = try initial.reserve(id: UUID()).reserved.encoded()
+        let second = try initial.reserve(id: UUID()).reserved.encoded()
+        #expect(first != second && first.count == second.count)
+        // Same revision and length still require the exact reservation bytes.
+        queue.recoveryPresentationData = first
+        #expect(context.hasChanges)
+        try check(first)
+        #expect(throws: SharedMediaStorageFailure.stale) { try check(nil) }
+        queue.recoveryPresentationData = second
+        #expect(throws: SharedMediaStorageFailure.stale) { try check(first) }
+        try check(second)
+        queue.recoveryPresentationData = nil
+        #expect(throws: SharedMediaStorageFailure.stale) { try check(second) }
+        try context.save()
+        try check(nil)
+        // A pending canonical/uppercase alias or reverse binding must not be
+        // hidden by a bounded fetch. All faults are rolled back independently.
+        for alias in [queueID, queueID.uppercased(), request.cohort.observationID,
+                      request.cohort.observationID.uppercased(), UUID().uuidString.lowercased()] {
+            let duplicate = OfflineQueuedScan(id: alias, timestamp: request.timestamp)
+            if alias != queueID && alias != queueID.uppercased() &&
+                alias != request.cohort.observationID && alias != request.cohort.observationID.uppercased() {
+                duplicate.sharedMediaConsumerID = request.cohort.bindingID
+            }
+            context.insert(duplicate)
+            #expect(context.hasChanges)
+            #expect(throws: SharedMediaStorageFailure.stale) { try check(nil) }
+            context.rollback()
+            try check(nil)
+        }
+        let current = try Fixture.one(context, FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == queueID }))
+        current.id = queueID.uppercased()
+        #expect(throws: SharedMediaStorageFailure.stale) { try check(nil) }
+        current.id = queueID
+        current.sharedMediaConsumerID = UUID()
+        #expect(throws: SharedMediaStorageFailure.stale) { try check(nil) }
+        current.sharedMediaConsumerID = request.cohort.bindingID
+        context.delete(current)
+        #expect(throws: SharedMediaStorageFailure.stale) { try check(nil) }
+        context.rollback()
+        try check(nil)
+    }
+
+    @Test func liveReadersKeepPresentationAdmissionClosed() async throws {
+        let f = try await Fixture.make(count: 1)
+        let context = f.store.context(), queueID = f.prepared.queueID.uuidString.lowercased()
+        let queue = try Fixture.one(context, FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == queueID }))
+        queue.recoveryPresentationData = try AnalysisRecoveryPresentation.initial(for: .init(
+            ownerID: f.prepared.profile.ownerID, observationID: f.prepared.observationID,
+            operationID: f.prepared.operationID)).reserve(id: UUID()).reserved.encoded()
+        try context.save()
+        #expect(throws: (any Error).self) {
+            _ = try Reader.read(packageID: f.store.packageID, inventoryID: f.store.inventoryID, context: f.store.context())
+        }
+    }
+
     private func copy(_ s: Reader.Snapshot, originals: [Reader.Original]? = nil,
                       origins: [Reader.TargetOrigin]? = nil, pairs: [SharedMediaNativePairFileState]? = nil,
                       execution: Int64? = nil) -> Reader.Snapshot {
         .init(release: s.release, inventoryRevision: s.inventoryRevision, envelopeBytes: s.envelopeBytes,
             membershipBytes: s.membershipBytes, consumerBytes: s.consumerBytes, executionBytes: execution ?? s.executionBytes,
             slotBytes: s.slotBytes, pairs: pairs ?? s.pairs, ownedOriginals: originals ?? s.ownedOriginals,
-            targetOrigins: origins ?? s.targetOrigins)
+            targetOrigins: origins ?? s.targetOrigins, recoveryPresentationData: s.recoveryPresentationData)
     }
 }

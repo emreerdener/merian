@@ -355,6 +355,32 @@ the charge until its queue deletion commits. Presentation writes must stop once
 release staging begins. The native nil-only guard remains in force until all
 accounting, revision-runway and transaction checks are connected.
 
+The November 1 native projection candidate carries exact optional presentation
+bytes through receiving/allocation peers, staged origins and release snapshots.
+Survivor memo keys include those bytes, even when their lengths match. Package
+and global accounting add the companion outside the legacy receiving/funding
+basis; release accounting keeps it until queue removal. Clean aggregate runway
+retains its remaining transitions alongside allocation and cleanup advances.
+This descriptive integration compiled, but its first focused integration run
+passed 26 of 27 cases: the short-window PUT timeout failed before observed task
+start. The four original status/cancellation cases remained passing. The
+follow-up candidate narrows repeated presentation freshness reads to the exact
+queue lookup, including pending canonical/uppercase aliases and reverse-binding
+collisions; complete graph validation remains at construction and linkage
+boundaries. Managed compilation passed in 330.878 seconds. Two subsequent
+focused runs passed 17 distinct cases, zero failures/skips, with all 6,819
+inputs unchanged (`rux-native-projection-runtime02-reconciled.json` and
+`rux-native-projection-runtime03-reconciled.json`, 340.203 and 917.755 seconds).
+The unchanged short-window timeout observed PUT start 7,945 ms after ticket
+issuance and passed callback-drain/lease/lock assertions; 1,748 ms remained at
+the task-creation hook. The four original status/cancellation cases also passed.
+This qualifies the narrowed freshness fix and selected integration checks, not
+all native persistence states or broader performance. The prior 26/27 failure
+remains retained; it is not rewritten as a passing full-suite run. The nil-only
+live-reader guard remains closed: write-seal/CAS admission, transaction failure
+and race qualification, reanalysis persistence and UI wiring remain required
+before presentation writes can be enabled.
+
 The intended first admission atomically saves the first reserved value at
 revision one: its inventory save consumes one advance and the value retains 59
 future transitions, in addition to existing execution/peer/cleanup obligations.

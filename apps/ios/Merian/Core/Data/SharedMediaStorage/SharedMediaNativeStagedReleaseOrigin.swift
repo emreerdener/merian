@@ -18,11 +18,13 @@ struct SharedMediaNativeStagedReleaseOrigin {
     let transaction: Intent.Transaction
     let request: SharedMediaNativeReleaseStartRequest
     let header: Header
+    let recoveryPresentationData: Data?
 
     private init(row: Row, prepared: Intent.Prepared, received: Intent.Received,
-                 transaction: Intent.Transaction, request: SharedMediaNativeReleaseStartRequest, header: Header) {
+                 transaction: Intent.Transaction, request: SharedMediaNativeReleaseStartRequest, header: Header, recoveryPresentationData: Data?) {
         self.row = row; self.prepared = prepared; self.received = received
         self.transaction = transaction; self.request = request; self.header = header
+        self.recoveryPresentationData = recoveryPresentationData
     }
 
     static func read(_ row: Row, inventory: SharedMediaInventoryRecord,
@@ -56,9 +58,11 @@ struct SharedMediaNativeStagedReleaseOrigin {
               header.inventory.generation == staged.inventory.generation,
               header.inventory.phase == staged.inventory.phase, header.inventory.cursor == staged.inventory.cursor,
               header.inventory.revision >= staged.inventory.revision else { throw SharedMediaStorageFailure.stale }
+        let transaction = try received.reconstruct(prepared)
+        let rows = try SharedMediaNativeReceivingPhaseGraph.receivedRows(transaction, context: context)
+        _ = try SharedMediaNativeReceivingRows.recoveryPresentation(rows.queue.recoveryPresentationData, prepared: prepared)
         let value = Self(row: row, prepared: prepared, received: received,
-            transaction: try received.reconstruct(prepared), request: request, header: header)
-        let rows = try SharedMediaNativeReceivingPhaseGraph.receivedRows(value.transaction, context: context)
+            transaction: transaction, request: request, header: header, recoveryPresentationData: rows.queue.recoveryPresentationData)
         _ = try SharedMediaNativeConsumerGraph.validateStagedReceived(rows.consumer, origin: value,
             context: context, checkpoint: checkpoint)
         try value.requireCurrent(context: context)
@@ -73,6 +77,8 @@ struct SharedMediaNativeStagedReleaseOrigin {
               try Self.currentHeader(prepared.profile, context: context) == header else {
             throw SharedMediaStorageFailure.stale
         }
+        try SharedMediaNativeReceivingRows.requireRecoveryPresentation(recoveryPresentationData,
+            request: transaction, in: context)
     }
 
     func requireConsumerLink(_ consumer: SharedMediaConsumerRecord, value: SharedMediaNativeConsumerCohort,

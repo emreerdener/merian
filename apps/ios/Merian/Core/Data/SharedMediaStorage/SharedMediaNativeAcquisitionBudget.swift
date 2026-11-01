@@ -187,7 +187,7 @@ enum SharedMediaNativeAcquisitionBudget {
             if case .allocating(let snapshot) = clean?[id] { allocation = try .init(snapshot, context: context) }
             if let allocation {
                 input = .init(consumerBytes: allocation.consumerBytes,
-                    intent: .init(row: allocation.row, slot: .received(allocation.prepared, allocation.received, allocation.transaction), states: []),
+                    intent: .init(row: allocation.row, slot: .received(allocation.prepared, allocation.received, allocation.transaction), states: [], recoveryPresentationData: allocation.recoveryPresentationData),
                     allocation: allocation)
             } else if let staged {
                 input = try stagedInput(staged.origin, context: context, checkpoint: checkpoint)
@@ -236,13 +236,18 @@ enum SharedMediaNativeAcquisitionBudget {
                 if let received = measured.received { receivedLiability[id] = received }
                 outstandingMetadata = measured.outstandingMetadata
             }
-            metadata[id] = measured.bytes + measured.preparationMetadata
+            let presentation = try input.intent?.recoveryPresentation
+            let companion = presentation?.chargedBytes ?? 0
+            let charged = try PhotoPreparationPolicy.add([measured.bytes, measured.preparationMetadata, companion])
+            guard charged <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
+            metadata[id] = charged
             let bytes = measured.bytes
             let preparationMetadata = measured.preparationMetadata, plannedOutput = measured.plannedOutput
             let pairState = measured.pairState, attempt = measured.attempt, jobs = measured.jobs
             try totals.includePhotoPhysical(materialized: bytes - outstandingMetadata, reserved: outstandingMetadata)
             try totals.includePhotoPhysical(materialized: 0, reserved: preparationMetadata)
-            var logical = bytes + preparationMetadata
+            try totals.includePhotoPhysical(materialized: presentation?.materializedBytes ?? 0, reserved: presentation?.reservedBytes ?? 0)
+            var logical = charged
             for ref in graph.references where ref.packageID == id {
                 guard let asset = graph.assets.first(where: { $0.id == ref.assetID }) else { throw SharedMediaStorageFailure.conflict }
                 logical = try SharedMediaStoragePolicy.add(logical, asset.byteCount)
@@ -537,58 +542,7 @@ enum SharedMediaNativeAcquisitionBudget {
         _ = try SharedMediaNativeConsumerGraph.validateStagedReceived(rows.consumer, origin: origin,
             context: context, checkpoint: checkpoint)
         return .init(consumerBytes: Int64(rows.consumer.cohortData.count),
-            intent: .init(row: origin.row, slot: .received(origin.prepared, origin.received, origin.transaction), states: []))
-    }
-
-    /// Clean held-release values only. Identity is deliberately absent here:
-    /// the single asset-owned pass below supplies current bytes and headroom.
-    private static func releaseContribution(_ snapshot: SharedMediaNativeReleaseMetadataSnapshot.Snapshot,
-                                            graph: SharedMediaPendingGraph, context: ModelContext,
-                                            inventory: SharedMediaInventoryRecord,
-                                            totals: inout SharedMediaStoragePolicy.Totals,
-                                            chargedPhysical: inout Set<UUID>, chargedReceipts: inout Set<UUID>) throws -> Int64 {
-        guard !context.hasChanges, snapshot.inventoryRevision == inventory.revision else {
-            throw SharedMediaStorageFailure.stale
-        }
-        let projection = try SharedMediaNativeReleaseSurvivorProjection.maximum(snapshot)
-        try projection.requireMetadataCapacity()
-        let current = projection.currentIdentityExcludedBytes
-        let maximum = projection.maximumIdentityExcludedBytes
-        try totals.includePhotoPhysical(materialized: current, reserved: maximum - current)
-        let id = snapshot.release.state.package.id
-        for original in snapshot.ownedOriginals {
-            let assetID = original.assetID
-            let allocation = try one(context, FetchDescriptor<SharedMediaAllocationRecord>(predicate: #Predicate { $0.id == assetID }))
-            guard allocation.inventoryID == inventory.id, allocation.packageID == id,
-                  allocation.accountID == snapshot.release.progress.plan.profile.ownerID,
-                  allocation.reservedBytes == 0,
-                  allocation.physicalIdentity.map({ Int64($0.utf8.count) }) == original.identityBytes,
-                  chargedReceipts.insert(assetID).inserted else { throw SharedMediaStorageFailure.conflict }
-            let receipt = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == assetID }))
-            guard case .completed(let request, let result) = try SharedMediaAcquisitionReceipt.read(receipt),
-                  request.assetID == assetID, request.packageID == id,
-                  request.inventoryID == inventory.id, request.inventoryGeneration == inventory.generation,
-                  request.ownerID == allocation.accountID, allocation.materializedBytes == result.byteCount,
-                  try SharedMediaAcquisitionReceipt.metadataCharge(request: request, result: result) == original.receiptBytes else {
-                throw SharedMediaStorageFailure.conflict
-            }
-            // The complete metadata/live audit binds receipt, acquisition and
-            // physical origin. The same allocation may also be in a recipient's
-            // pending graph; only an origin absent there adds physical bytes.
-            if chargedPhysical.insert(assetID).inserted {
-                try totals.includePhotoPhysical(materialized: allocation.materializedBytes, reserved: 0)
-            }
-        }
-        let metadata = projection.maximumLivePackageMetadataBytes
-        var logical = metadata
-        for reference in graph.references where reference.packageID == id {
-            guard let asset = graph.assets.first(where: { $0.id == reference.assetID }) else {
-                throw SharedMediaStorageFailure.conflict
-            }
-            logical = try SharedMediaStoragePolicy.add(logical, asset.byteCount)
-        }
-        try totals.includePhotoPackage(id: id, bytes: logical)
-        return metadata
+            intent: .init(row: origin.row, slot: .received(origin.prepared, origin.received, origin.transaction), states: [], recoveryPresentationData: origin.recoveryPresentationData))
     }
 
     private static func one<T: PersistentModel>(_ context: ModelContext, _ descriptor: FetchDescriptor<T>) throws -> T {

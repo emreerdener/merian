@@ -11,6 +11,7 @@ struct SharedMediaNativePhotoAllocationPeer: Equatable, Sendable {
     let received: SharedMediaNativeReceivingIntent.Received
     let transaction: SharedMediaNativeReceivingIntent.Transaction
     let allocation: SharedMediaNativePhotoAllocation
+    let recoveryPresentationData: Data?
     private let package: Facts.Package
     private let member: Facts.Member
     private let consumer: Facts.Consumer
@@ -25,12 +26,13 @@ struct SharedMediaNativePhotoAllocationPeer: Equatable, Sendable {
             FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
         row = snapshot.row; prepared = snapshot.prepared; received = snapshot.received
         transaction = snapshot.transaction; allocation = snapshot.allocation
+        recoveryPresentationData = snapshot.recoveryPresentationData
         package = Facts.Package(packageRow); member = Facts.Member(membership); consumer = Facts.Consumer(rows.consumer)
     }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         // The clean constructor derives decoded values from exact row bytes.
-        lhs.row == rhs.row && lhs.package == rhs.package && lhs.member == rhs.member && lhs.consumer == rhs.consumer
+        lhs.row == rhs.row && lhs.package == rhs.package && lhs.member == rhs.member && lhs.consumer == rhs.consumer && lhs.recoveryPresentationData == rhs.recoveryPresentationData
     }
 
     var consumerBytes: Int64 { Int64(consumer.cohort.count) }
@@ -46,7 +48,7 @@ struct SharedMediaNativePhotoAllocationPeer: Equatable, Sendable {
         let membership = try SharedMediaNativePairPlanGraph.one(context,
             FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
         guard Facts.Package(packageRow) == package, Facts.Member(membership) == member,
-              Facts.Consumer(rows.consumer) == consumer else { throw SharedMediaStorageFailure.conflict }
+              Facts.Consumer(rows.consumer) == consumer, rows.queue.recoveryPresentationData == recoveryPresentationData else { throw SharedMediaStorageFailure.conflict }
     }
 
     /// Clean reads validate every allocated peer. Dirty reads can only preserve
@@ -94,9 +96,10 @@ struct SharedMediaNativePhotoAllocationPeer: Equatable, Sendable {
         for row in values.rows.values {
             let witness: SharedMediaNativeReceivingPhaseGraph.Witness
             if let peer = peers[row.id] {
-                witness = .init(row: row, slot: .received(peer.prepared, peer.received, peer.transaction), states: [])
+                witness = .init(row: row, slot: .received(peer.prepared, peer.received, peer.transaction), states: [], recoveryPresentationData: peer.recoveryPresentationData)
                 remaining = try SharedMediaStoragePolicy.add(remaining, peer.allocation.remainingAdvances)
             } else { witness = try SharedMediaNativeReceivingPhaseGraph.validate(row, context: context, inventory: inventory) }
+            remaining = try SharedMediaStoragePolicy.add(remaining, witness.recoveryPresentation?.remainingTransitions ?? 0)
             let ids = SharedMediaNativeReceivingCleanGraph.Witness.generic(witness).identities
             for id in ids { guard identities.insert(id).inserted else { throw SharedMediaStorageFailure.conflict } }
             result[row.id] = witness

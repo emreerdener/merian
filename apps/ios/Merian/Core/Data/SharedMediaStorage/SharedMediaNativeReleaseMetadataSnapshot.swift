@@ -38,6 +38,7 @@ enum SharedMediaNativeReleaseMetadataSnapshot {
         /// logical reference vanished. Foreign origins are not charged here.
         let ownedOriginals: [Original]
         let targetOrigins: [TargetOrigin]
+        var recoveryPresentationData: Data?
 
         var pairBytes: Int64 {
             get throws {
@@ -97,14 +98,18 @@ enum SharedMediaNativeReleaseMetadataSnapshot {
             consumerBytes: Int64(origin.rows.consumer.cohortData.count),
             executionBytes: try PhotoPreparationPolicy.add([Int64(job.utf8.count), Int64(event.utf8.count)]),
             slotBytes: Int64(slot.count), pairs: pairs, ownedOriginals: originals,
-            targetOrigins: try targetOrigins(release, inventory: inventory, context: context))
+            targetOrigins: try targetOrigins(release, inventory: inventory, context: context),
+            recoveryPresentationData: origin.rows.queue.recoveryPresentationData)
         // No metadata-cap policy is adopted by this reader. Its checked sum is
         // measured evidence for the next projection, not an enforcement route.
         _ = try result.currentSerializedBytes
+        _ = try SharedMediaNativeReceivingRows.recoveryPresentation(result.recoveryPresentationData, prepared: release.origin.prepared)
         try checkpoint()
         guard !context.hasChanges, inventory.revision == revision,
               SharedMediaNativeAppMetadataFacts.Package(package) == release.state.package,
-              SharedMediaNativeAppMetadataFacts.Member(member) == release.state.member else {
+              SharedMediaNativeAppMetadataFacts.Member(member) == release.state.member,
+              try SharedMediaNativeReleaseOrigin.read(release.progress.plan, in: context)
+                .rows.queue.recoveryPresentationData == result.recoveryPresentationData else {
             throw SharedMediaStorageFailure.stale
         }
         return result

@@ -13,13 +13,15 @@ struct SharedMediaNativePhotoAllocationSnapshot {
     let transaction: Intent.Transaction
     let allocation: SharedMediaNativePhotoAllocation
     let header: SharedMediaNativeAppEligibility.Header
+    let recoveryPresentationData: Data?
 
     private init(row: Row, prepared: Intent.Prepared, received: Intent.Received,
                  allocation: SharedMediaNativePhotoAllocation,
-                 header: SharedMediaNativeAppEligibility.Header) throws {
+                 header: SharedMediaNativeAppEligibility.Header, recoveryPresentationData: Data?) throws {
         self.row = row; self.prepared = prepared; self.received = received
         transaction = try received.reconstruct(prepared)
         self.allocation = allocation; self.header = header
+        self.recoveryPresentationData = recoveryPresentationData
     }
 
     static func read(_ row: Row, inventory: SharedMediaInventoryRecord,
@@ -53,9 +55,11 @@ struct SharedMediaNativePhotoAllocationSnapshot {
               row.revision == (try SharedMediaStoragePolicy.add(prepared.intentRevision ?? 0, 1)) else {
             throw SharedMediaStorageFailure.conflict
         }
+        let transaction = try received.reconstruct(prepared)
+        let rows = try SharedMediaNativeReceivingPhaseGraph.receivedRows(transaction, context: context)
+        _ = try SharedMediaNativeReceivingRows.recoveryPresentation(rows.queue.recoveryPresentationData, prepared: prepared)
         let value = try Self(row: row, prepared: prepared, received: received, allocation: allocation,
-            header: currentHeader(profile, context: context))
-        let rows = try SharedMediaNativeReceivingPhaseGraph.receivedRows(value.transaction, context: context)
+            header: currentHeader(profile, context: context), recoveryPresentationData: rows.queue.recoveryPresentationData)
         _ = try SharedMediaNativeConsumerGraph.validateAllocatedReceived(rows.consumer, allocation: value,
             context: context, checkpoint: checkpoint)
         try value.requireCurrent(context: context)
@@ -76,6 +80,8 @@ struct SharedMediaNativePhotoAllocationSnapshot {
               try Self.currentHeader(prepared.profile, context: context) == header else {
             throw SharedMediaStorageFailure.stale
         }
+        try SharedMediaNativeReceivingRows.requireRecoveryPresentation(recoveryPresentationData,
+            request: transaction, in: context)
     }
 
     func requireConsumerLink(_ consumer: SharedMediaConsumerRecord, value: SharedMediaNativeConsumerCohort,

@@ -25,6 +25,10 @@ enum SharedMediaNativeReleaseSurvivorProjection {
         let pairs: [SharedMediaNativePairFileState]
         let ownedOriginals: [SharedMediaNativeReleaseMetadataSnapshot.Original]
         let targetOrigins: [SharedMediaNativeReleaseMetadataSnapshot.TargetOrigin]
+        var recoveryPresentationData: Data?
+        var recoveryPresentation: AnalysisRecoveryPresentation.StorageLiability {
+            get throws { try SharedMediaNativeReceivingRows.recoveryPresentation(recoveryPresentationData, prepared: prepared) }
+        }
 
         var pairBytes: Int64 {
             get throws { try PhotoPreparationPolicy.add(pairs.map { Int64(try SharedMediaNativeDraftEnvelope.bytes($0).count) }) }
@@ -49,7 +53,8 @@ enum SharedMediaNativeReleaseSurvivorProjection {
             member: snapshot.release.state.member, envelopeBytes: snapshot.envelopeBytes,
             membershipBytes: snapshot.membershipBytes, consumerBytes: snapshot.consumerBytes,
             executionBytes: snapshot.executionBytes, slotBytes: snapshot.slotBytes,
-            pairs: snapshot.pairs, ownedOriginals: snapshot.ownedOriginals, targetOrigins: snapshot.targetOrigins)
+            pairs: snapshot.pairs, ownedOriginals: snapshot.ownedOriginals, targetOrigins: snapshot.targetOrigins,
+            recoveryPresentationData: snapshot.recoveryPresentationData)
     }
 
     struct Charge: Equatable, Sendable {
@@ -85,11 +90,14 @@ enum SharedMediaNativeReleaseSurvivorProjection {
         /// current bytes/headroom remain the separate asset-owned budget pass.
         let currentIdentityExcludedBytes: Int64
         let maximumIdentityExcludedBytes: Int64
+        /// Separate from immutable legacy B/S and terminal payloads. The queue
+        /// owns this charge until its atomic removal, including exhausted values.
+        let recoveryPresentation: AnalysisRecoveryPresentation.StorageLiability
         var futureGrowthBytes: Int64 { maximumBytes - currentBytes }
         /// Arithmetic feasibility only; no caller can admit or release media
         /// from this result. Global storage and revision gates remain separate.
         func requireMetadataCapacity() throws {
-            guard maximumLivePackageMetadataBytes <= PhotoPreparationPolicy.metadata,
+            guard try PhotoPreparationPolicy.add([maximumLivePackageMetadataBytes, recoveryPresentation.chargedBytes]) <= PhotoPreparationPolicy.metadata,
                   maximumTerminalSlotBytes <= PhotoPreparationPolicy.metadata else {
                 throw SharedMediaStorageFailure.capacity
             }
@@ -124,7 +132,8 @@ enum SharedMediaNativeReleaseSurvivorProjection {
                     values.append(data); return true
                 }
                 guard try append(s.progress), try append(s.prepared), try append(s.received),
-                      try append(s.package), try append(s.member), try append(s.pairs) else { return nil }
+                      try append(s.package), try append(s.member), try append(s.pairs),
+                      try append(s.recoveryPresentationData) else { return nil }
                 encoded = values
                 counts = [s.envelopeBytes, s.membershipBytes, s.consumerBytes, s.executionBytes, s.slotBytes]
                 originals = s.ownedOriginals; origins = s.targetOrigins
@@ -143,6 +152,7 @@ enum SharedMediaNativeReleaseSurvivorProjection {
         private(set) var hits = 0
         private(set) var retainedBytes: Int64 = 0
         var count: Int { entries.count }
+        var isEmpty: Bool { entries.isEmpty }
         static let byteLimit = PhotoPreparationPolicy.metadata * Int64(PhotoPreparationPolicy.maximumPackages)
         fileprivate func lookup(_ key: Key) -> Projection? {
             guard let found = entries.first(where: { $0.key == key }) else { return nil }
@@ -165,6 +175,7 @@ enum SharedMediaNativeReleaseSurvivorProjection {
 
     static func maximum(_ snapshot: Components, memo: Memo? = nil) throws -> Projection {
         try Task.checkCancellation()
+        let recoveryPresentation = try snapshot.recoveryPresentation
         let progress = snapshot.progress, plan = progress.plan
         try progress.validate()
         let slot = try Values.slotBound(plan: plan, prepared: snapshot.prepared,
@@ -228,7 +239,7 @@ enum SharedMediaNativeReleaseSurvivorProjection {
             maximumPackagePayloadBytes: maximumPackage, maximumLivePackageMetadataBytes: maximumLive,
             maximumTerminalSlotBytes: maximumTerminal,
             currentIdentityExcludedBytes: currentIdentityExcluded,
-            maximumIdentityExcludedBytes: maximumIdentityExcluded)
+            maximumIdentityExcludedBytes: maximumIdentityExcluded, recoveryPresentation: recoveryPresentation)
         try Task.checkCancellation()
         if let key { memo?.insert(projection, key: key) }
         return projection

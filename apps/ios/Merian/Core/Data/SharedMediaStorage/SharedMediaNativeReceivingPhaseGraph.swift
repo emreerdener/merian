@@ -11,6 +11,16 @@ enum SharedMediaNativeReceivingPhaseGraph {
         let row: Row
         let slot: SharedMediaNativeReceivingSlot
         let states: [SharedMediaNativePairFileState]
+        var recoveryPresentationData: Data?
+        var recoveryPresentation: AnalysisRecoveryPresentation.StorageLiability? {
+            get throws {
+                guard case .received(let prepared, _, _) = slot else {
+                    guard recoveryPresentationData == nil else { throw SharedMediaStorageFailure.conflict }
+                    return nil
+                }
+                return try SharedMediaNativeReceivingRows.recoveryPresentation(recoveryPresentationData, prepared: prepared)
+            }
+        }
     }
 
     static func row(_ id: UUID, in context: ModelContext) throws -> SharedMediaReceivingIntentRecord? {
@@ -70,8 +80,10 @@ enum SharedMediaNativeReceivingPhaseGraph {
             return .init(row: row, slot: slot, states: try SharedMediaNativeReceivingIntentGraph.currentCohort(p,
                 context: context, inventory: inventory))
         case .received(_, _, let transaction):
-            _ = try receivedRows(transaction, context: context)
-            return .init(row: row, slot: slot, states: [])
+            let rows = try receivedRows(transaction, context: context)
+            let value = Witness(row: row, slot: slot, states: [], recoveryPresentationData: rows.queue.recoveryPresentationData)
+            _ = try value.recoveryPresentation
+            return value
         case .abandoned(let a):
             try SharedMediaNativeReceivingRows.requireAbsent(.init(a), in: context)
             let id = row.id

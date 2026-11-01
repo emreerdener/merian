@@ -37,11 +37,18 @@ enum SharedMediaNativeReceivingCleanGraph {
         var remainingAdvances: Int64 {
             get throws {
                 switch self {
-                case .allocating(let snapshot): return snapshot.allocation.remainingAdvances
-                case .generic: return 0
-                case .releasing(let snapshot): return try snapshot.release.progress.remainingAdvances
+                case .allocating(let snapshot):
+                    return try PhotoPreparationPolicy.add([snapshot.allocation.remainingAdvances,
+                        SharedMediaNativeReceivingRows.recoveryPresentation(snapshot.recoveryPresentationData,
+                            prepared: snapshot.prepared).remainingTransitions])
+                case .generic(let witness): return try witness.recoveryPresentation?.remainingTransitions ?? 0
+                case .releasing(let snapshot):
+                    return try PhotoPreparationPolicy.add([snapshot.release.progress.remainingAdvances,
+                        SharedMediaNativeReceivingRows.recoveryPresentation(snapshot.recoveryPresentationData,
+                            prepared: snapshot.release.origin.prepared).remainingTransitions])
                 case .staged(let snapshot):
-                    return try PhotoPreparationPolicy.add([1, snapshot.components.progress.remainingAdvances])
+                    return try PhotoPreparationPolicy.add([1, snapshot.components.progress.remainingAdvances,
+                        snapshot.components.recoveryPresentation.remainingTransitions])
                 }
             }
         }

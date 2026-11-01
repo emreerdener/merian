@@ -81,9 +81,7 @@ enum SharedMediaNativeReceivingRows {
             $0.id == bindingID || $0.packageID == packageID || identities.contains($0.consumerID) ||
                 identities.contains($0.originQueueID) || identities.contains($0.observationID)
         }))
-        let queues = try fetch(c, FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate {
-            identities.contains($0.id) || $0.sharedMediaConsumerID == bindingID
-        }))
+        let queues = try queueMatches(key, in: c)
         let jobs = try fetch(c, FetchDescriptor<OfflineJobRecord>(predicate: #Predicate {
             jobIDs.contains($0.id) || ($0.subjectId != nil && identities.contains($0.subjectId!))
         }))
@@ -99,6 +97,25 @@ enum SharedMediaNativeReceivingRows {
         })).isEmpty else { throw SharedMediaStorageFailure.conflict }
         return .init(consumers: consumers, queues: queues, jobs: jobs, events: events)
     }
+    /// Freshness only, after the caller's full graph validation. Reuse the exact
+    /// collision predicate, including pending aliases and reverse bindings.
+    static func requireRecoveryPresentation(_ expected: Data?, request: SharedMediaNativeReceivingIntent.Transaction,
+                                            in context: ModelContext) throws {
+        let found = try queueMatches(.init(request), in: context)
+        guard found.count == 1, let queue = found.first,
+              queue.id == request.cohort.originQueueID,
+              queue.sharedMediaConsumerID == request.cohort.bindingID,
+              queue.recoveryPresentationData == expected else { throw SharedMediaStorageFailure.stale }
+    }
+
+    private static func queueMatches(_ key: CollisionKey, in context: ModelContext) throws -> [OfflineQueuedScan] {
+        let identities = Array(Swift.Set([key.queueID, key.observationID].flatMap { [$0, $0.uppercased()] }))
+        let bindingID = key.bindingID
+        return try fetch(context, FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate {
+            identities.contains($0.id) || $0.sharedMediaConsumerID == bindingID
+        }))
+    }
+
     static func read(_ r: SharedMediaNativeAppReceivingRequest, in c: ModelContext, absent: Bool) throws -> Set? {
         try read(.init(r), in: c, absent: absent)
     }
@@ -159,6 +176,15 @@ enum SharedMediaNativeReceivingRows {
             throw SharedMediaStorageFailure.conflict
         }
     }
+    /// Descriptive companion only. Callers still validate the complete receiving
+    /// set; this never relaxes the nil-only admission guard above.
+    nonisolated static func recoveryPresentation(_ data: Data?, prepared: SharedMediaNativeReceivingIntent.Prepared) throws
+        -> AnalysisRecoveryPresentation.StorageLiability {
+        try AnalysisRecoveryPresentation.storageLiability(data, identity: .init(
+            ownerID: prepared.profile.ownerID, observationID: prepared.observationID,
+            operationID: prepared.operationID))
+    }
+
     private static func fetch<T: PersistentModel>(_ c: ModelContext, _ descriptor: FetchDescriptor<T>) throws -> [T] {
         var query = descriptor; query.fetchLimit = 2; query.includePendingChanges = true
         return try c.fetch(query)

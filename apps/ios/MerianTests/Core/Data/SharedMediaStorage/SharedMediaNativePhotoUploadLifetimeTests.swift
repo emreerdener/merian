@@ -339,6 +339,11 @@ struct NativePhotoUploadLifetimeTests {
     func freshPutTerminationRetainsLeaseAndLocks(_ mode: String) async throws {
         let began = ContinuousClock.now
         var phase = "fixture"
+        let timing = OSAllocatedUnfairLock(initialState: (issued: Int64(0), expiry: Int64(0), constructed: Int64(0), taskCreated: Int64(0), started: Int64(0)))
+        defer {
+            let t = timing.withLock { $0 }
+            print("Native PUT timing mode=\(mode) constructionAfterTicketMs=\(t.constructed - t.issued) taskCreated=\(t.taskCreated != 0) remainingAtTaskCreationMs=\(t.expiry - t.taskCreated) observedStart=\(t.started != 0) startAfterTicketMs=\(t.started - t.issued)")
+        }
         let context = try await putFixture(nearExpiry: mode == "timeout"), store = context.store, owner = context.owner, prepared = context.prepared
         let fixture = InitialPhotoUploadTicketTests(), catalog = try InitialPhotoUploadDestination.Catalog([fixture.destination()])
         let config = URLSessionConfiguration.ephemeral
@@ -359,6 +364,8 @@ struct NativePhotoUploadLifetimeTests {
                 // allocation preparation must not consume that window first.
                 let created = now - (mode == "timeout" ? 590_000 : 0)
                 let wire = try fixture.row(request.allocation, createdAtMilliseconds: created)
+                let signedExpiry = try #require(wire["signed_expires_at_ms"] as? Int64)
+                timing.withLock { $0.issued = now; $0.expiry = signedExpiry }
                 if mode == "timeout" {
                     let receipt = try #require(request.allocation.receipt)
                     let expiry = try #require(wire["capability_expires_at_ms"] as? Int64)
@@ -372,13 +379,17 @@ struct NativePhotoUploadLifetimeTests {
                 return try fixture.bytes(wire)
             }, makeTask: {
                 phase = "construct-upload"
-                return .init(session: session, completionPause: { pause.wait() })
+                timing.withLock { $0.constructed = Int64(Date().timeIntervalSince1970 * 1000) }
+                return .init(session: session, completionPause: { pause.wait() }, beforeResume: {
+                    timing.withLock { $0.taskCreated = Int64(Date().timeIntervalSince1970 * 1000) }
+                })
             })
         }
         var contender: Task<Void, Never>?, transition: Task<Bool, Never>?
         do {
             try await started.wait()
             observedStart = true
+            timing.withLock { $0.started = Int64(Date().timeIntervalSince1970 * 1000) }
             phase = "upload-started"
             let held = try row(store)
             let coordinator = ScanInferencePersistenceCoordinator.shared
