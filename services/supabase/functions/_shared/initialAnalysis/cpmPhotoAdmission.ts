@@ -36,6 +36,14 @@ export interface CpmVerificationStart extends CpmAdmissionIdentity {
   snapshot_digest: string;
 }
 export interface CpmAdmissionEvidence extends CpmVerificationStart {
+  /** Prepared CPM branch only. SQL must derive these again from locked saved
+   * rows, never accept caller-selected input, versions or description rewrites. */
+  input_schema_version: 2;
+  binding_version: 4;
+  submission_canonical: string;
+  submission_digest: string;
+  descriptions_canonical: string;
+  descriptions_digest: string;
   verification_canonical: string;
   verification_digest: string;
 }
@@ -272,8 +280,32 @@ async function evidence(
       object.structural_acceptance !== true
     ) throw initialMediaUnavailable();
   }
+  // Schema 2 retains the entire already-validated CPM content document exactly.
+  // Its inner content version remains 1. Schema 1's decoded description strings
+  // cannot represent every accepted UTF-8 value (notably NUL) in PostgreSQL.
+  const candidate = JSON.parse(start.candidate_canonical);
+  const submission = candidate.content_canonical as string;
+  const descriptions = initialCanonicalText(JSON.parse(submission).contexts);
+  const submissionDigest = await digest(
+    "merian.initial-analysis.cpm-photo-content.v1",
+    submission,
+  );
+  if (
+    submissionDigest !== JSON.parse(start.assignment_canonical).content_digest
+  ) {
+    throw initialMediaUnavailable();
+  }
   return Object.freeze({
     ...start,
+    input_schema_version: 2 as const,
+    binding_version: 4 as const,
+    submission_canonical: submission,
+    submission_digest: submissionDigest,
+    descriptions_canonical: descriptions,
+    descriptions_digest: await digest(
+      "merian.initial-analysis.cpm-photo-contexts.v1",
+      descriptions,
+    ),
     verification_canonical: text,
     verification_digest: await digest(
       "merian.initial-analysis.cpm-photo-verification.v1",

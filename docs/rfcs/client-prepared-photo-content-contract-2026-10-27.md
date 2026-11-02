@@ -268,6 +268,30 @@ validated branch. Reuse the original assignment, source registry, admission
 ledger/seal, funding and cancellation owners, with no parallel engine or funding
 path.
 
+The admission coordinator now derives a prepared schema-2/binding-4 submission
+projection after complete-cohort verification and before its one admission call.
+`submission_canonical` is the exact saved `content_canonical` string, whose
+inner content version remains 1. Its digest stays in the existing
+`merian.initial-analysis.cpm-photo-content.v1` domain. `descriptions_canonical`
+is the canonical ordered `contexts` array of `text_utf8_base64` objects, hashed
+in the distinct `merian.initial-analysis.cpm-photo-contexts.v1` domain. Empty
+arrays/entries, NUL, BOM, normalization and order remain distinct. All photo
+roles and recipe provenance remain in the exact submission; this projection does
+not certify recipe execution.
+
+The private, ungranted
+[SQL projection](../../services/supabase/migrations/20261102163622_prepare_initial_cpm_submission_projection.sql)
+revalidates the saved candidate/assignment pair and derives the same fields. The
+consuming coordinator and SQL share an independent synthetic fixture. These
+version assignments reserve the CPM admission representation; no existing
+submission constraint, legacy receipt proof, accepted reader or funding/C1 owner
+accepts this branch yet. SQL admission must derive these fields from locked
+saved rows and compare them with complete verified evidence, never trust a
+caller-selected projection. The coherent stage/receipt/retention/funding/C1
+implementation remains required before relaxing any legacy denial. No
+activation, public grant, persistence or successful admission follows from this
+pure helper.
+
 The consuming implementation must establish these contracts together:
 
 - Verification binds the saved candidate/content/assignment, the complete

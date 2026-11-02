@@ -26,6 +26,15 @@ activation are installed. Retained recovery and held starts bypass the loader;
 an unavailable fresh tuple remains held before media I/O. The CPM contract owns
 qualification and cross-deployment immutability requirements.
 
+The admission coordinator also derives the prepared schema-2/binding-4
+submission projection immediately before its one admission call. It retains the
+whole saved content string and ordered base64 context objects, using a distinct
+context digest domain. The private SQL projection and coordinator share a
+synthetic parity fixture. This does not install SQL admission or change legacy
+readers/constraints; the
+[CPM contract](../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+owns the exact representation and coordinated persistence requirements.
+
 ## Dormant authenticated transfer composition
 
 The source-only

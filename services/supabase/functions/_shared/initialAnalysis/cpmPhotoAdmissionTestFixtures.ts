@@ -126,6 +126,22 @@ export async function fixture(
         evidence.assignment_canonical,
         identity.assignment_canonical,
       );
+      assertEquals(evidence.input_schema_version, 2);
+      assertEquals(evidence.binding_version, 4);
+      assertEquals(evidence.submission_canonical, candidate.content_canonical);
+      assertEquals(evidence.submission_digest, a.content_digest);
+      assertEquals(
+        evidence.descriptions_canonical,
+        initialCanonicalText(JSON.parse(candidate.content_canonical).contexts),
+      );
+      assertEquals(
+        evidence.descriptions_digest,
+        await hash(
+          "merian.initial-analysis.cpm-photo-contexts.v1",
+          evidence.descriptions_canonical,
+        ),
+      );
+      assertEquals(Object.isFrozen(evidence), true);
       assertEquals(
         evidence.verification_canonical,
         initialCanonicalText(verified),

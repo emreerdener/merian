@@ -1,5 +1,11 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { initialCanonicalText } from "./canonical.ts";
+import { initialCpmPhotoContentDigest } from "./cpmPhotoContent.ts";
+import { initialCpmPhotoCandidateDigest } from "./cpmPhotoCandidate.ts";
+import { encodeBase64 } from "../encoding.ts";
+import projectionVector from "./fixtures/cpm-admission-submission-v1.json" with {
+  type: "json",
+};
 import { initialCpmPhotoAssignmentDigest } from "./cpmPhotoAssignment.ts";
 import { initialDeadline } from "./transport.ts";
 import { fixture, hash, timestamp } from "./cpmPhotoAdmissionTestFixtures.ts";
@@ -353,4 +359,132 @@ Deno.test("CPM second invocation after unknown verification cannot start verifie
     "begin",
     "recover",
   ]);
+});
+
+Deno.test("CPM admission preserves exact encoded contexts and whole submitted content", async (t) => {
+  for (
+    const texts of [[], [""], [
+      "a\u0000b",
+      "\ufeffstart",
+      "e\u0301",
+      "é",
+      " \n ",
+    ], ["second", "first", ""]]
+  ) {
+    await t.step(
+      String(texts.length) + ":" + (texts[0]?.length ?? 0),
+      async () => {
+        const contexts = texts.map((text) => ({
+          text_utf8_base64: encodeBase64(new TextEncoder().encode(text)),
+        }));
+        const f = await fixture(async (candidate, assignment) => {
+          const content = JSON.parse(candidate.content_canonical);
+          content.contexts = contexts;
+          candidate.content_canonical = initialCanonicalText(content);
+          assignment.content_digest = await initialCpmPhotoContentDigest(
+            content,
+          );
+          assignment.candidate_digest = await initialCpmPhotoCandidateDigest(
+            candidate,
+          );
+        });
+        let received = "";
+        const admit = f.bridge.admit;
+        f.bridge.admit = async (evidence, signal) => {
+          received = evidence.descriptions_canonical;
+          assertEquals(
+            evidence.submission_canonical,
+            JSON.parse(f.identity.candidate_canonical).content_canonical,
+          );
+          assertEquals(
+            evidence.descriptions_digest,
+            await hash(
+              "merian.initial-analysis.cpm-photo-contexts.v1",
+              initialCanonicalText(contexts),
+            ),
+          );
+          // JSONB receives ASCII base64, never a literal NUL or normalized Unicode.
+          assertEquals(received.includes("\u0000"), false);
+          await admit(evidence, signal);
+        };
+        assertEquals((await f.run()).outcome, "admitted");
+        assertEquals(received, initialCanonicalText(contexts));
+        assertEquals(JSON.parse(received), contexts);
+      },
+    );
+  }
+});
+
+Deno.test("CPM encoded-context digest distinguishes empty, reordered and normalized text", async () => {
+  const outputs = new Set<string>();
+  for (
+    const texts of [
+      [],
+      [""],
+      ["a", "b"],
+      ["b", "a"],
+      ["é"],
+      ["e\u0301"],
+      ["a\u0000b"],
+      ["ab"],
+      ["\ufeffa"],
+      ["a"],
+    ]
+  ) {
+    const f = await fixture(async (candidate, assignment) => {
+      const content = JSON.parse(candidate.content_canonical);
+      content.contexts = texts.map((text) => ({
+        text_utf8_base64: encodeBase64(new TextEncoder().encode(text)),
+      }));
+      candidate.content_canonical = initialCanonicalText(content);
+      assignment.content_digest = await initialCpmPhotoContentDigest(content);
+      assignment.candidate_digest = await initialCpmPhotoCandidateDigest(
+        candidate,
+      );
+    });
+    const admit = f.bridge.admit;
+    f.bridge.admit = async (evidence, signal) => {
+      outputs.add(evidence.descriptions_digest);
+      await admit(evidence, signal);
+    };
+    assertEquals((await f.run()).outcome, "admitted");
+  }
+  assertEquals(outputs.size, 10);
+});
+
+Deno.test("CPM actual admission bridge receives the independent SQL projection vector", async () => {
+  const f = await fixture();
+  const admit = f.bridge.admit;
+  f.bridge.admit = async (evidence, signal) => {
+    const projection = Object.fromEntries(
+      Object.keys(projectionVector.projection).map((
+        key,
+      ) => [key, evidence[key as keyof typeof evidence]]),
+    );
+    assertEquals<unknown>(projection, projectionVector.projection);
+    await admit(evidence, signal);
+  };
+  assertEquals((await f.run()).outcome, "admitted");
+});
+
+Deno.test("CPM admission retains accepted context bytes above the verifier-evidence cap", async () => {
+  const contexts = Array.from({ length: 4 }, () => ({
+    text_utf8_base64: encodeBase64(new TextEncoder().encode("🦋".repeat(4000))),
+  }));
+  const f = await fixture(async (candidate, assignment) => {
+    const content = JSON.parse(candidate.content_canonical);
+    content.contexts = contexts;
+    candidate.content_canonical = initialCanonicalText(content);
+    assignment.content_digest = await initialCpmPhotoContentDigest(content);
+    assignment.candidate_digest = await initialCpmPhotoCandidateDigest(
+      candidate,
+    );
+  });
+  const admit = f.bridge.admit;
+  f.bridge.admit = async (evidence, signal) => {
+    assertEquals(evidence.descriptions_canonical.length > 65536, true);
+    assertEquals(JSON.parse(evidence.descriptions_canonical), contexts);
+    await admit(evidence, signal);
+  };
+  assertEquals((await f.run()).outcome, "admitted");
 });
