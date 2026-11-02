@@ -1,9 +1,32 @@
 ## November 2 — CPM verification and admission consuming boundary
 
-Status: reviewed dependency design; consuming writers remain unimplemented and
-inactive. This amendment applies the current CPM assignment to the existing
+Status: storage preparation implemented and locally checked; consuming writers
+remain unimplemented and inactive. This amendment applies the current CPM
+assignment to the existing
 [S0/IC-1 owners](initial-completion-history-interface-2026-10-11.md#2-minimum-dependency-s0-and-checkpoint-boundary).
 It does not qualify the initial submission journey or change release controls.
+
+The first coding checkpoint extends the existing staging and receipt composites
+with a closed `server_prepared_v3` / `client_prepared_photo_v1` discriminator
+and bounded verification, retained-role, capacity-predecessor and
+original-deadline fields. The legacy receipt constructor explicitly fills its
+discriminator before whole-row insertion. Existing canonical proof bytes,
+required legacy fields, receipt-proof constraints and transaction witnesses
+remain intact: the CPM branch still cannot be stored. The shape helper confers
+no verification or funding authority. See the
+[storage migration](../../services/supabase/migrations/20261102100657_prepare_initial_cpm_admission_storage.sql)
+and
+[shape tests](../../services/supabase/tests/initial_cpm_admission_storage.sql).
+
+Local checkpoint evidence covers 554 static migration tests and three selected
+database catalogs (1,213 assertions), plus one committed legacy admission on the
+502-migration baseline upgraded to 503 migrations. Its original receipt, legacy
+row, fixed-time handoff and funding hashes remained equal; retained recovery and
+committed C1 cancellation passed after upgrade. Evidence is retained under
+`.artifacts/native-app-capture-handoff-20261020/cpm-admission-storage01/` and
+`cpm-admission-upgrade01/`. This is narrow storage/legacy compatibility
+evidence, not a full catalog, concurrency, verifier, CPM admission or native
+journey gate.
 
 The next implementation increment couples complete-cohort verification directly
 to a CPM-specific atomic admission branch. Allocation, successful upload,
