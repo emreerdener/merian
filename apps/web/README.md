@@ -22,17 +22,17 @@ App Store Connect campaign link; do not invent an `/invite` route unless a real
 referral product is designed and deployed.
 
 The Explore route fetches the public post and detail projections from Supabase
-on the server, renders a rich read-only post page with default Mantine
-components, and emits Open Graph metadata so Messages/social shares can render a
-clean preview. Unshared, administratively hidden, tombstoned, blocked, and
-otherwise privacy-filtered posts resolve to the application not-found page with
-non-indexable metadata; server code must not reconstruct them from direct table
-reads. Standalone-audio post details and social previews consume the persisted
-`media_items.thumbnail_url` spectrogram. The home grid uses the public species
-reference thumbnail instead, with the spectrogram as a legacy fallback. The
-public web app never downloads recordings to calculate FFT data in a visitor's
-browser; blank or unsupported legacy thumbnails retain the volume-icon fallback
-and normal `<audio>` playback.
+on the server, renders a rich read-only post page with Mantine components and
+responsive observation styling, and emits Open Graph metadata so Messages/social
+shares can render a clean preview. Unshared, administratively hidden,
+tombstoned, blocked, and otherwise privacy-filtered posts resolve to the
+application not-found page with non-indexable metadata; server code must not
+reconstruct them from direct table reads. Standalone-audio post details and
+social previews consume the persisted `media_items.thumbnail_url` spectrogram.
+The home grid uses the public species reference thumbnail instead, with the
+spectrogram as a legacy fallback. The public web app never downloads recordings
+to calculate FFT data in a visitor's browser; blank or unsupported legacy
+thumbnails retain the volume-icon fallback and normal `<audio>` playback.
 
 Post-detail audio slides include an optional browser-local **Boost audio** mode.
 Only boost requests use the allowlisted `/api/explore/audio` WAV stream; Web
@@ -64,19 +64,22 @@ use the same readable labels; attribution never displays naked URLs.
 
 ## Public design direction
 
-The homepage uses a forest-green hero, confident display typography, warm
-surfaces, and decorative 3D artwork from the iOS asset catalog. The hero retains
-the existing app screenshot. Community cards render the current server-fetched
-public Explore projection, with poster-only media, species labels, and public
-author username handles. An empty feed shows an explicit empty state rather than
-sample observations. The fetch limit remains 24.
+The homepage uses neutral white and charcoal surfaces, sentence-case typography,
+and the existing upright app screenshot. Discovery cards emphasize square photos
+with unframed captions, species labels, identification context, and public
+author username handles. They render the current server-fetched public Explore
+projection; an empty feed shows an explicit empty state rather than sample
+observations. The fetch limit remains 24.
 
-The shared header, working mobile navigation, footer, and Mantine theme extend
-this identity to reference, share, and policy pages. Light/dark preferences
-remain supported; the homepage hero and footer keep their campaign colors.
-Footer links point only to existing routes or homepage anchors. The standalone
-concept's sample stories, save controls, and proposed library search are not
-part of the public app.
+The shared header, mobile navigation, footer, and Mantine theme extend the
+neutral identity to reference, share, and policy pages. Light/dark preferences
+remain supported, with charcoal surfaces in dark mode and restrained forest
+accents. The observation page places its square media carousel beside the
+identification and author information on desktop, stacking them on mobile.
+Supporting content uses readable sections separated by subtle rules. Hazard
+notices, identification provenance, source links, media behavior, and reporting
+remain available. Footer links point only to existing routes or homepage
+anchors.
 
 The existing Turnstile-protected waitlist form appears once on the homepage,
 inside its closing invitation. Secondary pages open that same form in the header
@@ -211,7 +214,9 @@ and retain the complete frozen-install, audit, test, type-check, and build gate.
 
 The package pins the reviewed Next.js release exactly; do not replace it with a
 range or `latest`. Use `npm ci` so CI and production consume the committed lock
-file. Next.js 16.3.6 also fixes the
+file. Next.js 16.4.3 includes the fix for the
+[SVG image-optimization RCE](https://github.com/advisories/GHSA-2464-fhr4-w9xw)
+and retains the fix for the
 [next/og ImageResponse RCE](https://github.com/vercel/next.js/security/advisories/GHSA-vcvr-r3jv-pc5j).
 It retains the fixes for the reviewed
 [Windows-hosted RCE](https://github.com/advisories/GHSA-p293-qw3h-jr36) and
@@ -225,18 +230,22 @@ The Next PostCSS 8.5.28 override covers both
 [attacker-controlled source-map file reads](https://github.com/advisories/GHSA-6g55-p6wh-862q)
 and the remaining
 [source-map path traversal](https://github.com/advisories/GHSA-r28c-9q8g-f849).
-The Sharp override tracks 0.35.4, which addresses the
+The Sharp override tracks 0.35.5 with libvips 1.3.4, covering the latest
+[librsvg vulnerability](https://github.com/advisories/GHSA-wq5f-xc86-pv6w) and
+the earlier
 [libheif vulnerabilities](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c).
 The direct Tiptap packages are pinned together at 3.31.3 to cover both the
 [attribute prototype issue](https://github.com/advisories/GHSA-cp6q-959q-f8rh)
 and [Markdown parser ReDoS](https://github.com/advisories/GHSA-j95f-988m-3j2f).
 The lockfile also excludes the affected
 [CSS selector parser releases](https://github.com/advisories/GHSA-w9m9-85wc-3x92).
-`lib/dependencySecurity.test.ts` enforces the reviewed Next.js 16.3.6, PostCSS
-8.5.25, Sharp 0.35.4, Tiptap core 3.30.5, and selector parser 7.1.3 floors,
-explicit Next overrides, and the workflow audit step. Dependency update pull
-requests must run the full dependency audit, test, type-check, and
-production-build gate.
+The source-map-js lockfile floor is 1.2.2, covering its
+[event-loop denial-of-service vulnerability](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
+`lib/dependencySecurity.test.ts` enforces the reviewed Next.js 16.4.3, PostCSS
+8.5.25, Sharp 0.35.5, source-map-js 1.2.2, Tiptap core 3.30.5, and selector
+parser 7.1.3 floors, explicit Next overrides, and the workflow audit step.
+Dependency update pull requests must run the full dependency audit, test,
+type-check, and production-build gate.
 
 `proxy.ts` generates one cryptographically random nonce per request and places
 the same nonce-based Content Security Policy on the request passed to Next.js
@@ -506,11 +515,11 @@ broad species, scan, profile, or Explore tables to reconstruct that payload.
 Similar-species thumbnails are intentionally omitted because the current
 lookalike payload does not carry the required license and attribution fields.
 
-The Explore share page intentionally uses default Mantine components and
-component props instead of route-specific CSS classes or custom page chrome.
-Post visibility must come exclusively from the canonical card projection
-contract. In particular, do not bypass its moderation/publication/media-health
-rules with the detail RPC, service-role table queries, or cached page data.
+The Explore share page uses Mantine components with scoped observation layout
+classes in `app/globals.css`. Post visibility must come exclusively from the
+canonical card projection contract. In particular, do not bypass its
+moderation/publication/media-health rules with the detail RPC, service-role
+table queries, or cached page data.
 
 See `../../docs/system-architecture/08-public-brand-compatibility.md` for the
 permanent brand and compatibility contract,

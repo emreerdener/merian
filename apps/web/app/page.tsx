@@ -4,7 +4,6 @@ import {
   Anchor,
   Box,
   Button,
-  Card,
   Container,
   Group,
   SimpleGrid,
@@ -15,7 +14,6 @@ import {
 import {
   IconArrowDown,
   IconArrowUpRight,
-  IconLeaf,
   IconVolume,
 } from "@tabler/icons-react";
 import { WaitlistForm } from "@/components/WaitlistForm";
@@ -33,20 +31,17 @@ export const metadata: Metadata = {
 
 const journey = [
   {
-    image: "compass",
-    title: "Something catches your eye.",
+    title: "Something catches your eye",
     description:
       "A leaf, a wing, a sound. Start with whatever makes you stop and wonder. No big adventure required.",
   },
   {
-    image: "camera",
-    title: "Make it a discovery.",
+    title: "Make it a discovery",
     description:
       "Use Naturebook to help identify it. Keep a photo and a field note so you can come back to what you found.",
   },
   {
-    image: "journal-open",
-    title: "Share a little of your world.",
+    title: "Share a little of your world",
     description:
       "Choose which observations to post publicly. Your everyday find can be the start of someone else’s curiosity.",
   },
@@ -65,19 +60,14 @@ export default async function HomePage() {
         <Container size="xl" className="home-hero__inner">
           <Stack gap="lg" className="home-hero__copy">
             <Text className="home-eyebrow">
-              <IconLeaf size={17} aria-hidden="true" />{" "}
-              A little curiosity goes a long way
+              A little closer to nature
             </Text>
             <Title order={1} id="home-title" className="home-title">
-              Go outside.<br />Get <em>curious.</em>
+              Get to know<br />the world around you
             </Title>
-            <Text className="home-hero__lede">
-              Your world is wilder than you think.
-            </Text>
             <Text className="home-hero__description">
-              Meet the bird on your fence. Get to know that funny-looking fern.
-              Turn “what is that?” into a discovery worth keeping with
-              Naturebook.
+              Identify what you find. Keep a record of your discoveries. See
+              what others are noticing.
             </Text>
             <Group gap="lg" mt="sm">
               <Button
@@ -85,7 +75,6 @@ export default async function HomePage() {
                 href={ctaHref}
                 size="lg"
                 className="home-primary"
-                rightSection={<IconArrowUpRight size={19} />}
               >
                 {ctaLabel}
               </Button>
@@ -93,44 +82,21 @@ export default async function HomePage() {
                 Explore discoveries <IconArrowDown size={18} />
               </Anchor>
             </Group>
-            <Text size="sm" className="home-hero__footnote">
-              A companion for your next walk, and every little wonder along the
-              way.
-            </Text>
           </Stack>
-          <Box className="home-hero__art" aria-hidden="true">
-            <span className="home-hero__orbit" />
+          <Box className="home-hero__art">
             <Image
               className="home-hero__phone"
               src="/assets/waitlist/sweet-acacia-mockup.png"
-              alt=""
+              alt="Naturebook identifying Sweet Acacia in the app"
               width={1000}
               height={2000}
               priority
               unoptimized
               sizes="(max-width: 768px) 75vw, 34vw"
             />
-            <Image
-              className="home-hero__frog"
-              src="/assets/naturebook/frog.png"
-              alt=""
-              width={240}
-              height={240}
-              unoptimized
-            />
-            <span className="home-hero__sticker">
-              Oh, hey<br />nature. ↗
-            </span>
-            <span className="home-hero__caption">
-              A closer look, in the app.
-            </span>
           </Box>
         </Container>
       </section>
-
-      <div className="home-ribbon" aria-hidden="true">
-        Little things. <IconLeaf size={22} /> Big discoveries.
-      </div>
 
       <Container
         component="section"
@@ -143,8 +109,7 @@ export default async function HomePage() {
           <div>
             <Text className="home-eyebrow">Community discoveries</Text>
             <Title order={2} id="discover-title" className="home-heading">
-              Everyday wonders.<br />
-              <em>Worth a closer look.</em>
+              A world worth noticing
             </Title>
           </div>
           <Text className="home-section-description">
@@ -154,7 +119,11 @@ export default async function HomePage() {
         </div>
         {posts.length
           ? (
-            <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="lg">
+            <SimpleGrid
+              cols={{ base: 1, xs: 2, md: 3, lg: 4 }}
+              spacing="lg"
+              verticalSpacing="xl"
+            >
               {posts.map((post) => {
                 const poster = exploreGridPosterUrl(post);
                 return (
@@ -164,14 +133,11 @@ export default async function HomePage() {
                     underline="never"
                     c="inherit"
                     className="home-observation-link"
+                    aria-label={`${
+                      post.speciesCommonName || "Shared observation"
+                    } shared by ${publicAuthorHandle(post.authorUsername)}`}
                   >
-                    <Card
-                      p={0}
-                      radius="lg"
-                      withBorder
-                      className="explore-grid-card"
-                      h="100%"
-                    >
+                    <article className="explore-grid-card">
                       <Box className="explore-grid-media">
                         {poster
                           ? (
@@ -192,20 +158,14 @@ export default async function HomePage() {
                               <IconVolume size={48} aria-hidden="true" />
                             </Box>
                           )}
-                        <span
-                          className="explore-grid-action"
-                          aria-hidden="true"
-                        >
-                          <IconArrowUpRight size={20} />
-                        </span>
                       </Box>
-                      <Stack gap={5} p="md">
+                      <Stack gap={5} pt="sm">
                         {identificationDescription(post.identification) && (
                           <Text size="xs" c="dimmed">
                             {identificationDescription(post.identification)}
                           </Text>
                         )}
-                        <Text fw={750} lineClamp={2}>
+                        <Text fw={600} lineClamp={2}>
                           {post.speciesCommonName || "An everyday discovery"}
                         </Text>
                         {post.speciesScientificName && (
@@ -217,7 +177,7 @@ export default async function HomePage() {
                           Shared by {publicAuthorHandle(post.authorUsername)}
                         </Text>
                       </Stack>
-                    </Card>
+                    </article>
                   </Anchor>
                 );
               })}
@@ -225,14 +185,7 @@ export default async function HomePage() {
           )
           : (
             <Box className="home-empty">
-              <Image
-                src="/assets/naturebook/compass.png"
-                alt=""
-                width={110}
-                height={110}
-                unoptimized
-              />
-              <Title order={3}>There’s always more to discover.</Title>
+              <Title order={3}>There’s always more to discover</Title>
               <Text c="dimmed">
                 No public discoveries to show right now. Come back soon to see
                 what people are finding.
@@ -251,8 +204,7 @@ export default async function HomePage() {
         <div className="home-about__intro">
           <Text className="home-eyebrow">Follow your curiosity</Text>
           <Title order={2} id="about-title" className="home-heading">
-            Small finds.<br />
-            <em>A bigger picture.</em>
+            Small discoveries, lasting connections
           </Title>
           <Text>
             Naturebook helps you learn about the living world around you, keep
@@ -260,18 +212,8 @@ export default async function HomePage() {
           </Text>
         </div>
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg" mt="xl">
-          {journey.map((step, index) => (
-            <article className="home-journey" key={step.image}>
-              <div className="home-journey__art">
-                <span>0{index + 1}</span>
-                <Image
-                  src={`/assets/naturebook/${step.image}.png`}
-                  alt=""
-                  width={240}
-                  height={220}
-                  unoptimized
-                />
-              </div>
+          {journey.map((step) => (
+            <article className="home-journey" key={step.title}>
               <Title order={3}>{step.title}</Title>
               <Text>{step.description}</Text>
             </article>
@@ -295,9 +237,11 @@ export default async function HomePage() {
       >
         <div className="home-invitation__panel">
           <Stack gap="lg" className="home-invitation__copy">
-            <Text className="home-eyebrow">Go on. See what you find.</Text>
+            <Text className="home-eyebrow">
+              Your next discovery starts here
+            </Text>
             <Title order={2} id="invitation-title" className="home-heading">
-              Your next walk<br />just got interesting.
+              Take a closer look
             </Title>
             <Text>
               Learn the names. Keep the moments. Get to know a whole world
@@ -309,7 +253,6 @@ export default async function HomePage() {
                   component="a"
                   href={siteConfig.appStoreUrl}
                   size="lg"
-                  radius="xl"
                   className="header-cta-button"
                   w="fit-content"
                 >
@@ -323,14 +266,6 @@ export default async function HomePage() {
                 </>
               )}
           </Stack>
-          <Image
-            className="home-invitation__art"
-            src="/assets/naturebook/nature-scene.png"
-            alt=""
-            width={560}
-            height={560}
-            unoptimized
-          />
         </div>
       </Container>
     </Box>

@@ -53,6 +53,8 @@ export function ExploreMediaCarousel({
       <Carousel
         withIndicators={slides.length > 1}
         withControls={slides.length > 1}
+        nextControlProps={{ "aria-label": "Next media" }}
+        previousControlProps={{ "aria-label": "Previous media" }}
         height="100%"
         style={{ position: "absolute", inset: 0 }}
         onSlideChange={setActiveIndex}
@@ -91,7 +93,7 @@ export function ExploreMediaCarousel({
                     fallbackSrc="/image-placeholder.svg"
                   />
                 ) : (
-                  <Center h="100%" style={{ background: "linear-gradient(145deg, var(--mantine-color-blue-1), var(--mantine-color-indigo-3))" }}>
+                  <Center h="100%" style={{ background: "var(--surface-subtle)" }}>
                     <ThemeIcon size={80} radius="xl" variant="light" aria-hidden="true">
                       <IconVolume size={40} />
                     </ThemeIcon>
