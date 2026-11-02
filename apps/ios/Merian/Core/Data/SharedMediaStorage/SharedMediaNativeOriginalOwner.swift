@@ -187,6 +187,12 @@ final class SharedMediaNativeOriginalOwner {
         return try await appOperation(open: { try lock.validate(); return try await $0.appReceiving(grant: $1, lock: lock, releaseStage: self.releaseStageSettlement) },
             body: { try lock.validate(); return try await body($0) })
     }
+    #if DEBUG
+    func appRecoveryPresentationWorkflowForTesting<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant,
+        _ body: @escaping @MainActor (SharedMediaNativeAppRecoveryPresentationOperations) async throws -> T) async throws -> T {
+        try await withAppDispatch { storage, grant in try await body(storage.appRecoveryPresentationForTesting(grant: grant, lock: lock)) }
+    }
+    #endif
     func stageAppReceivingWithAdmission(metadata: SharedMediaNativeAppMetadataRequest, pairIDs: [UUID],
         authorize: @escaping @MainActor (UUID) async throws -> IdentificationDispatchAuthorization) async throws -> SharedMediaNativeReceivingIntent.Prepared {
         try await withAppDispatch { try await self.stageAppReceivingWithAdmission(metadata: metadata, pairIDs: pairIDs, authorize: authorize, storage: $0, grant: $1, releaseStage: self.releaseStageSettlement) }
@@ -299,12 +305,13 @@ final class SharedMediaNativeOriginalOwner {
         guard phase == .ready, cancelActive == nil, let storage else { throw SharedMediaStorageFailure.closed }
         await storage.setAcquisitionEntryPause(pause, transferReadFault: transferReadFault)
     }
+    func configureIdleDebugHooksForTesting(_ configuration: SharedMediaNativeDebugHooks.Configuration) throws {
+        guard phase == .ready, cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }
+        debug.apply(configuration)
+    }
     var inspectionAuditCount: Int { debug.inspectionAuditCount }
     var hasInspectionTraceForTesting: Bool { debug.inspectionTrace != nil }
-    func setMetadataFault(_ fault: ((SharedMediaNativeMetadataBoundary) throws -> Void)?, availableBytes: Int64? = nil, inspectionTrace: SharedMediaNativeDebugHooks.InspectionTrace? = nil, inspectionReadFault: (() throws -> Void)? = nil, inspectionPageFault: (() async throws -> Void)? = nil) throws {
-        guard phase == .ready, cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }
-        debug.metadataFault = fault; debug.metadataAvailableBytes = availableBytes; debug.inspectionTrace = inspectionTrace; debug.inspectionReadFault = inspectionReadFault; debug.inspectionPageFault = inspectionPageFault
-    }
+
     #endif
 
     func qualificationWorkflow<T: Sendable>(recovery: Bool = false,
@@ -317,19 +324,6 @@ final class SharedMediaNativeOriginalOwner {
             return try await body(storage.qualificationOperations(grant: grant))
         }
     }
-    #if DEBUG
-    func setLifecycleFault(_ fault: ((SharedMediaNativeLifecycleBoundary) throws -> Void)?, availableBytes: Int64? = nil) throws {
-        guard phase == .ready, cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }; debug.lifecycleFault = fault
-        debug.lifecycleAvailableBytes = availableBytes
-    }
-
-    func setPreparationFault(_ fault: ((SharedMediaNativePreparationBoundary) throws -> Void)?, availableBytes: Int64? = nil, focusFactory: ImageFocusWorkFactory = .init(), fileEpochObserved: ((UUID) -> Void)? = nil) throws {
-        guard phase == .ready, cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }
-        debug.preparationFault = fault; debug.preparationAvailableBytes = availableBytes; debug.preparationFocusFactory = focusFactory
-        debug.preparationFileEpochObserved = fileEpochObserved
-    }
-    #endif
-
     /// Exact saved acknowledgement precedes current physical availability checks.
     func freeze(_ request: SharedMediaNativeFreezeRequest) async throws -> SharedMediaNativeFreezeCommit {
         guard phase == .ready, pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }

@@ -275,7 +275,7 @@ final class SharedMediaNativeStorageRepository {
             try self.requireApp(grant); return try self.appHeader()
         }
         return try await .audited(container: container, authority: authority,
-            availableBytes: { try self.files.availableBytes() }, boundary: metadataBoundary)
+            availableBytes: { try self.files.availableBytes() }, boundary: grant.metadataBoundary)
     }
     func appPreparation(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeAppPreparationOperations {
         try requireApp(grant)
@@ -344,14 +344,20 @@ final class SharedMediaNativeStorageRepository {
     func appReceiving(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant, releaseStage: SharedMediaNativeReleaseStageSettlement) async throws -> SharedMediaNativeAppReceivingOperations {
         let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try lock.validate(); try self.requireApp(grant); return try self.appHeader() }
         return try await .audited(container: container, authority: authority, io: originalIO, binding: nativeBinding,
-            availableBytes: { try self.files.availableBytes() }, boundary: metadataBoundary,
+            availableBytes: { try self.files.availableBytes() }, boundary: grant.metadataBoundary,
             received: { try releaseStage.received($0, profile: $1) }, verifyCompletion: { try self.photos.requireCurrentPairCompletion($0, binding: self.nativeBinding) }, verify: { try self.photos.requireCurrentSharedInspection($0) })
     }
     func appPhotoAllocation(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant) async throws -> SharedMediaNativeAppPhotoAllocationOperations {
         let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try lock.validate(); try self.requireApp(grant); return try self.appHeader() }
         let seal: (SharedMediaPhotoRetirementInspection, SharedMediaNativePairCompletion?) throws -> Void = { try self.photos.requireCurrentSharedInspection($0); if let proof = $1 { try self.photos.requireCurrentPairCompletion(proof, binding: self.nativeBinding) } }
-        return try await .audited(container: container, authority: authority, io: originalIO, sealTransfer: seal, availableBytes: { try grant.limitingAllocationAvailableBytes(self.files.availableBytes()) }, boundary: metadataBoundary, readCheckpoint: { try lock.validate(); try grant.validate(); try self.requireAppIdentity(profile: grant.profile, epoch: grant.writerEpoch, databaseReadOnly: true); return try self.appHeader() }, configureAudit: grant.configureInspection)
+        return try await .audited(container: container, authority: authority, io: originalIO, sealTransfer: seal, availableBytes: { try grant.limitingAllocationAvailableBytes(self.files.availableBytes()) }, boundary: grant.metadataBoundary, readCheckpoint: { try lock.validate(); try grant.validate(); try self.requireAppIdentity(profile: grant.profile, epoch: grant.writerEpoch, databaseReadOnly: true); return try self.appHeader() }, configureAudit: grant.configureInspection)
     }
+    #if DEBUG
+    func appRecoveryPresentationForTesting(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant) -> SharedMediaNativeAppRecoveryPresentationOperations {
+        let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try lock.validate(); try self.requireApp(grant); return try self.appHeader() }
+        return .init(container: container, authority: authority, availableBytes: { try grant.limitingAllocationAvailableBytes(self.files.availableBytes()) }, boundary: grant.metadataBoundary, configureAudit: grant.configureInspection)
+    }
+    #endif
     func appReleaseStage(grant: SharedMediaNativeAppDispatchGrant, lock: SharedMediaNativeReceivingLockGrant,
                          settlement: SharedMediaNativeReleaseStageSettlement) async throws -> SharedMediaNativeAppReleaseStageOperations {
         let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try lock.validate(); try self.requireApp(grant); return try self.appHeader() }
@@ -361,7 +367,7 @@ final class SharedMediaNativeStorageRepository {
             verifyOriginal: { try self.photos.currentHeldOriginalInspection($0, binding: self.nativeBinding) },
             requireOriginalAbsence: { try self.photos.requireNativeAbsence($0.file, retirement: $0.identity, binding: self.nativeBinding) },
             verifyPrefix: { try $0.verify(files: self.photos, binding: self.nativeBinding) },
-            recoveryHeader: { try self.requireAppIdentity(profile: profile, epoch: epoch); return try self.appHeader() }, boundary: metadataBoundary)
+            recoveryHeader: { try self.requireAppIdentity(profile: profile, epoch: epoch); return try self.appHeader() }, boundary: grant.metadataBoundary)
     }
     func appAcquisition(grant: SharedMediaNativeAppDispatchGrant, request: SharedMediaAcquisitionIntent?) async throws -> SharedMediaNativeAppAcquisitionOperations {
         try requireApp(grant)
@@ -418,7 +424,7 @@ final class SharedMediaNativeStorageRepository {
         let value = try SharedMediaNativeQualificationOperations(container: container, inventoryID: inventoryID,
             authority: dispatchAuthority(grant), io: originalIO, checkDispatch: { try self.requireDispatch(grant) }, availableBytes: { try self.files.availableBytes() },
             verifyProof: { try self.photos.requireCurrentSharedInspection($0) },
-            acquisitionBoundary: acquisitionBoundary, metadataBoundary: metadataBoundary)
+            acquisitionBoundary: acquisitionBoundary, metadataBoundary: grant.metadataBoundary)
         #if DEBUG
         return value.withDebug(debug)
         #else
@@ -432,12 +438,6 @@ final class SharedMediaNativeStorageRepository {
         let authority = try mutationAuthority { try self.requireSettlement(grant) }
         return try SharedMediaNativeQualificationPersistence.settle(container: container, inventoryID: inventoryID,
             grant: grant, authority: authority, boundary: acquisitionBoundary)
-    }
-
-    private func metadataBoundary(_ point: SharedMediaNativeMetadataBoundary) throws {
-        #if DEBUG
-        try debug?.metadataFault?(point)
-        #endif
     }
     private func requireDispatch(_ grant: SharedMediaNativeDispatchGrant) throws {
         try grant.validate()

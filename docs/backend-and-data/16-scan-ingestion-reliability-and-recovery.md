@@ -434,11 +434,11 @@ passed in 247.491 seconds; three selected methods / three cases passed with zero
 failures/skips in 272.010 seconds, retaining all 6,819 input hashes
 (`rux-native-presentation-runway-runtime01-reconciled.json`). Tests use separate
 fixture roots to qualify descriptive arithmetic and preserve the existing
-execution-replacement and aggregate calculations. This helper is not yet wired
-to a writer and grants no positive-state or release-phase mutation authority.
-The next owner transaction must supply a sealed positive-state read/save proof,
-exact queue/inventory write set and durable acknowledgement before a visible
-clock.
+execution-replacement and aggregate calculations. The helper now participates in
+the first-reserve proof and qualification owner below; it grants no independent
+positive-state or release-phase mutation authority. Ordinary owner admission
+still requires positive audit/cleanup and settlement qualification before a
+visible clock.
 
 The transaction-proof component starts from an exact validated nil
 received/allocating set and retains its canonical quartet fields, slot and
@@ -461,9 +461,55 @@ includes consecutive fixture-only reserve/settle/re-reserve, cold-proof refusal,
 exact write/predecessor and queue-collision checks, deletion/release-marker
 rejection and rejection after intervening inventory progress. This does not
 qualify live owner/account authority, capacity admission, uncertain saves or UI.
-The remaining owner wiring must establish current account/lock authority,
-512-byte package/global/free-space admission, full peer audit and save-error
-handling before enabling any presentation persistence.
+The first-reserve qualification owner below supplies account/lock authority,
+512-byte admission, fresh peer auditing and acknowledgement handling. Ordinary
+positive-state persistence, settlement and cleanup remain closed.
+
+The next owner checkpoint adds a DEBUG-only first-reserve transaction through
+`SharedMediaNativeOriginalOwner`'s existing canonical locks and account dispatch
+lease. Its actual container must be an on-disk disposable database beneath the
+process temporary directory in a test host. Ordinary Application Support stores
+are rejected. Both complete nil-state audits, the final current authority check,
+capacity/runway admission and exact predecessor check precede the single save.
+The extra 512 bytes are charged once to package/global durable storage and free
+space, outside immutable legacy receiving funding. The write set remains only
+the queue presentation and inventory successor.
+
+A failed acknowledgement retains the original opaque in-memory attempt. Explicit
+reconciliation reacquires locks/account authority and only reads the exact
+successor; it cannot save, replace the reservation or recreate a missing queue.
+The attempt is bound to the original container/profile/writer epoch and holds no
+idle lease or clock. Before-save failure leaves the predecessor; after-save
+failure can acknowledge only an exact fresh read under current authority;
+unreadable/divergent state remains unacknowledged. Managed compile04 passed in
+75.678 seconds after compile03 passed in 200.264 seconds; the final test-only
+change uses a weak owner capture in the active-guard assertion. Runtime01
+reconciled nine methods / 13 cases passed with zero failures/skips in 449.575
+seconds, all 6,823 source inputs unchanged
+(`rux-native-owner-runtime01-reconciled.json`). Cases cover received/allocated
+first reserve, duplicate refusal, read-only reconciliation, before/after-save
+and unreadable-acknowledgement faults, exact/+1 free-space admission,
+same-header peer corruption, deleted queue and ordinary-store refusal. Existing
+V1/V2 lost-save-acknowledgement and proof interleaving regressions passed.
+
+Retained failures: cheap preflight caught file-size limits; source review found
+an escaping mutable DEBUG hooks accessor, replaced with closed typed
+configuration through the original idle guard (HQ-031). Compilation caught a
+missed V1 callback reference (31.549 seconds) and a test image-loader isolation
+issue (178.141 seconds). The latter source-review finding was missed before that
+build; it was corrected on the test actor afterward. The moved diagnostic
+callback preserves the same owner hooks and Release no-op; active-operation
+setters and both callback families have focused regression evidence.
+
+These cases do not inject failure inside `ModelContext.save()`, account loss
+during a save/acknowledgement, populated package/global byte-limit edges,
+release races or production cleanup. Owner settlement remains unimplemented: a
+retained header alone cannot prove unchanged peers, and the existing audits need
+explicit positive-state support first. No new full-store fingerprint mechanism
+or general reader exemption is introduced. Positive fixture state cannot use
+ordinary cleanup and must never enter a user store. UI, visible clocks, cold
+recovery, positive cleanup and reanalysis wiring remain unqualified and
+inactive.
 
 The intended first admission atomically saves the first reserved value at
 revision one: its inventory save consumes one advance and the value retains 59
@@ -471,12 +517,14 @@ future transitions, in addition to existing execution/peer/cleanup obligations.
 Native identity comes from the accepted receiving operation; reanalysis identity
 comes from its exact child analysis. Reanalysis uses its own queue owner and
 requires separate accounting integration. Neither may infer identity from the
-current selection. No writer, timer, UI action or activation is installed here.
-The focused suite passed 10 methods / 28 cases with zero failures/skips in
-`rux-liability-runtime01-reconciled.json` (70.385 seconds), following managed
-compilation in 342.006 seconds and independent source review in 12.775 seconds.
-All 6,816 inputs remained unchanged. This qualifies the value projection only;
-the native companion-accounting and persistence integration remains open.
+current selection. No ordinary writer, timer, UI action or activation is
+installed here; the disposable-store first-reserve qualification entry is
+described above. The focused suite passed 10 methods / 28 cases with zero
+failures/skips in `rux-liability-runtime01-reconciled.json` (70.385 seconds),
+following managed compilation in 342.006 seconds and independent source review
+in 12.775 seconds. All 6,816 inputs remained unchanged. This qualifies the value
+projection only; the native companion-accounting and persistence integration
+remains open.
 
 ## October 31 — bounded recovery presentation value
 

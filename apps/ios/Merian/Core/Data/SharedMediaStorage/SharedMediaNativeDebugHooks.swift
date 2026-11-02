@@ -156,3 +156,59 @@ extension SharedMediaNativeAppDispatchGrant {
         return actual
     }
 }
+
+#if DEBUG
+@MainActor
+extension SharedMediaNativeOriginalOwner {
+    func setMetadataFault(_ fault: ((SharedMediaNativeMetadataBoundary) throws -> Void)?, availableBytes: Int64? = nil, inspectionTrace: SharedMediaNativeDebugHooks.InspectionTrace? = nil, inspectionReadFault: (() throws -> Void)? = nil, inspectionPageFault: (() async throws -> Void)? = nil) throws {
+        try configureIdleDebugHooksForTesting(.metadata(fault, availableBytes, inspectionTrace, inspectionReadFault, inspectionPageFault))
+    }
+    func setLifecycleFault(_ fault: ((SharedMediaNativeLifecycleBoundary) throws -> Void)?, availableBytes: Int64? = nil) throws {
+        try configureIdleDebugHooksForTesting(.lifecycle(fault, availableBytes))
+    }
+    func setPreparationFault(_ fault: ((SharedMediaNativePreparationBoundary) throws -> Void)?, availableBytes: Int64? = nil, focusFactory: ImageFocusWorkFactory = .init(), fileEpochObserved: ((UUID) -> Void)? = nil) throws {
+        try configureIdleDebugHooksForTesting(.preparation(fault, availableBytes, focusFactory, fileEpochObserved))
+    }
+}
+#endif
+
+@MainActor
+extension SharedMediaNativeAppDispatchGrant {
+    func metadataBoundary(_ point: SharedMediaNativeMetadataBoundary) throws {
+        #if DEBUG
+        try debug.metadataFault?(point)
+        #endif
+    }
+}
+
+#if DEBUG
+extension SharedMediaNativeDebugHooks {
+    enum Configuration {
+        case metadata(((SharedMediaNativeMetadataBoundary) throws -> Void)?, Int64?, InspectionTrace?,
+                      (() throws -> Void)?, (() async throws -> Void)?)
+        case lifecycle(((SharedMediaNativeLifecycleBoundary) throws -> Void)?, Int64?)
+        case preparation(((SharedMediaNativePreparationBoundary) throws -> Void)?, Int64?, ImageFocusWorkFactory, ((UUID) -> Void)?)
+    }
+    func apply(_ configuration: Configuration) {
+        switch configuration {
+        case .metadata(let fault, let available, let trace, let read, let page):
+            metadataFault = fault; metadataAvailableBytes = available; inspectionTrace = trace
+            inspectionReadFault = read; inspectionPageFault = page
+        case .lifecycle(let fault, let available):
+            lifecycleFault = fault; lifecycleAvailableBytes = available
+        case .preparation(let fault, let available, let factory, let observed):
+            preparationFault = fault; preparationAvailableBytes = available
+            preparationFocusFactory = factory; preparationFileEpochObserved = observed
+        }
+    }
+}
+#endif
+
+@MainActor
+extension SharedMediaNativeDispatchGrant {
+    func metadataBoundary(_ point: SharedMediaNativeMetadataBoundary) throws {
+        #if DEBUG
+        try debug.metadataFault?(point)
+        #endif
+    }
+}
