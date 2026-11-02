@@ -440,6 +440,31 @@ The next owner transaction must supply a sealed positive-state read/save proof,
 exact queue/inventory write set and durable acknowledgement before a visible
 clock.
 
+The transaction-proof component starts from an exact validated nil
+received/allocating set and retains its canonical quartet fields, slot and
+inventory identity. It permits only presentation bytes plus one inventory
+revision in the dirty write set. A scoped positive reader checks the same
+collision joins and accepts only the proof's exact predecessor/successor; the
+ordinary nil-only reader is unchanged. Subsequent settlement retains the
+original in-memory reservation; cold positive bytes cannot mint that proof. This
+is a write-seal/readback component, not owner save authority or an acknowledged
+visible budget. Chaining requires the exact inventory successor and unchanged
+slot; intervening execution or unrelated inventory progress rejects settlement
+rather than refreshing its proof. The raw scoped quartet reader alone does not
+establish current slot/inventory/account authority; only the proof's checked
+entry points compare those persisted slot/inventory values. Managed compilation
+passed in 333.042 seconds after correcting a missing inner try in a test
+assertion (the 186.762-second failed build is retained). Four selected methods /
+four cases passed with zero failures/skips in 175.753 seconds, with all 6,821
+input hashes unchanged (`rux-native-proof-runtime01-reconciled.json`). Coverage
+includes consecutive fixture-only reserve/settle/re-reserve, cold-proof refusal,
+exact write/predecessor and queue-collision checks, deletion/release-marker
+rejection and rejection after intervening inventory progress. This does not
+qualify live owner/account authority, capacity admission, uncertain saves or UI.
+The remaining owner wiring must establish current account/lock authority,
+512-byte package/global/free-space admission, full peer audit and save-error
+handling before enabling any presentation persistence.
+
 The intended first admission atomically saves the first reserved value at
 revision one: its inventory save consumes one advance and the value retains 59
 future transitions, in addition to existing execution/peer/cleanup obligations.

@@ -140,6 +140,21 @@ enum SharedMediaNativeReceivingRows {
         return rows
     }
 
+    /// A typed transaction proof preserves the complete canonical nil baseline
+    /// while admitting only its exact presentation predecessor/successor. The
+    /// ordinary read/validate entry points above remain nil-only. This quartet
+    /// reader alone does not establish current slot/inventory/account authority;
+    /// callers use the proof's checked predecessor/successor entry points.
+    static func readPresentation(in context: ModelContext, proof: SharedMediaNativeRecoveryPresentationPoststate) throws -> Set {
+        let found = try matches(.init(proof.transaction), in: context)
+        guard found.consumers.count == 1, found.queues.count == 1, found.jobs.count == 1, found.events.count == 1,
+              let consumer = found.consumers.first, let queue = found.queues.first,
+              let job = found.jobs.first, let event = found.events.first else { throw SharedMediaStorageFailure.conflict }
+        let rows = Set(consumer: consumer, queue: queue, job: job, event: event)
+        try proof.requireRows(rows)
+        return rows
+    }
+
     static func validate(_ rows: Set, request r: SharedMediaNativeAppReceivingRequest) throws {
         try validate(rows, request: SharedMediaNativeReceivingIntent.Transaction(r))
     }
