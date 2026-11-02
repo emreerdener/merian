@@ -74,9 +74,11 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         }
         switch witness {
         case .allocating(let snapshot):
+            guard snapshot.recoveryPresentationData == nil else { throw SharedMediaStorageFailure.closed }
             guard try snapshot.prepared.encoded() == prepared.encoded() else { throw SharedMediaStorageFailure.stale }
             return snapshot.allocation
         case .generic(let value):
+            guard value.recoveryPresentationData == nil else { throw SharedMediaStorageFailure.closed }
             guard case .received(let p, _, _) = value.slot, try p.encoded() == prepared.encoded() else { throw SharedMediaStorageFailure.closed }
             return nil
         case .staged, .releasing: throw SharedMediaStorageFailure.closed
@@ -458,6 +460,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         let context = fresh(), inventory = try inventory(context)
         guard let row = try SharedMediaNativeReceivingPhaseGraph.row(prepared.package.id, in: context) else { throw SharedMediaStorageFailure.stale }
         let snapshot = try Snapshot.read(.init(row), inventory: inventory, context: context)
+        guard snapshot.recoveryPresentationData == nil else { throw SharedMediaStorageFailure.closed }
         guard try snapshot.prepared.encoded() == prepared.encoded(), snapshot.allocation == allocation else { throw SharedMediaStorageFailure.stale }
         _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: context, inventory: inventory,
             ownerID: authority.profile.ownerID, format: .appV2)

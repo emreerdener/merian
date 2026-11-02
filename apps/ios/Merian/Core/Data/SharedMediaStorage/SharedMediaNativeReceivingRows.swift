@@ -132,12 +132,28 @@ enum SharedMediaNativeReceivingRows {
             guard found.isEmpty else { throw SharedMediaStorageFailure.conflict }
             return nil
         }
+        let rows = try exact(found)
+        try validate(rows, request: r)
+        return rows
+    }
+
+    /// Descriptive accepted state for the complete native graph. This does not
+    /// reconstruct a live reservation or grant execution/release authority.
+    static func readObserved(_ r: SharedMediaNativeReceivingIntent.Transaction, in c: ModelContext) throws -> Set {
+        let rows = try exact(matches(.init(r), in: c))
+        try validateFields(rows, request: r)
+        guard let observationID = UUID(uuidString: r.cohort.observationID),
+              observationID.uuidString.lowercased() == r.cohort.observationID else { throw SharedMediaStorageFailure.conflict }
+        _ = try AnalysisRecoveryPresentation.storageLiability(rows.queue.recoveryPresentationData,
+            identity: .init(ownerID: r.profile.ownerID, observationID: observationID, operationID: r.freeze.commit.operationID))
+        return rows
+    }
+
+    private static func exact(_ found: Matches) throws -> Set {
         guard found.consumers.count == 1, found.queues.count == 1, found.jobs.count == 1, found.events.count == 1,
               let consumer = found.consumers.first, let queue = found.queues.first,
               let job = found.jobs.first, let event = found.events.first else { throw SharedMediaStorageFailure.conflict }
-        let rows = Set(consumer: consumer, queue: queue, job: job, event: event)
-        try validate(rows, request: r)
-        return rows
+        return Set(consumer: consumer, queue: queue, job: job, event: event)
     }
 
     /// A typed transaction proof preserves the complete canonical nil baseline
@@ -159,6 +175,10 @@ enum SharedMediaNativeReceivingRows {
         try validate(rows, request: SharedMediaNativeReceivingIntent.Transaction(r))
     }
     static func validate(_ rows: Set, request r: SharedMediaNativeReceivingIntent.Transaction) throws {
+        guard rows.queue.recoveryPresentationData == nil else { throw SharedMediaStorageFailure.conflict }
+        try validateFields(rows, request: r)
+    }
+    private static func validateFields(_ rows: Set, request r: SharedMediaNativeReceivingIntent.Transaction) throws {
         let consumer = rows.consumer, queue = rows.queue, job = rows.job, event = rows.event, value = r.cohort
         guard consumer.id == value.bindingID, consumer.cursorKey == value.bindingID.uuidString.lowercased(),
               consumer.kindRaw == "queue", consumer.consumerID == value.originQueueID,
@@ -175,7 +195,7 @@ enum SharedMediaNativeReceivingRows {
               queue.workKindRaw == "ordinary", queue.parentObservationID == nil, queue.sourceAnalysisID == nil,
               queue.reanalysisOwnerAccountID == nil, queue.scanStateRaw == ScanQueueState.pending.rawValue,
               queue.queueNeedsAttention, queue.queueAttemptCount == 0, queue.queueSchemaRepairGeneration == 1,
-              queue.recoveryPresentationData == nil, queue.capturedMediaJSON == nil, queue.capturedMediaEntries?.isEmpty != false,
+              queue.capturedMediaJSON == nil, queue.capturedMediaEntries?.isEmpty != false,
               queue.coverImagePath == nil, queue.inferenceImagePaths == nil, queue.visualMediaItemsJSON == nil,
               queue.fieldNotes == nil, queue.stagedR2Keys == nil, queue.queueLastAttemptAt == nil,
               queue.queueNextRetryAt == nil, queue.queueLastErrorCode == nil, queue.queueLastErrorMessage == nil,

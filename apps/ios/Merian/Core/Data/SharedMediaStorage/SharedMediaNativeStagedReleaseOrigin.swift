@@ -60,6 +60,7 @@ struct SharedMediaNativeStagedReleaseOrigin {
               header.inventory.revision >= staged.inventory.revision else { throw SharedMediaStorageFailure.stale }
         let transaction = try received.reconstruct(prepared)
         let rows = try SharedMediaNativeReceivingPhaseGraph.receivedRows(transaction, context: context)
+        guard rows.queue.recoveryPresentationData == nil else { throw SharedMediaStorageFailure.closed }
         _ = try SharedMediaNativeReceivingRows.recoveryPresentation(rows.queue.recoveryPresentationData, prepared: prepared)
         let value = Self(row: row, prepared: prepared, received: received,
             transaction: transaction, request: request, header: header, recoveryPresentationData: rows.queue.recoveryPresentationData)

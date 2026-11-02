@@ -133,10 +133,9 @@ enum SharedMediaNativeReceivingPhaseGraph {
               (origin.preparedRevision == 0 && origin.restagedFromSHA256 == nil) ||
                 (origin.preparedRevision > 0 && origin.restagedFromSHA256 != nil),
               SharedMediaNativeAppMetadataFacts.Package(package) == (try transaction.frozenPackage()),
-              SharedMediaNativeAppMetadataFacts.Member(member) == transaction.member,
-              let rows = try SharedMediaNativeReceivingRows.read(transaction, in: context, absent: false) else {
+              SharedMediaNativeAppMetadataFacts.Member(member) == transaction.member else {
             throw SharedMediaStorageFailure.conflict
         }
-        return rows
+        return try SharedMediaNativeReceivingRows.readObserved(transaction, in: context)
     }
 }

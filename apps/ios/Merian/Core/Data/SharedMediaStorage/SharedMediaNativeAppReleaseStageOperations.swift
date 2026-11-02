@@ -67,7 +67,9 @@ final class SharedMediaNativeAppReleaseStageOperations {
         guard let witness = try SharedMediaNativeReceivingCleanGraph.pending(c, inventory: inventory)[packageID] else { return nil }
         switch witness {
         case .allocating: throw SharedMediaStorageFailure.closed
-        case .generic: return nil
+        case .generic(let value):
+            guard value.recoveryPresentationData == nil else { throw SharedMediaStorageFailure.closed }
+            return nil
         case .staged(let value): return .staged(value.origin.request)
         case .releasing(let value): return .releasing(value.release.progress)
         }
@@ -96,6 +98,7 @@ final class SharedMediaNativeAppReleaseStageOperations {
         guard settlement.request == nil, try discover(packageID: packageID) == nil else { throw SharedMediaStorageFailure.closed }
         let snapshot = try Reader.read(packageID: packageID, inventoryID: authority.profile.inventoryID,
             releaseID: releaseID, context: fresh(), checkpoint: validate)
+        guard snapshot.components.recoveryPresentationData == nil else { throw SharedMediaStorageFailure.closed }
         let request = try Request(prepared: snapshot.components.prepared, received: snapshot.components.received,
             stagePreHeader: expected, releaseID: releaseID)
         return try settlement.issue(request, row: snapshot.slot)
@@ -223,6 +226,7 @@ final class SharedMediaNativeAppReleaseStageOperations {
         try SharedMediaNativeTerminalScan.requireAbsent([request.releaseID], container: container, inventoryID: inventory.id)
         try SharedMediaNativeReleaseStageIdentity.direct(request.releaseID, context: context)
         let snapshot = try Reader.prospectiveStage(request, context: context, checkpoint: validate)
+        guard snapshot.predecessor.components.recoveryPresentationData == nil else { throw SharedMediaStorageFailure.closed }
         let others = try PhotoPreparationPolicy.add(witnesses.values.map { try $0.remainingAdvances })
         let terminals = try SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id).consumptionAdvances
         let needed = try PhotoPreparationPolicy.add([terminals, 2, snapshot.predecessor.components.progress.remainingAdvances, others])

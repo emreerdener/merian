@@ -504,12 +504,56 @@ setters and both callback families have focused regression evidence.
 These cases do not inject failure inside `ModelContext.save()`, account loss
 during a save/acknowledgement, populated package/global byte-limit edges,
 release races or production cleanup. Owner settlement remains unimplemented: a
-retained header alone cannot prove unchanged peers, and the existing audits need
-explicit positive-state support first. No new full-store fingerprint mechanism
-or general reader exemption is introduced. Positive fixture state cannot use
-ordinary cleanup and must never enter a user store. UI, visible clocks, cold
-recovery, positive cleanup and reanalysis wiring remain unqualified and
-inactive.
+retained header alone cannot prove unchanged peers. Positive fixture state
+cannot use ordinary cleanup and must never enter a user store. UI, visible
+clocks, positive cleanup and reanalysis wiring remain unqualified and inactive.
+
+The next integration candidate connects the existing complete native graph to
+`SharedMediaNativeReceivingRows.readObserved`. It shares every quartet scalar
+check with ordinary `read/validate`, which remain nil-only, and additionally
+requires canonical bounded presentation bytes bound to the accepted
+transaction's account, observation and operation. It creates no live reservation
+or clock and adds no second store fingerprint. This shared seam also affects
+mutation owners: allocation discovery explicitly rejects positive state before
+authorizing or sending requests; allocation acknowledgement and
+live-continuation readback repeat that denial. Release
+discovery/admission/pre-save checks reject it before saving a stage. Staged
+positive origins remain closed. Exact receiving replay may return its historical
+acknowledgement without another save.
+
+Complete audits and existing peer facts/accounting can now observe positive
+received/allocated state, preserving its separate 512-byte liability and exact
+raw bytes across independent package mutations. Cold active bytes still mean
+Needs attention. The previous nil-only descriptions record the earlier
+checkpoints. The production presentation writer, owner settlement and positive
+cleanup remain unavailable.
+
+Managed compilation passed in 341.990 seconds; the test-only correction rebuild
+passed in 128.617 seconds. The initial focused run executed nine methods / 16
+cases in 820.605 seconds, with 12 passing and four failing cases across two
+methods. Three fixture mistakes caused those failures: using the generic slot
+decoder for allocated state, omitting the ticket's required remote-attempt
+reservation, and injecting before an earlier receiving read rather than the
+allocation's saved boundary. After correcting those tests, the affected two
+methods / six cases passed with zero failures/skips in 364.335 seconds. The
+unchanged seven methods / ten passing cases remain applicable; the original
+16-case run remains recorded as failed. Evidence is
+`rux-native-observed-runtime01-reconciled.json` and
+`rux-native-observed-runtime02-scoped-reconciled.json`.
+
+Independent source review caught an additional allocation readback admission gap
+(HQ-032), fixed before these runs. Four cases now inject positive bytes after
+allocation save or at its readback, proving that neither create nor ticket send
+occurs and the single committed allocation remains held. Other cases cover cold
+received/allocated audit and exact 512-byte accounting, malformed/foreign and
+noncanonical state, unchanged ordinary nil-only validation, no-save receiving
+replay, positive-peer acquisition, release pre-save rejection, and prior owner
+acknowledgement regressions. Compile01's wrong raw queue adapter failure
+(158.429 seconds) is retained. Unrelated web edits occurred during the final
+build/test: the standard whole-repository freeze assertion correctly refused
+them. Scoped reconciliation verified unchanged candidate/iOS inputs and actual
+selected coverage, retaining the web differences and original receipts. No
+whole-repository freeze, full journey or release qualification is claimed.
 
 The intended first admission atomically saves the first reserved value at
 revision one: its inventory save consumes one advance and the value retains 59
