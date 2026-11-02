@@ -2,12 +2,17 @@
 
 The shared `AnalysisRecoveryPresentation` value defines bounded, exact-operation
 presentation accounting for initial analysis and reanalysis. It is not a new
-operation owner and has no persistence or execution consumer yet. Native queue
-admission remains nil-only pending separately charged sidecar integration. See
-the
-[recovery contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--bounded-recovery-presentation-value)
-for the 30-second budget, finite transitions, interrupted checks and remaining
-owner integration.
+operation owner or execution authority. The existing native owner now qualifies
+first reservation and one-shot settlement on DEBUG disposable stores, with
+separate 512-byte accounting, exact acknowledgement and original
+live-reservation ownership. Complete native audits can observe positive state;
+ordinary receiving validation and positive allocation/cleanup admission remain
+closed. Reanalysis queue persistence, a visible monotonic clock and
+result-checking UI integration remain unqualified and inactive. See the
+[current recovery contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#november-1--recovery-presentation-liability-projection)
+for implemented transitions, focused evidence and remaining integration; the
+[value contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--bounded-recovery-presentation-value)
+records the 30-second budget and finite transition rules.
 
 This prepared boundary is separate from ordinary `Database/HistoricalSync`,
 which hydrates the current scan projection. Ordinary history admission remains
