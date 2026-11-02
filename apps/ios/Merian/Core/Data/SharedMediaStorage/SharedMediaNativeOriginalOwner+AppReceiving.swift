@@ -22,6 +22,22 @@ extension SharedMediaNativeOriginalOwner {
         return try ScanLifecycleResponseDecoder.status(from: data, expectedScanID: scanID.uuidString.lowercased()).isFound
     }
     #if DEBUG
+    func reserveAppRecoveryPresentationForTesting(_ candidate: SharedMediaNativeReceivedCandidate,
+        storage: SharedMediaNativeStorageRepository, grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeRecoveryPresentationAttempt {
+        let query = SharedMediaNativeReceivingQuery.received(candidate)
+        let saved = try await storage.appReceivingRead(grant: grant, query: query)
+        return try await withReceivingLocks(queueID: saved.prepared.queueID.uuidString, observationID: saved.prepared.observationID.uuidString) { lock in
+            _ = try await storage.appReceivingRead(grant: grant, query: query)
+            let result = try await storage.appRecoveryPresentationForTesting(grant: grant, lock: lock).reserve(saved.prepared, reservationID: UUID())
+            _ = try storage.requireAppReceivingRead(grant: grant, query: query)
+            return result
+        }
+    }
+    func reserveAgainAppRecoveryPresentationForTesting(_ attempt: SharedMediaNativeRecoveryPresentationAttempt) async throws -> SharedMediaNativeRecoveryPresentationAttempt {
+        try await withReceivingLocks(queueID: attempt.prepared.queueID.uuidString, observationID: attempt.prepared.observationID.uuidString) { lock in
+            try await self.appRecoveryPresentationWorkflowForTesting(lock: lock) { try await $0.reserveAgain(attempt, reservationID: UUID()) }
+        }
+    }
     func reserveAppRecoveryPresentationForTesting(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
         reservationID: UUID) async throws -> SharedMediaNativeRecoveryPresentationAttempt {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in

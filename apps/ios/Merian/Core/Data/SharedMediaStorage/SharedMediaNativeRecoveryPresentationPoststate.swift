@@ -19,6 +19,7 @@ struct SharedMediaNativeRecoveryPresentationPoststate {
     private let beforeQueue: Fields, afterQueue: Fields
     private let reservation: AnalysisRecoveryPresentation.Reservation?
     let successor: AnalysisRecoveryPresentation
+    var visibleAllowance: Duration? { reservation?.visibleAllowance }
 
     init(prepared: SharedMediaNativeReceivingIntent.Prepared, reservationID: UUID,
          context: ModelContext, inventory: SharedMediaInventoryRecord) throws {

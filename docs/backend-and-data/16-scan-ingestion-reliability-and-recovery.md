@@ -1,3 +1,64 @@
+## November 2 — inactive native visible-checking integration candidate
+
+`CaptureNativeRecoveryModel` now connects explicit result checking to the native
+reservation/status/settlement owners. Local discovery, selection and foreground
+remain read-only and never start a result check. The existing sheet separates
+local discovery from result-checking presentation; an available result is not
+imported or selected. Availability is bound to the exact displayed candidate.
+
+Only the DEBUG disposable-store factory in `CaptureNativeRecoveryComposition`
+can construct presentation persistence access. Ordinary app composition still
+supplies no status access and remains disabled. No production store, hosted
+request, feature activation or result-consumption authority is added.
+
+After the original reserve save is acknowledged, the model starts a
+`ContinuousClock` interval with that proof's remaining allowance. It freezes
+elapsed time synchronously at Pause, Close, inactive scene, response or expiry,
+cancels the status task, then retains cleanup until the original task drains and
+settlement completes. A late reservation acknowledgement cannot start a hidden
+clock: the same cleanup can settle zero visible time from that original attempt.
+An uncertain acknowledgement retains the conservative full charge. Reopening
+waits for cleanup; foreground does not restart checking. Losing the model after
+Close does not drop its self-retaining cleanup task.
+
+A subsequent reserve consumes only the initially acknowledged settlement's
+one-use continuation. It requires the exact successor header and persisted
+proof, full graph audits, unchanged 512-byte liability, free-space guard and
+finite transition/runway checks. It receives the remaining allowance rather than
+another 30 seconds. Reconciliation cannot upgrade acknowledgement, renew a spent
+continuation, rebase inventory, or reconstruct cold reservation authority.
+Failed/uncertain attempts remain retained in the existing access for the life of
+the presentation. Explicit status without a renewed spinner does not authorize
+another execution. Positive allocation/release/cleanup gates remain closed.
+
+The model offers `closeAndWait`; native account shutdown independently drains
+its active dispatch grants and denies a stale cleanup settlement. The ordinary
+host does not yet await the entire model cleanup task during account teardown.
+That explicit quiescence wiring remains required before activation or claiming
+complete recovery lifecycle qualification. Native result import, full
+photo/audio/video recovery journeys, visual/device qualification and the wider
+RUX acceptance remain open.
+
+Managed app/test compilation passed in 300.340 seconds. Focused execution
+reconciled 14 methods / 25 actual cases, zero failures/skips, in 878.685
+seconds. The affected existing host regressions separately passed four methods /
+ten cases in 42.686 seconds. All 6,826 pinned inputs remained unchanged through
+each run. Evidence is retained under `rux-clock-` in
+`.artifacts/native-app-capture-handoff-20261020`.
+
+Coverage includes actual intercepted status checks with subsequent reservations,
+remaining-time exhaustion, uncertain acknowledgements/continuations,
+Pause/Close/ inactive scene versus drain and reopen, dropped host references,
+account shutdown, the real 30-second expiry/pause race and existing
+host/selection fences. Engine's source review caught a stale
+availability-to-candidate display binding; the corrected binding and A-available
+→ reopen/select-B regression passed. Its timing review replaced an invalid
+drain-delay comparison with the actual monotonic duration frozen before drain.
+The close-before-acknowledgement case proves no hidden clock/stale delivery and
+permits conservative full charging; it does not independently force the
+zero-time refund branch. No Release, device, hosted or full recovery-journey
+qualification is claimed.
+
 ## November 2 — exact native received-status candidate
 
 The retained native owner now has an inactive explicit status-check action for a

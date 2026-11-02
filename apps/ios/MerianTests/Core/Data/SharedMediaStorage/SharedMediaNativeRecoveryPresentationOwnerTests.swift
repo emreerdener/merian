@@ -435,4 +435,46 @@ struct SharedMediaNativeRecoveryPresentationOwnerTests {
         #expect(try queue(p, h.context()).recoveryPresentationData == next.encoded())
         #expect(await owner.invalidateAndAwaitForAccountTransition())
     }
+    @Test func subsequentReservationsUseRemainingTimeAndOneContinuation() async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let candidate = try #require(try await owner.discoverAppReceivedCandidates().first)
+        let baseline = try budget(h)
+        let first = try await owner.reserveAppRecoveryPresentationForTesting(candidate)
+        #expect(first.visibleAllowance == .seconds(30))
+        let paused = try await owner.settleAppRecoveryPresentationForTesting(first, elapsed: .milliseconds(29_999))
+        let second = try await owner.reserveAgainAppRecoveryPresentationForTesting(paused)
+        #expect(second.visibleAllowance == .milliseconds(1))
+        #expect(second.presentation.revision == 3 && second.presentation.activeReservationID != first.presentation.activeReservationID)
+        await #expect(throws: (any Error).self) { _ = try await owner.reserveAgainAppRecoveryPresentationForTesting(paused) }
+        #expect(paused.visibleAllowance == nil && first.visibleAllowance == nil)
+        let exhausted = try await owner.settleAppRecoveryPresentationForTesting(second, elapsed: .milliseconds(1))
+        #expect(exhausted.acknowledged && exhausted.presentation.needsAttention)
+        #expect(exhausted.presentation.chargedMilliseconds == 30_000 && exhausted.presentation.revision == 4)
+        await #expect(throws: (any Error).self) { _ = try await owner.reserveAgainAppRecoveryPresentationForTesting(exhausted) }
+        let after = try budget(h)
+        #expect(after.metadataByPackage[p.package.id] == (try #require(baseline.metadataByPackage[p.package.id])) + 512)
+        #expect(after.receivedLiabilityByPackage == baseline.receivedLiabilityByPackage)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test(arguments: ["settlement", "reservation"])
+    func uncertainContinuationCannotBeRestoredByReconciliation(point: String) async throws {
+        let (_, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let first = try await owner.reserveAppRecoveryPresentationForTesting(p, reservationID: UUID())
+        if point == "settlement" { try owner.setMetadataFault { if $0 == .beforeReadback { throw SharedMediaStorageFailure.unavailable } } }
+        let paused = try await owner.settleAppRecoveryPresentationForTesting(first, elapsed: .milliseconds(1))
+        let uncertain: SharedMediaNativeRecoveryPresentationAttempt
+        if point == "settlement" { uncertain = paused }
+        else {
+            try owner.setMetadataFault { if $0 == .beforeReadback { throw SharedMediaStorageFailure.unavailable } }
+            uncertain = try await owner.reserveAgainAppRecoveryPresentationForTesting(paused)
+        }
+        #expect(!uncertain.acknowledged && uncertain.visibleAllowance == nil)
+        try owner.setMetadataFault(nil)
+        #expect(try await owner.reconcileAppRecoveryPresentationForTesting(uncertain))
+        await #expect(throws: (any Error).self) { _ = try await owner.reserveAgainAppRecoveryPresentationForTesting(paused) }
+        await #expect(throws: (any Error).self) { _ = try await owner.settleAppRecoveryPresentationForTesting(uncertain, elapsed: .zero) }
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
 }

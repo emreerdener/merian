@@ -1,3 +1,14 @@
+## November 2 — finite visible-checking candidate
+
+The existing native presentation transaction now supports a subsequent reserve
+only from its original acknowledged settlement, with unchanged accounting and
+exact proofs. The Capture recovery model owns monotonic visible time and
+retained status-task drain/settlement through its DEBUG disposable-store access.
+Ordinary activation and positive allocation/release remain closed. Managed
+compilation and 35 focused cases passed with unchanged pinned inputs; the
+[current integration contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#november-2--inactive-native-visible-checking-integration-candidate)
+records lifecycle ownership, scope and remaining teardown/result-import gaps.
+
 ## Exact received-status action — November 2
 
 `SharedMediaNativeOriginalOwner.checkAppReceivedStatus` resolves the complete

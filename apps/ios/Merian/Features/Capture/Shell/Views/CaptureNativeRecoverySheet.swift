@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Local receipt discovery only. No result check, editable reconstruction or
-/// saved-media action is offered until its separate authority is integrated.
+/// Local discovery plus an optional qualified availability action. Ordinary
+/// composition keeps that action unavailable; finding never imports a result.
 struct CaptureNativeRecoverySheet: View {
     @Bindable var model: CaptureNativeRecoveryModel
     let close: () -> Void
@@ -34,9 +34,14 @@ struct CaptureNativeRecoverySheet: View {
                         Text("Local submission found")
                             .font(.headline)
                             .accessibilityIdentifier("NativeRecoveryHolding")
-                        Text("Result checking and saved media are not available from this view yet. Your current draft and identification are unchanged.")
+                        if model.hasStatusAction {
+                            resultStatus
+                        } else {
+                            Text("Result checking and saved media are not available from this view yet. Your current draft and identification are unchanged.")
+                        }
                         Button("Refresh local status") { Task { await model.refresh() } }
                             .accessibilityIdentifier("NativeRecoveryRefresh")
+                            .disabled(model.resultStatus == .reserving || model.resultStatus == .checking)
                     }
                 }
                 Text("Close leaves the submission in place. It does not cancel, delete or repeat analysis.")
@@ -47,7 +52,7 @@ struct CaptureNativeRecoverySheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close", action: close).accessibilityIdentifier("NativeRecoveryClose")
+                    Button("Close") { model.close(); close() }.accessibilityIdentifier("NativeRecoveryClose")
                 }
             }
         }
@@ -55,9 +60,37 @@ struct CaptureNativeRecoverySheet: View {
         .presentationDetents([.large])
         .task { await model.open() }
         .onChange(of: model.isCurrent) { _, current in if !current { close() } }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active && !model.isCurrent { close() }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            model.setVisible(phase == .active)
+            if !model.isCurrent { model.close(); close() }
         }
         .onDisappear { model.close() }
+    }
+
+    @ViewBuilder private var resultStatus: some View {
+        if model.resultAvailable {
+            Text("A result is available. It has not been added to History from this view.")
+                .accessibilityIdentifier("NativeRecoveryResultAvailable")
+        }
+        switch model.resultStatus {
+        case .checking:
+            ProgressView("Checking for a result…")
+        case .reserving:
+            Text("Preparing result check…")
+        case .needsAttention:
+            Text("Needs attention. Analysis may still be running. Checking again does not repeat analysis.")
+        case .paused:
+            Text("Result checking paused. Your submission is unchanged.")
+        case .unavailable, .idle, .available:
+            EmptyView()
+        }
+        if model.resultStatus == .checking || model.resultStatus == .reserving {
+            Button("Pause checking") { model.pauseChecking() }
+                .accessibilityIdentifier("NativeRecoveryPause")
+        } else {
+            Button("Check for result") { model.checkStatus() }
+                .disabled(!model.canCheckStatus)
+                .accessibilityIdentifier("NativeRecoveryCheckResult")
+        }
     }
 }

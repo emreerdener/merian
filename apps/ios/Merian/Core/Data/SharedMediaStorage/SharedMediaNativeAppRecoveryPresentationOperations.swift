@@ -24,20 +24,37 @@ struct SharedMediaNativeAppRecoveryPresentationOperations {
         try Self.reconcile(attempt, container: container, authority: authority, boundary: boundary)
     }
 
-    /// Qualification only: elapsed time is supplied by the test. A production
-    /// monotonic clock and subsequent reservation are not admitted here.
     func settle(_ original: SharedMediaNativeRecoveryPresentationAttempt, elapsed: Duration) async throws -> SharedMediaNativeRecoveryPresentationAttempt {
+        try await advance(original, transition: .settle(elapsed))
+    }
+    func reserveAgain(_ original: SharedMediaNativeRecoveryPresentationAttempt, reservationID: UUID) async throws -> SharedMediaNativeRecoveryPresentationAttempt {
+        try await advance(original, transition: .reserve(reservationID))
+    }
+    private enum Transition {
+        case settle(Duration), reserve(UUID)
+        var predecessorKind: SharedMediaNativeRecoveryPresentationAttempt.Kind {
+            switch self { case .settle: .reservation; case .reserve: .settlement }
+        }
+        var successorKind: SharedMediaNativeRecoveryPresentationAttempt.Kind {
+            switch self { case .settle: .settlement; case .reserve: .reservation }
+        }
+    }
+    private func advance(_ original: SharedMediaNativeRecoveryPresentationAttempt, transition: Transition) async throws -> SharedMediaNativeRecoveryPresentationAttempt {
         try Self.requireFixture(container)
-        try original.requireSettlement(container, authority: authority)
+        try original.requireContinuation(container, authority: authority, kind: transition.predecessorKind)
         let expected = try SharedMediaNativeAppMetadataFacts.successor(original.expected)
         guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale }
         try await audit()
         try boundary(.beforeSave)
         try await audit()
-        try original.requireSettlement(container, authority: authority)
+        try original.requireContinuation(container, authority: authority, kind: transition.predecessorKind)
         guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale }
         let context = Self.fresh(container), inventory = try Self.inventory(context, profile: authority.profile)
-        let proof = try original.proof.settling(elapsed: elapsed, context: context, inventory: inventory)
+        let proof: SharedMediaNativeRecoveryPresentationPoststate
+        switch transition {
+        case .settle(let elapsed): proof = try original.proof.settling(elapsed: elapsed, context: context, inventory: inventory)
+        case .reserve(let id): proof = try original.proof.reserving(id: id, context: context, inventory: inventory)
+        }
         let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)
         try SharedMediaNativeReceivingCleanGraph.requirePresentationReplacementRunway(inventoryRevision: inventory.revision,
             packageID: original.prepared.package.id, presentationAdvances: proof.successor.remainingTransitions,
@@ -54,7 +71,7 @@ struct SharedMediaNativeAppRecoveryPresentationOperations {
         try proof.requirePredecessor(context, inventory: inventory)
         let rows = try SharedMediaNativeReceivingRows.readPresentation(in: context, proof: proof)
         let result = SharedMediaNativeRecoveryPresentationAttempt(container: container, authority: authority,
-            prepared: original.prepared, expected: expected, proof: proof, kind: .settlement)
+            prepared: original.prepared, expected: expected, proof: proof, kind: transition.successorKind)
         do {
             rows.queue.recoveryPresentationData = try proof.successor.encoded()
             inventory.revision = try SharedMediaStoragePolicy.add(expected.inventory.revision, 1)
@@ -64,7 +81,7 @@ struct SharedMediaNativeAppRecoveryPresentationOperations {
             let check = Self.fresh(container)
             try proof.requirePredecessor(check, inventory: Self.inventory(check, profile: authority.profile))
             try result.consumeSave()
-            try original.consumeSettlement()
+            try original.consumeContinuation(kind: transition.predecessorKind)
             do { try context.save(); try boundary(.afterSave) }
             catch { context.rollback() }
             result.acknowledged = (try? Self.reconcile(result, container: container, authority: authority, boundary: boundary)) == true
@@ -181,9 +198,12 @@ final class SharedMediaNativeRecoveryPresentationAttempt {
     private let containerID: ObjectIdentifier, writerEpoch: UUID
     private var saveConsumed = false
     private let kind: Kind
-    private var settlementConsumed = false
+    private var continuationConsumed = false
     fileprivate(set) var acknowledged = false
     var presentation: AnalysisRecoveryPresentation { proof.successor }
+    var visibleAllowance: Duration? {
+        acknowledged && kind == .reservation && !continuationConsumed ? proof.visibleAllowance : nil
+    }
 
     fileprivate init(container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority,
                      prepared: SharedMediaNativeReceivingIntent.Prepared,
@@ -196,13 +216,13 @@ final class SharedMediaNativeRecoveryPresentationAttempt {
     fileprivate func consumeSave() throws {
         guard !saveConsumed else { throw SharedMediaStorageFailure.closed }; saveConsumed = true
     }
-    fileprivate func requireSettlement(_ container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority) throws {
+    fileprivate func requireContinuation(_ container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority, kind expectedKind: Kind) throws {
         try requireBinding(container, authority: authority)
-        guard kind == .reservation, acknowledged, !settlementConsumed else { throw SharedMediaStorageFailure.closed }
+        guard kind == expectedKind, acknowledged, !continuationConsumed else { throw SharedMediaStorageFailure.closed }
     }
-    fileprivate func consumeSettlement() throws {
-        guard kind == .reservation, acknowledged, !settlementConsumed else { throw SharedMediaStorageFailure.closed }
-        settlementConsumed = true
+    fileprivate func consumeContinuation(kind expectedKind: Kind) throws {
+        guard kind == expectedKind, acknowledged, !continuationConsumed else { throw SharedMediaStorageFailure.closed }
+        continuationConsumed = true
     }
     fileprivate func requireBinding(_ container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority) throws {
         guard saveConsumed, containerID == ObjectIdentifier(container), writerEpoch == authority.writerEpoch,

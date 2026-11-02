@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import SwiftData
 @testable import Merian
 
 @Suite("Native Capture local holding presentation", .serialized)
@@ -72,4 +73,206 @@ struct CaptureNativeRecoveryModelTests {
             packageID: packageID, draftGeneration: UUID(), operationID: UUID(), revision: 1,
             preparedSHA256: String(repeating: "a", count: 64), receivedSHA256: String(repeating: "b", count: 64))
     }
+}
+
+@Suite("Native Capture durable visible checking", .serialized, .sharedProcessState(.offlineQueueManager))
+@MainActor
+struct CaptureNativeRecoveryClockTests {
+    typealias Store = SharedMediaNativeAppMetadataTests.Store
+    typealias Prepared = SharedMediaNativeReceivingIntent.Prepared
+    private func saved(_ h: Store, _ p: Prepared) throws -> AnalysisRecoveryPresentation {
+        let id = p.queueID.uuidString.lowercased(), context = h.context()
+        let queue = try SharedMediaNativePairPlanGraph.one(context,
+            FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == id }))
+        return try .decode(#require(queue.recoveryPresentationData),
+            identity: .init(ownerID: h.ownerID, observationID: p.observationID, operationID: p.operationID))
+    }
+    private func selected(_ h: Store, _ owner: SharedMediaNativeOriginalOwner,
+                          current: @escaping () -> Bool = { true },
+                          send: @escaping NativeReceivedStatusTransport.Send) async throws -> CaptureNativeRecoveryModel {
+        let model = CaptureNativeRecoveryModel(ownerID: h.ownerID, isCurrent: current,
+            statusAccess: .fixture(owner: owner, send: send)) { try await owner.discoverAppReceivedCandidates() }
+        await model.open()
+        guard case .unselected(let candidates) = model.state else { throw SharedMediaStorageFailure.closed }
+        await model.select(try #require(candidates.first))
+        #expect(model.canCheckStatus && model.resultStatus == .idle)
+        return model
+    }
+    private func wait(_ condition: () -> Bool) async throws {
+        let deadline = ContinuousClock.now + .seconds(90)
+        while !condition() {
+            guard ContinuousClock.now < deadline else { throw URLError(.timedOut) }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+    }
+
+    @Test func actualStatusActionSettlesAndExplicitlyReservesAgain() async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let fixture = InitialPhotoAllocationTransportTests.Fixture(ownerID: h.ownerID)
+        defer { fixture.close() }
+        fixture.mock.register(path: "/check-scan-status") { request in
+            (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"])!, Data("{\"status\":\"found\"}".utf8))
+        }
+        let transport = NativeReceivedStatusTransport(baseURL: "https://example.supabase.co", dispatcher: fixture.dispatcher)
+        let first = try #require(try await owner.discoverAppReceivedCandidates().first)
+        var listing = [first]
+        let access = CaptureNativeRecoveryStatusAccess.fixture(owner: owner) {
+            try await transport.perform(scanID: $0, ownerID: $1, validate: $2)
+        }
+        let model = CaptureNativeRecoveryModel(ownerID: h.ownerID, isCurrent: { true }, statusAccess: access) { listing }
+        await model.open(); await model.select(first)
+        for revision in [Int64(2), 4] {
+            model.checkStatus()
+            try await wait { model.canCheckStatus }
+            #expect(model.resultAvailable && model.resultStatus == .available)
+            let value = try saved(h, p)
+            #expect(value.revision == revision && value.activeReservationID == nil)
+            #expect(value.chargedMilliseconds > 0 && value.chargedMilliseconds < 30_000)
+        }
+        await model.closeAndWait()
+        let other = SharedMediaNativeReceivedCandidate(profile: first.profile, packageID: UUID(),
+            draftGeneration: UUID(), operationID: UUID(), revision: first.revision,
+            preparedSHA256: first.preparedSHA256, receivedSHA256: first.receivedSHA256)
+        listing = [other]
+        await model.open(); await model.select(other)
+        #expect(model.state == .holding(other) && !model.resultAvailable && model.resultStatus == .idle)
+        model.checkStatus(); try await wait { model.canCheckStatus }
+        #expect(!model.resultAvailable && model.resultStatus == .needsAttention)
+        #expect(try saved(h, p).revision == 4)
+        await model.closeAndWait()
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test(arguments: ["pause", "background", "close"])
+    func visibilityEndsBeforeTransportDrainAndReopenWaits(action: String) async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let entered = ImageFocusEngineTests.Signal(), release = ImageFocusEngineTests.Signal()
+        var ended = false
+        let model = try await selected(h, owner) { _, _, _ in
+            await entered.open(); await release.wait(); ended = true
+            return Data("{\"status\":\"found\"}".utf8)
+        }
+        model.checkStatus(); await entered.wait()
+        #expect(model.resultStatus == .checking)
+        switch action {
+        case "close": model.close()
+        case "background": model.setVisible(false)
+        default: model.pauseChecking()
+        }
+        var reopened = false
+        let reopen = Task { await model.open(); reopened = true }
+        model.checkStatus() // no second reservation while cleanup owns the first
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(!ended && !reopened && !model.canCheckStatus)
+        #expect(try saved(h, p).revision == 1)
+        await release.open(); await model.waitForStatusCleanup(); await reopen.value
+        #expect(ended && reopened && !model.resultAvailable)
+        let value = try saved(h, p)
+        #expect(value.revision == 2 && value.activeReservationID == nil)
+        // Compare the actual monotonic interval frozen before the injected
+        // drain delay. Pre-transport native audit time legitimately counts.
+        let frozen = try #require(model.frozenVisibleElapsedForTesting)
+        let reservation = try AnalysisRecoveryPresentation.initial(for: value.identity).reserve(id: UUID())
+        let expected = try reservation.settle(current: reservation.reserved, elapsed: frozen)
+        #expect(value.chargedMilliseconds == expected.chargedMilliseconds)
+        await model.closeAndWait()
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func closeBeforeAcknowledgementNeverStartsHiddenCheck() async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        var calls = 0
+        var presented: CaptureNativeRecoveryModel? = try await selected(h, owner) { _, _, _ in calls += 1; return Data() }
+        weak var retained = presented
+        var reached = false
+        try owner.setMetadataFault { boundary in
+            if boundary == .beforeReadback && !reached { reached = true; presented?.close(); presented = nil }
+        }
+        presented?.checkStatus()
+        try await wait { reached }
+        await retained?.waitForStatusCleanup()
+        try await wait { retained == nil }
+        #expect(calls == 0)
+        let value = try saved(h, p)
+        // An acknowledged late reservation settles zero; a denied acknowledgement
+        // remains fully charged. Neither path may create hidden visible time.
+        #expect((value.revision == 2 && value.chargedMilliseconds == 0)
+            || (value.revision == 1 && value.chargedMilliseconds == 30_000))
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func accountTeardownDrainsAndDeniesLateResultAndRefund() async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let entered = ImageFocusEngineTests.Signal(), release = ImageFocusEngineTests.Signal()
+        var current = true, ended = false
+        let model = try await selected(h, owner, current: { current }) { _, _, _ in
+            await entered.open(); await release.wait(); ended = true
+            return Data("{\"status\":\"found\"}".utf8)
+        }
+        model.checkStatus(); await entered.wait()
+        current = false; model.close()
+        var completed = false
+        let shutdown = Task { let result = await owner.invalidateAndAwaitForAccountTransition(); completed = true; return result }
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(!completed)
+        await release.open(); #expect(await shutdown.value)
+        await model.waitForStatusCleanup()
+        #expect(ended && !model.resultAvailable && model.resultStatus == .needsAttention)
+        #expect(try saved(h, p).chargedMilliseconds == 30_000)
+    }
+
+    @Test func expiryAndPauseChooseOneSettlement() async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let entered = ImageFocusEngineTests.Signal(), release = ImageFocusEngineTests.Signal()
+        let model = try await selected(h, owner) { _, _, _ in
+            await entered.open(); await release.wait(); return Data("{\"status\":\"not_found\"}".utf8)
+        }
+        model.checkStatus(); await entered.wait()
+        try await wait { model.resultStatus == .needsAttention }
+        model.pauseChecking()
+        await release.open(); await model.waitForStatusCleanup()
+        let value = try saved(h, p)
+        #expect(value.revision == 2 && value.chargedMilliseconds == 30_000 && value.activeReservationID == nil)
+        #expect(!model.resultAvailable)
+        await model.closeAndWait()
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+    @Test func droppedHostKeepsOutstandingCleanupAlive() async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let entered = ImageFocusEngineTests.Signal(), release = ImageFocusEngineTests.Signal()
+        var presented: CaptureNativeRecoveryModel? = try await selected(h, owner) { _, _, _ in
+            await entered.open(); await release.wait(); return Data("{\"status\":\"found\"}".utf8)
+        }
+        weak var retained = presented
+        presented?.checkStatus(); await entered.wait()
+        presented?.close(); presented = nil
+        #expect(retained != nil)
+        await release.open(); await retained?.waitForStatusCleanup()
+        try await wait { retained == nil }
+        #expect(try saved(h, p).revision == 2)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func uncertainAcknowledgementCannotStartOrRenewClock() async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        var calls = 0, writes = 0
+        let model = try await selected(h, owner) { _, _, _ in
+            calls += 1; return Data("{\"status\":\"not_found\"}".utf8)
+        }
+        try owner.setMetadataFault {
+            if $0 == .afterSave { writes += 1 }
+            if $0 == .beforeReadback { throw SharedMediaStorageFailure.unavailable }
+        }
+        model.checkStatus(); try await wait { model.canCheckStatus }
+        #expect(model.resultStatus == .needsAttention)
+        try owner.setMetadataFault(nil)
+        model.checkStatus(); try await wait { model.canCheckStatus }
+        #expect(model.resultStatus == .needsAttention && calls == 2 && writes == 1)
+        let value = try saved(h, p)
+        #expect(value.revision == 1 && value.chargedMilliseconds == 30_000)
+        await model.closeAndWait()
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
 }

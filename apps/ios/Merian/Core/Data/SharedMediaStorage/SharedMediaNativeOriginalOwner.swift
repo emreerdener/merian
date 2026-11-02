@@ -12,7 +12,10 @@ final class SharedMediaNativeOriginalOwner {
     private let writerEpoch = UUID()
     private var pendingSettlement: SharedMediaNativeOriginalPendingSettlement?
     private let releaseStageSettlement = SharedMediaNativeReleaseStageSettlement()
+    private var writerActive = false
+    private var activeDispatchID: UUID?
     #if DEBUG
+    fileprivate let debug = SharedMediaNativeDebugHooks()
     /// Read-only fault-test observation. No capability or mutation grant escapes.
     var heldOriginalAdmissionClosedForTesting: Bool { phase == .suspended }
     var shutdownFailureForTesting: (any Error)? { debug.shutdownFailure }
@@ -20,11 +23,6 @@ final class SharedMediaNativeOriginalOwner {
     var observedHeldOriginalAbsenceForTesting: Bool {
         releaseStageSettlement.pendingOriginalDisposal?.permit.hasObservedAbsence ?? false
     }
-    #endif
-    private var writerActive = false
-    private var activeDispatchID: UUID?
-    #if DEBUG
-    fileprivate let debug = SharedMediaNativeDebugHooks()
     #endif
     private var storage: SharedMediaNativeStorageRepository?
     private var cancelActive: (() -> Void)?, awaitActive: (() async -> Void)?
@@ -192,6 +190,9 @@ final class SharedMediaNativeOriginalOwner {
             body: { try lock.validate(); return try await body($0) })
     }
     #if DEBUG
+    func reserveAppRecoveryPresentationForTesting(_ candidate: SharedMediaNativeReceivedCandidate) async throws -> SharedMediaNativeRecoveryPresentationAttempt {
+        try await withAppDispatch { try await self.reserveAppRecoveryPresentationForTesting(candidate, storage: $0, grant: $1) }
+    }
     func appRecoveryPresentationWorkflowForTesting<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant,
         _ body: @escaping @MainActor (SharedMediaNativeAppRecoveryPresentationOperations) async throws -> T) async throws -> T {
         try await withAppDispatch { storage, grant in try await body(storage.appRecoveryPresentationForTesting(grant: grant, lock: lock)) }
