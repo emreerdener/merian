@@ -472,3 +472,52 @@ Deno.test("CPM observation preserves source MIME and rejects non-JPEG derivative
     }
   }
 });
+
+Deno.test("CPM inspection finishes only exact bytes and releases on every reader outcome", async (t) => {
+  for (const mode of ["success", "hash", "push", "finish", "shared"] as const) {
+    await t.step(mode, async () => {
+      const f = await fixture();
+      let finished = 0, released = 0, pushed = 0;
+      const bytes = mode === "shared"
+        ? new Uint8Array(new SharedArrayBuffer(f.bytes.length))
+        : f.bytes.slice();
+      bytes.set(f.bytes);
+      if (mode === "hash") bytes[0] ^= 1;
+      const body = new ReadableStream<Uint8Array>({
+        start(c) {
+          c.enqueue(bytes);
+          c.close();
+        },
+      });
+      f.deps.fetch = () =>
+        Promise.resolve(new Response(body, { headers: f.headers }));
+      const run = () =>
+        observeInitialCpmPhotoWrite(
+          f.deps,
+          f.binding,
+          f.target,
+          f.backend,
+          f.controller.signal,
+          () => ({
+            push(chunk) {
+              pushed += chunk.length;
+              if (mode === "push") throw new Error("inspection_failed");
+            },
+            finish() {
+              finished++;
+              if (mode === "finish") throw new Error("structure_rejected");
+            },
+            release() {
+              released++;
+            },
+          }),
+        );
+      if (mode === "success") await run();
+      else await assertRejects(run);
+      assertEquals(released, 1);
+      assertEquals(finished, ["success", "finish"].includes(mode) ? 1 : 0);
+      assertEquals(pushed, mode === "shared" ? 0 : f.bytes.length);
+      assertEquals(body.locked, false);
+    });
+  }
+});

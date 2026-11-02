@@ -1,0 +1,323 @@
+import { assertEquals, assertThrows } from "@std/assert";
+import { inspectJpegContainer } from "../analysisHistory/jpegContainer.ts";
+import {
+  joined,
+  jpegSegment,
+  safeJpeg,
+} from "../analysisHistory/testing/publicPhotoFixtures.ts";
+import { fixture, hash } from "./cpmPhotoAdmissionTestFixtures.ts";
+import { initialCanonicalText } from "./canonical.ts";
+import { initialCpmPhotoContentDigest } from "./cpmPhotoContent.ts";
+import { initialCpmPhotoCandidateDigest } from "./cpmPhotoCandidate.ts";
+import { initialMediaHash } from "./mediaBinding.ts";
+import {
+  type CpmJpegVerificationDependencies,
+  verifyAndAdmitInitialCpmJpegPhoto,
+} from "./cpmPhotoJpegVerification.ts";
+
+async function jpegFixture(
+  bytes = safeJpeg(),
+  count = 1,
+  sourceType = "image/jpeg",
+  sourceBytes = bytes,
+) {
+  const f = await fixture(async (candidate, assignment) => {
+    const content = JSON.parse(candidate.content_canonical);
+    for (let n = 1; n < count; n++) {
+      content.photos.push(structuredClone(content.photos[0]));
+    }
+    assignment.preparation.role_mapping = [];
+    for (const [ordinal, photo] of content.photos.entries()) {
+      photo.ordinal = ordinal;
+      for (const [index, role] of ["source", "ai", "display"].entries()) {
+        const input = role === "source" ? sourceBytes : bytes;
+        photo[role].byte_count = input.length;
+        photo[role].sha256 = await initialMediaHash(input.slice());
+        photo[role].declared_content_type = role === "source"
+          ? sourceType
+          : "image/jpeg";
+        photo[role].reference_id = `00000000-0000-4000-8000-00000000070${
+          ordinal * 3 + index
+        }`;
+        assignment.preparation.role_mapping.push({
+          photo_ordinal: ordinal,
+          role,
+          object_id: `00000000-0000-4000-8000-00000000020${
+            ordinal * 3 + index
+          }`,
+          declaration: photo[role],
+        });
+      }
+    }
+    candidate.content_canonical = initialCanonicalText(content);
+    assignment.content_digest = await initialCpmPhotoContentDigest(content);
+    assignment.candidate_digest = await initialCpmPhotoCandidateDigest(
+      candidate,
+    );
+  });
+  const config = {
+    generation: f.snapshot.backend_generation,
+    provider: "r2",
+    direct_endpoint:
+      "https://00000000000000000000000000000000.r2.cloudflarestorage.com",
+    private_bucket: "synthetic-private",
+    namespace: "initial-preparation/v2",
+    credential_profile: "synthetic_only",
+    storage_protocol: "conditional_create_permanent_same_key_marker_v1",
+  };
+  const configuration_digest = await hash(
+    "merian.initial-analysis.media.backend.v1",
+    initialCanonicalText(config),
+  );
+  f.snapshot.backend_configuration_digest = configuration_digest;
+  f.snapshot.members.forEach((m) =>
+    m.attempt.backend_configuration_digest = configuration_digest
+  );
+  f.begun.snapshot_canonical = initialCanonicalText(f.snapshot);
+  f.begun.snapshot_digest = await hash(
+    "merian.initial-analysis.cpm-verification-start.v1",
+    f.begun.snapshot_canonical,
+  );
+  f.verified.snapshot_digest = f.begun.snapshot_digest;
+  const dimensions = () => ({
+    maximumWidth: 16384,
+    maximumHeight: 16384,
+    maximumPixels: 100_000_000,
+  });
+  const policy = {
+    profile_digest: f.snapshot.profile_digest,
+    verifier_build_digest: f.snapshot.verifier_build_digest,
+    dimensions: {
+      source: dimensions(),
+      ai: dimensions(),
+      display: dimensions(),
+    },
+    backend: { ...config, configuration_digest },
+  };
+  const requests: string[] = [];
+  const controller = new AbortController();
+  const headers = {
+    "content-length": String(bytes.length),
+    "content-type": "image/jpeg",
+    "cache-control": "private, no-store",
+  };
+  let cohortChecks = 0;
+  const deps: CpmJpegVerificationDependencies = {
+    load: () => Promise.resolve(policy),
+    requireCurrent: (start) => {
+      assertEquals(start, {
+        ...f.identity,
+        attempt_id: f.begun.attempt_id,
+        snapshot_canonical: f.begun.snapshot_canonical,
+        snapshot_digest: f.begun.snapshot_digest,
+      });
+      cohortChecks++;
+      return Promise.resolve();
+    },
+    storage: {
+      requireCurrent: () => Promise.resolve(),
+      sign: (_profile, request) => Promise.resolve(request),
+      fetch: (input) => {
+        const body = requests.length % 3 === 0 ? sourceBytes : bytes;
+        requests.push((input as Request).url);
+        return Promise.resolve(
+          new Response(body.slice(), {
+            headers: { ...headers, "content-length": String(body.length) },
+          }),
+        );
+      },
+    },
+  };
+  return {
+    ...f,
+    bytes,
+    policy,
+    requests,
+    controller,
+    headers,
+    deps,
+    checks: () => cohortChecks,
+    run: () =>
+      verifyAndAdmitInitialCpmJpegPhoto(
+        f.bridge,
+        deps,
+        f.identity,
+        controller.signal,
+      ),
+  };
+}
+
+Deno.test("CPM actual JPEG reads verify complete ordered one/two-photo cohorts before admission", async (t) => {
+  for (const count of [1, 2]) {
+    await t.step(String(count), async () => {
+      const f = await jpegFixture(safeJpeg(), count);
+      assertEquals((await f.run()).outcome, "admitted");
+      assertEquals(f.requests.length, 3 * count);
+      assertEquals(new Set(f.requests).size, 3 * count);
+      assertEquals(f.calls, ["recover", "begin", "admit", "recover"]);
+      assertEquals(f.checks() > f.requests.length * 3, true);
+    });
+  }
+});
+
+Deno.test("CPM 32 MiB original does not inherit the public JPEG 12 MiB ceiling", async () => {
+  const jpeg = safeJpeg(), source = new Uint8Array(33_554_432).fill(0x3f);
+  source.set(jpeg.subarray(0, -3));
+  source.set([255, 217], source.length - 2);
+  const f = await jpegFixture(jpeg, 1, "image/jpeg", source);
+  assertThrows(() => inspectJpegContainer(source, () => {}));
+  assertEquals((await f.run()).outcome, "admitted");
+  assertEquals(f.requests.length, 3);
+});
+
+Deno.test("CPM byte-equal malformed JPEG cannot become structural evidence", async (t) => {
+  for (
+    const bytes of [
+      new Uint8Array([255, 216, 255, 217]),
+      safeJpeg().slice(0, -1),
+      joined(safeJpeg(), new Uint8Array([0])),
+    ]
+  ) {
+    await t.step(String(bytes.length), async () => {
+      const f = await jpegFixture(bytes);
+      assertEquals((await f.run()).outcome, "held");
+      assertEquals(f.requests.length, 1);
+      assertEquals(f.calls.includes("admit"), false);
+    });
+  }
+});
+
+Deno.test("CPM missing non-JPEG adapters reject complete cohort before any storage read", async (t) => {
+  for (const type of ["image/png", "image/webp", "image/heic", "image/heif"]) {
+    await t.step(type, async () => {
+      const f = await jpegFixture(safeJpeg(), 2, type);
+      assertEquals((await f.run()).outcome, "held");
+      assertEquals(f.requests.length, 0);
+      assertEquals(f.calls.includes("admit"), false);
+    });
+  }
+});
+
+Deno.test("CPM saved verifier build and explicit dimension bounds fail closed", async (t) => {
+  for (
+    const change of ["build", "profile", "width", "pixels", "invalid"] as const
+  ) {
+    await t.step(change, async () => {
+      const f = await jpegFixture();
+      if (change === "build") f.policy.verifier_build_digest = "0".repeat(64);
+      if (change === "profile") f.policy.profile_digest = "0".repeat(64);
+      if (change === "width") f.policy.dimensions.source.maximumWidth = 7;
+      if (change === "pixels") f.policy.dimensions.source.maximumPixels = 63;
+      if (change === "invalid") f.policy.dimensions.source.maximumWidth = 65536;
+      assertEquals((await f.run()).outcome, "held");
+      assertEquals(
+        f.requests.length,
+        ["width", "pixels"].includes(change) ? 1 : 0,
+      );
+      assertEquals(f.calls.includes("admit"), false);
+    });
+  }
+});
+
+Deno.test("CPM JPEG uses its explicit dimensions and preserves private metadata", async () => {
+  const bytes = safeJpeg();
+  // SOF width > legacy public 8192, within the explicitly selected test policy.
+  const sof = bytes.findIndex((v, i) => v === 255 && bytes[i + 1] === 0xc0);
+  bytes[sof + 7] = 0x23;
+  bytes[sof + 8] = 0x28; // 9000
+  assertThrows(() => inspectJpegContainer(bytes, () => {}));
+  const f = await jpegFixture(
+    joined(bytes.slice(0, 2), jpegSegment(0xfe, [1, 2, 3]), bytes.slice(2)),
+  );
+  assertEquals((await f.run()).outcome, "admitted");
+});
+
+Deno.test("CPM third-role hash mismatch discards entire cohort", async () => {
+  const f = await jpegFixture(), fetch = f.deps.storage.fetch;
+  f.deps.storage.fetch = (input, init) => {
+    if (f.requests.length < 2) return fetch(input, init);
+    f.requests.push((input as Request).url);
+    const changed = f.bytes.slice();
+    changed[changed.length - 3] ^= 1;
+    return Promise.resolve(new Response(changed, { headers: f.headers }));
+  };
+  assertEquals((await f.run()).outcome, "held");
+  assertEquals(f.requests.length, 3);
+  assertEquals(f.calls.includes("admit"), false);
+});
+
+Deno.test("CPM late account retirement after reads forbids admission", async () => {
+  const f = await jpegFixture(), current = f.deps.requireCurrent;
+  f.deps.requireCurrent = (start, signal) => {
+    if (f.requests.length === 3) return Promise.reject(new Error("retired"));
+    return current(start, signal);
+  };
+  assertEquals((await f.run()).outcome, "held");
+  assertEquals(f.requests.length, 3);
+  assertEquals(f.calls.includes("admit"), false);
+});
+
+Deno.test("CPM unknown admission acknowledgement recovers without rereading JPEG cohort", async () => {
+  const f = await jpegFixture(), admit = f.bridge.admit;
+  f.bridge.admit = async (e, signal) => {
+    await admit(e, signal);
+    throw new Error("lost_ack");
+  };
+  assertEquals((await f.run()).outcome, "admitted");
+  assertEquals((await f.run()).outcome, "admitted");
+  assertEquals(f.requests.length, 3);
+  assertEquals(f.calls.filter((v) => v === "begin").length, 1);
+});
+
+Deno.test("CPM cancellation during JPEG read prevents later role reads and admission", async () => {
+  const f = await jpegFixture();
+  let entered!: () => void, cancellations = 0;
+  const ready = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const body = new ReadableStream<Uint8Array>({
+    pull() {
+      entered();
+      return new Promise(() => {});
+    },
+    cancel() {
+      cancellations++;
+    },
+  }, { highWaterMark: 0 });
+  f.deps.storage.fetch = (input) => {
+    f.requests.push((input as Request).url);
+    return Promise.resolve(new Response(body, { headers: f.headers }));
+  };
+  const run = f.run();
+  await ready;
+  f.controller.abort();
+  await run.catch(() => undefined);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assertEquals(f.requests.length, 1);
+  assertEquals(cancellations, 1);
+  assertEquals(body.locked, false);
+  assertEquals(f.calls.includes("admit"), false);
+});
+
+Deno.test("CPM JPEG inspection copies reused transport views before the next pull", async () => {
+  const f = await jpegFixture();
+  f.deps.storage.fetch = (input) => {
+    f.requests.push((input as Request).url);
+    let offset = 0;
+    const reused = new Uint8Array(1);
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (offset === f.bytes.length) {
+          reused.fill(0);
+          c.close();
+          return;
+        }
+        reused[0] = f.bytes[offset++];
+        c.enqueue(reused);
+      },
+    }, { highWaterMark: 0 });
+    return Promise.resolve(new Response(body, { headers: f.headers }));
+  };
+  assertEquals((await f.run()).outcome, "admitted");
+  assertEquals(f.requests.length, 3);
+});

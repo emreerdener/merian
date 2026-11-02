@@ -4,6 +4,18 @@ export class JpegContainerRejected extends Error {}
 function reject(): never {
   throw new JpegContainerRejected();
 }
+export interface JpegContainerLimits {
+  maximumBytes: number;
+  maximumWidth: number;
+  maximumHeight: number;
+  maximumPixels: number;
+}
+const legacyLimits: Readonly<JpegContainerLimits> = Object.freeze({
+  maximumBytes: 12 * 1024 * 1024,
+  maximumWidth: 8192,
+  maximumHeight: 8192,
+  maximumPixels: 40_000_000,
+});
 export function inspectJpegContainer(
   bytes: Uint8Array,
   metadata: (
@@ -12,8 +24,18 @@ export function inspectJpegContainer(
     offset: number,
     hasFrame: boolean,
   ) => void,
+  // Trusted consumers choose their own qualified policy; existing publication
+  // and video callers retain exactly the legacy defaults.
+  limits: Readonly<JpegContainerLimits> = legacyLimits,
 ): { width: number; height: number } {
-  if (bytes.length < 4 || bytes.length > 12 * 1024 * 1024) reject();
+  const { maximumBytes, maximumWidth, maximumHeight, maximumPixels } = limits;
+  if (
+    [maximumBytes, maximumWidth, maximumHeight, maximumPixels].some((n) =>
+      !Number.isSafeInteger(n) || n < 1
+    ) || maximumBytes > 33_554_432 || maximumWidth > 65535 ||
+    maximumHeight > 65535 || maximumPixels > 65535 ** 2 ||
+    bytes.length < 4 || bytes.length > maximumBytes
+  ) reject();
   let width = 0, height = 0;
   if (bytes[0] !== 0xff || bytes[1] !== 0xd8) reject();
   let pos = 2, frame = 0, scans = 0, restart = 0;
@@ -43,8 +65,8 @@ export function inspectJpegContainer(
       width = u16(data + 3);
       height = u16(data + 1);
       if (
-        width < 1 || height < 1 || width > 8192 || height > 8192 ||
-        width * height > 40_000_000
+        width < 1 || height < 1 || width > maximumWidth ||
+        height > maximumHeight || width * height > maximumPixels
       ) reject();
       const count = bytes[data + 5];
       if (count < 1 || count > 4 || length !== 8 + count * 3) reject();

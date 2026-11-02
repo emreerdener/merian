@@ -5,9 +5,13 @@ start, one verification and one admission attempt, then receipt-only
 reconciliation. Its injected tests cover identity, uncertainty and deadline
 boundaries. The
 [CPM contract](../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
-owns the complete binding and retention requirements. Actual structural
-verification, the atomic admission bridge and route composition remain absent;
-this module is uninstalled and does not qualify physical media or funding.
+owns the complete binding and retention requirements. `cpmPhotoJpegVerification`
+now consumes actual exact-byte reads with the shared JPEG structure inspector,
+one reusable bounded buffer and complete-cohort lifecycle checks. It feeds the
+coordinator directly; it is not a standalone codec or client proof. Other
+original-format adapters, installed policy, the atomic admission bridge and
+route composition remain absent. This increment is uninstalled and does not
+qualify physical resource limits or funding.
 
 ## Dormant authenticated transfer composition
 

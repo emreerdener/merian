@@ -65,6 +65,16 @@ export interface CpmWriteObservationDependencies {
   fetch: typeof fetch;
 }
 
+/** Trusted synchronous consumer of the same bytes that the reader hashes.
+ * It must copy or consume a view before push returns; storage may reuse it.
+ * finish is called only after exact length/hash, and release on every exit.
+ * This is never client-supplied proof or an asynchronous work queue. */
+export interface CpmWriteByteInspector {
+  push(bytes: Uint8Array): void;
+  finish(): void;
+  release(): void;
+}
+
 export function snapshotCpmWriteObservationBinding(value: unknown) {
   const b = {
     ...mediaRecord(value, [
@@ -136,18 +146,24 @@ async function observeBytes(
   size: number,
   expectedHash: string | null,
   signal: AbortSignal,
+  inspection?: () => CpmWriteByteInspector,
 ): Promise<void> {
   if (!stream) throw initialMediaUnavailable();
   const reader = stream.getReader();
   let hash: ReturnType<typeof createHash> | undefined;
   let bytes = 0, chunks = 0, empty = 0;
   let complete = false;
+  let inspector: CpmWriteByteInspector | undefined;
   try {
+    inspector = inspection?.();
     hash = createHash("sha256");
     for (;;) {
       const next = await initialAbortable(signal, () => reader.read());
       if (next.done) break;
-      if (!(next.value instanceof Uint8Array) || ++chunks > 4096) {
+      if (
+        !(next.value instanceof Uint8Array) ||
+        !(next.value.buffer instanceof ArrayBuffer) || ++chunks > 4096
+      ) {
         throw initialMediaUnavailable();
       }
       if (next.value.byteLength === 0) {
@@ -159,6 +175,7 @@ async function observeBytes(
         throw initialMediaUnavailable();
       }
       hash.update(next.value);
+      inspector?.push(next.value);
       bytes += next.value.byteLength;
       checkInitialDeadline(signal);
     }
@@ -168,11 +185,17 @@ async function observeBytes(
       throw initialMediaUnavailable();
     }
     checkInitialDeadline(signal);
+    inspector?.finish();
+    checkInitialDeadline(signal);
     complete = true;
   } finally {
-    hash?.destroy();
-    if (!complete) void reader.cancel().catch(() => {});
-    reader.releaseLock();
+    try {
+      inspector?.release();
+    } finally {
+      hash?.destroy();
+      if (!complete) void reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
   }
 }
 
@@ -186,6 +209,9 @@ export async function observeInitialCpmPhotoWrite(
   expected: CpmWriteObservationTarget,
   backendValue: unknown,
   caller: AbortSignal,
+  /** Private server composition only. Observation alone remains nonstructural;
+   * a consuming verifier must require its own successful inspector completion. */
+  inspection?: () => CpmWriteByteInspector,
 ): Promise<
   Readonly<{
     binding: Readonly<CpmWriteObservationBinding>;
@@ -194,6 +220,9 @@ export async function observeInitialCpmPhotoWrite(
 > {
   const binding = snapshotCpmWriteObservationBinding(value),
     target = snapshotCpmWriteObservationTarget(expected);
+  if (inspection && target.outcome !== "live_object") {
+    throw initialMediaUnavailable();
+  }
   const backendSnapshot = {
     ...mediaRecord(backendValue, [
       "generation",
@@ -289,6 +318,7 @@ export async function observeInitialCpmPhotoWrite(
             size,
             marker ? null : target.sha256,
             signal,
+            inspection,
           );
         }
         await current();

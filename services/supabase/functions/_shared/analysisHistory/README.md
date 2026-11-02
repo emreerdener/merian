@@ -1107,8 +1107,15 @@ digest, MIME and exact square dimensions. Its private JPEG metadata policy
 accepts only bounded dimension-only ImageIO headers; WebP accepts opaque
 still-image chunks without animation or metadata. The extracted
 `jpegContainer.ts` owns structural JPEG inspection shared with public-photo
-validation; public-photo metadata policy is unchanged. This is not pixel
-decoding, source derivation proof, sanitization or live admission. See the
+validation; public-photo metadata policy is unchanged. Its explicit trusted
+consumer limits also serve the inactive
+[CPM JPEG adapter](../initialAnalysis/cpmPhotoJpegVerification.ts); existing
+publication/video defaults remain 12 MiB, 8192 per edge and 40 million pixels.
+The
+[CPM contract](../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+owns that adapter's distinct private-media policy and remaining qualification.
+This is not pixel decoding, source derivation proof, sanitization or live
+admission. See the
 [frame byte contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-video-frame-byte-verification).
 
 `retainedVideoEnvelope.inspectRetainedVideoEnvelope` is a bounded ISO-BMFF
