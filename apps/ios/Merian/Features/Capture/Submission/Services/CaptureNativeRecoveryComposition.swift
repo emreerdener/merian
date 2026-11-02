@@ -45,6 +45,7 @@ final class CaptureNativeRecoveryStatusAccess {
     /// Failed/uncertain attempts remain retained; reconciliation never upgrades
     /// their original acknowledgement or creates another continuation.
     static func fixture(owner: SharedMediaNativeOriginalOwner,
+                        didAcknowledge: @escaping () async -> Void = {},
                         send: @escaping NativeReceivedStatusTransport.Send) -> CaptureNativeRecoveryStatusAccess {
         var candidate: SharedMediaNativeReceivedCandidate?
         var attempt: SharedMediaNativeRecoveryPresentationAttempt?
@@ -62,6 +63,9 @@ final class CaptureNativeRecoveryStatusAccess {
             }
             attempt = reserved
             guard let allowance = reserved.visibleAllowance else { return nil }
+            // Test-only scheduling boundary after actual durable acknowledgement.
+            // Suspension grants no authority and does not bypass native settlement.
+            await didAcknowledge()
             return Interval(allowance: allowance, settle: { elapsed in
                 let settled = try await owner.settleAppRecoveryPresentationForTesting(reserved, elapsed: elapsed)
                 attempt = settled

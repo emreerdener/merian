@@ -162,9 +162,10 @@ struct CaptureNativeRecoveryClockTests {
     private func selected(_ h: Store, _ owner: SharedMediaNativeOriginalOwner,
                           current: @escaping () -> Bool = { true },
                           lifetime: (() -> SharedMediaNativeOriginalDrain?)? = nil,
+                          didAcknowledge: @escaping () async -> Void = {},
                           send: @escaping NativeReceivedStatusTransport.Send) async throws -> CaptureNativeRecoveryModel {
         let model = CaptureNativeRecoveryModel(ownerID: h.ownerID, isCurrent: current,
-            statusAccess: .fixture(owner: owner, send: send), lifetime: lifetime) { try await owner.discoverAppReceivedCandidates() }
+            statusAccess: .fixture(owner: owner, didAcknowledge: didAcknowledge, send: send), lifetime: lifetime) { try await owner.discoverAppReceivedCandidates() }
         await model.open()
         guard case .unselected(let candidates) = model.state else { throw SharedMediaStorageFailure.closed }
         await model.select(try #require(candidates.first))
@@ -272,6 +273,36 @@ struct CaptureNativeRecoveryClockTests {
         // remains fully charged. Neither path may create hidden visible time.
         #expect((value.revision == 2 && value.chargedMilliseconds == 0)
             || (value.revision == 1 && value.chargedMilliseconds == 30_000))
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test(arguments: ["pause", "background", "close"])
+    func acknowledgedReservationAfterVisibilityEndsSettlesExactlyZero(action: String) async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let acknowledged = ImageFocusEngineTests.Signal(), deliver = ImageFocusEngineTests.Signal()
+        var calls = 0
+        let model = try await selected(h, owner, didAcknowledge: {
+            await acknowledged.open(); await deliver.wait()
+        }) { _, _, _ in calls += 1; return Data("{\"status\":\"found\"}".utf8) }
+        model.checkStatus(); await acknowledged.wait()
+        #expect(model.resultStatus == .reserving && calls == 0)
+        let reserved = try saved(h, p)
+        #expect(reserved.revision == 1 && reserved.chargedMilliseconds == 30_000)
+        #expect(reserved.activeReservationID != nil)
+        switch action {
+        case "close": model.close()
+        case "background": model.setVisible(false)
+        default: model.pauseChecking()
+        }
+        #expect(model.frozenVisibleElapsedForTesting == .zero)
+        #expect(!model.canCheckStatus && !model.resultAvailable)
+        model.checkStatus() // Cleanup retains the acknowledged interval exclusively.
+        await deliver.open(); await model.waitForStatusCleanup()
+        let settled = try saved(h, p)
+        #expect(calls == 0 && !model.resultAvailable)
+        #expect(settled.revision == 2 && settled.chargedMilliseconds == 0)
+        #expect(settled.activeReservationID == nil && model.resultStatus == .paused)
+        await model.closeAndWait()
         #expect(await owner.invalidateAndAwaitForAccountTransition())
     }
 

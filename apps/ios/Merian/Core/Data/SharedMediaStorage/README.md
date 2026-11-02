@@ -10,6 +10,14 @@ failed run is retained. The
 records ownership, pre-registration limits and the still-open native result
 consumer. Ordinary activation and release controls remain unchanged.
 
+The subsequent late-acknowledgement checkpoint passed six focused cases,
+including three that force Pause/background/Close before delivery of an actual
+acknowledged reservation. They prove zero hidden checking and zero visible-time
+charge. The same canonical contract now records why mutable scan fetching and
+saved-identification enrollment cannot supply exact native initial completion;
+the coordinated S0 completion and retained-result promotion remain
+unimplemented.
+
 ## November 2 — finite visible-checking candidate
 
 The existing native presentation transaction now supports a subsequent reserve

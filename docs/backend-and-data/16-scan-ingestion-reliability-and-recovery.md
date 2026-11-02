@@ -51,20 +51,48 @@ still qualified only for its recorded inputs. This change adds no result import,
 execution retry, positive release/allocation, hosted operation or release
 permission.
 
+The subsequent `rux-late-ack-` checkpoint forces the previously unqualified
+acknowledged-reservation delivery after Pause, backgrounding or Close. Its
+DEBUG-only fixture suspends after actual native acknowledgement, without
+fabricating settlement authority. Each case proves no hidden status request or
+visible clock, exactly zero charged visible time and one persisted settlement.
+Managed compilation passed in 304.630 seconds; four selected methods / six cases
+passed with no failures or skips in 400.682 seconds, including existing normal,
+pre-acknowledgement close and uncertain-acknowledgement regressions. All 6,826
+inputs remained unchanged during both runs. This closes that specific coverage
+gap; full journeys and release qualification remain open.
+
 The next initial-result integration must use an exact native completion
 contract: `SharedMediaNativeAppReceivingTerminalOperations` currently finalizes
 proven release, not server results. Ordinary initial hydration promotes/syncs
 records and deletes queues outside the native graph; it remains unsafe to reuse
 here. `ObservationReanalysisExecutionStore.completeHeldOutcome` is a distinct
-exact child-analysis consumer, not an initial native result importer. An
-existing owner-scoped `HistoricalSyncCloudClient.fetchScan` PostgREST read can
-provide a historical scan projection without a new hosted endpoint, but its
-ordinary `ScanRepository.syncHistoricalScanDown` wrapper mutates the legacy
-projection and is not native completion authority. The fixed request/response
-binding, atomic native completion/media ownership and terminal proof must be
-reconciled before wiring available results into History. This is an actual
-journey integration requirement, not authorization for a new general manager,
-hosted route deployment or broader prerequisite work.
+exact child-analysis consumer, not an initial native result importer.
+
+Further November 2 source review established that **no existing read supplies
+the exact original completion required for a fresh native submission**.
+`HistoricalSyncCloudClient.fetchScan` returns the current scan projection. A
+history page with `before_ordinal: 2, limit: 1` reads ordinal one independently
+of later selection, but requires enrollment; existing saved-identification
+enrollment imports the then-current surviving scan, not original execution
+evidence. Its separate analysis UUID does not bind the native prepared
+operation. Neither read can substitute for completion proof, and the mutating
+`ScanRepository.syncHistoricalScanDown` wrapper remains unsuitable.
+
+The private `initial_analysis_results` and `initial_analysis_completions`
+containers exist, but the agreed dispatch authorization, validated result
+capture, atomic completion and exact completion/status recovery operations are
+not implemented. The next consuming implementation must complete the
+[coordinated S0 contract](../rfcs/initial-dispatch-fence-interface-2026-10-13.md#scope-and-dependency-order),
+then its minimal reviewed native delivery projection and one atomic
+receiving-to-retained-result transition. Reuse original admission, media,
+funding, cancellation and native ownership services; preserve later selections
+and retained-media charges. Native delivery must not settle funding again.
+Engine's source review and identity trace are retained as
+`native-result-design-review01.json` and
+`native-initial-result-identity-trace-20261102.md` under the same artifact root.
+This dependency is larger than a fetch adapter; it does not authorize another
+general engine, partial dispatch activation, hosted operation or deployment.
 
 ## November 2 — inactive native visible-checking integration candidate
 
