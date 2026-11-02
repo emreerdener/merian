@@ -1,3 +1,14 @@
+## Private verification-to-admission coordinator
+
+`cpmPhotoAdmission.ts` owns recovery-first sequencing, one committed fresh
+start, one verification and one admission attempt, then receipt-only
+reconciliation. Its injected tests cover identity, uncertainty and deadline
+boundaries. The
+[CPM contract](../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+owns the complete binding and retention requirements. Actual structural
+verification, the atomic admission bridge and route composition remain absent;
+this module is uninstalled and does not qualify physical media or funding.
+
 ## Dormant authenticated transfer composition
 
 The source-only

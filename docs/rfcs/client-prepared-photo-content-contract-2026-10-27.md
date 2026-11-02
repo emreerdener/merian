@@ -1,9 +1,10 @@
 ## November 2 — CPM verification and admission consuming boundary
 
-Status: storage preparation implemented and locally checked; a private durable
-verification-start draft is under local validation. Complete verification and
-admission consumers remain unimplemented and inactive. This amendment applies
-the current CPM assignment to the existing
+Status: storage preparation and private durable verification start are
+implemented with narrow local qualification. A private verification-to-admission
+coordinator is implemented but uninstalled; its structural verifier and atomic
+admission bridge remain unimplemented and inactive. This amendment applies the
+current CPM assignment to the existing
 [S0/IC-1 owners](initial-completion-history-interface-2026-10-11.md#2-minimum-dependency-s0-and-checkpoint-boundary).
 It does not qualify the initial submission journey or change release controls.
 
@@ -54,17 +55,17 @@ closed.
 Snapshots and intent-image digests normalize timestamps to UTC microseconds.
 Only the first committed start may return a fresh acknowledgement. Repeated or
 uncertain starts remain held without renewed read authority, even after the
-original deadline. The future coordinator must wait for commit before media I/O;
-no SQL lock spans a GET. This start state is neither a byte-verification result
-nor an admission receipt. There is no public grant, installed verifier or new
-funding path. Source review cleared timestamp and raw/nested writer corrections.
-Fresh replay of 504 migrations and four focused catalogs passed 1,492
-assertions. The first six-schedule run passed 43 session commands, but review
-found that two start-before-retirement schedules did not explicitly assert a
-fresh start. A corrected run on another fresh owned replay passed all six
-schedules and 43 session commands with those assertions and an explicit
-no-admission invariant. Separate-connection held recovery preserved the intent
-image. Both runs remain retained with their distinct claims. See the
+original deadline. The coordinator must wait for commit before media I/O; no SQL
+lock spans a GET. This start state is neither a byte-verification result nor an
+admission receipt. There is no public grant, installed verifier or new funding
+path. Source review cleared timestamp and raw/nested writer corrections. Fresh
+replay of 504 migrations and four focused catalogs passed 1,492 assertions. The
+first six-schedule run passed 43 session commands, but review found that two
+start-before-retirement schedules did not explicitly assert a fresh start. A
+corrected run on another fresh owned replay passed all six schedules and 43
+session commands with those assertions and an explicit no-admission invariant.
+Separate-connection held recovery preserved the intent image. Both runs remain
+retained with their distinct claims. See the
 [focused catalog](../../services/supabase/tests/initial_cpm_photo_intents.sql).
 
 A populated 503-to-504 upgrade passed 11 checks for one normally committed
@@ -90,14 +91,40 @@ is retained under `.artifacts/native-app-capture-handoff-20261020/` in
 `cpm-verification-expiry01/`, `cpm-verification-expiry02/` and
 `cpm-verification-upgrade01/`. The complete consuming journey remains open.
 
-The next implementation increment couples complete-cohort verification directly
-to a CPM-specific atomic admission branch. Allocation, successful upload,
-`live_object` write closure and status `found` are individually insufficient.
-The existing admission constructor requires assignment v3 and a coherent server
-preparation outcome; CPM assignment v1 must not be relabeled to satisfy it.
-Generic CPM admission denials stay in place outside the separately validated
-branch. Reuse the original assignment, source registry, admission ledger/seal,
-funding and cancellation owners, with no parallel engine or funding path.
+The private
+[coordinator](../../services/supabase/functions/_shared/initialAnalysis/cpmPhotoAdmission.ts)
+first reconciles the exact saved identity. Only conclusive absence permits one
+begin attempt; only its fresh committed `started` acknowledgement permits one
+complete-cohort verifier invocation. It validates the saved ordered snapshot and
+closed verifier evidence before one admission attempt, then reconciles the
+receipt. Unknown recovery, start, verification or admission never authorizes a
+successor, repeated media read or automatic re-admission. A durable held start
+on a later invocation cannot restart verification. Submitted candidate and
+assignment strings are copied before the first await.
+
+The coordinator reserves five seconds for receipt reconciliation within the
+smaller of its managed 30-second aggregate budget and original admission window;
+parent budgets remain authoritative. Retained admission can still be recovered
+after that original window expires. Its
+[injected tests](../../services/supabase/functions/_shared/initialAnalysis/cpmPhotoAdmission_test.ts)
+exercise uncertainty, ordered evidence, caller cancellation, managed
+work-deadline expiry, parent/window reserve refusal and near-deadline commit
+recovery. They do not inspect physical media or prove resource release,
+throughput, SQL atomicity or complete-cohort feasibility within that budget. The
+verifier's structural boolean is trusted only from the fixed server composition
+bound to the saved profile and build; it is never client proof. No route imports
+this coordinator. Neither production bridge, public grant nor activation is
+installed.
+
+The next implementation increment couples actual complete-cohort verification
+directly to a CPM-specific atomic admission branch. Allocation, successful
+upload, `live_object` write closure and status `found` are individually
+insufficient. The existing admission constructor requires assignment v3 and a
+coherent server preparation outcome; CPM assignment v1 must not be relabeled to
+satisfy it. Generic CPM admission denials stay in place outside the separately
+validated branch. Reuse the original assignment, source registry, admission
+ledger/seal, funding and cancellation owners, with no parallel engine or funding
+path.
 
 The consuming implementation must establish these contracts together:
 
