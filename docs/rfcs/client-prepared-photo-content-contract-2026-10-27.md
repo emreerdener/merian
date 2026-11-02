@@ -64,10 +64,31 @@ found that two start-before-retirement schedules did not explicitly assert a
 fresh start. A corrected run on another fresh owned replay passed all six
 schedules and 43 session commands with those assertions and an explicit
 no-admission invariant. Separate-connection held recovery preserved the intent
-image. Both runs remain retained with their distinct claims. Populated legacy
-upgrade, committed expiry and the complete consuming journey remain open. See
-the
+image. Both runs remain retained with their distinct claims. See the
 [focused catalog](../../services/supabase/tests/initial_cpm_photo_intents.sql).
+
+A populated 503-to-504 upgrade passed 11 checks for one normally committed
+legacy operation: its original intent fields, full receipt, fixed-time handoff
+and funding hashes remained equal; actual retained recovery and public C1
+cancellation committed afterward. Independent review verified source hashes and
+disposal. This is narrow compatibility evidence, not physical transfer proof.
+
+The
+[expiry harness](../../services/supabase/scripts/test_initial_cpm_verification_expiry.py)
+creates three closed cohorts normally, then coherently ages the linked saved
+clocks and recomputes their dependent digests in one exclusive disposable-only
+fixture transaction. Submitted content and identities remain equal; constraints
+stay active and the three exact immutability triggers are restored and checked.
+The initial setup failed because trigger restoration preceded the deferred
+constraint flush. The corrected fresh run passed: committed-start recovery stays
+held with an unchanged aged intent image; a structurally valid expired cohort
+cannot start; status expiry retires the cohort and blocks later start/binding
+without funding or losing retained-source liability. This proves recovery from
+an aged committed fixture, not real elapsed-time behavior or byte equality with
+the pre-aging acknowledgement. Evidence for both runs and the populated upgrade
+is retained under `.artifacts/native-app-capture-handoff-20261020/` in
+`cpm-verification-expiry01/`, `cpm-verification-expiry02/` and
+`cpm-verification-upgrade01/`. The complete consuming journey remains open.
 
 The next implementation increment couples complete-cohort verification directly
 to a CPM-specific atomic admission branch. Allocation, successful upload,
