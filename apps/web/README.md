@@ -214,7 +214,9 @@ and retain the complete frozen-install, audit, test, type-check, and build gate.
 
 The package pins the reviewed Next.js release exactly; do not replace it with a
 range or `latest`. Use `npm ci` so CI and production consume the committed lock
-file. Next.js 16.3.6 also fixes the
+file. Next.js 16.4.3 includes the fix for the
+[App Router middleware bypass](https://github.com/advisories/GHSA-2464-fhr4-w9xw)
+and retains the fix for the
 [next/og ImageResponse RCE](https://github.com/vercel/next.js/security/advisories/GHSA-vcvr-r3jv-pc5j).
 It retains the fixes for the reviewed
 [Windows-hosted RCE](https://github.com/advisories/GHSA-p293-qw3h-jr36) and
@@ -228,18 +230,22 @@ The Next PostCSS 8.5.28 override covers both
 [attacker-controlled source-map file reads](https://github.com/advisories/GHSA-6g55-p6wh-862q)
 and the remaining
 [source-map path traversal](https://github.com/advisories/GHSA-r28c-9q8g-f849).
-The Sharp override tracks 0.35.4, which addresses the
+The Sharp override tracks 0.35.5 with libvips 1.3.4, covering the latest
+[native image processing vulnerabilities](https://github.com/advisories/GHSA-wq5f-xc86-pv6w)
+and the earlier
 [libheif vulnerabilities](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c).
 The direct Tiptap packages are pinned together at 3.31.3 to cover both the
 [attribute prototype issue](https://github.com/advisories/GHSA-cp6q-959q-f8rh)
 and [Markdown parser ReDoS](https://github.com/advisories/GHSA-j95f-988m-3j2f).
 The lockfile also excludes the affected
 [CSS selector parser releases](https://github.com/advisories/GHSA-w9m9-85wc-3x92).
-`lib/dependencySecurity.test.ts` enforces the reviewed Next.js 16.3.6, PostCSS
-8.5.25, Sharp 0.35.4, Tiptap core 3.30.5, and selector parser 7.1.3 floors,
-explicit Next overrides, and the workflow audit step. Dependency update pull
-requests must run the full dependency audit, test, type-check, and
-production-build gate.
+The source-map-js lockfile floor is 1.2.2, covering its
+[prototype pollution vulnerability](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
+`lib/dependencySecurity.test.ts` enforces the reviewed Next.js 16.4.3, PostCSS
+8.5.25, Sharp 0.35.5, source-map-js 1.2.2, Tiptap core 3.30.5, and selector
+parser 7.1.3 floors, explicit Next overrides, and the workflow audit step.
+Dependency update pull requests must run the full dependency audit, test,
+type-check, and production-build gate.
 
 `proxy.ts` generates one cryptographically random nonce per request and places
 the same nonce-based Content Security Policy on the request passed to Next.js
