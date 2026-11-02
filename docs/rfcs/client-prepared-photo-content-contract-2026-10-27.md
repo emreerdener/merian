@@ -1,3 +1,105 @@
+## November 2 — CPM verification and admission consuming boundary
+
+Status: reviewed dependency design; consuming writers remain unimplemented and
+inactive. This amendment applies the current CPM assignment to the existing
+[S0/IC-1 owners](initial-completion-history-interface-2026-10-11.md#2-minimum-dependency-s0-and-checkpoint-boundary).
+It does not qualify the initial submission journey or change release controls.
+
+The next implementation increment couples complete-cohort verification directly
+to a CPM-specific atomic admission branch. Allocation, successful upload,
+`live_object` write closure and status `found` are individually insufficient.
+The existing admission constructor requires assignment v3 and a coherent server
+preparation outcome; CPM assignment v1 must not be relabeled to satisfy it.
+Generic CPM admission denials stay in place outside the separately validated
+branch. Reuse the original assignment, source registry, admission ledger/seal,
+funding and cancellation owners, with no parallel engine or funding path.
+
+The consuming implementation must establish these contracts together:
+
+- Verification binds the saved candidate/content/assignment, the complete
+  ordered source/AI/display cohort, exact immutable generations, full-byte
+  length/hash/type, structural policy and verifier build, and irreversible write
+  closure. Signature plausibility and byte equality do not prove structural
+  admissibility. An outstanding upload must not replace verified bytes.
+- Supporting text retains the existing `text_utf8_base64` representation through
+  admission and completion. Decode only at prompt/native consumption; preserve
+  empty entries, BOM, NUL and normalization distinctions. The old JSONB
+  description-string path cannot store decoded NUL. Description evidence and its
+  History reader therefore need an explicit versioned CPM branch, without
+  reinterpreting accepted legacy descriptions.
+- Fresh verification/admission obey the original nonrenewable admission window.
+  Exact recovery of already committed receipts remains possible afterward.
+  Admitted operations, results awaiting settlement and retained completed
+  results keep their media references. Cleanup retirement permanently prevents
+  later binding, independently of cleanup-token expiry.
+- Admission freezes original configuration and funding but grants no inference.
+  Later S0 dispatch must be one transaction composing the existing invocation
+  and quota owners with the permanent one-time transition. Its fresh
+  acknowledgement supplies the exact invocation consumed by execution. Calling
+  `prepareAccountedIdentification` around a second authorization boundary is not
+  a valid composition. Generic initial-operation barriers remain intact.
+- Provider quota commits at dispatch; applicable complimentary consumption
+  follows successful completion. Proven-unused cancellation stays with C1.
+  Unknown grant/result outcomes cannot refund or reacquire through a generic
+  quota lease. Accounting-report success is not durable result evidence, and
+  report failure must not discard a known result or authorize another inference.
+
+The structural verifier is a concrete missing integration dependency. The shared
+[`inspectJpegContainer`](../../services/supabase/functions/_shared/analysisHistory/jpegContainer.ts)
+provides bounded JPEG structure checks, with metadata policy supplied by its
+consumer; it does not decode pixels. Existing public-photo and video-frame
+validators impose different format, metadata, dimensions and byte limits and
+cannot serve as CPM acceptance. No complete CPM source PNG/WebP/HEIC/HEIF or
+AI/display JPEG verifier adapter is currently qualified. Define the CPM policy
+and adapter with the consuming verification/admission branch, reuse applicable
+parser primitives, and qualify exact bytes, format rejection, cancellation and
+resource limits locally. Do not silently remove accepted source formats or
+replace structural checks with the existing signature-only initial validator.
+
+The later result writer and decoder must jointly define a fixed versioned
+Identify-result storage projection. Specify exact fractional-field and arbitrary
+UTF-8 representations, preserve absent/null and array ordering, and derive scan
+and native projections from the same saved result. Do not pass raw fractional
+Identify JSON through the integer-only private canonical codec or accept an
+independent caller-supplied scan projection. Encoded storage, including
+expansion, must fit the existing 1 MiB result, 64 KiB provenance and 16 KiB
+receipt ceilings. This remains a field-level implementation obligation, not an
+implemented codec.
+
+S0 dispatch/result/completion and exact status recovery follow the inactive
+verification/admission increment together; minimal native delivery and atomic
+receiving-to-retained promotion follow those owners. Missing durable output
+stays held. Known original output may enter settlement-only recovery without
+fresh dispatch. Later selection and user edits cannot be overwritten by an
+initial-completion replay. Full photo, reanalysis, audio/video, RUX and
+cumulative acceptance remain required before deletion/export and redesign.
+
+The effective database contract makes three additional changes inseparable from
+that first increment:
+
+- `initial_admission_statement_contract`, `initial_admission_member_images`,
+  `materialize_initial_admission` and their immediate/deferred guards currently
+  enumerate exact M1 rows and binding v3. CPM needs a closed variant with exact
+  expected before/after images and complete witness consumption; adding an
+  unregistered side write is not atomic admission.
+- CPM capacity currently has only `pending`/`released`, and cohort validation
+  describes unfunded preparation or terminal retirement. An admitted owner must
+  retain the original physical-byte liability and satisfy deferred cohort
+  checks; neither deleting registry rows nor relabeling capacity as released is
+  a retained-media transfer. Existing role-map/write-attempt foreign keys and
+  retirement triggers remain part of that transition and its cancellation path.
+- Preserve outer owner/advisory/scan/history/lifecycle ordering, then CPM's
+  fail-fast capacity lock before registry/attempt locks. A row trigger must not
+  acquire the outer owner scope after those inner locks. Both race orders need
+  actual qualification; source inspection alone does not establish safety.
+
+A fresh local replay of all 502 current migrations supplied effective routine,
+permission, trigger, constraint/FK, column, index and policy evidence for the
+write-set review. It verified an empty inactive database and was disposed after
+inspection. This is schema evidence, not consuming-writer, race or journey
+qualification. The initial local startup failed because Docker was unavailable;
+that failed attempt is retained separately. No hosted state was accessed.
+
 ## October 29 — inactive durable closure candidate
 
 The
