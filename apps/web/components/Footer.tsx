@@ -107,9 +107,6 @@ export function Footer() {
             </ActionIcon>
           </Group>
         </Group>
-        <div className="footer-wordmark" aria-hidden="true">
-          naturebook<span>↗</span>
-        </div>
       </Container>
     </Box>
   );

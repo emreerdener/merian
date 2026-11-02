@@ -45,10 +45,7 @@ export function MerianAppShell({ children }: { children: ReactNode }) {
         padding={0}
         className="merian-app-shell"
       >
-        <AppShellHeader
-          className="merian-app-shell__header"
-          data-home={isHomePage || undefined}
-        >
+        <AppShellHeader className="merian-app-shell__header">
           <Container size="xl" h="100%">
             <Group h="100%" justify="space-between" wrap="nowrap" gap="sm">
               <Anchor
@@ -86,7 +83,6 @@ export function MerianAppShell({ children }: { children: ReactNode }) {
                       component="a"
                       href={siteConfig.appStoreUrl}
                       size="sm"
-                      radius="xl"
                       className="header-cta-button"
                     >
                       Get the app
@@ -98,7 +94,6 @@ export function MerianAppShell({ children }: { children: ReactNode }) {
                       component="a"
                       href="/#waitlist"
                       size="sm"
-                      radius="xl"
                       className="header-cta-button"
                     >
                       Join beta
@@ -108,7 +103,6 @@ export function MerianAppShell({ children }: { children: ReactNode }) {
                     <Button
                       onClick={openModal}
                       size="sm"
-                      radius="xl"
                       className="header-cta-button"
                     >
                       Join beta
@@ -120,7 +114,6 @@ export function MerianAppShell({ children }: { children: ReactNode }) {
                   hiddenFrom="md"
                   size="sm"
                   aria-label={opened ? "Close navigation" : "Open navigation"}
-                  color={isHomePage ? "#f5fff2" : undefined}
                 />
               </Group>
             </Group>
@@ -137,6 +130,7 @@ export function MerianAppShell({ children }: { children: ReactNode }) {
         opened={opened}
         onClose={close}
         title="Explore Naturebook"
+        closeButtonProps={{ "aria-label": "Close navigation" }}
         position="right"
       >
         <Stack component="nav" aria-label="Mobile navigation" gap="lg">

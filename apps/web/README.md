@@ -22,17 +22,17 @@ App Store Connect campaign link; do not invent an `/invite` route unless a real
 referral product is designed and deployed.
 
 The Explore route fetches the public post and detail projections from Supabase
-on the server, renders a rich read-only post page with default Mantine
-components, and emits Open Graph metadata so Messages/social shares can render a
-clean preview. Unshared, administratively hidden, tombstoned, blocked, and
-otherwise privacy-filtered posts resolve to the application not-found page with
-non-indexable metadata; server code must not reconstruct them from direct table
-reads. Standalone-audio post details and social previews consume the persisted
-`media_items.thumbnail_url` spectrogram. The home grid uses the public species
-reference thumbnail instead, with the spectrogram as a legacy fallback. The
-public web app never downloads recordings to calculate FFT data in a visitor's
-browser; blank or unsupported legacy thumbnails retain the volume-icon fallback
-and normal `<audio>` playback.
+on the server, renders a rich read-only post page with Mantine components and
+responsive observation styling, and emits Open Graph metadata so Messages/social
+shares can render a clean preview. Unshared, administratively hidden,
+tombstoned, blocked, and otherwise privacy-filtered posts resolve to the
+application not-found page with non-indexable metadata; server code must not
+reconstruct them from direct table reads. Standalone-audio post details and
+social previews consume the persisted `media_items.thumbnail_url` spectrogram.
+The home grid uses the public species reference thumbnail instead, with the
+spectrogram as a legacy fallback. The public web app never downloads recordings
+to calculate FFT data in a visitor's browser; blank or unsupported legacy
+thumbnails retain the volume-icon fallback and normal `<audio>` playback.
 
 Post-detail audio slides include an optional browser-local **Boost audio** mode.
 Only boost requests use the allowlisted `/api/explore/audio` WAV stream; Web
@@ -64,19 +64,22 @@ use the same readable labels; attribution never displays naked URLs.
 
 ## Public design direction
 
-The homepage uses a forest-green hero, confident display typography, warm
-surfaces, and decorative 3D artwork from the iOS asset catalog. The hero retains
-the existing app screenshot. Community cards render the current server-fetched
-public Explore projection, with poster-only media, species labels, and public
-author username handles. An empty feed shows an explicit empty state rather than
-sample observations. The fetch limit remains 24.
+The homepage uses neutral white and charcoal surfaces, sentence-case typography,
+and the existing upright app screenshot. Discovery cards emphasize square photos
+with unframed captions, species labels, identification context, and public
+author username handles. They render the current server-fetched public Explore
+projection; an empty feed shows an explicit empty state rather than sample
+observations. The fetch limit remains 24.
 
-The shared header, working mobile navigation, footer, and Mantine theme extend
-this identity to reference, share, and policy pages. Light/dark preferences
-remain supported; the homepage hero and footer keep their campaign colors.
-Footer links point only to existing routes or homepage anchors. The standalone
-concept's sample stories, save controls, and proposed library search are not
-part of the public app.
+The shared header, mobile navigation, footer, and Mantine theme extend the
+neutral identity to reference, share, and policy pages. Light/dark preferences
+remain supported, with charcoal surfaces in dark mode and restrained forest
+accents. The observation page places its square media carousel beside the
+identification and author information on desktop, stacking them on mobile.
+Supporting content uses readable sections separated by subtle rules. Hazard
+notices, identification provenance, source links, media behavior, and reporting
+remain available. Footer links point only to existing routes or homepage
+anchors.
 
 The existing Turnstile-protected waitlist form appears once on the homepage,
 inside its closing invitation. Secondary pages open that same form in the header
@@ -506,11 +509,11 @@ broad species, scan, profile, or Explore tables to reconstruct that payload.
 Similar-species thumbnails are intentionally omitted because the current
 lookalike payload does not carry the required license and attribution fields.
 
-The Explore share page intentionally uses default Mantine components and
-component props instead of route-specific CSS classes or custom page chrome.
-Post visibility must come exclusively from the canonical card projection
-contract. In particular, do not bypass its moderation/publication/media-health
-rules with the detail RPC, service-role table queries, or cached page data.
+The Explore share page uses Mantine components with scoped observation layout
+classes in `app/globals.css`. Post visibility must come exclusively from the
+canonical card projection contract. In particular, do not bypass its
+moderation/publication/media-health rules with the detail RPC, service-role
+table queries, or cached page data.
 
 See `../../docs/system-architecture/08-public-brand-compatibility.md` for the
 permanent brand and compatibility contract,
