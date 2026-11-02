@@ -59,17 +59,19 @@ enum SharedMediaNativeReceivingCleanGraph {
             }
         }
 
-        var remainingAdvances: Int64 {
+        var executionAdvances: Int64 {
             get throws {
-                let execution: Int64
                 switch self {
-                case .allocating(let snapshot): execution = snapshot.allocation.remainingAdvances
-                case .generic: execution = 0
-                case .releasing(let snapshot): execution = try snapshot.release.progress.remainingAdvances
-                case .staged(let snapshot): execution = try PhotoPreparationPolicy.add([1, snapshot.components.progress.remainingAdvances])
+                case .allocating(let snapshot): return snapshot.allocation.remainingAdvances
+                case .generic: return 0
+                case .releasing(let snapshot): return try snapshot.release.progress.remainingAdvances
+                case .staged(let snapshot): return try PhotoPreparationPolicy.add([1, snapshot.components.progress.remainingAdvances])
                 }
-                return try PhotoPreparationPolicy.add([execution, presentationAdvances])
             }
+        }
+
+        var remainingAdvances: Int64 {
+            get throws { try PhotoPreparationPolicy.add([executionAdvances, presentationAdvances]) }
         }
     }
 
@@ -153,6 +155,22 @@ enum SharedMediaNativeReceivingCleanGraph {
         guard let own = witnesses[packageID], own.packageID == packageID else { throw SharedMediaStorageFailure.stale }
         let peers = witnesses.filter { $0.key != packageID }.values
         let remaining = try PhotoPreparationPolicy.add([saveAdvances, executionAdvances, own.presentationAdvances,
+            terminalConsumptionAdvances] + peers.map { try $0.remainingAdvances })
+        _ = try SharedMediaStoragePolicy.add(inventoryRevision, remaining)
+    }
+
+    /// Presentation CAS replaces only the own presentation obligation. Its save
+    /// and successor transitions must fit alongside unchanged execution, peers
+    /// and terminal consumption. This arithmetic grants no phase/write authority.
+    static func requirePresentationReplacementRunway(inventoryRevision: Int64, packageID: UUID,
+                                                     presentationAdvances: Int64, saveAdvances: Int64,
+                                                     witnesses: [UUID: Witness], terminalConsumptionAdvances: Int64) throws {
+        guard let own = witnesses[packageID], own.packageID == packageID else { throw SharedMediaStorageFailure.stale }
+        // Validate the predecessor even though its obligation is being replaced.
+        _ = try own.presentationAdvances
+        guard presentationAdvances <= AnalysisRecoveryPresentation.maximumTransitions else { throw SharedMediaStorageFailure.invalid }
+        let peers = witnesses.filter { $0.key != packageID }.values
+        let remaining = try PhotoPreparationPolicy.add([saveAdvances, own.executionAdvances, presentationAdvances,
             terminalConsumptionAdvances] + peers.map { try $0.remainingAdvances })
         _ = try SharedMediaStoragePolicy.add(inventoryRevision, remaining)
     }

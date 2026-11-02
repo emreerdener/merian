@@ -332,6 +332,51 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
         #expect(throws: (any Error).self) { try check(0, map: invalid) }
     }
 
+    @Test func presentationReplacementRetainsExecutionPeersAndTerminalRunway() async throws {
+        typealias Graph = SharedMediaNativeReceivingCleanGraph
+        let own = try await Fixture.make(count: 1), peer = try await Fixture.make(count: 1)
+        var snapshot = try Reader.read(packageID: own.store.packageID, inventoryID: own.store.inventoryID, context: own.store.context())
+        var peerSnapshot = try Reader.read(packageID: peer.store.packageID, inventoryID: peer.store.inventoryID, context: peer.store.context())
+        func initial(_ f: Fixture) -> AnalysisRecoveryPresentation {
+            .initial(for: .init(ownerID: f.prepared.profile.ownerID,
+                observationID: f.prepared.observationID, operationID: f.prepared.operationID))
+        }
+        let reserved = try initial(own).reserve(id: UUID())
+        peerSnapshot.recoveryPresentationData = try initial(peer).reserve(id: UUID()).reserved.encoded()
+        let peerWitness = Graph.Witness.releasing(peerSnapshot)
+        let execution = try snapshot.release.progress.remainingAdvances
+        let peers = try peerWitness.remainingAdvances
+        func check(_ revision: Int64, successor: Int64, save: Int64 = 1, terminal: Int64 = 3,
+                   map: [UUID: Graph.Witness]) throws {
+            try Graph.requirePresentationReplacementRunway(inventoryRevision: revision, packageID: own.store.packageID,
+                presentationAdvances: successor, saveAdvances: save, witnesses: map, terminalConsumptionAdvances: terminal)
+        }
+        // Descriptive arithmetic across separate fixture roots, not permission
+        // to mutate releasing work or positive native presentation admission.
+        let predecessors: [Data?] = [nil, try reserved.reserved.encoded(),
+            try reserved.settle(current: reserved.reserved, elapsed: .zero).encoded()]
+        for bytes in predecessors {
+            snapshot.recoveryPresentationData = bytes
+            let map: [UUID: Graph.Witness] = [own.store.packageID: .releasing(snapshot), peer.store.packageID: peerWitness]
+            for successor in [Int64(59), 58, 0] {
+                let needed = 1 + execution + successor + peers + 3
+                try check(Int64.max - needed, successor: successor, map: map)
+                #expect(throws: (any Error).self) { try check(Int64.max - needed + 1, successor: successor, map: map) }
+            }
+            #expect(throws: (any Error).self) { try check(0, successor: -1, map: map) }
+            #expect(throws: (any Error).self) { try check(0, successor: 61, map: map) }
+            #expect(throws: (any Error).self) { try check(0, successor: 59, save: -1, map: map) }
+            #expect(throws: (any Error).self) { try check(0, successor: 59, terminal: -1, map: map) }
+        }
+        let absent: [UUID: Graph.Witness] = [peer.store.packageID: peerWitness]
+        #expect(throws: SharedMediaStorageFailure.stale) { try check(0, successor: 59, map: absent) }
+        let mismatched: [UUID: Graph.Witness] = [own.store.packageID: peerWitness]
+        #expect(throws: SharedMediaStorageFailure.stale) { try check(0, successor: 59, map: mismatched) }
+        snapshot.recoveryPresentationData = Data([0])
+        let invalid: [UUID: Graph.Witness] = [own.store.packageID: .releasing(snapshot)]
+        #expect(throws: (any Error).self) { try check(0, successor: 59, map: invalid) }
+    }
+
     @Test func presentationFreshnessRejectsExactByteAndQueueIdentityChanges() async throws {
         let f = try await Fixture.make(count: 1)
         let snapshot = try Reader.read(packageID: f.store.packageID, inventoryID: f.store.inventoryID, context: f.store.context())

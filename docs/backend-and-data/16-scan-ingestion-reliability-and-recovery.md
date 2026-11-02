@@ -424,6 +424,22 @@ created before the loader closure. This does not install presentation
 persistence, qualify positive writer/CAS or terminal rollback races, or open the
 native nil-only admission guard.
 
+The reserve/settle integration also needs the inverse runway calculation:
+replace the own presentation obligation while retaining its execution advances,
+every peer and terminal consumption. The scoped arithmetic candidate exposes
+that calculation without changing existing execution-replacement callers. It
+validates the predecessor presentation even when replacing its obligation and
+checks the save plus successor at the inventory limit. Managed compilation
+passed in 247.491 seconds; three selected methods / three cases passed with zero
+failures/skips in 272.010 seconds, retaining all 6,819 input hashes
+(`rux-native-presentation-runway-runtime01-reconciled.json`). Tests use separate
+fixture roots to qualify descriptive arithmetic and preserve the existing
+execution-replacement and aggregate calculations. This helper is not yet wired
+to a writer and grants no positive-state or release-phase mutation authority.
+The next owner transaction must supply a sealed positive-state read/save proof,
+exact queue/inventory write set and durable acknowledgement before a visible
+clock.
+
 The intended first admission atomically saves the first reserved value at
 revision one: its inventory save consumes one advance and the value retains 59
 future transitions, in addition to existing execution/peer/cleanup obligations.
