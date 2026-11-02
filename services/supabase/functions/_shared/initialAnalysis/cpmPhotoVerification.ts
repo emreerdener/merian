@@ -16,7 +16,13 @@ import {
   observeInitialCpmPhotoWrite,
   snapshotCpmWriteObservationTarget,
 } from "./cpmPhotoWriteObservation.ts";
-import { initialMediaUnavailable, mediaRecord } from "./mediaBinding.ts";
+import {
+  initialMediaUnavailable,
+  mediaDigest,
+  mediaRecord,
+  mediaUUID,
+} from "./mediaBinding.ts";
+import { decodeHandoffSourceBackend } from "./mediaHandoffStorage.ts";
 import { checkInitialDeadline, initialAbortable } from "./transport.ts";
 
 type Role = "source" | "ai" | "display";
@@ -71,7 +77,10 @@ type Snapshot = {
   }[];
 };
 
-function context(value: unknown, saved: Snapshot): CpmPhotoVerificationContext {
+function context(
+  value: unknown,
+  saved?: Pick<Snapshot, "profile_digest" | "verifier_build_digest">,
+): CpmPhotoVerificationContext {
   // Copy the bounded server metadata before any later awaits. No credentials
   // or storage responses enter this object; backend contains an opaque profile.
   const raw = JSON.stringify(value);
@@ -84,9 +93,11 @@ function context(value: unknown, saved: Snapshot): CpmPhotoVerificationContext {
     "dimensions",
     "backend",
   ]);
+  mediaDigest(c.profile_digest);
+  mediaDigest(c.verifier_build_digest);
   if (
-    c.profile_digest !== saved.profile_digest ||
-    c.verifier_build_digest !== saved.verifier_build_digest
+    saved && (c.profile_digest !== saved.profile_digest ||
+      c.verifier_build_digest !== saved.verifier_build_digest)
   ) {
     throw initialMediaUnavailable();
   }
@@ -110,6 +121,81 @@ function context(value: unknown, saved: Snapshot): CpmPhotoVerificationContext {
     }
   }
   return c as unknown as CpmPhotoVerificationContext;
+}
+
+/** Trusted bootstrap only: snapshot all entries before the first await. No
+ * defaults, environment reads, credentials, installed entries or eligibility.
+ * Reviewed build/profile digests are supplied by deployment composition; this
+ * factory does not certify the executable build or grant verification authority.
+ */
+export async function cpmPhotoVerificationCatalog(
+  values: readonly CpmPhotoVerificationContext[],
+): Promise<Pick<CpmPhotoVerificationDependencies, "load">> {
+  if (!Array.isArray(values) || values.length > 16) {
+    throw initialMediaUnavailable();
+  }
+  const copied = values.map((value) => context(value));
+  const entries = new Map<string, CpmPhotoVerificationContext>();
+  const builds = new Map<string, string>();
+  const profiles = new Map<string, string>();
+  for (const entry of copied) {
+    const dimensions = JSON.stringify(
+      ["source", "ai", "display"].map((role) => {
+        const d = entry.dimensions[role as Role];
+        return [d.maximumWidth, d.maximumHeight, d.maximumPixels];
+      }),
+    );
+    const previous = builds.get(entry.verifier_build_digest);
+    const priorBuild = profiles.get(entry.profile_digest);
+    if (
+      (previous !== undefined && previous !== dimensions) ||
+      (priorBuild !== undefined && priorBuild !== entry.verifier_build_digest)
+    ) {
+      throw initialMediaUnavailable();
+    }
+    builds.set(entry.verifier_build_digest, dimensions);
+    profiles.set(entry.profile_digest, entry.verifier_build_digest);
+    const raw = entry.backend as Record<string, unknown>;
+    const generation = mediaUUID(raw?.generation);
+    const digest = mediaDigest(raw?.configuration_digest);
+    const backend = await decodeHandoffSourceBackend(raw, generation, digest);
+    const key =
+      `${entry.profile_digest}/${entry.verifier_build_digest}/${generation}/${digest}`;
+    if (entries.has(key)) throw initialMediaUnavailable();
+    for (const role of ["source", "ai", "display"] as const) {
+      Object.freeze(entry.dimensions[role]);
+    }
+    entries.set(
+      key,
+      Object.freeze({
+        ...entry,
+        dimensions: Object.freeze(entry.dimensions),
+        backend,
+      }),
+    );
+  }
+  return Object.freeze({
+    load(start: Readonly<CpmVerificationStart>, signal: AbortSignal) {
+      checkInitialDeadline(signal);
+      // Invoked only inside the coordinator's committed fresh-start callback.
+      // Retained recovery and held starts must never consult current catalog state.
+      if (
+        typeof start.snapshot_canonical !== "string" ||
+        start.snapshot_canonical.length > 65536
+      ) {
+        throw initialMediaUnavailable();
+      }
+      const saved = JSON.parse(start.snapshot_canonical) as Snapshot;
+      const key = `${mediaDigest(saved.profile_digest)}/${
+        mediaDigest(saved.verifier_build_digest)
+      }/${mediaUUID(saved.backend_generation)}/${
+        mediaDigest(saved.backend_configuration_digest)
+      }`;
+      const entry = entries.get(key);
+      if (!entry) throw initialMediaUnavailable();
+      return Promise.resolve(entry);
+    },
+  });
 }
 
 /** The only entrypoint joins actual storage reads and image structure checks to

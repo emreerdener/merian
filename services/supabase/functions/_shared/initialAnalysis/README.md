@@ -15,6 +15,17 @@ ImageIO fixtures, PNG/WebP animation policy, installed policy, the atomic
 admission bridge and route composition remain absent. This increment is
 uninstalled and does not qualify physical resource limits or funding.
 
+The same verifier owner now provides `cpmPhotoVerificationCatalog` for trusted
+bootstrap composition. It snapshots at most sixteen supplied entries before any
+await, rejects ambiguous mappings and resolves only the saved profile/build/
+backend-generation/configuration tuple. It reuses the existing source-backend
+decoder and returns frozen dimensions and nonsecret backend metadata. One build
+cannot carry conflicting limits and one profile cannot select multiple builds
+within a catalog. No entries, environment loader, SQL eligibility bypass or
+activation are installed. Retained recovery and held starts bypass the loader;
+an unavailable fresh tuple remains held before media I/O. The CPM contract owns
+qualification and cross-deployment immutability requirements.
+
 ## Dormant authenticated transfer composition
 
 The source-only

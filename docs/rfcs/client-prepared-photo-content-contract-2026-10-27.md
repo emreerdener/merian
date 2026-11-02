@@ -142,6 +142,24 @@ MiB-original cases cover actual reader/parser composition, not provider traffic,
 worker memory/CPU limits, physical cancellation settlement, SQL atomicity or
 real-app feasibility.
 
+The same inactive verifier owner now includes a trusted bootstrap catalog
+constructor. It copies all supplied entries (at most sixteen) before its first
+await, validates each nonsecret backend through the existing saved-source
+backend decoder, and resolves only the exact saved profile digest, verifier
+build digest, backend generation and backend configuration digest. Returned
+metadata and all role dimensions are frozen. Duplicate tuples, conflicting
+limits for one build, or multiple builds for one profile are rejected. No
+current-selection fallback, remote flag or environment loader is provided.
+
+This constructor consumes reviewed identities; it does not derive or certify an
+executable-build digest, install SQL profiles or prove cross-deployment catalog
+immutability. Those remain deployment-composition and qualification obligations.
+Within the current coordinator, retained receipt recovery and held starts never
+consult this catalog. A missing fresh tuple fails before media I/O and cannot
+renew verification. The injected tests exercise this actual consumer ordering,
+bootstrap/result mutation resistance and backend digest validation. They do not
+qualify an installed policy, physical resources, SQL admission or app journeys.
+
 The first JPEG increment is now extended in the same owner, renamed from
 `cpmPhotoJpegVerification` to `cpmPhotoVerification`, to accept still-PNG
 originals with JPEG-only AI/display derivatives. The shared

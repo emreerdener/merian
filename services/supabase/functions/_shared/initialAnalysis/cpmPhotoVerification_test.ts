@@ -1,4 +1,4 @@
-import { assertEquals, assertThrows } from "@std/assert";
+import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { inspectHeifContainer } from "../analysisHistory/heifContainer.ts";
 import {
   heifBox,
@@ -24,6 +24,7 @@ import { initialCpmPhotoContentDigest } from "./cpmPhotoContent.ts";
 import { initialCpmPhotoCandidateDigest } from "./cpmPhotoCandidate.ts";
 import { initialMediaHash } from "./mediaBinding.ts";
 import {
+  cpmPhotoVerificationCatalog,
   type CpmPhotoVerificationDependencies,
   verifyAndAdmitInitialCpmPhotoMedia,
 } from "./cpmPhotoVerification.ts";
@@ -1177,4 +1178,138 @@ Deno.test("HEIF alpha grids cannot reuse primary coded tiles even with compatibl
   const f = await mediaFixture(safeJpeg(), 1, "image/heic", shared);
   assertEquals((await f.run()).outcome, "held");
   assertEquals(f.calls.includes("admit"), false);
+});
+
+Deno.test("CPM trusted catalog snapshots the entire bootstrap before awaits and returns immutable policy", async () => {
+  const f = await mediaFixture();
+  const second = structuredClone(f.policy);
+  second.profile_digest = "0".repeat(64);
+  const values = [f.policy, second];
+  const pending = cpmPhotoVerificationCatalog(values);
+  f.policy.dimensions.source.maximumWidth = 1;
+  f.policy.backend.private_bucket = "changed-bucket";
+  second.dimensions.ai.maximumPixels = 1;
+  values.length = 0;
+  const catalog = await pending;
+  const start = { ...f.identity, ...f.begun };
+  const resolved = await catalog.load(start, f.controller.signal);
+  assertThrows(() => resolved.dimensions.source.maximumWidth = 1, TypeError);
+  assertThrows(
+    () =>
+      (resolved.backend as Record<string, unknown>).private_bucket = "changed",
+    TypeError,
+  );
+  assertThrows(() => resolved.dimensions = f.policy.dimensions, TypeError);
+  const secondStart = {
+    ...start,
+    snapshot_canonical: initialCanonicalText({
+      ...f.snapshot,
+      profile_digest: "0".repeat(64),
+    }),
+  };
+  assertEquals(
+    (await catalog.load(secondStart, f.controller.signal)).dimensions.ai
+      .maximumPixels,
+    100_000_000,
+  );
+  f.deps.load = catalog.load;
+  assertEquals((await f.run()).outcome, "admitted");
+  assertEquals(f.requests.length, 3);
+});
+
+Deno.test("CPM catalog rejects duplicate tuples, digest aliases and inconsistent build limits", async (t) => {
+  for (
+    const change of [
+      "duplicate",
+      "build-limits",
+      "profile-build",
+      "backend-hash",
+      "dimension",
+      "malformed-digest",
+      "extra-field",
+      "too-many",
+    ] as const
+  ) {
+    await t.step(change, async () => {
+      const f = await mediaFixture();
+      const second = structuredClone(f.policy);
+      if (change === "build-limits") {
+        second.profile_digest = "0".repeat(64);
+        second.dimensions.ai.maximumWidth = 8;
+      }
+      if (change === "profile-build") {
+        second.verifier_build_digest = "b".repeat(64);
+      }
+      if (change === "backend-hash") {
+        second.backend.private_bucket = "changed-bucket";
+      }
+      if (change === "dimension") second.dimensions.source.maximumPixels = 0;
+      if (change === "malformed-digest") second.profile_digest = "not-a-digest";
+      if (change === "extra-field") {
+        Object.assign(second.backend, { remote_flag: true });
+      }
+      await assertRejects(() =>
+        cpmPhotoVerificationCatalog(
+          change === "too-many" ? Array(17).fill(f.policy) : [f.policy, second],
+        )
+      );
+    });
+  }
+});
+
+Deno.test("CPM catalog requires exact saved profile build and backend tuple before media reads", async (t) => {
+  for (
+    const change of [
+      "profile",
+      "build",
+      "backend",
+      "configuration",
+      "empty",
+    ] as const
+  ) {
+    await t.step(change, async () => {
+      const f = await mediaFixture();
+      const catalog = await cpmPhotoVerificationCatalog(
+        change === "empty" ? [] : [f.policy],
+      );
+      f.deps.load = (start, signal) => {
+        const saved = JSON.parse(start.snapshot_canonical);
+        if (change === "profile") saved.profile_digest = "0".repeat(64);
+        if (change === "build") saved.verifier_build_digest = "0".repeat(64);
+        if (change === "backend") {
+          saved.backend_generation = "00000000-0000-4000-8000-000000000001";
+        }
+        if (change === "configuration") {
+          saved.backend_configuration_digest = "0".repeat(64);
+        }
+        return catalog.load({
+          ...start,
+          snapshot_canonical: initialCanonicalText(saved),
+        }, signal);
+      };
+      assertEquals((await f.run()).outcome, "held");
+      assertEquals(f.requests.length, 0);
+      assertEquals(f.calls.includes("admit"), false);
+    });
+  }
+});
+
+Deno.test("CPM retained recovery and held starts bypass removed catalog without renewed verification", async (t) => {
+  for (const admitted of [true, false]) {
+    await t.step(String(admitted), async () => {
+      const f = await mediaFixture();
+      const catalog = await cpmPhotoVerificationCatalog([]);
+      let loads = 0;
+      f.deps.load = (start, signal) => {
+        loads++;
+        return catalog.load(start, signal);
+      };
+      if (admitted) f.commit();
+      else {f.bridge.begin = () =>
+          Promise.resolve({ version: 1, outcome: "held", authority: "none" });}
+      assertEquals((await f.run()).outcome, admitted ? "admitted" : "held");
+      assertEquals(loads, 0);
+      assertEquals(f.requests.length, 0);
+    });
+  }
 });
