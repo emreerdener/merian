@@ -489,6 +489,15 @@ allocation/cleanup owners are prepared below; the prepared erasure worker uses
 closed gates. Origin markers do not prove cache revocation. See the
 [storage contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-storage-boundary).
 
+`pngContainer.ts` owns the extracted PNG chunk/CRC, critical ordering, color,
+palette, dimensions and zlib-header framing checks. Public-photo callers keep
+their closed ancillary policy and existing limits. The inactive
+[CPM consumer](../initialAnalysis/cpmPhotoVerification.ts) also uses those
+checks for still-PNG originals with a distinct opaque-private-metadata policy.
+Neither consumer claims pixel decoding or full compressed-data validation. The
+[CPM contract](../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+records format exclusions and integration evidence.
+
 ## Prepared public-photo staging ownership
 
 Private SQL now reserves a permanent opaque-key cleanup obligation plus an
@@ -1109,7 +1118,7 @@ still-image chunks without animation or metadata. The extracted
 `jpegContainer.ts` owns structural JPEG inspection shared with public-photo
 validation; public-photo metadata policy is unchanged. Its explicit trusted
 consumer limits also serve the inactive
-[CPM JPEG adapter](../initialAnalysis/cpmPhotoJpegVerification.ts); existing
+[CPM photo adapter](../initialAnalysis/cpmPhotoVerification.ts); existing
 publication/video defaults remain 12 MiB, 8192 per edge and 40 million pixels.
 The
 [CPM contract](../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)

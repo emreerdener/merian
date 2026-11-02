@@ -2,8 +2,8 @@
 
 Status: storage preparation and private durable verification start are
 implemented with narrow local qualification. A private verification-to-admission
-coordinator and a JPEG-only consuming verifier increment are implemented but
-uninstalled. Other original-format adapters and the atomic admission bridge
+coordinator and a JPEG/still-PNG consuming verifier increment are implemented
+but uninstalled. Other original-format adapters and the atomic admission bridge
 remain unimplemented and inactive. This amendment applies the current CPM
 assignment to the existing
 [S0/IC-1 owners](initial-completion-history-interface-2026-10-11.md#2-minimum-dependency-s0-and-checkpoint-boundary).
@@ -118,16 +118,16 @@ this coordinator. Neither production bridge, public grant nor activation is
 installed.
 
 The private
-[JPEG consuming adapter](../../services/supabase/functions/_shared/initialAnalysis/cpmPhotoJpegVerification.ts)
+[photo consuming adapter](../../services/supabase/functions/_shared/initialAnalysis/cpmPhotoVerification.ts)
 now joins that coordinator to the existing exact-byte storage observation and
-shared JPEG marker/table/scan inspector. It preflights every ordered role before
-storage I/O, resolves server-owned policy by both saved profile and
-verifier-build digests, and checks the complete
+shared JPEG marker/table/scan and PNG chunk inspectors. It preflights every
+ordered role before storage I/O, resolves server-owned policy by both saved
+profile and verifier-build digests, and checks the complete
 cohort/account/deletion/retirement fences around the existing per-object checks.
 One scratch buffer sized to the largest declared role (at most 32 MiB) is reused
 serially and cleared on exit. The reader hashes and copies each chunk before
 another read; shared-memory chunks are rejected. Only exact length/hash followed
-by successful JPEG inspection and final current checks can produce
+by successful container inspection and final current checks can produce
 complete-cohort evidence for the coordinator's one admission attempt. No partial
 proof escapes.
 
@@ -142,13 +142,27 @@ MiB-original cases cover actual reader/parser composition, not provider traffic,
 worker memory/CPU limits, physical cancellation settlement, SQL atomicity or
 real-app feasibility.
 
-This increment explicitly handles only all-JPEG cohorts. PNG, WebP, HEIC and
-HEIF declarations remain accepted by their existing vocabulary and saved-profile
-contracts; the missing adapters fail closed before any storage GET in this
-uninstalled composition. They remain required before full original-format
-qualification and activation. No format conversion or reduced product scope is
-implied. The database admission bridge and its coordinated retention/funding/C1
-changes remain pending.
+The first JPEG increment is now extended in the same owner, renamed from
+`cpmPhotoJpegVerification` to `cpmPhotoVerification`, to accept still-PNG
+originals with JPEG-only AI/display derivatives. The shared
+[PNG inspector](../../services/supabase/functions/_shared/analysisHistory/pngContainer.ts)
+extracts the existing public-photo parser's signature, CRC, critical-chunk
+order, palette/color/depth, dimensions, consecutive IDAT and zlib-header checks.
+Its framing follows the [PNG specification](https://www.w3.org/TR/png-3/).
+Unknown critical chunks and nonconforming chunk names are rejected. Private
+ancillary chunks are retained as opaque CRC-checked payloads; their metadata
+semantics and compressed contents are not decoded. Public-photo callers retain
+their existing closed metadata policy and limits. This is neither complete
+deflate/pixel validation nor metadata sanitization. APNG chunks are explicitly
+held pending a qualified animation policy; still-image verification cannot
+silently interpret them as a single photo.
+
+WebP, HEIC and HEIF declarations remain accepted by their existing vocabulary
+and saved-profile contracts; missing adapters fail closed before any storage GET
+in this uninstalled composition. They and unresolved format/profile coverage
+remain required before full original-format qualification and activation. No
+format conversion or reduced product scope is implied. The database admission
+bridge and its coordinated retention/funding/C1 changes remain pending.
 
 The next implementation increment couples actual complete-cohort verification
 directly to a CPM-specific atomic admission branch. Allocation, successful
@@ -196,13 +210,13 @@ The shared
 provides bounded JPEG structure checks, with metadata policy supplied by its
 consumer; it does not decode pixels. Existing public-photo and video-frame
 validators impose different format, metadata, dimensions and byte limits and
-cannot serve as CPM acceptance. The JPEG increment above does not qualify source
-PNG/WebP/HEIC/HEIF, installed policy or the atomic admission branch. Complete
-the CPM policy and adapters with the consuming verification/admission branch,
-reuse applicable parser primitives, and qualify exact bytes, format rejection,
-cancellation and resource limits locally. Do not silently remove accepted source
-formats or replace structural checks with the existing signature-only initial
-validator.
+cannot serve as CPM acceptance. The JPEG/still-PNG increment above does not
+qualify source WebP/HEIC/HEIF or animated PNG, installed policy or the atomic
+admission branch. Complete the CPM policy and adapters with the consuming
+verification/admission branch, reuse applicable parser primitives, and qualify
+exact bytes, format rejection, cancellation and resource limits locally. Do not
+silently remove accepted source formats or replace structural checks with the
+existing signature-only initial validator.
 
 The later result writer and decoder must jointly define a fixed versioned
 Identify-result storage projection. Specify exact fractional-field and arbitrary

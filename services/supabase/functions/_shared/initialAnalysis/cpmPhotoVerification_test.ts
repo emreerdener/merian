@@ -1,9 +1,14 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import { inspectJpegContainer } from "../analysisHistory/jpegContainer.ts";
+import { inspectPngContainer } from "../analysisHistory/pngContainer.ts";
+import { validatePublicPhotoContainer } from "../analysisHistory/publicPhotoContainer.ts";
 import {
   joined,
   jpegSegment,
+  pngChunk,
+  pngParts,
   safeJpeg,
+  safePng,
 } from "../analysisHistory/testing/publicPhotoFixtures.ts";
 import { fixture, hash } from "./cpmPhotoAdmissionTestFixtures.ts";
 import { initialCanonicalText } from "./canonical.ts";
@@ -11,11 +16,11 @@ import { initialCpmPhotoContentDigest } from "./cpmPhotoContent.ts";
 import { initialCpmPhotoCandidateDigest } from "./cpmPhotoCandidate.ts";
 import { initialMediaHash } from "./mediaBinding.ts";
 import {
-  type CpmJpegVerificationDependencies,
-  verifyAndAdmitInitialCpmJpegPhoto,
-} from "./cpmPhotoJpegVerification.ts";
+  type CpmPhotoVerificationDependencies,
+  verifyAndAdmitInitialCpmPhotoMedia,
+} from "./cpmPhotoVerification.ts";
 
-async function jpegFixture(
+async function mediaFixture(
   bytes = safeJpeg(),
   count = 1,
   sourceType = "image/jpeg",
@@ -102,7 +107,7 @@ async function jpegFixture(
     "cache-control": "private, no-store",
   };
   let cohortChecks = 0;
-  const deps: CpmJpegVerificationDependencies = {
+  const deps: CpmPhotoVerificationDependencies = {
     load: () => Promise.resolve(policy),
     requireCurrent: (start) => {
       assertEquals(start, {
@@ -118,11 +123,16 @@ async function jpegFixture(
       requireCurrent: () => Promise.resolve(),
       sign: (_profile, request) => Promise.resolve(request),
       fetch: (input) => {
-        const body = requests.length % 3 === 0 ? sourceBytes : bytes;
+        const isSource = requests.length % 3 === 0;
+        const body = isSource ? sourceBytes : bytes;
         requests.push((input as Request).url);
         return Promise.resolve(
           new Response(body.slice(), {
-            headers: { ...headers, "content-length": String(body.length) },
+            headers: {
+              ...headers,
+              "content-length": String(body.length),
+              "content-type": isSource ? sourceType : "image/jpeg",
+            },
           }),
         );
       },
@@ -138,7 +148,7 @@ async function jpegFixture(
     deps,
     checks: () => cohortChecks,
     run: () =>
-      verifyAndAdmitInitialCpmJpegPhoto(
+      verifyAndAdmitInitialCpmPhotoMedia(
         f.bridge,
         deps,
         f.identity,
@@ -150,7 +160,7 @@ async function jpegFixture(
 Deno.test("CPM actual JPEG reads verify complete ordered one/two-photo cohorts before admission", async (t) => {
   for (const count of [1, 2]) {
     await t.step(String(count), async () => {
-      const f = await jpegFixture(safeJpeg(), count);
+      const f = await mediaFixture(safeJpeg(), count);
       assertEquals((await f.run()).outcome, "admitted");
       assertEquals(f.requests.length, 3 * count);
       assertEquals(new Set(f.requests).size, 3 * count);
@@ -164,7 +174,7 @@ Deno.test("CPM 32 MiB original does not inherit the public JPEG 12 MiB ceiling",
   const jpeg = safeJpeg(), source = new Uint8Array(33_554_432).fill(0x3f);
   source.set(jpeg.subarray(0, -3));
   source.set([255, 217], source.length - 2);
-  const f = await jpegFixture(jpeg, 1, "image/jpeg", source);
+  const f = await mediaFixture(jpeg, 1, "image/jpeg", source);
   assertThrows(() => inspectJpegContainer(source, () => {}));
   assertEquals((await f.run()).outcome, "admitted");
   assertEquals(f.requests.length, 3);
@@ -179,7 +189,7 @@ Deno.test("CPM byte-equal malformed JPEG cannot become structural evidence", asy
     ]
   ) {
     await t.step(String(bytes.length), async () => {
-      const f = await jpegFixture(bytes);
+      const f = await mediaFixture(bytes);
       assertEquals((await f.run()).outcome, "held");
       assertEquals(f.requests.length, 1);
       assertEquals(f.calls.includes("admit"), false);
@@ -188,9 +198,9 @@ Deno.test("CPM byte-equal malformed JPEG cannot become structural evidence", asy
 });
 
 Deno.test("CPM missing non-JPEG adapters reject complete cohort before any storage read", async (t) => {
-  for (const type of ["image/png", "image/webp", "image/heic", "image/heif"]) {
+  for (const type of ["image/webp", "image/heic", "image/heif"]) {
     await t.step(type, async () => {
-      const f = await jpegFixture(safeJpeg(), 2, type);
+      const f = await mediaFixture(safeJpeg(), 2, type);
       assertEquals((await f.run()).outcome, "held");
       assertEquals(f.requests.length, 0);
       assertEquals(f.calls.includes("admit"), false);
@@ -203,7 +213,7 @@ Deno.test("CPM saved verifier build and explicit dimension bounds fail closed", 
     const change of ["build", "profile", "width", "pixels", "invalid"] as const
   ) {
     await t.step(change, async () => {
-      const f = await jpegFixture();
+      const f = await mediaFixture();
       if (change === "build") f.policy.verifier_build_digest = "0".repeat(64);
       if (change === "profile") f.policy.profile_digest = "0".repeat(64);
       if (change === "width") f.policy.dimensions.source.maximumWidth = 7;
@@ -226,14 +236,14 @@ Deno.test("CPM JPEG uses its explicit dimensions and preserves private metadata"
   bytes[sof + 7] = 0x23;
   bytes[sof + 8] = 0x28; // 9000
   assertThrows(() => inspectJpegContainer(bytes, () => {}));
-  const f = await jpegFixture(
+  const f = await mediaFixture(
     joined(bytes.slice(0, 2), jpegSegment(0xfe, [1, 2, 3]), bytes.slice(2)),
   );
   assertEquals((await f.run()).outcome, "admitted");
 });
 
 Deno.test("CPM third-role hash mismatch discards entire cohort", async () => {
-  const f = await jpegFixture(), fetch = f.deps.storage.fetch;
+  const f = await mediaFixture(), fetch = f.deps.storage.fetch;
   f.deps.storage.fetch = (input, init) => {
     if (f.requests.length < 2) return fetch(input, init);
     f.requests.push((input as Request).url);
@@ -247,7 +257,7 @@ Deno.test("CPM third-role hash mismatch discards entire cohort", async () => {
 });
 
 Deno.test("CPM late account retirement after reads forbids admission", async () => {
-  const f = await jpegFixture(), current = f.deps.requireCurrent;
+  const f = await mediaFixture(), current = f.deps.requireCurrent;
   f.deps.requireCurrent = (start, signal) => {
     if (f.requests.length === 3) return Promise.reject(new Error("retired"));
     return current(start, signal);
@@ -258,7 +268,7 @@ Deno.test("CPM late account retirement after reads forbids admission", async () 
 });
 
 Deno.test("CPM unknown admission acknowledgement recovers without rereading JPEG cohort", async () => {
-  const f = await jpegFixture(), admit = f.bridge.admit;
+  const f = await mediaFixture(), admit = f.bridge.admit;
   f.bridge.admit = async (e, signal) => {
     await admit(e, signal);
     throw new Error("lost_ack");
@@ -270,7 +280,7 @@ Deno.test("CPM unknown admission acknowledgement recovers without rereading JPEG
 });
 
 Deno.test("CPM cancellation during JPEG read prevents later role reads and admission", async () => {
-  const f = await jpegFixture();
+  const f = await mediaFixture();
   let entered!: () => void, cancellations = 0;
   const ready = new Promise<void>((resolve) => {
     entered = resolve;
@@ -300,7 +310,7 @@ Deno.test("CPM cancellation during JPEG read prevents later role reads and admis
 });
 
 Deno.test("CPM JPEG inspection copies reused transport views before the next pull", async () => {
-  const f = await jpegFixture();
+  const f = await mediaFixture();
   f.deps.storage.fetch = (input) => {
     f.requests.push((input as Request).url);
     let offset = 0;
@@ -320,4 +330,119 @@ Deno.test("CPM JPEG inspection copies reused transport views before the next pul
   };
   assertEquals((await f.run()).outcome, "admitted");
   assertEquals(f.requests.length, 3);
+});
+
+Deno.test("CPM PNG originals share complete-cohort verification with JPEG derivatives", async (t) => {
+  for (const count of [1, 2]) {
+    await t.step(String(count), async () => {
+      const f = await mediaFixture(safeJpeg(), count, "image/png", safePng());
+      assertEquals((await f.run()).outcome, "admitted");
+      assertEquals(f.requests.length, 3 * count);
+      assertEquals(f.calls, ["recover", "begin", "admit", "recover"]);
+    });
+  }
+});
+
+Deno.test("CPM PNG opaque ancillary metadata is retained without public sanitization", async () => {
+  const [signature, header, data, end] = pngParts();
+  const source = joined(
+    signature,
+    header,
+    pngChunk("vpAg", [1, 2, 3]),
+    data,
+    pngChunk("vpAg", [4, 5]),
+    end,
+  );
+  const f = await mediaFixture(safeJpeg(), 1, "image/png", source);
+  assertEquals((await f.run()).outcome, "admitted");
+  assertEquals(f.requests.length, 3);
+});
+
+Deno.test("CPM PNG framing failures cannot supply structural evidence despite exact hashes", async (t) => {
+  const [signature, header, data, end] = pngParts();
+  const corrupt = safePng();
+  corrupt[corrupt.length - 1] ^= 1;
+  const cases: Record<string, Uint8Array> = {
+    crc: corrupt,
+    header: joined(signature, data, header, end),
+    duplicate: joined(signature, header, header, data, end),
+    critical: joined(signature, header, pngChunk("ABCD"), data, end),
+    reserved: joined(signature, header, pngChunk("abcd"), data, end),
+    split: joined(signature, header, data, pngChunk("vpAg"), data, end),
+    trailing: joined(safePng(), new Uint8Array([0])),
+    truncated: safePng().slice(0, -1),
+    missingData: joined(signature, header, end),
+    zlib: joined(signature, header, pngChunk("IDAT", [0, 0, 0, 0, 0, 0]), end),
+    animation: joined(
+      signature,
+      header,
+      pngChunk("acTL", [0, 0, 0, 1, 0, 0, 0, 0]),
+      data,
+      end,
+    ),
+    wrongType: safeJpeg(),
+  };
+  for (const [name, source] of Object.entries(cases)) {
+    await t.step(name, async () => {
+      const f = await mediaFixture(safeJpeg(), 1, "image/png", source);
+      assertEquals((await f.run()).outcome, "held");
+      assertEquals(f.requests.length, 1);
+      assertEquals(f.calls.includes("admit"), false);
+    });
+  }
+});
+
+Deno.test("CPM PNG uses explicit source dimensions and rejects the wrong HTTP MIME", async (t) => {
+  const [signature, , data, end] = pngParts();
+  const source = joined(
+    signature,
+    pngChunk("IHDR", [0, 0, 35, 40, 0, 0, 0, 1, 8, 0, 0, 0, 0]),
+    data,
+    end,
+  );
+  assertThrows(() => validatePublicPhotoContainer(source, "image/png"));
+  for (const mode of ["valid", "dimensions", "mime"]) {
+    await t.step(mode, async () => {
+      const f = await mediaFixture(safeJpeg(), 1, "image/png", source);
+      if (mode === "dimensions") {
+        f.policy.dimensions.source.maximumWidth = 8999;
+      }
+      if (mode === "mime") {
+        f.deps.storage.fetch = (input) => {
+          f.requests.push((input as Request).url);
+          return Promise.resolve(
+            new Response(source.slice(), {
+              headers: {
+                ...f.headers,
+                "content-length": String(source.length),
+              },
+            }),
+          );
+        };
+      }
+      assertEquals(
+        (await f.run()).outcome,
+        mode === "valid" ? "admitted" : "held",
+      );
+      assertEquals(f.requests.length, mode === "valid" ? 3 : 1);
+    });
+  }
+});
+
+Deno.test("PNG inspection enforces byte and dimension policy independently of valid framing", () => {
+  const png = safePng();
+  const limits = {
+    maximumBytes: png.length,
+    maximumWidth: 1,
+    maximumHeight: 1,
+    maximumPixels: 1,
+  };
+  assertEquals(inspectPngContainer(png, limits), { width: 1, height: 1 });
+  for (
+    const invalid of [{ maximumBytes: png.length - 1 }, { maximumWidth: 0 }, {
+      maximumHeight: NaN,
+    }, { maximumPixels: 0 }]
+  ) {
+    assertThrows(() => inspectPngContainer(png, { ...limits, ...invalid }));
+  }
 });

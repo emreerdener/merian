@@ -1,7 +1,8 @@
-/** Inactive JPEG-only consuming increment. No installed profile/route or SQL
+/** Inactive JPEG/PNG consuming increment. No installed profile/route or SQL
  * admission bridge. Other accepted original formats still require adapters;
  * their declarations are never converted or treated as JPEG proof. */
 import { inspectJpegContainer } from "../analysisHistory/jpegContainer.ts";
+import { inspectPngContainer } from "../analysisHistory/pngContainer.ts";
 import {
   type CpmAdmissionIdentity,
   type CpmPhotoAdmissionBridge,
@@ -25,17 +26,17 @@ type Dimensions = {
 /** Fixed server catalog, resolved by BOTH saved digests. Limits are part of
  * the immutable verifier build, never caller-selected policy or moving flags.
  * No such catalog/profile is installed by this module. */
-export interface CpmJpegVerificationContext {
+export interface CpmPhotoVerificationContext {
   profile_digest: string;
   verifier_build_digest: string;
   dimensions: Record<Role, Dimensions>;
   backend: unknown;
 }
-export interface CpmJpegVerificationDependencies {
+export interface CpmPhotoVerificationDependencies {
   load(
     start: Readonly<CpmVerificationStart>,
     signal: AbortSignal,
-  ): Promise<CpmJpegVerificationContext>;
+  ): Promise<CpmPhotoVerificationContext>;
   /** Exact complete cohort, current owner/account/deletion/retirement fences.
    * Must validate the saved start, not simply that each object still exists. */
   requireCurrent(
@@ -68,7 +69,7 @@ type Snapshot = {
   }[];
 };
 
-function context(value: unknown, saved: Snapshot): CpmJpegVerificationContext {
+function context(value: unknown, saved: Snapshot): CpmPhotoVerificationContext {
   // Copy the bounded server metadata before any later awaits. No credentials
   // or storage responses enter this object; backend contains an opaque profile.
   const raw = JSON.stringify(value);
@@ -106,15 +107,15 @@ function context(value: unknown, saved: Snapshot): CpmJpegVerificationContext {
       ) throw initialMediaUnavailable();
     }
   }
-  return c as unknown as CpmJpegVerificationContext;
+  return c as unknown as CpmPhotoVerificationContext;
 }
 
-/** The only entrypoint joins actual storage reads and JPEG structure checks to
+/** The only entrypoint joins actual storage reads and image structure checks to
  * the existing coordinator. Its private verify callback receives only the
  * coordinator-validated fresh committed start, never arbitrary caller proof. */
-export function verifyAndAdmitInitialCpmJpegPhoto(
+export function verifyAndAdmitInitialCpmPhotoMedia(
   bridge: Omit<CpmPhotoAdmissionBridge, "verify">,
-  deps: CpmJpegVerificationDependencies,
+  deps: CpmPhotoVerificationDependencies,
   identity: CpmAdmissionIdentity,
   signal: AbortSignal,
 ) {
@@ -129,14 +130,16 @@ export function verifyAndAdmitInitialCpmJpegPhoto(
         // the declaration vocabulary: unsupported adapters fail closed here.
         const targets = saved.members.map(({ role }) => {
           if (
-            role.declaration.declared_content_type !== "image/jpeg"
+            role.declaration.declared_content_type !== "image/jpeg" &&
+            !(role.role === "source" &&
+              role.declaration.declared_content_type === "image/png")
           ) throw initialMediaUnavailable();
           return snapshotCpmWriteObservationTarget({
             outcome: "live_object",
             role: role.role,
             byte_count: role.declaration.byte_count,
             sha256: role.declaration.sha256,
-            content_type: "image/jpeg",
+            content_type: role.declaration.declared_content_type,
           });
         });
         const current = () =>
@@ -199,11 +202,29 @@ export function verifyAndAdmitInitialCpmJpegPhoto(
                 finish() {
                   checkInitialDeadline(signal);
                   if (offset !== size) throw initialMediaUnavailable();
-                  inspectJpegContainer(scratch.subarray(0, size), () => {
-                    // Private source/derivative metadata is preserved, not decoded,
-                    // sanitized or claimed safe for publication by this verifier.
-                    checkInitialDeadline(signal);
-                  }, { ...policy.dimensions[role.role], maximumBytes: size });
+                  if (role.declaration.declared_content_type === "image/png") {
+                    inspectPngContainer(scratch.subarray(0, size), {
+                      ...policy.dimensions[role.role],
+                      maximumBytes: size,
+                    }, (type) => {
+                      checkInitialDeadline(signal);
+                      // Still-image increment only. Animation needs its own
+                      // qualified interpretation; opaque metadata is preserved.
+                      if (["acTL", "fcTL", "fdAT"].includes(type)) {
+                        throw initialMediaUnavailable();
+                      }
+                    });
+                  } else {
+                    inspectJpegContainer(
+                      scratch.subarray(0, size),
+                      () => {
+                        // Private source/derivative metadata is preserved, not decoded,
+                        // sanitized or claimed safe for publication by this verifier.
+                        checkInitialDeadline(signal);
+                      },
+                      { ...policy.dimensions[role.role], maximumBytes: size },
+                    );
+                  }
                   checkInitialDeadline(signal);
                   inspected = true;
                 },
@@ -220,7 +241,7 @@ export function verifyAndAdmitInitialCpmJpegPhoto(
               role: role.role,
               byte_count: size,
               sha256: role.declaration.sha256,
-              content_type: "image/jpeg",
+              content_type: role.declaration.declared_content_type,
               structural_acceptance: true,
             });
           }
