@@ -1,4 +1,5 @@
 import { assertEquals, assertRejects } from "@std/assert";
+import { createHash } from "node:crypto";
 import { initialCanonicalText } from "./canonical.ts";
 import { initialMediaHash } from "./mediaBinding.ts";
 import {
@@ -93,6 +94,125 @@ async function fixture(marker = false) {
       ),
   };
 }
+
+for (
+  const [role, size] of [
+    ["source", 33_554_432],
+    ["ai", 5_242_880],
+    ["display", 4_194_304],
+  ] as const
+) {
+  Deno.test(`CPM incremental observation covers every byte at the ${role} limit`, async () => {
+    const f = await fixture();
+    if (f.target.outcome !== "live_object") throw new Error("fixture");
+    const chunk = new Uint8Array(65_536);
+    const expected = createHash("sha256");
+    for (let i = 0; i < size / chunk.length; i++) {
+      chunk.fill(i % 251);
+      expected.update(chunk);
+    }
+    f.target.role = role;
+    f.target.byte_count = size;
+    f.target.sha256 = expected.digest("hex");
+    expected.destroy();
+    f.headers.set("content-length", String(size));
+    let reads = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (reads === size / chunk.length) return c.close();
+        // The next pull mutates the same view: no deferred digest may retain it.
+        chunk.fill(reads++ % 251);
+        c.enqueue(chunk);
+      },
+    }, { highWaterMark: 0 });
+    f.deps.fetch = () =>
+      Promise.resolve(new Response(body, { headers: f.headers }));
+    assertEquals((await f.run()).target, f.target);
+    assertEquals(reads * chunk.length, size);
+    assertEquals(body.locked, false);
+    assertEquals(f.checks(), 3);
+  });
+}
+
+Deno.test("CPM incremental hashing rejects a changed final byte and truncation", async () => {
+  for (const variant of ["tail", "short", "extra"] as const) {
+    const f = await fixture();
+    if (f.target.outcome !== "live_object") throw new Error("fixture");
+    const original = new Uint8Array(8192).fill(37);
+    f.target.byte_count = original.length;
+    f.target.sha256 = await initialMediaHash(original);
+    f.headers.set("content-length", String(original.length));
+    const first = original.slice(0, 4096);
+    const last = variant === "short"
+      ? original.slice(4096, -1)
+      : original.slice(4096);
+    if (variant === "tail") last[last.length - 1] ^= 1;
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(first);
+        c.enqueue(last);
+        if (variant === "extra") c.enqueue(new Uint8Array([37]));
+        c.close();
+      },
+    });
+    f.deps.fetch = () =>
+      Promise.resolve(new Response(body, { headers: f.headers }));
+    await assertRejects(f.run);
+    assertEquals(f.checks(), 2);
+    assertEquals(body.locked, false);
+  }
+});
+
+Deno.test("CPM incremental reader preserves chunk and consecutive-empty limits", async () => {
+  for (const empty of [false, true]) {
+    const f = await fixture();
+    if (f.target.outcome !== "live_object") throw new Error("fixture");
+    const count = empty ? 33 : 4097;
+    f.target.byte_count = empty ? 1 : count;
+    f.headers.set("content-length", String(f.target.byte_count));
+    let reads = 0, cancelled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        reads++;
+        c.enqueue(new Uint8Array(empty ? 0 : 1));
+      },
+      cancel() {
+        cancelled++;
+      },
+    }, { highWaterMark: 0 });
+    f.deps.fetch = () =>
+      Promise.resolve(new Response(body, { headers: f.headers }));
+    await assertRejects(f.run);
+    assertEquals(reads, count);
+    assertEquals(cancelled, 1);
+    assertEquals(f.checks(), 2);
+    assertEquals(body.locked, false);
+  }
+});
+
+Deno.test("CPM abort during a stalled body never reaches the final lifecycle check", async () => {
+  const f = await fixture();
+  let entered!: () => void;
+  const reading = new Promise<void>((r) => entered = r);
+  let cancelled = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull() {
+      entered();
+    },
+    cancel() {
+      cancelled++;
+    },
+  }, { highWaterMark: 0 });
+  f.deps.fetch = () =>
+    Promise.resolve(new Response(body, { headers: f.headers }));
+  const rejected = assertRejects(f.run);
+  await reading;
+  f.controller.abort();
+  await rejected;
+  assertEquals(cancelled, 1);
+  assertEquals(body.locked, false);
+  assertEquals(f.checks(), 2);
+});
 
 for (const role of ["source", "ai", "display"] as const) {
   Deno.test(`CPM ${role} observation reads exact bytes once without write authority`, async () => {

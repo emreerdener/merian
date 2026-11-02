@@ -74,8 +74,11 @@ native consumer is installed.
 `cpmPhotoWriteObservation.ts` performs one bounded direct read of the exact
 original v2 object, yielding only frozen identity/outcome facts after lifecycle
 checks and full-byte or retired-marker verification. It reuses the existing
-backend codec, stream and deadline owners. This observation has no issuance,
-settlement or capacity-release authority. The
+backend codec and deadline owner; its bounded reader hashes incrementally
+without retaining media chunks or building an aggregate media buffer. The
+[current CPM checkpoint](../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md#november-2--cpm-verification-and-admission-consuming-boundary)
+records this implementation and its remaining structural/resource obligations.
+This observation has no issuance, settlement or capacity-release authority. The
 [scan contract](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#inactive-cpm-storage-observation)
 owns limits, validation status and the remaining production
 bridge/payload/memory qualification. Focused synthetic tests are in

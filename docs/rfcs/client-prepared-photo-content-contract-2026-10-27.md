@@ -28,6 +28,16 @@ committed C1 cancellation passed after upgrade. Evidence is retained under
 evidence, not a full catalog, concurrency, verifier, CPM admission or native
 journey gate.
 
+The existing inactive `cpmPhotoWriteObservation.ts` read owner now hashes each
+chunk synchronously with incremental SHA-256, before requesting the next chunk.
+It no longer retains the full chunk list or allocates an aggregate media buffer.
+Its original role byte limits, 4,096-chunk and 32-consecutive-empty limits,
+single GET, deadline/cancellation behavior and final lifecycle recheck remain
+unchanged. This uses the characterization's incremental hash mechanism without
+installing its test runtime or replaying the completed GAC-1 campaign. It proves
+neither structural admissibility nor physical cancellation settlement; no
+whole-worker memory/CPU qualification or admission authority follows.
+
 The next implementation increment couples complete-cohort verification directly
 to a CPM-specific atomic admission branch. Allocation, successful upload,
 `live_object` write closure and status `found` are individually insufficient.

@@ -1967,6 +1967,18 @@ write closure under the existing backend contract.
 
 ### Inactive CPM storage observation
 
+November 2 implementation update: the existing observation reader now hashes
+incrementally without retaining media chunks or allocating a combined media
+buffer. The original byte/chunk limits, single-read and lifecycle boundaries
+remain intact. The initial-analysis domain passed 462 tests / 264 steps; Engine
+review found no blocking issue. Evidence is retained under
+`.artifacts/native-app-capture-handoff-20261020/cpm-incremental-observation-*`.
+The
+[current CPM contract](../rfcs/client-prepared-photo-content-contract-2026-10-27.md#november-2--cpm-verification-and-admission-consuming-boundary)
+owns implementation scope. This does not qualify structural verification,
+whole-worker memory/CPU, physical cancellation settlement or CPM admission.
+Earlier test counts below retain their original checkpoint scope.
+
 `cpmPhotoWriteObservation.ts:observeInitialCpmPhotoWrite` supplies the next
 storage-verification primitive. It snapshots the exact attempt, assignment,
 object, backend configuration, issuance epoch and verification-policy identity,

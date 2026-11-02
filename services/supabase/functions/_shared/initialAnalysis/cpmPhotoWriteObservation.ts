@@ -1,9 +1,9 @@
 /** Inactive CPM storage observation. No issuance, SQL settlement or release
  * authority. Durable closure must separately consume this exact observation
  * under fresh registry/attempt locks and a qualified storage policy. */
+import { createHash } from "node:crypto";
 import { fetchWithDeadline } from "../outbound.ts";
 import {
-  initialMediaHash,
   initialMediaUnavailable,
   mediaDigest,
   mediaRecord,
@@ -16,7 +16,6 @@ import {
   checkInitialDeadline,
   initialAbortable,
   initialDeadline,
-  readInitialStream,
 } from "./transport.ts";
 
 export interface CpmWriteObservationBinding {
@@ -128,10 +127,59 @@ export function snapshotCpmWriteObservationTarget(value: unknown) {
   return Object.freeze(t) as unknown as Readonly<CpmWriteObservationTarget>;
 }
 
+/** Same bounded reader policy as readInitialStream, without retaining chunks
+ * or allocating an aggregate media buffer. update consumes each view before the
+ * next read; storage may reuse its backing buffer. This is byte observation,
+ * not structural validation or proof of physical read/cancellation settlement. */
+async function observeBytes(
+  stream: ReadableStream<Uint8Array> | null,
+  size: number,
+  expectedHash: string | null,
+  signal: AbortSignal,
+): Promise<void> {
+  if (!stream) throw initialMediaUnavailable();
+  const reader = stream.getReader();
+  let hash: ReturnType<typeof createHash> | undefined;
+  let bytes = 0, chunks = 0, empty = 0;
+  let complete = false;
+  try {
+    hash = createHash("sha256");
+    for (;;) {
+      const next = await initialAbortable(signal, () => reader.read());
+      if (next.done) break;
+      if (!(next.value instanceof Uint8Array) || ++chunks > 4096) {
+        throw initialMediaUnavailable();
+      }
+      if (next.value.byteLength === 0) {
+        if (++empty > 32) throw initialMediaUnavailable();
+        continue;
+      }
+      empty = 0;
+      if (next.value.byteLength > size - bytes) {
+        throw initialMediaUnavailable();
+      }
+      hash.update(next.value);
+      bytes += next.value.byteLength;
+      checkInitialDeadline(signal);
+    }
+    checkInitialDeadline(signal);
+    const digest = hash.digest("hex");
+    if (bytes !== size || (expectedHash !== null && digest !== expectedHash)) {
+      throw initialMediaUnavailable();
+    }
+    checkInitialDeadline(signal);
+    complete = true;
+  } finally {
+    hash?.destroy();
+    if (!complete) void reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+}
+
 /** At most one direct uncached GET, no PUT/retry/HEAD fallback. All caller facts
  * are copied before the first await; no bytes, URL or credential escapes. The
- * existing stream owner bounds bytes/chunks and cancels on failure. Whole-buffer
- * hashing still needs CPM-specific hosted memory qualification before install. */
+ * bounded reader hashes incrementally and cancels on failure. Whole-worker
+ * memory and positive physical cleanup still require qualification before install. */
 export async function observeInitialCpmPhotoWrite(
   deps: CpmWriteObservationDependencies,
   value: CpmWriteObservationBinding,
@@ -235,15 +283,14 @@ export async function observeInitialCpmPhotoWrite(
               response.headers.get(metadata[0]) !== "erased-v1"
             : metadata.length !== 0)
         ) throw initialMediaUnavailable();
-        const bytes = marker && response.body === null
-          ? new Uint8Array()
-          : await readInitialStream(response.body, size, signal);
-        if (
-          bytes.length !== size ||
-          (!marker &&
-            await initialAbortable(signal, () => initialMediaHash(bytes)) !==
-              target.sha256)
-        ) throw initialMediaUnavailable();
+        if (!marker || response.body !== null) {
+          await observeBytes(
+            response.body,
+            size,
+            marker ? null : target.sha256,
+            signal,
+          );
+        }
         await current();
         checkInitialDeadline(signal);
         return Object.freeze({ binding, target });
