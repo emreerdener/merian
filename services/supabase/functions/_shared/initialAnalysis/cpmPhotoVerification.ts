@@ -1,6 +1,7 @@
-/** Inactive JPEG/PNG/WebP consuming increment. No installed profile/route or SQL
- * admission bridge. Other accepted original formats still require adapters;
- * their declarations are never converted or treated as JPEG proof. */
+/** Inactive private-photo consuming increment. No installed profile/route or SQL
+ * admission bridge. HEIF derived/auxiliary/sequence forms remain unqualified;
+ * declarations are never converted or treated as JPEG proof. */
+import { inspectHeifContainer } from "../analysisHistory/heifContainer.ts";
 import { inspectJpegContainer } from "../analysisHistory/jpegContainer.ts";
 import { inspectWebpContainer } from "../analysisHistory/webpContainer.ts";
 import { inspectPngContainer } from "../analysisHistory/pngContainer.ts";
@@ -133,7 +134,7 @@ export function verifyAndAdmitInitialCpmPhotoMedia(
           if (
             role.declaration.declared_content_type !== "image/jpeg" &&
             !(role.role === "source" &&
-              ["image/png", "image/webp"].includes(
+              ["image/png", "image/webp", "image/heic", "image/heif"].includes(
                 role.declaration.declared_content_type,
               ))
           ) throw initialMediaUnavailable();
@@ -227,6 +228,16 @@ export function verifyAndAdmitInitialCpmPhotoMedia(
                         maximumBytes: size,
                       },
                       "private_still",
+                      () => checkInitialDeadline(signal),
+                    );
+                  } else if (
+                    role.declaration.declared_content_type === "image/heic" ||
+                    role.declaration.declared_content_type === "image/heif"
+                  ) {
+                    inspectHeifContainer(
+                      scratch.subarray(0, size),
+                      role.declaration.declared_content_type,
+                      { ...policy.dimensions[role.role], maximumBytes: size },
                       () => checkInitialDeadline(signal),
                     );
                   } else {

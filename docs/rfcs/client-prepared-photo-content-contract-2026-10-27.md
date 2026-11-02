@@ -2,8 +2,8 @@
 
 Status: storage preparation and private durable verification start are
 implemented with narrow local qualification. A private verification-to-admission
-coordinator and a JPEG/still-PNG/still-WebP consuming verifier increment are
-implemented but uninstalled. Other original-format adapters and the atomic
+coordinator and JPEG/still-PNG/still-WebP/HEVC-still-item consuming verifier
+increments are implemented but uninstalled. Remaining HEIF forms and the atomic
 admission bridge remain unimplemented and inactive. This amendment applies the
 current CPM assignment to the existing
 [S0/IC-1 owners](initial-completion-history-interface-2026-10-11.md#2-minimum-dependency-s0-and-checkpoint-boundary).
@@ -174,12 +174,33 @@ execution is established. Synthetic complete-cohort cases and existing native
 WebP fixtures exercise this composition; they do not qualify worker resources or
 real-app submission.
 
-HEIC and HEIF declarations remain accepted by their existing vocabulary and
-saved-profile contracts; missing adapters fail closed before any storage GET in
-this uninstalled composition. They and unresolved format/profile coverage remain
-required before full original-format qualification and activation. No format
-conversion or reduced product scope is implied. The database admission bridge
-and its coordinated retention/funding/C1 changes remain pending.
+The same consumer now reads HEIC/HEIF originals through a bounded
+[HEVC still-item inspector](../../services/supabase/functions/_shared/analysisHistory/heifContainer.ts).
+It requires supported HEVC still brands, one identified primary `hvc1` item,
+associated dimensions/configuration, bounded item/property/reference counts,
+nonoverlapping self-contained `mdat`/`idat` extents and codec/NAL header
+framing. It allows opaque Exif/XMP items and bounded thumbnail/metadata
+references; it rejects external/protected items,
+derived/auxiliary/sequence/other-codec forms and split coded-image extents.
+Unknown properties and unsupported brands remain held. Dimensions are declared
+`ispe` dimensions, not independently decoded SPS or pixel dimensions; the pixel
+budget covers the sum of coded-item declarations. This is not HEVC
+parameter-set/entropy/pixel validity, metadata semantics or full HEIF
+qualification. Format field references are the
+[HEIF item-location reference](https://github.com/nokiatech/heif/blob/master/srcs/common/itemlocationbox.cpp)
+and
+[HEVC configuration implementation](https://github.com/strukturag/libheif/blob/master/libheif/codecs/hevc_boxes.cc);
+no native library or provider dependency is installed.
+
+Synthetic single/two-photo cohorts cover narrow/wide item IDs, file/inline
+locations, 64-bit bounds, opaque metadata, malformed links/properties/extents
+and codec framing. There is no checked-in valid native HEIC/HEIF fixture yet;
+camera `fileDataRepresentation()` and imported originals do not guarantee a
+particular item topology. Native corpus coverage, grids, auxiliary images, other
+accepted forms and fixed profile decisions remain required before activation.
+Unsupported forms are held after the once-only read, never retried
+automatically. No conversion or reduced product vocabulary is implied. The
+atomic admission bridge and coordinated retention/funding/C1 remain pending.
 
 The next implementation increment couples actual complete-cohort verification
 directly to a CPM-specific atomic admission branch. Allocation, successful
@@ -228,7 +249,7 @@ provides bounded JPEG structure checks, with metadata policy supplied by its
 consumer; it does not decode pixels. Existing public-photo and video-frame
 validators impose different format, metadata, dimensions and byte limits and
 cannot serve as CPM acceptance. The JPEG/still-PNG/still-WebP increment above
-does not qualify source HEIC/HEIF, PNG/WebP animation or scaled VP8, installed
+does not fully qualify HEIC/HEIF, PNG/WebP animation or scaled VP8, installed
 policy or the atomic admission branch. Complete the CPM policy and adapters with
 the consuming verification/admission branch, reuse applicable parser primitives,
 and qualify exact bytes, format rejection, cancellation and resource limits

@@ -1,4 +1,11 @@
 import { assertEquals, assertThrows } from "@std/assert";
+import { inspectHeifContainer } from "../analysisHistory/heifContainer.ts";
+import {
+  heifBox,
+  heifFixture,
+  heifText,
+  heifUint,
+} from "../analysisHistory/testing/heifFixtures.ts";
 import { inspectJpegContainer } from "../analysisHistory/jpegContainer.ts";
 import { inspectWebpContainer } from "../analysisHistory/webpContainer.ts";
 import { inspectPngContainer } from "../analysisHistory/pngContainer.ts";
@@ -198,12 +205,12 @@ Deno.test("CPM byte-equal malformed JPEG cannot become structural evidence", asy
   }
 });
 
-Deno.test("CPM missing non-JPEG adapters reject complete cohort before any storage read", async (t) => {
+Deno.test("CPM HEIF declarations over JPEG bytes fail actual structure inspection", async (t) => {
   for (const type of ["image/heic", "image/heif"]) {
     await t.step(type, async () => {
       const f = await mediaFixture(safeJpeg(), 2, type);
       assertEquals((await f.run()).outcome, "held");
-      assertEquals(f.requests.length, 0);
+      assertEquals(f.requests.length, 1);
       assertEquals(f.calls.includes("admit"), false);
     });
   }
@@ -723,4 +730,164 @@ Deno.test("CPM WebP consumer accepts existing native frame corpus as original by
     count++;
   }
   assertEquals(count > 0, true);
+});
+
+Deno.test("CPM HEVC still-item sources bind primary properties and exact contained extents", async (t) => {
+  for (const idat of [false, true]) {
+    for (const wide of [false, true]) {
+      for (const metadata of [false, true]) {
+        await t.step(JSON.stringify({ idat, wide, metadata }), async () => {
+          const bytes = heifFixture({ idat, wide, metadata });
+          assertEquals(inspectHeifContainer(bytes, "image/heic", webpLimits), {
+            width: 8,
+            height: 6,
+            primaryItem: 1,
+          });
+          for (const mime of ["image/heic", "image/heif"]) {
+            const f = await mediaFixture(safeJpeg(), 2, mime, bytes);
+            assertEquals((await f.run()).outcome, "admitted");
+            assertEquals(f.requests.length, 6);
+            assertEquals(f.calls, ["recover", "begin", "admit", "recover"]);
+          }
+        });
+      }
+    }
+  }
+});
+
+function heifPayload(bytes: Uint8Array, kind: string) {
+  const tag = heifText(kind);
+  const at = bytes.findIndex((_, i) => tag.every((v, j) => bytes[i + j] === v));
+  if (at < 0) throw new Error("missing synthetic box");
+  return at + 4;
+}
+Deno.test("CPM malformed or unsupported HEIF graphs remain held after exact-byte verification", async (t) => {
+  const original = heifFixture();
+  const mutate = (
+    kind: string,
+    change: (b: Uint8Array, at: number) => void,
+  ) => {
+    const bytes = original.slice();
+    change(bytes, heifPayload(bytes, kind));
+    return bytes;
+  };
+  const set32 = (b: Uint8Array, at: number, value: number) =>
+    new DataView(b.buffer).setUint32(at, value);
+  for (
+    const [name, bytes] of [
+      ["truncated", original.slice(0, -1)],
+      ["trailing", joined(original, new Uint8Array([0]))],
+      ["zero box", mutate("meta", (b, p) => set32(b, p - 8, 0))],
+      ["oversized box", mutate("meta", (b, p) => set32(b, p - 8, 0xffffffff))],
+      ["sequence brand", mutate("ftyp", (b, p) => b.set(heifText("msf1"), p))],
+      [
+        "other codec brand",
+        mutate("ftyp", (b, p) => b.set(heifText("avif"), p + 8)),
+      ],
+      [
+        "non-picture handler",
+        mutate("hdlr", (b, p) => b.set(heifText("vide"), p + 8)),
+      ],
+      ["missing primary", mutate("pitm", (b, p) => b[p + 5] = 2)],
+      ["hidden primary", mutate("infe", (b, p) => b[p + 3] = 1)],
+      ["protected item", mutate("infe", (b, p) => b[p + 7] = 1)],
+      [
+        "grid pending",
+        mutate("infe", (b, p) => b.set(heifText("grid"), p + 8)),
+      ],
+      ["item count", mutate("iinf", (b, p) => b[p + 5] = 2)],
+      ["external location", mutate("iloc", (b, p) => b[p + 13] = 1)],
+      ["derived construction", mutate("iloc", (b, p) => b[p + 11] = 2)],
+      [
+        "out of file extent",
+        mutate("iloc", (b, p) => set32(b, p + 16, 0xffffffff)),
+      ],
+      ["extent into metadata", mutate("iloc", (b, p) => set32(b, p + 16, 12))],
+      [
+        "oversized extent",
+        mutate("iloc", (b, p) => set32(b, p + 20, 0xffffffff)),
+      ],
+      ["empty extent", mutate("iloc", (b, p) => set32(b, p + 20, 0))],
+      [
+        "unknown property",
+        mutate("ispe", (b, p) => b.set(heifText("auxC"), p - 4)),
+      ],
+      ["missing property", mutate("ipma", (b, p) => b[p + 11] = 0x83)],
+      ["duplicate association", mutate("ipma", (b, p) => b[p + 12] = 0x81)],
+      ["nonessential config", mutate("ipma", (b, p) => b[p + 12] = 2)],
+      ["zero dimensions", mutate("ispe", (b, p) => set32(b, p + 4, 0))],
+      [
+        "oversized dimensions",
+        mutate("ispe", (b, p) => set32(b, p + 4, 100000)),
+      ],
+      ["configuration version", mutate("hvcC", (b, p) => b[p] = 2)],
+      ["reserved config", mutate("hvcC", (b, p) => b[p + 13] = 0)],
+      ["missing parameter array", mutate("hvcC", (b, p) => b[p + 22] = 2)],
+      ["parameter NAL mismatch", mutate("hvcC", (b, p) => b[p + 28] = 66)],
+      ["truncated NAL length", mutate("mdat", (b, p) => set32(b, p, 1000))],
+      ["invalid NAL header", mutate("mdat", (b, p) => b[p + 4] |= 0x80)],
+      ["no coded picture", mutate("mdat", (b, p) => b[p + 4] = 64)],
+      ["movie sequence", joined(original, heifBox("moov", new Uint8Array()))],
+    ] as const
+  ) {
+    await t.step(name, async () => {
+      assertThrows(() => inspectHeifContainer(bytes, "image/heif", webpLimits));
+      const f = await mediaFixture(safeJpeg(), 1, "image/heif", bytes);
+      assertEquals((await f.run()).outcome, "held");
+      assertEquals(f.calls.includes("admit"), false);
+    });
+  }
+});
+Deno.test("HEIF bounds and parser checkpoints reject without allocating decoded media", () => {
+  const bytes = heifFixture();
+  for (
+    const override of [
+      { maximumBytes: bytes.length - 1 },
+      { maximumWidth: 7 },
+      { maximumHeight: 5 },
+      { maximumPixels: 47 },
+      { maximumPixels: 0 },
+      { maximumWidth: NaN },
+    ]
+  ) {
+    assertThrows(() =>
+      inspectHeifContainer(bytes, "image/heic", { ...webpLimits, ...override })
+    );
+  }
+  let checks = 0;
+  assertThrows(() =>
+    inspectHeifContainer(bytes, "image/heic", webpLimits, () => {
+      if (++checks === 5) throw new Error("cancelled");
+    })
+  );
+  assertEquals(checks, 5);
+});
+
+Deno.test("HEIF uses bounded 64-bit lengths and rejects overlapping or unsafe item ranges", async () => {
+  const bytes = heifFixture({ idat: true, largeOffsets: true });
+  const meta = heifPayload(bytes, "meta") - 8;
+  const extended = joined(
+    bytes.subarray(0, meta),
+    heifUint(1, 4),
+    heifText("meta"),
+    heifUint(bytes.length - meta + 8, 8),
+    bytes.subarray(meta + 8),
+  );
+  for (const source of [bytes, extended]) {
+    const f = await mediaFixture(safeJpeg(), 1, "image/heic", source);
+    assertEquals((await f.run()).outcome, "admitted");
+  }
+  const unsafeBox = extended.slice();
+  unsafeBox.fill(255, meta + 8, meta + 16);
+  assertThrows(() => inspectHeifContainer(unsafeBox, "image/heic", webpLimits));
+  const unsafeExtent = bytes.slice();
+  const offset = heifPayload(unsafeExtent, "iloc") + 16;
+  unsafeExtent.fill(255, offset, offset + 8);
+  assertThrows(() =>
+    inspectHeifContainer(unsafeExtent, "image/heic", webpLimits)
+  );
+  const overlap = heifFixture({ metadata: true });
+  const loc = heifPayload(overlap, "iloc"), view = new DataView(overlap.buffer);
+  view.setUint32(loc + 32, view.getUint32(loc + 16));
+  assertThrows(() => inspectHeifContainer(overlap, "image/heic", webpLimits));
 });

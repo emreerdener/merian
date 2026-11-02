@@ -498,6 +498,14 @@ Neither consumer claims pixel decoding or full compressed-data validation. The
 [CPM contract](../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
 records format exclusions and integration evidence.
 
+`heifContainer.ts` is the inactive CPM consumer's bounded HEVC still-item
+inspector. It resolves primary image, item/property associations, self-contained
+extents and codec/NAL framing with explicit count/dimension limits; metadata
+payloads stay opaque. It does not replace the video envelope or the earlier
+signature-only classifier. The
+[CPM contract](../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+owns current HEIF exclusions and required native-fixture qualification.
+
 ## Prepared public-photo staging ownership
 
 Private SQL now reserves a permanent opaque-key cleanup obligation plus an
