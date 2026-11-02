@@ -24,25 +24,29 @@ def generate(root):
     os_version = subprocess.check_output(
         ["/usr/bin/sw_vers", "-productVersion"], text=True).strip()
     vectors = []
-    for width, height in [(64, 48), (1024, 768)]:
+    for width, height, alpha in [(64, 48, False), (1024, 768, False),
+                                 (64, 48, True), (1024, 768, True)]:
+        suffix = f"alpha-{width}" if alpha else str(width)
         raw = b"".join(b"\0" + bytes(v for x in range(width) for v in (
-            (x // 16 % 2) * 180 + 30, (y // 16 % 2) * 160 + 40, 90))
+            (x // 16 % 2) * 180 + 30, (y // 16 % 2) * 160 + 40, 90)
+            + (((x * 4) % 256,) if alpha else ()))
             for y in range(height))
         png = (b"\x89PNG\r\n\x1a\n"
-               + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+               + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6 if alpha else 2, 0, 0, 0))
                + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
-        source = root / f"pattern-{width}.png"
-        output = root / f"pattern-{width}.heic"
+        source = root / f"pattern-{suffix}.png"
+        output = root / f"pattern-{suffix}.heic"
         source.write_bytes(png)
-        with (root / f"encode-{width}.log").open("w") as log:
+        with (root / f"encode-{suffix}.log").open("w") as log:
             subprocess.run(["/usr/bin/sips", "-s", "format", "heic", str(source),
                             "--out", str(output)], stdout=log, stderr=subprocess.STDOUT,
                            check=True)
         data = output.read_bytes()
-        vectors.append({"name": f"macos-imageio-{width}x{height}",
+        vectors.append({"name": f"macos-imageio-{suffix}x{height}",
                         "content_type": "image/heic", "width": width, "height": height,
                         "encoder": f"macOS {os_version} /usr/bin/sips format heic",
-                        "pixel_source": "deterministic RGB checker; no personal media",
+                        "pixel_source": "deterministic RGB checker and optional alpha ramp; no personal media",
+                        "alpha": alpha,
                         "sha256": hashlib.sha256(data).hexdigest(),
                         "base64": base64.b64encode(data).decode()})
     (root / "heif-native-containers.json").write_text(json.dumps(vectors, indent=2) + "\n")

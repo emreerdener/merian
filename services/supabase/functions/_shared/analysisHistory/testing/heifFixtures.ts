@@ -23,11 +23,20 @@ export function heifFixture(
     idat?: boolean;
     wide?: boolean;
     metadata?: boolean;
+    thumbnail?: boolean;
     largeOffsets?: boolean;
   } = {},
 ) {
-  const { idat = false, wide = false, metadata = false, largeOffsets = false } =
-    options;
+  const {
+    idat = false,
+    wide = false,
+    metadata = false,
+    largeOffsets = false,
+    thumbnail = false,
+  } = options;
+  if (metadata && thumbnail) {
+    throw new Error("choose one secondary synthetic item");
+  }
   const idWidth = wide ? 4 : 2;
   const id = (n: number) => heifUint(n, idWidth);
   const nal = (type: number) => new Uint8Array([type * 2, 1, 0x80]);
@@ -48,7 +57,9 @@ export function heifFixture(
   const ispe = heifFull("ispe", 0, heifUint(8, 4), heifUint(6, 4));
   const image = joined(heifUint(3, 4), nal(19));
   const opaque = new Uint8Array([0, 0, 0, 0, 1]);
-  const media = joined(image, ...(metadata ? [opaque] : []));
+  const secondary = thumbnail ? image : opaque;
+  const extra = metadata || thumbnail;
+  const media = joined(image, ...(extra ? [secondary] : []));
   const ftyp = heifBox(
     "ftyp",
     heifText("heic"),
@@ -66,14 +77,14 @@ export function heifFixture(
         new Uint8Array([0]),
       ),
     ];
-    if (metadata) {
+    if (extra) {
       infos.push(
         heifFull(
           "infe",
           wide ? 3 : 2,
           id(2),
           heifUint(0, 2),
-          heifText("Exif"),
+          heifText(thumbnail ? "hvc1" : "Exif"),
           new Uint8Array([0]),
         ),
       );
@@ -104,8 +115,8 @@ export function heifFixture(
         new Uint8Array([largeOffsets ? 0x88 : 0x44, 0]),
         heifUint(infos.length, wide ? 4 : 2),
         location(1, absoluteOffset, image.length),
-        ...(metadata
-          ? [location(2, absoluteOffset + image.length, opaque.length)]
+        ...(extra
+          ? [location(2, absoluteOffset + image.length, secondary.length)]
           : []),
       ),
       heifBox(
@@ -114,17 +125,18 @@ export function heifFixture(
         heifFull(
           "ipma",
           wide ? 1 : 0,
-          heifUint(1, 4),
+          heifUint(thumbnail ? 2 : 1, 4),
           id(1),
           new Uint8Array([2, 0x81, 0x82]),
+          ...(thumbnail ? [id(2), new Uint8Array([2, 0x81, 0x82])] : []),
         ),
       ),
-      ...(metadata
+      ...(extra
         ? [
           heifFull(
             "iref",
             wide ? 1 : 0,
-            heifBox("cdsc", id(2), heifUint(1, 2), id(1)),
+            heifBox(thumbnail ? "thmb" : "cdsc", id(2), heifUint(1, 2), id(1)),
           ),
         ]
         : []),

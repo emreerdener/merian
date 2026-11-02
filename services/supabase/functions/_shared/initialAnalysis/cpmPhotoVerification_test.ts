@@ -901,7 +901,7 @@ Deno.test("CPM native ImageIO HEIC direct and grid fixtures traverse the complet
       ),
     ),
   );
-  assertEquals(vectors.length, 2);
+  assertEquals(vectors.length, 4);
   for (const vector of vectors) {
     await t.step(vector.name, async () => {
       const bytes = Uint8Array.from(
@@ -1022,6 +1022,159 @@ Deno.test("HEIF grid resource policy counts all coded tiles, not just output pix
   );
   const f = await mediaFixture(safeJpeg(), 1, "image/heic", bytes);
   f.policy.dimensions.source.maximumPixels = 800_000; // Output fits; four 512-square tiles do not.
+  assertEquals((await f.run()).outcome, "held");
+  assertEquals(f.calls.includes("admit"), false);
+});
+
+Deno.test("HEIF positive thumbnails remain scoped to primary and count toward resource limits", async (t) => {
+  for (const wide of [false, true]) {
+    await t.step(String(wide), async () => {
+      const bytes = heifFixture({ thumbnail: true, wide });
+      const f = await mediaFixture(safeJpeg(), 1, "image/heic", bytes);
+      assertEquals((await f.run()).outcome, "admitted");
+      const limited = await mediaFixture(safeJpeg(), 1, "image/heic", bytes);
+      limited.policy.dimensions.source.maximumPixels = 64; // Two 8x6 images exceed 64.
+      assertEquals((await limited.run()).outcome, "held");
+    });
+  }
+});
+
+Deno.test("HEIF native alpha links are bounded and cannot attach arbitrary auxiliary content", async (t) => {
+  const vectors = JSON.parse(
+    await Deno.readTextFile(
+      new URL(
+        "../analysisHistory/fixtures/heif-native-containers.json",
+        import.meta.url,
+      ),
+    ),
+  );
+  const original = Uint8Array.from(
+    atob(vectors[2].base64),
+    (c) => c.charCodeAt(0),
+  );
+  const mutate = (kind: string, change: (b: Uint8Array, p: number) => void) => {
+    const b = original.slice();
+    change(b, heifPayload(b, kind));
+    return b;
+  };
+  const set16 = (b: Uint8Array, p: number, n: number) =>
+    new DataView(b.buffer).setUint16(p, n);
+  for (
+    const [name, bytes] of [
+      ["unknown auxiliary type", mutate("auxC", (b, p) => b[p + 4] = 120)],
+      ["auxiliary version", mutate("auxC", (b, p) => b[p] = 1)],
+      ["auxiliary flags", mutate("auxC", (b, p) => b[p + 3] = 1)],
+      [
+        "nonessential alpha property",
+        mutate("ipma", (b, p) => {
+          // Frozen direct fixture: first item has six associations; alpha's third is auxC.
+          assertEquals(b[p + 22], 0x87);
+          b[p + 22] = 0x07;
+        }),
+      ],
+      ["self auxiliary", mutate("auxl", (b, p) => set16(b, p, 1))],
+      ["wrong destination", mutate("auxl", (b, p) => set16(b, p + 4, 2))],
+      ["unknown destination", mutate("auxl", (b, p) => set16(b, p + 4, 9))],
+      [
+        "missing auxiliary link",
+        mutate("auxl", (b, p) => b.set(heifText("thmb"), p - 4)),
+      ],
+      [
+        "nonhidden alpha",
+        mutate("iinf", (b) => {
+          const first = heifPayload(b, "infe");
+          const second = first + heifPayload(b.subarray(first), "infe");
+          b[second + 3] = 0;
+        }),
+      ],
+      [
+        "missing alpha property",
+        mutate("auxC", (b, p) => b.set(heifText("clli"), p - 4)),
+      ],
+      [
+        "alpha channel count",
+        mutate("pixi", (b, p) => {
+          const second = p + heifPayload(b.subarray(p), "pixi");
+          b[second + 4] = 3;
+        }),
+      ],
+      [
+        "alpha color codec",
+        mutate("hvcC", (b, p) => {
+          const second = p + heifPayload(b.subarray(p), "hvcC");
+          b[second + 16] = 0xfd;
+        }),
+      ],
+    ] as const
+  ) {
+    await t.step(name, async () => {
+      assertThrows(() => inspectHeifContainer(bytes, "image/heic", webpLimits));
+      const f = await mediaFixture(safeJpeg(), 1, "image/heic", bytes);
+      assertEquals((await f.run()).outcome, "held");
+      assertEquals(f.calls.includes("admit"), false);
+    });
+  }
+});
+
+Deno.test("HEIF alpha orientation declarations must agree and all planes consume pixel budget", async () => {
+  const vectors = JSON.parse(
+    await Deno.readTextFile(
+      new URL(
+        "../analysisHistory/fixtures/heif-native-containers.json",
+        import.meta.url,
+      ),
+    ),
+  );
+  const bytes = Uint8Array.from(
+    atob(vectors[2].base64),
+    (c) => c.charCodeAt(0),
+  );
+  // Both items share this property; each legal rotation preserves matched declarations.
+  for (const rotation of [0, 1, 2, 3]) {
+    const rotated = bytes.slice();
+    rotated[heifPayload(rotated, "irot")] = rotation;
+    const f = await mediaFixture(safeJpeg(), 1, "image/heic", rotated);
+    assertEquals((await f.run()).outcome, "admitted");
+  }
+  const unmatched = bytes.slice();
+  const ipma = heifPayload(unmatched, "ipma");
+  // Last auxiliary association is irot: replacing it by colr omits its transform.
+  const end = ipma - 8 + new DataView(unmatched.buffer).getUint32(ipma - 8);
+  unmatched[end - 1] = 0x81;
+  assertThrows(() => inspectHeifContainer(unmatched, "image/heic", webpLimits));
+  const f = await mediaFixture(safeJpeg(), 1, "image/heic", bytes);
+  f.policy.dimensions.source.maximumPixels = 4000; // Primary3072 fits; primary+alpha6144 does not.
+  assertEquals((await f.run()).outcome, "held");
+  assertEquals(f.calls.includes("admit"), false);
+});
+
+Deno.test("HEIF alpha grids cannot reuse primary coded tiles even with compatible declarations", async () => {
+  const vectors = JSON.parse(
+    await Deno.readTextFile(
+      new URL(
+        "../analysisHistory/fixtures/heif-native-containers.json",
+        import.meta.url,
+      ),
+    ),
+  );
+  const control = Uint8Array.from(
+    atob(vectors[3].base64),
+    (c) => c.charCodeAt(0),
+  );
+  // Structural declarations only: monochrome primary prevents chroma checks from
+  // masking the shared-tile rejection. This does not change or decode codec pixels.
+  control[heifPayload(control, "hvcC") + 16] = 0xfc;
+  inspectHeifContainer(control, "image/heic", webpLimits);
+  const shared = control.slice();
+  const first = heifPayload(shared, "dimg");
+  const second = first + heifPayload(shared.subarray(first), "dimg");
+  const view = new DataView(shared.buffer);
+  assertEquals(view.getUint16(second), 10);
+  assertEquals(view.getUint16(second + 2), 4);
+  // All four alpha targets now share the primary's one codec property and dimensions.
+  for (let i = 0; i < 4; i++) view.setUint16(second + 4 + i * 2, i + 1);
+  assertThrows(() => inspectHeifContainer(shared, "image/heic", webpLimits));
+  const f = await mediaFixture(safeJpeg(), 1, "image/heic", shared);
   assertEquals((await f.run()).outcome, "held");
   assertEquals(f.calls.includes("admit"), false);
 });

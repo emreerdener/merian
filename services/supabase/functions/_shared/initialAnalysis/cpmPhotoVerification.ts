@@ -1,5 +1,5 @@
 /** Inactive private-photo consuming increment. No installed profile/route or SQL
- * admission bridge. HEIF nested-derived/auxiliary/sequence forms remain unqualified;
+ * admission bridge. HEIF nested-derived/non-alpha auxiliary/sequence forms remain unqualified;
  * declarations are never converted or treated as JPEG proof. */
 import { inspectHeifContainer } from "../analysisHistory/heifContainer.ts";
 import { inspectJpegContainer } from "../analysisHistory/jpegContainer.ts";

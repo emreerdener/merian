@@ -1,6 +1,6 @@
 /** Private HEVC still-item increment. Bounds item/property/extents and NAL
  * framing, not HEVC parameter-set semantics, pixels or metadata interpretation.
- * Nested grids/auxiliary/sequence/other-codec forms remain unqualified. */
+ * Nested grids/non-alpha auxiliary/sequence/other-codec forms remain unqualified. */
 export class HeifContainerRejected extends Error {}
 const requireValue = (ok: boolean): void => {
   if (!ok) throw new HeifContainerRejected();
@@ -114,7 +114,7 @@ export function inspectHeifContainer(
   requireValue(
     ["heic", "heix", "mif1"].includes(major) &&
       [...brands].every((b) =>
-        ["heic", "heix", "mif1", "miaf", "MiPr", "MiHB"].includes(b)
+        ["heic", "heix", "mif1", "miaf", "MiPr", "MiHB", "MiHE"].includes(b)
       ) &&
       (brands.has("heic") || brands.has("heix")) && brands.has("mif1"),
   );
@@ -160,6 +160,7 @@ export function inspectHeifContainer(
   const entries = boxes(info.r.at, info.r.end);
   requireValue(entries.length === count);
   const items = new Map<number, string>();
+  const hidden = new Set<number>();
   for (const entry of entries) {
     requireValue(entry.type === "infe");
     const { r, version, flags } = full(entry, [2, 3], 1);
@@ -175,11 +176,13 @@ export function inspectHeifContainer(
     }
     r.done();
     items.set(id, type);
+    if (flags & 1) hidden.add(id);
   }
   const isImage = (id: number) =>
     ["hvc1", "grid"].includes(items.get(id) ?? "");
   requireValue(isImage(primaryItem));
   const gridTargets = new Map<number, number[]>();
+  let alphaItem: number | undefined;
   // Single-level coded-image grids only: no recursive derived-item traversal.
   const refs = children.find((b) => b.type === "iref");
   if (refs) {
@@ -187,7 +190,7 @@ export function inspectHeifContainer(
     const seen = new Set<string>();
     let referenceBudget = 1024;
     for (const ref of boxes(r.at, r.end)) {
-      requireValue(["thmb", "cdsc", "dimg"].includes(ref.type));
+      requireValue(["thmb", "cdsc", "dimg", "auxl"].includes(ref.type));
       const rr = read(ref), from = rr.uint(version ? 4 : 2), n = rr.uint(2);
       requireValue(
         items.has(from) && n > 0 && n <= 256 && (referenceBudget -= n) >= 0,
@@ -195,17 +198,24 @@ export function inspectHeifContainer(
       requireValue(
         ref.type === "dimg"
           ? items.get(from) === "grid"
-          : ref.type === "thmb"
+          : (ref.type === "thmb" || ref.type === "auxl")
           ? isImage(from)
           : ["Exif", "mime"].includes(items.get(from) ?? ""),
       );
+      if (ref.type === "auxl") {
+        requireValue(
+          alphaItem === undefined && n === 1 && hidden.has(from) &&
+            from !== primaryItem,
+        );
+        alphaItem = from;
+      }
       const targets: number[] = [];
       if (ref.type === "dimg") requireValue(!gridTargets.has(from));
       for (let i = 0; i < n; i++) {
         const to = rr.uint(version ? 4 : 2), key = `${ref.type}:${from}:${to}`;
         requireValue(
           isImage(to) && to !== from && !seen.has(key) &&
-            (ref.type !== "thmb" || to === primaryItem) &&
+            (!["thmb", "auxl"].includes(ref.type) || to === primaryItem) &&
             (ref.type !== "dimg" || items.get(to) === "hvc1"),
         );
         seen.add(key);
@@ -269,7 +279,7 @@ export function inspectHeifContainer(
   const container = one(properties, "ipco"),
     props = boxes(container.start, container.end);
   requireValue(props.length > 0 && props.length <= 256);
-  only(props, ["ispe", "hvcC", "pixi", "colr", "irot", "imir", "clli"]);
+  only(props, ["ispe", "hvcC", "pixi", "colr", "irot", "imir", "clli", "auxC"]);
   const associations = full(one(properties, "ipma"), [0, 1], 1);
   const ar = associations.r, associationCount = ar.uint(4);
   requireValue(associationCount > 0 && associationCount <= items.size);
@@ -299,6 +309,10 @@ export function inspectHeifContainer(
   let pixels = 0;
   const imageSizes = new Map<number, { width: number; height: number }>();
   const imageConfigs = new Map<number, Box>();
+  const chromaFormats = new Map<number, number>();
+  const channels = new Map<number, number>();
+  const orientations = new Map<number, string>();
+  const alphaProperties = new Set<number>();
   const transformed = new Set<number>();
   const grids: {
     id: number;
@@ -316,6 +330,11 @@ export function inspectHeifContainer(
     const chosen = attached.get(id) ?? [];
     requireValue(new Set(chosen.map((p) => p.box.type)).size === chosen.length);
     const imageProps = chosen.map((p) => p.box);
+    orientations.set(
+      id,
+      imageProps.filter((p) => p.type === "irot" || p.type === "imir")
+        .map((p) => `${p.type}:${bytes[p.start]}`).join(","),
+    );
     if (
       imageProps.some((p) =>
         p.type === "imir" || (p.type === "irot" && bytes[p.start] !== 0)
@@ -361,7 +380,9 @@ export function inspectHeifContainer(
       requireValue(
         (cr.uint(2) & 0xf000) === 0xf000 && (cr.uint(1) & 0xfc) === 0xfc,
       );
-      requireValue((cr.uint(1) & 0xfc) === 0xfc);
+      const chroma = cr.uint(1);
+      requireValue((chroma & 0xfc) === 0xfc);
+      chromaFormats.set(id, chroma & 3);
       requireValue(
         (cr.uint(1) & 0xf8) === 0xf8 && (cr.uint(1) & 0xf8) === 0xf8,
       );
@@ -414,14 +435,27 @@ export function inspectHeifContainer(
       if (p.type === "irot" || p.type === "imir") {
         requireValue((r.uint(1) & (p.type === "irot" ? 0xfc : 0xfe)) === 0);
         r.done();
+      } else if (p.type === "auxC") {
+        requireValue(
+          id === alphaItem &&
+            chosen.find((a) => a.box === p)?.essential === true,
+        );
+        const ar = full(p, [0]).r;
+        requireValue(
+          ar.zeroString() === "urn:mpeg:hevc:2015:auxid:1" &&
+            ar.end - ar.at <= 4096,
+        );
+        // Codec-specific auxiliary subtype bytes remain opaque, not alpha/pixel proof.
+        alphaProperties.add(id);
       } else if (p.type === "clli") {
         r.uint(2);
         r.uint(2);
         r.done(); // Content-light declarations, not HDR proof.
       } else if (p.type === "pixi") {
-        const pr = full(p, [0]).r, channels = pr.uint(1);
-        requireValue(channels === 1 || channels === 3);
-        for (let k = 0; k < channels; k++) {
+        const pr = full(p, [0]).r, count = pr.uint(1);
+        channels.set(id, count);
+        requireValue(count === 1 || count === 3);
+        for (let k = 0; k < count; k++) {
           requireValue([8, 10, 12].includes(pr.uint(1)));
         }
         pr.done();
@@ -461,6 +495,22 @@ export function inspectHeifContainer(
         grid.width <= tile.width * grid.columns &&
         grid.height > tile.height * (grid.rows - 1) &&
         grid.height <= tile.height * grid.rows,
+    );
+  }
+  if (alphaItem !== undefined) {
+    const alphaSize = imageSizes.get(alphaItem)!;
+    requireValue(
+      alphaProperties.has(alphaItem) && channels.get(alphaItem) === 1 &&
+        alphaSize.width === dimensions?.width &&
+        alphaSize.height === dimensions?.height &&
+        orientations.get(alphaItem) === orientations.get(primaryItem),
+    );
+    const alphaTiles = gridTargets.get(alphaItem) ?? [alphaItem];
+    const primaryTiles = new Set(gridTargets.get(primaryItem) ?? [primaryItem]);
+    requireValue(
+      alphaTiles.every((id) =>
+        !primaryTiles.has(id) && chromaFormats.get(id) === 0
+      ),
     );
   }
   requireValue(dimensions !== undefined);

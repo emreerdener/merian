@@ -506,8 +506,10 @@ signature-only classifier. The
 [CPM contract](../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
 owns current HEIF exclusions and required native-fixture qualification. The
 [local ImageIO fixture corpus](fixtures/heif-native-containers.json) contains
-only deterministic synthetic patterns encoded on macOS: one direct image and one
-single-level four-tile grid. The optional
+only deterministic synthetic patterns encoded on macOS: direct images and
+single-level four-tile grids, each with and without a separate alpha image.
+Alpha links, matching dimensions/ordered orientation and disjoint monochrome
+tiles are checked within the shared coded-pixel budget. The optional
 [generator](testing/generateHeifFixtures.py) takes a new local output directory;
 retain logs and review output hashes before updating fixtures. Its OS/hardware
 encoder bytes are not guaranteed portable or deterministic across machines. Unit

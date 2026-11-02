@@ -181,12 +181,12 @@ single-level `grid` item, associated dimensions/configuration, bounded
 item/property/reference counts, nonoverlapping self-contained `mdat`/`idat`
 extents and codec/NAL header framing. It allows opaque Exif/XMP items and
 bounded thumbnail/metadata references; it rejects external/protected items,
-nested-derived/auxiliary/sequence/other-codec forms and split coded-image
-extents. Unknown properties and unsupported brands remain held. Dimensions are
-declared `ispe` dimensions, not independently decoded SPS or pixel dimensions;
-the pixel budget covers the sum of coded-item declarations. This is not HEVC
-parameter-set/entropy/pixel validity, metadata semantics or full HEIF
-qualification. Format field references are the
+nested-derived/non-alpha auxiliary/sequence/other-codec forms and split
+coded-image extents. Unknown properties and unsupported brands remain held.
+Dimensions are declared `ispe` dimensions, not independently decoded SPS or
+pixel dimensions; the pixel budget covers the sum of coded-item declarations.
+This is not HEVC parameter-set/entropy/pixel validity, metadata semantics or
+full HEIF qualification. Format field references are the
 [HEIF item-location reference](https://github.com/nokiatech/heif/blob/master/srcs/common/itemlocationbox.cpp)
 and
 [HEVC configuration implementation](https://github.com/strukturag/libheif/blob/master/libheif/codecs/hevc_boxes.cc);
@@ -205,24 +205,40 @@ Repeated local generation matched these bytes; cross-OS/hardware byte identity
 is not promised. Restricted encoding first failed with hardware-service access
 errors; failed logs remain retained alongside successful authorized local runs.
 
-Observed compatibility brands (`miaf`, `MiPr`, `MiHB`), fixed-size `clli`
-declarations and exactly one empty self-contained `dref`/`url` entry are now
-accepted; this does not certify MIAF/HDR semantics. Single-level grid validation
-binds descriptor size to `ispe`, distinct ordered `dimg` targets to coded tiles,
-and tile counts/dimensions to canvas coverage without surplus rows/columns.
-Tiles must share one configuration property and have no transform; nested grids
-and broader tile-configuration/transform semantics remain held. The
+Observed compatibility brands (`miaf`, `MiPr`, `MiHB`, `MiHE`), fixed-size
+`clli` declarations and exactly one empty self-contained `dref`/`url` entry are
+now accepted; this does not certify MIAF/HDR semantics. Single-level grid
+validation binds descriptor size to `ispe`, distinct ordered `dimg` targets to
+coded tiles, and tile counts/dimensions to canvas coverage without surplus
+rows/columns. Tiles must share one configuration property and have no transform;
+nested grids and broader tile-configuration/transform semantics remain held. The
 [HEIF grid implementation reference](https://github.com/strukturag/libheif/blob/master/libheif/image-items/grid.cc)
 provides the descriptor field layout. Every coded tile counts toward the same
 pixel budget even when the output canvas is smaller. This is structural
 validation, not decoded-pixel, codec-profile or recipe proof.
 
+A subsequent local increment adds two ImageIO fixtures with deterministic alpha
+ramps at the same dimensions: a separate direct alpha image and a separate alpha
+grid. This brings the frozen corpus to four fixtures. The verifier permits one
+hidden alpha image linked by `auxl` to the primary, with an essential `auxC`
+property naming `urn:mpeg:hevc:2015:auxid:1`. Its dimensions and ordered
+rotation/mirror declarations must match the primary. Alpha tiles are monochrome,
+disjoint from primary tiles and count toward the same coded-pixel budget.
+Codec-specific auxiliary subtype bytes remain opaque and bounded to 4096 bytes;
+this is declaration/framing validation, not decoded-alpha proof. The
+[auxiliary property implementation reference](https://github.com/strukturag/libheif/blob/master/libheif/box.cc)
+describes the type string and trailing subtype layout. Other auxiliary types,
+nested grids and unqualified configurations stay held. Positive synthetic
+thumbnail relations cover narrow/wide item IDs and their additional resource
+cost; orientation mutation cases cover matching quarter turns and rejection of
+mismatched declarations, without claiming camera-orientation rendering coverage.
+
 Camera `fileDataRepresentation()` and imported originals do not guarantee either
-observed layout. Broader camera/import corpus, auxiliary images, other accepted
-forms and fixed profile decisions remain required before activation. Unsupported
-forms are held after the once-only read, never retried automatically. No
-conversion or reduced product vocabulary is implied. The atomic admission bridge
-and coordinated retention/funding/C1 remain pending.
+observed layout. Broader camera/import corpus, non-alpha auxiliary images, other
+accepted forms and fixed profile decisions remain required before activation.
+Unsupported forms are held after the once-only read, never retried
+automatically. No conversion or reduced product vocabulary is implied. The
+atomic admission bridge and coordinated retention/funding/C1 remain pending.
 
 The next implementation increment couples actual complete-cohort verification
 directly to a CPM-specific atomic admission branch. Allocation, successful
