@@ -503,10 +503,11 @@ setters and both callback families have focused regression evidence.
 
 These cases do not inject failure inside `ModelContext.save()`, account loss
 during a save/acknowledgement, populated package/global byte-limit edges,
-release races or production cleanup. Owner settlement remains unimplemented: a
-retained header alone cannot prove unchanged peers. Positive fixture state
-cannot use ordinary cleanup and must never enter a user store. UI, visible
-clocks, positive cleanup and reanalysis wiring remain unqualified and inactive.
+release races or production cleanup. At that checkpoint owner settlement was
+unimplemented: a retained header alone cannot prove unchanged peers. Positive
+fixture state cannot use ordinary cleanup and must never enter a user store. UI,
+visible clocks, positive cleanup and reanalysis wiring remain unqualified and
+inactive.
 
 The next integration candidate connects the existing complete native graph to
 `SharedMediaNativeReceivingRows.readObserved`. It shares every quartet scalar
@@ -554,6 +555,41 @@ build/test: the standard whole-repository freeze assertion correctly refused
 them. Scoped reconciliation verified unchanged candidate/iOS inputs and actual
 selected coverage, retaining the web differences and original receipts. No
 whole-repository freeze, full journey or release qualification is claimed.
+
+The DEBUG/disposable-store settlement owner now settles an initially
+acknowledged reservation through the same native owner locks and account
+dispatch lease. Both complete positive-state audits, current authority, exact
+predecessor, 512-byte existing funding and replacement-runway checks precede its
+queue plus inventory save. A shorter successor requires free-space headroom for
+the larger reserved remainder; it does not assume SQLite immediately reclaims
+old bytes or add another logical 512-byte charge. It retains the original
+in-memory reservation and rejects intervening inventory progress rather than
+rebasing. The original attempt's settlement right is consumed immediately before
+the single save; failures before that point may retry all checks, while an
+attempted save never repeats.
+
+The result is a distinct settlement attempt with the settlement predecessor's
+header and exact successor proof. It supports only read-only reconciliation.
+Successful reconciliation of an initially unacknowledged reserve does not grant
+refund authority. The original attempt cannot settle twice, and the settlement
+result cannot settle again. Caller-supplied elapsed time remains a test-only
+input; a production monotonic-clock owner, further reservations, UI and positive
+cleanup are not admitted.
+
+Managed compilation passed in 320.207 seconds. The selected eight methods / 17
+cases passed with zero failures/skips in 805.898 seconds, with all 6,823 pinned
+inputs unchanged through both runs
+(`rux-native-settlement-runtime01-reconciled.json`). Coverage includes actual
+received/allocated settlement and unchanged 512-byte funding; before-save,
+after-save and unreadable-acknowledgement faults; unacknowledged reserve
+recovery without refund authority; duplicate/result settlement denial;
+cold-owner rejection; peer corruption, queue deletion, cancellation and
+inventory progress before saving; exact and one-byte-short successor reservation
+headroom; and the existing reserve acknowledgement regressions. The headroom gap
+(HQ-033) was caught and independently corrected before compilation. These fault
+hooks do not inject an error inside `ModelContext.save()`, a mid-save account
+transition or measure SQLite/WAL physical reclamation. No production clock,
+positive cleanup, UI, full-journey or Release qualification is claimed.
 
 The intended first admission atomically saves the first reserved value at
 revision one: its inventory save consumes one advance and the value retains 59

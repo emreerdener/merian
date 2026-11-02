@@ -281,4 +281,158 @@ struct SharedMediaNativeRecoveryPresentationOwnerTests {
         #expect(try queue(p, h.context()).recoveryPresentationData == bytes)
         #expect(await owner.invalidateAndAwaitForAccountTransition())
     }
+
+    @Test(arguments: [false, true])
+    func originalAcknowledgedReservationSettlesOnce(allocated: Bool) async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        if allocated {
+            _ = try await owner.allocateAppPhoto(p, authorizeCreate: { _, _ in .init(recipient: .gemini, validate: {}) }) { _, _, _ in .held(.notFound) }
+        }
+        let baseline = try budget(h)
+        let original = try await owner.reserveAppRecoveryPresentationForTesting(p, reservationID: UUID())
+        let before = try inventory(h, h.context()).revision
+        let settled = try await owner.settleAppRecoveryPresentationForTesting(original, elapsed: .milliseconds(1200) + .nanoseconds(1))
+        #expect(settled.acknowledged && settled.presentation.revision == 2)
+        #expect(settled.presentation.chargedMilliseconds == 1201 && settled.presentation.activeReservationID == nil)
+        let bytes = try settled.presentation.encoded(), after = try budget(h)
+        #expect(after.receivedLiabilityByPackage == baseline.receivedLiabilityByPackage)
+        #expect(after.metadataByPackage[p.package.id] == (try #require(baseline.metadataByPackage[p.package.id])) + 512)
+        var expected = baseline.totals
+        try expected.include(.init(packageID: p.package.id, pool: .durable, materialized: Int64(bytes.count), reserved: 512 - Int64(bytes.count)))
+        #expect(after.totals == expected)
+        #expect(try inventory(h, h.context()).revision == before + 1)
+        #expect(try queue(p, h.context()).recoveryPresentationData == bytes)
+        #expect(try await owner.reconcileAppRecoveryPresentationForTesting(settled))
+        for denied in [original, settled] {
+            await #expect(throws: SharedMediaStorageFailure.closed) { _ = try await owner.settleAppRecoveryPresentationForTesting(denied, elapsed: .zero) }
+        }
+        try await audit(h, p)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let cold = try await SharedMediaNativeReceivingStagingTests().reopen(h)
+        await #expect(throws: (any Error).self) { _ = try await cold.reconcileAppRecoveryPresentationForTesting(settled) }
+        #expect(await cold.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test(arguments: ["before", "after", "readback"])
+    func settlementFaultsNeverRepeatAnAttemptedSave(point: String) async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let original = try await owner.reserveAppRecoveryPresentationForTesting(p, reservationID: UUID())
+        let before = try inventory(h, h.context()).revision
+        var saves = 0
+        try owner.setMetadataFault { boundary in
+            if boundary == .afterSave { saves += 1 }
+            if (point == "before" && boundary == .beforeSave) || (point == "after" && boundary == .afterSave) ||
+                (point == "readback" && boundary == .beforeReadback) { throw SharedMediaStorageFailure.unavailable }
+        }
+        let result: SharedMediaNativeRecoveryPresentationAttempt
+        if point == "before" {
+            await #expect(throws: (any Error).self) { _ = try await owner.settleAppRecoveryPresentationForTesting(original, elapsed: .seconds(1)) }
+            #expect(saves == 0)
+            #expect(try inventory(h, h.context()).revision == before)
+            #expect(try queue(p, h.context()).recoveryPresentationData == original.presentation.encoded())
+            try owner.setMetadataFault { if $0 == .afterSave { saves += 1 } }
+            result = try await owner.settleAppRecoveryPresentationForTesting(original, elapsed: .seconds(2))
+        } else {
+            result = try await owner.settleAppRecoveryPresentationForTesting(original, elapsed: .seconds(2))
+            #expect(result.acknowledged == (point == "after"))
+        }
+        #expect(saves == 1 && result.presentation.chargedMilliseconds == 2000)
+        try owner.setMetadataFault { if $0 != .beforeReadback { Issue.record("Settlement recovery attempted another write") } }
+        #expect(try await owner.reconcileAppRecoveryPresentationForTesting(result))
+        #expect(try await owner.reconcileAppRecoveryPresentationForTesting(result))
+        await #expect(throws: SharedMediaStorageFailure.closed) { _ = try await owner.settleAppRecoveryPresentationForTesting(original, elapsed: .zero) }
+        #expect(try inventory(h, h.context()).revision == before + 1)
+        #expect(try queue(p, h.context()).recoveryPresentationData == result.presentation.encoded())
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func recoveredUnacknowledgedReserveCannotRefund() async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        try owner.setMetadataFault { if $0 == .beforeReadback { throw SharedMediaStorageFailure.unavailable } }
+        let original = try await owner.reserveAppRecoveryPresentationForTesting(p, reservationID: UUID())
+        #expect(!original.acknowledged)
+        let before = try inventory(h, h.context()).revision
+        try owner.setMetadataFault(nil)
+        #expect(try await owner.reconcileAppRecoveryPresentationForTesting(original))
+        #expect(!original.acknowledged)
+        await #expect(throws: SharedMediaStorageFailure.closed) { _ = try await owner.settleAppRecoveryPresentationForTesting(original, elapsed: .zero) }
+        #expect(try inventory(h, h.context()).revision == before)
+        #expect(try queue(p, h.context()).recoveryPresentationData == original.presentation.encoded())
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test(arguments: ["peer", "deleted", "cancelled", "inventory"])
+    func settlementRevalidatesBeforeSave(fault: String) async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture(), peer = UUID()
+        if fault == "peer" {
+            let acquisition = try await owner.prepareAppOriginal(packageID: peer, draftGeneration: UUID(), ordinal: 0, kind: .picker)
+            let image = PhotoPreparationTestHarness.image()
+            _ = try await owner.acquireAppOriginal(acquisition) { image }
+        }
+        let original = try await owner.reserveAppRecoveryPresentationForTesting(p, reservationID: UUID())
+        let before = try inventory(h, h.context()).revision
+        var saves = 0
+        try owner.setMetadataFault { boundary in
+            if boundary == .afterSave { saves += 1 }
+            guard boundary == .beforeSave else { return }
+            let c = h.context()
+            switch fault {
+            case "peer":
+                let member = try SharedMediaNativePairPlanGraph.one(c, FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == peer }))
+                member.membersData = Data([1]); try c.save()
+            case "deleted": c.delete(try queue(p, c)); try c.save()
+            case "inventory": try inventory(h, c).revision += 1; try c.save()
+            default: withUnsafeCurrentTask { $0?.cancel() }
+            }
+        }
+        let task = Task { @MainActor in try await owner.settleAppRecoveryPresentationForTesting(original, elapsed: .zero) }
+        await #expect(throws: (any Error).self) { _ = try await task.value }
+        #expect(saves == 0)
+        #expect(try inventory(h, h.context()).revision == before + (fault == "inventory" ? 1 : 0))
+        if fault == "deleted" { #expect(throws: (any Error).self) { _ = try queue(p, h.context()) } }
+        else { #expect(try queue(p, h.context()).recoveryPresentationData == original.presentation.encoded()) }
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func coldOwnerCannotSettleUnconsumedAcknowledgedReservation() async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let original = try await owner.reserveAppRecoveryPresentationForTesting(p, reservationID: UUID())
+        #expect(original.acknowledged)
+        let before = try inventory(h, h.context()).revision
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let cold = try await SharedMediaNativeReceivingStagingTests().reopen(h)
+        await #expect(throws: SharedMediaStorageFailure.closed) { _ = try await cold.settleAppRecoveryPresentationForTesting(original, elapsed: .zero) }
+        #expect(try inventory(h, h.context()).revision == before)
+        #expect(try queue(p, h.context()).recoveryPresentationData == original.presentation.encoded())
+        #expect(await cold.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func settlementRequiresSuccessorReservedHeadroom() async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let original = try await owner.reserveAppRecoveryPresentationForTesting(p, reservationID: UUID())
+        let before = try inventory(h, h.context()).revision, totals = try budget(h).totals
+        let initial = AnalysisRecoveryPresentation.initial(for: original.presentation.identity)
+        let reservationID = try #require(original.presentation.activeReservationID)
+        let receipt = try initial.reserve(id: reservationID)
+        let next = try receipt.settle(current: original.presentation, elapsed: .zero)
+        let delta = try original.presentation.encoded().count - next.encoded().count
+        #expect(delta > 0)
+        var low: Int64 = 0, high = Int64.max
+        while low < high {
+            let mid = low + (high - low) / 2
+            if (try? totals.checkAvailable(mid)) != nil { high = mid } else { low = mid + 1 }
+        }
+        var saves = 0
+        let exact = try SharedMediaStoragePolicy.add(low, Int64(delta))
+        try owner.setMetadataFault({ if $0 == .afterSave { saves += 1 } }, availableBytes: exact - 1)
+        await #expect(throws: SharedMediaStorageFailure.capacity) { _ = try await owner.settleAppRecoveryPresentationForTesting(original, elapsed: .zero) }
+        #expect(saves == 0)
+        #expect(try inventory(h, h.context()).revision == before)
+        #expect(try queue(p, h.context()).recoveryPresentationData == original.presentation.encoded())
+        try owner.setMetadataFault({ if $0 == .afterSave { saves += 1 } }, availableBytes: exact)
+        #expect(try await owner.settleAppRecoveryPresentationForTesting(original, elapsed: .zero).acknowledged)
+        #expect(saves == 1)
+        #expect(try queue(p, h.context()).recoveryPresentationData == next.encoded())
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
 }
