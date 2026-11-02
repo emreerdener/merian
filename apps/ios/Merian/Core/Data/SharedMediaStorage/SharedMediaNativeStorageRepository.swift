@@ -325,17 +325,12 @@ final class SharedMediaNativeStorageRepository {
             #endif
         })
     }
-    func appReceivingIntent(grant: SharedMediaNativeAppDispatchGrant, packageID: UUID) async throws -> SharedMediaNativeReceivingIntent.Prepared? {
-        try await readAppReceiving(grant: grant) { try SharedMediaNativeRepositoryFacts.receivingIntent(self.container, profile: grant.profile, packageID: packageID) }
+    func appReceivingRead<T: Sendable>(grant: SharedMediaNativeAppDispatchGrant, query: SharedMediaNativeReceivingQuery.Read<T>) async throws -> T {
+        try await readAppReceiving(grant: grant) { try self.requireAppReceivingRead(grant: grant, query: query) }
     }
-    func appReceivingSlot(grant: SharedMediaNativeAppDispatchGrant, packageID: UUID) async throws -> SharedMediaNativeReceivingIntentGraph.Row? {
-        try await readAppReceiving(grant: grant) { try SharedMediaNativeRepositoryFacts.receivingSlot(self.container, inventoryID: grant.profile.inventoryID, packageID: packageID) }
-    }
-    func appPhotoSubmission(grant: SharedMediaNativeAppDispatchGrant, packageID: UUID) async throws -> SharedMediaNativePhotoSubmissionState? {
-        try await readAppReceiving(grant: grant) { try SharedMediaNativeRepositoryFacts.photoSubmission(self.container, inventoryID: grant.profile.inventoryID, packageID: packageID) }
-    }
-    func appReceivedCandidates(grant: SharedMediaNativeAppDispatchGrant) async throws -> [SharedMediaNativeReceivedCandidate] {
-        try await readAppReceiving(grant: grant) { try SharedMediaNativeRepositoryFacts.receivedCandidates(self.container, profile: grant.profile) }
+    func requireAppReceivingRead<T: Sendable>(grant: SharedMediaNativeAppDispatchGrant, query: SharedMediaNativeReceivingQuery.Read<T>) throws -> T {
+        try requireApp(grant)
+        return try query.read(container, profile: grant.profile)
     }
     private func readAppReceiving<T: Sendable>(grant: SharedMediaNativeAppDispatchGrant, facts: () throws -> T) async throws -> T {
         try await SharedMediaNativeReceivingDiscovery.read(check: { try self.requireApp(grant); return try self.appHeader() },

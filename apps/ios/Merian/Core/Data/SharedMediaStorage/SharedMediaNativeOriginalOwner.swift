@@ -171,16 +171,20 @@ final class SharedMediaNativeOriginalOwner {
         }
     }
     func discoverAppReceivingIntent(packageID: UUID) async throws -> SharedMediaNativeReceivingIntent.Prepared? {
-        try await appOperation(open: { try await $0.appReceivingIntent(grant: $1, packageID: packageID) }, body: { $0 })
+        try await appOperation(open: { try await $0.appReceivingRead(grant: $1, query: SharedMediaNativeReceivingQuery.intent(packageID)) }, body: { $0 })
     }
     func discoverAppReceivingSlot(packageID: UUID) async throws -> SharedMediaNativeReceivingIntentGraph.Row? {
-        try await appOperation(open: { try await $0.appReceivingSlot(grant: $1, packageID: packageID) }, body: { $0 })
+        try await appOperation(open: { try await $0.appReceivingRead(grant: $1, query: SharedMediaNativeReceivingQuery.slot(packageID)) }, body: { $0 })
     }
     func discoverAppPhotoSubmission(packageID: UUID) async throws -> SharedMediaNativePhotoSubmissionState? {
-        try await appOperation(open: { try await $0.appPhotoSubmission(grant: $1, packageID: packageID) }, body: { $0 })
+        try await appOperation(open: { try await $0.appReceivingRead(grant: $1, query: SharedMediaNativeReceivingQuery.submission(packageID)) }, body: { $0 })
     }
     func discoverAppReceivedCandidates() async throws -> [SharedMediaNativeReceivedCandidate] {
-        try await appOperation(open: { try await $0.appReceivedCandidates(grant: $1) }, body: { $0 })
+        try await appOperation(open: { try await $0.appReceivingRead(grant: $1, query: SharedMediaNativeReceivingQuery.candidates) }, body: { $0 })
+    }
+    func checkAppReceivedStatus(_ candidate: SharedMediaNativeReceivedCandidate,
+        send: @escaping NativeReceivedStatusTransport.Send) async throws -> Bool {
+        try await withAppDispatch { try await self.checkAppReceivedStatus(candidate, storage: $0, grant: $1, send: send) }
     }
     func appReceivingWorkflow<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant, _ body: @escaping @MainActor (SharedMediaNativeAppReceivingOperations) async throws -> T) async throws -> T {
         try lock.validate()

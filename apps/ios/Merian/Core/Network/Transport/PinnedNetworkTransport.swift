@@ -152,6 +152,12 @@ final class PinnedNetworkTransport: @unchecked Sendable {
             .joinedResponse(using: activeSession, request: request, timeout: 5)
     }
 
+    /// The native status observation keeps its lease until the bounded task drains.
+    func nativeReceivedStatusData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await PinnedBoundedJSONDataTask(maximumBytes: NativeReceivedStatusTransport.maximumBytes)
+            .joinedResponse(using: activeSession, request: request, timeout: 5)
+    }
+
     /// Fixed retirement response budget on the existing pinned session.
     func analysisRetirementData(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await PinnedBoundedJSONDataTask(maximumBytes: 4096).response(using: activeSession, request: request, timeout: 5)

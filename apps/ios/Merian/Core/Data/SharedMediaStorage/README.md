@@ -1,3 +1,15 @@
+## Exact received-status action — November 2
+
+`SharedMediaNativeOriginalOwner.checkAppReceivedStatus` resolves the complete
+selected candidate through the existing repository and retains account ownership
+through a bounded status request. It reports availability only, without saving,
+hydrating, executing, refunding or cleaning up. The inactive transport uses the
+existing status endpoint with no reconstruction payload. Positive cleanup and
+ordinary activation remain closed. The
+[scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#november-2--exact-native-received-status-candidate)
+owns current behavior, validation status and the remaining clock/result-consumer
+integration.
+
 ## October 31 — photo audit read boundaries
 
 Photo allocation/status operation construction uses a physical database-read

@@ -1,3 +1,67 @@
+## November 2 — exact native received-status candidate
+
+The retained native owner now has an inactive explicit status-check action for a
+selected `SharedMediaNativeReceivedCandidate`. The repository resolves the full
+profile, package, draft, operation, revision and prepared/received digests
+against the existing clean graph. The server scan ID comes from the saved
+Prepared observation, never the package ID or current selection. Discovery and
+resolution share the same received/allocated projection; prepared and release
+states cannot be promoted to received status authority.
+
+`checkAppReceivedStatus` retains the existing account dispatch lease across the
+request and task drain. It audits before dispatch and after the response, checks
+fresh exact graph facts after Auth awaits, and rejects cancellation, deletion or
+changed account/identity before delivering the result. It does not save queue,
+inventory, allocation or presentation state. Unrelated allocation progress may
+preserve the same candidate; this status read creates no replacement inventory
+proof for an earlier presentation attempt.
+
+`NativeReceivedStatusTransport` uses the existing `check-scan-status` route,
+explicit expected account and pinned dispatcher. The body contains only the
+saved `scan_id`: no `recovery_scan`, upload, provider or replacement request.
+One transport task has a five-second deadline and streamed 4 KiB response cap;
+the owner retains its lease through task drain. No generic retry, Auth recovery
+or redirect is introduced. The endpoint's existing stranded-attempt
+reconciliation can still mutate its narrowly proven server ledger; this is a
+client status-only action, not a claim that the server endpoint is read-only.
+
+A found response means only that the existing endpoint reports a result. It does
+not hydrate the library, change selection, import a native result, settle
+funding or delete media/queues. Ordinary inference/hydration cannot be reused as
+the native result consumer: its promotion and deletion would violate the held
+native graph. Positive allocation/release closures and ordinary activation
+remain closed. Capture's local discovery `.checking` remains distinct from
+result checking; no visible clock or new UI action is installed by this
+checkpoint.
+
+Managed compilation passed in 298.566 seconds. Focused execution reconciled nine
+methods / 20 actual cases, zero failures/skips, in 555.852 seconds; all 6,826
+pinned inputs remained unchanged through both runs. Evidence is
+`rux-status-runtime01-reconciled.json` under
+`.artifacts/native-app-capture-handoff-20261020`. Coverage includes actual
+received/allocated reservation → intercepted status check → original-attempt
+settlement, exact candidate fields, release-stage rejection, deletion and
+cancellation, foreign response identity, outstanding transport during account
+shutdown, transport failure without retries, owner/attempt fences, MIME/byte
+bounds, the network source-size gate and existing discovery phase restrictions.
+Delayed collector callback internals retain their separate joined-task evidence;
+no wall-clock UI qualification is claimed.
+
+Independent source reviews (49.191 and 40.787 seconds) cleared the candidate;
+the first review requested the added shutdown and release-stage regressions.
+Cheap preflight first refused noncanonical project spelling, then caught sealed
+owner size limits and missing network policy coverage. Closed descriptive query
+constructors now share the existing repository read boundary without exposing
+arbitrary callbacks or private grants. The owner body uses its existing
+AppReceiving extension. No size ceiling was raised. Corrected preflight, scoped
+lint and preflight tooling checks passed; lint warnings remain retained.
+
+Tests use disposable stores and intercepted synthetic transport only; no hosted
+request or production qualification is authorized or claimed. The prior 17-case
+settlement evidence remains separate. Further reservation and monotonic visible
+ownership, reanalysis persistence and the exact native result consumer remain
+pending; no full-journey or Release qualification is claimed.
+
 ## October 31 — bounded database-read checkpoints for photo status audits
 
 The photo allocation operation still completes its inventory audit before any

@@ -2,6 +2,25 @@ import Foundation
 
 @MainActor
 extension SharedMediaNativeOriginalOwner {
+    /// Availability only, under the original retained account operation.
+    func checkAppReceivedStatus(_ candidate: SharedMediaNativeReceivedCandidate,
+        storage: SharedMediaNativeStorageRepository, grant: SharedMediaNativeAppDispatchGrant,
+        send: @escaping NativeReceivedStatusTransport.Send) async throws -> Bool {
+        let saved = try await storage.appReceivingRead(grant: grant, query: SharedMediaNativeReceivingQuery.received(candidate))
+        let scanID = saved.prepared.observationID
+        let validate: NativeReceivedStatusTransport.Validator = {
+            try Task.checkCancellation(); try grant.validate()
+            let current = try storage.requireAppReceivingRead(grant: grant, query: SharedMediaNativeReceivingQuery.received(candidate))
+            guard current.prepared.observationID == scanID else { throw SharedMediaStorageFailure.stale }
+        }
+        try validate()
+        let data = try await send(scanID, candidate.profile.ownerID, validate)
+        try validate()
+        _ = try await storage.appReceivingRead(grant: grant, query: SharedMediaNativeReceivingQuery.received(candidate))
+        try validate()
+        guard data.count <= NativeReceivedStatusTransport.maximumBytes else { throw MerianError.invalidResponse }
+        return try ScanLifecycleResponseDecoder.status(from: data, expectedScanID: scanID.uuidString.lowercased()).isFound
+    }
     #if DEBUG
     func reserveAppRecoveryPresentationForTesting(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
         reservationID: UUID) async throws -> SharedMediaNativeRecoveryPresentationAttempt {
@@ -59,7 +78,7 @@ extension SharedMediaNativeOriginalOwner {
         storage: SharedMediaNativeStorageRepository, grant: SharedMediaNativeAppDispatchGrant,
         releaseStage: SharedMediaNativeReleaseStageSettlement) async throws -> SharedMediaNativeReceivingIntent.Prepared {
         let packageID = metadata.package.id, draft = metadata.package.generation
-        let saved = try await storage.appReceivingIntent(grant: grant, packageID: packageID)
+        let saved = try await storage.appReceivingRead(grant: grant, query: SharedMediaNativeReceivingQuery.intent(packageID))
         let identity = try SharedMediaNativeReceivingStageIdentity(saved: saved)
         var authorization: IdentificationDispatchAuthorization?
         var admission: SharedMediaNativePhotoAdmission?

@@ -184,6 +184,14 @@
     "apps/ios/Merian/Core/Network/Transport/AuthenticatedTransportDispatcher.swift": {
       "counter": "physical",
       "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Network/MerianNetworkClient.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Network/Transport/NativeReceivedStatusTransport.swift": {
+      "counter": "physical",
+      "ceiling": 600
     }
   },
   "globalOnlyDirectories": [
