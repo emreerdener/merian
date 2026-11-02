@@ -21,6 +21,11 @@ final class CaptureNativeRecoveryModel {
     }
     private let statusAccess: CaptureNativeRecoveryStatusAccess?
     private var statusTask: Task<Void, Never>?
+    private var discoveryTask: Task<Void, Never>?
+    private var discoveryGeneration: UUID?
+    private let lifetime: (() -> SharedMediaNativeOriginalDrain?)?
+    private weak var attachedLifetime: SharedMediaNativeOriginalDrain?
+    private var lifetimeRegistration: SharedMediaNativeOriginalDrain.RecoveryRegistration?
     private var cleanupTask: Task<Void, Never>?
     private var expiryTask: Task<Void, Never>?
     private var interval: CaptureNativeRecoveryStatusAccess.Interval?
@@ -39,7 +44,11 @@ final class CaptureNativeRecoveryModel {
     private(set) var state: State = .closed
     private let ownerID: UUID
     private let current: () -> Bool
-    var isCurrent: Bool { current() }
+    var isCurrent: Bool {
+        guard current() else { return false }
+        guard let lifetimeRegistration else { return true }
+        return attachedLifetime?.isCurrentRecoveryPresentation(lifetimeRegistration, ownerID: ownerID) == true
+    }
     private let discover: () async throws -> [Candidate]
     private var presentation = UUID()
     private var profile: SharedMediaNativeAppProfile?
@@ -48,9 +57,10 @@ final class CaptureNativeRecoveryModel {
     /// The existing native owner independently checks its retained dispatch grant.
     init(ownerID: UUID, isCurrent: @escaping () -> Bool,
          statusAccess: CaptureNativeRecoveryStatusAccess? = nil,
+         lifetime: (() -> SharedMediaNativeOriginalDrain?)? = nil,
          discover: @escaping () async throws -> [Candidate]) {
         self.ownerID = ownerID; self.current = isCurrent; self.discover = discover
-        self.statusAccess = statusAccess
+        self.statusAccess = statusAccess; self.lifetime = lifetime
         resultStatus = statusAccess == nil ? .unavailable : .idle
     }
 
@@ -71,10 +81,39 @@ final class CaptureNativeRecoveryModel {
     /// it does not cancel analysis, delete media or shut down the native owner.
     func close() {
         stopChecking(as: .paused)
+        if let discoveryTask, cleanupTask == nil {
+            discoveryTask.cancel()
+            self.discoveryTask = nil; discoveryGeneration = nil
+            cleanupTask = Task { [self] in
+                await discoveryTask.value
+                cleanupTask = nil
+                releaseClosedLifetime()
+            }
+        }
         presentation = UUID()
         profile = nil
         availableCandidate = nil
         state = .closed
+        releaseClosedLifetime()
+    }
+
+    private func releaseClosedLifetime() {
+        guard state == .closed, cleanupTask == nil, let lifetimeRegistration else { return }
+        attachedLifetime?.unregisterRecoveryPresentation(lifetimeRegistration)
+        self.lifetimeRegistration = nil; attachedLifetime = nil
+    }
+
+    private func attachLifetime() throws {
+        guard let lifetime else { return }
+        guard state == .checking, isCurrent, !Task.isCancelled, let value = lifetime() else {
+            throw SharedMediaStorageFailure.closed
+        }
+        if lifetimeRegistration != nil {
+            guard attachedLifetime === value else { throw SharedMediaStorageFailure.closed }
+            return
+        }
+        let token = try value.registerRecoveryPresentation(ownerID: ownerID) { [self] in await closeAndWait() }
+        attachedLifetime = value; lifetimeRegistration = token
     }
 
     /// The retained cleanup also keeps this model alive after sheet dismissal.
@@ -136,11 +175,13 @@ final class CaptureNativeRecoveryModel {
         frozenVisibleElapsedForTesting = elapsed
         #endif
         statusToken = UUID()
-        expiryTask?.cancel(); expiryTask = nil
+        let expiry = expiryTask
+        expiry?.cancel(); expiryTask = nil
         work.cancel()
         statusTask = nil
         resultStatus = status
         cleanupTask = Task { [self] in
+            await expiry?.value
             await work.value
             let acknowledged: Bool
             if let interval { acknowledged = (try? await interval.settle(elapsed)) == true }
@@ -148,14 +189,16 @@ final class CaptureNativeRecoveryModel {
             interval = nil
             if !acknowledged { resultStatus = .needsAttention }
             cleanupTask = nil
+            releaseClosedLifetime()
         }
     }
 
     private func read(selected: Candidate?) async {
-        guard state != .checking, statusTask == nil else { return }
+        guard state != .checking, discoveryTask == nil, statusTask == nil else { return }
         let opening = presentation
         await waitForStatusCleanup()
-        guard opening == presentation else { return }
+        guard opening == presentation, state != .checking, discoveryTask == nil,
+              statusTask == nil, cleanupTask == nil else { return }
         guard isCurrent, !Task.isCancelled else { state = .unavailable; return }
         let token = presentation
         if selected == nil || selected != availableCandidate {
@@ -163,6 +206,14 @@ final class CaptureNativeRecoveryModel {
             resultStatus = statusAccess == nil ? .unavailable : .idle
         }
         state = .checking
+        let generation = UUID()
+        let task = Task { [self] in await discoverAndApply(selected: selected, token: token) }
+        discoveryGeneration = generation; discoveryTask = task
+        await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
+        if discoveryGeneration == generation { discoveryTask = nil; discoveryGeneration = nil }
+    }
+
+    private func discoverAndApply(selected: Candidate?, token: UUID) async {
         do {
             let candidates = try await discover()
             guard presentation == token else { return }
@@ -176,6 +227,7 @@ final class CaptureNativeRecoveryModel {
             guard candidates.allSatisfy({ $0.profile == expectedProfile }) else {
                 state = .unavailable; return
             }
+            try attachLifetime()
             profile = expectedProfile
             if let selected {
                 guard candidates.contains(selected) else { state = .unavailable; return }

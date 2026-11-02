@@ -179,7 +179,8 @@ struct SharedMediaNativeReceivingStagingTests {
         #expect(try c.fetchCount(FetchDescriptor<OfflineQueueEvent>()) == 0)
         #expect(try c.fetchCount(FetchDescriptor<SharedMediaConsumerRecord>()) == 0)
     }
-    func reopen(_ h: Store, container: ModelContainer? = nil) async throws -> SharedMediaNativeOriginalOwner {
+    func reopen(_ h: Store, container: ModelContainer? = nil,
+                drain: SharedMediaNativeOriginalDrain? = nil) async throws -> SharedMediaNativeOriginalOwner {
         let reopened: ModelContainer
         if let container {
             reopened = container
@@ -192,7 +193,7 @@ struct SharedMediaNativeReceivingStagingTests {
             #expect(reopened !== h.container)
         }
         let owner = try await SharedMediaNativeOriginalOwner.appDispatch(
-            account: PhotoOriginalPreparationOwner.syntheticAccount(ownerID: h.ownerID, runtime: h.runtime), drain: .init())
+            account: PhotoOriginalPreparationOwner.syntheticAccount(ownerID: h.ownerID, runtime: h.runtime), drain: drain ?? .init())
         _ = try await owner.openApp(container: reopened, parent: h.parent, inventoryID: h.inventoryID)
         return owner
     }

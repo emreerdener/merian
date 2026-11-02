@@ -65,6 +65,78 @@ struct CaptureNativeRecoveryModelTests {
         #expect(model.state == (change == "close" ? .closed : .unavailable))
     }
 
+
+    @Test func closeDuringDiscoveryCannotAttachLateLifetime() async throws {
+        let drain = SharedMediaNativeOriginalDrain()
+        let account = PhotoOriginalPreparationOwner.syntheticAccount(ownerID: Self.ownerID, runtime: AuthRuntimeState())
+        _ = try drain.register(account: account) { true }
+        let entered = ImageFocusEngineTests.Signal(), release = ImageFocusEngineTests.Signal()
+        var providers = 0
+        let model = CaptureNativeRecoveryModel(ownerID: Self.ownerID, isCurrent: { true }, lifetime: {
+            providers += 1; return drain
+        }) { await entered.open(); await release.wait(); return [] }
+        let reading = Task { await model.open() }
+        await entered.wait()
+        var closed = false
+        let closing = Task { await model.closeAndWait(); closed = true }
+        while model.state != .closed { await Task.yield() }
+        #expect(!closed && providers == 0)
+        await release.open(); await reading.value; await closing.value
+        #expect(model.state == .closed && providers == 0)
+        let token = try drain.registerRecoveryPresentation(ownerID: Self.ownerID, close: {})
+        drain.unregisterRecoveryPresentation(token)
+        #expect(await drain.shutdown())
+    }
+
+    @Test func admittedDiscoveryIsJoinedByAccountLifetime() async throws {
+        let drain = SharedMediaNativeOriginalDrain()
+        let account = PhotoOriginalPreparationOwner.syntheticAccount(ownerID: Self.ownerID, runtime: AuthRuntimeState())
+        var ownerEnded = false
+        _ = try drain.register(account: account) { ownerEnded = true; return true }
+        let entered = ImageFocusEngineTests.Signal(), release = ImageFocusEngineTests.Signal(), value = candidate()
+        var reads = 0
+        let model = CaptureNativeRecoveryModel(ownerID: Self.ownerID, isCurrent: { true }, lifetime: { drain }) {
+            reads += 1
+            if reads == 2 { await entered.open(); await release.wait() }
+            return [value]
+        }
+        await model.open()
+        let selection = Task { await model.select(value) }
+        await entered.wait()
+        let shutdown = Task { await drain.shutdown() }
+        while model.state != .closed { await Task.yield() }
+        #expect(!ownerEnded)
+        await release.open(); await selection.value
+        #expect(await shutdown.value && ownerEnded && model.state == .closed)
+    }
+
+
+    @Test func concurrentReopenWaitersCannotOverwriteOwnedDiscovery() async throws {
+        let firstEntered = ImageFocusEngineTests.Signal(), firstRelease = ImageFocusEngineTests.Signal()
+        let nextEntered = ImageFocusEngineTests.Signal(), nextRelease = ImageFocusEngineTests.Signal()
+        var reads = 0
+        let model = CaptureNativeRecoveryModel(ownerID: Self.ownerID, isCurrent: { true }) {
+            reads += 1
+            if reads == 1 { await firstEntered.open(); await firstRelease.wait() }
+            else { await nextEntered.open(); await nextRelease.wait() }
+            return []
+        }
+        let initial = Task { await model.open() }
+        await firstEntered.wait(); model.close()
+        var waiters = 0
+        let first = Task { waiters += 1; await model.open() }
+        let second = Task { waiters += 1; await model.open() }
+        while waiters != 2 { await Task.yield() }
+        await firstRelease.open(); await initial.value; await nextEntered.wait()
+        #expect(reads == 2)
+        var closed = false
+        let closing = Task { await model.closeAndWait(); closed = true }
+        while model.state != .closed { await Task.yield() }
+        #expect(!closed)
+        await nextRelease.open(); await first.value; await second.value; await closing.value
+        #expect(closed && reads == 2 && model.state == .closed)
+    }
+
     private static let ownerID = UUID(), inventoryID = UUID(), generation = UUID()
     private func candidate(ownerID: UUID = Self.ownerID, inventoryID: UUID = Self.inventoryID,
                            packageID: UUID = UUID()) -> SharedMediaNativeReceivedCandidate {
@@ -89,9 +161,10 @@ struct CaptureNativeRecoveryClockTests {
     }
     private func selected(_ h: Store, _ owner: SharedMediaNativeOriginalOwner,
                           current: @escaping () -> Bool = { true },
+                          lifetime: (() -> SharedMediaNativeOriginalDrain?)? = nil,
                           send: @escaping NativeReceivedStatusTransport.Send) async throws -> CaptureNativeRecoveryModel {
         let model = CaptureNativeRecoveryModel(ownerID: h.ownerID, isCurrent: current,
-            statusAccess: .fixture(owner: owner, send: send)) { try await owner.discoverAppReceivedCandidates() }
+            statusAccess: .fixture(owner: owner, send: send), lifetime: lifetime) { try await owner.discoverAppReceivedCandidates() }
         await model.open()
         guard case .unselected(let candidates) = model.state else { throw SharedMediaStorageFailure.closed }
         await model.select(try #require(candidates.first))
@@ -273,6 +346,44 @@ struct CaptureNativeRecoveryClockTests {
         #expect(value.revision == 1 && value.chargedMilliseconds == 30_000)
         await model.closeAndWait()
         #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test(arguments: ["open", "closed", "dropped"])
+    func accountLifetimeJoinsPresentationBeforeOwnerCompletion(host: String) async throws {
+        let (h, originalOwner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        #expect(await originalOwner.invalidateAndAwaitForAccountTransition())
+        let drain = SharedMediaNativeOriginalDrain()
+        let owner = try await SharedMediaNativeReceivingStagingTests().reopen(h, container: h.container, drain: drain)
+        let entered = ImageFocusEngineTests.Signal(), release = ImageFocusEngineTests.Signal()
+        var senderEnded = false
+        var presented: CaptureNativeRecoveryModel? = try await selected(h, owner, lifetime: { drain }) { _, _, _ in
+            await entered.open(); await release.wait(); senderEnded = true
+            return Data("{\"status\":\"found\"}".utf8)
+        }
+        weak var retained = presented
+        presented?.checkStatus(); await entered.wait()
+        if host == "closed" { presented?.close() }
+        if host == "dropped" { presented = nil }
+        #expect(retained != nil)
+        var finished = false, shutdownStarted = false
+        let first = Task { shutdownStarted = true; let result = await drain.shutdown(); finished = true; return result }
+        // In the already-closed case, presentation closure precedes account
+        // shutdown. Synchronize on the account admission fence as well.
+        try await wait { shutdownStarted && retained?.isCurrent == false && retained?.state == .closed }
+        let second = Task { await drain.shutdown() }
+        first.cancel() // Cancels this waiter, not the shared account shutdown.
+        #expect(!finished && !senderEnded && retained?.isCurrent == false)
+        #expect(throws: (any Error).self) { _ = try drain.registerRecoveryPresentation(ownerID: h.ownerID, close: {}) }
+        await release.open()
+        let firstResult = await first.value, secondResult = await second.value
+        #expect(firstResult && secondResult)
+        #expect(finished && senderEnded && !owner.isReadyForAppDispatch)
+        let value = try saved(h, p)
+        #expect(value.revision == 1 && value.chargedMilliseconds == 30_000)
+        #expect(retained?.resultAvailable != true)
+        if host == "dropped" { try await wait { retained == nil } }
+        else { #expect(presented?.resultStatus == .needsAttention) }
+        await h.runtime.awaitAccountWorkDrain()
     }
 
 }

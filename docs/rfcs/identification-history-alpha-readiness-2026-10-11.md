@@ -1,3 +1,12 @@
+> November 2 integration update:
+> [current native recovery contract](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#november-2--recovery-presentation-account-drain-integration-candidate)
+> records finite visible checking, exact candidate availability and joined
+> account-shutdown cleanup, with scoped validation and retained failures.
+> Ordinary activation remains disabled. Native initial result import and full
+> photo/audio/video initial/reanalysis journeys, RUX and holistic acceptance
+> remain open; the existing cumulative audit and environment agreement below
+> still govern readiness. This does not authorize hosted operations or release.
+
 > October 31 qualification update:
 > [current simulator qualification](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--simulator-qualification-after-component-repair)
 > records repaired simulator execution, populated-store migration and selected

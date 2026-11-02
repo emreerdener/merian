@@ -1,3 +1,15 @@
+## November 2 — recovery presentation joins account shutdown
+
+The existing native lifetime now retains one exact recovery-presentation
+registration and joins its cleanup before the native owner and final account
+lease finish. Late discovery cannot attach after Close; replacement registration
+waits for cleanup. Compilation and 40 distinct focused cases are qualified using
+37 unchanged passing cases plus the corrected three-case test rerun; the initial
+failed run is retained. The
+[current account-drain contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#november-2--recovery-presentation-account-drain-integration-candidate)
+records ownership, pre-registration limits and the still-open native result
+consumer. Ordinary activation and release controls remain unchanged.
+
 ## November 2 — finite visible-checking candidate
 
 The existing native presentation transaction now supports a subsequent reserve

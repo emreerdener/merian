@@ -10,6 +10,11 @@ final class SharedMediaNativeOriginalDrain {
         fileprivate init() { id = UUID() }
     }
 
+    struct RecoveryRegistration: Equatable {
+        fileprivate let id = UUID()
+        fileprivate init() {}
+    }
+
     private let configured: Bool
     private var startup: (container: ModelContainer, admission: NativeReleaseStartupAdmission)?
     private var lifetime: (account: PhotoOriginalPreparationOwner.AccountAccess, lease: AccountBoundWorkLease)?
@@ -17,6 +22,8 @@ final class SharedMediaNativeOriginalDrain {
     private var discoveryAttempted = false
     private var registration: Registration?
     private var callback: (@MainActor () async -> Bool)?
+    private var registeredOwnerID: UUID?
+    private var recoveryPresentation: (token: RecoveryRegistration, close: @MainActor () async -> Void)?
     private var sealed = false
     private var shutdownTask: Task<Bool, Never>?
     private var didShutdown: (@MainActor (SharedMediaNativeOriginalDrain) -> Void)?
@@ -76,8 +83,28 @@ final class SharedMediaNativeOriginalDrain {
                   lifetime.account.isCurrent(lifetime.lease), account.isCurrent(lifetime.lease) else { throw PhotoPreparationFailure.accountChanged }
         }
         let value = Registration()
-        registration = value; self.callback = callback
+        registration = value; registeredOwnerID = account.ownerID; self.callback = callback
         return value
+    }
+
+    /// One presentation per retained native lifetime. A dismissed presentation
+    /// retains this slot until its owned tasks and best-effort settlement end.
+    func registerRecoveryPresentation(ownerID: UUID,
+        close: @escaping @MainActor () async -> Void) throws -> RecoveryRegistration {
+        guard let registration, isCurrent(registration), registeredOwnerID == ownerID,
+              recoveryPresentation == nil else { throw SharedMediaStorageFailure.closed }
+        let token = RecoveryRegistration()
+        recoveryPresentation = (token, close)
+        return token
+    }
+
+    func isCurrentRecoveryPresentation(_ token: RecoveryRegistration, ownerID: UUID) -> Bool {
+        guard let registration else { return false }
+        return isCurrent(registration) && registeredOwnerID == ownerID && recoveryPresentation?.token == token
+    }
+
+    func unregisterRecoveryPresentation(_ token: RecoveryRegistration) {
+        if recoveryPresentation?.token == token { recoveryPresentation = nil }
     }
 
     func recognizes(account: PhotoOriginalPreparationOwner.AccountAccess) -> Bool {
@@ -102,9 +129,14 @@ final class SharedMediaNativeOriginalDrain {
         sealed = true
         discovery?.invalidate(); discovery = nil
         let task = Task { @MainActor [self] in
+            // Sealing prevents new native work, but never prevents joining the
+            // model's already-owned tasks. Denied refund is still quiescence.
+            let presentation = recoveryPresentation
+            await presentation?.close()
             let result = await callback?() ?? true
             if result {
-                callback = nil; registration = nil
+                callback = nil; registration = nil; registeredOwnerID = nil
+                recoveryPresentation = nil
                 finishLifetime()
                 let completed = didShutdown; didShutdown = nil
                 completed?(self)

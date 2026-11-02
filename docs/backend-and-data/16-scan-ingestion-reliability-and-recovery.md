@@ -1,3 +1,71 @@
+## November 2 — recovery presentation account-drain integration candidate
+
+The existing `SharedMediaNativeOriginalDrain` now admits one recovery
+presentation registration for its exact owner. `CaptureNativeRecoveryModel`
+attaches through the existing app composition only after discovery returns and
+its presentation token, account/container scope and candidate validation remain
+current. Closing during discovery prevents late attachment. A second
+presentation is refused while the first registration remains; exact-token
+unregister cannot remove a replacement registration.
+
+Account shutdown seals new admission first, snapshots and awaits the registered
+model's `closeAndWait`, then joins the existing native owner and finally
+finishes its account lifetime. The registered model joins its owned discovery,
+status and cancelled expiry tasks plus best-effort presentation settlement.
+Denied/uncertain refund retains the conservative charge and does not mean task
+drain failed. Cleanup needs no new admission merely to join tasks and never
+calls the lifetime's shutdown, avoiding a callback cycle. A dropped host remains
+retained through this join. Close releases registration only after cleanup;
+concurrent shutdown callers share the original uncancelled shutdown task.
+
+Discovery ownership is rechecked after awaiting previous cleanup. An exact task
+generation owns clearing the discovery slot, so two queued reopen calls cannot
+overwrite a task that Close must join. Before the first registration,
+discovery's native work remains covered by the native owner and late model
+completion is fenced from attaching; this does not claim that the presentation
+callback has joined an as-yet-unregistered model task.
+
+This candidate passed managed compilation and scoped lifecycle qualification.
+The initial 40-case run retained one test synchronization failure: an
+already-closed host was asserted account-sealed before shutdown started. After
+fixing that synchronization, its three-case method passed; 37 unaffected cases
+are reused. The exact aggregate is 23 methods / 40 distinct qualified cases, not
+an all-green claim for the original run. Source review also caught and fixed the
+concurrent discovery ownership race described above.
+
+Evidence under `rux-drain-` in `.artifacts/native-app-capture-handoff-20261020`
+includes raw/reconciled runs and `qualified-cases01.json`, which verifies that
+only the corrected test method changed. All 6,826 pinned inputs remained
+unchanged during each run. Compile01 failed in 214.686 seconds on a test-helper
+actor-isolated default expression; construction moved inside its actor-isolated
+body. Compile02/03 passed in 82.581/111.451 seconds. Runtime01/02 took
+768.091/213.173 seconds. Failed attempts remain retained. Coverage includes
+open/closed/dropped hosts, actual native status drain with conservative
+settlement denial, registered discovery, late-attachment denial, two queued
+reopen waiters, exact registration tokens, shared shutdown despite waiter
+cancellation and final account-lease ordering.
+
+Ordinary factory activation and presentation persistence remain disabled outside
+the DEBUG disposable-store boundary. The previous clock checkpoint below is
+still qualified only for its recorded inputs. This change adds no result import,
+execution retry, positive release/allocation, hosted operation or release
+permission.
+
+The next initial-result integration must use an exact native completion
+contract: `SharedMediaNativeAppReceivingTerminalOperations` currently finalizes
+proven release, not server results. Ordinary initial hydration promotes/syncs
+records and deletes queues outside the native graph; it remains unsafe to reuse
+here. `ObservationReanalysisExecutionStore.completeHeldOutcome` is a distinct
+exact child-analysis consumer, not an initial native result importer. An
+existing owner-scoped `HistoricalSyncCloudClient.fetchScan` PostgREST read can
+provide a historical scan projection without a new hosted endpoint, but its
+ordinary `ScanRepository.syncHistoricalScanDown` wrapper mutates the legacy
+projection and is not native completion authority. The fixed request/response
+binding, atomic native completion/media ownership and terminal proof must be
+reconciled before wiring available results into History. This is an actual
+journey integration requirement, not authorization for a new general manager,
+hosted route deployment or broader prerequisite work.
+
 ## November 2 — inactive native visible-checking integration candidate
 
 `CaptureNativeRecoveryModel` now connects explicit result checking to the native

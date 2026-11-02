@@ -200,6 +200,55 @@ struct SharedMediaNativeAccountLifetimeTests {
         #expect(app.contains("dependencies.configureNativeMediaLifetime(container: bootstrapOutcome.container,"))
     }
 
+
+    @Test func recoveryRegistrationIsBoundedAndExactAfterCleanClose() async throws {
+        let h = try Fixture(); _ = try h.discover()
+        _ = try h.drain.register(account: h.account()) { true }
+        #expect(throws: SharedMediaStorageFailure.closed) {
+            _ = try h.drain.registerRecoveryPresentation(ownerID: UUID(), close: {})
+        }
+        let first = try h.drain.registerRecoveryPresentation(ownerID: h.ownerID, close: {})
+        #expect(h.drain.isCurrentRecoveryPresentation(first, ownerID: h.ownerID))
+        #expect(throws: SharedMediaStorageFailure.closed) {
+            _ = try h.drain.registerRecoveryPresentation(ownerID: h.ownerID, close: {})
+        }
+        h.drain.unregisterRecoveryPresentation(first)
+        var closed = false
+        let second = try h.drain.registerRecoveryPresentation(ownerID: h.ownerID) { closed = true }
+        h.drain.unregisterRecoveryPresentation(first)
+        #expect(h.drain.isCurrentRecoveryPresentation(second, ownerID: h.ownerID))
+        #expect(await h.drain.shutdown())
+        #expect(closed && h.finishes == 1 && !h.drain.isCurrentRecoveryPresentation(second, ownerID: h.ownerID))
+        await h.runtime.awaitAccountWorkDrain()
+    }
+
+    @Test func accountLeaseFinishesAfterPresentationAndOwnerEvenWhenWaiterCancels() async throws {
+        let h = try Fixture(), gate = Gate(); _ = try h.discover()
+        var order: [String] = []
+        _ = try h.drain.register(account: h.account()) {
+            order.append("owner"); #expect(h.finishes == 0); return true
+        }
+        let token = try h.drain.registerRecoveryPresentation(ownerID: h.ownerID) {
+            order.append("presentation")
+            await gate.pause()
+            #expect(h.finishes == 0 && !Task.isCancelled)
+            order.append("cleanup-ended")
+        }
+        let first = Task { await h.drain.shutdown() }
+        await gate.arrived(); first.cancel()
+        h.drain.unregisterRecoveryPresentation(token) // Snapshot must still be joined.
+        #expect(throws: SharedMediaStorageFailure.closed) {
+            _ = try h.drain.registerRecoveryPresentation(ownerID: h.ownerID, close: {})
+        }
+        let second = Task { await h.drain.shutdown() }
+        #expect(h.finishes == 0 && order == ["presentation"])
+        gate.release()
+        let firstResult = await first.value, secondResult = await second.value
+        #expect(firstResult && secondResult)
+        #expect(order == ["presentation", "cleanup-ended", "owner"] && h.finishes == 1)
+        await h.runtime.awaitAccountWorkDrain()
+    }
+
     @MainActor private final class Fixture {
         let support: URL, container: ModelContainer, admission: NativeReleaseStartupAdmission, ownerID: UUID
         let runtime = AuthRuntimeState()

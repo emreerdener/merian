@@ -15,7 +15,8 @@ extension CaptureNativeRecoveryModel {
                 && !manager.libraryAccountRecoveryRequired && !manager.librarySignOutRecoveryPending
                 && (manager.libraryTransferResult == .completed || manager.isGuestUser)
         }
-        return .init(ownerID: ownerID, isCurrent: current, discover: {
+        return .init(ownerID: ownerID, isCurrent: current,
+            lifetime: { diContainer.nativeMediaLifetime }, discover: {
             guard current() else { throw SharedMediaStorageFailure.stale }
             let owner = try await diContainer.nativeMediaOwnerForFeature()
             guard current() else { throw SharedMediaStorageFailure.stale }
