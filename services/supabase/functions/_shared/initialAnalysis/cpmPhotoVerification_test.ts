@@ -891,3 +891,137 @@ Deno.test("HEIF uses bounded 64-bit lengths and rejects overlapping or unsafe it
   view.setUint32(loc + 32, view.getUint32(loc + 16));
   assertThrows(() => inspectHeifContainer(overlap, "image/heic", webpLimits));
 });
+
+Deno.test("CPM native ImageIO HEIC direct and grid fixtures traverse the complete photo cohort", async (t) => {
+  const vectors = JSON.parse(
+    await Deno.readTextFile(
+      new URL(
+        "../analysisHistory/fixtures/heif-native-containers.json",
+        import.meta.url,
+      ),
+    ),
+  );
+  assertEquals(vectors.length, 2);
+  for (const vector of vectors) {
+    await t.step(vector.name, async () => {
+      const bytes = Uint8Array.from(
+        atob(vector.base64),
+        (c) => c.charCodeAt(0),
+      );
+      assertEquals(await initialMediaHash(bytes), vector.sha256);
+      const actual = inspectHeifContainer(bytes, "image/heic", webpLimits);
+      assertEquals([actual.width, actual.height], [
+        vector.width,
+        vector.height,
+      ]);
+      const f = await mediaFixture(safeJpeg(), 2, "image/heic", bytes);
+      assertEquals((await f.run()).outcome, "admitted");
+      assertEquals(f.requests.length, 6);
+      assertEquals(f.calls, ["recover", "begin", "admit", "recover"]);
+    });
+  }
+});
+
+Deno.test("HEIF native grid and self-contained data references reject malformed alternatives", async (t) => {
+  const vectors = JSON.parse(
+    await Deno.readTextFile(
+      new URL(
+        "../analysisHistory/fixtures/heif-native-containers.json",
+        import.meta.url,
+      ),
+    ),
+  );
+  const original = Uint8Array.from(
+    atob(vectors[1].base64),
+    (c) => c.charCodeAt(0),
+  );
+  const mutate = (
+    kind: string,
+    change: (b: Uint8Array, at: number) => void,
+  ) => {
+    const bytes = original.slice();
+    change(bytes, heifPayload(bytes, kind));
+    return bytes;
+  };
+  const set16 = (b: Uint8Array, p: number, n: number) =>
+    new DataView(b.buffer).setUint16(p, n);
+  const set32 = (b: Uint8Array, p: number, n: number) =>
+    new DataView(b.buffer).setUint32(p, n);
+  for (
+    const [name, bytes] of [
+      ["external reference", mutate("url ", (b, p) => b[p + 3] = 0)],
+      ["extra reference flag", mutate("url ", (b, p) => b[p + 3] = 3)],
+      ["reference count", mutate("dref", (b, p) => set32(b, p + 4, 2))],
+      [
+        "transformed tile",
+        mutate("ipma", (b, p) => {
+          b[p + 13] = 5; // First tile's clli association becomes irot.
+          b[heifPayload(b, "irot")] = 1;
+        }),
+      ],
+      [
+        "surplus tile column",
+        mutate("idat", (b, p) => {
+          set16(b, p + 4, 512);
+          const first = heifPayload(b, "ispe");
+          const second = first + heifPayload(b.subarray(first), "ispe");
+          set32(b, second + 4, 512);
+        }),
+      ],
+      ["grid version", mutate("idat", (b, p) => b[p] = 1)],
+      ["grid flags", mutate("idat", (b, p) => b[p + 1] = 2)],
+      ["grid row count", mutate("idat", (b, p) => b[p + 2] = 2)],
+      ["grid column count", mutate("idat", (b, p) => b[p + 3] = 2)],
+      ["grid declared width", mutate("idat", (b, p) => set16(b, p + 4, 1023))],
+      ["grid declared height", mutate("idat", (b, p) => set16(b, p + 6, 767))],
+      ["duplicate tile", mutate("dimg", (b, p) => set16(b, p + 6, 1))],
+      ["self tile", mutate("dimg", (b, p) => set16(b, p + 4, 5))],
+      ["missing tile", mutate("dimg", (b, p) => set16(b, p + 4, 99))],
+      [
+        "missing grid reference",
+        mutate("dimg", (b, p) => b.set(heifText("thmb"), p - 4)),
+      ],
+      [
+        "insufficient tile width",
+        mutate("ispe", (b, p) => set32(b, p + 4, 511)),
+      ],
+      [
+        "grid extent short",
+        mutate("iloc", (b, p) => {
+          const end = p - 8 + new DataView(b.buffer).getUint32(p - 8);
+          set32(b, end - 4, 7);
+        }),
+      ],
+      [
+        "unsupported property",
+        mutate("clli", (b, p) => b.set(heifText("auxC"), p - 4)),
+      ],
+    ] as const
+  ) {
+    await t.step(name, async () => {
+      assertThrows(() => inspectHeifContainer(bytes, "image/heic", webpLimits));
+      const f = await mediaFixture(safeJpeg(), 1, "image/heic", bytes);
+      assertEquals((await f.run()).outcome, "held");
+      assertEquals(f.calls.includes("admit"), false);
+    });
+  }
+});
+
+Deno.test("HEIF grid resource policy counts all coded tiles, not just output pixels", async () => {
+  const vectors = JSON.parse(
+    await Deno.readTextFile(
+      new URL(
+        "../analysisHistory/fixtures/heif-native-containers.json",
+        import.meta.url,
+      ),
+    ),
+  );
+  const bytes = Uint8Array.from(
+    atob(vectors[1].base64),
+    (c) => c.charCodeAt(0),
+  );
+  const f = await mediaFixture(safeJpeg(), 1, "image/heic", bytes);
+  f.policy.dimensions.source.maximumPixels = 800_000; // Output fits; four 512-square tiles do not.
+  assertEquals((await f.run()).outcome, "held");
+  assertEquals(f.calls.includes("admit"), false);
+});

@@ -176,15 +176,15 @@ real-app submission.
 
 The same consumer now reads HEIC/HEIF originals through a bounded
 [HEVC still-item inspector](../../services/supabase/functions/_shared/analysisHistory/heifContainer.ts).
-It requires supported HEVC still brands, one identified primary `hvc1` item,
-associated dimensions/configuration, bounded item/property/reference counts,
-nonoverlapping self-contained `mdat`/`idat` extents and codec/NAL header
-framing. It allows opaque Exif/XMP items and bounded thumbnail/metadata
-references; it rejects external/protected items,
-derived/auxiliary/sequence/other-codec forms and split coded-image extents.
-Unknown properties and unsupported brands remain held. Dimensions are declared
-`ispe` dimensions, not independently decoded SPS or pixel dimensions; the pixel
-budget covers the sum of coded-item declarations. This is not HEVC
+It requires supported HEVC still brands, one identified primary `hvc1` or
+single-level `grid` item, associated dimensions/configuration, bounded
+item/property/reference counts, nonoverlapping self-contained `mdat`/`idat`
+extents and codec/NAL header framing. It allows opaque Exif/XMP items and
+bounded thumbnail/metadata references; it rejects external/protected items,
+nested-derived/auxiliary/sequence/other-codec forms and split coded-image
+extents. Unknown properties and unsupported brands remain held. Dimensions are
+declared `ispe` dimensions, not independently decoded SPS or pixel dimensions;
+the pixel budget covers the sum of coded-item declarations. This is not HEVC
 parameter-set/entropy/pixel validity, metadata semantics or full HEIF
 qualification. Format field references are the
 [HEIF item-location reference](https://github.com/nokiatech/heif/blob/master/srcs/common/itemlocationbox.cpp)
@@ -194,13 +194,35 @@ no native library or provider dependency is installed.
 
 Synthetic single/two-photo cohorts cover narrow/wide item IDs, file/inline
 locations, 64-bit bounds, opaque metadata, malformed links/properties/extents
-and codec framing. There is no checked-in valid native HEIC/HEIF fixture yet;
-camera `fileDataRepresentation()` and imported originals do not guarantee a
-particular item topology. Native corpus coverage, grids, auxiliary images, other
-accepted forms and fixed profile decisions remain required before activation.
-Unsupported forms are held after the once-only read, never retried
-automatically. No conversion or reduced product vocabulary is implied. The
-atomic admission bridge and coordinated retention/funding/C1 remain pending.
+and codec framing. Two frozen macOS 26.6.2 ImageIO fixtures now cover a 64×48
+direct HEVC image (`iloc` v0) and a 1024×768 four-tile grid (`iloc` v1),
+generated from deterministic nonpersonal RGB patterns and decoded locally back
+to PNG at expected dimensions. The
+[fixture generator](../../services/supabase/functions/_shared/analysisHistory/testing/generateHeifFixtures.py)
+requires a fresh local output directory; test runs consume the
+[frozen bytes and hashes](../../services/supabase/functions/_shared/analysisHistory/fixtures/heif-native-containers.json).
+Repeated local generation matched these bytes; cross-OS/hardware byte identity
+is not promised. Restricted encoding first failed with hardware-service access
+errors; failed logs remain retained alongside successful authorized local runs.
+
+Observed compatibility brands (`miaf`, `MiPr`, `MiHB`), fixed-size `clli`
+declarations and exactly one empty self-contained `dref`/`url` entry are now
+accepted; this does not certify MIAF/HDR semantics. Single-level grid validation
+binds descriptor size to `ispe`, distinct ordered `dimg` targets to coded tiles,
+and tile counts/dimensions to canvas coverage without surplus rows/columns.
+Tiles must share one configuration property and have no transform; nested grids
+and broader tile-configuration/transform semantics remain held. The
+[HEIF grid implementation reference](https://github.com/strukturag/libheif/blob/master/libheif/image-items/grid.cc)
+provides the descriptor field layout. Every coded tile counts toward the same
+pixel budget even when the output canvas is smaller. This is structural
+validation, not decoded-pixel, codec-profile or recipe proof.
+
+Camera `fileDataRepresentation()` and imported originals do not guarantee either
+observed layout. Broader camera/import corpus, auxiliary images, other accepted
+forms and fixed profile decisions remain required before activation. Unsupported
+forms are held after the once-only read, never retried automatically. No
+conversion or reduced product vocabulary is implied. The atomic admission bridge
+and coordinated retention/funding/C1 remain pending.
 
 The next implementation increment couples actual complete-cohort verification
 directly to a CPM-specific atomic admission branch. Allocation, successful

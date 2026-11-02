@@ -1,6 +1,6 @@
 /** Private HEVC still-item increment. Bounds item/property/extents and NAL
  * framing, not HEVC parameter-set semantics, pixels or metadata interpretation.
- * Grids/auxiliary/sequence/other-codec forms require further qualification. */
+ * Nested grids/auxiliary/sequence/other-codec forms remain unqualified. */
 export class HeifContainerRejected extends Error {}
 const requireValue = (ok: boolean): void => {
   if (!ok) throw new HeifContainerRejected();
@@ -113,13 +113,36 @@ export function inspectHeifContainer(
   // brand too. Sequence/AVIF brands cannot masquerade as this closed profile.
   requireValue(
     ["heic", "heix", "mif1"].includes(major) &&
-      [...brands].every((b) => ["heic", "heix", "mif1"].includes(b)) &&
+      [...brands].every((b) =>
+        ["heic", "heix", "mif1", "miaf", "MiPr", "MiHB"].includes(b)
+      ) &&
       (brands.has("heic") || brands.has("heix")) && brands.has("mif1"),
   );
   const meta = full(one(top, "meta"), [0]);
   const children = boxes(meta.r.at, meta.r.end);
-  only(children, ["hdlr", "pitm", "iinf", "iloc", "iprp", "iref", "idat"]);
+  only(children, [
+    "hdlr",
+    "pitm",
+    "iinf",
+    "iloc",
+    "iprp",
+    "iref",
+    "idat",
+    "dinf",
+  ]);
   requireValue(new Set(children.map((b) => b.type)).size === children.length);
+  const dinf = children.find((b) => b.type === "dinf");
+  if (dinf) {
+    const entries = boxes(dinf.start, dinf.end);
+    requireValue(entries.length === 1);
+    const dref = full(one(entries, "dref"), [0]).r;
+    requireValue(dref.uint(4) === 1);
+    const locations = boxes(dref.at, dref.end);
+    requireValue(locations.length === 1);
+    const url = full(one(locations, "url "), [0], 1);
+    requireValue(url.flags === 1);
+    url.r.done(); // Self-contained only; no URL payload.
+  }
   const handler = full(one(children, "hdlr"), [0]).r;
   requireValue(handler.uint(4) === 0 && handler.tag() === "pict");
   requireValue(
@@ -143,7 +166,7 @@ export function inspectHeifContainer(
     const id = r.uint(version === 2 ? 2 : 4);
     requireValue(id > 0 && !items.has(id) && r.uint(2) === 0);
     const type = r.tag();
-    requireValue(["hvc1", "Exif", "mime"].includes(type));
+    requireValue(["hvc1", "grid", "Exif", "mime"].includes(type));
     requireValue(id !== primaryItem || flags === 0);
     r.zeroString();
     if (type === "mime") {
@@ -153,32 +176,42 @@ export function inspectHeifContainer(
     r.done();
     items.set(id, type);
   }
-  requireValue(items.get(primaryItem) === "hvc1");
-  // No derived/auxiliary interpretation. Only thumbnail and metadata links.
+  const isImage = (id: number) =>
+    ["hvc1", "grid"].includes(items.get(id) ?? "");
+  requireValue(isImage(primaryItem));
+  const gridTargets = new Map<number, number[]>();
+  // Single-level coded-image grids only: no recursive derived-item traversal.
   const refs = children.find((b) => b.type === "iref");
   if (refs) {
     const { r, version } = full(refs, [0, 1]);
     const seen = new Set<string>();
     let referenceBudget = 1024;
     for (const ref of boxes(r.at, r.end)) {
-      requireValue(["thmb", "cdsc"].includes(ref.type));
+      requireValue(["thmb", "cdsc", "dimg"].includes(ref.type));
       const rr = read(ref), from = rr.uint(version ? 4 : 2), n = rr.uint(2);
       requireValue(
         items.has(from) && n > 0 && n <= 256 && (referenceBudget -= n) >= 0,
       );
       requireValue(
-        ref.type === "thmb"
-          ? items.get(from) === "hvc1"
-          : items.get(from) !== "hvc1",
+        ref.type === "dimg"
+          ? items.get(from) === "grid"
+          : ref.type === "thmb"
+          ? isImage(from)
+          : ["Exif", "mime"].includes(items.get(from) ?? ""),
       );
+      const targets: number[] = [];
+      if (ref.type === "dimg") requireValue(!gridTargets.has(from));
       for (let i = 0; i < n; i++) {
         const to = rr.uint(version ? 4 : 2), key = `${ref.type}:${from}:${to}`;
         requireValue(
-          items.get(to) === "hvc1" && to !== from && !seen.has(key) &&
-            (ref.type !== "thmb" || to === primaryItem),
+          isImage(to) && to !== from && !seen.has(key) &&
+            (ref.type !== "thmb" || to === primaryItem) &&
+            (ref.type !== "dimg" || items.get(to) === "hvc1"),
         );
         seen.add(key);
+        targets.push(to);
       }
+      if (ref.type === "dimg") gridTargets.set(from, targets);
       rr.done();
     }
   }
@@ -236,7 +269,7 @@ export function inspectHeifContainer(
   const container = one(properties, "ipco"),
     props = boxes(container.start, container.end);
   requireValue(props.length > 0 && props.length <= 256);
-  only(props, ["ispe", "hvcC", "pixi", "colr", "irot", "imir"]);
+  only(props, ["ispe", "hvcC", "pixi", "colr", "irot", "imir", "clli"]);
   const associations = full(one(properties, "ipma"), [0, 1], 1);
   const ar = associations.r, associationCount = ar.uint(4);
   requireValue(associationCount > 0 && associationCount <= items.size);
@@ -264,83 +297,127 @@ export function inspectHeifContainer(
   );
   let dimensions: { width: number; height: number } | undefined;
   let pixels = 0;
+  const imageSizes = new Map<number, { width: number; height: number }>();
+  const imageConfigs = new Map<number, Box>();
+  const transformed = new Set<number>();
+  const grids: {
+    id: number;
+    rows: number;
+    columns: number;
+    width: number;
+    height: number;
+  }[] = [];
   for (const [id, type] of items) {
     checkpoint();
-    if (type !== "hvc1") {
+    if (!isImage(id)) {
       requireValue(!attached.get(id)?.length);
       continue; // Opaque bounded metadata extents, not metadata semantics.
     }
     const chosen = attached.get(id) ?? [];
     requireValue(new Set(chosen.map((p) => p.box.type)).size === chosen.length);
     const imageProps = chosen.map((p) => p.box);
+    if (
+      imageProps.some((p) =>
+        p.type === "imir" || (p.type === "irot" && bytes[p.start] !== 0)
+      )
+    ) transformed.add(id);
     const size = full(one(imageProps, "ispe"), [0]).r;
     const width = size.uint(4), height = size.uint(4);
     size.done();
-    pixels += width * height;
+    if (type === "hvc1") pixels += width * height;
+    imageSizes.set(id, { width, height });
     requireValue(
       width > 0 && height > 0 && width <= limits.maximumWidth &&
-        height <= limits.maximumHeight && pixels <= limits.maximumPixels,
+        height <= limits.maximumHeight &&
+        width * height <= limits.maximumPixels &&
+        pixels <= limits.maximumPixels,
     );
     if (id === primaryItem) dimensions = { width, height };
-    const config = one(imageProps, "hvcC");
-    requireValue(chosen.find((p) => p.box === config)?.essential === true);
-    const cr = read(config);
-    requireValue(cr.end - cr.at >= 23 && cr.uint(1) === 1);
-    cr.uint(1);
-    cr.uint(4);
-    cr.uint(6);
-    cr.uint(1);
-    requireValue(
-      (cr.uint(2) & 0xf000) === 0xf000 && (cr.uint(1) & 0xfc) === 0xfc,
-    );
-    requireValue((cr.uint(1) & 0xfc) === 0xfc);
-    requireValue((cr.uint(1) & 0xf8) === 0xf8 && (cr.uint(1) & 0xf8) === 0xf8);
-    cr.uint(2);
-    const nalWidth = (cr.uint(1) & 3) + 1,
-      arrays = cr.uint(1),
-      parameterTypes = new Set<number>();
-    requireValue(nalWidth !== 3 && arrays > 0 && arrays <= 64);
-    let nals = 0;
-    const nal = (r: Reader, length: number, expected?: number) => {
-      requireValue(length >= 3 && length <= r.end - r.at && ++nals <= 4096);
-      const first = r.uint(1), second = r.uint(1), actual = (first >>> 1) & 63;
+    if (type === "grid") {
+      requireValue(!imageProps.some((p) => p.type === "hvcC"));
+      const spans = extents.get(id)!;
+      requireValue(spans.length === 1);
+      const gr = new Reader(bytes, spans[0].end, spans[0].start);
+      requireValue(gr.uint(1) === 0);
+      const flags = gr.uint(1);
+      requireValue(flags === 0 || flags === 1);
+      const rows = gr.uint(1) + 1, columns = gr.uint(1) + 1;
       requireValue(
-        !(first & 0x81) && (second & 0xf8) === 0 && (second & 7) > 0,
+        rows * columns <= 256 && gr.uint(flags ? 4 : 2) === width &&
+          gr.uint(flags ? 4 : 2) === height,
       );
-      if (expected !== undefined) requireValue(actual === expected);
-      r.at += length - 2;
-      return actual;
-    };
-    for (let j = 0; j < arrays; j++) {
-      checkpoint();
-      const header = cr.uint(1), kind = header & 63, n = cr.uint(2);
+      gr.done();
+      grids.push({ id, rows, columns, width, height });
+    } else {
+      const config = one(imageProps, "hvcC");
+      imageConfigs.set(id, config);
+      requireValue(chosen.find((p) => p.box === config)?.essential === true);
+      const cr = read(config);
+      requireValue(cr.end - cr.at >= 23 && cr.uint(1) === 1);
+      cr.uint(1);
+      cr.uint(4);
+      cr.uint(6);
+      cr.uint(1);
       requireValue(
-        !(header & 0x40) && [32, 33, 34, 39, 40].includes(kind) && n > 0 &&
-          !parameterTypes.has(kind),
+        (cr.uint(2) & 0xf000) === 0xf000 && (cr.uint(1) & 0xfc) === 0xfc,
       );
-      parameterTypes.add(kind);
-      for (let k = 0; k < n; k++) nal(cr, cr.uint(2), kind);
+      requireValue((cr.uint(1) & 0xfc) === 0xfc);
+      requireValue(
+        (cr.uint(1) & 0xf8) === 0xf8 && (cr.uint(1) & 0xf8) === 0xf8,
+      );
+      cr.uint(2);
+      const nalWidth = (cr.uint(1) & 3) + 1,
+        arrays = cr.uint(1),
+        parameterTypes = new Set<number>();
+      requireValue(nalWidth !== 3 && arrays > 0 && arrays <= 64);
+      let nals = 0;
+      const nal = (r: Reader, length: number, expected?: number) => {
+        requireValue(length >= 3 && length <= r.end - r.at && ++nals <= 4096);
+        const first = r.uint(1),
+          second = r.uint(1),
+          actual = (first >>> 1) & 63;
+        requireValue(
+          !(first & 0x81) && (second & 0xf8) === 0 && (second & 7) > 0,
+        );
+        if (expected !== undefined) requireValue(actual === expected);
+        r.at += length - 2;
+        return actual;
+      };
+      for (let j = 0; j < arrays; j++) {
+        checkpoint();
+        const header = cr.uint(1), kind = header & 63, n = cr.uint(2);
+        requireValue(
+          !(header & 0x40) && [32, 33, 34, 39, 40].includes(kind) && n > 0 &&
+            !parameterTypes.has(kind),
+        );
+        parameterTypes.add(kind);
+        for (let k = 0; k < n; k++) nal(cr, cr.uint(2), kind);
+      }
+      cr.done();
+      requireValue([32, 33, 34].every((t) => parameterTypes.has(t)));
+      // This increment supports one extent per coded image. Do not concatenate
+      // attacker-selected extents or claim split-item bitstream coverage yet.
+      const spans = extents.get(id)!;
+      requireValue(spans.length === 1);
+      const image = new Reader(bytes, spans[0].end, spans[0].start);
+      let vcl = false;
+      while (image.at < image.end) {
+        checkpoint();
+        const kind = nal(image, image.uint(nalWidth));
+        requireValue(kind <= 40);
+        if (kind <= 31) vcl = true;
+      }
+      requireValue(vcl);
     }
-    cr.done();
-    requireValue([32, 33, 34].every((t) => parameterTypes.has(t)));
-    // This increment supports one extent per coded image. Do not concatenate
-    // attacker-selected extents or claim split-item bitstream coverage yet.
-    const spans = extents.get(id)!;
-    requireValue(spans.length === 1);
-    const image = new Reader(bytes, spans[0].end, spans[0].start);
-    let vcl = false;
-    while (image.at < image.end) {
-      checkpoint();
-      const kind = nal(image, image.uint(nalWidth));
-      requireValue(kind <= 40);
-      if (kind <= 31) vcl = true;
-    }
-    requireValue(vcl);
     for (const p of imageProps) {
       const r = read(p);
       if (p.type === "irot" || p.type === "imir") {
         requireValue((r.uint(1) & (p.type === "irot" ? 0xfc : 0xfe)) === 0);
         r.done();
+      } else if (p.type === "clli") {
+        r.uint(2);
+        r.uint(2);
+        r.done(); // Content-light declarations, not HDR proof.
       } else if (p.type === "pixi") {
         const pr = full(p, [0]).r, channels = pr.uint(1);
         requireValue(channels === 1 || channels === 3);
@@ -359,6 +436,32 @@ export function inspectHeifContainer(
         } else requireValue(["rICC", "prof"].includes(kind) && r.at < r.end);
       }
     }
+  }
+  for (const grid of grids) {
+    checkpoint();
+    const targets = gridTargets.get(grid.id) ?? [];
+    requireValue(targets.length === grid.rows * grid.columns);
+    const tile = imageSizes.get(targets[0])!;
+    // Observed native grid subset: a single shared configuration and untransformed
+    // coded tiles. Broader per-tile configuration/transform semantics stay held.
+    requireValue(
+      targets.every((id) =>
+        !transformed.has(id) &&
+        imageConfigs.get(id) === imageConfigs.get(targets[0])
+      ),
+    );
+    requireValue(
+      targets.every((id) =>
+        imageSizes.get(id)?.width === tile.width &&
+        imageSizes.get(id)?.height === tile.height
+      ),
+    );
+    requireValue(
+      grid.width > tile.width * (grid.columns - 1) &&
+        grid.width <= tile.width * grid.columns &&
+        grid.height > tile.height * (grid.rows - 1) &&
+        grid.height <= tile.height * grid.rows,
+    );
   }
   requireValue(dimensions !== undefined);
   checkpoint();

@@ -9,11 +9,11 @@ owns the complete binding and retention requirements. `cpmPhotoVerification` now
 consumes actual exact-byte reads with shared JPEG/still-PNG/still-WebP and
 bounded HEVC still-item inspectors, one reusable bounded buffer and
 complete-cohort lifecycle checks. It feeds the coordinator directly; it is not a
-standalone codec or client proof. Remaining HEIF grid/auxiliary/sequence/codec
-forms, native HEIF fixture coverage, PNG/WebP animation policy, installed
-policy, the atomic admission bridge and route composition remain absent. This
-increment is uninstalled and does not qualify physical resource limits or
-funding.
+standalone codec or client proof. Remaining HEIF
+nested-grid/auxiliary/sequence/codec forms, camera/import corpus coverage beyond
+two local ImageIO fixtures, PNG/WebP animation policy, installed policy, the
+atomic admission bridge and route composition remain absent. This increment is
+uninstalled and does not qualify physical resource limits or funding.
 
 ## Dormant authenticated transfer composition
 
