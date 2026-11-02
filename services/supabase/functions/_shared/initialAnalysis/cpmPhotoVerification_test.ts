@@ -1,5 +1,6 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import { inspectJpegContainer } from "../analysisHistory/jpegContainer.ts";
+import { inspectWebpContainer } from "../analysisHistory/webpContainer.ts";
 import { inspectPngContainer } from "../analysisHistory/pngContainer.ts";
 import { validatePublicPhotoContainer } from "../analysisHistory/publicPhotoContainer.ts";
 import {
@@ -198,7 +199,7 @@ Deno.test("CPM byte-equal malformed JPEG cannot become structural evidence", asy
 });
 
 Deno.test("CPM missing non-JPEG adapters reject complete cohort before any storage read", async (t) => {
-  for (const type of ["image/webp", "image/heic", "image/heif"]) {
+  for (const type of ["image/heic", "image/heif"]) {
     await t.step(type, async () => {
       const f = await mediaFixture(safeJpeg(), 2, type);
       assertEquals((await f.run()).outcome, "held");
@@ -445,4 +446,281 @@ Deno.test("PNG inspection enforces byte and dimension policy independently of va
   ) {
     assertThrows(() => inspectPngContainer(png, { ...limits, ...invalid }));
   }
+});
+
+// Structural vectors only: these synthetic entropy payloads are not pixel fixtures.
+function webpChunk(kind: string, payload: Uint8Array) {
+  const result = new Uint8Array(8 + payload.length + payload.length % 2);
+  result.set(new TextEncoder().encode(kind));
+  new DataView(result.buffer).setUint32(4, payload.length, true);
+  result.set(payload, 8);
+  return result;
+}
+function webpRiff(...chunks: Uint8Array[]) {
+  const result = joined(new TextEncoder().encode("RIFF0000WEBP"), ...chunks);
+  new DataView(result.buffer).setUint32(4, result.length - 8, true);
+  return result;
+}
+function webpImage(lossless = false, width = 8, height = 6, alphaHint = false) {
+  const payload = new Uint8Array(lossless ? 8 : 14);
+  const view = new DataView(payload.buffer);
+  if (lossless) {
+    payload[0] = 0x2f;
+    view.setUint32(
+      1,
+      (width - 1) | ((height - 1) << 14) | (alphaHint ? 1 << 28 : 0),
+      true,
+    );
+  } else {
+    payload.set([0x30, 0, 0, 0x9d, 1, 0x2a]);
+    view.setUint16(6, width, true);
+    view.setUint16(8, height, true);
+  }
+  return webpChunk(lossless ? "VP8L" : "VP8 ", payload);
+}
+function webpExtended(flags = 0, width = 8, height = 6) {
+  const payload = new Uint8Array(10);
+  payload[0] = flags;
+  for (const [offset, value] of [[4, width - 1], [7, height - 1]]) {
+    payload[offset] = value & 255;
+    payload[offset + 1] = (value >>> 8) & 255;
+    payload[offset + 2] = value >>> 16;
+  }
+  return webpChunk("VP8X", payload);
+}
+const webpLimits = {
+  maximumBytes: 33_554_432,
+  maximumWidth: 16384,
+  maximumHeight: 16384,
+  maximumPixels: 100_000_000,
+};
+
+Deno.test("CPM still WebP sources share complete cohort verification with JPEG derivatives", async (t) => {
+  const metadata = webpRiff(
+    webpExtended(0x2c),
+    webpChunk("EXIF", new Uint8Array([1, 2, 3])),
+    webpChunk("ICCP", new Uint8Array([4])),
+    webpImage(),
+    webpChunk("XMP ", new Uint8Array([5])),
+    webpChunk("test", new Uint8Array([6])),
+    webpChunk("test", new Uint8Array([7])),
+  );
+  const rawAlpha = webpRiff(
+    webpExtended(0x10),
+    webpChunk("ALPH", new Uint8Array(49)),
+    webpImage(),
+  );
+  const compressedAlpha = webpRiff(
+    webpExtended(0x10),
+    webpChunk("ALPH", new Uint8Array([0x1d, 0])),
+    webpImage(),
+  );
+  for (
+    const [name, bytes] of [
+      ["lossy", webpRiff(webpImage())],
+      ["lossless", webpRiff(webpImage(true))],
+      ["simple alpha hint", webpRiff(webpImage(true, 8, 6, true))],
+      [
+        "extended alpha hint",
+        webpRiff(webpExtended(0x10), webpImage(true, 8, 6, true)),
+      ],
+      ["opaque metadata", metadata],
+      ["raw alpha", rawAlpha],
+      ["compressed alpha header", compressedAlpha],
+    ] as const
+  ) {
+    await t.step(name, async () => {
+      const f = await mediaFixture(safeJpeg(), 2, "image/webp", bytes);
+      inspectWebpContainer(bytes, webpLimits, "private_still");
+      assertEquals((await f.run()).outcome, "admitted");
+      assertEquals(f.requests.length, 6);
+      assertEquals(f.calls, ["recover", "begin", "admit", "recover"]);
+      assertEquals(inspectWebpContainer(bytes, webpLimits, "private_still"), {
+        width: 8,
+        height: 6,
+      });
+    });
+  }
+});
+
+Deno.test("CPM hash-matching malformed WebP never admits partial evidence", async (t) => {
+  const original = webpRiff(webpImage());
+  const wrongSize = original.slice();
+  wrongSize[4]--;
+  const badPadding = webpChunk("EXIF", new Uint8Array([1]));
+  badPadding[badPadding.length - 1] = 1;
+  const badVersion = webpImage(true);
+  badVersion[12] |= 0x20;
+  const badSignature = webpImage();
+  badSignature[11] = 0;
+  const scaled = webpImage();
+  scaled[15] |= 0x40;
+  const reserved = webpExtended();
+  reserved[9] = 1;
+  const tooMany = webpRiff(
+    webpExtended(),
+    ...Array.from({ length: 4095 }, () => webpChunk("test", new Uint8Array())),
+    webpImage(),
+  );
+  for (
+    const [name, bytes] of [
+      ["RIFF size", wrongSize],
+      ["truncated", original.slice(0, -1)],
+      ["trailing", joined(original, new Uint8Array([0]))],
+      ["duplicate image", webpRiff(webpImage(), webpImage(true))],
+      ["missing image", webpRiff(webpExtended())],
+      ["canvas mismatch", webpRiff(webpExtended(0, 7), webpImage())],
+      ["reserved header", webpRiff(reserved, webpImage())],
+      ["reserved flag", webpRiff(webpExtended(0x40), webpImage())],
+      ["animation flag", webpRiff(webpExtended(2), webpImage())],
+      [
+        "animation chunk",
+        webpRiff(
+          webpExtended(),
+          webpChunk("ANMF", new Uint8Array()),
+          webpImage(),
+        ),
+      ],
+      ["missing metadata", webpRiff(webpExtended(8), webpImage())],
+      [
+        "undeclared metadata",
+        webpRiff(
+          webpExtended(),
+          webpImage(),
+          webpChunk("EXIF", new Uint8Array()),
+        ),
+      ],
+      [
+        "duplicate metadata",
+        webpRiff(
+          webpExtended(8),
+          webpImage(),
+          webpChunk("EXIF", new Uint8Array()),
+          webpChunk("EXIF", new Uint8Array()),
+        ),
+      ],
+      [
+        "late color profile",
+        webpRiff(
+          webpExtended(0x20),
+          webpImage(),
+          webpChunk("ICCP", new Uint8Array([1])),
+        ),
+      ],
+      ["padding", webpRiff(webpExtended(8), webpImage(), badPadding)],
+      ["lossless version", webpRiff(badVersion)],
+      ["VP8 signature", webpRiff(badSignature)],
+      ["scaled VP8", webpRiff(scaled)],
+      ["missing alpha", webpRiff(webpExtended(0x10), webpImage())],
+      [
+        "short raw alpha",
+        webpRiff(
+          webpExtended(0x10),
+          webpChunk("ALPH", new Uint8Array(48)),
+          webpImage(),
+        ),
+      ],
+      [
+        "invalid alpha header",
+        webpRiff(
+          webpExtended(0x10),
+          webpChunk("ALPH", new Uint8Array([2, 0])),
+          webpImage(),
+        ),
+      ],
+      [
+        "alpha with lossless",
+        webpRiff(
+          webpExtended(0x10),
+          webpChunk("ALPH", new Uint8Array(49)),
+          webpImage(true),
+        ),
+      ],
+      [
+        "metadata without VP8X",
+        webpRiff(webpImage(), webpChunk("EXIF", new Uint8Array())),
+      ],
+      ["chunk count", tooMany],
+      ["wrong actual format", safeJpeg()],
+    ] as const
+  ) {
+    await t.step(name, async () => {
+      const f = await mediaFixture(safeJpeg(), 1, "image/webp", bytes);
+      assertEquals((await f.run()).outcome, "held");
+      assertEquals(f.requests.length, 1);
+      assertEquals(f.calls.includes("admit"), false);
+    });
+  }
+});
+
+Deno.test("WebP preserves strict frame policy and enforces trusted resource limits", async () => {
+  const bytes = webpRiff(webpImage());
+  assertEquals(inspectWebpContainer(bytes, webpLimits, "opaque_frame"), {
+    width: 8,
+    height: 6,
+  });
+  for (
+    const forbidden of [
+      webpRiff(webpImage(true, 8, 6, true)),
+      webpRiff(
+        webpExtended(8),
+        webpImage(),
+        webpChunk("EXIF", new Uint8Array()),
+      ),
+      webpRiff(
+        webpExtended(0x10),
+        webpChunk("ALPH", new Uint8Array(49)),
+        webpImage(),
+      ),
+    ]
+  ) {
+    assertThrows(() =>
+      inspectWebpContainer(forbidden, webpLimits, "opaque_frame")
+    );
+  }
+  for (
+    const override of [
+      { maximumBytes: bytes.length - 1 },
+      { maximumWidth: 7 },
+      { maximumHeight: 5 },
+      { maximumPixels: 47 },
+      { maximumBytes: 33_554_433 },
+      { maximumWidth: 0 },
+      { maximumHeight: NaN },
+      { maximumPixels: 0x100000000 },
+    ]
+  ) {
+    assertThrows(() =>
+      inspectWebpContainer(
+        bytes,
+        { ...webpLimits, ...override },
+        "private_still",
+      )
+    );
+  }
+  const f = await mediaFixture(safeJpeg(), 1, "image/webp", bytes);
+  f.policy.dimensions.source.maximumWidth = 7;
+  assertEquals((await f.run()).outcome, "held");
+  assertEquals(f.calls.includes("admit"), false);
+});
+
+Deno.test("CPM WebP consumer accepts existing native frame corpus as original bytes", async () => {
+  const vectors = JSON.parse(
+    await Deno.readTextFile(
+      new URL(
+        "../analysisHistory/fixtures/video-frame-containers.json",
+        import.meta.url,
+      ),
+    ),
+  );
+  let count = 0;
+  for (const vector of vectors) {
+    if (vector.content_type !== "image/webp") continue;
+    const bytes = Uint8Array.from(atob(vector.base64), (c) => c.charCodeAt(0));
+    const f = await mediaFixture(safeJpeg(), 1, "image/webp", bytes);
+    assertEquals((await f.run()).outcome, "admitted");
+    assertEquals(f.requests.length, 3);
+    count++;
+  }
+  assertEquals(count > 0, true);
 });

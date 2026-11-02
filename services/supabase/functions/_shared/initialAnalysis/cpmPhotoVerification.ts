@@ -1,7 +1,8 @@
-/** Inactive JPEG/PNG consuming increment. No installed profile/route or SQL
+/** Inactive JPEG/PNG/WebP consuming increment. No installed profile/route or SQL
  * admission bridge. Other accepted original formats still require adapters;
  * their declarations are never converted or treated as JPEG proof. */
 import { inspectJpegContainer } from "../analysisHistory/jpegContainer.ts";
+import { inspectWebpContainer } from "../analysisHistory/webpContainer.ts";
 import { inspectPngContainer } from "../analysisHistory/pngContainer.ts";
 import {
   type CpmAdmissionIdentity,
@@ -132,7 +133,9 @@ export function verifyAndAdmitInitialCpmPhotoMedia(
           if (
             role.declaration.declared_content_type !== "image/jpeg" &&
             !(role.role === "source" &&
-              role.declaration.declared_content_type === "image/png")
+              ["image/png", "image/webp"].includes(
+                role.declaration.declared_content_type,
+              ))
           ) throw initialMediaUnavailable();
           return snapshotCpmWriteObservationTarget({
             outcome: "live_object",
@@ -214,6 +217,18 @@ export function verifyAndAdmitInitialCpmPhotoMedia(
                         throw initialMediaUnavailable();
                       }
                     });
+                  } else if (
+                    role.declaration.declared_content_type === "image/webp"
+                  ) {
+                    inspectWebpContainer(
+                      scratch.subarray(0, size),
+                      {
+                        ...policy.dimensions[role.role],
+                        maximumBytes: size,
+                      },
+                      "private_still",
+                      () => checkInitialDeadline(signal),
+                    );
                   } else {
                     inspectJpegContainer(
                       scratch.subarray(0, size),

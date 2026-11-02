@@ -1114,10 +1114,14 @@ timing.
 `videoFrameContainer.ts` verifies each frozen frame's owned bytes, length,
 digest, MIME and exact square dimensions. Its private JPEG metadata policy
 accepts only bounded dimension-only ImageIO headers; WebP accepts opaque
-still-image chunks without animation or metadata. The extracted
-`jpegContainer.ts` owns structural JPEG inspection shared with public-photo
-validation; public-photo metadata policy is unchanged. Its explicit trusted
-consumer limits also serve the inactive
+still-image chunks without animation or metadata. `webpContainer.ts` shares
+RIFF/chunk and image-header inspection with the inactive CPM original consumer,
+using separate `opaque_frame` and `private_still` policies. The video policy
+retains its two-chunk limit, zero feature flags and rejected alpha hint; the CPM
+policy supports bounded still metadata/alpha framing, not decoding. The
+extracted `jpegContainer.ts` owns structural JPEG inspection shared with
+public-photo validation; public-photo metadata policy is unchanged. Its explicit
+trusted consumer limits also serve the inactive
 [CPM photo adapter](../initialAnalysis/cpmPhotoVerification.ts); existing
 publication/video defaults remain 12 MiB, 8192 per edge and 40 million pixels.
 The

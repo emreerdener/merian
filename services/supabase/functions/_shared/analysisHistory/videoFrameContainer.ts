@@ -4,6 +4,10 @@ import {
   inspectJpegContainer,
   JpegContainerRejected,
 } from "./jpegContainer.ts";
+import {
+  inspectWebpContainer,
+  WebpContainerRejected,
+} from "./webpContainer.ts";
 import { parsePreparedVideoManifest } from "./videoManifest.ts";
 
 /** Private container policy only. No pixel decoding, derivation proof or admission.
@@ -79,56 +83,16 @@ function jpeg(bytes: Uint8Array, edge: number) {
 }
 
 function webp(bytes: Uint8Array, edge: number) {
-  if (bytes.length < 26) return invalidHistory();
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const tag = (at: number) =>
-    String.fromCharCode(...bytes.subarray(at, at + 4));
-  const u24 = (at: number) =>
-    bytes[at] + bytes[at + 1] * 256 + bytes[at + 2] * 65536;
-  if (
-    tag(0) !== "RIFF" || tag(8) !== "WEBP" ||
-    view.getUint32(4, true) !== bytes.length - 8
-  ) return invalidHistory();
-  let pos = 12, image = false, extended = false;
-  for (let count = 0; count < 2 && pos < bytes.length; count++) {
-    if (bytes.length - pos < 8) return invalidHistory();
-    const kind = tag(pos),
-      length = view.getUint32(pos + 4, true),
-      data = pos + 8;
-    if (length > bytes.length - data) return invalidHistory();
-    const end = data + length, padded = end + (length % 2);
-    if (padded > bytes.length || (length % 2 && bytes[end] !== 0)) {
-      return invalidHistory();
-    }
-    if (kind === "VP8X") {
-      if (
-        pos !== 12 || extended || length !== 10 || bytes[data] !== 0 ||
-        bytes[data + 1] || bytes[data + 2] || bytes[data + 3] ||
-        u24(data + 4) + 1 !== edge || u24(data + 7) + 1 !== edge
-      ) return invalidHistory();
-      extended = true;
-    } else if (kind === "VP8 ") {
-      if (image || length < 11) return invalidHistory();
-      const header = u24(data), partition = header >>> 5;
-      if (
-        (header & 1) !== 0 || ((header >>> 1) & 7) > 3 || !(header & 16) ||
-        partition === 0 || partition >= length - 10 ||
-        bytes[data + 3] !== 0x9d || bytes[data + 4] !== 1 ||
-        bytes[data + 5] !== 0x2a ||
-        view.getUint16(data + 6, true) !== edge ||
-        view.getUint16(data + 8, true) !== edge
-      ) return invalidHistory();
-      image = true;
-    } else if (kind === "VP8L") {
-      if (image || length < 6 || bytes[data] !== 0x2f) return invalidHistory();
-      const header = view.getUint32(data + 1, true);
-      if (
-        (header >>> 28) !== 0 || (header & 0x3fff) + 1 !== edge ||
-        ((header >>> 14) & 0x3fff) + 1 !== edge
-      ) return invalidHistory();
-      image = true;
-    } else return invalidHistory();
-    pos = padded;
+  try {
+    const size = inspectWebpContainer(bytes, {
+      maximumBytes: 33_554_432,
+      maximumWidth: edge,
+      maximumHeight: edge,
+      maximumPixels: edge * edge,
+    }, "opaque_frame");
+    if (size.width !== edge || size.height !== edge) return invalidHistory();
+  } catch (error) {
+    if (error instanceof WebpContainerRejected) return invalidHistory();
+    throw error;
   }
-  if (!image || pos !== bytes.length) return invalidHistory();
 }

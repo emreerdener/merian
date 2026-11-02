@@ -6,10 +6,10 @@ reconciliation. Its injected tests cover identity, uncertainty and deadline
 boundaries. The
 [CPM contract](../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
 owns the complete binding and retention requirements. `cpmPhotoVerification` now
-consumes actual exact-byte reads with shared JPEG/still-PNG structure
+consumes actual exact-byte reads with shared JPEG/still-PNG/still-WebP structure
 inspectors, one reusable bounded buffer and complete-cohort lifecycle checks. It
 feeds the coordinator directly; it is not a standalone codec or client proof.
-Other original-format adapters (WebP/HEIC/HEIF), animated-PNG policy, installed
+Other original-format adapters (HEIC/HEIF), PNG/WebP animation policy, installed
 policy, the atomic admission bridge and route composition remain absent. This
 increment is uninstalled and does not qualify physical resource limits or
 funding.
