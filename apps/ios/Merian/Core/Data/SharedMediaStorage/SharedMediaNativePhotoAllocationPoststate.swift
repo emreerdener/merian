@@ -9,9 +9,11 @@ struct SharedMediaNativePhotoAllocationPoststate {
     private let inventory: SharedMediaNativeReleaseStagePoststate.Inventory
     private let rowID: PersistentIdentifier, inventoryID: PersistentIdentifier
     private let bytes: Data, digest: String
+    private let transaction: SharedMediaNativeReceivingIntent.Transaction
+    private let recoveryPresentationData: Data?
 
     init(row: SharedMediaReceivingIntentRecord, inventory: SharedMediaInventoryRecord,
-         after: SharedMediaNativePhotoAllocation, context: ModelContext) throws {
+         after: SharedMediaNativePhotoAllocation, prepared: SharedMediaNativeReceivingIntent.Prepared, context: ModelContext) throws {
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         before = .init(row); try before.requireNoReleaseStart()
         guard before.phase == "received", before.version == 2,
@@ -19,6 +21,14 @@ struct SharedMediaNativePhotoAllocationPoststate {
               after.claim.packageID == before.id,
               after.claim.preparedSHA256 == before.preparedSHA256,
               after.claim.receivedSHA256 == before.resultSHA256 else { throw SharedMediaStorageFailure.conflict }
+        guard before.preparedData == (try prepared.encoded()), let result = before.resultData else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        let received = try SharedMediaNativeReceivingIntent.Received.decode(result, prepared: prepared)
+        try after.claim.requireMatch(prepared: prepared, received: received)
+        transaction = try received.reconstruct(prepared)
+        recoveryPresentationData = try SharedMediaNativeReceivingRows.recoveryPresentationBytes(request: transaction, in: context)
+        _ = try SharedMediaNativeReceivingRows.recoveryPresentation(recoveryPresentationData, prepared: prepared)
         if let old = before.allocationData, let sha = before.allocationSHA256 {
             let predecessor = try SharedMediaNativePhotoAllocation.decode(old, sha256: sha)
             try predecessor.requireSuccessor(after)
@@ -37,6 +47,7 @@ struct SharedMediaNativePhotoAllocationPoststate {
             throw SharedMediaStorageFailure.conflict
         }
         try self.inventory.requireSuccessor(inventory)
+        try SharedMediaNativeReceivingRows.requireRecoveryPresentation(recoveryPresentationData, request: transaction, in: context)
         let after = SharedMediaNativeReceivingIntentGraph.Row(row)
         guard after.id == before.id, after.inventoryID == before.inventoryID,
               after.inventoryGeneration == before.inventoryGeneration, after.ownerID == before.ownerID,
@@ -49,10 +60,11 @@ struct SharedMediaNativePhotoAllocationPoststate {
               after.allocationData == bytes, after.allocationSHA256 == digest else { throw SharedMediaStorageFailure.conflict }
     }
 
-    func requirePredecessor(row: SharedMediaReceivingIntentRecord, inventory: SharedMediaInventoryRecord) throws {
-        guard SharedMediaNativeReceivingIntentGraph.Row(row) == before,
+    func requirePredecessor(row: SharedMediaReceivingIntentRecord, inventory: SharedMediaInventoryRecord, context: ModelContext) throws {
+        guard !context.hasChanges, SharedMediaNativeReceivingIntentGraph.Row(row) == before,
               SharedMediaNativeReleaseStagePoststate.Inventory(inventory) == self.inventory else {
             throw SharedMediaStorageFailure.stale
         }
+        try SharedMediaNativeReceivingRows.requireRecoveryPresentation(recoveryPresentationData, request: transaction, in: context)
     }
 }

@@ -401,6 +401,29 @@ presentation persistence, pre-save mutation races, queue-deletion
 rollback/uncertainty and app timer/UI qualification remain required; this does
 not open presentation admission.
 
+The transaction-facts implementation preserves a package-keyed presentation
+liability for every ordinary received or allocating queue, distinguishing a
+present queue with nil bytes from no receiving queue. Generic metadata,
+preparation, pair-plan, acquisition, staging and receiving comparisons preserve
+unchanged peer values; a newly received queue expects an explicit nil entry.
+Allocation poststate captures the transaction-bound presentation predecessor and
+checks it with the bounded queue lookup during dirty validation and the fresh
+pre-save check. Its two-row write restriction remains. Release snapshot
+comparisons already compare exact bytes through their projections, and terminal
+deletions already include the field in their raw seal; those guarantees remain.
+Managed compilation and eight selected methods / eleven runtime cases passed
+with zero failures or skips and unchanged source pins
+(`rux-native-facts-compile02` and `rux-native-facts-runtime01-reconciled` in the
+retained October 20 artifact root). The cases cover exact descriptive peer
+drift, separate-context allocation predecessor changes, ordinary metadata edits,
+receiving/cold recovery, queue identity collisions, allocation integrity and all
+three PUT lifetime modes. The unchanged timeout case observed actual PUT start
+with 2,161 ms remaining at task creation. The earlier test-fixture
+actor-isolation compile failure is retained; immutable image bytes are now
+created before the loader closure. This does not install presentation
+persistence, qualify positive writer/CAS or terminal rollback races, or open the
+native nil-only admission guard.
+
 The intended first admission atomically saves the first reserved value at
 revision one: its inventory save consumes one advance and the value retains 59
 future transitions, in addition to existing execution/peer/cleanup obligations.

@@ -84,6 +84,9 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
     let consumers: [UUID: Consumer]
     let intents: [UUID: SharedMediaNativeReceivingIntentGraph.Row]
     let allocationPeers: [UUID: SharedMediaNativePhotoAllocationPeer]
+    // A keyed nil liability denotes an existing receiving queue; no key denotes
+    // no receiving queue. Exact bytes participate in every transaction comparison.
+    let recoveryPresentations: [UUID: AnalysisRecoveryPresentation.StorageLiability]
 
     func requireMutable(_ packageID: UUID) throws {
         guard let row = intents[packageID] else { return }
@@ -113,7 +116,7 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
     @MainActor func validatePreparation(_ context: ModelContext, package: Package) throws {
         try requireMutable(package.id)
         let current = try Self.read(context, profile: profile, preserving: allocationPeers)
-        guard current.intents == intents else { throw SharedMediaStorageFailure.conflict }
+        guard current.intents == intents, current.recoveryPresentations == recoveryPresentations else { throw SharedMediaStorageFailure.conflict }
         var expected = packages
         guard expected[package.id] != nil, consumers[package.id] == nil else { throw SharedMediaStorageFailure.closed }
         expected[package.id] = package
@@ -128,7 +131,7 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
     @MainActor func validatePairPlan(_ context: ModelContext, package: Package, member: Member) throws {
         try requireMutable(package.id)
         let current = try Self.read(context, profile: profile, preserving: allocationPeers)
-        guard current.intents == intents else { throw SharedMediaStorageFailure.conflict }
+        guard current.intents == intents, current.recoveryPresentations == recoveryPresentations else { throw SharedMediaStorageFailure.conflict }
         var nextPackages = packages, nextMembers = members
         guard packages[package.id] != nil, members[package.id] != nil, member.id == package.id,
               consumers[package.id] == nil else { throw SharedMediaStorageFailure.closed }
@@ -163,12 +166,12 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
         }
         let receiving = try SharedMediaNativePhotoAllocationPeer.rows(context, profile: profile, preserving: preserving)
         return .init(profile: profile, bootstrapRevision: bootstrap.revision, packages: packages, members: members, consumers: consumers,
-            intents: receiving.rows, allocationPeers: receiving.peers)
+            intents: receiving.rows, allocationPeers: receiving.peers, recoveryPresentations: receiving.presentations)
     }
     @MainActor func validate(_ context: ModelContext, replacing request: SharedMediaNativeAppMetadataRequest) throws {
         try requireMutable(request.package.id)
         let current = try Self.read(context, profile: profile, preserving: allocationPeers)
-        guard current.intents == intents else { throw SharedMediaStorageFailure.conflict }
+        guard current.intents == intents, current.recoveryPresentations == recoveryPresentations else { throw SharedMediaStorageFailure.conflict }
         var expectedPackages = packages
         guard request.profile == profile, packages[request.package.id] == request.package,
               members[request.package.id] == request.member, consumers[request.package.id] == nil else { throw SharedMediaStorageFailure.conflict }
@@ -181,7 +184,7 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
     @MainActor func validateAcquisition(_ context: ModelContext, packageID: UUID, hasMember: Bool) throws {
         try requireMutable(packageID)
         let current = try Self.read(context, profile: profile, preserving: allocationPeers)
-        guard current.intents == intents else { throw SharedMediaStorageFailure.conflict }
+        guard current.intents == intents, current.recoveryPresentations == recoveryPresentations else { throw SharedMediaStorageFailure.conflict }
         guard current.bootstrapRevision == bootstrapRevision, current.consumers == consumers,
               consumers[packageID] == nil,
               current.packages.filter({ $0.key != packageID }) == packages.filter({ $0.key != packageID }),
@@ -195,7 +198,7 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
         expected[row.id] = row
         guard current.profile == profile, current.bootstrapRevision == bootstrapRevision,
               current.packages == packages, current.members == members, current.consumers == consumers,
-              current.intents == expected else { throw SharedMediaStorageFailure.conflict }
+              current.intents == expected, current.recoveryPresentations == recoveryPresentations else { throw SharedMediaStorageFailure.conflict }
     }
     /// Descriptive comparison only; the sealed phase proof separately checks
     /// the exact write set and permitted transition against the captured row.
@@ -207,10 +210,19 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
         guard intents[row.id] != nil, packages[row.id] != nil, members[row.id] != nil,
               package.id == row.id else { throw SharedMediaStorageFailure.conflict }
         expectedIntents[row.id] = row; expectedPackages[row.id] = package
-        if let consumer { expectedConsumers[row.id] = Consumer(consumer) }
+        var expectedPresentations = recoveryPresentations
+        if let consumer {
+            guard recoveryPresentations[row.id] == nil,
+                  case .received(let prepared, _, _) = try SharedMediaNativeReceivingSlot.decode(row, profile: profile) else {
+                throw SharedMediaStorageFailure.conflict
+            }
+            expectedConsumers[row.id] = Consumer(consumer)
+            expectedPresentations[row.id] = try SharedMediaNativeReceivingRows.recoveryPresentation(nil, prepared: prepared)
+        }
         guard current.profile == profile, current.bootstrapRevision == bootstrapRevision,
               current.packages == expectedPackages, current.members == members,
-              current.consumers == expectedConsumers, current.intents == expectedIntents else {
+              current.consumers == expectedConsumers, current.intents == expectedIntents,
+              current.recoveryPresentations == expectedPresentations else {
             throw SharedMediaStorageFailure.conflict
         }
     }

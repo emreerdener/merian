@@ -283,7 +283,7 @@ struct SharedMediaNativePhotoAllocationTests {
         let slot = try SharedMediaNativePairPlanGraph.one(context,
             FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == id }))
         let package = try h.package(in: context), after = try unresolved.settling(receipt)
-        let seal = try SharedMediaNativePhotoAllocationPoststate(row: slot, inventory: inventory, after: after, context: context)
+        let seal = try SharedMediaNativePhotoAllocationPoststate(row: slot, inventory: inventory, after: after, prepared: p, context: context)
         slot.allocationData = try after.encoded()
         slot.allocationSHA256 = SharedMediaAcquisitionEncoding.digest(slot.allocationData!)
         inventory.revision += 1
@@ -293,6 +293,46 @@ struct SharedMediaNativePhotoAllocationTests {
         context.rollback()
         #expect(try row(h) == before)
         #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func allocationSealPinsExactPresentationAcrossFreshPreSaveRead() async throws {
+        let (h, owner, prepared) = try await fixture()
+        let unresolved = try await owner.allocateAppPhoto(prepared, authorizeCreate: { value, _ in try self.authorization(value) }) { _, _, _ in .held(.notFound) }
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let queueID = prepared.queueID.uuidString.lowercased(), packageID = h.packageID, inventoryID = h.inventoryID
+        func queue(_ c: ModelContext) throws -> OfflineQueuedScan {
+            try SharedMediaNativePairPlanGraph.one(c, FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == queueID }))
+        }
+        func inventory(_ c: ModelContext) throws -> SharedMediaInventoryRecord {
+            try SharedMediaNativePairPlanGraph.one(c, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
+        }
+        func slot(_ c: ModelContext) throws -> SharedMediaReceivingIntentRecord {
+            try SharedMediaNativePairPlanGraph.one(c, FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == packageID }))
+        }
+        let initial = try AnalysisRecoveryPresentation.initial(for: .init(ownerID: prepared.profile.ownerID,
+            observationID: prepared.observationID, operationID: prepared.operationID))
+        let first = try initial.reserve(id: UUID()).reserved.encoded(), second = try initial.reserve(id: UUID()).reserved.encoded()
+        #expect(first.count == second.count && first != second)
+        let changes: [(Data?, Data?)] = [(nil, first), (first, second), (first, nil)]
+        for (before, afterBytes) in changes {
+            let seed = h.context(); try queue(seed).recoveryPresentationData = before; try seed.save()
+            let c = h.context(), r = try slot(c), i = try inventory(c), after = try unresolved.settling(receipt)
+            let seal = try SharedMediaNativePhotoAllocationPoststate(row: r, inventory: i, after: after, prepared: prepared, context: c)
+            let unchanged = h.context()
+            try seal.requirePredecessor(row: slot(unchanged), inventory: inventory(unchanged), context: unchanged)
+            r.allocationData = try after.encoded(); r.allocationSHA256 = SharedMediaAcquisitionEncoding.digest(r.allocationData!)
+            i.revision += 1; try seal.validate(c, row: r, inventory: i)
+            try queue(c).recoveryPresentationData = afterBytes
+            #expect(throws: (any Error).self) { try seal.validate(c, row: r, inventory: i) }
+            c.rollback()
+            // Out-of-band same-header drift: fresh budget success must not
+            // silently replace the presentation predecessor captured by the seal.
+            let external = h.context(); try queue(external).recoveryPresentationData = afterBytes; try external.save()
+            let fresh = h.context()
+            #expect(throws: SharedMediaStorageFailure.stale) {
+                try seal.requirePredecessor(row: slot(fresh), inventory: inventory(fresh), context: fresh)
+            }
+        }
     }
 
     @Test(arguments: [false, true])

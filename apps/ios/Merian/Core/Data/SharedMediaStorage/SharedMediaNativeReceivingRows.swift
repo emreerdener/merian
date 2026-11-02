@@ -101,11 +101,18 @@ enum SharedMediaNativeReceivingRows {
     /// collision predicate, including pending aliases and reverse bindings.
     static func requireRecoveryPresentation(_ expected: Data?, request: SharedMediaNativeReceivingIntent.Transaction,
                                             in context: ModelContext) throws {
+        guard try recoveryPresentationBytes(request: request, in: context) == expected else { throw SharedMediaStorageFailure.stale }
+    }
+
+    /// A present queue with nil bytes is distinct from a missing queue. This
+    /// bounded descriptive read never replaces full receiving validation.
+    static func recoveryPresentationBytes(request: SharedMediaNativeReceivingIntent.Transaction,
+                                          in context: ModelContext) throws -> Data? {
         let found = try queueMatches(.init(request), in: context)
         guard found.count == 1, let queue = found.first,
               queue.id == request.cohort.originQueueID,
-              queue.sharedMediaConsumerID == request.cohort.bindingID,
-              queue.recoveryPresentationData == expected else { throw SharedMediaStorageFailure.stale }
+              queue.sharedMediaConsumerID == request.cohort.bindingID else { throw SharedMediaStorageFailure.stale }
+        return queue.recoveryPresentationData
     }
 
     private static func queueMatches(_ key: CollisionKey, in context: ModelContext) throws -> [OfflineQueuedScan] {

@@ -414,7 +414,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         guard !consumed, let row = try SharedMediaNativeReceivingPhaseGraph.row(prepared.package.id, in: context) else {
             throw SharedMediaStorageFailure.closed
         }
-        let seal = try SharedMediaNativePhotoAllocationPoststate(row: row, inventory: inventory, after: allocation, context: context)
+        let seal = try SharedMediaNativePhotoAllocationPoststate(row: row, inventory: inventory, after: allocation, prepared: prepared, context: context)
         do {
             row.allocationData = try allocation.encoded()
             row.allocationSHA256 = SharedMediaAcquisitionEncoding.digest(row.allocationData!)
@@ -425,7 +425,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
             guard let currentRow = try SharedMediaNativeReceivingPhaseGraph.row(prepared.package.id, in: check) else {
                 throw SharedMediaStorageFailure.stale
             }
-            try seal.requirePredecessor(row: currentRow, inventory: currentInventory)
+            try seal.requirePredecessor(row: currentRow, inventory: currentInventory, context: check)
             // Recheck whole pending runway immediately before save, without an await.
             let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(check, inventory: currentInventory)
             let predecessor: Allocation?

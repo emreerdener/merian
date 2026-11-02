@@ -192,6 +192,53 @@ struct SharedMediaNativeAppMetadataTests {
         #expect(await owner.invalidateAndAwaitForAccountTransition())
     }
 
+    @Test func receivedPresentationFactsRejectPeerDriftDuringIndependentEdits() async throws {
+        typealias Facts = SharedMediaNativeAppMetadataFacts
+        let (h, owner, receiving) = try await SharedMediaNativeAppReceivingTests().fixture(count: 1, staged: true)
+        _ = try await owner.receiveAppPhotos(receiving)
+        let second = UUID(), draft = UUID()
+        let acquisition = try await owner.prepareAppOriginal(packageID: second, draftGeneration: draft, ordinal: 0, kind: .picker)
+        let imageBytes = PhotoPreparationTestHarness.image()
+        _ = try await owner.acquireAppOriginal(acquisition) { imageBytes }
+        let edit = try await owner.prepareAppMetadata(packageID: second, draftGeneration: draft, contexts: [.init(freeText: "Independent draft")])
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let prepared = try SharedMediaNativeReceivingIntent.Prepared(receiving), queueID = receiving.cohort.originQueueID
+        func queue(_ c: ModelContext) throws -> OfflineQueuedScan {
+            try SharedMediaNativePairPlanGraph.one(c, FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == queueID }))
+        }
+        let initial = try AnalysisRecoveryPresentation.initial(for: .init(ownerID: prepared.profile.ownerID,
+            observationID: prepared.observationID, operationID: prepared.operationID))
+        let first = try initial.reserve(id: UUID()).reserved.encoded(), secondBytes = try initial.reserve(id: UUID()).reserved.encoded()
+        #expect(first.count == secondBytes.count && first != secondBytes)
+        let changes: [(Data?, Data?)] = [(nil, first), (first, secondBytes), (first, nil)]
+        // Descriptive facts only. Synthetic saved bytes do not open the native
+        // admission guard or grant a positive presentation writer.
+        for (before, after) in changes {
+            let seed = h.context(); try queue(seed).recoveryPresentationData = before; try seed.save()
+            let baseline = try Facts.capture(h.context(), profile: prepared.profile)
+            let present = try #require(baseline.recoveryPresentations[h.packageID])
+            #expect(present.bytes == before && baseline.recoveryPresentations[second] == nil)
+            let c = h.context(), package = try h.package(second, in: c)
+            package.supportingContextData = edit.envelope; package.revision += 1
+            let expected = Facts.Package(package), member = try #require(baseline.members[second])
+            try baseline.validate(c, replacing: edit)
+            try baseline.validatePreparation(c, package: expected)
+            try baseline.validatePairPlan(c, package: expected, member: member)
+            try baseline.validateAcquisition(c, packageID: second, hasMember: true)
+            try queue(c).recoveryPresentationData = after
+            #expect(throws: (any Error).self) { try baseline.validate(c, replacing: edit) }
+            #expect(throws: (any Error).self) { try baseline.validatePreparation(c, package: expected) }
+            #expect(throws: (any Error).self) { try baseline.validatePairPlan(c, package: expected, member: member) }
+            #expect(throws: (any Error).self) { try baseline.validateAcquisition(c, packageID: second, hasMember: true) }
+            c.rollback()
+            let external = h.context(); try queue(external).recoveryPresentationData = after; try external.save()
+            let fresh = try Facts.capture(h.context(), profile: prepared.profile)
+            #expect(fresh != baseline && fresh.recoveryPresentations[h.packageID]?.bytes == after)
+        }
+        let missing = h.context(); missing.delete(try queue(missing)); try missing.save()
+        #expect(throws: (any Error).self) { _ = try Facts.capture(h.context(), profile: prepared.profile) }
+    }
+
     @MainActor struct Store {
         let container: ModelContainer, parent: URL
         let ownerID = UUID(), inventoryID = UUID(), packageID = UUID(), ordinaryID = UUID(), draft = UUID()

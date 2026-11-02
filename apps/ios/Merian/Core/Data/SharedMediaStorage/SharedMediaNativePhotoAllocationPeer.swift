@@ -51,10 +51,16 @@ struct SharedMediaNativePhotoAllocationPeer: Equatable, Sendable {
               Facts.Consumer(rows.consumer) == consumer, rows.queue.recoveryPresentationData == recoveryPresentationData else { throw SharedMediaStorageFailure.conflict }
     }
 
+    struct PendingFacts {
+        let rows: [UUID: Row]
+        let peers: [UUID: SharedMediaNativePhotoAllocationPeer]
+        let presentations: [UUID: AnalysisRecoveryPresentation.StorageLiability]
+    }
+
     /// Clean reads validate every allocated peer. Dirty reads can only preserve
     /// the exact clean baseline carried by their already-validated writer seal.
     @MainActor static func rows(_ context: ModelContext, profile: SharedMediaNativeAppProfile,
-                                preserving: [UUID: Self]?) throws -> (rows: [UUID: Row], peers: [UUID: Self]) {
+                                preserving: [UUID: Self]?) throws -> PendingFacts {
         let id = profile.inventoryID
         var query = FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.inventoryID == id })
         query.fetchLimit = PhotoPreparationPolicy.maximumPackages + 1; query.includePendingChanges = true
@@ -63,6 +69,7 @@ struct SharedMediaNativePhotoAllocationPeer: Equatable, Sendable {
         let inventory = try SharedMediaNativePairPlanGraph.one(context,
             FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))
         var rows: [UUID: Row] = [:], peers: [UUID: Self] = [:]
+        var presentations: [UUID: AnalysisRecoveryPresentation.StorageLiability] = [:]
         for member in members {
             guard member.ownerID == profile.ownerID, member.inventoryGeneration == profile.generation else {
                 throw SharedMediaStorageFailure.conflict
@@ -77,12 +84,17 @@ struct SharedMediaNativePhotoAllocationPeer: Equatable, Sendable {
                 } else {
                     peers[row.id] = try Self(.read(row, inventory: inventory, context: context), context: context)
                 }
-            } else { _ = try SharedMediaNativeReceivingSlot.decode(row, profile: profile) }
+                guard let peer = peers[row.id] else { throw SharedMediaStorageFailure.conflict }
+                presentations[row.id] = try SharedMediaNativeReceivingRows.recoveryPresentation(peer.recoveryPresentationData, prepared: peer.prepared)
+            } else if case .received(let prepared, _, let transaction) = try SharedMediaNativeReceivingSlot.decode(row, profile: profile) {
+                let bytes = try SharedMediaNativeReceivingRows.recoveryPresentationBytes(request: transaction, in: context)
+                presentations[row.id] = try SharedMediaNativeReceivingRows.recoveryPresentation(bytes, prepared: prepared)
+            }
         }
         if let preserving {
             guard peers == preserving else { throw SharedMediaStorageFailure.conflict }
         }
-        return (rows, peers)
+        return .init(rows: rows, peers: peers, presentations: presentations)
     }
 
     /// Other slots continue through their ordinary generic decoder. Allocation
