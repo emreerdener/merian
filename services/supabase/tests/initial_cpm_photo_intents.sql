@@ -199,6 +199,119 @@ INSERT INTO internal.initial_cpm_photo_write_policies
  SELECT encode(extensions.digest(convert_to('merian.initial-analysis.cpm-write-policy.v1'||E'\n'||internal.initial_canonical(v),'UTF8'),'sha256'),'hex'),
  (v->>'backend_generation')::UUID,v->>'backend_configuration_digest',v->>'observation_build_digest',v->>'enforcement_evidence_digest',v->>'reviewed_revision',v->>'protocol','eligible'
  FROM closure_policy;
+-- END CPM CLOSURE POLICY FIXTURE
+-- A verification start is durable and cannot become fresh again after a lost
+-- response. This remains a private start boundary, not verifier/admission proof.
+SAVEPOINT verification_start;
+CREATE FUNCTION pg_temp.start_verification() RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT internal.begin_initial_cpm_photo_verification(owner_id,scan_id,assignment_digest)
+ FROM internal.initial_analysis_preparation_intents WHERE scan_id='00000000-0000-4000-8000-00000000f101';
+$$;
+SELECT extensions.ok(NOT has_function_privilege(r,
+ 'internal.begin_initial_cpm_photo_verification(uuid,uuid,text)','EXECUTE'),'verification start denies '||r)
+ FROM unnest(ARRAY['anon','authenticated','service_role']) r;
+SELECT extensions.ok(NOT has_table_privilege(r,'internal.initial_cpm_verification_start_context',privilege),
+ 'private start context denies '||r||' '||privilege)
+ FROM unnest(ARRAY['anon','authenticated','service_role']) r
+ CROSS JOIN unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE']) privilege;
+SELECT extensions.throws_ok($$SELECT pg_temp.start_verification()$$,'55000','initial_analysis_verification_required',
+ 'verification cannot start from an allocated but unwritten cohort');
+DO $$ DECLARE s internal.initial_analysis_preparation_intents; m RECORD;
+ w internal.initial_cpm_photo_write_attempts; policy TEXT;
+BEGIN
+ SELECT * INTO STRICT s FROM internal.initial_analysis_preparation_intents WHERE scan_id='00000000-0000-4000-8000-00000000f101';
+ SELECT digest INTO STRICT policy FROM internal.initial_cpm_photo_write_policies;
+ FOR m IN SELECT object_id FROM internal.initial_cpm_photo_role_mapping WHERE scan_id=s.scan_id ORDER BY object_id LOOP
+  w:=internal.initial_cpm_photo_write_action('bind',s.owner_id,s.scan_id,s.assignment_digest,m.object_id);
+  PERFORM internal.bind_initial_cpm_photo_write_policy(s.owner_id,w.attempt_id,policy);
+  w:=internal.initial_cpm_photo_write_action('may_have_issued',s.owner_id,s.scan_id,s.assignment_digest,m.object_id);
+  PERFORM internal.settle_initial_cpm_photo_write_closure(w.attempt_id,policy,'live_object',w.issued_at,NULL);
+ END LOOP;
+END; $$;
+SAVEPOINT verification_revoked;
+UPDATE internal.initial_cpm_photo_write_policies SET state='revoked';
+SELECT extensions.throws_ok($$SELECT pg_temp.start_verification()$$,'55000','initial_analysis_preparation_unavailable',
+ 'revoked closure policy cannot authorize a fresh verification start');
+ROLLBACK TO verification_revoked;
+SELECT extensions.throws_ok($$UPDATE internal.initial_analysis_preparation_intents
+ SET cpm_verification_attempt_id=gen_random_uuid(),cpm_verification_started_at=clock_timestamp(),
+ cpm_verification_snapshot_digest=repeat('a',64) WHERE scan_id='00000000-0000-4000-8000-00000000f101'$$,
+ '22023','initial_analysis_storage_immutable','raw verification start cannot fabricate a snapshot');
+SELECT extensions.throws_ok($forged$DO $$ DECLARE s internal.initial_analysis_preparation_intents;
+ attempt UUID:=gen_random_uuid(); snapshot TEXT;
+BEGIN
+ SELECT * INTO STRICT s FROM internal.initial_analysis_preparation_intents WHERE scan_id='00000000-0000-4000-8000-00000000f101';
+ snapshot:=internal.initial_cpm_verification_start_snapshot(s.owner_id,s.scan_id);
+ PERFORM set_config('merian.initial_cpm_verification_start',s.scan_id::TEXT||':'||attempt::TEXT,TRUE);
+ UPDATE internal.initial_analysis_preparation_intents SET cpm_verification_attempt_id=attempt,
+  cpm_verification_started_at=clock_timestamp(),cpm_verification_snapshot_digest=encode(extensions.digest(convert_to(
+   'merian.initial-analysis.cpm-verification-start.v1'||E'\n'||snapshot,'UTF8'),'sha256'),'hex') WHERE scan_id=s.scan_id;
+END; $$;$forged$,'22023','initial_analysis_storage_immutable','forged routing marker with a correct snapshot is not a writer context');
+CREATE TEMP TABLE verification_nested_denials(denied BOOLEAN);
+CREATE FUNCTION pg_temp.nested_verification_start() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+ BEGIN
+  UPDATE internal.initial_analysis_preparation_intents SET cpm_verification_attempt_id=NEW.cpm_verification_attempt_id,
+   cpm_verification_started_at=NEW.cpm_verification_started_at,cpm_verification_snapshot_digest=NEW.cpm_verification_snapshot_digest
+   WHERE scan_id=NEW.scan_id;
+ EXCEPTION WHEN SQLSTATE '22023' THEN
+  IF SQLERRM<>'initial_analysis_storage_immutable' THEN RAISE; END IF;
+  INSERT INTO verification_nested_denials VALUES(TRUE); RETURN NEW;
+ END;
+ RAISE EXCEPTION 'nested verification start consumed the same context twice' USING ERRCODE='ZX701';
+END; $$;
+CREATE TRIGGER zzzz_nested_verification_start BEFORE UPDATE ON internal.initial_analysis_preparation_intents
+ FOR EACH ROW EXECUTE FUNCTION pg_temp.nested_verification_start();
+CREATE TEMP TABLE verification_started AS SELECT pg_temp.start_verification() value;
+DROP TRIGGER zzzz_nested_verification_start ON internal.initial_analysis_preparation_intents;
+SELECT extensions.is((SELECT count(*) FROM verification_nested_denials WHERE denied),1::BIGINT,
+ 'exact nested UPDATE cannot reuse the original consumed context');
+SELECT extensions.is((SELECT count(*) FROM internal.initial_cpm_verification_start_context),0::BIGINT,
+ 'successful start leaves no reusable transaction context');
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+SELECT extensions.throws_ok($unconsumed$DO $$ BEGIN
+ INSERT INTO internal.initial_cpm_verification_start_context
+ VALUES(pg_catalog.pg_current_xact_id(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),repeat('a',64),repeat('b',64));
+ SET CONSTRAINTS ALL IMMEDIATE;
+END; $$;$unconsumed$,'55000','initial_analysis_verification_start_incomplete',
+ 'unconsumed private context cannot survive deferred validation');
+CREATE TEMP TABLE verification_intent_digest AS
+ SELECT internal.initial_cpm_verification_intent_digest(s) digest
+ FROM internal.initial_analysis_preparation_intents s WHERE scan_id='00000000-0000-4000-8000-00000000f101';
+SELECT extensions.is(value->>'outcome','started','complete closed cohort starts verification once') FROM verification_started;
+SELECT extensions.is(jsonb_array_length((value->>'snapshot_canonical')::JSONB->'members'),3,
+ 'start snapshot covers original, AI and display roles') FROM verification_started;
+SET LOCAL TIME ZONE 'Pacific/Auckland';
+SELECT extensions.is(internal.initial_cpm_verification_intent_digest(s),d.digest,
+ 'intent image digest survives a positive session offset')
+ FROM internal.initial_analysis_preparation_intents s CROSS JOIN verification_intent_digest d
+ WHERE s.scan_id='00000000-0000-4000-8000-00000000f101';
+SELECT extensions.is(internal.initial_cpm_verification_start_snapshot(
+ '00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101'),
+ value->>'snapshot_canonical','exact snapshot timestamps are independent of a positive session offset') FROM verification_started;
+SET LOCAL TIME ZONE 'America/Chicago';
+SELECT extensions.is(internal.initial_cpm_verification_intent_digest(s),d.digest,
+ 'intent image digest survives a negative session offset')
+ FROM internal.initial_analysis_preparation_intents s CROSS JOIN verification_intent_digest d
+ WHERE s.scan_id='00000000-0000-4000-8000-00000000f101';
+SELECT extensions.is(internal.initial_cpm_verification_start_snapshot(
+ '00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101'),
+ value->>'snapshot_canonical','exact snapshot timestamps are independent of a negative session offset') FROM verification_started;
+SELECT extensions.is(pg_temp.start_verification(),'{"version":1,"outcome":"held","authority":"none"}'::JSONB,
+ 'lost fresh acknowledgement cannot be replayed into another media read');
+SELECT extensions.is((SELECT cpm_verification_attempt_id::TEXT FROM internal.initial_analysis_preparation_intents
+ WHERE scan_id='00000000-0000-4000-8000-00000000f101'),value->>'attempt_id','attempt identity remains fixed') FROM verification_started;
+SELECT extensions.throws_ok($$UPDATE internal.initial_analysis_preparation_intents SET cpm_verification_attempt_id=NULL,
+ cpm_verification_started_at=NULL,cpm_verification_snapshot_digest=NULL
+ WHERE scan_id='00000000-0000-4000-8000-00000000f101'$$,'22023','initial_analysis_storage_immutable','started verifier cannot reset');
+UPDATE internal.initial_analysis_rollout SET initial_analysis_lifecycle_enabled=FALSE;
+SELECT extensions.is(pg_temp.start_verification()->>'outcome','held','disabled fresh admission does not renew a started verifier');
+SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM internal.ai_quota_reservations)
+ AND NOT EXISTS(SELECT 1 FROM internal.identification_invocations)
+ AND NOT EXISTS(SELECT 1 FROM internal.initial_analysis_admissions),'verification start does not fund or admit');
+ROLLBACK TO verification_start;
+
 -- Fresh issuance is an invocation result, never inferred from a stored state.
 SAVEPOINT fresh_issuance;
 CREATE TEMP TABLE issuance_args AS SELECT s.owner_id,s.scan_id,s.assignment_digest,m.object_id,m.role,p.digest policy

@@ -38,7 +38,7 @@ def run(q):
     source = TEST.read_text()
     marker = 'CREATE TEMP TABLE cpm_saved AS'
     policy_start = 'CREATE TEMP TABLE closure_policy AS'
-    policy_end = 'CREATE FUNCTION pg_temp.closure_write('
+    policy_end = '-- END CPM CLOSURE POLICY FIXTURE'
     if any(source.count(m) != 1 for m in (marker, policy_start, policy_end)):
         raise ValueError('unique synthetic fixture boundaries required')
     setup = source.split(marker)[0] + policy_start + source.split(policy_start)[1].split(policy_end)[0]

@@ -1,8 +1,9 @@
 ## November 2 — CPM verification and admission consuming boundary
 
-Status: storage preparation implemented and locally checked; consuming writers
-remain unimplemented and inactive. This amendment applies the current CPM
-assignment to the existing
+Status: storage preparation implemented and locally checked; a private durable
+verification-start draft is under local validation. Complete verification and
+admission consumers remain unimplemented and inactive. This amendment applies
+the current CPM assignment to the existing
 [S0/IC-1 owners](initial-completion-history-interface-2026-10-11.md#2-minimum-dependency-s0-and-checkpoint-boundary).
 It does not qualify the initial submission journey or change release controls.
 
@@ -37,6 +38,36 @@ unchanged. This uses the characterization's incremental hash mechanism without
 installing its test runtime or replaying the completed GAC-1 campaign. It proves
 neither structural admissibility nor physical cancellation settlement; no
 whole-worker memory/CPU qualification or admission authority follows.
+
+The inactive
+[verification-start migration](../../services/supabase/migrations/20261102113843_prepare_initial_cpm_verification_start.sql)
+adds one attempt identity, start time and snapshot digest to the existing
+intent. The fixed begin routine owns account/deletion/scan serialization, then
+capacity, registry and attempt locks. It requires the complete saved cohort with
+positive live write closures. A protected transaction-bound context authorizes
+exactly one intent update; the row guard consumes it before nested work and
+independently checks the cohort, absence of funding and current eligibility. No
+API role can insert that context. It must be consumed before commit, and its
+constraint must remain deferred while begin runs; immediate constraints fail
+closed.
+
+Snapshots and intent-image digests normalize timestamps to UTC microseconds.
+Only the first committed start may return a fresh acknowledgement. Repeated or
+uncertain starts remain held without renewed read authority, even after the
+original deadline. The future coordinator must wait for commit before media I/O;
+no SQL lock spans a GET. This start state is neither a byte-verification result
+nor an admission receipt. There is no public grant, installed verifier or new
+funding path. Source review cleared timestamp and raw/nested writer corrections.
+Fresh replay of 504 migrations and four focused catalogs passed 1,492
+assertions. The first six-schedule run passed 43 session commands, but review
+found that two start-before-retirement schedules did not explicitly assert a
+fresh start. A corrected run on another fresh owned replay passed all six
+schedules and 43 session commands with those assertions and an explicit
+no-admission invariant. Separate-connection held recovery preserved the intent
+image. Both runs remain retained with their distinct claims. Populated legacy
+upgrade, committed expiry and the complete consuming journey remain open. See
+the
+[focused catalog](../../services/supabase/tests/initial_cpm_photo_intents.sql).
 
 The next implementation increment couples complete-cohort verification directly
 to a CPM-specific atomic admission branch. Allocation, successful upload,
