@@ -126,5 +126,8 @@ END; $$;
 SELECT extensions.throws_ok(format('SELECT pg_temp.admitted_missing(%L::JSONB,%L,%L::TEXT[],%L)',c,k,path,field),'22023','initial_analysis_input_invalid','closed accounting/funding '||k||path::TEXT||field) FROM admitted_first CROSS JOIN admitted_closed_paths CROSS JOIN LATERAL (SELECT jsonb_object_keys((c->>k)::JSONB#>path) field UNION ALL SELECT 'unexpected') fields;
 -- Privilege catalog assertions above are accompanied by actual role denial.
 SELECT extensions.throws_ok(format('SET LOCAL ROLE %I; SELECT %s; RESET ROLE',r,call),'42501',NULL,'actual denied invocation '||r||call) FROM unnest(ARRAY['anon','authenticated','service_role']) r CROSS JOIN unnest(ARRAY['internal.initial_admitted_proof_schema()','internal.parse_initial_admitted_component(NULL,NULL)','internal.valid_initial_admitted_timestamp(NULL)','internal.validate_initial_admitted_proof(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)']) call;
+SELECT extensions.ok(NOT has_function_privilege(r,
+ 'internal.assert_initial_admitted_accounting(jsonb,jsonb,jsonb,jsonb,jsonb)','EXECUTE'),
+ 'shared accounting assertion denies '||r) FROM unnest(ARRAY['anon','authenticated','service_role']) r;
 SELECT * FROM extensions.finish();
 ROLLBACK;

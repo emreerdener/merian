@@ -1,3 +1,85 @@
+## Dormant current verification observation — November 2
+
+`assert_initial_cpm_photo_verification_current(p_owner, p_scan,
+p_assignment_digest, p_attempt, p_snapshot_digest)`
+is a service-only check for the existing CPM verifier. The
+[migration](../../services/supabase/migrations/20261102223819_prepare_initial_cpm_verification_current.sql)
+reuses account/scan scope, the saved intent, existing capacity/member locks and
+`initial_cpm_verification_start_snapshot`. It compares the original attempt and
+snapshot, requires unfunded/pre-admission facts, current eligibility and the
+original unextended start/expiry interval. No state is written or start renewed.
+
+The
+[closed acknowledgement](../../services/supabase/functions/_shared/initialAnalysis/cpm-verification-current-response-schema-v1.json)
+has version1, outcome `current`, authority `none`, and exact owner, scan,
+assignment digest, attempt and snapshot digest. The existing admission database
+adapter exposes `requireCurrent(start, signal)`, snapshots its input, verifies
+the canonical snapshot digest and rejects any different acknowledgement. It
+retains the fixed destination, five-second transport budget and no-retry
+behavior.
+
+This acknowledgement is an observation, not a lease across storage I/O and not
+fresh verification authority. Only the original coordinator's freshly committed
+begin acknowledgement permits verification; a held/recovered start cannot be
+reconstructed from this call. The verifier must continue its whole-cohort checks
+and existing per-object checks around reads, then use final atomic admission
+fences. The
+[CPM contract](../rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+owns qualification status. No serving route, profile installation, native caller
+or activation is added. The dormant `createCpmPhotoAdmissionRuntime` composes
+existing admission and closure adapters with the immutable catalog and actual
+media verifier. Bootstrap supplies server-owned profiles/signing/storage
+transport; request callers cannot supply verification proof. It compares each
+authoritative per-object binding and target with the coordinator's exact
+snapshot before rechecking that input. Injected transport tests cover this
+composition; local HTTP-to-SQL shim qualification is recorded in the CPM
+contract. PostgREST/JWT, actual signer/storage, representative resource/latency
+and native journeys remain unqualified.
+
+## Dormant service-only CPM admission bridge — November 2
+
+The [CPM contract](../rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+owns the complete admission/recovery invariants and current qualification. The
+[migration](../../services/supabase/migrations/20261102213355_prepare_initial_cpm_admission_bridge.sql)
+adds three service-only RPCs; no authenticated client route or native consumer
+is installed. Legacy initial finalize and binding-3 recovery remain unchanged.
+
+All three take `p_owner`, `p_scan`, exact saved `p_candidate`, exact saved
+`p_assignment` and `p_assignment_digest`. Identity comes from trusted server
+composition, not untrusted declarations. Candidate and assignment bounds are 1
+MiB and64 KiB respectively. `admit_initial_cpm_photo` additionally takes bounded
+canonical `p_verification` and server-derived `p_ip_hash`; it derives content,
+contexts, protocols, processor and funding profile from saved rows. Only the
+fixed server verifier may supply verification evidence.
+
+- `read_initial_cpm_photo_admission` returns the
+  [closed observation](../../services/supabase/functions/_shared/initialAnalysis/cpm-admission-bridge-response-schema-v1.json):
+  version1, variant `client_prepared_photo`, authority `none`, exact owner/scan
+  and candidate/assignment digests, and outcome `unadmitted` or `admitted`.
+  Receipt UUID/digest are both null for unadmitted and both present for
+  admitted. Missing, cancelled, deleted, mismatched or contradictory state
+  raises; errors never imply absence. Retained recovery does not repeat
+  verification or funding.
+- `begin_initial_cpm_photo_admission` reuses the original private start
+  contract. Only a fresh committed `started` response can authorize
+  verification; an existing start or already-admitted operation is held.
+- `admit_initial_cpm_photo` atomically completes original stage/funding/ledger/
+  retained-capacity owners and returns the admitted observation. Exact replay
+  returns the original receipt; a failure rolls back the entire transaction.
+
+The fixed
+[adapter](../../services/supabase/functions/_shared/initialAnalysis/cpmPhotoAdmissionDb.ts)
+pins service destination and saved identity, caps response bytes at256 KiB, uses
+a five-second transport deadline and does not retry mutating calls. Uncertain
+acknowledgement is reconciled only through exact recovery. These are
+observations with no execution authority. Recovery currently covers pending or
+dispatch-authorized lifecycle, not terminal result delivery. There is no change
+to generated Identify DTOs, public web/admin payloads or existing native DTOs.
+SQL/schema parity, adapter tests and the local race runner are linked from the
+[Supabase guide](../../services/supabase/README.md#local-cpm-admission-bridge-qualification).
+HTTP acknowledgement, full verifier composition and app journeys remain separate
+qualification requirements. No deployment or activation is implied.
+
 ## October 31 — native allocation status-only entry point
 
 The native

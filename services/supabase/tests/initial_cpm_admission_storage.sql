@@ -47,7 +47,7 @@ SELECT extensions.ok(NOT has_function_privilege(role_name,
     'internal.initial_admission_variant_fields_valid(text,text[],text,text,text,jsonb,timestamptz)','EXECUTE'),
     role_name||' cannot call private storage validation')
 FROM unnest(ARRAY['anon','authenticated','service_role']) role_name;
-SELECT extensions.ok(a.attnotnull,'CPM remains blocked by legacy-only required field: '||c.relname||'.'||a.attname)
+SELECT extensions.ok(NOT a.attnotnull,'closed variant shape owns legacy/CPM required fields: '||c.relname||'.'||a.attname)
 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
 JOIN pg_attribute a ON a.attrelid=c.oid
 WHERE n.nspname='internal' AND c.relname IN

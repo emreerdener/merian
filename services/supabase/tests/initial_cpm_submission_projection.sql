@@ -36,9 +36,44 @@ SELECT extensions.throws_ok(format('SELECT internal.initial_cpm_admission_submis
 SELECT extensions.ok(NOT has_function_privilege(role_name,'internal.initial_cpm_admission_submission(text,text)','EXECUTE'),
  role_name||' cannot call the private projection') FROM unnest(ARRAY['anon','authenticated','service_role']) role_name;
 SELECT extensions.ok(NOT initial_analysis_lifecycle_enabled,'projection installs no activation') FROM internal.initial_analysis_rollout;
-SELECT extensions.ok(a.attnotnull,'legacy stage/receipt constraint remains: '||c.relname||'.'||a.attname)
-FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid
-WHERE n.nspname='internal' AND c.relname IN ('initial_preparation_admission_staging','initial_preparation_admission_receipts')
- AND a.attname IN ('outcome','installation','protocol','destination','mapping','media_binding');
+-- Evaluate the actual attached variant CHECK, not obsolete column nullability.
+-- These are prospective shape images only, not inserted valid admission proofs.
+CREATE TEMP TABLE legacy_shapes AS
+SELECT table_name, constraint_name, fields,
+ jsonb_build_object('admission_variant','server_prepared_v3') ||
+ (SELECT jsonb_object_agg(field,'legacy'::TEXT) FROM unnest(fields) field) image
+FROM (VALUES
+ ('initial_preparation_admission_staging','initial_admission_stage_variant_shape',
+  ARRAY['outcome','installation','protocol','destination','phase_window','mapping','media_binding']),
+ ('initial_preparation_admission_receipts','initial_admission_receipt_variant_shape',
+  ARRAY['outcome','installation','protocol','destination','mapping','media_binding'])
+) t(table_name,constraint_name,fields);
+SELECT extensions.is((SELECT count(*) FROM pg_constraint c
+ WHERE c.conrelid=format('internal.%I',table_name)::REGCLASS
+ AND c.conname=constraint_name AND c.contype='c' AND c.convalidated),1::BIGINT,
+ 'validated variant constraint is attached: '||table_name) FROM legacy_shapes;
+CREATE FUNCTION pg_temp.attached_variant_shape(p_table TEXT,p_image JSONB)
+RETURNS BOOLEAN LANGUAGE plpgsql AS $$
+DECLARE expression TEXT; accepted BOOLEAN;
+BEGIN
+ SELECT pg_get_expr(c.conbin,c.conrelid) INTO STRICT expression
+ FROM legacy_shapes s JOIN pg_constraint c
+ ON c.conrelid=format('internal.%I',s.table_name)::REGCLASS
+ AND c.conname=s.constraint_name AND c.contype='c' AND c.convalidated
+ WHERE s.table_name=p_table;
+ EXECUTE format('SELECT %s FROM jsonb_populate_record(NULL::internal.%I,$1)',expression,p_table)
+ INTO accepted USING p_image;
+ RETURN accepted;
+END; $$;
+SELECT extensions.is(pg_temp.attached_variant_shape(table_name,image),TRUE,
+ 'complete legacy shape remains accepted: '||table_name) FROM legacy_shapes;
+SELECT extensions.is(pg_temp.attached_variant_shape(table_name,image-field),FALSE,
+ 'attached variant constraint requires legacy field: '||table_name||'.'||field)
+FROM legacy_shapes CROSS JOIN LATERAL unnest(fields) field;
+SELECT extensions.is(pg_temp.attached_variant_shape(table_name,image||
+ jsonb_build_object('cpm_verification','{}')),FALSE,
+ 'attached variant constraint rejects mixed proof: '||table_name) FROM legacy_shapes;
+SELECT extensions.is(pg_temp.attached_variant_shape(table_name,image-'admission_variant'),FALSE,
+ 'attached variant constraint rejects missing discriminator: '||table_name) FROM legacy_shapes;
 SELECT * FROM extensions.finish();
 ROLLBACK;

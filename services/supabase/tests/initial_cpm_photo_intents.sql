@@ -282,6 +282,235 @@ CREATE TEMP TABLE verification_intent_digest AS
 SELECT extensions.is(value->>'outcome','started','complete closed cohort starts verification once') FROM verification_started;
 SELECT extensions.is(jsonb_array_length((value->>'snapshot_canonical')::JSONB->'members'),3,
  'start snapshot covers original, AI and display roles') FROM verification_started;
+-- Coordinated admission editing batch: build the real saved-row stage image,
+-- then exercise closed storage with the original accounting witnesses.
+CREATE TEMP TABLE cpm_admission_verified AS
+ SELECT internal.initial_canonical(jsonb_build_object('version',1,'protocol','cpm_photo_full_bytes_v1',
+  'attempt_id',v.value->'attempt_id','snapshot_digest',v.value->'snapshot_digest',
+  'profile_digest',(v.value->>'snapshot_canonical')::JSONB->'profile_digest',
+  'verifier_build_digest',(v.value->>'snapshot_canonical')::JSONB->'verifier_build_digest',
+  'objects',(SELECT jsonb_agg(jsonb_build_object('object_id',m#>'{role,object_id}',
+   'photo_ordinal',m#>'{role,photo_ordinal}','role',m#>'{role,role}',
+   'byte_count',m#>'{role,declaration,byte_count}','sha256',m#>'{role,declaration,sha256}',
+   'content_type',m#>'{role,declaration,declared_content_type}','structural_acceptance',TRUE) ORDER BY ordinal)
+   FROM jsonb_array_elements((v.value->>'snapshot_canonical')::JSONB->'members') WITH ORDINALITY t(m,ordinal)))) evidence
+ FROM verification_started v;
+CREATE FUNCTION pg_temp.cpm_stage_image(p_evidence TEXT DEFAULT NULL)
+ RETURNS internal.initial_preparation_admission_staging LANGUAGE SQL AS $$
+ SELECT internal.build_initial_cpm_admission_stage(s.owner_id,s.scan_id,s.assignment_digest,
+  COALESCE(p_evidence,(SELECT evidence FROM cpm_admission_verified)))
+ FROM internal.initial_analysis_preparation_intents s WHERE s.scan_id='00000000-0000-4000-8000-00000000f101';
+$$;
+CREATE TEMP TABLE cpm_stage_image AS SELECT (pg_temp.cpm_stage_image()).*;
+SELECT extensions.throws_ok($$UPDATE internal.initial_cpm_photo_capacity_reservations SET state='admitted'
+ WHERE scan_id='00000000-0000-4000-8000-00000000f101'$$,
+ '55000','initial_analysis_preparation_required','raw admitted capacity requires the original transaction write witness');
+-- Association fixture only: this deliberately has no funding/accounting proof
+-- and cannot persist or authorize admission. Real callers validate those first.
+CREATE FUNCTION pg_temp.cpm_cohort_receipt() RETURNS internal.initial_preparation_admission_receipts LANGUAGE SQL AS $$
+ SELECT jsonb_populate_record(NULL::internal.initial_preparation_admission_receipts,
+  to_jsonb(s)||jsonb_build_object('configuration',internal.initial_canonical(
+   jsonb_build_object('version',3,'assignment',s.assignment::JSONB)))) FROM cpm_stage_image s;
+$$;
+SELECT extensions.lives_ok($$SELECT internal.assert_initial_cpm_receipt_cohort(pg_temp.cpm_cohort_receipt(),FALSE)$$,
+ 'pending original cohort exactly matches staged receipt associations');
+SELECT extensions.throws_ok($$SELECT internal.assert_initial_cpm_receipt_cohort(pg_temp.cpm_cohort_receipt(),TRUE)$$,
+ '55000','initial_analysis_admission_incomplete','pending capacity cannot masquerade as admitted retained capacity');
+SELECT extensions.throws_ok($$SELECT internal.assert_initial_cpm_receipt_cohort(pg_temp.cpm_cohort_receipt(),NULL)$$,
+ '55000','initial_analysis_admission_incomplete','cohort comparison requires explicit lifecycle image');
+CREATE TEMP TABLE cpm_cohort_mutations(label TEXT,path TEXT[],replacement JSONB);
+INSERT INTO cpm_cohort_mutations VALUES
+ ('owner','{owner_id}','"00000000-0000-4000-8000-000000000999"'),
+ ('scan','{scan_id}','"00000000-0000-4000-8000-000000000999"'),
+ ('variant','{admission_variant}','"server_prepared_v3"'),
+ ('capacity bytes','{cpm_capacity_predecessor,declared_retained_bytes}','999'),
+ ('capacity owner','{cpm_capacity_predecessor,owner_id}','"00000000-0000-4000-8000-000000000999"'),
+ ('expiry','{original_admission_expires_at}','"2000-01-01T00:00:00Z"'),
+ ('verification digest','{cpm_verification_digest}',to_jsonb(repeat('0',64))),
+ ('snapshot','{cpm_retained_roles}','"{}"'),
+ ('configuration','{configuration}','"{}"'),
+ ('submitted bytes','{input}','"{}"');
+SELECT extensions.throws_ok(format('SELECT internal.assert_initial_cpm_receipt_cohort(jsonb_populate_record(NULL::internal.initial_preparation_admission_receipts,%L::JSONB),FALSE)',
+ jsonb_set(to_jsonb(pg_temp.cpm_cohort_receipt()),path,replacement)),
+ '55000','initial_analysis_admission_incomplete','cohort association rejects changed '||label) FROM cpm_cohort_mutations;
+SELECT extensions.ok(NOT has_function_privilege(role_name,
+ 'internal.assert_initial_cpm_receipt_cohort(internal.initial_preparation_admission_receipts,boolean)','EXECUTE'),
+ 'cohort assertion denies API role '||role_name) FROM unnest(ARRAY['anon','authenticated','service_role']) role_name;
+SELECT extensions.is(s.admission_variant,'client_prepared_photo_v1','stage explicitly selects CPM variant') FROM cpm_stage_image s;
+SELECT extensions.is(s.input,i.canonical_candidate::JSONB->>'content_canonical','stage preserves submitted content bytes')
+ FROM cpm_stage_image s JOIN internal.initial_analysis_preparation_intents i USING(scan_id);
+SELECT extensions.is(s.cpm_retained_roles,v.value->>'snapshot_canonical','stage retains original snapshot and positive closures')
+ FROM cpm_stage_image s CROSS JOIN verification_started v;
+SELECT extensions.is(s.cpm_capacity_predecessor,to_jsonb(c),'stage captures exact pending retained capacity')
+ FROM cpm_stage_image s JOIN internal.initial_cpm_photo_capacity_reservations c USING(scan_id);
+SELECT extensions.is(s.original_admission_expires_at,i.expires_at,'stage never renews admission deadline')
+ FROM cpm_stage_image s JOIN internal.initial_analysis_preparation_intents i USING(scan_id);
+SELECT extensions.ok(num_nonnulls(outcome,installation,protocol,destination,phase_window,mapping,media_binding)=0,
+ 'CPM stage invents no legacy handoff fields') FROM cpm_stage_image;
+SELECT extensions.is(s.cpm_verification_digest,encode(extensions.digest(convert_to(
+ 'merian.initial-analysis.cpm-photo-verification.v1'||E'\n'||v.evidence,'UTF8'),'sha256'),'hex'),
+ 'stage verification digest uses exact accepted bytes and fixed domain') FROM cpm_stage_image s CROSS JOIN cpm_admission_verified v;
+CREATE TEMP TABLE cpm_evidence_mutations(label TEXT,path TEXT[],replacement JSONB);
+INSERT INTO cpm_evidence_mutations VALUES
+ ('version',ARRAY['version'],'2'),('protocol',ARRAY['protocol'],'"other"'),
+ ('attempt',ARRAY['attempt_id'],'"00000000-0000-4000-8000-000000000999"'),
+ ('snapshot',ARRAY['snapshot_digest'],to_jsonb(repeat('0',64))),
+ ('profile',ARRAY['profile_digest'],to_jsonb(repeat('0',64))),
+ ('build',ARRAY['verifier_build_digest'],to_jsonb(repeat('0',64))),
+ ('object',ARRAY['objects','0','object_id'],'"00000000-0000-4000-8000-000000000999"'),
+ ('ordinal',ARRAY['objects','0','photo_ordinal'],'1'),('role',ARRAY['objects','0','role'],'"ai"'),
+ ('length',ARRAY['objects','0','byte_count'],'999'),('digest',ARRAY['objects','0','sha256'],to_jsonb(repeat('0',64))),
+ ('type',ARRAY['objects','0','content_type'],'"image/png"'),('structural false',ARRAY['objects','0','structural_acceptance'],'false'),
+ ('structural null',ARRAY['objects','0','structural_acceptance'],'null'),('missing objects',ARRAY['objects'],'[]');
+SELECT extensions.throws_ok(format('SELECT pg_temp.cpm_stage_image(%L)',internal.initial_canonical(jsonb_set(v.evidence::JSONB,m.path,m.replacement))),
+ '55000','initial_analysis_verification_required','stage rejects changed verification '||m.label)
+ FROM cpm_evidence_mutations m CROSS JOIN cpm_admission_verified v;
+SELECT extensions.throws_ok(format('SELECT pg_temp.cpm_stage_image(%L)',internal.initial_canonical(v.evidence::JSONB||'{"extra":true}'::JSONB)),
+ '55000','initial_analysis_verification_required','stage rejects extra evidence field') FROM cpm_admission_verified v;
+SELECT extensions.throws_ok(format('SELECT pg_temp.cpm_stage_image(%L)',' '||evidence),
+ '55000','initial_analysis_verification_required','stage rejects noncanonical evidence') FROM cpm_admission_verified;
+SELECT extensions.throws_ok(format('SELECT pg_temp.cpm_stage_image(%L)',internal.initial_canonical(jsonb_set(evidence::JSONB,'{objects}',
+ jsonb_build_array(evidence::JSONB#>'{objects,1}',evidence::JSONB#>'{objects,0}',evidence::JSONB#>'{objects,2}')))),
+ '55000','initial_analysis_verification_required','stage rejects reordered roles') FROM cpm_admission_verified;
+SELECT extensions.throws_ok($$SELECT pg_temp.cpm_stage_image(repeat('x',65537))$$,
+ '22023','initial_analysis_input_invalid','stage bounds evidence before locks');
+SAVEPOINT cpm_positive_admission;
+SELECT extensions.lives_ok($$SELECT internal.create_initial_admission_stage(owner_id,scan_id,assignment_digest,
+ (SELECT evidence FROM cpm_admission_verified)) FROM internal.initial_analysis_preparation_intents
+ WHERE scan_id='00000000-0000-4000-8000-00000000f101'$$,
+ 'private CPM stage uses the coordinated closed storage variant');
+SELECT set_config('merian.initial_admission_stage',stage_token::TEXT,TRUE) FROM internal.initial_preparation_admission_staging;
+SELECT set_config('merian.initial_preparation_funding','00000000-0000-4000-8000-00000000f001:00000000-0000-4000-8000-00000000f101',TRUE);
+SELECT set_config('merian.initial_analysis_admission','00000000-0000-4000-8000-00000000f001:00000000-0000-4000-8000-00000000f101',TRUE);
+SELECT extensions.lives_ok($$SELECT * FROM public.reserve_identification_quota(
+ '00000000-0000-4000-8000-00000000f001','scan_identification','00000000-0000-4000-8000-00000000f101',
+ repeat('a',64),'00000000-0000-4000-8000-00000000f101',FALSE,3,FALSE,'vision_compat_v1','google_gemini',6)$$,
+ 'CPM uses original quota and complimentary accounting owner');
+SELECT extensions.lives_ok($$SELECT internal.materialize_initial_admission('00000000-0000-4000-8000-00000000f101')$$,
+ 'CPM materializes exact submission, receipt and admitted capacity');
+SELECT extensions.lives_ok($$SELECT internal.freeze_initial_admission_ledger('00000000-0000-4000-8000-00000000f101')$$,
+ 'CPM freezes complete finite write ledger');
+SELECT extensions.lives_ok($$SELECT internal.begin_initial_admission_consumption('00000000-0000-4000-8000-00000000f101')$$,
+ 'CPM enters exact sealed consumption');
+SELECT extensions.lives_ok($$SELECT internal.finish_initial_admission('00000000-0000-4000-8000-00000000f101')$$,
+ 'CPM consumes every original witness');
+SELECT extensions.lives_ok($$SET CONSTRAINTS ALL IMMEDIATE$$,'CPM complete admission satisfies deferred guards');
+SET CONSTRAINTS ALL DEFERRED;
+SELECT extensions.is((SELECT state FROM internal.initial_cpm_photo_capacity_reservations WHERE scan_id='00000000-0000-4000-8000-00000000f101'),
+ 'admitted','admission retains original physical byte liability');
+-- END CPM COMMITTED ADMISSION FIXTURE
+SELECT extensions.throws_ok($$SELECT public.cancel_initial_analysis('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101')$$,
+ '55000','initial_analysis_admission_incomplete','same-transaction cancellation cannot bypass admission seal');
+ROLLBACK TO cpm_positive_admission;
+SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM internal.initial_preparation_admission_staging)
+ AND NOT EXISTS(SELECT 1 FROM internal.ai_quota_reservations)
+ AND NOT EXISTS(SELECT 1 FROM internal.initial_analysis_admissions),'positive admission rollback leaves no admission/funding');
+SELECT extensions.ok(NOT has_function_privilege(r,f,'EXECUTE'),'private stage construction denies '||r||' '||f)
+ FROM unnest(ARRAY['anon','authenticated','service_role']) r CROSS JOIN unnest(ARRAY[
+ 'internal.build_initial_cpm_admission_stage(uuid,uuid,text,text)',
+ 'internal.create_initial_admission_stage(uuid,uuid,text,text)']) f;
+-- Clock substitution is trusted rollback-only instrumentation of the final
+-- nonmutating sample, not an elapsed-time or throughput qualification. Original
+-- candidate/assignment/deadline/receipt bytes are never rewritten.
+CREATE FUNCTION pg_temp.cpm_atomic_image() RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT jsonb_build_array(
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM public.users t),
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY scan_id) FROM internal.initial_analysis_preparation_intents t),
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY scan_id) FROM internal.initial_preparation_admission_receipts t),
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY scan_id) FROM internal.initial_analysis_submissions t),
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY scan_id) FROM internal.initial_analysis_admissions t),
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY scan_id) FROM internal.initial_analysis_lifecycle_fences t),
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM internal.ai_quota_reservations t),
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::TEXT) FROM internal.ai_quota_reservation_counters t),
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::TEXT) FROM internal.ai_quota_counters t),
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::TEXT) FROM internal.complimentary_scan_usage t),
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::TEXT) FROM internal.identification_provider_attempts t),
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY scan_id) FROM internal.initial_cpm_photo_capacity_reservations t),
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY object_id) FROM internal.initial_cpm_photo_role_mapping t),
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY object_id) FROM internal.initial_preparation_source_registry t),
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY attempt_id) FROM internal.initial_cpm_photo_write_attempts t),
+  (SELECT jsonb_agg(to_jsonb(t) ORDER BY attempt_id) FROM internal.initial_cpm_photo_write_closures t));
+$$;
+CREATE FUNCTION pg_temp.cpm_complete_admission() RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE s internal.initial_preparation_admission_staging;
+BEGIN
+ -- Match a fresh transaction after earlier catalog cases explicitly flushed constraints.
+ SET CONSTRAINTS ALL DEFERRED;
+ PERFORM internal.create_initial_admission_stage(owner_id,scan_id,assignment_digest,
+  (SELECT evidence FROM cpm_admission_verified)) FROM internal.initial_analysis_preparation_intents
+  WHERE scan_id='00000000-0000-4000-8000-00000000f101';
+ SELECT * INTO STRICT s FROM internal.initial_preparation_admission_staging;
+ PERFORM set_config('merian.initial_admission_stage',s.stage_token::TEXT,TRUE);
+ PERFORM set_config('merian.initial_preparation_funding',s.owner_id::TEXT||':'||s.scan_id::TEXT,TRUE);
+ PERFORM set_config('merian.initial_analysis_admission',s.owner_id::TEXT||':'||s.scan_id::TEXT,TRUE);
+ PERFORM * FROM public.reserve_identification_quota(s.owner_id,'scan_identification',s.scan_id,
+  repeat('a',64),s.scan_id,FALSE,3,FALSE,'vision_compat_v1','google_gemini',6);
+ PERFORM internal.materialize_initial_admission(s.scan_id);
+ PERFORM internal.freeze_initial_admission_ledger(s.scan_id);
+ PERFORM internal.begin_initial_admission_consumption(s.scan_id);
+ PERFORM internal.finish_initial_admission(s.scan_id);
+ SET CONSTRAINTS ALL IMMEDIATE;
+END; $$;
+CREATE FUNCTION pg_temp.cpm_atomic_boundary(p_offset_ms INTEGER) RETURNS TEXT LANGUAGE plpgsql AS $$
+DECLARE original TEXT; anchor TEXT:='final_checked_at:=floor(extract(epoch FROM clock_timestamp())*1000);';
+ before_image JSONB:=pg_temp.cpm_atomic_image(); failure TEXT; accepted BOOLEAN:=FALSE;
+BEGIN
+ SELECT pg_get_functiondef('internal.finish_initial_admission(uuid)'::REGPROCEDURE) INTO STRICT original;
+ IF p_offset_ms IS NOT NULL THEN
+  IF (length(original)-length(replace(original,anchor,'')))/length(anchor)<>1 THEN
+   RAISE EXCEPTION 'final clock seam changed' USING ERRCODE='ZX612'; END IF;
+  EXECUTE replace(original,anchor,'final_checked_at:=extract(epoch FROM s.original_admission_expires_at)*1000+'||p_offset_ms::TEXT||';');
+ END IF;
+ BEGIN
+  PERFORM pg_temp.cpm_complete_admission();
+  -- Force successful cases to restore all writes and the transaction seal too.
+  RAISE EXCEPTION 'successful synthetic admission rollback' USING ERRCODE='ZX613';
+ EXCEPTION WHEN SQLSTATE 'ZX613' THEN accepted:=TRUE;
+ WHEN OTHERS THEN failure:=SQLSTATE||':'||SQLERRM;
+ END;
+ EXECUTE original;
+ IF pg_get_functiondef('internal.finish_initial_admission(uuid)'::REGPROCEDURE) IS DISTINCT FROM original
+  OR pg_temp.cpm_atomic_image() IS DISTINCT FROM before_image
+  OR internal.initial_admission_sealed()
+  OR EXISTS(SELECT 1 FROM internal.initial_preparation_admission_staging)
+  OR EXISTS(SELECT 1 FROM internal.initial_preparation_admission_writes)
+ THEN RAISE EXCEPTION 'atomic boundary failed to restore original state' USING ERRCODE='ZX614'; END IF;
+ RETURN CASE WHEN accepted THEN 'accepted' ELSE failure END;
+END; $$;
+SELECT extensions.is(pg_temp.cpm_atomic_boundary(-1),'accepted','CPM final sample one millisecond before original expiry accepts and restores full state');
+SELECT extensions.is(pg_temp.cpm_atomic_boundary(0),'55000:initial_analysis_preparation_expired','CPM final sample at original expiry rejects and restores full state');
+SELECT extensions.is(pg_temp.cpm_atomic_boundary(1),'55000:initial_analysis_preparation_expired','CPM final sample after original expiry rejects and restores full state');
+SELECT extensions.is(pg_temp.cpm_atomic_boundary(-1800001),'55000:initial_analysis_preparation_expired','CPM final sample before original creation rejects and restores full state');
+
+SAVEPOINT cpm_stage_revocation;
+UPDATE internal.initial_cpm_photo_write_policies SET state='revoked';
+SELECT extensions.throws_ok($$SELECT pg_temp.cpm_stage_image()$$,'55000','initial_analysis_preparation_unavailable',
+ 'closed bytes do not bypass current write-policy eligibility');
+ROLLBACK TO cpm_stage_revocation;
+UPDATE internal.initial_preparation_backend_eligibility SET state='revoked';
+SELECT extensions.throws_ok($$SELECT pg_temp.cpm_stage_image()$$,'55000','initial_analysis_preparation_unavailable',
+ 'closed bytes do not bypass backend eligibility');
+ROLLBACK TO cpm_stage_revocation;
+UPDATE internal.initial_cpm_photo_profile_eligibility SET state='revoked';
+SELECT extensions.throws_ok($$SELECT pg_temp.cpm_stage_image()$$,'55000','initial_analysis_preparation_unavailable',
+ 'closed bytes do not bypass profile eligibility');
+ROLLBACK TO cpm_stage_revocation;
+UPDATE internal.initial_analysis_rollout SET initial_analysis_lifecycle_enabled=FALSE;
+SELECT extensions.throws_ok($$SELECT pg_temp.cpm_stage_image()$$,'55000','initial_analysis_unavailable',
+ 'closed bytes do not bypass disabled rollout');
+ROLLBACK TO cpm_stage_revocation;
+
+SAVEPOINT cpm_retained_revocation;
+UPDATE internal.initial_cpm_photo_write_policies SET state='revoked';
+UPDATE internal.initial_preparation_backend_eligibility SET state='revoked';
+UPDATE internal.initial_cpm_photo_profile_eligibility SET state='revoked';
+UPDATE internal.initial_analysis_rollout SET initial_analysis_lifecycle_enabled=FALSE;
+SELECT extensions.lives_ok($$SELECT internal.assert_initial_cpm_receipt_cohort(pg_temp.cpm_cohort_receipt(),FALSE)$$,
+ 'stored cohort association does not renew or consult current policy eligibility');
+SELECT extensions.is((SELECT count(*) FROM internal.initial_preparation_admission_receipts),0::BIGINT,
+ 'association checks create no admission receipt');
+ROLLBACK TO cpm_retained_revocation;
+
 SET LOCAL TIME ZONE 'Pacific/Auckland';
 SELECT extensions.is(internal.initial_cpm_verification_intent_digest(s),d.digest,
  'intent image digest survives a positive session offset')
@@ -641,6 +870,25 @@ SELECT extensions.is(public.cancel_initial_analysis('00000000-0000-4000-8000-000
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
 SELECT extensions.ok(internal.initial_cpm_photo_retired_write_hold('00000000-0000-4000-8000-00000000f101'),'private erasure leaves exact retired outstanding graph');
+SAVEPOINT admitted_retired_liability;
+-- Synthetic post-admission state on the already retired real fixture graph.
+-- This bypass is only for testing the permanent liability predicate, not C1.
+ALTER TABLE internal.initial_cpm_photo_capacity_reservations DISABLE TRIGGER initial_cpm_photo_capacity_guard;
+UPDATE internal.initial_cpm_photo_capacity_reservations SET state='admitted' WHERE scan_id='00000000-0000-4000-8000-00000000f101';
+SET CONSTRAINTS ALL IMMEDIATE;
+ALTER TABLE internal.initial_cpm_photo_capacity_reservations ENABLE TRIGGER initial_cpm_photo_capacity_guard;
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+SELECT extensions.ok(internal.initial_cpm_photo_retired_write_hold('00000000-0000-4000-8000-00000000f101'),
+ 'admitted capacity preserves retired physical liability after private erasure');
+SELECT extensions.ok(internal.initial_admitted_settlement_blocked('00000000-0000-4000-8000-00000000f101')
+ AND NOT EXISTS(SELECT 1 FROM internal.initial_preparation_admission_receipts WHERE scan_id='00000000-0000-4000-8000-00000000f101'),
+ 'permanent admitted footprint blocks generic settlement without private receipt');
+SELECT extensions.throws_ok($$UPDATE internal.initial_cpm_photo_capacity_reservations SET state='released' WHERE scan_id='00000000-0000-4000-8000-00000000f101'$$,
+ '22023','initial_analysis_storage_immutable','erased private evidence cannot release admitted capacity');
+SELECT extensions.throws_ok($$DELETE FROM internal.initial_cpm_photo_capacity_reservations WHERE scan_id='00000000-0000-4000-8000-00000000f101'$$,
+ '22023','initial_analysis_storage_immutable','admitted footprint cannot be deleted');
+ROLLBACK TO admitted_retired_liability;
 SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM internal.initial_cpm_photo_write_attempts WHERE NOT retired),'retirement reaches bound and issued attempts');
 SELECT extensions.throws_ok($$UPDATE internal.initial_cpm_photo_capacity_reservations SET state='released' WHERE scan_id='00000000-0000-4000-8000-00000000f101'$$,'22023','initial_analysis_storage_immutable','retirement cannot release outstanding capacity');
 SELECT extensions.throws_ok($$UPDATE internal.initial_cpm_photo_write_attempts SET retired=FALSE$$,'55000',NULL,'retired attempt cannot resurrect');
@@ -739,6 +987,60 @@ ROLLBACK TO account_tombstone_fixture;
 
 -- Sequential global limit/rollback proof. Concurrent last-slot contention is a
 -- separate multi-session qualification; this test does not claim it.
+-- Capacity-budget fixture only, not positive admission. Inject content-free
+-- admitted rows with the capacity guard and cohort trigger disabled only during
+-- injection, restore both before real allocation, and roll back every synthetic row. No private
+-- receipt, physical media, real account or hosted state is involved.
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+CREATE FUNCTION pg_temp.cpm_retained_budget_case(p_scope TEXT,p_headroom BIGINT) RETURNS TEXT LANGUAGE plpgsql AS $$
+DECLARE budget_owner UUID:='00000000-0000-4000-8000-00000000f880';
+ new_scan UUID:='00000000-0000-4000-8000-00000000f881';
+ baseline BIGINT; retained BIGINT; result TEXT; entries INTEGER; blocked BOOLEAN;
+BEGIN
+ BEGIN
+  IF p_scope NOT IN ('owner','global') OR p_headroom NOT IN (2,3) THEN RAISE EXCEPTION 'invalid fixture'; END IF;
+  PERFORM pg_temp.admission_owner(budget_owner);
+  SELECT COALESCE(sum(declared_retained_bytes),0) INTO baseline
+   FROM internal.initial_cpm_photo_capacity_reservations
+   WHERE state IN ('pending','admitted') AND (p_scope='global' OR owner_id=budget_owner);
+  retained:=(CASE p_scope WHEN 'owner' THEN 5368709120 ELSE 53687091200 END)-baseline-p_headroom;
+  entries:=ceil(retained::NUMERIC/100663296)::INTEGER;
+  INSERT INTO internal.initial_analysis_operation_fences(scan_id)
+   SELECT ('00000000-0000-4000-8001-'||lpad(n::TEXT,12,'0'))::UUID FROM generate_series(1,entries) n;
+  ALTER TABLE internal.initial_cpm_photo_capacity_reservations DISABLE TRIGGER initial_cpm_photo_capacity_guard;
+  ALTER TABLE internal.initial_cpm_photo_capacity_reservations DISABLE TRIGGER initial_cpm_photo_capacity_cohort;
+  INSERT INTO internal.initial_cpm_photo_capacity_reservations(scan_id,owner_id,declared_retained_bytes,state,write_capability_state)
+   SELECT ('00000000-0000-4000-8001-'||lpad(n::TEXT,12,'0'))::UUID,
+    CASE WHEN p_scope='owner' THEN budget_owner ELSE NULL::UUID END,
+    least(100663296,retained-(n-1)::BIGINT*100663296),'admitted','may_have_issued' FROM generate_series(1,entries) n;
+  ALTER TABLE internal.initial_cpm_photo_capacity_reservations ENABLE TRIGGER initial_cpm_photo_capacity_guard;
+  ALTER TABLE internal.initial_cpm_photo_capacity_reservations ENABLE TRIGGER initial_cpm_photo_capacity_cohort;
+  blocked:=internal.initial_admitted_settlement_blocked('00000000-0000-4000-8001-000000000001');
+  IF NOT blocked OR EXISTS(SELECT 1 FROM internal.initial_preparation_admission_receipts
+   WHERE scan_id='00000000-0000-4000-8001-000000000001') THEN RAISE EXCEPTION 'missing durable admission footprint'; END IF;
+  BEGIN
+   PERFORM pg_temp.cpm_create(new_scan,budget_owner);
+   result:='allocated';
+  EXCEPTION WHEN SQLSTATE '55000' THEN result:=SQLERRM;
+  END;
+  RAISE EXCEPTION 'rollback synthetic retained capacity' USING ERRCODE='ZX882';
+ EXCEPTION WHEN SQLSTATE 'ZX882' THEN RETURN result;
+ END;
+END; $$;
+SELECT extensions.is(pg_temp.cpm_retained_budget_case('owner',3),'allocated',
+ 'admitted rows free pending slots but preserve exact owner retained-byte boundary');
+SELECT extensions.is(pg_temp.cpm_retained_budget_case('owner',2),'initial_analysis_capacity_unavailable',
+ 'owner retained bytes include admitted media');
+SELECT extensions.is(pg_temp.cpm_retained_budget_case('global',3),'allocated',
+ 'ownerless admitted rows preserve exact global retained-byte boundary');
+SELECT extensions.is(pg_temp.cpm_retained_budget_case('global',2),'initial_analysis_capacity_unavailable',
+ 'account detachment cannot release global admitted bytes');
+SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM internal.initial_cpm_photo_capacity_reservations WHERE state='admitted')
+ AND NOT EXISTS(SELECT 1 FROM internal.initial_analysis_operation_fences WHERE scan_id::TEXT LIKE '00000000-0000-4000-8001-%')
+ AND (SELECT tgenabled='O' FROM pg_trigger WHERE tgrelid='internal.initial_cpm_photo_capacity_reservations'::REGCLASS
+  AND tgname='initial_cpm_photo_capacity_guard'),'budget fixture restores guards and all synthetic rows');
+
 CREATE TEMP TABLE cpm_global AS SELECT n,
  ('00000000-0000-4000-8000-'||lpad((90000+n)::TEXT,12,'0'))::UUID owner_id,
  ('00000000-0000-4000-8000-'||lpad((91000+n)::TEXT,12,'0'))::UUID scan

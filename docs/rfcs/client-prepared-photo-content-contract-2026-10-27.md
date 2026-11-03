@@ -3,9 +3,10 @@
 Status: storage preparation and private durable verification start are
 implemented with narrow local qualification. A private verification-to-admission
 coordinator and JPEG/still-PNG/still-WebP/HEVC-still-item consuming verifier
-increments are implemented but uninstalled. Remaining HEIF forms and the atomic
-admission bridge remain unimplemented and inactive. This amendment applies the
-current CPM assignment to the existing
+increments are implemented but uninstalled. Remaining HEIF forms stay
+unqualified. A dormant service-only admission/recovery bridge is now implemented
+with narrow local checks; route composition remains uninstalled and inactive.
+This amendment applies the current CPM assignment to the existing
 [S0/IC-1 owners](initial-completion-history-interface-2026-10-11.md#2-minimum-dependency-s0-and-checkpoint-boundary).
 It does not qualify the initial submission journey or change release controls.
 
@@ -114,8 +115,8 @@ recovery. They do not inspect physical media or prove resource release,
 throughput, SQL atomicity or complete-cohort feasibility within that budget. The
 verifier's structural boolean is trusted only from the fixed server composition
 bound to the saved profile and build; it is never client proof. No route imports
-this coordinator. Neither production bridge, public grant nor activation is
-installed.
+this coordinator. The later dormant service-only bridge below adds restricted
+RPC grants; no client grant, serving route or activation is installed.
 
 The private
 [photo consuming adapter](../../services/supabase/functions/_shared/initialAnalysis/cpmPhotoVerification.ts)
@@ -255,8 +256,10 @@ Camera `fileDataRepresentation()` and imported originals do not guarantee either
 observed layout. Broader camera/import corpus, non-alpha auxiliary images, other
 accepted forms and fixed profile decisions remain required before activation.
 Unsupported forms are held after the once-only read, never retried
-automatically. No conversion or reduced product vocabulary is implied. The
-atomic admission bridge and coordinated retention/funding/C1 remain pending.
+automatically. No conversion or reduced product vocabulary is implied. The later
+atomic admission and service-only bridge increments below implement that
+boundary; complete integrated retention/funding/C1 qualification remains
+pending.
 
 The next implementation increment couples actual complete-cohort verification
 directly to a CPM-specific atomic admission branch. Allocation, successful
@@ -292,6 +295,453 @@ implementation remains required before relaxing any legacy denial. No
 activation, public grant, persistence or successful admission follows from this
 pure helper.
 
+The coordinated admission editing batch now contains an ungranted CPM overload
+of the existing staging constructor. It reacquires the outer owner/scan scope,
+then capacity and ordered source/attempt locks, and reconstructs the exact
+original start snapshot. It compares the complete verifier document with the
+saved declarations and original attempt, checks current profile/backend/write
+policy eligibility, and captures the original capacity predecessor and expiry.
+`cpm_retained_roles` contains the complete canonical start snapshot, including
+ordered roles, write attempts and positive closures. It is not an M1 destination
+mapping. No media I/O occurs inside that transaction.
+
+This batch remains **under construction, uncommitted and inactive**. The stage
+image can be constructed, but inserting it still fails the legacy-only
+constraints. Receipt proof, funding projections, capacity transition and C1 must
+be completed together before those constraints change. Three focused local
+catalogs passed 390 assertions against a fresh 506-migration replay, including
+stage construction, altered/reordered evidence, eligibility revocation and
+continued persistence denial. This is not successful admission or a full
+integration/review gate; the prior full catalog evidence applies to its prior
+candidate only.
+
+Within that editing batch, the original admitted-proof validator now delegates
+its funding/accounting association checks to one private assertion. Both
+variants must parse their complete canonical proof before calling it. Legacy
+callers pass the existing assignment and input admission; the CPM proof caller
+must pass the nested execution configuration and candidate admission. The legacy
+proof digest and component bytes are unchanged. This assertion does not reserve
+credit, prove live funding row images or replace the existing accounting writer;
+those owners and the original entitlement/counter/complimentary checks remain
+authoritative.
+
+The same unfinished batch now defines the self-contained CPM receipt proof:
+configuration wrapper version 3 retains the nested saved assignment; manifest
+version 2 binds schema 2/binding 4, original expiry, exact verification and the
+complete original start snapshot. Original pending capacity is a separate exact
+metadata image. Fixed CPM domains distinguish verification, retained capacity,
+metadata, proof and receipt identity; existing funding/accounting documents and
+assertions remain shared. Snapshot validation checks ordered roles, unique write
+attempts, positive closures and their original timestamps without consulting a
+current clock. Canonical proof validation alone grants no media-read, admission,
+live-funding or inference authority. The existing receipt builder, policy
+freeze, prospective receipt checks and live-snapshot funding projection now
+select the CPM nested configuration and original expiry explicitly. They still
+use the original accounting writer and exact reservation comparison. C1
+integration remains unfinished; legacy stage/receipt storage denials stay
+closed. Live retained-cohort source checks below are not yet positive admission
+qualification. Independent synthetic one- and two-photo proof fixtures describe
+declared evidence only, not successful physical verification, funding or
+admission.
+
+The finite admission inventory now projects schema-2 submission and binding-4
+admission rows, the original receipt and lifecycle row, and one
+`CPM.capacity.update` member. It emits no M1 destination rows. Binding 4 uses
+the existing preparation-outcome digest column for the CPM verification digest;
+the binding version and receipt proof distinguish this from a legacy outcome.
+The existing materializer registers an UPDATE with the exact saved pending
+capacity predecessor and an otherwise identical `admitted` successor. Phase,
+member triggers, ledger OLD/NEW comparison and seal checks cover that member.
+Closed variant storage now permits the private CPM stage, receipt, schema-2
+submission and binding-4 admission together. The legacy variant still requires
+its complete original fields and proof. Positive local synthetic admission now
+uses the original quota/credit witnesses, materializes the receipt and retained
+capacity, consumes the full ledger and commits through deferred guards. This
+does not establish retained recovery or app qualification.
+
+The cohort association assertion now reconstructs the original saved start
+snapshot and compares its exact roles, issued attempts, positive closures,
+backend identity, submitted content and capacity image before and after
+materialization. It rejects M1/M2 copies or extra attempts and grants no
+funding, media-read or execution authority. Its callers retain full
+receipt-proof and funding validation. The structural cohort predicate recognizes
+an admitted image only when an exact immutable receipt proves its original
+pending predecessor. Live receipt validation retains
+account/deletion/pending-state and full original funding checks, now using the
+nested CPM model. Private retained-receipt parsing selects the CPM proof without
+checking a fresh clock or eligibility. It is shared with C1 settlement after
+terminal state; authorized recovery callers must retain their outer
+owner/deletion fences. No public CPM recovery route is installed.
+
+Capacity now distinguishes `pending`, `admitted` and `released`. The private
+pending-to-admitted transition requires an exact registered write witness, the
+original verified receipt and unchanged cohort. It preserves the owner, declared
+bytes and irreversible write liability. Pending limits count only `pending`
+rows; the existing 5 GiB per-owner and 50 GiB global retained limits count both
+pending and admitted bytes, including ownerless rows globally. Admitted capacity
+cannot be released or deleted. Retirement acquires its capacity lock before
+registry locks, and the exact retired-write predicate accepts that surviving
+footprint after private erasure. Generic settlement remains blocked by either
+binding 4 or the admitted capacity row even if private receipt evidence is
+absent. This is a conservative hold, not physical-cleanup completion or refund
+authority.
+
+C1 prestate capture now accepts the closed binding-4 receipt, acquires capacity
+before source registry/attempt/closure locks, and preserves exact permanent
+capacity, write-attempt and closure images separately from private evidence.
+Source retirement may change only the attempts' retirement bit; capacity and
+positive closures must survive unchanged. The existing retirement, erasure and
+terminal image checks compare those permanent images even after private receipt
+rows are erased. The private inventory already owns the complete intent, receipt
+and role mapping; permanent liability is not added to that erasure list.
+
+The CPM destination branch requires a strict original receipt, exact prestate,
+explicit null allocation/cohort and empty destination and legacy-transfer
+records, plus current absence of all M1/M2 rows. It is distinct from the legacy
+retired-source transfer case. The four-argument image checker still rejects
+empty events without prestate. Terminal merge locking also acquires CPM capacity
+before source registries. These changes preserve existing quota/credit witnesses
+and do not add cancellation authority. The retirement witness shape permits an
+empty CPM destination only through the existing generated-event guard and exact
+five-argument receipt/prestate/current-absence checks; callers cannot supply an
+empty expected list. The initial committed cancellation test exposed the legacy
+shape constraint and is retained as a failed attempt. The corrected committed
+local test now passes public service-role cancellation, wrong-role/owner denial,
+exact replay without a second refund, private erasure and unchanged permanent
+capacity/closure images with only attempt retirement bits changed. The harness
+[`initial_cpm_atomic_admission_committed.py`](../../services/supabase/scripts/initial_cpm_atomic_admission_committed.py)
+requires a fresh owned local replay manifest and retains exact source hashes.
+The explicit absent and held complimentary modes use fresh owned databases; each
+requires its original reservation/credit state before cancellation. Its
+synthetic evidence is not physical-media or native qualification. A populated
+505-to-506 upgrade now preserves one committed legacy binding-3 admission with
+held complimentary credit and one separately prepared, unadmitted intent. Exact
+row-count and ordered-row hashes match for all 186 internal tables (52
+populated), including original candidate/assignment, receipt, retained media
+metadata, funding and pending deadlines. Fixed-time handoff and retained receipt
+hashes also match. Actual retained recovery and service-role C1 cancellation
+commit after upgrade; fresh-session cancellation replay preserves the single
+refund. All 14 checks pass in the owned disposable database, with activation
+disabled. The retained runner and receipt are under
+`.artifacts/native-app-capture-handoff-20261020/cpm-atomic-upgrade01/` and
+`run-cpm-atomic-upgrade01.py`. This covers legacy populated compatibility of
+this atomic migration; it does not qualify a pending CPM upgrade or real media
+I/O. Complete race and integrated journey qualification remain open; no serving
+route is installed. The later bridge checkpoint below supersedes the earlier
+implementation gap.
+
+The same committed harness now accepts `--operation account-erasure`. A fresh
+local held-credit CPM fixture passes the actual service-role account tombstone
+path with rollback and commit. Read-only observers check exact original quota,
+credit, counter and provider-attempt images before and after the real
+owner-delete fence, including its enabled trigger order and exactly-once
+observations. This preserves the existing generic account-erasure policy:
+admitted cancellation is unknown and does not settle funding; explicit public C1
+remains the separate positive-unused settlement owner. Rollback restores all
+internal rows and user rows. Committed erasure removes private roots, preserves
+global fences and ownerless retained-byte liability, keeps closures exact and
+changes only the expected owner links, unused pending-capacity release and
+attempt retirement bits. The corrected run passes 140 fixture assertions and 13
+checks. Two failed test assumptions (expecting C1 refunds and checking an
+unrelated pending cancellation before its owner cascade) remain retained; no
+runtime guard changed. Evidence is under `cpm-atomic-admission22/` through
+`cpm-atomic-admission25/` in `.artifacts/native-app-capture-handoff-20261020/`.
+This does not qualify absent-credit account erasure, multiple admitted items,
+concurrent orderings or physical cleanup.
+
+The dormant service-only bridge now exposes `read_initial_cpm_photo_admission`,
+`begin_initial_cpm_photo_admission` and `admit_initial_cpm_photo` through the
+[new migration](../../services/supabase/migrations/20261102213355_prepare_initial_cpm_admission_bridge.sql).
+Only `service_role` may call them. The fixed
+[database adapter](../../services/supabase/functions/_shared/initialAnalysis/cpmPhotoAdmissionDb.ts)
+uses the
+[closed observation schema](../../services/supabase/functions/_shared/initialAnalysis/cpm-admission-bridge-response-schema-v1.json).
+Recovery compares exact saved candidate/assignment identity and original
+retained receipt/cohort facts; conclusive absence requires an intact unadmitted
+cohort without partial admission or funding. Missing or contradictory facts fail
+closed. Retained observation grants no dispatch authority and currently accepts
+only pending-pre-dispatch or dispatch-authorized lifecycle states.
+Completed-result recovery remains a separate integration requirement.
+
+Fresh admission wraps the existing stage, original server-derived funding,
+materialization, ledger, consumption and finish owners in one transaction and
+restores their transaction settings. It does not catch failures into a committed
+held result. The fixed verifier supplies evidence; clients cannot assert media
+verification. Legacy finalize/recovery remain unchanged. The adapter pins
+origin, credentials and identity before asynchronous work, bounds bodies and
+deadlines, and never retries a mutating request. A lost reply permits exact
+receipt recovery. No route imports this adapter and no native caller or
+activation is installed.
+
+Fresh507 local replay evidence under
+`.artifacts/native-app-capture-handoff-20261020/cpm-atomic-admission26/`
+covers132 unskipped setup assertions, actual service-role admission commit,
+complete rollback on a surrounding fault, fresh-session recovery/replay without
+additional funding, held begin and anonymous/authenticated denials. The
+privilege catalog passes. This first bridge checkpoint did not qualify
+fresh-start SQL or concurrent service calls; the following increment adds that
+evidence.
+
+The maintained `initial_cpm_admission_bridge_races.py` now qualifies eight local
+committed schedules: both admission orders against recovery, another admission,
+C1 cancellation and account erasure. Each fresh507 replay checks132 unskipped
+fixture assertions through a fresh service-role begin, three distinct sessions,
+an actual peer lock wait and committed outcomes. Recovery observes the
+serialized state, concurrent admission preserves one receipt/reservation, C1
+refunds once, and account erasure prevents later admission or recovery. The
+admission-first account test observes one original unrefunded reservation before
+account erasure; post-cascade quota rows are absent as required by the existing
+account contract. The failed contrary expectation in replay33 is retained as
+HQ-062; no runtime rule changed. Successful evidence is in replay27–32 and34–35,
+summarized by `cpm-bridge-race-matrix01.json` under the same artifact root.
+Earlier account privacy-fence and permanent-liability evidence remains
+separately applicable.
+
+`cpmPhotoAdmissionDb_test.ts` now has seven passing injected tests. New cases
+exercise the actual five-second stalled-body deadline, stream cancellation and
+reader release after oversize/deadline, discarded late fetch responses, and the
+maximum supported8192-code-point supplementary-character context (a request
+above32 KiB). This does not establish the largest possible multi-photo envelope
+or real network cancellation latency. The executable migration parity test also
+passes. The existing Engine owner cleared the unchanged bounded bridge source;
+review of the new qualification evidence is separate from complete acceptance.
+
+The maintained `initial_cpm_admission_bridge_contract.py` adds exact service-RPC
+identity and retained-policy coverage on a fresh507 replay. It passes132 fixture
+assertions and69 checks: absent owner/scan, another existing owner, changed
+candidate/assignment bytes or digest are denied by read/begin/admit before and
+after admission; denied calls preserve the original saved/funding image. It also
+checks anonymous/authenticated denial, whole-composer rollback, exact
+verification bytes on replay, committed policy revocation followed by unchanged
+receipt/funding recovery, C1 rollback/commit/replay and post-cancellation
+denial. The test reuses existing fixture/session, accounting-image and
+cancellation owners. Evidence is `cpm-atomic-admission36/contract01.log` and its
+JSON receipt under the same artifact root (14.023349208 seconds). This does not
+exercise corrupted storage, partial durable states or HTTP response loss.
+
+The later optional `--partial-recovery` lane covers two explicit incomplete
+admitted images on fresh508: missing admission and missing retained receipt.
+Disposable transactions temporarily disable user triggers only for each
+privileged deletion, restore them before the service call, and reject
+read/begin/admit with55000 from `internal.read_initial_cpm_admission_state`.
+After each denial, rollback restores the23-relation projection and exact funding
+image. `cpm-partial-recovery01/partial01.log` and its source-bound JSON
+report132 fixture assertions and89 checks in15.20331425s, including existing
+identity, policy-recovery and C1 checks. Managed disposal succeeds. This is
+controlled missing-row fault qualification, not naturally reachable corruption,
+all partial images, contradictory persisted values or scan-deletion race
+qualification. Independent evidence review found no blocker for these two
+missing-row cases.
+
+The separate `--contradictory-recovery` lane checks three schema-valid saved
+values that contradict the retained receipt: capacity state, retained bytes and
+verification snapshot digest. Fresh508 `cpm-contradictory-recovery01` passes132
+fixture assertions and98 checks in15.774998667s. Each of nine service
+read/begin/admit denials reaches both the bridge reader and retained-cohort
+validator with55000 after user guards are restored. Transaction rollback keeps
+the23-relation and funding images unchanged. Managed disposal passes. These are
+privileged local fault fixtures, not an assertion that normal application writes
+can produce them; no production guard or constraint changes.
+
+The actual `request_scan_deletion(scan,owner)` peer is also exercised in both
+commit orders against CPM admission. As defined by the existing deletion owner,
+a pre-row identity returns `not_found`, creates no tombstone and leaves
+admission available; pending cancellation belongs to C1. The two fresh508 runs
+`cpm-scan-deletion-admission-first01` and `cpm-scan-deletion-peer-first01` each
+pass132 fixture assertions with three distinct sessions and observed peer
+blocking (4.38042675s and4.326608s). Both preserve one admitted receipt,
+pending_pre_dispatch lifecycle, admitted capacity and original reserved funding
+without refund/execution/results/completion. No-op23-relation images are checked
+before/after the deletion in its serial position. Both managed disposals pass.
+This qualifies the real pre-row API boundary, not successful pre-row deletion or
+saved-scan deletion after result creation. Raw tombstone-insertion coverage
+remains separately labeled internal erasure.
+
+A further adapter test passes a two-photo request with64 contexts and the full
+32000 UTF-16-unit aggregate allowance (>128000 bytes in the RPC request), then
+rejects excess text units and a65th context before I/O. Its first fixture reused
+object IDs and was correctly rejected by the unchanged assignment parser; HQ-063
+retains that failure and the corrected focused pass. Eight adapter cases are
+qualified across the retained run with seven passes and the corrected one-case
+run; filtered cases were not rerun or recounted. This covers the content count/
+text aggregate boundary, not every largest-possible optional-field envelope.
+
+The dormant current-verification assertion now implements the missing
+whole-cohort callback using the original saved attempt/snapshot, existing locks,
+eligibility owners and unextended interval. The
+[API contract](../backend-and-data/05-api-contracts.md#dormant-current-verification-observation--november-2)
+owns this observation-only boundary. It proves neither a prior transaction
+commit nor an I/O lease; only the coordinator's committed fresh begin permits
+verification. No held attempt resumes and no route is installed.
+
+Fresh508 replay38 passes132 complete fixture assertions and85 checks with
+`--current-verification` (15.118490625 seconds). Repeated exact observations,
+anon/authenticated denial, wrong assignment/attempt/snapshot, rollout/profile/
+backend/write-policy revocation and unchanged row images pass; funded work is
+rejected. Replay37's wrong expected funded-denial SQLSTATE is retained as
+HQ-064; only the test expectation changed to the existing unfunded owner's22023.
+Evidence is `cpm-atomic-admission38/current02.log` and its JSON receipt under
+the same artifact root. The global privileged-routine catalog passes. All nine
+adapter tests and two current-migration tests pass together; the migration gate
+passes562 cases across138 files. Engine's bounded source review found no
+blocking issue and verified the test correction (turn
+`01a19e6c-afaa-74c3-8427-71fa53ee0985`); this does not clear the coordinated
+batch. Actual verifier/storage/database composition and interruption between
+observations and I/O remain next.
+
+The dormant `createCpmPhotoAdmissionRuntime` now composes those existing owners
+without a route or installed profile/signer. Its per-object adapter requires the
+loaded live binding/target to equal the coordinator snapshot, then rechecks the
+original loaded input; whole-cohort checks and final admission remain in their
+existing owners. One focused test with ten steps passes real synthetic JPEG
+bytes through the structural verifier and both database adapters with injected
+transport: success, lost admission acknowledgement with exact recovery,
+recovered and held starts with an empty catalog, wrong-object denial, revocation
+before read/after signing/after reading, and cancellation during reading.
+Recovery does not re-read media or repeat admission. Evidence:
+`cpm-runtime-deno03.log` under the same artifact root. The initial fixture
+typecheck failure is retained in `cpm-runtime-deno01.log` and source01; copying
+bytes to the required ArrayBuffer fixes the test without disabling typechecking.
+Engine's bounded source review found no blocking lifecycle/trust-boundary issue;
+it identified an incomplete held fixture and an overstated cancellation label.
+HQ-065 retains the initial nine-step evidence; the corrected test uses the exact
+held envelope and separately exercises cancellation before response acquisition
+and during stream delivery. Each per-object current check performs two
+sequential RPCs in addition to whole-cohort assertions. Full supported-cohort
+transport latency must fit the existing shared deadline and reconciliation
+reserve before installation; no budget is extended here. These tests do not
+execute SQL, exercise actual HTTP overlap or measure storage
+cancellation/resource behavior.
+
+The maintained `initial_cpm_runtime_contract.py` and child
+`initial_cpm_runtime_probe.ts` now connect this composition to actual service
+SQL through a loopback HTTP shim. Fresh508 replays40/41 each pass12 unskipped
+fixture assertions,68 RPC calls, six tiny real JPEG reads across two photos and
+exactly one admission. Original quota/receipt counts remain one, with no
+provider invocation. Normal admission takes8809.81425ms; withholding its
+response for six seconds after commit exercises the unchanged five-second
+adapter timeout and receipt reconciliation (10222.201125ms). Later recovery adds
+no reads/admission. Evidence is `cpm-atomic-admission40/runtime02.log` and
+`cpm-atomic-admission41/runtime03.log`, with their exact-source JSON receipts.
+These measurements cover local shim/psql latency and tiny fixtures, not a
+representative network or maximum-byte resource budget. They do not qualify
+PostgREST/JWT, actual signer/R2, or SQL still executing when the client times
+out.
+
+HQ-066 retains replay39's harness failure before any RPC/media request: the
+child allowed too few environment names for the existing server-key resolver.
+The corrected child allows those names and clears inherited credential values;
+`cpm-runtime-env-repro02.log` reproduces the original permission denial. No
+runtime or budget changed. Earlier empty eval reproduction did not prove that
+denial; only the restricted run is counted. All disposable replay data is
+removed after testing; retained passing and failed evidence is preserved.
+
+The subsequent `--pending-commit` lane qualifies the admission transaction still
+uncommitted when the HTTP adapter times out. Fresh508 replay42 uses three
+distinct Session backends: after the actual admission SELECT, recovery starts on
+a separate connection; a third observes it blocked by the original admission
+before COMMIT. The original receipt matches and the complete existing FUNDING
+projection is unchanged after recovery. There is one admission, six media reads
+and68 RPCs, with12 complete fixture assertions; admission takes10800.612292ms.
+The lock wait is observed4.996249125 seconds after the handler begins the
+admission session. Evidence: `cpm-atomic-admission42/pending01.log` and its
+exact-source JSON receipt. No application or migration changes were required.
+This closes the local pending transaction/HTTP reconciliation case; it does not
+test a SQL function body running beyond its statement timeout. Local
+shim/resource/auth/storage exclusions above remain. Older statements that this
+pending-transaction case was unrun describe prior checkpoints. Engine confirmed
+the overlap evidence but found that an observer-close exception could skip
+admission-session cleanup. HQ-067 retains the reviewed source;
+`close_overlap_sessions` now guarantees that admission close is attempted
+through `finally`. Three failure/success/partial-setup tests pass in
+`cpm-pending-cleanup01.log`; Engine independently verified the correction.
+Replay42 retains its original successful-source evidence; the corrected helper
+has separate focused evidence. Serialized file writes do not make intermediate
+concurrent record mutations atomic; the final successful record follows request
+completion.
+
+The subsequent populated pending-CPM upgrade qualifies exact505→508 migrations
+with two committed pending cohorts: allocated/unstarted and accepted
+verification start. `cpm-pending-upgrade01/upgrade01.log` and
+`populated-upgrade01.json` under the same evidence root record12 fixture
+assertions and21 checks. All185 internal business-table images match (33
+populated); the separate grant inventory preserves every existing row and adds
+exactly four expected service signatures. That inventory check does not itself
+prove effective ACLs; the retained privilege catalog supplies that evidence. The
+accepted start stays held through the new service wrapper. The originally
+unstarted cohort can close its original writes and accept one fresh start; both
+then stay held, with exact immutable intent bytes, the first accepted intent,
+original30-minute intervals and absence of funding/execution preserved. Pinned
+local migration application takes0.381439125s; SQL checks1.923700127s. Engine's
+bounded review found no blocker. This covers these two pending states, not
+expired/concurrent/native migration or physical media. The original legacy
+upgrade evidence remains separate; all temporary upgrade data was disposed and
+evidence retained.
+
+The first natural30-minute expiry run (`cpm-live-expiry01`) failed in the
+harness: the existing immutable-start guard rejected an unstarted expired cohort
+with `22023`, while the test expected `55000` (HQ-068). Before that failure,
+both original1800-second intervals, database time past both expiries, the
+original current-check denial and accepted-start held response passed after
+1800.555517292s including setup. The final unchanged-row and no-funding checks
+did not run; this is not full elapsed-expiry qualification. All528 source hashes
+were checked after failure and managed disposal completed. Original failed
+evidence remains retained. The corrected `run-cpm-live-expiry02.py` expects the
+exact existing code and four-function rejection chain; independent source review
+found no blocker. It preserves the original interval and all remaining checks.
+Its fresh original-duration run (`cpm-live-expiry02`) now passes12 fixture
+assertions and14 recorded checks after1800.55337175s including setup. Both
+intervals remain1800s, database time is past both expiries, current is denied,
+accepted begin stays held and unstarted begin is rejected through the exact
+expected chain. The23-relation projection is unchanged; no funding, admission,
+invocation or transient context appears, and activation remains disabled. All528
+source hashes match. Managed test/disposal exit0 and independent final result
+review close HQ-068 within this harness scope. This does not qualify physical
+media, native journeys or broader concurrency. No runtime change or expiry
+relaxation is involved; failed run01 remains retained.
+
+Actual function-body timeout, deletion of a saved scan after result creation,
+terminal result recovery and native journeys remain unqualified. The local
+tiny-JPEG verifier/admission composition, pending-COMMIT HTTP overlap and both
+pre-row public scan-deletion orders are qualified only within their bounded
+evidence described above. Complete affected gates and coordinated batch review
+remain required before checkpoint commit.
+
+Eligibility linearizes when the private stage acquires and checks shared locks
+on rollout, profile, backend and every referenced write-policy row. Staging,
+funding and completion stay in that same transaction. A peer revocation waits
+until transaction end when staging wins; a peer conflicting lock causes NOWAIT
+refusal, and an already-revoked row causes eligibility refusal. Quota policy,
+provider binding and consent retain their additional existing funding locks.
+Trusted administrative eligibility changes must not be composed inside the
+admission transaction; a transaction can modify rows it already locked. This is
+not the concurrent revocation schedule. The independent Engine owner confirmed
+this boundary on November 2; it is not final candidate acceptance.
+
+The owned local
+[`initial_cpm_admission_policy_order.py`](../../services/supabase/scripts/initial_cpm_admission_policy_order.py)
+harness checks both orders for profile, backend and write policy with distinct
+admission/peer/observer sessions. It observes the peer blocker through complete
+admission, releases it by rolling back the admission transaction, and verifies
+full original-state restoration. With a conflicting peer update first, stage
+creation fails NOWAIT before funding. This is not committed-revocation or
+end-to-end completion/cancellation race qualification.
+
+The committed harness also validates the exact private retained receipt after
+policy revocation, repeated reads without re-verification or accounting changes,
+and wrong identity/API-role denial. The legacy public status/finalize paths
+still refuse the CPM operation without changing it; a coordinated public CPM
+recovery envelope remains unimplemented. These added retained-reader checks use
+the held-credit fixture. Earlier absent-credit admission/C1 evidence retains its
+narrow unchanged scope. Actual elapsed 30-minute expiry remains unrun.
+
+Time can advance despite those locks. The final nonmutating check retains the
+original CPM creation and expiry bounds after all deferred checks. The focused
+catalog verifies samples one millisecond before expiry, at expiry, after expiry
+and before original creation, with complete rollback restoration. Those samples
+use trusted transaction-local clock substitution and restore the exact function
+definition; they do not qualify actual elapsed expiry or throughput.
+
 The consuming implementation must establish these contracts together:
 
 - Verification binds the saved candidate/content/assignment, the complete
@@ -299,12 +749,14 @@ The consuming implementation must establish these contracts together:
   length/hash/type, structural policy and verifier build, and irreversible write
   closure. Signature plausibility and byte equality do not prove structural
   admissibility. An outstanding upload must not replace verified bytes.
-- Supporting text retains the existing `text_utf8_base64` representation through
+- The schema-2 submission guard compares exact encoded contexts against the
+  original CPM content; schema 1 retains its original string and size checks.
+  Supporting text retains the existing `text_utf8_base64` representation through
   admission and completion. Decode only at prompt/native consumption; preserve
   empty entries, BOM, NUL and normalization distinctions. The old JSONB
-  description-string path cannot store decoded NUL. Description evidence and its
-  History reader therefore need an explicit versioned CPM branch, without
-  reinterpreting accepted legacy descriptions.
+  description-string path cannot store decoded NUL. The History reader must
+  consume the corresponding versioned CPM representation without reinterpreting
+  accepted legacy descriptions.
 - Fresh verification/admission obey the original nonrenewable admission window.
   Exact recovery of already committed receipts remains possible afterward.
   Admitted operations, results awaiting settlement and retained completed
@@ -359,15 +811,17 @@ that first increment:
 
 - `initial_admission_statement_contract`, `initial_admission_member_images`,
   `materialize_initial_admission` and their immediate/deferred guards currently
-  enumerate exact M1 rows and binding v3. CPM needs a closed variant with exact
-  expected before/after images and complete witness consumption; adding an
-  unregistered side write is not atomic admission.
-- CPM capacity currently has only `pending`/`released`, and cohort validation
-  describes unfunded preparation or terminal retirement. An admitted owner must
-  retain the original physical-byte liability and satisfy deferred cohort
-  checks; neither deleting registry rows nor relabeling capacity as released is
-  a retained-media transfer. Existing role-map/write-attempt foreign keys and
-  retirement triggers remain part of that transition and its cancellation path.
+  enumerate exact M1 rows and binding v3 for legacy operations. The unfinished
+  CPM branch now enumerates the capacity UPDATE and binding v4, with exact
+  expected before/after images. Complete consuming-path qualification remains
+  required; adding an unregistered side write is not atomic admission.
+- CPM capacity now includes the guarded admitted transition above. Full
+  admission remains closed by legacy stage/receipt storage constraints while C1
+  integration is unfinished. An admitted owner must retain the original
+  physical-byte liability and satisfy deferred cohort checks; neither deleting
+  registry rows nor relabeling capacity as released is a retained-media
+  transfer. Existing role-map/write-attempt foreign keys and retirement triggers
+  remain part of that transition and its cancellation path.
 - Preserve outer owner/advisory/scan/history/lifecycle ordering, then CPM's
   fail-fast capacity lock before registry/attempt locks. A row trigger must not
   acquire the outer owner scope after those inner locks. Both race orders need

@@ -1535,6 +1535,7 @@ SELECT extensions.is((SELECT array_agg(n.nspname||'.'||c.relname ORDER BY n.nspn
  'internal.initial_analysis_preparation_intents',
  'internal.initial_analysis_results',
  'internal.initial_analysis_submissions',
+ 'internal.initial_cpm_photo_capacity_reservations',
  'internal.initial_cpm_photo_role_mapping',
  'internal.initial_media_copy_progress',
  'internal.initial_media_handoff_staging',
@@ -1560,7 +1561,7 @@ SELECT extensions.is((SELECT array_agg(n.nspname||'.'||c.relname ORDER BY n.nspn
  'public.scan_ingestion_jobs',
  'public.scans',
  'public.users']::TEXT[],
- 'seal inventory exactly covers original roots, CPM role mappings, four durable and two transient handoff relations');
+ 'seal inventory exactly covers original roots, CPM capacity/role mappings, four durable and two transient handoff relations');
 SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='a00_initial_admission_seal'
  AND (tgtype<>62 OR tgenabled<>'O')),'all seal guards are BEFORE STATEMENT INSERT UPDATE DELETE TRUNCATE');
 CREATE TEMP TABLE seal_matrix_results AS SELECT e FROM jsonb_array_elements(pg_temp.seal_matrix()) e;

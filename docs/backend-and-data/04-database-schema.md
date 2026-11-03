@@ -1,3 +1,17 @@
+## November 2 — dormant CPM admission service boundary
+
+The new service-only read/begin/admit wrappers reuse existing private
+preparation, verification-start, admission, original funding and
+retained-capacity owners. They add no entity or client table grant. The
+additional service-only current-verification assertion reuses the same saved
+start and cohort owners; it writes no state and returns no renewed start or
+lease. The
+[API contract](05-api-contracts.md#dormant-service-only-cpm-admission-bridge--november-2)
+owns their exact inputs, closed observations and recovery restrictions; the
+[CPM contract](../rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+records transaction, retention and qualification evidence. Legacy routes remain
+unchanged and no serving route or feature activation is installed.
+
 > October 31 qualification update: the
 > [current simulator qualification](16-scan-ingestion-reliability-and-recovery.md#october-31--simulator-qualification-after-component-repair)
 > now includes both populated V67→V68 migration plans and startup recovery on

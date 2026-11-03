@@ -1,3 +1,100 @@
+## Local CPM admission bridge qualification
+
+`initial_cpm_admission_bridge_races.py` uses the existing atomic-admission
+qualification/session owners and requires a fresh owned disposable replay for
+each `--peer recovery|admission|cancellation|account-erasure|scan-deletion` and
+`--first admission|peer` pair. Supply `--container`, `--evidence-directory` and
+`--replay-manifest` from the managed local replay. It verifies migration/source
+identity,132 unskipped fixture assertions with fresh service-role begin, three
+distinct sessions, an observed lock wait, committed order and original funding
+invariants. It retains metadata-only receipts and disables the synthetic fixture
+gate before exit. Dispose the owned replay after each run, including failures;
+never point this runner at hosted data or reuse a populated replay.
+
+The `scan-deletion` peer calls the real service-only
+`request_scan_deletion(scan, owner)` in both commit orders. Before a scan row
+exists, that API deliberately returns `not_found` without a tombstone; C1 owns
+pending cancellation. This lane verifies observed serialization, exact no-op
+images, one original admitted receipt/lifecycle/capacity, reserved zero-refund
+funding and absence of result/completion/execution. It does not manufacture a
+scan or directly insert a tombstone to claim positive public deletion.
+
+`initial_cpm_admission_bridge_contract.py` accepts the same required container,
+evidence-directory and replay-manifest arguments and requires its own fresh
+replay. It reuses the fixture/session and cancellation owners to test exact
+saved identity and role denial before/after admission, atomic rollback,
+committed policy revocation with unchanged retained receipt/funding, C1 and
+cancellation fences. Its current local receipt reports132 fixture assertions
+and69 checks. Add `--current-verification` on a fresh replay to include exact
+current-start acknowledgements, role/identity denials, eligibility revocation,
+unchanged row images and denial after admission. The extended lane has85 checks.
+The independent `--partial-recovery` lane injects two missing-row images after
+admission: missing admission or missing retained receipt. Only its disposable
+transaction disables user triggers for the deletion, then reenables them before
+service-role read/begin/admit. Each call must reject55000 from the actual bridge
+reader; transaction rollback must restore the23-relation projection and original
+funding image. Its separate fresh508 run passes132 fixture assertions and89
+checks. These privileged fault fixtures are not evidence that normal writes can
+produce partial states. Contradictory persisted values, other partial images and
+HTTP timeout behavior remain outside this lane; do not weaken production guards
+or run these faults against hosted data.
+
+Use the separate `--contradictory-recovery` lane on a fresh replay for three
+schema-valid contradictions: capacity returned to pending, retained-byte count
+changed by one, or saved verification snapshot digest changed. Each is injected
+in a disposable rollback-bound transaction with user guards restored before the
+service call. All nine read/begin/admit denials must reach both the bridge
+reader and retained-cohort validator; projection/funding images must remain
+exact after rollback. Its fresh508 receipt records132 fixture assertions and98
+checks. No live storage mutation or naturally reachable corruption is implied.
+
+`initial_cpm_runtime_contract.py` accepts the same three managed replay
+arguments and also requires a fresh owned local database. Its child
+`initial_cpm_runtime_probe.ts` runs the actual verifier/adapters with two photos
+(six tiny synthetic JPEG roles). The loopback-only HTTP shim invokes allowlisted
+service SQL and serves the exact declared bytes. Normal mode checks admission
+and recovery; `--lost-ack` withholds the HTTP response for six seconds **after
+SQL commit**, exceeding the unchanged five-second adapter budget. It verifies
+one original quota/receipt, no invocation, six reads and one admission. It does
+not qualify PostgREST authentication, actual signing/R2, SQL still running at
+timeout, maximum-byte memory/cancellation or representative network latency.
+Synthetic identities/replies remain in memory; retained output is counts, hashes
+and timing. The child clears inherited credential values and allows only the
+existing credential resolver's environment names. Never expose the shim beyond
+loopback.
+
+The mutually exclusive `--pending-commit` mode keeps the actual admission
+transaction open after its SELECT until the client's timed-out HTTP call starts
+recovery. Three existing Session connections observe recovery blocked by that
+admission with `pg_blocking_pids` before COMMIT. The recovered receipt must
+match exactly, and the existing FUNDING row image must remain unchanged.
+Evidence-file writes are serialized; concurrent record mutations are not atomic
+intermediate snapshots. Database work remains concurrent; the final successful
+record is collected after request completion. Run
+`PYTHONDONTWRITEBYTECODE=1 python3 services/supabase/scripts/test_initial_cpm_runtime_cleanup.py`
+from repository root to check that admission cleanup is attempted even if
+observer cleanup throws. This qualifies an uncommitted transaction across
+timeout, not a function body running beyond its SQL timeout.
+
+The earlier bridge-race runner tests database serialization; the runtime runner
+adds the specifically described local HTTP cases. `cpmPhotoAdmissionDb_test.ts`
+owns injected transport checks; `initialCpmAdmissionBridgeMigration.test.ts`
+checks executable response parity and restricted surface. Full aggregate CI and
+app integration coverage are separately required. The
+[API contract](../../docs/backend-and-data/05-api-contracts.md#dormant-service-only-cpm-admission-bridge--november-2)
+owns wire semantics; the
+[CPM contract](../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+records applicable evidence and remaining acceptance gaps. No activation or
+external operation is authorized by these tests.
+
+The
+[CPM contract](../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+now records a populated505→508 upgrade with both allocated/unstarted and
+accepted verification-start cohorts. Its retained local upgrade receipt proves
+exact row preservation and one-time start behavior; it complements the legacy
+admission upgrade and separate effective-privilege catalog. It does not qualify
+native migration, expired cohorts or concurrent upgrade traffic.
+
 ## Current native CPM binding — October 30
 
 The inactive native v3 composition now reserves and durably saves backend
@@ -454,11 +551,16 @@ fixture on the exact candidate SHA. That validation-only run has no production
 access or mutation. The separate production job requires it before `db push`.
 
 Production migration pushes use `scripts/plan_database_migration_push.ts` to
-reject unknown history gaps. Its one digest-pinned exception recovers the
-missing `20260927220537_hide_reported_explore_posts.sql` after remote tip
-`20260927230801_account_identification_invocations.sql`. The separate
-`scripts/test_migration_recovery_replay.sh` exercises that delayed order on a
-private disposable database before the ordinary candidate replay. Follow the
+reject unknown history gaps. Its digest-pinned exceptions recover the missing
+`20260927220537_hide_reported_explore_posts.sql` after remote tip
+`20260927230801_account_identification_invocations.sql`, and the eight history
+migrations from `20261002213257` through `20261003063309` after the deployed
+Gemini tip `20261003063950`. Interrupted recovery accepts only an ordered
+applied prefix with the remaining reviewed suffix missing, and every candidate
+SQL digest must remain intact. Failure logs expose closed reason codes without
+driver errors or credentials. The separate
+`scripts/test_migration_recovery_replay.sh` exercises both delayed orders on
+private disposable databases before the ordinary candidate replay. Follow the
 [reviewed recovery contract](../../docs/backend-and-data/06-supabase-deployment-runbook.md#reviewed-out-of-order-migration-recovery);
 this is not a general authorization to use `--include-all` or repair history.
 

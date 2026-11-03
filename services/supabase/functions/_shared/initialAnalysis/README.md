@@ -11,9 +11,11 @@ bounded HEVC still-item inspectors, one reusable bounded buffer and
 complete-cohort lifecycle checks. It feeds the coordinator directly; it is not a
 standalone codec or client proof. Remaining HEIF nested-grid/non-alpha
 auxiliary/sequence/codec forms, camera/import corpus coverage beyond four local
-ImageIO fixtures, PNG/WebP animation policy, installed policy, the atomic
-admission bridge and route composition remain absent. This increment is
-uninstalled and does not qualify physical resource limits or funding.
+ImageIO fixtures, PNG/WebP animation policy, installed policy and serving route
+composition remain unqualified or absent. The dormant database bridge described
+below now implements atomic admission without activating this composition. This
+increment is uninstalled and does not qualify physical resource limits or
+funding.
 
 The same verifier owner now provides `cpmPhotoVerificationCatalog` for trusted
 bootstrap composition. It snapshots at most sixteen supplied entries before any
@@ -35,6 +37,50 @@ readers/constraints; the
 [CPM contract](../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
 owns the exact representation and coordinated persistence requirements.
 
+`cpmPhotoAdmissionDb.ts` supplies fixed service-role recovery, begin and atomic
+admission calls for the verifier composition. Its closed observation schema is
+`cpm-admission-bridge-response-schema-v1.json`; uncertain reads reject rather
+than reporting absence. Exact committed recovery does not repeat verification or
+funding. The corresponding service-only migration preserves original accounting
+owners and legacy routes. No serving route imports this adapter. Seven injected
+transport tests cover lost replies, held recovery, deadline/body bounds and
+immutable requests. The maintained local bridge runner adds ten committed RPC
+ordering schedules with fresh service begin and original funding checks. Earlier
+replay covers rollback and role denials. The canonical CPM contract above
+records exact evidence and remaining integration/review gaps. The two public
+scan-deletion orders exercise the real pre-row `not_found` response and prove
+that it changes no admission or funding state; they do not qualify deletion of a
+saved scan after a result exists.
+
+The maintained `initial_cpm_admission_bridge_contract.py` additionally checks
+exact identity denials, committed policy revocation with original
+receipt/funding recovery, rollback and post-C1 denial through actual
+service-role calls. A further adapter case covers two photos,64 contexts and the
+full32000-unit text aggregate, with excess rejected before transport. The
+canonical CPM contract above owns the exact evidence and failure/correction
+history. Missing-row and contradictory-state recovery now reject through the
+actual reader with rollback preserving the original cohort and funding. Local
+verifier/database composition and HTTP recovery overlapping pending COMMIT are
+qualified within the loopback harness described below. SQL function execution
+continuing beyond its timeout and installed integration remain unqualified.
+
+`createCpmPhotoAdmissionDb` now also provides the verifier's `requireCurrent`
+callback. The service-only current-start assertion validates the exact original
+attempt/snapshot and complete cohort against current eligibility, ownership and
+original expiry. Its acknowledgement grants no lease or restart authority.
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#dormant-current-verification-observation--november-2)
+owns the wire boundary. `createCpmPhotoAdmissionRuntime` now joins this adapter,
+the immutable verification catalog, existing per-object closure database checks
+and actual byte/structure verifier. It compares each loaded binding and target
+before the original current-input check, then retains the verifier's checks
+around signing/reading and final atomic admission. Trusted bootstrap supplies
+profiles and signer/storage transport; no route, profile or signer is installed.
+Injected-transport composition is tested. The local runner now also checks tiny
+physical JPEGs against actual service SQL through a loopback HTTP shim; the
+canonical CPM contract records its exact outcome and timing. PostgREST/JWT, real
+signer/storage, representative resource/latency and native integration remain
+unqualified.
+
 ## Dormant authenticated transfer composition
 
 The source-only
@@ -46,6 +92,34 @@ and no serving entrypoint, profile or native caller is installed. The
 owns its boundaries; the scan guide records local aggregate qualification and
 remaining native/provider exclusions. Earlier private-only checkpoint statements
 below retain their historical scope.
+
+The coordinated SQL admission batch is under construction. Its private stage
+constructor now compares complete verification with the original locked cohort
+and captures retained ownership. Its finite member projection and write
+witnesses now describe the retained-capacity UPDATE without allocating M1
+copies. Closed variant storage now permits private atomic persistence using the
+original accounting witnesses; local synthetic admission has committed through
+the complete deferred checks. Admitted capacity preserves retained-byte
+liability and blocks generic settlement even after private receipt erasure. The
+cohort assertion compares original saved roles, attempts, closures and capacity;
+private retained-receipt parsing branches without renewing verification. Neither
+provides fresh execution authority. C1 now captures permanent
+capacity/attempt/closure images separately from private erasure and verifies the
+proven-empty CPM destination through the existing retirement and terminal-image
+owners. Committed local public cancellation now passes after correcting a legacy
+retirement-witness shape constraint, including exact replay without a second
+refund and permanent-media preservation. Focused cutoff and peer eligibility
+ordering checks pass locally. Private retained reads preserve exact accepted
+bytes after policy revocation; the legacy public recovery paths still fail
+closed for CPM. A populated upgrade preserves a committed legacy admission, held
+funding and a separate pending preparation, with exact internal row hashes;
+legacy recovery and public cancellation/replay pass afterward. Held-credit CPM
+account erasure also passes rollback/commit with unchanged original accounting
+across the privacy fence and exact ownerless retained-media liability. It uses
+the existing non-settling account path; explicit C1 alone owns positive-unused
+settlement. Actual elapsed expiry, pending CPM upgrade, remaining concurrent
+orders and app integration remain unqualified. The canonical CPM contract above
+owns its exact scope and validation limits; no bridge or route is installed.
 
 ## Inactive bound CPM recovery
 
