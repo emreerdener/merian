@@ -492,3 +492,58 @@ signatures, projection field allowlist, witness creation/consumption/erasure and
 pruning behavior, plus the complete effective routine/trigger/FK lock delta.
 These must describe this consuming chain together. This document does not mark
 that packet complete, implement a writer or grant authority.
+
+### November 3 consuming-contract review refinements
+
+The subsequent bounded Engine review accepted these design directions, not the
+unfinished consuming packet or any barrier change:
+
+- **Original dispatch association:** use a narrow private association from the
+  existing invocation to the original immutable admission receipt instead of a
+  second durable dispatch-binding table. Retain original invocation facts while
+  live result/settlement authority needs them. Five-minute unknown usage
+  reconciliation remains unchanged; successful result capture is not a
+  prerequisite for refusal, invalid-output or unknown accounting. The current
+  usage-event insertion has no user/scan FK or INSERT-trigger outer-lock
+  dependency. Any new association FK or immutable-field guard must preserve that
+  property. Erasure must not turn a null association into ordinary-operation
+  classification for pruning; the exact erasure mechanism remains to review.
+- **Immutable completion projection:** the existing completion row is the owner
+  for a proposed bounded `completion_projection_snapshot`, separate from the 16
+  KiB receipt. Input/result/admission alone cannot reconstruct original
+  completion time, species/privacy association or terminal credit/entitlement
+  outcome after mutable rows change. The proposed projection ceiling is 64 KiB,
+  subject to exact schema and resource qualification. SQL derives and stores it
+  atomically with the receipt/scan/description/settlement writes. Historical
+  entitlement in that projection is response-loss evidence, never current
+  spending authority. Replay cannot depend on a surviving mutable species row or
+  rewrite later user selection/review state.
+- **First-completion digest:** IC-1's logical `expected_completion_digest` is
+  nullable. A first completion requires null; SQL derives the actual projection
+  digest under locks after resolving original settlement. A non-null digest is
+  an optional equality assertion against an already stored completion, never
+  permission to create caller-chosen projection evidence. On replay, null skips
+  only that assertion: original submission/result/configuration/funding/media
+  identities and stored receipt/projection still must validate. Concurrent first
+  calls converge on one stored completion without repeated settlement.
+- **Private result numbers:** the parsed Identify result has fixed object keys;
+  cached species language maps and later `species_id` are not fields to add to
+  it. A closed private encoding may convert schema-declared fractional numbers
+  to decimal strings using existing canonical primitives, preserving optional
+  omission, null, text and array order. Public numeric DTOs remain unchanged.
+  The fixed trusted Deno writer and every recovery decoder enforce finite IEEE
+  round-trip validity; SQL enforces closed syntax/range and canonical digest.
+  This is a deliberate division of validation responsibility, not identical
+  SQL/Deno numeric semantics. No alternate writer or digest alone may bypass the
+  Deno check. Digest domain prefixes end in exactly one LF byte (`0x0a`), never
+  literal backslash-plus-`n`; shared vectors must specify those bytes.
+
+Exact media/projection schemas, original usage retention with result evidence,
+transaction witness phases/images, erasure/pruning classification and the
+effective lock matrix remain required before consuming implementation. In
+particular, current CPM photo content v1 carries photos and ordered contexts,
+not capture telemetry or an explicit privacy choice. Completion must not read
+unstored request metadata or reconstruct it from current device/EXIF data.
+Historical variants retain their exact original metadata contracts; any richer
+fresh CPM metadata needs an explicit versioned contract. These refinements do
+not qualify native delivery, all-media functional journeys or external use.
