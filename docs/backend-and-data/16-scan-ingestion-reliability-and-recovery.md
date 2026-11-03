@@ -83,7 +83,7 @@ The private `initial_analysis_results` and `initial_analysis_completions`
 containers exist, but the agreed dispatch authorization, validated result
 capture, atomic completion and exact completion/status recovery operations are
 not implemented. The next consuming implementation must complete the
-[coordinated S0 contract](../rfcs/initial-dispatch-fence-interface-2026-10-13.md#scope-and-dependency-order),
+[coordinated S0 contract](../rfcs/initial-dispatch-fence-interface-2026-10-13.md#november-3--consuming-s0-integration-after-dormant-cpm-admission),
 then its minimal reviewed native delivery projection and one atomic
 receiving-to-retained-result transition. Reuse original admission, media,
 funding, cancellation and native ownership services; preserve later selections
@@ -93,6 +93,16 @@ Engine's source review and identity trace are retained as
 `native-initial-result-identity-trace-20261102.md` under the same artifact root.
 This dependency is larger than a fetch adapter; it does not authorize another
 general engine, partial dispatch activation, hosted operation or deployment.
+
+The November 3 local checkpoint `6613e0dc8` completes the dormant CPM photo
+atomic-admission bridge and local verifier composition, with original funding,
+deadline, C1 and exact receipt recovery. The bounded missing/contradictory-state
+and pre-row deletion-order cases are qualified; pre-row public deletion remains
+a `not_found` no-op. Validation is composed from applicable full and affected
+checks, retaining original failures and explicit skips. This advances admission,
+not the absent result/completion chain above. The S0 addendum identifies the
+concrete v3-to-v4 consuming-lock extension and existing accounting/result owners
+for the next integration; no route, profile or execution authority is activated.
 
 ## November 2 — inactive native visible-checking integration candidate
 
