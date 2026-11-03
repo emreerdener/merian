@@ -547,3 +547,77 @@ unstored request metadata or reconstruct it from current device/EXIF data.
 Historical variants retain their exact original metadata contracts; any richer
 fresh CPM metadata needs an explicit versioned contract. These refinements do
 not qualify native delivery, all-media functional journeys or external use.
+
+### November 3 terminal media and consuming implementation boundary
+
+A further bounded Engine review accepts beginning the integrated private chain
+and adapters behind the existing denials. This supersedes the preceding
+pre-implementation hold for the reviewed design framework; it does not accept an
+executable writer, callable grant or functional journey. The actual statement
+catalog, taxonomic projection and qualification evidence remain implementation
+gates before their corresponding guards recognize authority.
+
+For CPM photo v4, adopt the existing immutable source/AI/display objects in
+place, preserving their original IDs and pinned backend generation. Reuse
+`initial_preparation_transfer_receipts` with an explicit disjoint adoption
+variant, its own validator and variant-aware guards. Its current legacy CHECK
+and every “transfer exists” branch must be reconciled: adoption is not legacy
+copy completion or permission to retire the source. Keep the pre-terminal CPM
+cohort reader strict; it currently rejects a transfer receipt, so post-adoption
+completion/replay needs its own original-authority predicate. No extra physical
+copy, second object registry or independent adoption grant is justified.
+
+Adoption keeps the original capacity charged. Generic preparation expiry,
+retirement and private-root deletion must reject a live adoption. Authorized
+scan/account erasure retires every adopted role before cascading away its proof,
+preserving content-free permanent object fences and the existing safe
+capacity-release conditions. Neither an expired token nor erased proof permits
+rebinding an old physical key. A closed adoption receipt binds original
+admission/result/verification/role identities, pinned backend, fresh verified
+byte hashes and types, and compatible retention policy/build. Hosted retention
+and alternate-writer qualification remain separately authorized acceptance work.
+
+Delivery reuses `resolve-history-photo` through an explicit completion-backed
+adopted-display variant and the bounded private-ticket transport. Only display
+members are addressable; source/AI members do not become public media. Existing
+photo profiles cannot silently reinterpret the broader CPM image-type set. Never
+store an expiring signed ticket in `captured_media`, whose existing contract
+expects stable credential-free URLs. The native initial snapshot and
+result/library/history hydration must consume the protected display reference;
+an invisible initial photo does not satisfy functional completion.
+
+The smallest durable invocation extension has two distinct facts: the nullable
+original admission-receipt association for live authority, and immutable
+`is_initial_analysis`, set at invocation creation and retained through
+anonymization. No receipt FK or receipt-locking lookup is added to the row-first
+usage path. Ordinary writers cannot set or clear the classification. Five-minute
+unknown accounting remains unchanged; pruning preserves live initial authority.
+An anonymized initial invocation becomes eligible for ordinary accounting
+retention only through the authorized erasure transition, whose exact cleared
+fields and guards must be specified before pruning implementation. A missing
+association alone is never sufficient.
+
+Fresh dispatch validates the pending live cohort; later result/completion
+predicates validate the original committed invocation and retained proof instead
+of demanding charge links removed by quota commit or a credit hold already
+settled. The live admission receipt reconstructs original charge links and
+deltas, not historical shared counter totals. Unrelated legitimate consumption
+must remain possible. Late valid original results may survive lease expiry or
+unknown accounting, without another inference, event rewrite or charge.
+
+The consuming witness is a private current-transaction, operation-specific
+ledger of exact before/after images, ordered statements and cardinalities.
+Dispatch, usage, result and completion have distinct allowed writes. Generate
+its actual catalog from effective writers and their trigger/FK side effects;
+review it before any guard recognizes the witness. Deferred checks require
+sealed consumption and no leftover stage at commit; errors roll back the whole
+operation. Existing original quota, usage and credit owners remain responsible
+for their transitions. The new result snapshot retains bounded original usage
+facts even when reporting failed. SQL derives the immutable completion
+projection and never accepts arbitrary scan JSON.
+
+Implementation still requires direct-writer denials, rollback and both-order
+account/C1/deletion/retirement schedules, exact numeric/canonical vectors,
+resource measurements and independent fix verification. This review does not
+require replaying unchanged admission suites and does not relax rollout,
+provider, native, release or external authorization holds.
