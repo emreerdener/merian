@@ -58,7 +58,7 @@ jobs:
             --config services/supabase/functions/deno.json \
             --allow-net="$database_network_scope" \
             --allow-env="MERIAN_DATABASE_URL,MERIAN_DATABASE_PASSWORD,PG*" \
-            --allow-read=services/supabase/migrations \
+            --allow-read=services/supabase/migrations,services/supabase/scripts/certificates \
             --allow-write="$report_directory" \
             services/supabase/scripts/inspect_migration_versions.ts \
             "$COMPARISON_SHA" "$report_directory"

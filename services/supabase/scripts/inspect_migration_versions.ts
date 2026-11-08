@@ -117,6 +117,12 @@ export function inspectionConnection(value: string, existingPassword = "") {
   };
 }
 
+// Public Supabase trust anchor; provenance/fingerprint live in the runbook.
+// Node TLS retains its normal hostname check; never override checkServerIdentity.
+export function inspectionTls(ca: string) {
+  return { ca, rejectUnauthorized: true };
+}
+
 export function validatedVersions(values: unknown[]): string[] {
   if (
     values.length > VERSION_LIMIT ||
@@ -193,10 +199,13 @@ async function main() {
   phase = "local_inventory";
   const local = await localMigrationVersions();
   migrationVersionReport(local, [], comparisonSha);
+  const ca = await Deno.readTextFile(
+    new URL("./certificates/supabase-prod-ca-2021.crt", import.meta.url),
+  );
   phase = "metadata_read";
   const sql = postgres({
     ...connection,
-    ssl: "verify-full",
+    ssl: inspectionTls(ca),
     max: 1,
     prepare: false,
     debug: false,

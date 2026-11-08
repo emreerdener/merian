@@ -34,9 +34,29 @@ resolving DNS. It requires certificate-verified TLS, one connection and a
 read-only transaction with statement/lock/idle limits. A wrong target, missing
 existing credential, inaccessible migration table, invalid version or truncated
 inventory fails closed with a fixed phase and allowlisted failure category.
-Messages, unknown error codes and connection details remain suppressed. Do not
-disable TLS verification to make an inspection succeed; correct the connection
-configuration through the normal credential controls.
+Messages, unknown error codes and connection details remain suppressed.
+
+The inspector explicitly trusts the public Supabase Root 2021 CA in
+`services/supabase/scripts/certificates/supabase-prod-ca-2021.crt`, retaining
+`rejectUnauthorized: true` and the driver's normal hostname verification.
+Supabase's
+[dashboard certificate link definition](https://github.com/supabase/supabase/blob/master/apps/studio/hooks/custom-content/custom-content.json)
+resolves to the
+[production certificate](https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt).
+The PEM SHA-256 is
+`700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7`; the
+certificate SHA-256 fingerprint is
+`807025AD50D4ED219D2C9C7D299C004F824EB00CF7F65AFEF607D07B72E6CAFA`. This public
+trust anchor expires April 26, 2031; it is not a credential and is not fetched
+dynamically during inspection. Review certificate rotations against the official
+source and rerun the local TLS regression before updating the pin. That
+regression generates disposable certificates and proves trusted hostname success
+plus untrusted-CA and wrong-hostname rejection using the inspector’s TLS options
+directly in the pinned Deno runtime, without hosted access. The Postgres driver
+integration is separately source-reviewed; the regression does not establish a
+complete Postgres connection or hosted success. Do not disable TLS verification
+to make an inspection succeed; correct the connection configuration through the
+normal credential controls.
 
 After separately authorized publication and dispatch, its job summary and 14-day
 artifact contain only the project, comparison SHA, timestamp, version
