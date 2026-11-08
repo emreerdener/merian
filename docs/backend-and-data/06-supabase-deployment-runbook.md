@@ -17,6 +17,45 @@ identity. Local `supabase login` is useful for emergency maintenance, but
 production deploys should be repeatable from CI with explicit secrets and
 validation.
 
+## Manual read-only migration inspection
+
+The separate
+[`Supabase Migration Inspection (Read Only)` workflow](../../.github/workflows/supabase-migration-inspection.yml)
+reads only `version` from `supabase_migrations.schema_migrations` in project
+`qlarqavoqhkuwzmevrmf`. It uses the existing **Production** environment secrets:
+`SUPABASE_DB_URL`, or `SUPABASE_DB_PASSWORD` with `SUPABASE_DB_POOLER_HOST` and
+optional pooler-port/database variables. No local database password or new
+secret is required. It does not invoke the Supabase CLI or create a temporary
+login role.
+
+This manual workflow runs only from `main`, checks out the dispatched SHA, and
+validates the fixed project, database, user, port and URL options before
+resolving DNS. It requires certificate-verified TLS, one connection and a
+read-only transaction with statement/lock/idle limits. A wrong target, missing
+existing credential, inaccessible migration table, invalid version or truncated
+inventory fails closed with a generic message. Do not disable TLS verification
+to make an inspection succeed; correct the connection configuration through the
+normal credential controls.
+
+After separately authorized publication and dispatch, its job summary and 14-day
+artifact contain only the project, comparison SHA, timestamp, version
+lists/counts and differences. Five-digit legacy versions are preserved. A green
+inspection means metadata was read successfully; differences remain visible and
+do not authorize migration repair, deployment, feature activation or
+account-data reads. The comparison uses the workflow's checked-out main commit.
+To assess an unpublished candidate, compare its version inventory separately
+against the sanitized remote list. Version presence does not prove SQL contents
+or deployed function compatibility.
+
+The standalone inspection publication includes the active
+`identification_history_integration_hold` in
+`services/supabase/release-holds.json`. It blocks the full Supabase production
+mutation job while permitting this read-only inspection. Keep that hold active;
+removing it requires separate backend release authorization. Do not dispatch the
+existing deployment workflow to obtain this report: it has no read-only
+inspection mode. Inspection approval does not authorize merging or deploying the
+broader History/PR116 candidate.
+
 ## Observation analysis history activation hold
 
 Function source/configuration is not excluded from the normal main-branch deploy

@@ -69,6 +69,35 @@
           "required_workflows": []
         }
       ]
+    },
+    {
+      "id": "identification_history_integration_hold",
+      "active": true,
+      "scope": "supabase_production",
+      "owner": "History release owner",
+      "reason": "The History integration remains held. The owner authorized publishing and running only the read-only migration-inspection workflow for qlarqavoqhkuwzmevrmf on 2026-11-08, expressly without deploying other changes. Hold the entire Supabase production mutation job, including unrelated backend releases. This inspection publication does not authorize any database, function, secret, runtime-flag or device changes. See the Manual read-only migration inspection section in docs/backend-and-data/06-supabase-deployment-runbook.md.",
+      "exit_criteria": [
+        {
+          "id": "history_exact_target_release_approval",
+          "description": "Explicit separate authorization names the exact source SHA, target and backend release operation. Neither source integration, successful validation nor disabled activation constitutes release approval.",
+          "evidence_type": "external_approval_record",
+          "required_workflows": []
+        },
+        {
+          "id": "history_full_undeployed_plan",
+          "description": "Review the complete undeployed migration, function and secret plan against the actual deployed baseline and target ledger, including compatibility, rollback or forward repair, and required release qualification.",
+          "evidence_type": "release_control_audit",
+          "required_workflows": [
+            ".github/workflows/supabase-candidate-validation.yml"
+          ]
+        },
+        {
+          "id": "history_live_controls_and_jobs",
+          "description": "Verify exact candidate controls, running and queued release jobs, external deployment integrations and all applicable holds. Hold removal must be reviewed as a production deployment decision; activation remains separately controlled.",
+          "evidence_type": "release_control_audit",
+          "required_workflows": []
+        }
+      ]
     }
   ]
 }
