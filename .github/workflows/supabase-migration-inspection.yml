@@ -45,19 +45,19 @@ jobs:
           database_url="$(bash scripts/supabase-db-url.sh --require)"
           trap 'unset database_url database_network_scope' EXIT
           # Reject a wrong target/options before DNS or any database connection.
-          MERIAN_DATABASE_URL="$database_url" deno run --frozen --no-prompt \
+          MERIAN_DATABASE_URL="$database_url" MERIAN_DATABASE_PASSWORD="$SUPABASE_DB_PASSWORD" deno run --frozen --no-prompt \
             --config services/supabase/functions/deno.json \
-            --deny-net --allow-env=MERIAN_DATABASE_URL \
+            --deny-net --allow-env=MERIAN_DATABASE_URL,MERIAN_DATABASE_PASSWORD \
             services/supabase/scripts/inspect_migration_versions.ts --validate-target
           database_network_scope="$(
             MERIAN_DATABASE_URL="$database_url" \
               bash services/supabase/scripts/deno_postgres_net_scope.sh
           )"
           report_directory="${RUNNER_TEMP}/migration-inspection"
-          MERIAN_DATABASE_URL="$database_url" deno run --frozen --no-prompt \
+          MERIAN_DATABASE_URL="$database_url" MERIAN_DATABASE_PASSWORD="$SUPABASE_DB_PASSWORD" deno run --frozen --no-prompt \
             --config services/supabase/functions/deno.json \
             --allow-net="$database_network_scope" \
-            --allow-env="MERIAN_DATABASE_URL,PG*" \
+            --allow-env="MERIAN_DATABASE_URL,MERIAN_DATABASE_PASSWORD,PG*" \
             --allow-read=services/supabase/migrations \
             --allow-write="$report_directory" \
             services/supabase/scripts/inspect_migration_versions.ts \
@@ -67,7 +67,7 @@ jobs:
       - name: Retain sanitized version report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: supabase-migration-versions-${{ github.sha }}
+          name: supabase-migration-versions-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/migration-inspection/migration-versions.*
           if-no-files-found: error
           retention-days: 14

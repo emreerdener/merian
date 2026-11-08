@@ -8,23 +8,105 @@ const VERSION = /^(\d{5}|\d{14})$/;
 export const INSPECTION_FAILURE =
   "Migration inspection failed; verify Production connection configuration and metadata access. No migration was applied.";
 
-export function inspectionConnection(value: string) {
-  const url = new URL(value);
-  const user = decodeURIComponent(url.username);
-  const password = decodeURIComponent(url.password);
+type InspectionPhase =
+  | "target_validation"
+  | "local_inventory"
+  | "metadata_read"
+  | "report_write";
+let phase: InspectionPhase = "target_validation";
+const CONFIG_FAILURES = new Set([
+  "invalid_connection_url",
+  "target_mismatch",
+  "unsupported_connection_options",
+  "missing_existing_password",
+]);
+
+class ConnectionConfigurationError extends Error {
+  constructor(readonly reason: string) {
+    super(INSPECTION_FAILURE);
+  }
+}
+
+export function inspectionFailureMessage(
+  error: unknown,
+  failedPhase: InspectionPhase,
+): string {
+  let reason = "unclassified_failure";
+  if (
+    error instanceof ConnectionConfigurationError &&
+    CONFIG_FAILURES.has(error.reason)
+  ) {
+    reason = error.reason;
+  } else if (error instanceof Error) {
+    const code = "code" in error ? error.code : undefined;
+    switch (code) {
+      case "28P01":
+        reason = "authentication_refused";
+        break;
+      case "42501":
+        reason = "metadata_permission_refused";
+        break;
+      case "42P01":
+        reason = "migration_table_unavailable";
+        break;
+      case "57014":
+        reason = "statement_cancelled";
+        break;
+      case "ENETUNREACH":
+      case "EHOSTUNREACH":
+      case "ENOTFOUND":
+      case "ECONNREFUSED":
+      case "ETIMEDOUT":
+        reason = "database_connection_unavailable";
+        break;
+      case "CERT_HAS_EXPIRED":
+      case "DEPTH_ZERO_SELF_SIGNED_CERT":
+      case "SELF_SIGNED_CERT_IN_CHAIN":
+      case "UNABLE_TO_VERIFY_LEAF_SIGNATURE":
+      case "UNABLE_TO_GET_ISSUER_CERT_LOCALLY":
+      case "ERR_TLS_CERT_ALTNAME_INVALID":
+        reason = "certificate_verification_failed";
+        break;
+    }
+    if (error.name === "NotCapable" || error.name === "PermissionDenied") {
+      reason = "runtime_permission_refused";
+    }
+  }
+  // Only fixed labels are emitted. Never serialize the error, its message/cause,
+  // unknown code, URL, host, username, password, or server response.
+  return `${INSPECTION_FAILURE} [phase=${failedPhase}; reason=${reason}]`;
+}
+
+export function inspectionConnection(value: string, existingPassword = "") {
+  let url: URL;
+  let user: string;
+  let password: string;
+  try {
+    url = new URL(value);
+    user = decodeURIComponent(url.username);
+    password = decodeURIComponent(url.password) || existingPassword;
+  } catch {
+    throw new ConnectionConfigurationError("invalid_connection_url");
+  }
   const direct = url.hostname === `db.${INSPECTION_PROJECT}.supabase.co` &&
     user === "postgres";
   const pooler = /^[a-z0-9-]+\.pooler\.supabase\.com$/.test(url.hostname) &&
     user === `postgres.${INSPECTION_PROJECT}`;
   if (
     !["postgres:", "postgresql:"].includes(url.protocol) ||
-    !(direct || pooler) || !password || url.pathname !== "/postgres" ||
-    url.hash || !["", "5432", "6543"].includes(url.port) ||
-    (direct && url.port === "6543") ||
+    !(direct || pooler) || url.pathname !== "/postgres" ||
+    !["", "5432", "6543"].includes(url.port) ||
+    (direct && url.port === "6543")
+  ) throw new ConnectionConfigurationError("target_mismatch");
+  if (
+    url.hash ||
     [...url.searchParams].some(([key, val]) =>
       key !== "sslmode" || !["require", "verify-full"].includes(val)
     ) || [...url.searchParams].length > 1
-  ) throw new Error(INSPECTION_FAILURE);
+  ) throw new ConnectionConfigurationError("unsupported_connection_options");
+  if (!password) {
+    throw new ConnectionConfigurationError("missing_existing_password");
+  }
   // Build explicit options instead of forwarding query parameters to the driver.
   return {
     host: url.hostname,
@@ -102,13 +184,16 @@ export async function readMigrationVersions(query: VersionReader) {
 async function main() {
   const connection = inspectionConnection(
     Deno.env.get("MERIAN_DATABASE_URL") ?? "",
+    Deno.env.get("MERIAN_DATABASE_PASSWORD") ?? "",
   );
   if (Deno.args.length === 1 && Deno.args[0] === "--validate-target") return;
   if (Deno.args.length !== 2) throw new Error(INSPECTION_FAILURE);
   const [comparisonSha, reportDirectory] = Deno.args;
   // Validate candidate identity and local filenames before opening a connection.
+  phase = "local_inventory";
   const local = await localMigrationVersions();
   migrationVersionReport(local, [], comparisonSha);
+  phase = "metadata_read";
   const sql = postgres({
     ...connection,
     ssl: "verify-full",
@@ -140,6 +225,7 @@ async function main() {
   } finally {
     await sql.end({ timeout: 5 });
   }
+  phase = "report_write";
   const report = {
     inspected_at: new Date().toISOString(),
     ...migrationVersionReport(local, remote, comparisonSha),
@@ -170,8 +256,8 @@ async function main() {
 if (import.meta.main) {
   try {
     await main();
-  } catch {
-    console.error(INSPECTION_FAILURE);
+  } catch (error) {
+    console.error(inspectionFailureMessage(error, phase));
     Deno.exit(1);
   }
 }
