@@ -46,22 +46,25 @@ detail surface for one post, with enough context to understand what was shared
 and a clean path back into the app. Anonymous web visitors can view the post,
 but engagement counts are not rendered and they cannot like, comment, reply,
 follow, or edit on the web surface. A centered support-email report action sits
-below the Taxonomy card and contains the immutable post id; this is not an
+below the Taxonomy section and contains the immutable post id; this is not an
 authenticated in-product report write.
 
 ## Homepage and shared presentation
 
-The homepage introduces nearby discovery with the existing app screenshot and
-decorative iOS artwork. Its photo cards continue to consume
-`fetchExploreFeedPosts(24)` and `exploreGridPosterUrl(...)`, with public species
-labels and author username handles. Empty results show an empty state; the page
-does not substitute mock observations or autoplay media. It adds no species
-search, engagement controls, or broader data queries.
+The homepage introduces nearby discovery with the existing upright app
+screenshot, neutral surfaces, and sentence-case typography. Its unframed photo
+cards continue to consume `fetchExploreFeedPosts(24)` and
+`exploreGridPosterUrl(...)`, with public species labels and author username
+handles. Empty results show an empty state; the page does not substitute mock
+observations or autoplay media. It adds no species search, engagement controls,
+or broader data queries.
 
 The shared Mantine theme, header navigation, mobile drawer, and footer carry the
-same forest palette and rounded surfaces across the public routes. Reference and
-post detail content keep their existing component-based presentation and privacy
-boundaries. Light/dark preferences remain supported. Header and footer links
+same neutral palette across the public routes. Observation details use a
+two-column media and identification layout on desktop and a single column on
+mobile, with readable supporting sections and subtle dividers. Hazard notices,
+identification provenance, source links, reporting, and privacy boundaries are
+preserved. Light/dark preferences remain supported. Header and footer links
 resolve to existing pages or homepage anchors.
 
 The homepage contains one existing waitlist form in its closing invitation;
@@ -101,8 +104,8 @@ contribution of submitted scans and links to `/privacy-choices`.
    the first persisted standalone-audio spectrogram thumbnail.
 8. `generateMetadata(...)` emits canonical, Open Graph, and Twitter metadata
    using the post title and resolved poster.
-9. The page renders the public post with default Mantine components and props,
-   without route-specific CSS classes or custom page chrome.
+9. The page renders the public post with Mantine components and scoped
+   observation layout classes in `app/globals.css`.
 
 Visual media on the detail route is rendered in canonical `order_index` order.
 Confirmed-missing items are absent from that ordered snapshot. If every primary

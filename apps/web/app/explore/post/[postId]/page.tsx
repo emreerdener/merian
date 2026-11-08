@@ -1,4 +1,8 @@
-import { identificationDescription, originalIdentificationDescription, permitsSpeciesPresentation } from "../../../../lib/exploreIdentification";
+import {
+  identificationDescription,
+  originalIdentificationDescription,
+  permitsSpeciesPresentation,
+} from "../../../../lib/exploreIdentification";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -12,7 +16,6 @@ import {
   Container,
   Divider,
   Group,
-  Image,
   SimpleGrid,
   Stack,
   Text,
@@ -20,21 +23,25 @@ import {
   Title,
 } from "@mantine/core";
 import {
+  type ExplorePost,
   fetchExplorePost,
   fetchExplorePostPage,
-  type ExplorePost,
 } from "@/lib/explore";
 import { explorePosterUrl } from "@/lib/exploreMedia";
-import { compactSpeciesTitle, postTitle, publicAuthorHandle } from "@/lib/formatting";
+import {
+  compactSpeciesTitle,
+  postTitle,
+  publicAuthorHandle,
+} from "@/lib/formatting";
 import { supportMailto } from "@/lib/site";
 import {
   IconAlertTriangle,
   IconArrowLeft,
+  IconBinoculars,
   IconCalendar,
   IconCloud,
-  IconBinoculars,
-  IconMapPin,
   IconFlag,
+  IconMapPin,
   IconUser,
 } from "@tabler/icons-react";
 import { ExploreMediaCarousel } from "@/components/ExploreMediaCarousel";
@@ -98,9 +105,7 @@ export async function generateMetadata({
       description: `${description} shared on Naturebook.`,
       url: canonicalPath,
       siteName: "Naturebook",
-      ...(posterUrl
-        ? { images: [{ url: posterUrl, alt: title }] }
-        : {}),
+      ...(posterUrl ? { images: [{ url: posterUrl, alt: title }] } : {}),
     },
     twitter: {
       card: posterUrl ? "summary_large_image" : "summary",
@@ -159,9 +164,13 @@ export default async function ExplorePostPage({
   }
 
   return (
-    <Container size="sm" py={{ base: "md", sm: "xl" }}>
+    <Container
+      size="xl"
+      py={{ base: "md", sm: "xl" }}
+      className="observation-page"
+    >
       <Stack gap="lg">
-        <Link href="/#explore" style={{ textDecoration: "none" }}>
+        <Link href="/#explore" className="observation-back">
           <Anchor
             component="span"
             display="inline-flex"
@@ -175,16 +184,19 @@ export default async function ExplorePostPage({
           </Anchor>
         </Link>
 
-        <Card withBorder shadow="sm" radius="lg" p={0}>
-          <ExploreMediaCarousel
-            mediaItems={post.mediaItems}
-            heroImageUrl={post.heroImageUrl}
-            referenceImages={permitsSpeciesPresentation(post.identification) ? detail?.referenceImages ?? [] : []}
-            altText={title}
-            postId={post.postId}
-          />
-
-          <Stack gap="lg" p={{ base: "md", sm: "xl" }}>
+        <article className="observation-hero">
+          <div className="observation-media">
+            <ExploreMediaCarousel
+              mediaItems={post.mediaItems}
+              heroImageUrl={post.heroImageUrl}
+              referenceImages={permitsSpeciesPresentation(post.identification)
+                ? detail?.referenceImages ?? []
+                : []}
+              altText={title}
+              postId={post.postId}
+            />
+          </div>
+          <Stack gap="lg" className="observation-summary">
             <Group justify="space-between" align="flex-start" gap="md">
               <Group gap="sm">
                 <Avatar
@@ -200,212 +212,257 @@ export default async function ExplorePostPage({
                     <Text fw={700}>
                       {authorHandle}
                     </Text>
-                    {post.authorIsPro ? (
-                      <Badge
-                        size="xs"
-                        variant="filled"
-                        style={{
-                          backgroundColor: "var(--mantine-color-text)",
-                          color: "var(--mantine-color-body)",
-                        }}
-                      >
-                        Pro
-                      </Badge>
-                    ) : null}
+                    {post.authorIsPro
+                      ? (
+                        <Badge
+                          size="xs"
+                          variant="filled"
+                          style={{
+                            backgroundColor: "var(--mantine-color-text)",
+                            color: "var(--mantine-color-body)",
+                          }}
+                        >
+                          Pro
+                        </Badge>
+                      )
+                      : null}
                   </Group>
-                  {post.publicLocationLabel ? (
-                    <Text size="sm" c="dimmed">
-                      {post.publicLocationLabel}
-                    </Text>
-                  ) : null}
+                  {post.publicLocationLabel
+                    ? (
+                      <Text size="sm" c="dimmed">
+                        {post.publicLocationLabel}
+                      </Text>
+                    )
+                    : null}
                 </Stack>
               </Group>
-
             </Group>
 
-            <Stack gap="xs" align="center">
-              {identificationDescription(post.identification) ? (
-                <Text size="sm" c="dimmed" ta="center">{identificationDescription(post.identification)}</Text>
-              ) : null}
-              {originalIdentificationDescription(post.identification) ? (
-                <Text size="sm" c="dimmed" ta="center">{originalIdentificationDescription(post.identification)}</Text>
-              ) : null}
-              <Stack gap={0} align="center">
-                {post.speciesScientificName ? (
-                  <Text size="lg" c="dimmed" fs="italic" ta="center">
-                    {post.speciesScientificName}
+            <Stack gap="sm">
+              {identificationDescription(post.identification)
+                ? (
+                  <Text size="sm" c="dimmed">
+                    {identificationDescription(post.identification)}
                   </Text>
-                ) : null}
-                <Title order={1} ta="center">
+                )
+                : null}
+              {originalIdentificationDescription(post.identification)
+                ? (
+                  <Text size="sm" c="dimmed">
+                    {originalIdentificationDescription(post.identification)}
+                  </Text>
+                )
+                : null}
+              <Stack gap={6}>
+                <Title order={1} className="observation-title">
                   {post.speciesCommonName || title}
                 </Title>
+                {post.speciesScientificName
+                  ? (
+                    <Text size="lg" c="dimmed" fs="italic">
+                      {post.speciesScientificName}
+                    </Text>
+                  )
+                  : null}
               </Stack>
-              {detail?.aiReasoning ? (
-                <Text maw={760} ta="center">
-                  {detail.aiReasoning}
-                </Text>
-              ) : null}
+              {detail?.aiReasoning
+                ? (
+                  <Text maw={760}>
+                    {detail.aiReasoning}
+                  </Text>
+                )
+                : null}
             </Stack>
 
-            {hashtags.length ? (
-              <Group justify="center" gap="xs">
-                {hashtags.map((tag) => (
-                  <Badge key={tag} variant="light">
-                    {tag.startsWith("#") ? tag : `#${tag}`}
-                  </Badge>
-                ))}
-              </Group>
-            ) : null}
-
-            {hazardType !== "none" ? (
-              <Card
-                withBorder
-                radius="lg"
-                p="md"
-                shadow="none"
-                style={{
-                  backgroundColor: `var(--mantine-color-${hazardColor}-light)`,
-                  maxWidth: 600,
-                  width: "100%",
-                  margin: "0 auto",
-                }}
-              >
-                <Group gap="md" align="center" wrap="nowrap">
-                  <ThemeIcon
-                    variant="light"
-                    color={hazardColor}
-                    size="xl"
-                    radius="md"
-                  >
-                    <IconAlertTriangle size={32} />
-                  </ThemeIcon>
-                  <Stack gap={2}>
-                    <Text
-                      size="xs"
-                      fw={700}
-                      style={{ letterSpacing: "1px" }}
-                      tt="uppercase"
-                      c={`${hazardColor}.8`}
+            {hashtags.length
+              ? (
+                <Group gap="xs">
+                  {hashtags.map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant="default"
+                      className="observation-tag"
                     >
-                      Caution
-                    </Text>
-                    <Text fw={700} size="md">
-                      {hazardTitle}
-                    </Text>
-                    <Text size="sm">{hazardSubtitle}</Text>
-                  </Stack>
+                      {tag.startsWith("#") ? tag : `#${tag}`}
+                    </Badge>
+                  ))}
                 </Group>
-              </Card>
-            ) : null}
-          </Stack>
-        </Card>
+              )
+              : null}
 
-        {detail?.fieldNotes ? (
-          <InfoCard title="Field notes">
-            <Text>{detail.fieldNotes}</Text>
-          </InfoCard>
-        ) : null}
-
-        {/* Reference images are now displayed directly in the main header image carousel */}
-
-        {hasOverview ? (
-          <InfoCard title="Overview">
-            <Stack gap="md">
-              {conservationStatus ? (
-                <KeyValueRow label="Conservation" value={conservationStatus} />
-              ) : null}
-              {detail?.wikipediaOverview ? (
-                <Text>{detail.wikipediaOverview}</Text>
-              ) : null}
-              {detail?.wikipediaUrl ? (
-                <Button
-                  component="a"
-                  href={detail.wikipediaUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  variant="outline"
-                  w="fit-content"
+            {hazardType !== "none"
+              ? (
+                <Card
+                  withBorder
+                  radius="lg"
+                  p="md"
+                  shadow="none"
+                  style={{
+                    backgroundColor:
+                      `var(--mantine-color-${hazardColor}-light)`,
+                    maxWidth: 600,
+                    width: "100%",
+                    margin: "0 auto",
+                  }}
                 >
-                  Read source
-                </Button>
-              ) : null}
-            </Stack>
-          </InfoCard>
-        ) : null}
-
-        {observationRows.length ? (
-          <InfoCard title="Observation">
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-              {observationRows.map((row) => {
-                let iconNode = null;
-                if (row.symbol === "L") {
-                  iconNode = <IconMapPin size={18} />;
-                } else if (row.symbol === "D") {
-                  iconNode = <IconBinoculars size={18} />;
-                } else if (row.symbol === "W") {
-                  iconNode = <IconCloud size={18} />;
-                } else if (row.symbol === "S") {
-                  iconNode = <IconCalendar size={18} />;
-                }
-
-                return (
-                  <Group
-                    key={`${row.label}-${row.value}`}
-                    gap="sm"
-                    wrap="nowrap"
-                  >
-                    <ThemeIcon variant="default" radius="xl" size="lg">
-                      {iconNode}
+                  <Group gap="md" align="center" wrap="nowrap">
+                    <ThemeIcon
+                      variant="light"
+                      color={hazardColor}
+                      size="xl"
+                      radius="md"
+                    >
+                      <IconAlertTriangle size={32} />
                     </ThemeIcon>
-                    <Stack gap={0}>
-                      <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
-                        {row.label}
+                    <Stack gap={2}>
+                      <Text
+                        size="xs"
+                        fw={700}
+                        tt="uppercase"
+                        style={{
+                          color: "var(--text-main)",
+                          letterSpacing: "1px",
+                        }}
+                      >
+                        Caution
                       </Text>
-                      <Text fw={600}>{row.value}</Text>
+                      <Text fw={700} size="md">
+                        {hazardTitle}
+                      </Text>
+                      <Text size="sm">{hazardSubtitle}</Text>
                     </Stack>
                   </Group>
-                );
-              })}
-            </SimpleGrid>
-          </InfoCard>
-        ) : null}
+                </Card>
+              )
+              : null}
+          </Stack>
+        </article>
 
-        {detail?.alternativeCommonNames.length ? (
-          <InfoCard title="Also known as">
-            <Group gap="xs">
-              {detail.alternativeCommonNames.map((name) => (
-                <Badge key={name} variant="default">
-                  {name}
-                </Badge>
-              ))}
-            </Group>
-          </InfoCard>
-        ) : null}
+        <div className="observation-content">
+          {detail?.fieldNotes
+            ? (
+              <InfoCard title="Field notes">
+                <Text>{detail.fieldNotes}</Text>
+              </InfoCard>
+            )
+            : null}
 
-        {detail?.taxonomy.length ? (
-          <InfoCard title="Taxonomy">
-            <Stack gap="sm">
-              {detail.taxonomy.map((row, index) => (
-                <Stack key={`${row.label}-${row.value}`} gap="sm">
-                  {index > 0 ? <Divider /> : null}
-                  <KeyValueRow label={row.label} value={row.value} />
+          {/* Reference images are now displayed directly in the main header image carousel */}
+
+          {hasOverview
+            ? (
+              <InfoCard title="Overview">
+                <Stack gap="md">
+                  {conservationStatus
+                    ? (
+                      <KeyValueRow
+                        label="Conservation"
+                        value={conservationStatus}
+                      />
+                    )
+                    : null}
+                  {detail?.wikipediaOverview
+                    ? <Text>{detail.wikipediaOverview}</Text>
+                    : null}
+                  {detail?.wikipediaUrl
+                    ? (
+                      <Button
+                        component="a"
+                        href={detail.wikipediaUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        variant="outline"
+                        w="fit-content"
+                      >
+                        Read source
+                      </Button>
+                    )
+                    : null}
                 </Stack>
-              ))}
-            </Stack>
-          </InfoCard>
-        ) : null}
+              </InfoCard>
+            )
+            : null}
 
-        <Group justify="center">
-          <Button
-            component="a"
-            href={supportMailto(`Report Explore post ${post.postId}`)}
-            variant="default"
-            size="compact-sm"
-            leftSection={<IconFlag size={15} />}
-          >
-            Report this post
-          </Button>
-        </Group>
+          {observationRows.length
+            ? (
+              <InfoCard title="Observation">
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                  {observationRows.map((row) => {
+                    let iconNode = null;
+                    if (row.symbol === "L") {
+                      iconNode = <IconMapPin size={18} />;
+                    } else if (row.symbol === "D") {
+                      iconNode = <IconBinoculars size={18} />;
+                    } else if (row.symbol === "W") {
+                      iconNode = <IconCloud size={18} />;
+                    } else if (row.symbol === "S") {
+                      iconNode = <IconCalendar size={18} />;
+                    }
+
+                    return (
+                      <Group
+                        key={`${row.label}-${row.value}`}
+                        gap="sm"
+                        wrap="nowrap"
+                      >
+                        <ThemeIcon variant="default" radius="xl" size="lg">
+                          {iconNode}
+                        </ThemeIcon>
+                        <Stack gap={0}>
+                          <Text size="sm" c="dimmed">
+                            {row.label}
+                          </Text>
+                          <Text fw={500}>{row.value}</Text>
+                        </Stack>
+                      </Group>
+                    );
+                  })}
+                </SimpleGrid>
+              </InfoCard>
+            )
+            : null}
+
+          {detail?.alternativeCommonNames.length
+            ? (
+              <InfoCard title="Also known as">
+                <Group gap="xs">
+                  {detail.alternativeCommonNames.map((name) => (
+                    <Badge key={name} variant="default">
+                      {name}
+                    </Badge>
+                  ))}
+                </Group>
+              </InfoCard>
+            )
+            : null}
+
+          {detail?.taxonomy.length
+            ? (
+              <InfoCard title="Taxonomy">
+                <Stack gap="sm">
+                  {detail.taxonomy.map((row, index) => (
+                    <Stack key={`${row.label}-${row.value}`} gap="sm">
+                      {index > 0 ? <Divider /> : null}
+                      <KeyValueRow label={row.label} value={row.value} />
+                    </Stack>
+                  ))}
+                </Stack>
+              </InfoCard>
+            )
+            : null}
+
+          <Group justify="center">
+            <Button
+              component="a"
+              href={supportMailto(`Report Explore post ${post.postId}`)}
+              variant="default"
+              size="compact-sm"
+              leftSection={<IconFlag size={15} />}
+            >
+              Report this post
+            </Button>
+          </Group>
+        </div>
       </Stack>
     </Container>
   );
@@ -414,24 +471,29 @@ export default async function ExplorePostPage({
 // MARK: - Subcomponents
 function InfoCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <Card withBorder shadow="sm" radius="lg" p={{ base: "md", sm: "lg" }}>
+    <section className="observation-section">
       <Stack gap="md">
         <Title order={2} size="h3">
           {title}
         </Title>
         {children}
       </Stack>
-    </Card>
+    </section>
   );
 }
 
 function KeyValueRow({ label, value }: { label: string; value: string }) {
   return (
-    <Group justify="space-between" align="flex-start" gap="md">
-      <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+    <Group
+      justify="space-between"
+      align="flex-start"
+      gap="md"
+      className="observation-key-value"
+    >
+      <Text size="sm" c="dimmed">
         {label}
       </Text>
-      <Text fw={600} ta="right">
+      <Text fw={500} ta="right">
         {value}
       </Text>
     </Group>
